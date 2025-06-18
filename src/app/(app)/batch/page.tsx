@@ -118,7 +118,7 @@ export default function BatchProcessingPage() {
   };
 
   const getAuthToken = async (): Promise<string | null> => {
-    const currentAuth = getAuth(app);
+    const currentAuth = auth; // Use the imported auth instance
     if (currentAuth.currentUser) {
       try {
         return await getIdToken(currentAuth.currentUser);
@@ -150,7 +150,7 @@ export default function BatchProcessingPage() {
     //   description: `Escuchando actualizaciones para el lote ${batchId}...`,
     // });
     
-    const currentAuth = getAuth(app);
+    const currentAuth = auth; // Use the imported auth instance
     if (!currentAuth.currentUser) {
       toast({ title: "Usuario No Autenticado", description: "Debes iniciar sesión para procesar imágenes.", variant: "destructive" });
       router.push('/login');
@@ -188,7 +188,7 @@ export default function BatchProcessingPage() {
       return;
     }
     
-    const currentAuth = getAuth(app);
+    const currentAuth = auth; // Use the imported auth instance
     if (!currentAuth.currentUser) {
       toast({ title: "Usuario No Autenticado", description: "Debes iniciar sesión para subir imágenes.", variant: "destructive" });
       router.push('/login');
@@ -585,5 +585,3 @@ export default function BatchProcessingPage() {
   );
 }
 
-
-    
