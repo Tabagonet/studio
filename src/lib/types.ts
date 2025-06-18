@@ -21,7 +21,8 @@ export interface ProductPhoto {
   seoTitle?: string;
   seoDescription?: string;
   seoCaption?: string;
-  localPath?: string; 
+  localPath?: string; // Could be deprecated if all uploads are external
+  externalUrl?: string; // URL from quefoto.es or similar
 }
 
 export interface ProductAttribute {
@@ -37,7 +38,7 @@ export interface ProductData {
   productType: ProductType;
   regularPrice: string;
   salePrice?: string;
-  category: string; // Guardará el slug de la categoría de WooCommerce
+  category: string; 
   keywords: string;
   shortDescription: string;
   longDescription: string;
@@ -54,7 +55,7 @@ export interface ProductTemplate {
   type: TemplateType;
   content: string;
   scope: TemplateScope;
-  categoryValue?: string; // Sigue siendo el slug para compatibilidad con plantillas existentes
+  categoryValue?: string; 
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -71,7 +72,7 @@ export interface AutomationRule {
   id: string;
   name: string;
   keyword: string;
-  categoryToAssign?: string; // Sigue siendo el slug para compatibilidad
+  categoryToAssign?: string; 
   tagsToAssign?: string; 
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -105,7 +106,6 @@ export interface AppNotification {
 
 export type AttributeSuggestion = string;
 
-// Product context to be stored with ProcessingStatusEntry for wizard flow
 export interface WizardProductContext {
   shortDescription: string;
   longDescription: string;
@@ -114,7 +114,7 @@ export interface WizardProductContext {
   productType: ProductType;
   regularPrice: string;
   salePrice?: string;
-  category: string; // Slug de la categoría de WooCommerce
+  category: string; 
   keywords: string;
   attributes: ProductAttribute[];
   isPrimary: boolean; 
@@ -122,22 +122,22 @@ export interface WizardProductContext {
 
 
 export interface ProcessingStatusEntry {
-  assignedCategorySlug: string | undefined;
+  assignedCategorySlug: string | undefined | null; // Allow null
   id: string; 
   userId: string;
   batchId: string;
   imageName: string;
-  originalStoragePath: string; 
-  originalDownloadUrl: string; 
+  originalStoragePath: string; // Now stores external URL from quefoto.es
+  originalDownloadUrl: string; // Now stores external URL from quefoto.es
   status: "uploaded" | 
           "processing_image_started" | 
-          "processing_image_downloaded" | 
+          "processing_image_downloaded" | // Downloaded from quefoto.es
           "processing_image_validated" | 
           "processing_image_optimized" | 
           "processing_image_seo_named" | 
           "processing_image_metadata_generated" |
           "processing_image_rules_applied" |
-          "processing_image_reuploaded" | 
+          "processing_image_reuploaded" | // Reuploaded processed image to quefoto.es
           "completed_image_pending_woocommerce" | 
           "error_processing_image" |
           "completed_woocommerce_integration" | 
@@ -146,8 +146,8 @@ export interface ProcessingStatusEntry {
   updatedAt?: Timestamp; 
   progress: number;
   seoName?: string;
-  processedImageStoragePath?: string; 
-  processedImageDownloadUrl?: string; 
+  processedImageStoragePath?: string; // Now stores external URL of processed image from quefoto.es
+  processedImageDownloadUrl?: string; // Now stores external URL of processed image from quefoto.es
   resolutions?: Record<string, string>; 
   seoMetadata?: { alt?: string; title?: string };
   errorMessage?: string;
@@ -162,3 +162,5 @@ export interface WooCommerceCategory {
   name: string;
   slug: string;
 }
+
+    

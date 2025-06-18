@@ -10,7 +10,8 @@ import { Step2Preview } from "./step-2-preview";
 import { Step3Confirm } from "./step-3-confirm";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { db } from '@/lib/firebase';
+import { db } from '@/lib/firebase'; // Firebase client SDK
+import { getAuth, getIdToken } from 'firebase/auth'; // Firebase client auth
 import { doc, serverTimestamp, collection, writeBatch, Timestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 
@@ -40,12 +41,38 @@ export function ProductWizard() {
     }
   };
 
+  const getAuthToken = async (): Promise<string | null> => {
+    const auth = getAuth();
+    if (auth.currentUser) {
+      try {
+        return await getIdToken(auth.currentUser);
+      } catch (error) {
+        console.error("Error getting auth token:", error);
+        toast({
+          title: "Error de Autenticación",
+          description: "No se pudo obtener el token de autenticación. Por favor, intenta recargar la página.",
+          variant: "destructive",
+        });
+        return null;
+      }
+    }
+    toast({
+        title: "Usuario No Autenticado",
+        description: "Por favor, inicia sesión para continuar.",
+        variant: "destructive",
+    });
+    return null;
+  };
+
   const handleSubmitProduct = async () => {
     setIsProcessing(true);
     const wizardJobId = `wizard_${Date.now()}`;
-    const userId = 'temp_user_id'; 
+    // const userId = 'temp_user_id'; // Replace with actual user ID if available from auth
+    const auth = getAuth();
+    const userId = auth.currentUser ? auth.currentUser.uid : 'temp_user_id_fallback';
 
-    const uploadedPhotoDetails: { name: string; relativePath: string; originalPhotoId: string }[] = [];
+
+    const uploadedPhotoDetails: { name: string; externalUrl: string; originalPhotoId: string }[] = [];
     let allUploadsSuccessful = true;
 
     if (productData.photos.length === 0) {
@@ -58,33 +85,43 @@ export function ProductWizard() {
         return;
     }
 
+    const authToken = await getAuthToken();
+    if (!authToken) {
+        setIsProcessing(false);
+        return;
+    }
+
     for (const photo of productData.photos) {
       const formData = new FormData();
-      formData.append('file', photo.file);
-      formData.append('batchId', wizardJobId);
-      formData.append('userId', userId);
-      formData.append('fileName', photo.file.name);
+      formData.append('imagen', photo.file); // 'imagen' as expected by /api/upload-image
 
       try {
-        const response = await fetch('/api/upload-image-local', {
+        const response = await fetch('/api/upload-image', {
           method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            // 'Content-Type' is not set for FormData, browser handles it
+          },
           body: formData,
         });
 
         if (!response.ok) {
-          let errorMessage = `Error al subir ${photo.file.name}: ${response.status} ${response.statusText}`;
+          let errorMessage = `Error al subir ${photo.file.name} a servidor externo: ${response.status} ${response.statusText}`;
           const responseText = await response.text();
           try {
             const errorData = JSON.parse(responseText);
             errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
           } catch (parseError) {
-            errorMessage = `Server returned non-JSON error for upload-image-local (wizard). Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
-            console.error("Non-JSON error response from /api/upload-image-local (wizard):", responseText);
+            errorMessage = `Server returned non-JSON error for /api/upload-image. Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
+            console.error("Non-JSON error response from /api/upload-image:", responseText);
           }
           throw new Error(errorMessage);
         }
         const result = await response.json();
-        uploadedPhotoDetails.push({ name: photo.file.name, relativePath: result.relativePath, originalPhotoId: photo.id });
+        if (!result.success || !result.url) {
+            throw new Error(result.error || `La subida de ${photo.file.name} al servidor externo no devolvió una URL.`);
+        }
+        uploadedPhotoDetails.push({ name: photo.file.name, externalUrl: result.url, originalPhotoId: photo.id });
       } catch (error) {
         console.error(`Error al subir ${photo.file.name} para el asistente:`, error);
         toast({
@@ -117,6 +154,8 @@ export function ProductWizard() {
             category: productData.category,
             keywords: productData.keywords,
             attributes: productData.attributes,
+            shortDescription: productData.shortDescription,
+            longDescription: productData.longDescription,
             isPrimary: originalPhotoData?.isPrimary || false,
         };
 
@@ -124,8 +163,8 @@ export function ProductWizard() {
           userId: userId,
           batchId: wizardJobId,
           imageName: uploadedPhoto.name,
-          originalStoragePath: uploadedPhoto.relativePath,
-          originalDownloadUrl: uploadedPhoto.relativePath,
+          originalStoragePath: uploadedPhoto.externalUrl, // Store external URL
+          originalDownloadUrl: uploadedPhoto.externalUrl, // Store external URL
           status: "uploaded",
           uploadedAt: serverTimestamp() as Timestamp,
           progress: 0,
@@ -149,7 +188,7 @@ export function ProductWizard() {
       const response = await fetch('/api/process-photos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ batchId: wizardJobId }),
+        body: JSON.stringify({ batchId: wizardJobId, userId: userId }), // Pass userId if available
       });
       
       if (!response.ok) {
@@ -164,7 +203,6 @@ export function ProductWizard() {
         }
         throw new Error(errorMessage);
       }
-      // const result = await response.json(); // Not strictly needed unless checking result content
 
       toast({
         title: "Producto Enviado a Procesamiento",

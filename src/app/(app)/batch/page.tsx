@@ -12,7 +12,8 @@ import type { ProductPhoto, ProcessingStatusEntry } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase'; 
-import { doc, setDoc, serverTimestamp, collection, writeBatch, query, where, onSnapshot, Unsubscribe } from 'firebase/firestore';
+import { getAuth, getIdToken } from 'firebase/auth'; // Firebase client auth
+import { doc, setDoc, serverTimestamp, collection, writeBatch, query, where, onSnapshot, Unsubscribe, Timestamp } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
 
 export default function BatchProcessingPage() {
@@ -86,6 +87,29 @@ export default function BatchProcessingPage() {
     setUploadProgress({});
   };
 
+  const getAuthToken = async (): Promise<string | null> => {
+    const auth = getAuth();
+    if (auth.currentUser) {
+      try {
+        return await getIdToken(auth.currentUser);
+      } catch (error) {
+        console.error("Error getting auth token:", error);
+        toast({
+          title: "Error de Autenticación",
+          description: "No se pudo obtener el token de autenticación. Por favor, intenta recargar la página.",
+          variant: "destructive",
+        });
+        return null;
+      }
+    }
+    toast({
+        title: "Usuario No Autenticado",
+        description: "Por favor, inicia sesión para continuar.",
+        variant: "destructive",
+    });
+    return null;
+  };
+
   const triggerBackendProcessing = async (batchId: string) => {
     setCurrentBatchId(batchId); 
     
@@ -93,12 +117,16 @@ export default function BatchProcessingPage() {
       title: "Iniciando Monitoreo de Procesamiento Backend",
       description: `Escuchando actualizaciones para el lote ${batchId}...`,
     });
+    
+    const auth = getAuth();
+    const userId = auth.currentUser ? auth.currentUser.uid : 'temp_user_id_fallback';
+
 
     try {
       const response = await fetch('/api/process-photos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ batchId }),
+        body: JSON.stringify({ batchId, userId: userId }),
       });
       if (!response.ok) {
         let errorMessage = `Error del servidor: ${response.status} ${response.statusText}`;
@@ -129,7 +157,15 @@ export default function BatchProcessingPage() {
     setBatchPhotosStatus([]);
     setUploadProgress({});
     const newBatchId = `batch_${Date.now()}`;
-    const userId = 'temp_user_id'; 
+    
+    const auth = getAuth();
+    const userId = auth.currentUser ? auth.currentUser.uid : 'temp_user_id_fallback';
+
+    const authToken = await getAuthToken();
+    if (!authToken) {
+        setIsUploading(false);
+        return;
+    }
 
     const firestoreBatch = writeBatch(db); 
     let firestoreWriteCount = 0;
@@ -139,14 +175,14 @@ export default function BatchProcessingPage() {
       setUploadProgress(prev => ({ ...prev, [photo.id]: 0 }));
 
       const formData = new FormData();
-      formData.append('file', photo.file);
-      formData.append('batchId', newBatchId);
-      formData.append('userId', userId);
-      formData.append('fileName', photo.file.name);
+      formData.append('imagen', photo.file); // 'imagen' as expected by /api/upload-image
 
       try {
-        const response = await fetch('/api/upload-image-local', {
+        const response = await fetch('/api/upload-image', { // Use new external upload API
           method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+          },
           body: formData,
         });
 
@@ -157,31 +193,35 @@ export default function BatchProcessingPage() {
             const errorData = JSON.parse(responseText);
             errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
           } catch (parseError) {
-            errorMessage = `Server returned non-JSON error for upload-image-local. Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
-            console.error("Non-JSON error response from /api/upload-image-local:", responseText);
+            errorMessage = `Server returned non-JSON error for /api/upload-image. Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
+            console.error("Non-JSON error response from /api/upload-image:", responseText);
           }
           throw new Error(errorMessage);
         }
 
         const result = await response.json();
-        const { relativePath } = result;
+        if (!result.success || !result.url) {
+            throw new Error(result.error || `La subida de ${photo.file.name} al servidor externo no devolvió una URL.`);
+        }
+        const externalUrl = result.url;
 
         const photoDocRef = doc(collection(db, 'processing_status')); 
         firestoreBatch.set(photoDocRef, {
           userId: userId,
           batchId: newBatchId,
           imageName: photo.file.name,
-          originalStoragePath: relativePath, 
-          originalDownloadUrl: relativePath, 
+          originalStoragePath: externalUrl, 
+          originalDownloadUrl: externalUrl, 
           status: "uploaded", 
-          uploadedAt: serverTimestamp(),
+          uploadedAt: serverTimestamp() as Timestamp,
           progress: 0, 
         } as Omit<ProcessingStatusEntry, 'id' | 'updatedAt'>);
         firestoreWriteCount++;
 
         setUploadProgress(prev => ({ ...prev, [photo.id]: 100 }));
         
-        setPhotos(prevPhotos => prevPhotos.map(p => p.id === photo.id ? {...p, localPath: relativePath} : p));
+        setPhotos(prevPhotos => prevPhotos.map(p => p.id === photo.id ? {...p, externalUrl: externalUrl} : p));
+
 
       } catch (error) {
         console.error(`Error al subir ${photo.file.name}:`, error);
@@ -217,14 +257,14 @@ export default function BatchProcessingPage() {
     if (totalAttempted > 0) {
         if (successfulUploadsCount === totalAttempted) {
             toast({
-                title: "Subida Local Completa",
-                description: `Se guardaron ${successfulUploadsCount} imágenes localmente. Iniciando procesamiento backend...`,
+                title: "Subida a Servidor Externo Completa",
+                description: `Se subieron ${successfulUploadsCount} imágenes. Iniciando procesamiento backend...`,
             });
             await triggerBackendProcessing(newBatchId);
         } else if (successfulUploadsCount > 0) {
             toast({
-                title: "Subida Local Parcial",
-                description: `Se guardaron ${successfulUploadsCount} de ${totalAttempted} imágenes. Algunas subidas fallaron. ¿Deseas procesar las imágenes subidas correctamente?`,
+                title: "Subida Parcial",
+                description: `Se subieron ${successfulUploadsCount} de ${totalAttempted} imágenes. Algunas subidas fallaron. ¿Deseas procesar las imágenes subidas correctamente?`,
                 action: (
                   <Button onClick={() => triggerBackendProcessing(newBatchId)} size="sm">
                     Procesar Igualmente
@@ -235,8 +275,8 @@ export default function BatchProcessingPage() {
             setCurrentBatchId(newBatchId);
         } else {
              toast({
-                title: "Subida Local Fallida",
-                description: "No se pudo guardar ninguna imagen localmente. Por favor, revisa los errores e inténtalo de nuevo.",
+                title: "Subida Fallida",
+                description: "No se pudo subir ninguna imagen al servidor externo. Por favor, revisa los errores e inténtalo de nuevo.",
                 variant: "destructive",
             });
         }
@@ -277,15 +317,15 @@ export default function BatchProcessingPage() {
 
   const getStatusText = (status: ProcessingStatusEntry['status']): string => {
     const map: Record<ProcessingStatusEntry['status'], string> = {
-        uploaded: "Subido",
+        uploaded: "Subido a Servidor Externo",
         processing_image_started: "Iniciando Proc. Imagen",
-        processing_image_downloaded: "Cargando Imagen Local",
+        processing_image_downloaded: "Descargando de Servidor Externo",
         processing_image_validated: "Validando Imagen",
         processing_image_optimized: "Optimizando Imagen",
         processing_image_seo_named: "Generando Nombre SEO",
         processing_image_metadata_generated: "Generando Metadatos",
         processing_image_rules_applied: "Aplicando Reglas",
-        processing_image_reuploaded: "Guardando Imagen Proc.",
+        processing_image_reuploaded: "Subiendo Imagen Procesada a Servidor Externo",
         completed_image_pending_woocommerce: "Proc. Imagen Completo",
         error_processing_image: "Error Proc. Imagen",
         completed_woocommerce_integration: "Integrado con WooCommerce",
@@ -302,9 +342,9 @@ export default function BatchProcessingPage() {
   return (
     <div className="container mx-auto py-8 space-y-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground font-headline">Procesamiento de Productos en Lote (Local)</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground font-headline">Procesamiento de Productos en Lote (Servidor Externo)</h1>
         <p className="text-muted-foreground">
-          Sube múltiples imágenes JPG para crear varios productos. Las imágenes se guardarán en tu servidor local.
+          Sube múltiples imágenes JPG para crear varios productos. Las imágenes se subirán a tu servidor externo (quefoto.es).
           Patrón: <code className="bg-muted px-1 py-0.5 rounded-sm font-code">NombreProducto-IDENTIFICADORES-NUMERO.jpg</code>
         </p>
       </div>
@@ -314,7 +354,7 @@ export default function BatchProcessingPage() {
           <div className="flex items-center space-x-3">
             <UploadCloud className="h-8 w-8 text-primary" />
             <div>
-              <CardTitle className="text-xl">Cargar Imágenes para Lote (Guardado Local)</CardTitle>
+              <CardTitle className="text-xl">Cargar Imágenes para Lote (Servidor Externo)</CardTitle>
               <CardDescription>
                 Arrastra y suelta tus imágenes JPG o haz clic para seleccionarlas. Máximo 50 archivos, 2MB por archivo.
               </CardDescription>
@@ -332,8 +372,8 @@ export default function BatchProcessingPage() {
              <div className="flex items-center space-x-3">
                 <Loader2 className="h-8 w-8 text-primary animate-spin" />
                 <div>
-                    <CardTitle>Guardando Imágenes Localmente...</CardTitle>
-                    <CardDescription>Por favor, espera mientras se guardan tus imágenes y se registran.</CardDescription>
+                    <CardTitle>Subiendo Imágenes a Servidor Externo...</CardTitle>
+                    <CardDescription>Por favor, espera mientras se suben tus imágenes y se registran.</CardDescription>
                 </div>
             </div>
           </CardHeader>
@@ -405,7 +445,7 @@ export default function BatchProcessingPage() {
             >
               {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {!isUploading && <Layers className="mr-2 h-4 w-4" />}
-              {isUploading ? "Guardando y Registrando..." : `Iniciar Guardado Local y Procesamiento (${photos.length} ${photos.length === 1 ? 'imagen' : 'imágenes'})`}
+              {isUploading ? "Subiendo y Registrando..." : `Iniciar Subida a Servidor Externo y Procesamiento (${photos.length} ${photos.length === 1 ? 'imagen' : 'imágenes'})`}
             </Button>
           </CardFooter>
         </Card>
