@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DialogFooter, DialogClose } from "@/components/ui/dialog";
-// PRODUCT_CATEGORIES ya no se usa aquí directamente para el selector principal
 import type { AutomationRuleFormValues, AutomationRule, WooCommerceCategory } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -18,7 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 const ruleFormSchema = z.object({
   name: z.string().min(3, { message: "El nombre debe tener al menos 3 caracteres." }),
   keyword: z.string().min(2, { message: "La palabra clave debe tener al menos 2 caracteres." }),
-  categoryToAssign: z.string().optional(), // Sigue siendo el slug
+  categoryToAssign: z.string().optional(), 
   tagsToAssign: z.string().optional().refine(val => {
     if (val === undefined || val.trim() === "") return true; 
     return val.split(',').every(tag => tag.trim().length > 0) && !val.startsWith(',') && !val.endsWith(',');
@@ -68,8 +67,16 @@ export function RuleForm({ initialData, onSubmit, onCancel, isSubmitting }: Rule
       try {
         const response = await fetch('/api/woocommerce/categories');
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to fetch categories for rules');
+          let errorMessage = `Error fetching categories for rules: ${response.status} ${response.statusText}`;
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
+          } catch (jsonError) {
+            const textError = await response.text();
+            errorMessage = `Server returned non-JSON error for rule categories. Status: ${response.status}. Body: ${textError.substring(0,100)}...`;
+            console.error("Non-JSON error response from /api/woocommerce/categories (rules):", textError);
+          }
+          throw new Error(errorMessage);
         }
         const data: WooCommerceCategory[] = await response.json();
         setWooCategories(data);

@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { ImageUploader } from './image-uploader';
 import { AiAttributeSuggester } from './ai-attribute-suggester';
 import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory } from '@/lib/types';
-import { PRODUCT_TYPES } from '@/lib/constants'; // PRODUCT_CATEGORIES ya no se usa aquí
+import { PRODUCT_TYPES } from '@/lib/constants';
 import { PlusCircle, Trash2, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -31,8 +31,17 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
       try {
         const response = await fetch('/api/woocommerce/categories');
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to fetch categories');
+          let errorMessage = `Error fetching categories: ${response.status} ${response.statusText}`;
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
+          } catch (jsonError) {
+            // If parsing as JSON fails, it might be HTML or plain text
+            const textError = await response.text();
+            errorMessage = `Server returned non-JSON error for categories. Status: ${response.status}. Body: ${textError.substring(0,100)}...`;
+            console.error("Non-JSON error response from /api/woocommerce/categories:", textError);
+          }
+          throw new Error(errorMessage);
         }
         const data: WooCommerceCategory[] = await response.json();
         setWooCategories(data);

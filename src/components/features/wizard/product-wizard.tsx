@@ -43,7 +43,7 @@ export function ProductWizard() {
   const handleSubmitProduct = async () => {
     setIsProcessing(true);
     const wizardJobId = `wizard_${Date.now()}`;
-    const userId = 'temp_user_id'; // TODO: Replace with actual authenticated user ID
+    const userId = 'temp_user_id'; 
 
     const uploadedPhotoDetails: { name: string; relativePath: string; originalPhotoId: string }[] = [];
     let allUploadsSuccessful = true;
@@ -72,8 +72,16 @@ export function ProductWizard() {
         });
 
         if (!response.ok) {
-          const errorResult = await response.json();
-          throw new Error(errorResult.error || `Error al subir ${photo.file.name}`);
+          let errorMessage = `Error al subir ${photo.file.name}: ${response.status} ${response.statusText}`;
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
+          } catch (jsonError) {
+            const textError = await response.text();
+            errorMessage = `Server returned non-JSON error for upload-image-local (wizard). Status: ${response.status}. Body: ${textError.substring(0,100)}...`;
+            console.error("Non-JSON error response from /api/upload-image-local (wizard):", textError);
+          }
+          throw new Error(errorMessage);
         }
         const result = await response.json();
         uploadedPhotoDetails.push({ name: photo.file.name, relativePath: result.relativePath, originalPhotoId: photo.id });
@@ -143,8 +151,20 @@ export function ProductWizard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ batchId: wizardJobId }),
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || `Error del servidor: ${response.status}`);
+      
+      if (!response.ok) {
+        let errorMessage = `Error al iniciar procesamiento: ${response.status} ${response.statusText}`;
+        try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
+        } catch (jsonError) {
+            const textError = await response.text();
+            errorMessage = `Server returned non-JSON error for process-photos (wizard). Status: ${response.status}. Body: ${textError.substring(0,100)}...`;
+            console.error("Non-JSON error response from /api/process-photos (wizard):", textError);
+        }
+        throw new Error(errorMessage);
+      }
+      // const result = await response.json(); // Not strictly needed unless checking result content
 
       toast({
         title: "Producto Enviado a Procesamiento",
@@ -160,7 +180,7 @@ export function ProductWizard() {
       console.error("Error al iniciar el procesamiento backend para el asistente:", error);
       toast({
         title: "Error de Procesamiento",
-        description: "No se pudo iniciar el procesamiento de las imágenes del producto.",
+        description: (error as Error).message || "No se pudo iniciar el procesamiento de las imágenes del producto.",
         variant: "destructive",
       });
     } finally {

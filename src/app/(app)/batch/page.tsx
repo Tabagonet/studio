@@ -11,22 +11,26 @@ import { ImageUploader } from "@/components/features/wizard/image-uploader";
 import type { ProductPhoto, ProcessingStatusEntry } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-// REMOVE: Firebase client SDK instances for storage, db is still used
-// import { storage, db } from '@/lib/firebase'; 
 import { db } from '@/lib/firebase'; 
-// REMOVE: Firebase storage specific imports
-// import { ref as fbStorageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { doc, setDoc, serverTimestamp, collection, writeBatch, query, where, onSnapshot, Unsubscribe } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
 
 export default function BatchProcessingPage() {
   const [photos, setPhotos] = useState<ProductPhoto[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [isBackendProcessing, setIsBackendProcessing] = useState(false); // Renamed for clarity
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({}); // photo.id -> percentage, -1 for error
+  const [isBackendProcessing, setIsBackendProcessing] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const { toast } = useToast();
   const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
   const [batchPhotosStatus, setBatchPhotosStatus] = useState<ProcessingStatusEntry[]>([]);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const batchIdFromUrl = searchParams.get('batchId');
+    if (batchIdFromUrl) {
+      setCurrentBatchId(batchIdFromUrl);
+    }
+  }, []);
 
   useEffect(() => {
     if (!currentBatchId) {
@@ -96,10 +100,22 @@ export default function BatchProcessingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ batchId }),
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || `Error del servidor: ${response.status}`);
+      if (!response.ok) {
+        let errorMessage = `Error del servidor: ${response.status} ${response.statusText}`;
+        try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
+        } catch (jsonError) {
+            const textError = await response.text();
+            errorMessage = `Server returned non-JSON error for process-photos. Status: ${response.status}. Body: ${textError.substring(0,100)}...`;
+            console.error("Non-JSON error response from /api/process-photos:", textError);
+        }
+        throw new Error(errorMessage);
+      }
+      // const result = await response.json(); // Not strictly needed here unless we use result.message
     } catch (error) {
       console.error("Error al notificar al backend (puede continuar igualmente):", error);
+      // No toast here as it might be confusing if processing still starts
     }
   };
 
@@ -113,7 +129,7 @@ export default function BatchProcessingPage() {
     setBatchPhotosStatus([]);
     setUploadProgress({});
     const newBatchId = `batch_${Date.now()}`;
-    const userId = 'temp_user_id'; // TODO: Replace with actual authenticated user ID
+    const userId = 'temp_user_id'; 
 
     const firestoreBatch = writeBatch(db); 
     let firestoreWriteCount = 0;
@@ -132,25 +148,31 @@ export default function BatchProcessingPage() {
         const response = await fetch('/api/upload-image-local', {
           method: 'POST',
           body: formData,
-          // No 'Content-Type' header, browser sets it for FormData
         });
 
         if (!response.ok) {
-          const errorResult = await response.json();
-          throw new Error(errorResult.error || `Error al subir ${photo.file.name}`);
+          let errorMessage = `Error al subir ${photo.file.name}: ${response.status} ${response.statusText}`;
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
+          } catch (jsonError) {
+            const textError = await response.text();
+            errorMessage = `Server returned non-JSON error for upload-image-local. Status: ${response.status}. Body: ${textError.substring(0,100)}...`;
+            console.error("Non-JSON error response from /api/upload-image-local:", textError);
+          }
+          throw new Error(errorMessage);
         }
 
         const result = await response.json();
         const { relativePath } = result;
 
-        // Save to Firestore
         const photoDocRef = doc(collection(db, 'processing_status')); 
         firestoreBatch.set(photoDocRef, {
           userId: userId,
           batchId: newBatchId,
           imageName: photo.file.name,
-          originalStoragePath: relativePath, // Store local relative path
-          originalDownloadUrl: relativePath, // Store local relative path (served from public)
+          originalStoragePath: relativePath, 
+          originalDownloadUrl: relativePath, 
           status: "uploaded", 
           uploadedAt: serverTimestamp(),
           progress: 0, 
@@ -159,7 +181,6 @@ export default function BatchProcessingPage() {
 
         setUploadProgress(prev => ({ ...prev, [photo.id]: 100 }));
         
-        // Update ProductPhoto with localPath for client-side previews if needed elsewhere
         setPhotos(prevPhotos => prevPhotos.map(p => p.id === photo.id ? {...p, localPath: relativePath} : p));
 
       } catch (error) {
@@ -170,7 +191,6 @@ export default function BatchProcessingPage() {
           description: (error as Error).message,
           variant: "destructive",
         });
-        // Optionally continue with other files or stop
       }
     }
     
