@@ -107,6 +107,8 @@ export type AttributeSuggestion = string;
 
 // Product context to be stored with ProcessingStatusEntry for wizard flow
 export interface WizardProductContext {
+  shortDescription: string;
+  longDescription: string;
   name: string;
   sku: string;
   productType: ProductType;
@@ -120,6 +122,7 @@ export interface WizardProductContext {
 
 
 export interface ProcessingStatusEntry {
+  assignedCategorySlug: string | undefined;
   id: string; 
   userId: string;
   batchId: string;
