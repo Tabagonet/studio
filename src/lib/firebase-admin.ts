@@ -94,6 +94,9 @@ if (admin.apps.length > 0) {
   }
 } else {
     console.warn("Firebase Admin SDK: CRITICAL - No Firebase app initialized after all attempts. Firestore and Auth will NOT be available.");
+    adminDb = null; // Ensure adminDb is null if no app
+    adminAuth = null; // Ensure adminAuth is null if no app
 }
 
 export { adminDb, adminAuth, admin };
+
