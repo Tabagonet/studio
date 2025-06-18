@@ -7,14 +7,11 @@ const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 if (!admin.apps.length) {
   if (!serviceAccountJson) {
     console.error("FIREBASE_SERVICE_ACCOUNT_JSON is not set. Firebase Admin SDK cannot be initialized.");
-    // Throw an error or handle this case appropriately for your application
-    // For now, functions relying on admin SDK will fail if this is not set.
   } else {
     try {
       const serviceAccount = JSON.parse(serviceAccountJson);
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
-        // storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET // Optional: if you need admin storage access directly
       });
        console.log("Firebase Admin SDK initialized successfully.");
     } catch (error) {
@@ -25,6 +22,7 @@ if (!admin.apps.length) {
 
 const adminDb = admin.firestore();
 const adminAuth = admin.auth();
-const adminStorage = admin.storage(); // If you need admin storage access
+// adminStorage is no longer used by process-photos if files are local
+// const adminStorage = admin.storage(); 
 
-export { adminDb, adminAuth, adminStorage, admin };
+export { adminDb, adminAuth, admin }; // Removed adminStorage from exports

@@ -14,13 +14,14 @@ export interface NavItem {
 export interface ProductPhoto {
   id: string;
   file: File;
-  previewUrl: string;
+  previewUrl: string; // For client-side preview, will point to local server path
   name: string;
   isPrimary?: boolean;
   seoAlt?: string;
   seoTitle?: string;
   seoDescription?: string;
   seoCaption?: string;
+  localPath?: string; // Path on the server after upload
 }
 
 export interface ProductAttribute {
@@ -50,7 +51,7 @@ export interface ProductTemplate {
   type: TemplateType;
   content: string;
   scope: TemplateScope;
-  categoryValue?: string; // e.g., "ropa", "electronica"
+  categoryValue?: string; 
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -67,8 +68,8 @@ export interface AutomationRule {
   id: string;
   name: string;
   keyword: string;
-  categoryToAssign?: string; // Value from PRODUCT_CATEGORIES
-  tagsToAssign?: string; // Comma-separated string
+  categoryToAssign?: string; 
+  tagsToAssign?: string; 
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -84,32 +85,30 @@ export interface AutomationRuleFormValues {
 export interface ApiKeys {
   wooCommerceKey?: string;
   wooCommerceSecret?: string;
-  firebaseConfig?: string; // JSON string for Firebase config
+  firebaseConfig?: string; 
   vercelEndpoint?: string;
 }
 
 export interface AppNotification {
   id: string;
-  userId: string; // To associate notification with a user
+  userId: string; 
   title: string;
   description: string;
   type: 'success' | 'error' | 'info' | 'warning';
   timestamp: Timestamp;
   isRead: boolean;
-  linkTo?: string; // Optional link, e.g., to the batch details page
+  linkTo?: string; 
 }
 
-// Type for AI attribute suggestion
 export type AttributeSuggestion = string;
 
-// Type for Firestore documents in 'processing_status' collection
 export interface ProcessingStatusEntry {
-  id: string; // Firestore document ID
+  id: string; 
   userId: string;
   batchId: string;
   imageName: string;
-  originalStoragePath: string;
-  originalDownloadUrl: string;
+  originalStoragePath: string; // Will now be local path relative to 'public' dir
+  originalDownloadUrl: string; // Will now be local path relative to 'public' dir for serving
   status: "uploaded" | 
           "processing_image_started" | 
           "processing_image_downloaded" | 
@@ -127,13 +126,12 @@ export interface ProcessingStatusEntry {
   updatedAt?: Timestamp; 
   progress: number;
   seoName?: string;
-  processedImageStoragePath?: string;
-  processedImageDownloadUrl?: string;
+  processedImageStoragePath?: string; // Will now be local path relative to 'public' dir
+  processedImageDownloadUrl?: string; // Will now be local path relative to 'public' dir for serving
   resolutions?: Record<string, string>; 
   seoMetadata?: { alt?: string; title?: string };
   errorMessage?: string;
   productAssociationId?: string;
-  assignedCategory?: string; // Category assigned by automation rules
-  assignedTags?: string[]; // Tags assigned by automation rules
+  assignedCategory?: string; 
+  assignedTags?: string[]; 
 }
-
