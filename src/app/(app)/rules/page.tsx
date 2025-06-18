@@ -16,24 +16,59 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { RuleForm } from '@/components/features/rules/rule-form'; // Asegúrate que la ruta es correcta
-import type { AutomationRule, AutomationRuleFormValues } from '@/lib/types';
+import { RuleForm } from '@/components/features/rules/rule-form';
+import type { AutomationRule, AutomationRuleFormValues, WooCommerceCategory } from '@/lib/types';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, getDocs, doc, deleteDoc, updateDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { AUTOMATION_RULES_COLLECTION, PRODUCT_CATEGORIES } from '@/lib/constants';
+import { AUTOMATION_RULES_COLLECTION } from '@/lib/constants';
 import { format } from 'date-fns';
 
 
 export default function RulesPage() {
   const [rules, setRules] = useState<AutomationRule[]>([]);
+  const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [currentRule, setCurrentRule] = useState<AutomationRule | null>(null);
   const [ruleToDelete, setRuleToDelete] = useState<AutomationRule | null>(null);
   
   const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchWooCategories = async () => {
+        setIsLoadingCategories(true);
+        try {
+            const response = await fetch('/api/woocommerce/categories');
+            if (!response.ok) {
+                const responseText = await response.text();
+                let errorMessage = `Error fetching categories for rules page: ${response.status} ${response.statusText}`;
+                try {
+                    const errorData = JSON.parse(responseText);
+                    errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
+                } catch (parseError) {
+                     errorMessage = `Server returned non-JSON error for rule page categories. Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
+                     console.error("Non-JSON error response from /api/woocommerce/categories (rules page):", responseText);
+                }
+                throw new Error(errorMessage);
+            }
+            const data: WooCommerceCategory[] = await response.json();
+            setWooCategories(data);
+        } catch (error) {
+            console.error("Error fetching WooCommerce categories for rules page display:", error);
+            toast({
+                title: "Error al Cargar Categorías para Visualización",
+                description: (error as Error).message || "No se pudieron cargar las categorías para mostrar en la tabla de reglas.",
+                variant: "destructive",
+            });
+        } finally {
+            setIsLoadingCategories(false);
+        }
+    };
+    fetchWooCategories();
+  }, [toast]);
 
   useEffect(() => {
     setIsLoading(true);
@@ -79,8 +114,8 @@ export default function RulesPage() {
     try {
       const ruleData = {
         ...data,
-        categoryToAssign: data.categoryToAssign || "", // Ensure empty string if undefined
-        tagsToAssign: data.tagsToAssign || "", // Ensure empty string if undefined
+        categoryToAssign: data.categoryToAssign || "", 
+        tagsToAssign: data.tagsToAssign || "", 
         updatedAt: serverTimestamp(),
       };
 
@@ -133,9 +168,11 @@ export default function RulesPage() {
     }
   };
   
-  const getCategoryLabel = (categoryValue?: string) => {
-    if (!categoryValue) return "Ninguna";
-    return PRODUCT_CATEGORIES.find(c => c.value === categoryValue)?.label || categoryValue;
+  const getCategoryLabel = (categorySlug?: string) => {
+    if (!categorySlug || categorySlug === "sin_categoria") return "Ninguna";
+    if (isLoadingCategories) return categorySlug; // Show slug while loading
+    const category = wooCategories.find(c => c.slug === categorySlug);
+    return category?.name || categorySlug; // Fallback to slug if not found
   };
 
   const formatDate = (timestamp: Timestamp | undefined | null): string => {
@@ -266,3 +303,5 @@ export default function RulesPage() {
     </div>
   );
 }
+
+    
