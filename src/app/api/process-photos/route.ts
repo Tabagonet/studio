@@ -5,11 +5,12 @@ import type { NextRequest } from 'next/server';
 import { adminDb, adminStorage, admin } from '@/lib/firebase-admin';
 import sharp from 'sharp';
 import { fileTypeFromBuffer } from 'file-type';
-import type { ProductTemplate, ProcessingStatusEntry } from '@/lib/types';
+import type { ProductTemplate, ProcessingStatusEntry, AutomationRule } from '@/lib/types';
+import { PRODUCT_TEMPLATES_COLLECTION, AUTOMATION_RULES_COLLECTION } from '@/lib/constants';
 
 const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/jpg'];
-const PRODUCT_TEMPLATES_COLLECTION = "product_templates";
+
 
 async function downloadImageFromURL(url: string): Promise<Buffer> {
   const response = await fetch(url);
@@ -34,7 +35,7 @@ async function uploadBufferToStorage(
   await file.save(buffer, {
     metadata: { contentType: contentType },
   });
-  await file.makePublic();
+  await file.makePublic(); // For phase 1, direct public URL. Consider signed URLs for production.
   const downloadURL = file.publicUrl();
   return { downloadURL, storagePath: destinationPath };
 }
@@ -42,38 +43,37 @@ async function uploadBufferToStorage(
 function cleanTextForFilename(text: string): string {
   return text
     .toLowerCase()
-    .replace(/\s+/g, '-') // Replace spaces with hyphens
-    .replace(/[^a-z0-9-]/g, '') // Remove non-alphanumeric characters except hyphens
-    .replace(/-+/g, '-') // Replace multiple hyphens with a single one
-    .replace(/^-+|-+$/g, ''); // Trim leading/trailing hyphens
+    .replace(/\s+/g, '-') 
+    .replace(/[^a-z0-9-]/g, '') 
+    .replace(/-+/g, '-') 
+    .replace(/^-+|-+$/g, ''); 
 }
 
 function applyTemplate(templateContent: string, data: { nombre_producto: string }): string {
   let result = templateContent;
-  // Basic placeholder replacement, can be expanded
   result = result.replace(/\{\{nombre_producto\}\}/g, data.nombre_producto);
   return result;
 }
 
-let allTemplates: ProductTemplate[] | null = null; // Cache templates per invocation if possible
-
 async function getTemplates(): Promise<ProductTemplate[]> {
-  if (allTemplates) {
-    // This caching is very basic and might not persist across multiple Vercel invocations as expected.
-    // For true caching, an external cache or more sophisticated in-memory cache for the function instance would be needed.
-    // console.log("[API /api/process-photos] Using cached templates.");
-    // return allTemplates;
-  }
   // console.log("[API /api/process-photos] Fetching templates from Firestore.");
   const templatesSnapshot = await adminDb.collection(PRODUCT_TEMPLATES_COLLECTION).get();
   const fetchedTemplates: ProductTemplate[] = [];
   templatesSnapshot.forEach(doc => {
     fetchedTemplates.push({ id: doc.id, ...doc.data() } as ProductTemplate);
   });
-  allTemplates = fetchedTemplates; // Cache for subsequent calls within the same invocation (if any)
   return fetchedTemplates;
 }
 
+async function getAutomationRules(): Promise<AutomationRule[]> {
+  // console.log("[API /api/process-photos] Fetching automation rules from Firestore.");
+  const rulesSnapshot = await adminDb.collection(AUTOMATION_RULES_COLLECTION).get();
+  const fetchedRules: AutomationRule[] = [];
+  rulesSnapshot.forEach(doc => {
+    fetchedRules.push({ id: doc.id, ...doc.data() } as AutomationRule);
+  });
+  return fetchedRules;
+}
 
 function generateSeoFilenameWithTemplate(
   originalName: string,
@@ -82,25 +82,25 @@ function generateSeoFilenameWithTemplate(
   const nameWithoutExtension = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
   const cleanedProductName = nameWithoutExtension.replace(/-/g, ' ').replace(/_/g, ' ');
 
-  const seoNameTemplate = templates.find(t => t.type === 'nombre_seo' && t.scope === 'global'); // Prioritize global for now
+  const seoNameTemplate = templates.find(t => t.type === 'nombre_seo' && t.scope === 'global');
 
   let baseSeoName: string;
   if (seoNameTemplate) {
     baseSeoName = applyTemplate(seoNameTemplate.content, { nombre_producto: cleanedProductName });
   } else {
-    baseSeoName = cleanedProductName; // Fallback to cleaned original name
+    baseSeoName = cleanedProductName; 
   }
 
   let seoName = cleanTextForFilename(baseSeoName);
   if (!seoName) {
-    seoName = `image-${Date.now()}`; // Fallback if name becomes empty
+    seoName = `image-${Date.now()}`; 
   }
   return `${seoName}.webp`;
 }
 
 function generateSeoMetadataWithTemplate(
-  generatedSeoName: string, // The actual filename, e.g., 'camiseta-roja.webp'
-  originalProductName: string, // The cleaned product name used for {{nombre_producto}}
+  generatedSeoName: string, 
+  originalProductName: string, 
   templates: ProductTemplate[]
 ): { alt: string; title: string } {
   const altTextTemplate = templates.find(t => (t.type === 'metadatos_seo' || t.type === 'descripcion_corta') && t.scope === 'global');
@@ -108,12 +108,10 @@ function generateSeoMetadataWithTemplate(
   let altText: string;
   if (altTextTemplate) {
     altText = applyTemplate(altTextTemplate.content, { nombre_producto: originalProductName });
-    // Basic truncation if template content is very long for alt text
     if (altText.length > 125) {
         altText = altText.substring(0, 122) + "...";
     }
   } else {
-    // Fallback: Use the product name derived from the SEO filename
     const productNameFromSeoFile = generatedSeoName.substring(0, generatedSeoName.lastIndexOf('.webp'))
                                     .replace(/-/g, ' ')
                                     .split(' ')
@@ -122,10 +120,34 @@ function generateSeoMetadataWithTemplate(
     altText = `Imagen de ${productNameFromSeoFile}`;
   }
   
-  // For now, title will be the same as alt text, or could use a specific title template
   const title = altText;
-
   return { alt: altText, title: title };
+}
+
+function applyAutomationRules(
+  imageName: string, // Used as a proxy for product name for keyword matching
+  rules: AutomationRule[]
+): { assignedCategory?: string; assignedTags: string[] } {
+  let categoryToAssign: string | undefined = undefined;
+  const tagsToAssign = new Set<string>();
+  const searchableImageName = imageName.toLowerCase();
+
+  rules.forEach(rule => {
+    if (rule.keyword && searchableImageName.includes(rule.keyword.toLowerCase())) {
+      if (rule.categoryToAssign) {
+        categoryToAssign = rule.categoryToAssign; // Last matching rule wins for category
+      }
+      if (rule.tagsToAssign) {
+        rule.tagsToAssign.split(',').forEach(tag => {
+          const trimmedTag = tag.trim();
+          if (trimmedTag) {
+            tagsToAssign.add(trimmedTag);
+          }
+        });
+      }
+    }
+  });
+  return { assignedCategory: categoryToAssign, assignedTags: Array.from(tagsToAssign) };
 }
 
 
@@ -133,6 +155,7 @@ async function triggerNextPhotoProcessing(batchId: string, requestUrl: string) {
   const apiUrl = new URL('/api/process-photos', requestUrl).toString();
   console.log(`[API /api/process-photos] Triggering next photo processing for batch ${batchId} by calling: ${apiUrl}`);
   
+  // Fire-and-forget
   fetch(apiUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -167,10 +190,9 @@ export async function POST(request: NextRequest) {
 
     if (photosToProcessSnapshot.empty) {
       console.log(`[API /api/process-photos] No more 'uploaded' photos found for batchId: ${batchId}.`);
-      // Check if any are still processing, otherwise batch is complete.
       const anyProcessingSnapshot = await adminDb.collection('processing_status')
                                             .where('batchId', '==', batchId)
-                                            .where('status', 'in', ['processing_image_started', 'processing_image_downloaded', 'processing_image_validated', 'processing_image_optimized', 'processing_image_seo_named', 'processing_image_metadata_generated', 'processing_image_reuploaded'])
+                                            .where('status', 'in', ['processing_image_started', 'processing_image_downloaded', 'processing_image_validated', 'processing_image_optimized', 'processing_image_seo_named', 'processing_image_metadata_generated', 'processing_image_rules_applied', 'processing_image_reuploaded'])
                                             .limit(1)
                                             .get();
       if (anyProcessingSnapshot.empty) {
@@ -187,7 +209,8 @@ export async function POST(request: NextRequest) {
     console.log(`[API /api/process-photos] Starting processing for: ${photoData.imageName} (Doc ID: ${photoData.id}) in batch ${batchId}`);
     
     let processedSuccessfully = false;
-    const templates = await getTemplates(); // Fetch templates
+    const templates = await getTemplates(); 
+    const automationRules = await getAutomationRules();
 
     try {
       await photoDocRef.update({ 
@@ -217,21 +240,31 @@ export async function POST(request: NextRequest) {
       const processedImageBuffer = await sharp(imageBuffer)
                                       .webp({ quality: 80 })
                                       .resize({ width: 800, height: 800, fit: 'inside', withoutEnlargement: true })
-                                      .withMetadata({})
+                                      .withMetadata({}) 
                                       .toBuffer();
       await photoDocRef.update({ progress: 50, status: 'processing_image_optimized', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
       
-      // Use template for SEO Name
       const generatedSeoName = generateSeoFilenameWithTemplate(photoData.imageName as string, templates);
       console.log(`[API /api/process-photos] Generated SEO name for ${photoData.imageName}: ${generatedSeoName}`);
       await photoDocRef.update({ progress: 60, seoName: generatedSeoName, status: 'processing_image_seo_named', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
 
-      // Use template for SEO Metadata (alt, title)
       const originalProductNameForTemplate = (photoData.imageName as string).substring(0, (photoData.imageName as string).lastIndexOf('.')) || (photoData.imageName as string);
       const seoMetadata = generateSeoMetadataWithTemplate(generatedSeoName, originalProductNameForTemplate.replace(/-/g, ' ').replace(/_/g, ' '), templates);
       console.log(`[API /api/process-photos] Generated SEO metadata for ${photoData.imageName}:`, seoMetadata);
-      await photoDocRef.update({ progress: 75, seoMetadata: seoMetadata, status: 'processing_image_metadata_generated', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      await photoDocRef.update({ progress: 70, seoMetadata: seoMetadata, status: 'processing_image_metadata_generated', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
       
+      // Apply Automation Rules
+      const imageNameForRules = (photoData.imageName as string).substring(0, (photoData.imageName as string).lastIndexOf('.')) || photoData.imageName;
+      const { assignedCategory, assignedTags } = applyAutomationRules(imageNameForRules, automationRules);
+      console.log(`[API /api/process-photos] Automation rules applied for ${photoData.imageName}: Category - ${assignedCategory}, Tags - ${assignedTags.join(', ')}`);
+      await photoDocRef.update({
+        progress: 80,
+        assignedCategory: assignedCategory || null, // Store null if undefined
+        assignedTags: assignedTags,
+        status: 'processing_image_rules_applied',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
       const userId = photoData.userId || 'temp_user_id';
       const processedImageStoragePath = `processed_uploads/${userId}/${batchId}/${generatedSeoName}`;
       console.log(`[API /api/process-photos] Uploading processed version of ${photoData.imageName} to ${processedImageStoragePath}`);
@@ -259,22 +292,20 @@ export async function POST(request: NextRequest) {
       await photoDocRef.update({ 
         status: 'error_processing_image', 
         errorMessage: imageError instanceof Error ? imageError.message : String(imageError),
-        progress: currentProgress > 5 ? currentProgress : 5, // Ensure progress is at least 5 if error occurs early
+        progress: currentProgress > 5 ? currentProgress : 5, 
         updatedAt: admin.firestore.FieldValue.serverTimestamp() 
       });
     }
 
-    // Check for more photos and self-trigger regardless of current photo's success/failure
-    // This ensures the batch continues trying to process other images.
     const remainingPhotosSnapshot = await adminDb.collection('processing_status')
                                         .where('batchId', '==', batchId)
                                         .where('status', '==', 'uploaded')
-                                        .limit(1) // Limit 1 is fine, just need to know if any exist
+                                        .limit(1) 
                                         .get();
 
     if (!remainingPhotosSnapshot.empty) {
       console.log(`[API /api/process-photos] More images to process for batch ${batchId}. Triggering next.`);
-      await triggerNextPhotoProcessing(batchId, request.url); // Await not strictly necessary for fire-and-forget
+      await triggerNextPhotoProcessing(batchId, request.url); 
       return NextResponse.json({ 
         message: `Processed ${photoData.imageName} (status: ${processedSuccessfully ? 'success' : 'error'}). Triggering next photo in batch ${batchId}.`,
         batchId: batchId,
@@ -283,10 +314,9 @@ export async function POST(request: NextRequest) {
       });
     } else {
       console.log(`[API /api/process-photos] No more 'uploaded' images after processing ${photoData.imageName} for batch ${batchId}. Checking for any still processing...`);
-      // Double check if any other images are still in an intermediate processing state
       const anyStillProcessingSnapshot = await adminDb.collection('processing_status')
                                             .where('batchId', '==', batchId)
-                                            .where('status', 'in', ['processing_image_started', 'processing_image_downloaded', 'processing_image_validated', 'processing_image_optimized', 'processing_image_seo_named', 'processing_image_metadata_generated', 'processing_image_reuploaded'])
+                                            .where('status', 'in', ['processing_image_started', 'processing_image_downloaded', 'processing_image_validated', 'processing_image_optimized', 'processing_image_seo_named', 'processing_image_metadata_generated', 'processing_image_rules_applied', 'processing_image_reuploaded'])
                                             .limit(1)
                                             .get();
       if (anyStillProcessingSnapshot.empty) {

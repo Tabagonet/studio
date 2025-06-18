@@ -114,6 +114,7 @@ export interface ProcessingStatusEntry {
           "processing_image_optimized" | 
           "processing_image_seo_named" | 
           "processing_image_metadata_generated" |
+          "processing_image_rules_applied" | // New status
           "processing_image_reuploaded" | 
           "completed_image_pending_woocommerce" | 
           "error_processing_image" |
@@ -128,5 +129,8 @@ export interface ProcessingStatusEntry {
   resolutions?: Record<string, string>; 
   seoMetadata?: { alt?: string; title?: string };
   errorMessage?: string;
-  productAssociationId?: string; 
+  productAssociationId?: string;
+  assignedCategory?: string; // Category assigned by automation rules
+  assignedTags?: string[]; // Tags assigned by automation rules
 }
+
