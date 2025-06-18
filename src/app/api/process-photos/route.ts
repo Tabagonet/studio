@@ -67,10 +67,12 @@ function applyTemplate(templateContent: string, data: Record<string, string | un
   let result = templateContent;
   for (const key in data) {
     const placeholder = `{{${key}}}`;
-    const value = (typeof data[key] === 'string' || typeof data[key] === 'number') ? String(data[key]) : '';
+    // Use empty string for null/undefined values to clear placeholders
+    const value = (data[key] === null || data[key] === undefined) ? '' : String(data[key]);
     result = result.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
   }
-  result = result.replace(/\{\{[\w-]+\}\}/g, ''); // Remove any remaining unfulfilled placeholders
+  // Remove any remaining unfulfilled placeholders (e.g., {{unfilled_placeholder}})
+  result = result.replace(/\{\{[\w-]+\}\}/g, '');
   return result.trim();
 }
 
@@ -100,110 +102,107 @@ async function getAutomationRules(): Promise<AutomationRule[]> {
   return fetchedRules;
 }
 
-// HOTFIX: Simplified to prioritize unique names over complex templates for now.
 function generateSeoFilenameWithTemplate(
   originalName: string,
   productContext: WizardProductContext | undefined,
-  templates: ProductTemplate[], // Kept for future use, but logic simplified
+  templates: ProductTemplate[],
   imageIndex: number
 ): string {
   const baseOriginalName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
-  let seoNamePart = baseOriginalName; // Default to original name part
+  const cleanedBaseOriginalName = cleanTextForFilename(baseOriginalName); // e.g., "image00001"
 
-  if (productContext?.name) {
-    seoNamePart = `${cleanTextForFilename(productContext.name)}-${cleanTextForFilename(baseOriginalName)}`;
-  } else {
-    seoNamePart = cleanTextForFilename(baseOriginalName);
-  }
-  
-  // Fallback to ensure uniqueness if somehow seoNamePart is still generic or empty
-  if (!seoNamePart || seoNamePart === cleanTextForFilename(productContext?.name || "")) {
-      seoNamePart = `${cleanTextForFilename(baseOriginalName)}-${imageIndex + 1}`;
-  }
-  
-  let finalSeoName = cleanTextForFilename(seoNamePart);
+  // Try to use product name first for the base part of the SEO name
+  const productSeoNamePart = productContext?.name ? cleanTextForFilename(productContext.name) : 'producto';
 
-  if (!finalSeoName) { 
-    finalSeoName = `imagen-procesada-${imageIndex}-${Date.now()}`;
+  // Attempt to use a specific SEO name template
+  let seoNameTemplate = templates.find(t =>
+      t.type === 'nombre_seo' &&
+      t.scope === 'categoria_especifica' &&
+      t.categoryValue === productContext?.category
+  );
+  if (!seoNameTemplate) {
+      seoNameTemplate = templates.find(t => t.type === 'nombre_seo' && t.scope === 'global');
   }
-  return `${finalSeoName}.webp`;
+
+  if (seoNameTemplate && seoNameTemplate.content) {
+      const templateData = {
+          nombre_producto: productContext?.name || '',
+          categoria: productContext?.category || '',
+          sku: productContext?.sku || '',
+          palabras_clave: productContext?.keywords || '',
+          nombre_original_sin_extension: cleanedBaseOriginalName,
+          indice_imagen: String(imageIndex + 1),
+      };
+      const templatedName = applyTemplate(seoNameTemplate.content, templateData);
+      if (templatedName && templatedName !== cleanTextForFilename(productContext?.name || '')) { // Ensure template added value
+          return `${cleanTextForFilename(templatedName)}.webp`;
+      }
+  }
+
+  // Fallback to product name + original image identifier for uniqueness
+  return `${productSeoNamePart}-${cleanedBaseOriginalName}.webp`;
 }
 
 
 function generateSeoMetadataWithTemplate(
-  generatedSeoName: string,
+  generatedSeoName: string, // The actual filename generated
   originalFileName: string,
   productContext: WizardProductContext | undefined,
   templates: ProductTemplate[],
   imageIndex: number
-): { alt: string; title: string; description?: string; caption?: string } {
+): { alt: string; title: string } { // Description and caption removed for simplicity for now
 
-  const baseOriginalName = originalFileName.substring(0, originalFileName.lastIndexOf('.')) || originalFileName;
-  const productNameForTemplate = productContext?.name || baseOriginalName.replace(/-/g, ' ').replace(/_/g, ' ');
+  const baseOriginalNamePart = originalFileName.substring(0, originalFileName.lastIndexOf('.')) || originalFileName;
+  const productNameForTemplate = productContext?.name || baseOriginalNamePart.replace(/-/g, ' ').replace(/_/g, ' ');
 
-  const attributesSummary = productContext?.attributes
-    ?.map(attr => `${attr.name}: ${attr.value}`)
-    .join(', ') || '';
+  const attributesList = productContext?.attributes?.map(attr => `${attr.name}: ${attr.value}`) || [];
+  const attributesSummaryForTemplate = attributesList.join(', ');
   
-  const keywordsForTemplate = productContext?.keywords || '';
-  const categoryForTemplate = productContext?.category || '';
-  const skuForTemplate = productContext?.sku || '';
-
-
   const templateData = {
       nombre_producto: productNameForTemplate,
-      categoria: categoryForTemplate,
-      sku: skuForTemplate,
-      palabras_clave: keywordsForTemplate,
-      atributos: attributesSummary,
-      imagen_original_sin_extension: baseOriginalName,
-      indice_imagen: String(imageIndex + 1)
+      categoria: productContext?.category || '',
+      sku: productContext?.sku || '',
+      palabras_clave: productContext?.keywords || '',
+      atributos: attributesSummaryForTemplate,
+      nombre_original_sin_extension: baseOriginalNamePart,
+      indice_imagen: String(imageIndex + 1),
+      nombre_archivo_seo: generatedSeoName.replace('.webp', '')
   };
 
+  let altText: string = '';
+  let titleText: string = '';
+
+  // Try to find a 'metadatos_seo' template specifically for alt text
   let metaTemplate = templates.find(t =>
       t.type === 'metadatos_seo' &&
       t.scope === 'categoria_especifica' &&
       t.categoryValue === productContext?.category
   );
-  if(!metaTemplate){
+  if (!metaTemplate) {
       metaTemplate = templates.find(t => t.type === 'metadatos_seo' && t.scope === 'global');
   }
 
-  // Fallback to short description template if no specific metadata template is found
-  if (!metaTemplate) {
-    metaTemplate = templates.find(t =>
-        t.type === 'descripcion_corta' &&
-        t.scope === 'categoria_especifica' &&
-        t.categoryValue === productContext?.category
-    );
-    if(!metaTemplate){
-        metaTemplate = templates.find(t => t.type === 'descripcion_corta' && t.scope === 'global');
-    }
-  }
-
-  let altText: string;
-  let titleText: string;
-
   if (metaTemplate && metaTemplate.content) {
-    const fullMetaText = applyTemplate(metaTemplate.content, templateData);
-    // Simple split for alt and title if separated by '|', otherwise use full text for both
-    if (fullMetaText.includes('|')) {
-        [altText, titleText] = fullMetaText.split('|', 2).map(s => s.trim());
-    } else {
-        altText = fullMetaText;
-        titleText = fullMetaText; 
-    }
-    altText = altText.substring(0, 125); 
-    titleText = titleText.substring(0, 200);
-  } else {
-    const displayProductName = productNameForTemplate.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-    altText = `Imagen de ${displayProductName} - ${baseOriginalName}`;
-    titleText = `Foto de ${displayProductName} - ${baseOriginalName}`;
+    // Assume the metadatos_seo template is *just* for the alt text
+    altText = applyTemplate(metaTemplate.content, templateData);
   }
+  
+  // Fallback for alt text if template didn't provide one
+  if (!altText) {
+    altText = `${productNameForTemplate} - ${baseOriginalNamePart}`;
+  }
+
+  // For title, we can use a simpler approach or a dedicated title template if desired
+  // For now, let's make it similar to alt or just the product name
+  titleText = altText; // Or more simply: `${productNameForTemplate} - imagen ${imageIndex + 1}`;
+
+  // Truncate to reasonable lengths (WooCommerce might have its own limits)
+  altText = altText.substring(0, 125); 
+  titleText = titleText.substring(0, 200);
 
   return {
-    alt: altText || `Imagen de ${productNameForTemplate}`, 
-    title: titleText || `Foto de ${productNameForTemplate}`
+    alt: altText, 
+    title: titleText
   };
 }
 
@@ -281,7 +280,7 @@ async function createBatchCompletionNotification(batchId: string, userId: string
       title,
       description,
       type,
-      timestamp: admin.firestore.FieldValue.serverTimestamp() as any,
+      timestamp: admin.firestore.FieldValue.serverTimestamp() as any, // Cast to any for server-side timestamp
       isRead: false,
       linkTo: `/batch?batchId=${batchId}`
     };
@@ -309,11 +308,12 @@ async function triggerNextPhotoProcessing(batchId: string, requestUrl: string) {
 }
 
 async function createOrUpdateWooCommerceProduct(
+    request: NextRequest, // Pass the full request
     batchId: string,
     userId: string,
     productEntries: ProcessingStatusEntry[],
     templates: ProductTemplate[],
-    appBaseUrl: string
+    // appBaseUrl: string // Removed, will derive from request or .env
 ) {
   if (!adminDb) {
     console.error("[WooCommerce] Firestore (adminDb) is not initialized in createOrUpdateWooCommerceProduct.");
@@ -331,13 +331,21 @@ async function createOrUpdateWooCommerceProduct(
   }
 
   const primaryEntry = productEntries.find(e => e.productContext?.isPrimary) || productEntries[0];
-  const currentProductContext = primaryEntry.productContext; // Renamed from productContext to avoid scope clash
+  const currentProductContext = primaryEntry.productContext;
 
   if (!currentProductContext) {
     console.log(`[WooCommerce] No productContext found for batch ${batchId}. Skipping WooCommerce product creation for this batch.`);
     await updateFirestoreStatusForBatch(batchId, 'completed_image_pending_woocommerce', "Skipped WooCommerce: No product context.");
     return;
   }
+  
+  const currentRequestUrl = new URL(request.url);
+  const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || `${currentRequestUrl.protocol}//${currentRequestUrl.host}`;
+
+  if (appBaseUrl.startsWith('http://localhost')) {
+      console.warn(`[WooCommerce] WARN: appBaseUrl is ${appBaseUrl}. Images might not be accessible by a remote WooCommerce instance.`);
+  }
+
 
   const existingProductSnapshot = await adminDb.collection('processing_status')
                                        .where('batchId', '==', batchId)
@@ -353,29 +361,41 @@ async function createOrUpdateWooCommerceProduct(
 
   console.log(`[WooCommerce] Attempting to create product for batch ${batchId}`);
 
-  const attributesSummary = currentProductContext.attributes
-    ?.map(attr => `${attr.name}: ${attr.value}`)
-    .join(', ') || '';
+  const attributesList = currentProductContext.attributes?.map(attr => `${attr.name}: ${attr.value}`) || [];
+  const attributesSummaryForTemplate = attributesList.join(', ');
 
   const templateDataForDesc = {
       nombre_producto: currentProductContext.name,
       categoria: currentProductContext.category,
       sku: currentProductContext.sku,
       palabras_clave: currentProductContext.keywords,
-      atributos: attributesSummary,
+      atributos: attributesSummaryForTemplate,
+      precio_regular: currentProductContext.regularPrice,
+      precio_oferta: currentProductContext.salePrice
   };
 
+  // Short Description
   let shortDescTemplate = templates.find(t => t.type === 'descripcion_corta' && t.scope === 'categoria_especifica' && t.categoryValue === currentProductContext.category)
                        || templates.find(t => t.type === 'descripcion_corta' && t.scope === 'global');
-  const generatedShortDescription = shortDescTemplate && shortDescTemplate.content
-      ? applyTemplate(shortDescTemplate.content, templateDataForDesc)
-      : currentProductContext.shortDescription || `Breve descripción de ${currentProductContext.name}`;
-
+  let generatedShortDescription = currentProductContext.shortDescription || '';
+  if (shortDescTemplate && shortDescTemplate.content) {
+      generatedShortDescription = applyTemplate(shortDescTemplate.content, templateDataForDesc);
+  }
+  if (!generatedShortDescription) {
+      generatedShortDescription = `Breve descripción de ${currentProductContext.name}. ${currentProductContext.keywords || ''}`.trim();
+  }
+  
+  // Long Description
   let longDescTemplate = templates.find(t => t.type === 'descripcion_larga' && t.scope === 'categoria_especifica' && t.categoryValue === currentProductContext.category)
                       || templates.find(t => t.type === 'descripcion_larga' && t.scope === 'global');
-  const baseLongDescription = longDescTemplate && longDescTemplate.content
-      ? applyTemplate(longDescTemplate.content, templateDataForDesc)
-      : currentProductContext.longDescription || `Producto: ${currentProductContext.name}.`;
+  let baseLongDescription = currentProductContext.longDescription || '';
+  if (longDescTemplate && longDescTemplate.content) {
+      baseLongDescription = applyTemplate(longDescTemplate.content, templateDataForDesc);
+  }
+  if (!baseLongDescription) {
+     baseLongDescription = `Descripción detallada de ${currentProductContext.name}. Categoría: ${currentProductContext.category || 'N/A'}. SKU: ${currentProductContext.sku || 'N/A'}.`;
+  }
+
 
   const imageDetailsForDescription = productEntries
     .map(entry => `- ${entry.seoName || entry.imageName}: (ruta local: public${entry.processedImageDownloadUrl})`)
@@ -385,30 +405,32 @@ async function createOrUpdateWooCommerceProduct(
 
   const wooImages = productEntries
     .filter(entry => entry.processedImageDownloadUrl && entry.status === 'completed_image_pending_woocommerce' && entry.seoMetadata && entry.seoName)
-    .map((entry, index) => ({
-      src: `${appBaseUrl}${entry.processedImageDownloadUrl?.startsWith('/') ? entry.processedImageDownloadUrl : '/' + entry.processedImageDownloadUrl}`,
-      name: entry.seoName, 
-      alt: entry.seoMetadata?.alt || entry.seoName,
-      position: entry.productContext?.isPrimary ? 0 : index + 1
-    }))
-    .sort((a, b) => a.position - b.position);
+    .map((entry, index) => {
+        const imageUrl = `${appBaseUrl}${entry.processedImageDownloadUrl?.startsWith('/') ? entry.processedImageDownloadUrl : '/' + entry.processedImageDownloadUrl}`;
+        return {
+            src: imageUrl,
+            name: entry.seoName, 
+            alt: entry.seoMetadata?.alt || entry.seoName, // Use generated alt text
+            position: entry.productContext?.isPrimary ? 0 : index + 1 // Default to original index + 1 if not primary
+        };
+    })
+    .sort((a, b) => a.position - b.position); // Sort by position to ensure primary is first
 
-  // Ensure primary image is first and positions are sequential
+  // Ensure primary image is first and positions are sequential after sort
   const primaryImageIndexWoo = wooImages.findIndex(img => img.position === 0);
-  if (primaryImageIndexWoo > 0) { // If primary exists and is not already first
+  if (primaryImageIndexWoo > 0) { 
       const primaryImage = wooImages.splice(primaryImageIndexWoo, 1)[0];
       wooImages.unshift(primaryImage);
-  } else if (primaryImageIndexWoo === -1 && wooImages.length > 0) { // No primary explicitly set, make the first one primary by position
+  } else if (primaryImageIndexWoo === -1 && wooImages.length > 0) { 
       wooImages[0].position = 0;
   }
-  // Re-assign positions sequentially
   wooImages.forEach((img, idx) => img.position = idx);
 
 
   const wooCategoriesPayload: { slug?: string }[] = [];
   if (currentProductContext.category) {
     wooCategoriesPayload.push({ slug: currentProductContext.category });
-  } else if (primaryEntry.assignedCategorySlug) { // Fallback to rule-assigned category if product context category is missing
+  } else if (primaryEntry.assignedCategorySlug) { 
     wooCategoriesPayload.push({ slug: primaryEntry.assignedCategorySlug });
   }
 
@@ -435,13 +457,13 @@ async function createOrUpdateWooCommerceProduct(
 
   if (currentProductContext.attributes && currentProductContext.attributes.length > 0 && currentProductContext.attributes.some(attr => attr.name && attr.value)) {
     wooProductData.attributes = currentProductContext.attributes
-        .filter(attr => attr.name && attr.value) // Ensure both name and value are present
+        .filter(attr => attr.name && attr.value) 
         .map((attr, index) => ({
             name: attr.name,
-            options: attr.value.split('|').map(o => o.trim()), // Split values for variations
+            options: attr.value.split('|').map(o => o.trim()), 
             position: index,
             visible: true,
-            variation: currentProductContext.productType === 'variable' // Mark as variation attribute if product is variable
+            variation: currentProductContext.productType === 'variable' 
         }));
   }
 
@@ -455,7 +477,7 @@ async function createOrUpdateWooCommerceProduct(
   } catch (error: any) {
     const errorMessage = error.response?.data?.message || error.message || "Unknown WooCommerce API error";
     let errorDetails = error.response?.data ? JSON.stringify(error.response.data) : "";
-    if (error.response?.config?.data) { // Log request data for debugging, omitting images if too large
+    if (error.response?.config?.data) { 
         errorDetails += ` | Request Data: ${JSON.stringify(error.response.config.data, (key, value) => key === 'images' ? '[IMAGES OMITTED]' : value )}`;
     }
     console.error(`[WooCommerce] Error creating product for batch ${batchId}:`, errorMessage, errorDetails);
@@ -466,7 +488,7 @@ async function createOrUpdateWooCommerceProduct(
             title: `Error al crear producto en WooCommerce (Lote: ${batchId})`,
             description: `Detalles: ${errorMessage.substring(0, 200)}`,
             type: 'error',
-            timestamp: admin.firestore.FieldValue.serverTimestamp() as any,
+            timestamp: admin.firestore.FieldValue.serverTimestamp() as any, // Cast for server-side timestamp
             isRead: false,
             linkTo: `/batch?batchId=${batchId}`
         } as Omit<AppNotification, 'id'>);
@@ -500,7 +522,7 @@ async function updateFirestoreStatusForBatch(batchId: string, status: Processing
 
 
 export async function POST(request: NextRequest) {
-  let body: { batchId?: string; userId?: string } = {}; // Ensure userId can be part of body
+  let body: { batchId?: string; userId?: string } = {}; 
   try {
     if (!adminDb) {
       console.error("[API /api/process-photos] Firebase Admin SDK (Firestore) is not initialized. This is a server configuration issue.");
@@ -509,10 +531,7 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-
-    const currentRequestUrl = new URL(request.url);
-    const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || `${currentRequestUrl.protocol}//${currentRequestUrl.host}`;
-
+    
     body = await request.json();
     const { batchId } = body;
 
@@ -524,7 +543,7 @@ export async function POST(request: NextRequest) {
     const photosToProcessSnapshot = await adminDb.collection('processing_status')
                                           .where('batchId', '==', batchId)
                                           .where('status', '==', 'uploaded')
-                                          .orderBy(admin.firestore.FieldPath.documentId()) // Ensure consistent order
+                                          .orderBy(admin.firestore.FieldPath.documentId()) 
                                           .limit(1)
                                           .get();
 
@@ -542,7 +561,7 @@ export async function POST(request: NextRequest) {
 
       const allEntries = allBatchEntriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProcessingStatusEntry));
       const isWizardFlow = allEntries.some(e => e.productContext);
-      const userIdForNotification = allEntries[0]?.userId || body.userId || 'temp_user_id'; // Use userId from body if available
+      const userIdForNotification = allEntries[0]?.userId || body.userId || 'temp_user_id'; 
 
       const allImageProcessingDone = allEntries.every(
         e => e.status === 'completed_image_pending_woocommerce' || e.status.startsWith('error_processing_image') || e.status === 'completed_woocommerce_integration' || e.status === 'error_woocommerce_integration'
@@ -553,11 +572,11 @@ export async function POST(request: NextRequest) {
       if (allImageProcessingDone && needsWooCommerceProcessing && isWizardFlow) {
           console.log(`[API /api/process-photos] All images processed for wizard batch ${batchId}. Attempting WooCommerce creation.`);
           await createOrUpdateWooCommerceProduct(
+            request, // Pass the full request object
             batchId,
             userIdForNotification,
             allEntries.filter(e => e.status === 'completed_image_pending_woocommerce' || e.status === 'completed_woocommerce_integration'),
-            allTemplates,
-            appBaseUrl
+            allTemplates
           );
           await createBatchCompletionNotification(batchId, userIdForNotification, isWizardFlow);
           return NextResponse.json({ message: `Batch ${batchId} image processing complete. WooCommerce integration attempted.`, batchId: batchId, status: 'batch_woocommerce_triggered' }, { status: 200 });
@@ -579,7 +598,7 @@ export async function POST(request: NextRequest) {
     const photoDoc = photosToProcessSnapshot.docs[0];
     const photoData = { id: photoDoc.id, ...photoDoc.data() } as ProcessingStatusEntry;
     const photoDocRef = adminDb.collection('processing_status').doc(photoData.id);
-    const userId = photoData.userId || body.userId || 'temp_user_id'; // Use userId from body if available
+    const userId = photoData.userId || body.userId || 'temp_user_id'; 
 
     const allBatchPhotoDocs = (await adminDb.collection('processing_status').where('batchId', '==', batchId).get()).docs;
     const overallPhotoIndex = allBatchPhotoDocs.findIndex(doc => doc.id === photoData.id);
@@ -665,12 +684,11 @@ export async function POST(request: NextRequest) {
       await photoDocRef.update({
         status: 'error_processing_image',
         errorMessage: imageError instanceof Error ? imageError.message : String(imageError),
-        progress: currentProgress > 5 ? currentProgress : 5, // Keep some progress if it advanced
+        progress: currentProgress > 5 ? currentProgress : 5, 
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
     }
 
-    // Trigger the next photo in the batch or finalize if all done
     await triggerNextPhotoProcessing(batchId, request.url);
     return NextResponse.json({
       message: `Triggered next step for batch ${batchId} after processing ${photoData.imageName}.`,
@@ -705,7 +723,7 @@ export async function POST(request: NextRequest) {
                 photosToUpdateSnapshot.forEach(docToUpdate => {
                     firestoreBatch.update(docToUpdate.ref, {
                         status: 'error_processing_image',
-                        errorMessage: `General API error: ${errorMessage.substring(0, 200)}`, // Limit length
+                        errorMessage: `General API error: ${errorMessage.substring(0, 200)}`, 
                         updatedAt: admin.firestore.FieldValue.serverTimestamp() as any
                     });
                 });
