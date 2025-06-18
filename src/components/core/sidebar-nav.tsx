@@ -1,3 +1,4 @@
+// src/components/core/sidebar-nav.tsx
 "use client";
 
 import Link from "next/link";
@@ -23,7 +24,7 @@ export function SidebarNav() {
       <SidebarMenu className="flex-1 p-4">
         {NAV_ITEMS.map((item) => (
           <SidebarMenuItem key={item.title}>
-            <Link href={item.href} legacyBehavior passHref>
+            <Link href={item.href}>
               <SidebarMenuButton
                 asChild
                 className={cn(
