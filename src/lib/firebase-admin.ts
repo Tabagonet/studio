@@ -32,7 +32,7 @@ if (!admin.apps.length) {
     } catch (error) {
       console.error("Firebase Admin SDK: Error parsing FIREBASE_SERVICE_ACCOUNT_JSON:", error);
       console.error("FIREBASE_SERVICE_ACCOUNT_JSON (first 100 chars):", serviceAccountJsonString.substring(0, 100));
-      serviceAccount = undefined; // Ensure it's undefined if parsing fails
+      serviceAccount = undefined;
     }
   }
 
@@ -61,6 +61,13 @@ if (!admin.apps.length) {
 
   if (serviceAccount) {
     try {
+      console.log("Firebase Admin SDK: Checking 'admin' and 'admin.credential' types before initializeApp...");
+      console.log(`Firebase Admin SDK: typeof admin: ${typeof admin}`);
+      console.log(`Firebase Admin SDK: typeof admin.credential: ${typeof admin.credential}`);
+      if (admin && admin.credential) {
+          console.log(`Firebase Admin SDK: typeof admin.credential.cert: ${typeof admin.credential.cert}`);
+      }
+
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
       });
@@ -72,7 +79,6 @@ if (!admin.apps.length) {
       } else if (serviceAccountJsonString) {
         console.error("Firebase Admin SDK: Initialization failed using FIREBASE_SERVICE_ACCOUNT_JSON. Ensure it's valid and complete JSON.");
       }
-       // Log the service account object again if it was constructed, for debugging.
       if (typeof serviceAccount === 'object') {
         console.error("Firebase Admin SDK: Service Account Object that caused error (privateKey redacted):", JSON.stringify(serviceAccount, (key, value) => key === 'privateKey' ? '[REDACTED]' : value));
       }
@@ -111,3 +117,4 @@ if (admin.apps.length > 0) {
 }
 
 export { adminDb, adminAuth, admin };
+
