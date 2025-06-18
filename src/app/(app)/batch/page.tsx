@@ -11,7 +11,7 @@ import { ImageUploader } from "@/components/features/wizard/image-uploader";
 import type { ProductPhoto, ProcessingStatusEntry } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { db } from '@/lib/firebase'; 
+import { app, db } from '@/lib/firebase'; // Firebase client SDK, import app
 import { getAuth, getIdToken } from 'firebase/auth'; // Firebase client auth
 import { doc, setDoc, serverTimestamp, collection, writeBatch, query, where, onSnapshot, Unsubscribe, Timestamp } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
@@ -88,7 +88,7 @@ export default function BatchProcessingPage() {
   };
 
   const getAuthToken = async (): Promise<string | null> => {
-    const auth = getAuth();
+    const auth = getAuth(app); // Use specific app instance
     if (auth.currentUser) {
       try {
         return await getIdToken(auth.currentUser);
@@ -118,7 +118,7 @@ export default function BatchProcessingPage() {
       description: `Escuchando actualizaciones para el lote ${batchId}...`,
     });
     
-    const auth = getAuth();
+    const auth = getAuth(app); // Use specific app instance
     const userId = auth.currentUser ? auth.currentUser.uid : 'temp_user_id_fallback';
 
 
@@ -158,7 +158,7 @@ export default function BatchProcessingPage() {
     setUploadProgress({});
     const newBatchId = `batch_${Date.now()}`;
     
-    const auth = getAuth();
+    const auth = getAuth(app); // Use specific app instance
     const userId = auth.currentUser ? auth.currentUser.uid : 'temp_user_id_fallback';
 
     const authToken = await getAuthToken();
@@ -175,10 +175,10 @@ export default function BatchProcessingPage() {
       setUploadProgress(prev => ({ ...prev, [photo.id]: 0 }));
 
       const formData = new FormData();
-      formData.append('imagen', photo.file); // 'imagen' as expected by /api/upload-image
+      formData.append('imagen', photo.file); 
 
       try {
-        const response = await fetch('/api/upload-image', { // Use new external upload API
+        const response = await fetch('/api/upload-image', { 
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${authToken}`,
@@ -529,5 +529,3 @@ export default function BatchProcessingPage() {
     </div>
   );
 }
-
-    

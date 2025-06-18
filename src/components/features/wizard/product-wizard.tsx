@@ -10,7 +10,7 @@ import { Step2Preview } from "./step-2-preview";
 import { Step3Confirm } from "./step-3-confirm";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { db } from '@/lib/firebase'; // Firebase client SDK
+import { app, db } from '@/lib/firebase'; // Firebase client SDK, import app
 import { getAuth, getIdToken } from 'firebase/auth'; // Firebase client auth
 import { doc, serverTimestamp, collection, writeBatch, Timestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
@@ -42,7 +42,7 @@ export function ProductWizard() {
   };
 
   const getAuthToken = async (): Promise<string | null> => {
-    const auth = getAuth();
+    const auth = getAuth(app); // Use specific app instance
     if (auth.currentUser) {
       try {
         return await getIdToken(auth.currentUser);
@@ -67,8 +67,7 @@ export function ProductWizard() {
   const handleSubmitProduct = async () => {
     setIsProcessing(true);
     const wizardJobId = `wizard_${Date.now()}`;
-    // const userId = 'temp_user_id'; // Replace with actual user ID if available from auth
-    const auth = getAuth();
+    const auth = getAuth(app); // Use specific app instance
     const userId = auth.currentUser ? auth.currentUser.uid : 'temp_user_id_fallback';
 
 
@@ -93,14 +92,13 @@ export function ProductWizard() {
 
     for (const photo of productData.photos) {
       const formData = new FormData();
-      formData.append('imagen', photo.file); // 'imagen' as expected by /api/upload-image
+      formData.append('imagen', photo.file); 
 
       try {
         const response = await fetch('/api/upload-image', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${authToken}`,
-            // 'Content-Type' is not set for FormData, browser handles it
           },
           body: formData,
         });
@@ -163,8 +161,8 @@ export function ProductWizard() {
           userId: userId,
           batchId: wizardJobId,
           imageName: uploadedPhoto.name,
-          originalStoragePath: uploadedPhoto.externalUrl, // Store external URL
-          originalDownloadUrl: uploadedPhoto.externalUrl, // Store external URL
+          originalStoragePath: uploadedPhoto.externalUrl, 
+          originalDownloadUrl: uploadedPhoto.externalUrl, 
           status: "uploaded",
           uploadedAt: serverTimestamp() as Timestamp,
           progress: 0,
@@ -188,7 +186,7 @@ export function ProductWizard() {
       const response = await fetch('/api/process-photos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ batchId: wizardJobId, userId: userId }), // Pass userId if available
+        body: JSON.stringify({ batchId: wizardJobId, userId: userId }), 
       });
       
       if (!response.ok) {
@@ -272,5 +270,3 @@ export function ProductWizard() {
     </div>
   );
 }
-
-    
