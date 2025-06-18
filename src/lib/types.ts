@@ -1,5 +1,6 @@
 
 import type { LucideIcon } from 'lucide-react';
+import type { Timestamp } from 'firebase/firestore';
 
 export interface NavItem {
   title: string;
@@ -38,19 +39,30 @@ export interface ProductData {
   longDescription: string;
   attributes: ProductAttribute[];
   photos: ProductPhoto[];
-  // Future fields for variations
-  // type: 'simple' | 'variable';
-  // variations?: ProductVariation[];
 }
 
-export interface Template {
+export type TemplateType = 'nombre_seo' | 'descripcion_corta' | 'descripcion_larga' | 'metadatos_seo';
+export type TemplateScope = 'global' | 'categoria_especifica';
+
+export interface ProductTemplate {
   id: string;
   name: string;
-  type: 'seoName' | 'description' | 'seoMetadata';
+  type: TemplateType;
   content: string;
-  categoryScope?: string; // Optional category to which this template applies by default
-  isDefault?: boolean;
+  scope: TemplateScope;
+  categoryValue?: string; // e.g., "ropa", "electronica"
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 }
+
+export interface ProductTemplateFormValues {
+  name: string;
+  type: TemplateType;
+  content: string;
+  scope: TemplateScope;
+  categoryValue?: string;
+}
+
 
 export interface AutomationRule {
   id:string;
@@ -95,18 +107,18 @@ export interface ProcessingStatusEntry {
           "processing_image_reuploaded" | 
           "completed_image_pending_woocommerce" | 
           "error_processing_image" |
-          "completed_woocommerce_integration" | // Future status
-          "error_woocommerce_integration";     // Future status
-  uploadedAt: any; // Firebase Timestamp or ServerTimestampFieldValue
-  updatedAt?: any; // Firebase Timestamp or ServerTimestampFieldValue
+          "completed_woocommerce_integration" | 
+          "error_woocommerce_integration";    
+  uploadedAt: any; 
+  updatedAt?: any; 
   progress: number;
   seoName?: string;
   processedImageStoragePath?: string;
   processedImageDownloadUrl?: string;
-  resolutions?: Record<string, string>; // e.g., { "800x800": "url", "300x300": "url" }
+  resolutions?: Record<string, string>; 
   seoMetadata?: { alt?: string; title?: string };
   errorMessage?: string;
-  productAssociationId?: string; // WooCommerce Product ID, if/when created
+  productAssociationId?: string; 
 }
 
     

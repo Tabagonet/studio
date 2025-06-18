@@ -1,12 +1,13 @@
+
 import { Home, Wand2, FileText, Cog, Bell, Settings, ShoppingBag, PackagePlus, ListChecks, Tags, Layers } from 'lucide-react';
-import type { NavItem } from '@/lib/types';
+import type { NavItem, TemplateType, TemplateScope } from '@/lib/types';
 
 export const APP_NAME = "WooAutomate";
 
 export const NAV_ITEMS: NavItem[] = [
   {
     title: 'Panel de Control',
-    href: '/', // Adjusted to point to /dashboard as per src/app/page.tsx redirect
+    href: '/', 
     icon: Home,
   },
   {
@@ -17,7 +18,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     title: 'Procesamiento en Lotes',
     href: '/batch',
-    icon: Layers, // Using Layers icon for batch processing
+    icon: Layers, 
   },
   {
     title: 'Gestión de Plantillas',
@@ -67,3 +68,18 @@ export const INITIAL_PRODUCT_DATA = {
   attributes: [{ name: "", value: "" }],
   photos: [],
 };
+
+export const TEMPLATE_TYPES: { value: TemplateType; label: string }[] = [
+  { value: 'nombre_seo', label: 'Nombre SEO Producto' },
+  { value: 'descripcion_corta', label: 'Descripción Corta SEO' },
+  { value: 'descripcion_larga', label: 'Descripción Larga SEO' },
+  { value: 'metadatos_seo', label: 'Metadatos SEO (Meta Título/Descripción)' },
+];
+
+export const TEMPLATE_SCOPES: { value: TemplateScope; label: string }[] = [
+  { value: 'global', label: 'Global (Todos los productos)' },
+  { value: 'categoria_especifica', label: 'Categoría Específica' },
+];
+
+// Firestore collection name for product templates
+export const PRODUCT_TEMPLATES_COLLECTION = "product_templates";
