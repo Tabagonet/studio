@@ -42,6 +42,8 @@ export async function POST(req: NextRequest) {
 
     // Convert File to Buffer for form-data library
     const imageBuffer = Buffer.from(await imagen.arrayBuffer());
+    
+    console.log(`[API /api/upload-image] Enviando a quefoto.es con filename: ${imagen.name}, contentType: ${imagen.type}, size: ${imageBuffer.length} bytes`);
 
     const uploadFormData = new FormDataLib(); // Use the library
     uploadFormData.append("imagen", imageBuffer, {
@@ -56,6 +58,7 @@ export async function POST(req: NextRequest) {
         headers: {
           ...uploadFormData.getHeaders(), // Pass headers from form-data library
         },
+        timeout: 30000, // Added timeout
       });
     } catch (axiosError) {
       console.error("Error en la solicitud a quefoto.es/upload.php:", axiosError);
@@ -99,4 +102,3 @@ export async function POST(req: NextRequest) {
   }
 }
 
-    
