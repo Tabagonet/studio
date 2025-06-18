@@ -24,6 +24,7 @@ import { useToast } from '@/hooks/use-toast';
 import { AUTOMATION_RULES_COLLECTION } from '@/lib/constants';
 import { format } from 'date-fns';
 
+const NO_CATEGORY_VALUE = "sin_categoria";
 
 export default function RulesPage() {
   const [rules, setRules] = useState<AutomationRule[]>([]);
@@ -34,7 +35,7 @@ export default function RulesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [currentRule, setCurrentRule] = useState<AutomationRule | null>(null);
   const [ruleToDelete, setRuleToDelete] = useState<AutomationRule | null>(null);
-  
+
   const { toast } = useToast();
 
   useEffect(() => {
@@ -73,7 +74,7 @@ export default function RulesPage() {
   useEffect(() => {
     setIsLoading(true);
     const q = query(collection(db, AUTOMATION_RULES_COLLECTION), orderBy("createdAt", "desc"));
-    
+
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const fetchedRules: AutomationRule[] = [];
       querySnapshot.forEach((doc) => {
@@ -114,8 +115,8 @@ export default function RulesPage() {
     try {
       const ruleData = {
         ...data,
-        categoryToAssign: data.categoryToAssign || "", 
-        tagsToAssign: data.tagsToAssign || "", 
+        categoryToAssign: data.categoryToAssign === NO_CATEGORY_VALUE ? "" : data.categoryToAssign,
+        tagsToAssign: data.tagsToAssign || "",
         updatedAt: serverTimestamp(),
       };
 
@@ -155,7 +156,7 @@ export default function RulesPage() {
     try {
       await deleteDoc(doc(db, AUTOMATION_RULES_COLLECTION, ruleToDelete.id));
       toast({ title: "Regla Eliminada", description: `La regla "${ruleToDelete.name}" ha sido eliminada.` });
-      setRuleToDelete(null); 
+      setRuleToDelete(null);
     } catch (error) {
       console.error("Error deleting rule: ", error);
       toast({
@@ -167,9 +168,9 @@ export default function RulesPage() {
       setIsSubmitting(false);
     }
   };
-  
+
   const getCategoryLabel = (categorySlug?: string) => {
-    if (!categorySlug || categorySlug === "sin_categoria") return "Ninguna";
+    if (!categorySlug || categorySlug === NO_CATEGORY_VALUE) return "Ninguna";
     if (isLoadingCategories) return categorySlug; // Show slug while loading
     const category = wooCategories.find(c => c.slug === categorySlug);
     return category?.name || categorySlug; // Fallback to slug if not found
@@ -204,9 +205,9 @@ export default function RulesPage() {
                 {currentRule ? 'Modifica los detalles de tu regla.' : 'Completa el formulario para crear una nueva regla.'}
               </DialogDescription>
             </DialogHeader>
-            <RuleForm 
-              initialData={currentRule} 
-              onSubmit={handleSaveRule} 
+            <RuleForm
+              initialData={currentRule}
+              onSubmit={handleSaveRule}
               onCancel={handleCloseDialog}
               isSubmitting={isSubmitting}
             />
@@ -245,10 +246,10 @@ export default function RulesPage() {
                       {rule.categoryToAssign ? <Badge variant="secondary">{getCategoryLabel(rule.categoryToAssign)}</Badge> : <span className="text-muted-foreground text-xs">N/A</span>}
                     </TableCell>
                     <TableCell>
-                      {rule.tagsToAssign ? 
+                      {rule.tagsToAssign ?
                         rule.tagsToAssign.split(',').map(tag => tag.trim()).filter(tag => tag).map(tag => (
                           <Badge key={tag} variant="default" className="mr-1 mb-1 bg-accent text-accent-foreground hover:bg-accent/80">{tag}</Badge>
-                        )) : 
+                        )) :
                         <span className="text-muted-foreground text-xs">N/A</span>
                       }
                     </TableCell>
@@ -303,5 +304,3 @@ export default function RulesPage() {
     </div>
   );
 }
-
-    

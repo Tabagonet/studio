@@ -44,6 +44,8 @@ interface TemplateFormProps {
   isSubmitting: boolean;
 }
 
+const NO_CATEGORY_SELECTED_VALUE_TEMPLATE = "__no_category_template__"; // Unique value for placeholder
+
 export function TemplateForm({ initialData, onSubmit, onCancel, isSubmitting }: TemplateFormProps) {
   const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
@@ -56,13 +58,13 @@ export function TemplateForm({ initialData, onSubmit, onCancel, isSubmitting }: 
       type: initialData.type,
       content: initialData.content,
       scope: initialData.scope,
-      categoryValue: initialData.categoryValue || "",
+      categoryValue: initialData.categoryValue || "", // Empty string means "no category chosen yet for this scope"
     } : {
       name: "",
       type: "nombre_seo" as TemplateType,
       content: "",
       scope: "global" as TemplateScope,
-      categoryValue: "",
+      categoryValue: "", // Default to empty, placeholder will show
     },
   });
 
@@ -76,9 +78,11 @@ export function TemplateForm({ initialData, onSubmit, onCancel, isSubmitting }: 
       setValue('scope', initialData.scope);
       setValue('categoryValue', initialData.categoryValue || "");
     } else {
-      // Ensure categoryValue is cleared if initialData is null and scope might default to something needing it
-      // Or if switching from an item with categoryValue to a new one.
       if (scope !== 'categoria_especifica') {
+        setValue('categoryValue', "");
+      } else {
+         // If scope is category_especifica for a new form, explicitly set to empty
+         // so placeholder shows, rather than a previous value if form re-used
         setValue('categoryValue', "");
       }
     }
@@ -118,7 +122,6 @@ export function TemplateForm({ initialData, onSubmit, onCancel, isSubmitting }: 
           setIsLoadingCategories(false);
         });
     } else {
-      // Clear categoryValue if scope is not 'categoria_especifica'
       setValue('categoryValue', "");
     }
   }, [scope, toast, setValue]);
@@ -126,7 +129,10 @@ export function TemplateForm({ initialData, onSubmit, onCancel, isSubmitting }: 
   const handleFormSubmit = async (data: ProductTemplateFormValues) => {
     const dataToSubmit = { ...data };
     if (data.scope !== 'categoria_especifica') {
-      dataToSubmit.categoryValue = ""; // Ensure categoryValue is empty if not category specific
+      dataToSubmit.categoryValue = "";
+    } else if (data.categoryValue === NO_CATEGORY_SELECTED_VALUE_TEMPLATE) {
+      // This case should ideally be prevented by Zod schema if categoryValue is required for this scope
+      dataToSubmit.categoryValue = ""; // Treat as no category if somehow selected
     }
     await onSubmit(dataToSubmit);
   };
@@ -165,7 +171,7 @@ export function TemplateForm({ initialData, onSubmit, onCancel, isSubmitting }: 
         <Label htmlFor="content">Contenido de la Plantilla</Label>
         <Textarea id="content" {...register('content')} rows={5} placeholder="Ej: {{nombre_producto}} - {{marca}} | Mejor Precio" />
         <p className="text-xs text-muted-foreground mt-1">
-          Usa placeholders como <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{'{{nombre_producto}}'}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{'{{categoria}}'}</code>, etc.
+          Usa placeholders como <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{nombre_producto}}`}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{categoria}}`}</code>, etc.
         </p>
         {errors.content && <p className="text-sm text-destructive mt-1">{errors.content.message}</p>}
       </div>
@@ -200,7 +206,7 @@ export function TemplateForm({ initialData, onSubmit, onCancel, isSubmitting }: 
             render={({ field }) => (
               <Select
                 onValueChange={field.onChange}
-                value={field.value || ""}
+                value={field.value || ""} // If field.value is undefined/null, Select will use its placeholder
                 disabled={isLoadingCategories}
               >
                 <SelectTrigger id="categoryValue">
@@ -214,8 +220,9 @@ export function TemplateForm({ initialData, onSubmit, onCancel, isSubmitting }: 
                   )}
                 </SelectTrigger>
                 <SelectContent>
-                   <SelectItem value="">Selecciona una categoría</SelectItem>
-                   {!isLoadingCategories && wooCategories.length === 0 && <SelectItem value="no-cat-template" disabled>No hay categorías disponibles</SelectItem>}
+                   {/* The SelectValue placeholder handles "Selecciona una categoría" when value is "" */}
+                   {/* No explicit <SelectItem value=""> needed here */}
+                   {!isLoadingCategories && wooCategories.length === 0 && <SelectItem value="no-cat-template-placeholder" disabled>No hay categorías disponibles</SelectItem>}
                   {wooCategories.map(cat => (
                     <SelectItem key={cat.id} value={cat.slug}>{cat.name}</SelectItem>
                   ))}

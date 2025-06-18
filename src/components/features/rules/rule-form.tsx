@@ -17,9 +17,9 @@ import { useToast } from '@/hooks/use-toast';
 const ruleFormSchema = z.object({
   name: z.string().min(3, { message: "El nombre debe tener al menos 3 caracteres." }),
   keyword: z.string().min(2, { message: "La palabra clave debe tener al menos 2 caracteres." }),
-  categoryToAssign: z.string().optional(), 
+  categoryToAssign: z.string().optional(),
   tagsToAssign: z.string().optional().refine(val => {
-    if (val === undefined || val.trim() === "") return true; 
+    if (val === undefined || val.trim() === "") return true;
     return val.split(',').every(tag => tag.trim().length > 0) && !val.startsWith(',') && !val.endsWith(',');
   }, { message: "Las etiquetas deben estar separadas por comas y no deben estar vacías (ej: tag1,tag2)." }),
 });
@@ -32,6 +32,8 @@ interface RuleFormProps {
   isSubmitting: boolean;
 }
 
+const NO_CATEGORY_VALUE = "sin_categoria";
+
 export function RuleForm({ initialData, onSubmit, onCancel, isSubmitting }: RuleFormProps) {
   const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
@@ -42,12 +44,12 @@ export function RuleForm({ initialData, onSubmit, onCancel, isSubmitting }: Rule
     defaultValues: initialData ? {
       name: initialData.name,
       keyword: initialData.keyword,
-      categoryToAssign: initialData.categoryToAssign || "",
+      categoryToAssign: initialData.categoryToAssign || NO_CATEGORY_VALUE,
       tagsToAssign: initialData.tagsToAssign || "",
     } : {
       name: "",
       keyword: "",
-      categoryToAssign: "",
+      categoryToAssign: NO_CATEGORY_VALUE,
       tagsToAssign: "",
     },
   });
@@ -56,8 +58,10 @@ export function RuleForm({ initialData, onSubmit, onCancel, isSubmitting }: Rule
     if (initialData) {
       setValue('name', initialData.name);
       setValue('keyword', initialData.keyword);
-      setValue('categoryToAssign', initialData.categoryToAssign || "");
+      setValue('categoryToAssign', initialData.categoryToAssign || NO_CATEGORY_VALUE);
       setValue('tagsToAssign', initialData.tagsToAssign || "");
+    } else {
+      setValue('categoryToAssign', NO_CATEGORY_VALUE); // Ensure default for new form
     }
   }, [initialData, setValue]);
 
@@ -67,14 +71,14 @@ export function RuleForm({ initialData, onSubmit, onCancel, isSubmitting }: Rule
       try {
         const response = await fetch('/api/woocommerce/categories');
         if (!response.ok) {
-          let errorMessage = `Error fetching categories for rules: ${response.status} ${response.statusText}`;
           const responseText = await response.text();
+          let errorMessage = `Error ${response.status}: ${response.statusText}`;
           try {
-            const errorData = JSON.parse(responseText);
-            errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
-          } catch (parseError) {
-            errorMessage = `Server returned non-JSON error for rule categories. Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
-            console.error("Non-JSON error response from /api/woocommerce/categories (rules):", responseText);
+              const errorData = JSON.parse(responseText);
+              errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
+          } catch (jsonError) {
+              errorMessage = `Server returned non-JSON error for rule categories. Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
+              console.error("Non-JSON error response from /api/woocommerce/categories (rules):", responseText);
           }
           throw new Error(errorMessage);
         }
@@ -108,16 +112,16 @@ export function RuleForm({ initialData, onSubmit, onCancel, isSubmitting }: Rule
         <p className="text-xs text-muted-foreground mt-1">Esta palabra clave se buscará en el nombre o descripción del producto.</p>
         {errors.keyword && <p className="text-sm text-destructive mt-1">{errors.keyword.message}</p>}
       </div>
-      
+
       <div>
         <Label htmlFor="categoryToAssign">Categoría a Asignar (Opcional)</Label>
         <Controller
           name="categoryToAssign"
           control={control}
           render={({ field }) => (
-            <Select 
-              onValueChange={field.onChange} 
-              value={field.value || ""}
+            <Select
+              onValueChange={field.onChange}
+              value={field.value} // field.value will be "sin_categoria" or a slug
               disabled={isLoadingCategories}
             >
               <SelectTrigger id="categoryToAssign">
@@ -131,8 +135,8 @@ export function RuleForm({ initialData, onSubmit, onCancel, isSubmitting }: Rule
                 )}
               </SelectTrigger>
               <SelectContent>
-                 <SelectItem value="">Ninguna</SelectItem>
-                 {!isLoadingCategories && wooCategories.length === 0 && <SelectItem value="no-cat-rules" disabled>No hay categorías disponibles</SelectItem>}
+                 <SelectItem value={NO_CATEGORY_VALUE}>Ninguna</SelectItem>
+                 {!isLoadingCategories && wooCategories.length === 0 && <SelectItem value="no-cat-rules-placeholder" disabled>No hay categorías disponibles</SelectItem>}
                 {wooCategories.map(cat => (
                   <SelectItem key={cat.id} value={cat.slug}>{cat.name}</SelectItem>
                 ))}
@@ -166,5 +170,3 @@ export function RuleForm({ initialData, onSubmit, onCancel, isSubmitting }: Rule
     </form>
   );
 }
-
-    
