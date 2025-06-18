@@ -10,11 +10,10 @@ import { Step2Preview } from "./step-2-preview";
 import { Step3Confirm } from "./step-3-confirm";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from '@/hooks/use-toast';
-import { db, auth } from '@/lib/firebase'; // Firebase client SDK, import db and auth (app is used internally by auth)
+import { db, auth } from '@/lib/firebase';
 import { getIdToken } from 'firebase/auth'; 
 import { doc, serverTimestamp, collection, writeBatch, Timestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
-
 
 export function ProductWizard() {
   const [currentStep, setCurrentStep] = useState(0);
@@ -49,7 +48,7 @@ export function ProductWizard() {
         console.error("Error getting auth token:", error);
         toast({
           title: "Error de Autenticación",
-          description: "No se pudo obtener el token de autenticación. Por favor, intenta recargar la página.",
+          description: "No se pudo obtener el token de autenticación.",
           variant: "destructive",
         });
         return null;
@@ -68,27 +67,15 @@ export function ProductWizard() {
     const wizardJobId = `wizard_${Date.now()}`;
     
     if (!auth.currentUser) {
-      toast({
-        title: "Usuario No Autenticado",
-        description: "Debes iniciar sesión para crear un producto.",
-        variant: "destructive",
-      });
+      toast({ title: "Usuario No Autenticado", variant: "destructive" });
       setIsProcessing(false);
-      router.push('/login'); // Redirect to login if somehow user is not authenticated
+      router.push('/login');
       return;
     }
     const userId = auth.currentUser.uid;
 
-
-    const uploadedPhotoDetails: { name: string; externalUrl: string; originalPhotoId: string }[] = [];
-    let allUploadsSuccessful = true;
-
     if (productData.photos.length === 0) {
-        toast({
-            title: "No hay imágenes",
-            description: "Por favor, sube al menos una imagen para el producto.",
-            variant: "destructive",
-        });
+        toast({ title: "No hay imágenes", description: "Sube al menos una imagen.", variant: "destructive" });
         setIsProcessing(false);
         return;
     }
@@ -99,43 +86,43 @@ export function ProductWizard() {
         return;
     }
 
+    const uploadedPhotoDetails: { name: string; relativePath: string; originalPhotoId: string }[] = [];
+    let allUploadsSuccessful = true;
+
     for (const photo of productData.photos) {
       const formData = new FormData();
-      formData.append('imagen', photo.file); 
+      formData.append('file', photo.file); 
+      formData.append('batchId', wizardJobId); // Use wizardJobId as batchId for local storage
+      formData.append('fileName', photo.name); // Send original filename
 
       try {
-        const response = await fetch('/api/upload-image', {
+        const response = await fetch('/api/upload-image-local', { // Use new local upload endpoint
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${authToken}`,
-          },
+          headers: { 'Authorization': `Bearer ${authToken}` },
           body: formData,
         });
+        
+        const responseText = await response.text();
+        let result;
+        try {
+            result = JSON.parse(responseText);
+        } catch (parseError) {
+            console.error(`[Wizard] Failed to parse JSON from /api/upload-image-local for ${photo.name}. Response text:`, responseText.substring(0, 500));
+            throw new Error(`Respuesta no JSON de /api/upload-image-local para ${photo.name}.`);
+        }
 
-        if (!response.ok) {
-          let errorMessage = `Error al subir ${photo.file.name} a servidor externo: ${response.status} ${response.statusText}`;
-          const responseText = await response.text();
-          try {
-            const errorData = JSON.parse(responseText);
-            errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
-          } catch (parseError) {
-            errorMessage = `Server returned non-JSON error for /api/upload-image. Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
-            console.error("Non-JSON error response from /api/upload-image:", responseText);
-          }
-          throw new Error(errorMessage);
+        if (!response.ok || result.success !== true || !result.relativePath) {
+          console.error(`[Wizard] /api/upload-image-local for ${photo.name} failed or invalid response. Status: ${response.status}, Result:`, result);
+          throw new Error(result.error || `La subida local de ${photo.name} falló.`);
         }
-        const result = await response.json();
-        if (!result.success || !result.url) {
-            throw new Error(result.error || `La subida de ${photo.file.name} al servidor externo no devolvió una URL.`);
-        }
-        uploadedPhotoDetails.push({ name: photo.file.name, externalUrl: result.url, originalPhotoId: photo.id });
+        uploadedPhotoDetails.push({ name: photo.file.name, relativePath: result.relativePath, originalPhotoId: photo.id });
+        
+        // Update ProductPhoto in state with localPath if needed by other components, though not strictly necessary here
+        // updateProductData({ photos: productData.photos.map(p => p.id === photo.id ? {...p, localPath: result.relativePath} : p) });
+
       } catch (error) {
-        console.error(`Error al subir ${photo.file.name} para el asistente:`, error);
-        toast({
-          title: `Error al Subir Imagen ${photo.file.name}`,
-          description: (error as Error).message,
-          variant: "destructive",
-        });
+        console.error(`[Wizard] Error al subir ${photo.file.name} localmente:`, error);
+        toast({ title: `Error al Subir ${photo.file.name}`, description: (error as Error).message, variant: "destructive" });
         allUploadsSuccessful = false;
         break;
       }
@@ -143,6 +130,7 @@ export function ProductWizard() {
 
     if (!allUploadsSuccessful) {
       setIsProcessing(false);
+      // Consider cleanup of already uploaded files for this wizardJobId if some failed
       return;
     }
 
@@ -166,12 +154,13 @@ export function ProductWizard() {
             isPrimary: originalPhotoData?.isPrimary || false,
         };
 
+        // Storing relative path from server's public dir
         const entry: Omit<ProcessingStatusEntry, 'id' | 'updatedAt'> = {
           userId: userId,
           batchId: wizardJobId,
           imageName: uploadedPhoto.name,
-          originalStoragePath: uploadedPhoto.externalUrl, 
-          originalDownloadUrl: uploadedPhoto.externalUrl, 
+          originalStoragePath: uploadedPhoto.relativePath, 
+          originalDownloadUrl: uploadedPhoto.relativePath, 
           status: "uploaded",
           uploadedAt: serverTimestamp() as Timestamp,
           progress: 0,
@@ -181,12 +170,8 @@ export function ProductWizard() {
       }
       await firestoreBatch.commit();
     } catch (error) {
-      console.error("Error al escribir en Firestore para el asistente:", error);
-      toast({
-        title: "Error de Base de Datos",
-        description: "No se pudieron registrar las imágenes para procesamiento.",
-        variant: "destructive",
-      });
+      console.error("[Wizard] Error al escribir en Firestore:", error);
+      toast({ title: "Error de Base de Datos", description: "No se pudieron registrar las imágenes.", variant: "destructive" });
       setIsProcessing(false);
       return;
     }
@@ -198,36 +183,31 @@ export function ProductWizard() {
         body: JSON.stringify({ batchId: wizardJobId, userId: userId }), 
       });
       
+      const responseText = await response.text();
+      let resultData;
+      try {
+          resultData = JSON.parse(responseText);
+      } catch (e) {
+          throw new Error(`Respuesta no JSON del servidor al iniciar procesamiento: ${responseText.substring(0,100)}`);
+      }
+
       if (!response.ok) {
-        let errorMessage = `Error al iniciar procesamiento: ${response.status} ${response.statusText}`;
-        const responseText = await response.text();
-        try {
-            const errorData = JSON.parse(responseText);
-            errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
-        } catch (parseError) {
-            errorMessage = `Server returned non-JSON error for process-photos (wizard). Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
-            console.error("Non-JSON error response from /api/process-photos (wizard):", responseText);
-        }
-        throw new Error(errorMessage);
+        throw new Error(resultData.error || resultData.message || `Error del servidor al iniciar procesamiento: ${response.status}`);
       }
 
       toast({
         title: "Producto Enviado a Procesamiento",
-        description: "Las imágenes de tu producto se están procesando. Serás redirigido para ver el progreso.",
+        description: "Tu producto se está procesando. Serás redirigido para ver el progreso.",
         duration: 7000,
       });
 
       setCurrentStep(0);
       setProductData(INITIAL_PRODUCT_DATA);
-      router.push(`/batch?batchId=${wizardJobId}`);
+      router.push(`/batch?batchId=${wizardJobId}`); // Redirect to batch page to see progress
 
     } catch (error) {
-      console.error("Error al iniciar el procesamiento backend para el asistente:", error);
-      toast({
-        title: "Error de Procesamiento",
-        description: (error as Error).message || "No se pudo iniciar el procesamiento de las imágenes del producto.",
-        variant: "destructive",
-      });
+      console.error("[Wizard] Error al iniciar el procesamiento backend:", error);
+      toast({ title: "Error de Procesamiento", description: (error as Error).message, variant: "destructive" });
     } finally {
       setIsProcessing(false);
     }
@@ -272,7 +252,7 @@ export function ProductWizard() {
           <Button onClick={nextStep} disabled={isProcessing || (currentStep === 0 && productData.photos.length === 0) }>Siguiente</Button>
         ) : (
           <Button onClick={handleSubmitProduct} disabled={isProcessing || productData.photos.length === 0}>
-            {isProcessing ? "Procesando..." : "Confirmar y Procesar Imágenes"}
+            {isProcessing ? "Procesando..." : "Confirmar y Procesar Producto"}
           </Button>
         )}
       </div>

@@ -48,15 +48,6 @@ export const WIZARD_STEPS = [
   { id: '03', name: 'Confirmación', description: 'Finaliza y procesa.' },
 ];
 
-// PRODUCT_CATEGORIES is now fetched dynamically from WooCommerce in relevant components.
-// This constant is no longer used for populating category selectors.
-/*
-export const PRODUCT_CATEGORIES = [
-  { value: "ropa", label: "Ropa" },
-  { value: "electronica", label: "Electrónica" },
-  // ... other categories
-];
-*/
 
 export const PRODUCT_TYPES: { value: ProductType; label: string }[] = [
   { value: 'simple', label: 'Producto Simple (Físico)' },
@@ -70,7 +61,7 @@ export const INITIAL_PRODUCT_DATA = {
   productType: 'simple' as ProductType, 
   regularPrice: "",
   salePrice: "",
-  category: "", // Será el slug de la categoría de WooCommerce
+  category: "", 
   keywords: "",
   shortDescription: "",
   longDescription: "",
@@ -93,3 +84,5 @@ export const TEMPLATE_SCOPES: { value: TemplateScope; label: string }[] = [
 export const PRODUCT_TEMPLATES_COLLECTION = "product_templates";
 export const AUTOMATION_RULES_COLLECTION = "automation_rules";
 export const APP_NOTIFICATIONS_COLLECTION = "app_notifications";
+export const SEO_HISTORY_COLLECTION = "seo_history"; // New collection for logging
+

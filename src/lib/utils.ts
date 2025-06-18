@@ -1,7 +1,8 @@
+
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { WordTokenizer, PorterStemmer, SentimentAnalyzer, PorterStemmerEs, BayesClassifier } from 'natural';
-
+import type { ParsedNameData } from './types';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -9,81 +10,43 @@ export function cn(...inputs: ClassValue[]) {
 
 // --- NLP Utilities using 'natural' library ---
 
-/**
- * Tokenizes a string into an array of words (lowercase).
- * @param text The input string.
- * @returns An array of tokens.
- */
 export function tokenizeText(text: string): string[] {
   if (!text || typeof text !== 'string') return [];
   const tokenizer = new WordTokenizer();
   return tokenizer.tokenize(text.toLowerCase()) || [];
 }
 
-/**
- * Stems a single word using Porter Stemmer (for English).
- * @param word The word to stem.
- * @returns The stemmed word.
- */
 export function stemWordEn(word: string): string {
   if (!word || typeof word !== 'string') return "";
   return PorterStemmer.stem(word.toLowerCase());
 }
 
-/**
- * Stems all words in a text string (for English).
- * @param text The input string.
- * @returns A string with all words stemmed.
- */
 export function stemTextEn(text: string): string {
   if (!text || typeof text !== 'string') return "";
   const tokens = tokenizeText(text);
   return tokens.map(token => PorterStemmer.stem(token)).join(" ");
 }
 
-/**
- * Stems a single word using Porter Stemmer (for Spanish).
- * @param word The word to stem.
- * @returns The stemmed word.
- */
 export function stemWordEs(word: string): string {
   if (!word || typeof word !== 'string') return "";
   return PorterStemmerEs.stem(word.toLowerCase());
 }
 
-/**
- * Stems all words in a text string (for Spanish).
- * @param text The input string.
- * @returns A string with all words stemmed.
- */
 export function stemTextEs(text: string): string {
   if (!text || typeof text !== 'string') return "";
-  const tokens = tokenizeText(text); // `natural` tokenizer is language-agnostic for simple splitting
+  const tokens = tokenizeText(text);
   return tokens.map(token => PorterStemmerEs.stem(token)).join(" ");
 }
 
-/**
- * Gets the sentiment score of a text (for English, using AFINN lexicon by default).
- * A positive score indicates positive sentiment, negative for negative, 0 for neutral.
- * @param text The input string.
- * @returns The sentiment score.
- */
 export function getSentimentEn(text: string): number {
   if (!text || typeof text !== 'string') return 0;
   const tokenizer = new WordTokenizer();
   const tokens = tokenizer.tokenize(text.toLowerCase());
   if (!tokens || tokens.length === 0) return 0;
-
-  // Uses PorterStemmer and AFINN lexicon by default for English
   const analyzer = new SentimentAnalyzer("English", PorterStemmer, "afinn");
   return analyzer.getSentiment(tokens);
 }
 
-/**
- * Creates and trains a simple BayesClassifier for demonstration.
- * In a real application, you'd train with much more data and persist/load the classifier.
- * @returns A trained BayesClassifier instance.
- */
 export function getExampleClassifier(): BayesClassifier {
     const classifier = new BayesClassifier();
     classifier.addDocument('great product amazing quality', 'positive');
@@ -93,38 +56,88 @@ export function getExampleClassifier(): BayesClassifier {
     classifier.addDocument('hate it do not recommend this', 'negative');
     classifier.addDocument('poor quality waste of money', 'negative');
     classifier.addDocument('this is a neutral review of the item', 'neutral');
-    
-    // Check if the classifier has enough data to train for all labels
     try {
         classifier.train();
     } catch (e) {
-        console.warn("Error training example classifier (likely insufficient data for all labels):", e);
-        // Add more generic documents if training fails, to ensure it can always be constructed
+        console.warn("Error training example classifier:", e);
         if (!classifier.docs.some(doc => doc.label === 'positive')) classifier.addDocument('positive example', 'positive');
         if (!classifier.docs.some(doc => doc.label === 'negative')) classifier.addDocument('negative example', 'negative');
         if (!classifier.docs.some(doc => doc.label === 'neutral')) classifier.addDocument('neutral example', 'neutral');
-        try {
-            classifier.train(); // Retry training
-        } catch (e2) {
-            console.error("Could not train example classifier even with fallbacks:", e2);
-        }
+        try { classifier.train(); } catch (e2) { console.error("Could not train example classifier:", e2); }
     }
     return classifier;
 }
 
-/*
-// Example usage of the utilities:
-// console.log("Tokenized:", tokenizeText("This is an example sentence."));
-// console.log("Stemmed (En):", stemTextEn("Running and beautifully"));
-// console.log("Stemmed (Es):", stemTextEs("Corriendo y hermosamente"));
-// console.log("Sentiment (En):", getSentimentEn("This is a wonderful product!")); // positive
-// console.log("Sentiment (En):", getSentimentEn("This is a terrible product.")); // negative
+/**
+ * Extracts product name and potential attributes from a filename.
+ * Example: "AGAVE CAVANILLESII-1.jpg" -> name: "Agave Cavanillesii", attributes: ["1"]
+ * Example: "My Product_Blue_Large-002.png" -> name: "My Product Blue Large", attributes: ["002"]
+ * This is a basic implementation and can be significantly improved.
+ * @param originalFilename The original filename.
+ * @param contextName Optional name from product context, if available, to refine extraction.
+ * @returns ParsedNameData object.
+ */
+export function extractProductNameAndAttributesFromFilename(
+  originalFilename: string,
+  contextName?: string
+): ParsedNameData {
+  if (!originalFilename) {
+    return {
+      extractedProductName: 'Unknown Product',
+      potentialAttributes: [],
+      normalizedProductName: 'unknownproduct',
+    };
+  }
 
-// const myClassifier = getExampleClassifier();
-// if (myClassifier.trained) { // Check if classifier was successfully trained
-//   console.log("Classification ('great deal'):", myClassifier.classify('this is a great deal'));
-//   console.log("Classification ('awful product'):", myClassifier.classify('this is an awful product'));
-// } else {
-//   console.log("Example classifier not trained, cannot classify.");
-// }
-*/
+  // Prefer contextName if provided and seems more complete
+  let namePart = contextName || originalFilename;
+  
+  // Remove extension
+  namePart = namePart.substring(0, namePart.lastIndexOf('.')) || namePart;
+
+  // Attempt to split by common delimiters for attributes/numbering
+  const parts = namePart.split(/[-_](?=\d+$)|[-_](?=[cC]opy\d*$)|[-_](?=[vV]ariation\d*$)/);
+  let extractedProductName = parts[0];
+  const potentialAttributes: string[] = parts.slice(1).map(p => p.trim()).filter(p => p);
+
+  // Further refine product name if it was from filename
+  if (!contextName) {
+      // Replace hyphens/underscores with spaces, then capitalize words
+      extractedProductName = extractedProductName
+        .replace(/[-_]/g, ' ')
+        .trim()
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+  } else {
+      // If contextName was used, assume it's already well-formatted
+      extractedProductName = contextName.trim();
+  }
+
+
+  // If no attributes extracted from suffix, and namePart had internal delimiters,
+  // try to see if those were intended as part of the name vs attributes
+  if (potentialAttributes.length === 0 && !contextName) {
+    const subParts = extractedProductName.split(' ');
+    if (subParts.length > 1) {
+        const lastPart = subParts[subParts.length - 1];
+        // If last part is a number or common variation indicator, consider it an attribute
+        if (/^\d+$/.test(lastPart) || /^[mMlLxX]+[sS]?$/.test(lastPart) /* S, M, L, XL, XXL etc */) {
+            // This logic can be much more sophisticated
+            // For now, let's assume if contextName wasn't given, such parts were for numbering/variation.
+        }
+    }
+  }
+  
+  // Normalize for use in prompts or as keywords
+  const normalizedProductName = extractedProductName
+    .toLowerCase()
+    .replace(/\s+/g, ' ') // Normalize multiple spaces
+    .trim();
+
+  return {
+    extractedProductName: extractedProductName.trim() || 'Unnamed Product',
+    potentialAttributes,
+    normalizedProductName,
+  };
+}
