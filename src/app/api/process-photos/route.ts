@@ -395,12 +395,13 @@ async function updateSpecificFirestoreEntries(
 
 
 async function createOrUpdateWooCommerceProduct(
-    request: NextRequest, 
+    request: NextRequest,
     batchId: string,
     userId: string,
-    allBatchEntriesReadyForWoo: ProcessingStatusEntry[], 
+    allBatchEntriesReadyForWoo: ProcessingStatusEntry[],
     templates: ProductTemplate[]
 ): Promise<Array<{name: string, success: boolean, id?: number | string, error?: string }>> {
+  console.log(`[WooCommerce] Batch ${batchId}: Starting createOrUpdateWooCommerceProduct with ${allBatchEntriesReadyForWoo.length} entries ready.`);
   if (!adminDb) {
     console.error("[WooCommerce] Firestore (adminDb) is not initialized.");
     const entryIdsToUpdate = allBatchEntriesReadyForWoo.map(e => e.id);
@@ -413,43 +414,47 @@ async function createOrUpdateWooCommerceProduct(
     await updateSpecificFirestoreEntries(entryIdsToUpdate, 'error_woocommerce_integration', "WooCommerce API client not initialized.");
     return allBatchEntriesReadyForWoo.map(e => ({name: e.productContext?.name || e.imageName, success: false, error: "WooCommerce API client error"}));
   }
-  
+
   const productResults: Array<{name: string, success: boolean, id?: number | string, error?: string }> = [];
   const productsToProcessMap: Record<string, ProcessingStatusEntry[]> = {};
+
   allBatchEntriesReadyForWoo.forEach(entry => {
-    if (entry.productContext?.name && entry.status === 'completed_image_pending_woocommerce') { 
+    if (entry.productContext?.name && entry.status === 'completed_image_pending_woocommerce') {
       if (!productsToProcessMap[entry.productContext.name]) {
         productsToProcessMap[entry.productContext.name] = [];
       }
       productsToProcessMap[entry.productContext.name].push(entry);
     } else {
-      console.warn(`[WooCommerce] Entry ${entry.id} in batch ${batchId} is missing productContext.name or not in correct status. Skipping. Status: ${entry.status}`);
+      console.warn(`[WooCommerce] Entry ${entry.id} in batch ${batchId} is missing productContext.name or not in correct status for Woo. Skipping. Status: ${entry.status}, Name: ${entry.productContext?.name}`);
     }
   });
 
   if (Object.keys(productsToProcessMap).length === 0) {
     console.log(`[WooCommerce] Batch ${batchId}: No products with context found in 'completed_image_pending_woocommerce' state for WooCommerce processing.`);
-    return []; 
+    return [];
   }
-  
-  console.log(`[WooCommerce] Batch ${batchId}: Found ${Object.keys(productsToProcessMap).length} distinct products to process for WooCommerce.`);
+  console.log(`[WooCommerce] Batch ${batchId}: Found ${Object.keys(productsToProcessMap).length} distinct products to process for WooCommerce. Products: ${Object.keys(productsToProcessMap).join(', ')}`);
 
   for (const productName in productsToProcessMap) {
-    const productEntries = productsToProcessMap[productName]; 
+    const productEntries = productsToProcessMap[productName];
     const primaryEntry = productEntries.find(e => e.productContext?.isPrimary) || productEntries[0];
     let currentProductContext = primaryEntry?.productContext;
 
     if (!currentProductContext) {
-      console.warn(`[WooCommerce] Batch ${batchId}, Product Group ${productName}: Critical - No productContext available. Skipping this product group.`);
+      console.warn(`[WooCommerce] Batch ${batchId}, Product Group ${productName}: Critical - No productContext available from primary/first entry. Skipping this product group.`);
       await updateSpecificFirestoreEntries(productEntries.map(e => e.id), 'error_woocommerce_integration', `Critical: No productContext for product group ${productName}`);
       productResults.push({ name: productName, success: false, error: "Missing product context internally." });
       continue;
     }
-    console.log(`[WooCommerce] Processing product: "${productName}" (from batch ${batchId}) with ${productEntries.length} image(s). Context from entry ID: ${primaryEntry.id}`);
-    
+    console.log(`[WooCommerce - ${productName}] Processing product. Context from entry ID: ${primaryEntry.id}. Initial Context:`, JSON.stringify(currentProductContext));
+
+    let generatedSkuIfNeeded = currentProductContext.sku;
     if (!currentProductContext.sku) {
-      currentProductContext.sku = `${cleanTextForFilename(currentProductContext.name).substring(0, 20)}-${Date.now().toString().slice(-4)}`;
+      generatedSkuIfNeeded = `${cleanTextForFilename(currentProductContext.name).substring(0, 20)}-${Date.now().toString().slice(-4)}`;
+      currentProductContext.sku = generatedSkuIfNeeded;
       console.log(`[WooCommerce - ${productName}] Generated SKU: ${currentProductContext.sku}`);
+    } else {
+        console.log(`[WooCommerce - ${productName}] Using provided SKU: ${currentProductContext.sku}`);
     }
 
     const categoryInfoForTemplate = allWooCategoriesCache?.find(c => c.slug === currentProductContext?.category);
@@ -462,8 +467,8 @@ async function createOrUpdateWooCommerceProduct(
         sku: currentProductContext.sku,
         palabras_clave: currentProductContext.keywords || '',
         atributos: attributesSummaryForTemplate,
-        precio_regular: currentProductContext.regularPrice || '0', 
-        precio_oferta: currentProductContext.salePrice || '' 
+        precio_regular: currentProductContext.regularPrice || '0',
+        precio_oferta: currentProductContext.salePrice || ''
     };
     console.log(`[WooCommerce - ${productName}] TemplateData for descriptions:`, templateDataForDesc);
 
@@ -471,11 +476,11 @@ async function createOrUpdateWooCommerceProduct(
     let aiGeneratedLongDescription: string | undefined = undefined;
 
     if (!currentProductContext.shortDescription || !currentProductContext.longDescription) {
-      console.log(`[AI Description - ${productName}] Context descriptions empty, attempting to generate with AI.`);
+      console.log(`[AI Description - ${productName}] Context descriptions empty or partial, attempting to generate with AI.`);
       try {
         const aiInput = {
           productName: templateDataForDesc.nombre_producto,
-          categoryName: templateDataForDesc.categoria, 
+          categoryName: templateDataForDesc.categoria,
           keywords: templateDataForDesc.palabras_clave,
           attributesSummary: templateDataForDesc.atributos,
         };
@@ -512,43 +517,45 @@ async function createOrUpdateWooCommerceProduct(
           baseLongDescription = `Descripción detallada de ${templateDataForDesc.nombre_producto}. ${categoryNameForTemplate ? `Categoría: ${categoryNameForTemplate}.` : ''}`;
       }
     }
-    const finalProductDescription = baseLongDescription; 
+    const finalProductDescription = baseLongDescription;
     console.log(`[WooCommerce - ${productName}] Final Short Desc: "${(finalShortDescription || '').substring(0,50)}...", Final Long Desc: "${(finalProductDescription || '').substring(0,50)}..."`);
-
 
     const wooImages = productEntries
       .filter(entry => entry.processedImageDownloadUrl && entry.status === 'completed_image_pending_woocommerce' && entry.seoMetadata && entry.seoName)
       .map((entry, index) => ({
-          src: entry.processedImageDownloadUrl, 
-          name: entry.seoName, 
-          alt: entry.seoMetadata?.alt || entry.seoName, 
-          position: entry.productContext?.isPrimary ? 0 : index + 1 
+          src: entry.processedImageDownloadUrl,
+          name: entry.seoName,
+          alt: entry.seoMetadata?.alt || entry.seoName,
+          position: entry.productContext?.isPrimary ? 0 : index + 1
       }))
-      .sort((a, b) => a.position - b.position); 
-    wooImages.forEach((img, idx) => img.position = idx); 
-    console.log(`[WooCommerce Images - ${productName}] Payload:`, wooImages.map(img => ({name:img.name, src:img.src.slice(-30), alt:img.alt, pos:img.position})));
+      .sort((a, b) => a.position - b.position);
+    wooImages.forEach((img, idx) => img.position = idx);
+    console.log(`[WooCommerce Images - ${productName}] Payload:`, wooImages.map(img => ({name:img.name, src:(img.src || 'NO_SRC').slice(-30), alt:img.alt, pos:img.position})));
 
     const wooCategoriesPayload: { slug?: string; id?: number }[] = [];
     let categorySlugToUse = currentProductContext.category || primaryEntry.assignedCategorySlug;
-    console.log(`[WooCommerce Categories - ${productName}] Attempting to use category slug: "${categorySlugToUse}" (Context: ${currentProductContext.category}, Rules: ${primaryEntry.assignedCategorySlug})`);
+    console.log(`[WooCommerce Categories - ${productName}] Attempting to use category slug: "${categorySlugToUse}" (Context: ${currentProductContext.category}, Rules on Primary Entry: ${primaryEntry.assignedCategorySlug})`);
     if (categorySlugToUse) {
       const categoryInfo = allWooCategoriesCache?.find(c => c.slug === categorySlugToUse);
       if (categoryInfo) {
-          wooCategoriesPayload.push({ id: categoryInfo.id }); 
+          wooCategoriesPayload.push({ id: categoryInfo.id });
           console.log(`[WooCommerce Categories - ${productName}] Found category "${categoryInfo.name}" (ID: ${categoryInfo.id}) for slug "${categorySlugToUse}". Payload:`, wooCategoriesPayload);
       } else {
-          console.warn(`[WooCommerce Categories - ${productName}] Slug "${categorySlugToUse}" NOT FOUND in WooCommerce category cache. Category will not be assigned.`);
+          console.warn(`[WooCommerce Categories - ${productName}] Slug "${categorySlugToUse}" NOT FOUND in WooCommerce category cache (Total cached: ${allWooCategoriesCache?.length}). Category will not be assigned.`);
       }
     } else {
         console.log(`[WooCommerce Categories - ${productName}] No category slug specified from context or rules.`);
     }
 
-    const tagsToUse = primaryEntry.assignedTags && primaryEntry.assignedTags.length > 0 ? primaryEntry.assignedTags.map(tag => ({ name: tag })) : [];
-    console.log(`[WooCommerce Tags - ${productName}] Final payload:`, tagsToUse);
+    const tagsArray = primaryEntry.assignedTags && primaryEntry.assignedTags.length > 0
+        ? primaryEntry.assignedTags
+        : (currentProductContext.keywords?.split(',').map(k => k.trim()).filter(k => k) || []);
+    const tagsToUse = tagsArray.map(tag => ({ name: tag }));
+    console.log(`[WooCommerce Tags - ${productName}] Using tags (from rules on Primary or context keywords): ${tagsArray.join(', ')}. Final payload:`, tagsToUse);
 
     const wooProductData: any = {
       name: currentProductContext.name,
-      type: currentProductContext.productType, 
+      type: currentProductContext.productType,
       sku: currentProductContext.sku,
       regular_price: String(currentProductContext.regularPrice || '0'),
       description: finalProductDescription,
@@ -558,7 +565,7 @@ async function createOrUpdateWooCommerceProduct(
       images: wooImages,
       meta_data: [
           { key: '_wooautomate_batch_id', value: batchId },
-          { key: '_wooautomate_product_name_in_batch', value: productName}, 
+          { key: '_wooautomate_product_name_in_batch', value: productName},
           { key: '_external_image_urls', value: productEntries.map(e => e.processedImageDownloadUrl).filter(url => !!url) }
       ]
     };
@@ -567,11 +574,25 @@ async function createOrUpdateWooCommerceProduct(
       wooProductData.attributes = currentProductContext.attributes
           .filter(attr => attr.name && attr.value)
           .map((attr, index) => ({
-              name: attr.name, options: attr.value.split('|').map(o => o.trim()), 
-              position: index, visible: true, variation: currentProductContext.productType === 'variable' 
+              name: attr.name,
+              options: attr.value.split('|').map(o => o.trim()),
+              position: index,
+              visible: true,
+              variation: currentProductContext.productType === 'variable'
           }));
     }
-    
+     console.log(`[WooCommerce - ${productName}] Final wooProductData (summary) before POST: `, JSON.stringify({
+        name: wooProductData.name,
+        sku: wooProductData.sku,
+        type: wooProductData.type,
+        regular_price: wooProductData.regular_price,
+        sale_price: wooProductData.sale_price,
+        categories_count: wooProductData.categories?.length,
+        tags_count: wooProductData.tags?.length,
+        images_count: wooProductData.images?.length,
+        attributes_count: wooProductData.attributes?.length
+    }));
+
     let finalWooProductId: number | string | null = null;
     let finalErrorMessage: string | null = null;
     let finalSkuUsed: string | null = wooProductData.sku;
@@ -586,35 +607,35 @@ async function createOrUpdateWooCommerceProduct(
       } catch (error: any) {
         const wooErrorMessage = error.response?.data?.message || error.message || "Unknown WooCommerce API error";
         const wooErrorCode = error.response?.data?.code || "";
-        console.error(`[WooCommerce - ${productName}] Error (Attempt #${isRetry ? '2' : '1'}) creating product with SKU ${currentSkuAttempt}: ${wooErrorMessage} (Code: ${wooErrorCode}). Woo response status: ${error.response?.status}`);
-        
+        console.error(`[WooCommerce - ${productName}] Error (Attempt #${isRetry ? '2' : '1'}) creating product with SKU ${currentSkuAttempt}: ${wooErrorMessage} (Code: ${wooErrorCode}). Woo response status: ${error.response?.status}, Response Data:`, error.response?.data);
+
         const isSkuError = (wooErrorMessage.toLowerCase().includes("sku") &&
                            (wooErrorMessage.toLowerCase().includes("duplicate") ||
                             wooErrorMessage.toLowerCase().includes("ya existe") ||
                             wooErrorMessage.toLowerCase().includes("no válido"))) ||
                            wooErrorCode === 'product_invalid_sku' ||
-                           wooErrorCode === 'term_exists' || 
+                           wooErrorCode === 'term_exists' ||
                            wooErrorCode === 'woocommerce_product_invalid_sku';
 
-        if (isSkuError && !isRetry) { 
+        if (isSkuError && !isRetry) {
           const originalSku = productPayload.sku || `fallback-sku-${Date.now().toString().slice(-3)}`;
-          const newSku = `${originalSku}-R${Date.now().toString().slice(-5)}`;
+          const newSku = `${cleanTextForFilename(originalSku).substring(0,15)}-R${Date.now().toString().slice(-5)}`;
           console.warn(`[WooCommerce - ${productName}] SKU ${originalSku} invalid/duplicate. Retrying with SKU: ${newSku}`);
           const retryProductPayload = { ...productPayload, sku: newSku };
-          if (currentProductContext) currentProductContext.sku = newSku; 
-          
+          if (currentProductContext) currentProductContext.sku = newSku;
+
           const tempResult = await attemptProductCreation(retryProductPayload, true);
-          if (tempResult.id && currentProductContext) { 
+          if (tempResult.id && currentProductContext) {
              const productEntryIdsToUpdateSku = productEntries.map(e => e.id);
              const firestoreUpdateSkuBatch = adminDb.batch();
              productEntryIdsToUpdateSku.forEach(id => {
                 firestoreUpdateSkuBatch.update(adminDb.collection('processing_status').doc(id), {
-                    'productContext.sku': newSku, 
+                    'productContext.sku': newSku,
                     'updatedAt': admin.firestore.FieldValue.serverTimestamp()
                 });
              });
              await firestoreUpdateSkuBatch.commit();
-             console.log(`[Firestore - ${productName}] Updated SKU to ${newSku} for its entries.`);
+             console.log(`[Firestore - ${productName}] Updated SKU to ${newSku} for its ${productEntryIdsToUpdateSku.length} entries after successful retry.`);
           }
           return tempResult;
         }
@@ -624,16 +645,16 @@ async function createOrUpdateWooCommerceProduct(
 
     const creationResult = await attemptProductCreation(wooProductData, false);
     finalWooProductId = creationResult.id;
-    finalSkuUsed = creationResult.skuUsed; 
+    finalSkuUsed = creationResult.skuUsed;
     finalErrorMessage = creationResult.errorMsg || null;
 
     const currentProductEntryIds = productEntries.map(e => e.id);
     if (finalWooProductId) {
       console.log(`[WooCommerce - ${productName}] Product creation successful. Product ID: ${finalWooProductId}. SKU used: ${finalSkuUsed}`);
-      console.log(`[QueFoto Delete - ${productName}] Initiating deletion of its processed images from quefoto.es as product created.`);
+      console.log(`[QueFoto Delete - ${productName}] Initiating deletion of its ${productEntries.length} processed images from quefoto.es as product created.`);
       for (const entry of productEntries) {
         if (entry.processedImageDownloadUrl && entry.status === 'completed_image_pending_woocommerce') {
-          deleteImageFromQueFoto(entry.processedImageDownloadUrl);
+          deleteImageFromQueFoto(entry.processedImageDownloadUrl).catch(delError => console.warn(`[QueFoto Delete - ${productName}] Non-critical error deleting ${entry.processedImageDownloadUrl}:`, delError));
         }
       }
       await updateSpecificFirestoreEntries(currentProductEntryIds, 'completed_woocommerce_integration', `Product created/updated: ${finalWooProductId}. SKU: ${finalSkuUsed}`, String(finalWooProductId));
@@ -650,8 +671,9 @@ async function createOrUpdateWooCommerceProduct(
       }
       productResults.push({ name: productName, success: false, error: finalErrorMessage || "Unknown WooCommerce error" });
     }
-  } 
+  }
 
+  console.log(`[WooCommerce] Batch ${batchId}: Finished processing ${Object.keys(productsToProcessMap).length} products. Results:`, productResults);
   return productResults;
 }
 
@@ -713,72 +735,85 @@ export async function POST(request: NextRequest) {
       console.log(`[API /api/process-photos] Starting image processing for: ${photoData.imageName} (Doc ID: ${photoData.id}, Index in its product group: ${imageIndexInProductGroup}) for product "${photoData.productContext?.name}" in batch ${batchId}`);
 
       try {
-        await photoDocRef.update({ status: 'processing_image_started', progress: 5, updatedAt: admin.firestore.FieldValue.serverTimestamp()});
+        const updateStart: Partial<ProcessingStatusEntry> = { status: 'processing_image_started', progress: 5, updatedAt: admin.firestore.FieldValue.serverTimestamp() as any };
+        await photoDocRef.update(updateStart);
+
         if (!photoData.originalDownloadUrl) throw new Error(`Missing originalDownloadUrl for ${photoData.imageName}`);
         const imageBuffer = await downloadImageFromUrl(photoData.originalDownloadUrl);
-        await photoDocRef.update({ progress: 15, status: 'processing_image_downloaded', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+        const updateDownloaded: Partial<ProcessingStatusEntry> = { progress: 15, status: 'processing_image_downloaded', updatedAt: admin.firestore.FieldValue.serverTimestamp() as any };
+        await photoDocRef.update(updateDownloaded);
 
         if (imageBuffer.length > MAX_FILE_SIZE_BYTES_PROCESS_PHOTOS) throw new Error(`File ${photoData.imageName} exceeds max size.`);
         const type = await fileTypeFromBuffer(imageBuffer);
         if (!type || !ALLOWED_MIME_TYPES_PROCESS_PHOTOS_INPUT.includes(type.mime)) throw new Error(`Invalid file type: ${type?.mime || 'unknown'}`);
-        await photoDocRef.update({ progress: 25, status: 'processing_image_validated', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+        const updateValidated: Partial<ProcessingStatusEntry> = { progress: 25, status: 'processing_image_validated', updatedAt: admin.firestore.FieldValue.serverTimestamp() as any };
+        await photoDocRef.update(updateValidated);
 
         const processedImageBuffer = await sharp(imageBuffer).webp({ quality: 80 }).resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true }).withMetadata({}).toBuffer();
-        await photoDocRef.update({ progress: 45, status: 'processing_image_optimized', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+        const updateOptimized: Partial<ProcessingStatusEntry> = { progress: 45, status: 'processing_image_optimized', updatedAt: admin.firestore.FieldValue.serverTimestamp() as any };
+        await photoDocRef.update(updateOptimized);
         
         const generatedSeoName = generateSeoFilenameWithTemplate(photoData.imageName as string, photoData.productContext, imageIndexInProductGroup);
         const seoMetadata = generateSeoMetadataWithTemplate(generatedSeoName, photoData.imageName as string, photoData.productContext, allTemplates, imageIndexInProductGroup);
         const { assignedCategorySlug, assignedTags } = applyAutomationRules((photoData.productContext?.name || photoData.imageName as string), photoData.productContext, allAutomationRules);
         
-        let updatePayloadSeo: any = {
+        const updatePayloadSeo: Partial<ProcessingStatusEntry> & { seoName?: string } = {
           progress: 55,
           status: 'processing_image_seo_named',
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          updatedAt: admin.firestore.FieldValue.serverTimestamp() as any
         };
         if (generatedSeoName) updatePayloadSeo.seoName = generatedSeoName;
         await photoDocRef.update(updatePayloadSeo);
 
-        let updatePayloadMeta: any = {
+        const updatePayloadMeta: Partial<ProcessingStatusEntry> & { seoMetadata?: { alt?: string; title?: string } } = {
           progress: 65,
           status: 'processing_image_metadata_generated',
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          updatedAt: admin.firestore.FieldValue.serverTimestamp() as any
         };
         if (seoMetadata) updatePayloadMeta.seoMetadata = seoMetadata;
         await photoDocRef.update(updatePayloadMeta);
 
-        let updatePayloadRules: any = {
+        const updatePayloadRules: Partial<ProcessingStatusEntry> & { assignedCategorySlug?: string; assignedTags?: string[] } = {
             progress: 75,
             status: 'processing_image_rules_applied',
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            updatedAt: admin.firestore.FieldValue.serverTimestamp() as any
         };
         if (assignedCategorySlug) updatePayloadRules.assignedCategorySlug = assignedCategorySlug;
-        if (assignedTags) updatePayloadRules.assignedTags = assignedTags; // assignedTags is always an array
+        if (assignedTags) updatePayloadRules.assignedTags = assignedTags;
         await photoDocRef.update(updatePayloadRules);
         
         const processedImageExternalUrl = await uploadBufferToQueFoto(processedImageBuffer, generatedSeoName, 'image/webp');
-        let updatePayloadReupload: any = {
+        const updatePayloadReupload: Partial<ProcessingStatusEntry> & { processedImageDownloadUrl?: string; processedImageStoragePath?: string } = {
           progress: 90,
           status: 'processing_image_reuploaded',
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          updatedAt: admin.firestore.FieldValue.serverTimestamp() as any
         };
         if (processedImageExternalUrl) {
             updatePayloadReupload.processedImageDownloadUrl = processedImageExternalUrl;
-            updatePayloadReupload.processedImageStoragePath = processedImageExternalUrl; // Assuming same for QueFoto
+            updatePayloadReupload.processedImageStoragePath = processedImageExternalUrl;
         }
         await photoDocRef.update(updatePayloadReupload);
 
-        await photoDocRef.update({ status: 'completed_image_pending_woocommerce', progress: 100, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+        const updateCompleted: Partial<ProcessingStatusEntry> = { status: 'completed_image_pending_woocommerce', progress: 100, updatedAt: admin.firestore.FieldValue.serverTimestamp() as any };
+        await photoDocRef.update(updateCompleted);
+
         console.log(`[API /api/process-photos] Successfully processed ${photoData.imageName}. Status 'completed_image_pending_woocommerce'.`);
 
       } catch (imageError) {
         console.error(`[API /api/process-photos] Error processing ${photoData.imageName} (Doc ID: ${photoData.id}):`, imageError);
         const errorMessageString = imageError instanceof Error ? imageError.message.substring(0,500) : String(imageError).substring(0,500);
-        await photoDocRef.update({ status: 'error_processing_image', errorMessage: errorMessageString, progress: (photoData.progress || 0), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+        const updateError: Partial<ProcessingStatusEntry> = { 
+          status: 'error_processing_image', 
+          errorMessage: errorMessageString, 
+          progress: (photoData.progress || 0), 
+          updatedAt: admin.firestore.FieldValue.serverTimestamp() as any 
+        };
+        await photoDocRef.update(updateError);
       }
       await triggerNextPhotoProcessing(batchId, request.url, userIdFromRequest || photoData.userId);
       return NextResponse.json({ message: `Triggered next step for batch ${batchId} after processing ${photoData.imageName}.`, batchId: batchId, processedPhotoId: photoData.id, status: 'triggered_next_image_or_finish' });
     } else {
-      console.log(`[API /api/process-photos] No photos in 'uploaded' state for batch ${batchId}. Checking overall batch status.`);
+      console.log(`[API /api/process-photos] Batch ${batchId}: No photos in 'uploaded' state. Checking overall batch status.`);
       const allBatchEntriesSnapshot = await adminDb.collection('processing_status').where('batchId', '==', batchId).get();
       if (allBatchEntriesSnapshot.empty) {
         console.log(`[API /api/process-photos] Batch ${batchId} has no Firestore entries.`);
@@ -789,11 +824,13 @@ export async function POST(request: NextRequest) {
       const userIdForNotification = userIdFromRequest || allEntries[0]?.userId || 'fallback_user_id_notification';
       
       const entriesReadyForWooCommerce = allEntries.filter(e => e.status === 'completed_image_pending_woocommerce' && e.productContext?.name);
+      console.log(`[API /api/process-photos] Batch ${batchId}: Found ${entriesReadyForWooCommerce.length} entries in 'completed_image_pending_woocommerce' with productContext.name.`);
+
 
       if (entriesReadyForWooCommerce.length > 0) {
-          console.log(`[API /api/process-photos] Batch ${batchId}: ${entriesReadyForWooCommerce.length} image entries are ready for WooCommerce product creation/update.`);
+          console.log(`[API /api/process-photos] Batch ${batchId}: Attempting WooCommerce product creation/update for ${entriesReadyForWooCommerce.length} image entries.`);
           const productCreationResults = await createOrUpdateWooCommerceProduct(request, batchId, userIdForNotification, entriesReadyForWooCommerce, allTemplates);
-          console.log(`[API /api/process-photos] Batch ${batchId}: WooCommerce processing complete for ${productCreationResults.length} products. Creating notification.`);
+          console.log(`[API /api/process-photos] Batch ${batchId}: WooCommerce processing complete for ${productCreationResults.length} distinct products. Creating notification.`);
           await createBatchCompletionNotification(batchId, userIdForNotification, true, productCreationResults);
           return NextResponse.json({ message: `Batch ${batchId} WooCommerce processing attempted.`, batchId: batchId, status: 'batch_woocommerce_processing_done', results: productCreationResults }, { status: 200 });
       } else {
