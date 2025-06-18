@@ -3,6 +3,15 @@
 import { initializeApp, getApp, type FirebaseApp } from 'firebase/app';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import { getFirestore, type Firestore } from 'firebase/firestore';
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signOut as firebaseSignOut, // Renamed to avoid conflict if used locally
+  onAuthStateChanged,
+  type Auth,
+  type User as FirebaseUser // Export User type
+} from 'firebase/auth';
 
 // These variables are expected to be in your .env.local file or environment variables
 const firebaseConfig = {
@@ -15,21 +24,28 @@ const firebaseConfig = {
 };
 
 let app: FirebaseApp;
-let db: Firestore;
-let storage: FirebaseStorage;
 
 try {
   app = getApp('wooautomate'); // Use a unique app name if you have multiple Firebase apps
 } catch (e) {
   if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
     console.error("Firebase client config is missing. Make sure NEXT_PUBLIC_FIREBASE_ environment variables are set.");
-    // Depending on desired behavior, you might throw an error or use fallback values.
-    // For now, we let initializeApp handle potential errors if config is truly missing.
   }
   app = initializeApp(firebaseConfig, 'wooautomate');
 }
 
-db = getFirestore(app);
-storage = getStorage(app);
+const db: Firestore = getFirestore(app);
+const storage: FirebaseStorage = getStorage(app);
+const auth: Auth = getAuth(app); // Initialize auth with the named app
 
-export { app, db, storage };
+export { 
+  app, 
+  db, 
+  storage, 
+  auth, // Export the auth instance
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  firebaseSignOut, 
+  onAuthStateChanged,
+  type FirebaseUser
+};

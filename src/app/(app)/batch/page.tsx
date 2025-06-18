@@ -11,10 +11,11 @@ import { ImageUploader } from "@/components/features/wizard/image-uploader";
 import type { ProductPhoto, ProcessingStatusEntry } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { app, db } from '@/lib/firebase'; // Firebase client SDK, import app
-import { getAuth, getIdToken } from 'firebase/auth'; // Firebase client auth
-import { doc, setDoc, serverTimestamp, collection, writeBatch, query, where, onSnapshot, Unsubscribe, Timestamp } from 'firebase/firestore';
+import { db, auth } from '@/lib/firebase'; // Firebase client SDK, import db and auth
+import { getIdToken } from 'firebase/auth'; 
+import { doc, serverTimestamp, collection, writeBatch, query, where, onSnapshot, Unsubscribe, Timestamp } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
+import { useRouter } from 'next/navigation';
 
 export default function BatchProcessingPage() {
   const [photos, setPhotos] = useState<ProductPhoto[]>([]);
@@ -24,6 +25,7 @@ export default function BatchProcessingPage() {
   const { toast } = useToast();
   const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
   const [batchPhotosStatus, setBatchPhotosStatus] = useState<ProcessingStatusEntry[]>([]);
+  const router = useRouter();
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -88,7 +90,6 @@ export default function BatchProcessingPage() {
   };
 
   const getAuthToken = async (): Promise<string | null> => {
-    const auth = getAuth(app); // Use specific app instance
     if (auth.currentUser) {
       try {
         return await getIdToken(auth.currentUser);
@@ -118,8 +119,12 @@ export default function BatchProcessingPage() {
       description: `Escuchando actualizaciones para el lote ${batchId}...`,
     });
     
-    const auth = getAuth(app); // Use specific app instance
-    const userId = auth.currentUser ? auth.currentUser.uid : 'temp_user_id_fallback';
+    if (!auth.currentUser) {
+      toast({ title: "Usuario No Autenticado", description: "Debes iniciar sesión para procesar imágenes.", variant: "destructive" });
+      router.push('/login');
+      return;
+    }
+    const userId = auth.currentUser.uid;
 
 
     try {
@@ -140,10 +145,8 @@ export default function BatchProcessingPage() {
         }
         throw new Error(errorMessage);
       }
-      // const result = await response.json(); // Not strictly needed here unless we use result.message
     } catch (error) {
       console.error("Error al notificar al backend (puede continuar igualmente):", error);
-      // No toast here as it might be confusing if processing still starts
     }
   };
 
@@ -152,15 +155,20 @@ export default function BatchProcessingPage() {
       toast({ title: "No hay imágenes", description: "Por favor, sube algunas imágenes.", variant: "destructive" });
       return;
     }
+    
+    if (!auth.currentUser) {
+      toast({ title: "Usuario No Autenticado", description: "Debes iniciar sesión para subir imágenes.", variant: "destructive" });
+      router.push('/login');
+      return;
+    }
+    const userId = auth.currentUser.uid;
+
     setIsUploading(true);
     setIsBackendProcessing(false); 
     setBatchPhotosStatus([]);
     setUploadProgress({});
     const newBatchId = `batch_${Date.now()}`;
     
-    const auth = getAuth(app); // Use specific app instance
-    const userId = auth.currentUser ? auth.currentUser.uid : 'temp_user_id_fallback';
-
     const authToken = await getAuthToken();
     if (!authToken) {
         setIsUploading(false);

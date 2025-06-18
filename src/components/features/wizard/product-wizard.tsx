@@ -3,15 +3,15 @@
 
 import React, { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { WIZARD_STEPS, INITIAL_PRODUCT_DATA, PRODUCT_TYPES } from "@/lib/constants";
-import type { ProductData, ProcessingStatusEntry, WizardProductContext, ProductType } from "@/lib/types";
+import { WIZARD_STEPS, INITIAL_PRODUCT_DATA } from "@/lib/constants";
+import type { ProductData, ProcessingStatusEntry, WizardProductContext } from '@/lib/types';
 import { Step1DetailsPhotos } from "./step-1-details-photos";
 import { Step2Preview } from "./step-2-preview";
 import { Step3Confirm } from "./step-3-confirm";
 import { Progress } from "@/components/ui/progress";
-import { useToast } from "@/hooks/use-toast";
-import { app, db } from '@/lib/firebase'; // Firebase client SDK, import app
-import { getAuth, getIdToken } from 'firebase/auth'; // Firebase client auth
+import { useToast } from '@/hooks/use-toast';
+import { db, auth } from '@/lib/firebase'; // Firebase client SDK, import db and auth (app is used internally by auth)
+import { getIdToken } from 'firebase/auth'; 
 import { doc, serverTimestamp, collection, writeBatch, Timestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 
@@ -42,7 +42,6 @@ export function ProductWizard() {
   };
 
   const getAuthToken = async (): Promise<string | null> => {
-    const auth = getAuth(app); // Use specific app instance
     if (auth.currentUser) {
       try {
         return await getIdToken(auth.currentUser);
@@ -67,8 +66,18 @@ export function ProductWizard() {
   const handleSubmitProduct = async () => {
     setIsProcessing(true);
     const wizardJobId = `wizard_${Date.now()}`;
-    const auth = getAuth(app); // Use specific app instance
-    const userId = auth.currentUser ? auth.currentUser.uid : 'temp_user_id_fallback';
+    
+    if (!auth.currentUser) {
+      toast({
+        title: "Usuario No Autenticado",
+        description: "Debes iniciar sesión para crear un producto.",
+        variant: "destructive",
+      });
+      setIsProcessing(false);
+      router.push('/login'); // Redirect to login if somehow user is not authenticated
+      return;
+    }
+    const userId = auth.currentUser.uid;
 
 
     const uploadedPhotoDetails: { name: string; externalUrl: string; originalPhotoId: string }[] = [];
@@ -152,8 +161,8 @@ export function ProductWizard() {
             category: productData.category,
             keywords: productData.keywords,
             attributes: productData.attributes,
-            shortDescription: productData.shortDescription,
-            longDescription: productData.longDescription,
+            shortDescription: productData.shortDescription, 
+            longDescription: productData.longDescription, 
             isPrimary: originalPhotoData?.isPrimary || false,
         };
 
