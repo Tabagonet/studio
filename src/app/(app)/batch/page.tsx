@@ -2,7 +2,7 @@
 // src/app/(app)/batch/page.tsx
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -11,8 +11,9 @@ import { ImageUploader } from "@/components/features/wizard/image-uploader";
 import type { ProductPhoto } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { storage } from '@/lib/firebase'; // Firebase storage instance
+import { storage, db } from '@/lib/firebase'; // Firebase client SDK instances
 import { ref as fbStorageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { doc, setDoc, serverTimestamp, collection, writeBatch } from 'firebase/firestore';
 
 export default function BatchProcessingPage() {
   const [photos, setPhotos] = useState<ProductPhoto[]>([]);
@@ -24,15 +25,14 @@ export default function BatchProcessingPage() {
 
   const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
     setPhotos(newPhotos);
-    setUploadProgress({}); 
+    setUploadProgress({});
   };
 
   const triggerBackendProcessing = async (batchId: string) => {
     setIsBackendProcessing(true);
     toast({
       title: "Iniciando Procesamiento Backend",
-      description: `Enviando lote ${batchId} para procesamiento avanzado...`,
-      duration: 5000,
+      description: `Enviando lote ${batchId} para procesamiento...`,
     });
 
     try {
@@ -50,14 +50,13 @@ export default function BatchProcessingPage() {
         throw new Error(result.error || `Error del servidor: ${response.status}`);
       }
       
-      setCurrentBatchId(batchId); // Store batchId for potential status polling later
+      setCurrentBatchId(batchId);
       toast({
         title: "Procesamiento Backend Iniciado",
         description: result.message || `El lote ${batchId} se está procesando.`,
       });
-      // Here you might want to start polling for status or clear photos if desired
-      // setPhotos([]); // Example: Clear photos after successfully initiating backend processing
-
+      // Consider clearing photos or disabling upload button further
+      // setPhotos([]); 
     } catch (error) {
       console.error("Error triggering backend processing:", error);
       const errorMessage = error instanceof Error ? error.message : "Error desconocido";
@@ -71,7 +70,6 @@ export default function BatchProcessingPage() {
     }
   };
 
-
   const handleStartUploads = async () => {
     if (photos.length === 0) {
       toast({ title: "No hay imágenes", description: "Por favor, sube algunas imágenes.", variant: "destructive" });
@@ -79,23 +77,24 @@ export default function BatchProcessingPage() {
     }
     setIsUploading(true);
     setUploadProgress({});
+    const newBatchId = `batch_${Date.now()}`;
+    setCurrentBatchId(newBatchId); // Set batchId at the beginning
 
-    const batchId = Date.now().toString();
-    const uploadedFileUrls: Record<string, string> = {}; 
+    const BATCH_SIZE = 5; // Firebase Storage upload batch size
+    const firestoreBatch = writeBatch(db); // Firestore batch write
+    let firestoreWriteCount = 0;
 
-    const BATCH_SIZE = 5;
     for (let i = 0; i < photos.length; i += BATCH_SIZE) {
-      const photoBatch = photos.slice(i, i + BATCH_SIZE);
+      const photoChunk = photos.slice(i, i + BATCH_SIZE);
       
       toast({
           title: "Procesando Lote de Subida",
           description: `Subiendo imágenes ${i + 1} a ${Math.min(i + BATCH_SIZE, photos.length)} de ${photos.length}...`,
-          duration: 3000,
       });
 
-      const uploadPromises = photoBatch.map(photo => {
-        // TODO: Replace 'temp_user_id' with actual authenticated user ID
-        const storagePath = `user_uploads/temp_user_id/${batchId}/${photo.file.name}`;
+      const uploadPromises = photoChunk.map(photo => {
+        const userId = 'temp_user_id'; // TODO: Replace with actual authenticated user ID
+        const storagePath = `user_uploads/${userId}/${newBatchId}/${photo.file.name}`;
         const storageRefInstance = fbStorageRef(storage, storagePath);
 
         return new Promise<void>((resolve, reject) => {
@@ -119,16 +118,29 @@ export default function BatchProcessingPage() {
             async () => {
               try {
                 const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                uploadedFileUrls[photo.id] = downloadURL;
+                
+                // Add to Firestore batch
+                const photoDocRef = doc(collection(db, 'processing_status')); // Auto-generate ID
+                firestoreBatch.set(photoDocRef, {
+                  userId: userId,
+                  batchId: newBatchId,
+                  imageName: photo.file.name,
+                  storagePath: storagePath,
+                  originalUrl: downloadURL,
+                  status: "uploaded",
+                  uploadedAt: serverTimestamp(),
+                  progress: 0, // Initial progress for backend processing
+                });
+                firestoreWriteCount++;
+
                 console.log(`Archivo ${photo.file.name} subido: ${downloadURL}`);
-                // TODO: Update Firestore processing_status for this image (user_id, batch_id, image_name, status: "uploaded", url, timestamp)
                 setUploadProgress(prev => ({ ...prev, [photo.id]: 100 }));
                 resolve();
               } catch (error) {
-                console.error(`Error al obtener URL de descarga para ${photo.file.name}:`, error);
+                console.error(`Error al obtener URL o guardar en Firestore para ${photo.file.name}:`, error);
                 setUploadProgress(prev => ({ ...prev, [photo.id]: -1 }));
                 toast({
-                  title: `Error URL para ${photo.file.name}`,
+                  title: `Error post-subida para ${photo.file.name}`,
                   description: (error as Error).message,
                   variant: "destructive",
                 });
@@ -143,9 +155,29 @@ export default function BatchProcessingPage() {
         await Promise.all(uploadPromises);
       } catch (error) {
         console.error("Al menos una subida falló en el lote:", error);
+        // Continue to next chunk if some uploads fail, they are marked with -1 progress
       }
     }
     
+    // Commit Firestore batch write
+    if (firestoreWriteCount > 0) {
+      try {
+        await firestoreBatch.commit();
+        console.log(`${firestoreWriteCount} registros escritos en Firestore para el lote ${newBatchId}`);
+      } catch (error) {
+        console.error("Error al escribir en Firestore:", error);
+        toast({
+          title: "Error de Base de Datos",
+          description: "No se pudieron guardar los detalles de las imágenes subidas.",
+          variant: "destructive",
+        });
+        // Decide how to handle this, maybe not trigger backend processing
+        setIsUploading(false);
+        return;
+      }
+    }
+
+
     const successfulUploadsCount = Object.values(uploadProgress).filter(p => p === 100).length;
     const totalAttempted = photos.length;
     setIsUploading(false);
@@ -156,18 +188,17 @@ export default function BatchProcessingPage() {
                 title: "Subida Completa",
                 description: `Se subieron ${successfulUploadsCount} imágenes. Iniciando procesamiento backend...`,
             });
-            await triggerBackendProcessing(batchId);
+            await triggerBackendProcessing(newBatchId);
         } else if (successfulUploadsCount > 0) {
             toast({
                 title: "Subida Parcial",
                 description: `Se subieron ${successfulUploadsCount} de ${totalAttempted} imágenes. Algunas subidas fallaron. ¿Deseas procesar las imágenes subidas correctamente?`,
-                variant: "default", // Could be 'warning' if available
                 action: (
-                  <Button onClick={() => triggerBackendProcessing(batchId)} size="sm">
+                  <Button onClick={() => triggerBackendProcessing(newBatchId)} size="sm">
                     Procesar Igualmente
                   </Button>
                 ),
-                duration: 10000,
+                duration: 10000, // Allow time for user action
             });
         } else {
              toast({
@@ -179,40 +210,37 @@ export default function BatchProcessingPage() {
     }
   };
 
-
   const getDetectedProducts = () => {
     if (photos.length === 0) return [];
     
-    const productGroups: Record<string, { displayName: string; imageNames: string[] }> = {};
+    const productGroups: Record<string, { displayName: string; imageNames: string[]; photoObjects: ProductPhoto[] }> = {};
     photos.forEach(photo => {
-      // Updated pattern: Camiseta-Nike-Azul-S-1.jpg -> baseNamePart = "Camiseta-Nike-Azul-S"
-      const baseNamePartMatch = photo.name.match(/^(.+)-\d+\.(jpe?g)$/i);
-      // If no match (e.g. "ProductoSimple-1.jpg"), use the part before "-NUMBER.ext"
-      const productKey = baseNamePartMatch ? baseNamePartMatch[1] : photo.name.replace(/-\d+\.(jpe?g)$/i, '');
+      const baseNamePartMatch = photo.name.match(/^(.+?)(-\d+)?\.(jpe?g)$/i);
+      const productKey = baseNamePartMatch ? baseNamePartMatch[1] : photo.name.replace(/\.(jpe?g)$/i, '');
       
       if (!productGroups[productKey]) {
-        // Simple display name: replace hyphens with spaces
-        // Camiseta-Nike-Azul-S -> Camiseta Nike Azul S
         const displayName = productKey.replace(/-/g, ' ');
         productGroups[productKey] = {
           displayName: displayName,
-          imageNames: []
+          imageNames: [],
+          photoObjects: []
         };
       }
       productGroups[productKey].imageNames.push(photo.name);
+      productGroups[productKey].photoObjects.push(photo);
     });
     return Object.entries(productGroups).map(([key, data]) => ({key, ...data}));
   };
 
   const detectedProducts = getDetectedProducts();
-  const isProcessing = isUploading || isBackendProcessing;
+  const disableActions = isUploading || isBackendProcessing;
 
   return (
     <div className="container mx-auto py-8 space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-foreground font-headline">Procesamiento de Productos en Lote</h1>
         <p className="text-muted-foreground">
-          Sube múltiples imágenes JPG para crear varios productos a la vez.
+          Sube múltiples imágenes JPG para crear varios productos.
           Las imágenes deben seguir el patrón <code className="bg-muted px-1 py-0.5 rounded-sm font-code">NombreProducto-IDENTIFICADORES-NUMERO.jpg</code> (ej: <code className="bg-muted px-1 py-0.5 rounded-sm font-code">Camiseta-Azul-TallaS-1.jpg</code>).
         </p>
       </div>
@@ -242,7 +270,7 @@ export default function BatchProcessingPage() {
                 <Loader2 className="h-8 w-8 text-primary animate-spin" />
                 <div>
                     <CardTitle>Subiendo Imágenes...</CardTitle>
-                    <CardDescription>Por favor, espera mientras se suben tus imágenes.</CardDescription>
+                    <CardDescription>Por favor, espera mientras se suben tus imágenes y se registran.</CardDescription>
                 </div>
             </div>
           </CardHeader>
@@ -261,7 +289,7 @@ export default function BatchProcessingPage() {
                       {uploadProgress[p.id] !== undefined && uploadProgress[p.id] >= 0 && (
                          <span className="text-xs text-muted-foreground w-10 text-right">{`${uploadProgress[p.id]}%`}</span>
                       )}
-                       {uploadProgress[p.id] === undefined && <Loader2 className="h-4 w-4 animate-spin" />}
+                       {uploadProgress[p.id] === undefined && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                     </div>
                   </li>
                 ))}
@@ -309,34 +337,36 @@ export default function BatchProcessingPage() {
           <CardFooter className="border-t pt-6 flex justify-end">
             <Button 
               onClick={handleStartUploads} 
-              disabled={isProcessing || photos.length === 0}
+              disabled={disableActions || photos.length === 0}
               className="w-full md:w-auto"
             >
-              {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Layers className="mr-2 h-4 w-4" />}
-              {isUploading && "Subiendo..."}
+              {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isBackendProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {!isUploading && !isBackendProcessing && <Layers className="mr-2 h-4 w-4" />}
+              {isUploading && "Subiendo y Registrando..."}
               {isBackendProcessing && "Procesando en Backend..."}
-              {!isProcessing && `Iniciar Subida y Procesamiento (${photos.length} ${photos.length === 1 ? 'imagen' : 'imágenes'})`}
+              {!isUploading && !isBackendProcessing && `Iniciar Subida y Procesamiento (${photos.length} ${photos.length === 1 ? 'imagen' : 'imágenes'})`}
             </Button>
           </CardFooter>
         </Card>
       )}
 
-      {isBackendProcessing && currentBatchId && (
+      {isBackendProcessing && currentBatchId && !isUploading && ( // Show only when backend is processing AND uploads are done
         <Card>
             <CardHeader>
-                <CardTitle>Procesamiento en Segundo Plano</CardTitle>
+                <CardTitle>Procesamiento en Segundo Plano Activo</CardTitle>
                 <CardDescription>
                     El lote <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{currentBatchId}</code> se está procesando en el servidor. 
-                    Puedes seguir usando la aplicación o cerrar esta ventana. Te notificaremos cuando esté listo (funcionalidad de notificación pendiente).
+                    Puedes seguir usando la aplicación o cerrar esta ventana.
                 </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
                 <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto" />
                 <p className="mt-2 text-muted-foreground">Esperando la finalización del procesamiento...</p>
+                <p className="text-xs text-muted-foreground mt-1">(La notificación de finalización está pendiente de implementación)</p>
             </CardContent>
         </Card>
       )}
-
     </div>
   );
 }

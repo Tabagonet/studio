@@ -1,17 +1,8 @@
+
 // src/app/api/process-photos/route.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-
-// In a real scenario, you would import and initialize firebase-admin here
-// import admin from 'firebase-admin';
-// import { serviceAccount } from '@/lib/firebase-admin-config'; // You'd need to create this
-
-// if (!admin.apps.length) {
-//   admin.initializeApp({
-//     credential: admin.credential.cert(serviceAccount),
-//     storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-//   });
-// }
+import { adminDb } from '@/lib/firebase-admin'; // Firebase Admin SDK instance
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,30 +15,46 @@ export async function POST(request: NextRequest) {
 
     console.log(`[API /api/process-photos] Received request for batchId: ${batchId}`);
 
+    if (!adminDb) {
+      console.error('[API /api/process-photos] Firebase Admin SDK not initialized.');
+      return NextResponse.json({ error: 'Server configuration error, Firebase Admin not available.' }, { status: 500 });
+    }
+
+    // 1. Get file list for batchId from Firestore.
+    const photosToProcessSnapshot = await adminDb.collection('processing_status')
+                                          .where('batchId', '==', batchId)
+                                          .where('status', '==', 'uploaded') // Or other initial status
+                                          .get();
+
+    if (photosToProcessSnapshot.empty) {
+      console.log(`[API /api/process-photos] No 'uploaded' photos found for batchId: ${batchId}`);
+      return NextResponse.json({ message: `No 'uploaded' photos found for batchId: ${batchId}. Processing might be complete or batch is invalid.`, batchId: batchId }, { status: 200 });
+    }
+
+    const photosData = photosToProcessSnapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
+    console.log(`[API /api/process-photos] Found ${photosData.length} photos to process for batchId ${batchId}:`, photosData.map(p => p.imageName));
+
     // TODO: Implement actual processing logic here:
-    // 1. Get file list for batchId from Firestore (using firebase-admin).
     // 2. For each file:
-    //    a. Download from Firebase Storage.
+    //    a. Download from Firebase Storage (using data.originalUrl or data.storagePath with adminStorage).
     //    b. Validate (size, type - with 'file-type' lib).
     //    c. Optimize with Sharp (WebP, EXIF, resolutions).
     //    d. Generate SEO names (with 'natural' lib).
     //    e. Generate SEO metadata (with 'natural' lib).
     //    f. (Optional) Create ZIP per product.
     //    g. Upload processed images back to a temporary location in Firebase Storage.
-    //    h. Update Firestore (processing_status) with progress and new URLs.
+    //    h. Update Firestore (processing_status collection, specific doc by id) with progress and new URLs. Eg. status: "processing", progress: X% or status: "completed"
     // 3. Handle processing in chunks/batches to respect Vercel limits.
     // 4. Implement retries for transient errors.
 
-    // For now, just simulate that processing is initiated.
+    // For now, just simulate that processing is initiated by logging.
     // In a real app, this would likely be an asynchronous operation.
-    // You might return an immediate success and update status via another mechanism (e.g., Firestore listener on client, or a status polling endpoint).
-
-    // Simulate some delay or background task initiation
-    // await new Promise(resolve => setTimeout(resolve, 2000));
+    // You might return an immediate success and update status via another mechanism.
 
     return NextResponse.json({ 
-      message: `Backend processing initiated for batch ${batchId}. This is a placeholder response.`,
-      batchId: batchId 
+      message: `Backend processing for batch ${batchId} acknowledged. Found ${photosData.length} photos. Actual processing to be implemented.`,
+      batchId: batchId,
+      filesToProcess: photosData.map(p => p.imageName)
     });
 
   } catch (error) {
