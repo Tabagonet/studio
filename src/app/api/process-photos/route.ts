@@ -50,14 +50,14 @@ async function writeBufferToLocalPath(
 
 
 function cleanTextForFilename(text: string): string {
-  if (!text) return '';
+  if (!text) return `imagen-desconocida-${Date.now()}`;
   return text
     .toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Quitar acentos
-    .replace(/\s+/g, '-') // Reemplazar espacios con guiones
-    .replace(/[^a-z0-9-]/g, '') // Quitar caracteres no alfanuméricos excepto guiones
-    .replace(/-+/g, '-') // Reemplazar múltiples guiones con uno solo
-    .replace(/^-+|-+$/g, ''); // Quitar guiones al principio y al final
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") 
+    .replace(/\s+/g, '-') 
+    .replace(/[^a-z0-9-]/g, '') 
+    .replace(/-+/g, '-') 
+    .replace(/^-+|-+$/g, ''); 
 }
 
 
@@ -66,9 +66,8 @@ function applyTemplate(templateContent: string, data: { nombre_producto?: string
   result = result.replace(/\{\{nombre_producto\}\}/g, data.nombre_producto || '');
   result = result.replace(/\{\{categoria\}\}/g, data.categoria_slug || '');
   result = result.replace(/\{\{sku\}\}/g, data.sku || '');
-  // Elimina cualquier placeholder no reemplazado para evitar que aparezcan en el resultado final
   result = result.replace(/\{\{[^}]+\}\}/g, ''); 
-  return result.trim(); // Elimina espacios extra al inicio/final
+  return result.trim();
 }
 
 async function getTemplates(): Promise<ProductTemplate[]> {
@@ -99,11 +98,11 @@ async function getAutomationRules(): Promise<AutomationRule[]> {
 
 
 function generateSeoFilenameWithTemplate(
-  originalName: string, // ej. "image00001.jpeg"
+  originalName: string, 
   productContext: WizardProductContext | undefined,
   templates: ProductTemplate[]
 ): string {
-  const nameWithoutExtension = originalName.substring(0, originalName.lastIndexOf('.')) || originalName; // ej. "image00001"
+  const nameWithoutExtension = originalName.substring(0, originalName.lastIndexOf('.')) || originalName; 
   const baseProductNameFromContext = productContext?.name || nameWithoutExtension.replace(/-/g, ' ').replace(/_/g, ' ');
 
   const templateData = {
@@ -124,20 +123,17 @@ function generateSeoFilenameWithTemplate(
   let baseForCleaning: string;
   if (seoNameTemplate) {
       const templatedName = applyTemplate(seoNameTemplate.content, templateData);
-      // Si la plantilla es muy genérica (ej. solo "{{nombre_producto}}") y resulta igual al nombre base del producto,
-      // o si la plantilla queda vacía, usar el nombre del archivo original para asegurar unicidad.
-      if (templatedName === baseProductNameFromContext || !templatedName.trim()) {
+      if (templatedName === baseProductNameFromContext || !templatedName.trim() || templatedName.includes("{{")) {
           baseForCleaning = nameWithoutExtension;
       } else {
           baseForCleaning = templatedName;
       }
   } else {
-      // No hay plantilla de nombre SEO, usar el nombre original del archivo
       baseForCleaning = nameWithoutExtension;
   }
 
   let finalSeoName = cleanTextForFilename(baseForCleaning);
-  if (!finalSeoName) { // Fallback por si todo lo demás falla
+  if (!finalSeoName) { 
       finalSeoName = cleanTextForFilename(nameWithoutExtension) || `imagen-${Date.now()}`;
   }
   return `${finalSeoName}.webp`;
@@ -182,10 +178,9 @@ function generateSeoMetadataWithTemplate(
 
   if (metaTemplate) {
     const fullMetaText = applyTemplate(metaTemplate.content, templateData);
-    // Si la plantilla es para metadatos, usarla. Si es para descripción corta, puede ser muy larga para alt.
     if (metaTemplate.type === 'metadatos_seo' || metaTemplate.type === 'descripcion_corta') {
         altText = fullMetaText.length > 125 ? fullMetaText.substring(0, 122) + "..." : fullMetaText;
-    } else { // Si es una descripción larga, es demasiado para alt. Usar un fallback.
+    } else { 
         altText = `Imagen de ${templateBaseName}`;
     }
     titleText = altText; 
@@ -276,7 +271,7 @@ async function createBatchCompletionNotification(batchId: string, userId: string
       title,
       description,
       type,
-      timestamp: admin.firestore.FieldValue.serverTimestamp() as any,
+      timestamp: admin.firestore.FieldValue.serverTimestamp() as any, // Corrected cast
       isRead: false,
       linkTo: `/batch?batchId=${batchId}`
     };
@@ -362,7 +357,6 @@ async function createOrUpdateWooCommerceProduct(
   let longDescTemplateCategory = templates.find(t => t.type === 'descripcion_larga' && t.scope === 'categoria_especifica' && t.categoryValue === productContext.category);
   const finalLongDescTemplate = longDescTemplateCategory || longDescTemplateGlobal;
 
-
   const generatedShortDescription = finalShortDescTemplate
       ? applyTemplate(finalShortDescTemplate.content, templateDataForDesc)
       : productContext.shortDescription || `Breve descripción de ${productContext.name}`;
@@ -377,7 +371,6 @@ async function createOrUpdateWooCommerceProduct(
 
   const finalProductDescription = `${baseLongDescription}\n\nImágenes Procesadas:\n${imageDetailsForDescription}`;
 
-
   const wooImages = productEntries
     .filter(entry => entry.processedImageDownloadUrl && entry.status === 'completed_image_pending_woocommerce' && entry.seoMetadata)
     .map((entry, index) => ({
@@ -388,12 +381,13 @@ async function createOrUpdateWooCommerceProduct(
     }))
     .sort((a, b) => a.position - b.position);
 
+  // Ensure primary image is first and positions are sequential
   const primaryImageIndex = wooImages.findIndex(img => img.position === 0);
-  if (primaryImageIndex > 0) {
+  if (primaryImageIndex > 0) { // if primary is found and not already at index 0
       const primaryImage = wooImages.splice(primaryImageIndex, 1)[0];
-      wooImages.unshift(primaryImage);
+      wooImages.unshift(primaryImage); // put it at the beginning
   }
-  wooImages.forEach((img, idx) => img.position = idx);
+  wooImages.forEach((img, idx) => img.position = idx); // re-assign sequential positions
 
 
   const wooCategories: { slug?: string; name?: string; id?: number }[] = [];
@@ -411,7 +405,7 @@ async function createOrUpdateWooCommerceProduct(
     regular_price: productContext.regularPrice,
     description: finalProductDescription,
     short_description: generatedShortDescription,
-    categories: wooCategories,
+    categories: wooCategories.length > 0 ? wooCategories.map(c => ({slug: c.slug})) : [], // Ensure it's an array of objects with slug
     tags: primaryEntry.assignedTags && primaryEntry.assignedTags.length > 0 ? primaryEntry.assignedTags.map(tag => ({ name: tag })) : [],
     images: wooImages,
     meta_data: [
@@ -452,7 +446,7 @@ async function createOrUpdateWooCommerceProduct(
             title: `Error al crear producto en WooCommerce (Lote: ${batchId})`,
             description: `Detalles: ${errorMessage.substring(0, 200)}`,
             type: 'error',
-            timestamp: admin.firestore.FieldValue.serverTimestamp() as any,
+            timestamp: admin.firestore.FieldValue.serverTimestamp() as any, // Corrected cast
             isRead: false,
             linkTo: `/batch?batchId=${batchId}`
         } as Omit<AppNotification, 'id'>);
@@ -486,20 +480,20 @@ async function updateFirestoreStatusForBatch(batchId: string, status: Processing
 
 
 export async function POST(request: NextRequest) {
-  if (!adminDb) {
-    console.error("[API /api/process-photos] Firebase Admin SDK (Firestore) is not initialized. This is a server configuration issue.");
-    return NextResponse.json(
-      { error: 'Server configuration error: Firebase Admin SDK not initialized. Please check server logs and FIREBASE_SERVICE_ACCOUNT_JSON environment variable.' },
-      { status: 500 }
-    );
-  }
-
-  const currentRequestUrl = new URL(request.url);
-  const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || `${currentRequestUrl.protocol}//${currentRequestUrl.host}`;
-
-
+  let body; // Define body here to be accessible in the final catch block
   try {
-    const body = await request.json();
+    if (!adminDb) {
+      console.error("[API /api/process-photos] Firebase Admin SDK (Firestore) is not initialized. This is a server configuration issue.");
+      return NextResponse.json(
+        { error: 'Server configuration error: Firebase Admin SDK not initialized. Please check server logs and FIREBASE_SERVICE_ACCOUNT_JSON environment variable.' },
+        { status: 500 }
+      );
+    }
+
+    const currentRequestUrl = new URL(request.url);
+    const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || `${currentRequestUrl.protocol}//${currentRequestUrl.host}`;
+
+    body = await request.json(); // Assign to the outer scope body
     const { batchId } = body;
 
     if (!batchId) {
@@ -565,7 +559,6 @@ export async function POST(request: NextRequest) {
     const userId = photoData.userId || 'temp_user_id';
 
     console.log(`[API /api/process-photos] Starting processing for: ${photoData.imageName} (Doc ID: ${photoData.id}) in batch ${batchId}`);
-
 
     try {
       await photoDocRef.update({
@@ -648,5 +641,39 @@ export async function POST(request: NextRequest) {
       status: 'triggered_next_process'
     });
 
-  } catch (error)
-```
+  } catch (error) {
+    console.error(`[API /api/process-photos] General Error:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'An unknown server error occurred';
+    
+    // Attempt to update Firestore status for the batch if possible, and if batchId is available
+    if (adminDb && body && body.batchId) {
+        try {
+            const batchIdForError = body.batchId;
+            const photosToUpdateSnapshot = await adminDb.collection('processing_status')
+                                                  .where('batchId', '==', batchIdForError)
+                                                  // Update all photos in the batch that might be stuck or affected
+                                                  .get();
+            if (!photosToUpdateSnapshot.empty) {
+                const firestoreBatch = adminDb.batch();
+                photosToUpdateSnapshot.forEach(doc => {
+                    firestoreBatch.update(doc.ref, {
+                        status: 'error_processing_image', // Or a more general error status like 'error_batch_processing'
+                        errorMessage: `General error in API: ${errorMessage.substring(0, 200)}`,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                });
+                await firestoreBatch.commit();
+            }
+        } catch (firestoreError) {
+            console.error(`[API /api/process-photos] Failed to update Firestore status on general error:`, firestoreError);
+        }
+    }
+    
+    return NextResponse.json(
+      { error: 'Failed to process photos due to a server error.', details: errorMessage },
+      { status: 500 }
+    );
+  }
+}
+
+    
