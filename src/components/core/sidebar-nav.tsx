@@ -52,24 +52,21 @@ export function SidebarNav() {
               href={item.href}
               target={item.external ? "_blank" : undefined}
               rel={item.external ? "noopener noreferrer" : undefined}
+              className={cn(item.disabled && "pointer-events-none")} // Apply pointer-events-none to Link if disabled
             >
               <SidebarMenuButton
-                // asChild={false} // This is default and fine, Link renders <a>, SidebarMenuButton renders <button>
                 className={cn(
                   "w-full justify-start",
                   !item.external && pathname === item.href && "bg-sidebar-accent text-sidebar-accent-foreground",
-                  // The CVA for SidebarMenuButton handles disabled visual state via the `disabled` prop
                 )}
-                aria-disabled={item.disabled}
-                disabled={item.disabled} // Pass the HTML disabled attribute
+                disabled={item.disabled} 
                 tooltip={{ children: item.title, className: "bg-card text-card-foreground border-border"}}
               >
-                <div>
-                  <item.icon className="mr-2 h-5 w-5" />
-                  <span className="truncate group-data-[collapsible=icon]:hidden">
-                    {item.title}
-                  </span>
-                </div>
+                {/* Icon and text are direct children for gap to apply */}
+                <item.icon className="mr-2 h-4 w-4" /> 
+                <span className="truncate group-data-[collapsible=icon]:hidden">
+                  {item.title}
+                </span>
               </SidebarMenuButton>
             </Link>
           </SidebarMenuItem>
@@ -82,12 +79,11 @@ export function SidebarNav() {
                 className="w-full justify-start hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/20 focus:text-destructive"
                 tooltip={{ children: "Cerrar Sesión", className: "bg-card text-card-foreground border-border"}}
             >
-                <div>
-                    <LogOut className="mr-2 h-5 w-5" />
-                    <span className="truncate group-data-[collapsible=icon]:hidden">
-                        Cerrar Sesión
-                    </span>
-                </div>
+                {/* Icon and text are direct children for gap to apply */}
+                <LogOut className="mr-2 h-4 w-4" />
+                <span className="truncate group-data-[collapsible=icon]:hidden">
+                    Cerrar Sesión
+                </span>
             </SidebarMenuButton>
         </SidebarMenuItem>
       </div>
