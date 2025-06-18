@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -11,9 +11,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { PRODUCT_CATEGORIES, TEMPLATE_TYPES, TEMPLATE_SCOPES } from '@/lib/constants';
-import type { ProductTemplateFormValues, ProductTemplate, TemplateType, TemplateScope } from '@/lib/types';
+import { TEMPLATE_TYPES, TEMPLATE_SCOPES } from '@/lib/constants';
+import type { ProductTemplateFormValues, ProductTemplate, TemplateType, TemplateScope, WooCommerceCategory } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 const templateFormSchema = z.object({
   name: z.string().min(3, { message: "El nombre debe tener al menos 3 caracteres." }),
@@ -26,7 +27,7 @@ const templateFormSchema = z.object({
   }),
   categoryValue: z.string().optional(),
 }).refine(data => {
-  if (data.scope === 'categoria_especifica' && !data.categoryValue) {
+  if (data.scope === 'categoria_especifica' && (!data.categoryValue || data.categoryValue.trim() === "")) {
     return false;
   }
   return true;
@@ -44,6 +45,10 @@ interface TemplateFormProps {
 }
 
 export function TemplateForm({ initialData, onSubmit, onCancel, isSubmitting }: TemplateFormProps) {
+  const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+  const { toast } = useToast();
+
   const { register, handleSubmit, control, formState: { errors }, watch, setValue } = useForm<ProductTemplateFormValues>({
     resolver: zodResolver(templateFormSchema),
     defaultValues: initialData ? {
@@ -72,6 +77,41 @@ export function TemplateForm({ initialData, onSubmit, onCancel, isSubmitting }: 
       setValue('categoryValue', initialData.categoryValue || "");
     }
   }, [initialData, setValue]);
+
+  useEffect(() => {
+    if (scope === 'categoria_especifica') {
+      const fetchCategories = async () => {
+        setIsLoadingCategories(true);
+        try {
+          const response = await fetch('/api/woocommerce/categories');
+          if (!response.ok) {
+            const responseText = await response.text();
+            let errorMessage = `Error ${response.status}: ${response.statusText}`;
+            try {
+                const errorData = JSON.parse(responseText);
+                errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
+            } catch (jsonError) {
+                errorMessage = `Server returned non-JSON error for categories (template form). Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
+                console.error("Non-JSON error response from /api/woocommerce/categories (template form):", responseText);
+            }
+            throw new Error(errorMessage);
+          }
+          const data: WooCommerceCategory[] = await response.json();
+          setWooCategories(data);
+        } catch (error) {
+          console.error("Error fetching WooCommerce categories for templates:", error);
+          toast({
+            title: "Error al Cargar Categorías",
+            description: (error as Error).message || "No se pudieron cargar las categorías de WooCommerce para las plantillas.",
+            variant: "destructive",
+          });
+        } finally {
+          setIsLoadingCategories(false);
+        }
+      };
+      fetchCategories();
+    }
+  }, [scope, toast]);
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -137,18 +177,32 @@ export function TemplateForm({ initialData, onSubmit, onCancel, isSubmitting }: 
             name="categoryValue"
             control={control}
             render={({ field }) => (
-              <Select onValueChange={field.onChange} value={field.value}>
+              <Select 
+                onValueChange={field.onChange} 
+                value={field.value || ""}
+                disabled={isLoadingCategories}
+              >
                 <SelectTrigger id="categoryValue">
-                  <SelectValue placeholder="Selecciona una categoría" />
+                  {isLoadingCategories ? (
+                    <div className="flex items-center">
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        <SelectValue placeholder="Cargando categorías..." />
+                    </div>
+                    ) : (
+                    <SelectValue placeholder="Selecciona una categoría" />
+                  )}
                 </SelectTrigger>
                 <SelectContent>
-                  {PRODUCT_CATEGORIES.map(cat => (
-                    <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+                   <SelectItem value="">Selecciona una categoría</SelectItem>
+                   {!isLoadingCategories && wooCategories.length === 0 && <SelectItem value="no-cat-template" disabled>No hay categorías disponibles</SelectItem>}
+                  {wooCategories.map(cat => (
+                    <SelectItem key={cat.id} value={cat.slug}>{cat.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             )}
           />
+          {isLoadingCategories && <p className="text-xs text-muted-foreground mt-1">Cargando categorías desde WooCommerce...</p>}
           {errors.categoryValue && <p className="text-sm text-destructive mt-1">{errors.categoryValue.message}</p>}
         </div>
       )}

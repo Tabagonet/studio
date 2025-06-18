@@ -48,16 +48,13 @@ export const WIZARD_STEPS = [
   { id: '03', name: 'Confirmación', description: 'Finaliza y procesa.' },
 ];
 
-// PRODUCT_CATEGORIES ahora se obtiene dinámicamente de WooCommerce.
-// Se puede mantener como fallback o para propósitos de prueba si es necesario, o eliminar.
+// PRODUCT_CATEGORIES is now fetched dynamically from WooCommerce in relevant components.
+// This constant is no longer used for populating category selectors.
 /*
 export const PRODUCT_CATEGORIES = [
   { value: "ropa", label: "Ropa" },
   { value: "electronica", label: "Electrónica" },
-  { value: "hogar", label: "Hogar y Jardín" },
-  { value: "accesorios", label: "Accesorios" },
-  { value: "deportes", label: "Deportes" },
-  { value: "sin_categoria", label: "Sin Categoría" },
+  // ... other categories
 ];
 */
 

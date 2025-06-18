@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { TemplateForm } from '@/components/features/templates/template-form';
-import type { ProductTemplate, ProductTemplateFormValues, TemplateType } from '@/lib/types';
+import type { ProductTemplate, ProductTemplateFormValues, TemplateType, TemplateScope, WooCommerceCategory } from '@/lib/types';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, getDocs, doc, deleteDoc, updateDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -28,6 +28,7 @@ import { format } from 'date-fns';
 
 export default function TemplatesPage() {
   const [templates, setTemplates] = useState<ProductTemplate[]>([]);
+  const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -35,6 +36,23 @@ export default function TemplatesPage() {
   const [templateToDelete, setTemplateToDelete] = useState<ProductTemplate | null>(null);
   
   const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchWooCategories = async () => {
+        try {
+            const response = await fetch('/api/woocommerce/categories');
+            if (!response.ok) {
+                throw new Error('Failed to fetch WooCommerce categories for template page display');
+            }
+            const data: WooCommerceCategory[] = await response.json();
+            setWooCategories(data);
+        } catch (error) {
+            console.error("Error fetching WooCommerce categories for template display:", error);
+            // Non-critical, table display will just show slug if name not found
+        }
+    };
+    fetchWooCategories();
+  }, []);
 
   useEffect(() => {
     setIsLoading(true);
@@ -78,20 +96,22 @@ export default function TemplatesPage() {
   const handleSaveTemplate = async (data: ProductTemplateFormValues) => {
     setIsSubmitting(true);
     try {
+      const templateDataToSave = {
+        ...data,
+        categoryValue: data.scope === 'categoria_especifica' ? data.categoryValue : "", // Ensure categoryValue is empty if not category specific
+        updatedAt: serverTimestamp(),
+      };
+
       if (currentTemplate) {
         // Update existing template
         const templateRef = doc(db, PRODUCT_TEMPLATES_COLLECTION, currentTemplate.id);
-        await updateDoc(templateRef, {
-          ...data,
-          updatedAt: serverTimestamp(),
-        });
+        await updateDoc(templateRef, templateDataToSave);
         toast({ title: "Plantilla Actualizada", description: `La plantilla "${data.name}" ha sido actualizada.` });
       } else {
         // Create new template
         await addDoc(collection(db, PRODUCT_TEMPLATES_COLLECTION), {
-          ...data,
+          ...templateDataToSave,
           createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
         });
         toast({ title: "Plantilla Creada", description: `La plantilla "${data.name}" ha sido creada.` });
       }
@@ -135,10 +155,10 @@ export default function TemplatesPage() {
     return TEMPLATE_TYPES.find(t => t.value === typeValue)?.label || typeValue;
   };
   
-  const getTemplateScopeLabel = (scopeValue: TemplateScope, categoryValue?: string) => {
+  const getTemplateScopeLabel = (scopeValue: TemplateScope, categorySlug?: string) => {
     const scope = TEMPLATE_SCOPES.find(s => s.value === scopeValue)?.label || scopeValue;
-    if (scopeValue === 'categoria_especifica' && categoryValue) {
-      const category = PRODUCT_CATEGORIES.find(c => c.value === categoryValue)?.label || categoryValue;
+    if (scopeValue === 'categoria_especifica' && categorySlug) {
+      const category = wooCategories.find(c => c.slug === categorySlug)?.name || categorySlug;
       return `${scope} (${category})`;
     }
     return scope;
