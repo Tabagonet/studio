@@ -441,7 +441,7 @@ async function createOrUpdateWooCommerceProduct(
     let currentProductContext = primaryEntry?.productContext;
 
     if (!currentProductContext) {
-      console.warn(`[WooCommerce] Batch ${batchId}, Product Group ${productName}: Critical - No productContext available from primary/first entry. Skipping this product group.`);
+      console.warn(`[WooCommerce - ${productName}] Critical - No productContext available from primary/first entry. Skipping this product group.`);
       await updateSpecificFirestoreEntries(productEntries.map(e => e.id), 'error_woocommerce_integration', `Critical: No productContext for product group ${productName}`);
       productResults.push({ name: productName, success: false, error: "Missing product context internally." });
       continue;
@@ -740,6 +740,29 @@ export async function POST(request: NextRequest) {
 
         if (!photoData.originalDownloadUrl) throw new Error(`Missing originalDownloadUrl for ${photoData.imageName}`);
         const imageBuffer = await downloadImageFromUrl(photoData.originalDownloadUrl);
+        
+        // Placeholder for image classification - example call
+        /*
+        if (imageBuffer) { // Ensure imageBuffer is available
+          try {
+            // Assuming imageBuffer is JPEG/PNG as downloaded
+            const { classifyImage } = await import('@/ai/services/image-classification');
+            const imageLabels = await classifyImage(imageBuffer);
+            console.log(`[ProcessPhotos] ImageNet Labels for ${photoData.imageName}:`, imageLabels.map(l => l.className).slice(0, 3));
+            // These labels could be added to productData.keywords or used in description generation
+            // For example:
+            // if (photoData.productContext && imageLabels.length > 0) {
+            //   const newKeywords = imageLabels.slice(0,3).map(l => l.className.split(',')[0].trim().toLowerCase()).join(', ');
+            //   photoData.productContext.keywords = photoData.productContext.keywords 
+            //     ? `${photoData.productContext.keywords}, ${newKeywords}`
+            //     : newKeywords;
+            // }
+          } catch (classificationError) {
+            console.warn(`[ProcessPhotos] Image classification failed for ${photoData.imageName}:`, classificationError);
+          }
+        }
+        */
+        
         const updateDownloaded: Partial<ProcessingStatusEntry> = { progress: 15, status: 'processing_image_downloaded', updatedAt: admin.firestore.FieldValue.serverTimestamp() as any };
         await photoDocRef.update(updateDownloaded);
 
@@ -757,7 +780,7 @@ export async function POST(request: NextRequest) {
         const seoMetadata = generateSeoMetadataWithTemplate(generatedSeoName, photoData.imageName as string, photoData.productContext, allTemplates, imageIndexInProductGroup);
         const { assignedCategorySlug, assignedTags } = applyAutomationRules((photoData.productContext?.name || photoData.imageName as string), photoData.productContext, allAutomationRules);
         
-        const updatePayloadSeo: Partial<ProcessingStatusEntry> & { seoName?: string } = {
+        const updatePayloadSeo: any = {
           progress: 55,
           status: 'processing_image_seo_named',
           updatedAt: admin.firestore.FieldValue.serverTimestamp() as any
@@ -765,7 +788,7 @@ export async function POST(request: NextRequest) {
         if (generatedSeoName) updatePayloadSeo.seoName = generatedSeoName;
         await photoDocRef.update(updatePayloadSeo);
 
-        const updatePayloadMeta: Partial<ProcessingStatusEntry> & { seoMetadata?: { alt?: string; title?: string } } = {
+        const updatePayloadMeta: any = {
           progress: 65,
           status: 'processing_image_metadata_generated',
           updatedAt: admin.firestore.FieldValue.serverTimestamp() as any
@@ -773,7 +796,7 @@ export async function POST(request: NextRequest) {
         if (seoMetadata) updatePayloadMeta.seoMetadata = seoMetadata;
         await photoDocRef.update(updatePayloadMeta);
 
-        const updatePayloadRules: Partial<ProcessingStatusEntry> & { assignedCategorySlug?: string; assignedTags?: string[] } = {
+        const updatePayloadRules: any = {
             progress: 75,
             status: 'processing_image_rules_applied',
             updatedAt: admin.firestore.FieldValue.serverTimestamp() as any
@@ -783,7 +806,7 @@ export async function POST(request: NextRequest) {
         await photoDocRef.update(updatePayloadRules);
         
         const processedImageExternalUrl = await uploadBufferToQueFoto(processedImageBuffer, generatedSeoName, 'image/webp');
-        const updatePayloadReupload: Partial<ProcessingStatusEntry> & { processedImageDownloadUrl?: string; processedImageStoragePath?: string } = {
+        const updatePayloadReupload: any = {
           progress: 90,
           status: 'processing_image_reuploaded',
           updatedAt: admin.firestore.FieldValue.serverTimestamp() as any
@@ -897,5 +920,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-    
