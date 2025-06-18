@@ -54,7 +54,7 @@ export const PRODUCT_CATEGORIES = [
   { value: "hogar", label: "Hogar y Jardín" },
   { value: "accesorios", label: "Accesorios" },
   { value: "deportes", label: "Deportes" },
-  { value: "sin_categoria", label: "Sin Categoría" }, // Added an option for no category
+  { value: "sin_categoria", label: "Sin Categoría" },
 ];
 
 export const INITIAL_PRODUCT_DATA = {
@@ -87,3 +87,7 @@ export const PRODUCT_TEMPLATES_COLLECTION = "product_templates";
 
 // Firestore collection name for automation rules
 export const AUTOMATION_RULES_COLLECTION = "automation_rules";
+
+// Firestore collection name for app notifications
+export const APP_NOTIFICATIONS_COLLECTION = "app_notifications";
+

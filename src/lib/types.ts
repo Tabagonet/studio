@@ -90,10 +90,13 @@ export interface ApiKeys {
 
 export interface AppNotification {
   id: string;
-  timestamp: Date;
-  message: string;
-  type: 'success' | 'error' | 'info';
-  read: boolean;
+  userId: string; // To associate notification with a user
+  title: string;
+  description: string;
+  type: 'success' | 'error' | 'info' | 'warning';
+  timestamp: Timestamp;
+  isRead: boolean;
+  linkTo?: string; // Optional link, e.g., to the batch details page
 }
 
 // Type for AI attribute suggestion
@@ -114,7 +117,7 @@ export interface ProcessingStatusEntry {
           "processing_image_optimized" | 
           "processing_image_seo_named" | 
           "processing_image_metadata_generated" |
-          "processing_image_rules_applied" | // New status
+          "processing_image_rules_applied" |
           "processing_image_reuploaded" | 
           "completed_image_pending_woocommerce" | 
           "error_processing_image" |
