@@ -20,7 +20,7 @@ interface ImageUploaderProps {
 }
 
 const isValidFileType = (file: File) => file.type === 'image/jpeg';
-const isValidNamePattern = (name: string) => /^.+-\\d+\\.(jpg|jpeg)$/i.test(name);
+// const isValidNamePattern = (name: string) => /^.+-\\d+\\.(jpg|jpeg)$/i.test(name);
 
 
 export function ImageUploader({
@@ -41,9 +41,9 @@ export function ImageUploader({
     rejectedFiles.forEach(rejectedFile => {
       const path = rejectedFile.file.path ?? rejectedFile.file.name;
       newFileErrors[path] = rejectedFile.errors.map((e: any) => {
-        if (e.code === "file-too-large") return \`Archivo excede \${maxSizeMB}MB.\`;
+        if (e.code === "file-too-large") return `Archivo excede ${maxSizeMB}MB.`;
         if (e.code === "file-invalid-type") return "Formato de archivo no válido. Solo se permiten archivos JPG/JPEG.";
-        if (e.code === "too-many-files") return \`No puedes subir más de \${maxFiles} archivos.\`;
+        if (e.code === "too-many-files") return `No puedes subir más de ${maxFiles} archivos.`;
         return e.message;
       });
     });
@@ -74,7 +74,7 @@ export function ImageUploader({
     setFileErrors(prev => ({...prev, ...newFileErrors}));
 
     const newPhotos: ProductPhoto[] = validAcceptedFiles.map((file, index) => ({
-      id: \`\${file.name}-\${Date.now()}\`,
+      id: `${file.name}-${Date.now()}`,
       file,
       previewUrl: URL.createObjectURL(file), // Still useful for client-side preview before sending to backend
       name: file.name,
@@ -84,7 +84,7 @@ export function ImageUploader({
     if (photos.length + newPhotos.length > maxFiles) {
         toast({
             title: "Límite de Archivos Excedido",
-            description: \`Solo puedes subir hasta \${maxFiles} imágenes. \${newPhotos.length - (maxFiles - photos.length)} archivos no fueron añadidos.\`,
+            description: `Solo puedes subir hasta ${maxFiles} imágenes. ${newPhotos.length - (maxFiles - photos.length)} archivos no fueron añadidos.`,
             variant: "destructive",
         });
         onPhotosChange([...photos, ...newPhotos.slice(0, maxFiles - photos.length)]);
@@ -134,9 +134,9 @@ export function ImageUploader({
     <div className="space-y-4">
       <div
         {...getRootProps()}
-        className={\`p-8 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors
-                    \${isDragActive ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/70'}
-                    \${photos.length >= maxFiles ? 'opacity-50 cursor-not-allowed' : ''}\`}
+        className={`p-8 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors
+                    ${isDragActive ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/70'}
+                    ${photos.length >= maxFiles ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
         <input {...getInputProps()} />
         <UploadCloud className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
@@ -146,7 +146,7 @@ export function ImageUploader({
           <p className="text-muted-foreground">
             Arrastra y suelta imágenes aquí, o haz clic para seleccionar.
             <br />
-            <span className="text-xs">(Solo JPG/JPEG, máx \${maxFiles} archivos, hasta \${maxSizeMB}MB c/u)</span>
+            <span className="text-xs">(Solo JPG/JPEG, máx ${maxFiles} archivos, hasta ${maxSizeMB}MB c/u)</span>
             {/* Removing strict name pattern message as it might be confusing for general uploader now
             <br />
             <span className="text-xs text-accent-foreground/80">Patrón de nombre requerido: <code className="bg-muted px-1 py-0.5 rounded-sm font-code">NombreProducto-NUMERO.jpg</code> (ej: <code className="bg-muted px-1 py-0.5 rounded-sm font-code">CamisetaAzul-1.jpg</code>)</span>
