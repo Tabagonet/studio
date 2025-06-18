@@ -75,15 +75,20 @@ export function TemplateForm({ initialData, onSubmit, onCancel, isSubmitting }: 
       setValue('content', initialData.content);
       setValue('scope', initialData.scope);
       setValue('categoryValue', initialData.categoryValue || "");
+    } else {
+      // Ensure categoryValue is cleared if initialData is null and scope might default to something needing it
+      // Or if switching from an item with categoryValue to a new one.
+      if (scope !== 'categoria_especifica') {
+        setValue('categoryValue', "");
+      }
     }
-  }, [initialData, setValue]);
+  }, [initialData, setValue, scope]);
 
   useEffect(() => {
     if (scope === 'categoria_especifica') {
-      const fetchCategories = async () => {
-        setIsLoadingCategories(true);
-        try {
-          const response = await fetch('/api/woocommerce/categories');
+      setIsLoadingCategories(true);
+      fetch('/api/woocommerce/categories')
+        .then(async (response) => {
           if (!response.ok) {
             const responseText = await response.text();
             let errorMessage = `Error ${response.status}: ${response.statusText}`;
@@ -96,25 +101,39 @@ export function TemplateForm({ initialData, onSubmit, onCancel, isSubmitting }: 
             }
             throw new Error(errorMessage);
           }
-          const data: WooCommerceCategory[] = await response.json();
+          return response.json();
+        })
+        .then((data: WooCommerceCategory[]) => {
           setWooCategories(data);
-        } catch (error) {
+        })
+        .catch(error => {
           console.error("Error fetching WooCommerce categories for templates:", error);
           toast({
             title: "Error al Cargar Categorías",
             description: (error as Error).message || "No se pudieron cargar las categorías de WooCommerce para las plantillas.",
             variant: "destructive",
           });
-        } finally {
+        })
+        .finally(() => {
           setIsLoadingCategories(false);
-        }
-      };
-      fetchCategories();
+        });
+    } else {
+      // Clear categoryValue if scope is not 'categoria_especifica'
+      setValue('categoryValue', "");
     }
-  }, [scope, toast]);
+  }, [scope, toast, setValue]);
+
+  const handleFormSubmit = async (data: ProductTemplateFormValues) => {
+    const dataToSubmit = { ...data };
+    if (data.scope !== 'categoria_especifica') {
+      dataToSubmit.categoryValue = ""; // Ensure categoryValue is empty if not category specific
+    }
+    await onSubmit(dataToSubmit);
+  };
+
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
       <div>
         <Label htmlFor="name">Nombre de la Plantilla</Label>
         <Input id="name" {...register('name')} placeholder="Ej: Nombre SEO para Electrónica" />
@@ -145,7 +164,9 @@ export function TemplateForm({ initialData, onSubmit, onCancel, isSubmitting }: 
       <div>
         <Label htmlFor="content">Contenido de la Plantilla</Label>
         <Textarea id="content" {...register('content')} rows={5} placeholder="Ej: {{nombre_producto}} - {{marca}} | Mejor Precio" />
-        <p className="text-xs text-muted-foreground mt-1">Usa placeholders como `{{nombre_producto}}`, `{{categoria}}`, etc.</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Usa placeholders como <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{'{{nombre_producto}}'}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{'{{categoria}}'}</code>, etc.
+        </p>
         {errors.content && <p className="text-sm text-destructive mt-1">{errors.content.message}</p>}
       </div>
 
@@ -177,8 +198,8 @@ export function TemplateForm({ initialData, onSubmit, onCancel, isSubmitting }: 
             name="categoryValue"
             control={control}
             render={({ field }) => (
-              <Select 
-                onValueChange={field.onChange} 
+              <Select
+                onValueChange={field.onChange}
                 value={field.value || ""}
                 disabled={isLoadingCategories}
               >
