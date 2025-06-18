@@ -54,8 +54,8 @@ export default function BatchProcessingPage() {
         const errors = statuses.filter(s => s.status === 'error_processing_image' || s.status === 'error_woocommerce_integration').length;
         const successes = statuses.length - errors;
         toast({
-          title: \`Procesamiento del Lote \${currentBatchId} Finalizado\`,
-          description: \`\${successes} imágenes procesadas exitosamente, \${errors} con errores.\`,
+          title: `Procesamiento del Lote ${currentBatchId} Finalizado`,
+          description: `${successes} imágenes procesadas exitosamente, ${errors} con errores.`,
           duration: 7000,
         });
       } else if (statuses.length > 0) {
@@ -87,7 +87,7 @@ export default function BatchProcessingPage() {
     
     toast({
       title: "Iniciando Monitoreo de Procesamiento Backend",
-      description: \`Escuchando actualizaciones para el lote \${batchId}...\`,
+      description: `Escuchando actualizaciones para el lote ${batchId}...`,
     });
 
     try {
@@ -97,7 +97,7 @@ export default function BatchProcessingPage() {
         body: JSON.stringify({ batchId }),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || \`Error del servidor: \${response.status}\`);
+      if (!response.ok) throw new Error(result.error || `Error del servidor: ${response.status}`);
     } catch (error) {
       console.error("Error al notificar al backend (puede continuar igualmente):", error);
     }
@@ -112,7 +112,7 @@ export default function BatchProcessingPage() {
     setIsBackendProcessing(false); 
     setBatchPhotosStatus([]);
     setUploadProgress({});
-    const newBatchId = \`batch_\${Date.now()}\`;
+    const newBatchId = `batch_${Date.now()}`;
     const userId = 'temp_user_id'; // TODO: Replace with actual authenticated user ID
 
     const firestoreBatch = writeBatch(db); 
@@ -137,7 +137,7 @@ export default function BatchProcessingPage() {
 
         if (!response.ok) {
           const errorResult = await response.json();
-          throw new Error(errorResult.error || \`Error al subir \${photo.file.name}\`);
+          throw new Error(errorResult.error || `Error al subir ${photo.file.name}`);
         }
 
         const result = await response.json();
@@ -163,10 +163,10 @@ export default function BatchProcessingPage() {
         setPhotos(prevPhotos => prevPhotos.map(p => p.id === photo.id ? {...p, localPath: relativePath} : p));
 
       } catch (error) {
-        console.error(\`Error al subir \${photo.file.name}:\`, error);
+        console.error(`Error al subir ${photo.file.name}:`, error);
         setUploadProgress(prev => ({ ...prev, [photo.id]: -1 })); 
         toast({
-          title: \`Error al subir \${photo.file.name}\`,
+          title: `Error al subir ${photo.file.name}`,
           description: (error as Error).message,
           variant: "destructive",
         });
@@ -177,7 +177,7 @@ export default function BatchProcessingPage() {
     if (firestoreWriteCount > 0) {
       try {
         await firestoreBatch.commit();
-        console.log(\`\${firestoreWriteCount} registros escritos en Firestore para el lote \${newBatchId}\`);
+        console.log(`${firestoreWriteCount} registros escritos en Firestore para el lote ${newBatchId}`);
       } catch (error) {
         console.error("Error al escribir en Firestore:", error);
         toast({
@@ -198,13 +198,13 @@ export default function BatchProcessingPage() {
         if (successfulUploadsCount === totalAttempted) {
             toast({
                 title: "Subida Local Completa",
-                description: \`Se guardaron \${successfulUploadsCount} imágenes localmente. Iniciando procesamiento backend...\`,
+                description: `Se guardaron ${successfulUploadsCount} imágenes localmente. Iniciando procesamiento backend...`,
             });
             await triggerBackendProcessing(newBatchId);
         } else if (successfulUploadsCount > 0) {
             toast({
                 title: "Subida Local Parcial",
-                description: \`Se guardaron \${successfulUploadsCount} de \${totalAttempted} imágenes. Algunas subidas fallaron. ¿Deseas procesar las imágenes subidas correctamente?\`,
+                description: `Se guardaron ${successfulUploadsCount} de ${totalAttempted} imágenes. Algunas subidas fallaron. ¿Deseas procesar las imágenes subidas correctamente?`,
                 action: (
                   <Button onClick={() => triggerBackendProcessing(newBatchId)} size="sm">
                     Procesar Igualmente
@@ -330,7 +330,7 @@ export default function BatchProcessingPage() {
                       )}
                       {uploadProgress[p.id] === 100 && <CheckCircle className="h-5 w-5 text-green-500" />}
                       {uploadProgress[p.id] !== undefined && uploadProgress[p.id] >= 0 && (
-                         <span className="text-xs text-muted-foreground w-10 text-right">{\`\${uploadProgress[p.id]}%\`}</span>
+                         <span className="text-xs text-muted-foreground w-10 text-right">{`${uploadProgress[p.id]}%`}</span>
                       )}
                        {uploadProgress[p.id] === undefined && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                     </div>
@@ -385,7 +385,7 @@ export default function BatchProcessingPage() {
             >
               {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {!isUploading && <Layers className="mr-2 h-4 w-4" />}
-              {isUploading ? "Guardando y Registrando..." : \`Iniciar Guardado Local y Procesamiento (\${photos.length} \${photos.length === 1 ? 'imagen' : 'imágenes'})\`}
+              {isUploading ? "Guardando y Registrando..." : `Iniciar Guardado Local y Procesamiento (${photos.length} ${photos.length === 1 ? 'imagen' : 'imágenes'})`}
             </Button>
           </CardFooter>
         </Card>
@@ -401,8 +401,8 @@ export default function BatchProcessingPage() {
                             <CardTitle>Estado del Lote: <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{currentBatchId}</code></CardTitle>
                             <CardDescription>
                                 {isBackendProcessing 
-                                    ? \`Procesando \${totalPhotosInBatch} imágenes... (\${processedPhotosCount} completadas, \${errorPhotosCount} errores)\`
-                                    : \`Procesamiento del lote finalizado. \${processedPhotosCount} imágenes procesadas, \${errorPhotosCount} con errores.\`
+                                    ? `Procesando ${totalPhotosInBatch} imágenes... (${processedPhotosCount} completadas, ${errorPhotosCount} errores)`
+                                    : `Procesamiento del lote finalizado. ${processedPhotosCount} imágenes procesadas, ${errorPhotosCount} con errores.`
                                 }
                             </CardDescription>
                         </div>
