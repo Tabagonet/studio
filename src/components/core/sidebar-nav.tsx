@@ -48,19 +48,21 @@ export function SidebarNav() {
       <SidebarMenu className="flex-1 p-4 overflow-y-auto">
         {NAV_ITEMS.map((item) => (
           <SidebarMenuItem key={item.title}>
-            <Link href={item.href} passHref legacyBehavior={item.external ? undefined : true}>
+            <Link
+              href={item.href}
+              target={item.external ? "_blank" : undefined}
+              rel={item.external ? "noopener noreferrer" : undefined}
+            >
               <SidebarMenuButton
-                asChild={false} 
+                // asChild={false} // This is default and fine, Link renders <a>, SidebarMenuButton renders <button>
                 className={cn(
                   "w-full justify-start",
-                  pathname === item.href && "bg-sidebar-accent text-sidebar-accent-foreground",
-                  item.disabled && "cursor-not-allowed opacity-80"
+                  !item.external && pathname === item.href && "bg-sidebar-accent text-sidebar-accent-foreground",
+                  // The CVA for SidebarMenuButton handles disabled visual state via the `disabled` prop
                 )}
                 aria-disabled={item.disabled}
-                // disabled={item.disabled} // Cannot apply to button if Link is parent and asChild is false
+                disabled={item.disabled} // Pass the HTML disabled attribute
                 tooltip={{ children: item.title, className: "bg-card text-card-foreground border-border"}}
-                target={item.external ? "_blank" : undefined}
-                rel={item.external ? "noopener noreferrer" : undefined}
               >
                 <div>
                   <item.icon className="mr-2 h-5 w-5" />
