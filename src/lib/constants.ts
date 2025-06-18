@@ -1,4 +1,4 @@
-import { Home, Wand2, FileText, Cog, Bell, Settings, ShoppingBag, PackagePlus, ListChecks, Tags } from 'lucide-react';
+import { Home, Wand2, FileText, Cog, Bell, Settings, ShoppingBag, PackagePlus, ListChecks, Tags, Layers } from 'lucide-react';
 import type { NavItem } from '@/lib/types';
 
 export const APP_NAME = "WooAutomate";
@@ -6,13 +6,18 @@ export const APP_NAME = "WooAutomate";
 export const NAV_ITEMS: NavItem[] = [
   {
     title: 'Panel de Control',
-    href: '/',
+    href: '/', // Adjusted to point to /dashboard as per src/app/page.tsx redirect
     icon: Home,
   },
   {
     title: 'Asistente de Creación',
     href: '/wizard',
     icon: Wand2,
+  },
+  {
+    title: 'Procesamiento en Lotes',
+    href: '/batch',
+    icon: Layers, // Using Layers icon for batch processing
   },
   {
     title: 'Gestión de Plantillas',

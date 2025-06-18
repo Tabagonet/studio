@@ -38,7 +38,9 @@ export default function DashboardPage() {
               <CardDescription className="mb-4 text-sm">
                 Sube múltiples imágenes para crear varios productos a la vez de forma eficiente.
               </CardDescription>
-              <Button variant="outline" className="w-full" disabled>Próximamente</Button>
+              <Button asChild variant="outline" className="w-full">
+                <Link href="/batch">Iniciar Procesamiento</Link>
+              </Button>
             </CardContent>
           </Card>
 
