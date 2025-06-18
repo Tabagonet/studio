@@ -11,7 +11,7 @@ import { ImageUploader } from "@/components/features/wizard/image-uploader";
 import type { ProductPhoto, ProcessingStatusEntry, WizardProductContext, ProductType } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { db, auth, app } from '@/lib/firebase'; 
+import { db, auth } from '@/lib/firebase'; 
 import { getIdToken } from 'firebase/auth';
 import { doc, serverTimestamp, collection, writeBatch, query, where, onSnapshot, Unsubscribe, Timestamp } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
@@ -105,6 +105,7 @@ export default function BatchProcessingPage() {
       } else if (hasStatuses) { 
         setIsBackendProcessing(true);
       } else { 
+        // No statuses yet, but batch ID exists, so assume processing or about to process
         setIsBackendProcessing(true); 
       }
 
@@ -126,7 +127,7 @@ export default function BatchProcessingPage() {
 
     return () => unsubscribe();
 
-  }, [currentBatchId, toast]);
+  }, [currentBatchId, toast]); // Removed batchPhotosStatus from dependencies as it caused loops
 
 
   const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
@@ -179,13 +180,14 @@ export default function BatchProcessingPage() {
       });
       if (!response.ok) {
         let errorMessage = `Error del servidor al iniciar procesamiento: ${response.status} ${response.statusText}`;
-        const responseText = await response.text();
+        const responseText = await response.text(); // Get text first for better error reporting
+        console.error("[Batch Page] Error response from /api/process-photos. Status:", response.status, "Body:", responseText.substring(0, 500));
         try {
             const errorData = JSON.parse(responseText);
             errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
         } catch (parseError) {
+            // errorMessage is already good if responseText is not JSON
             errorMessage = `Server returned non-JSON error for process-photos. Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
-            console.error("Non-JSON error response from /api/process-photos:", responseText);
         }
         toast({
           title: "Error Crítico al Iniciar Procesamiento",
@@ -193,16 +195,12 @@ export default function BatchProcessingPage() {
           variant: "destructive",
           duration: 10000,
         });
-        // No cambiar setIsBackendProcessing(false) aquí, ya que el listener de Firestore podría seguir activo
-        // o el usuario podría querer reintentar/ver estado.
-        throw new Error(errorMessage); // Lanzar para que no se considere exitoso
+        throw new Error(errorMessage); 
       }
-      const responseData = await response.json().catch(() => ({ message: "Respuesta no JSON del servidor."}));
+      const responseData = await response.json().catch(() => ({ message: "Respuesta no JSON del servidor al iniciar procesamiento."}));
       console.log(`[Batch Page] Backend processing successfully triggered for batchId: ${batchId}. Response status: ${response.status}. Data:`, responseData);
     } catch (error) {
       console.error("Error al notificar al backend para iniciar el procesamiento:", error);
-      // El toast ya se maneja arriba si el response no es ok.
-      // Este catch es para errores de red u otros errores de fetch.
       if (!(error instanceof Error && error.message.startsWith("Error del servidor al iniciar procesamiento"))) {
         toast({
             title: "Error de Red al Iniciar Procesamiento",
@@ -231,7 +229,7 @@ export default function BatchProcessingPage() {
 
     setIsUploading(true);
     setBatchPhotosStatus([]);
-    setUploadProgress({});
+    setUploadProgress({}); // Reset progress for new batch
     const newBatchId = `batch_${Date.now()}`;
 
     const authToken = await getAuthToken();
@@ -246,60 +244,75 @@ export default function BatchProcessingPage() {
 
     for (const productGroup of productsToProcess) {
       const productName = productGroup.displayName;
-      // Crear un contexto de producto base para este grupo
       const baseProductContext: WizardProductContext = {
         name: productName,
-        sku: '', // Se generará en el backend si es necesario o lo rellenará IA/plantillas
-        productType: 'simple' as ProductType, // Default para lotes
-        regularPrice: '', // Se generará o lo rellenará IA/plantillas
+        sku: '', 
+        productType: 'simple' as ProductType, 
+        regularPrice: '', 
         salePrice: '',
-        category: '', // Se asignará por reglas o plantillas
-        keywords: productName.toLowerCase().replace(/-/g, ' '), // Keywords básicas del nombre
-        attributes: [], // Se pueden generar por IA/plantillas
-        shortDescription: '', // Se generará por IA/plantillas
-        longDescription: '', // Se generará por IA/plantillas
-        isPrimary: false, // Se establecerá por imagen
+        category: '', 
+        keywords: productName.toLowerCase().replace(/-/g, ' '), 
+        attributes: [], 
+        shortDescription: '', 
+        longDescription: '', 
+        isPrimary: false,
       };
 
       for (let i = 0; i < productGroup.photoObjects.length; i++) {
         const photo = productGroup.photoObjects[i];
         totalPhotosAttempted++;
-        setUploadProgress(prev => ({ ...prev, [photo.id]: 0 }));
+        setUploadProgress(prev => ({ ...prev, [photo.id]: 0 })); // Initialize progress for this photo
 
         const formData = new FormData();
         formData.append('imagen', photo.file);
 
         try {
+          console.log(`[Batch Page] Attempting to upload ${photo.file.name} to /api/upload-image for batch ${newBatchId}`);
           const response = await fetch('/api/upload-image', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${authToken}` },
             body: formData,
           });
+          console.log(`[Batch Page] Response status from /api/upload-image for ${photo.file.name}: ${response.status}`);
+
+          const responseText = await response.text(); // Get response as text first
+          let result;
 
           if (!response.ok) {
+            console.error(`[Batch Page] /api/upload-image for ${photo.file.name} returned status ${response.status}. Response text:`, responseText.substring(0, 500));
             let errorMessage = `Error al subir ${photo.file.name}: ${response.status} ${response.statusText}`;
-            const responseText = await response.text();
             try {
-              const errorData = JSON.parse(responseText);
+              const errorData = JSON.parse(responseText); // Try to parse as JSON for more details
               errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
             } catch (parseError) {
+              // Keep the original text if not JSON
               errorMessage = `Server returned non-JSON error for /api/upload-image. Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
             }
             throw new Error(errorMessage);
           }
-
-          const result = await response.json();
-          if (!result.success || !result.url) {
-              throw new Error(result.error || `La subida de ${photo.file.name} al servidor externo no devolvió una URL.`);
+          
+          try {
+            result = JSON.parse(responseText);
+            console.log(`[Batch Page] Parsed JSON result from /api/upload-image for ${photo.file.name}:`, result);
+          } catch (parseError) {
+            console.error(`[Batch Page] Failed to parse JSON from /api/upload-image for ${photo.file.name}. Response text:`, responseText.substring(0, 500));
+            throw new Error(`Respuesta no JSON de /api/upload-image para ${photo.file.name}.`);
+          }
+          
+          if (result.success !== true || !result.url) {
+              console.error(`[Batch Page] /api/upload-image for ${photo.file.name} did not return success:true or no URL. Result:`, result);
+              throw new Error(result.error || `La subida de ${photo.file.name} al servidor externo no devolvió una URL o éxito.`);
           }
           const externalUrl = result.url;
+          console.log(`[Batch Page] Successfully uploaded ${photo.file.name} to external server via /api/upload-image. External URL: ${externalUrl}`);
 
           const photoDocRef = doc(collection(db, 'processing_status'));
           const productContextForEntry: WizardProductContext = {
             ...baseProductContext,
-            isPrimary: i === 0, // La primera imagen del grupo es la primaria
+            isPrimary: i === 0, 
           };
           
+          console.log(`[Batch Page] Preparing to write to Firestore for ${photo.file.name}, batch ${newBatchId}, context:`, productContextForEntry);
           firestoreBatch.set(photoDocRef, {
             userId: userId,
             batchId: newBatchId,
@@ -317,12 +330,13 @@ export default function BatchProcessingPage() {
           setPhotos(prevPhotos => prevPhotos.map(p => p.id === photo.id ? {...p, externalUrl: externalUrl} : p));
 
         } catch (error) {
-          console.error(`Error al subir ${photo.file.name}:`, error);
+          console.error(`[Batch Page] Error during upload or Firestore prep for ${photo.file.name}:`, error);
           setUploadProgress(prev => ({ ...prev, [photo.id]: -1 }));
           toast({
             title: `Error al subir ${photo.file.name}`,
             description: (error as Error).message,
             variant: "destructive",
+            duration: 7000,
           });
         }
       }
@@ -331,21 +345,24 @@ export default function BatchProcessingPage() {
 
     if (firestoreWriteCount > 0) {
       try {
+        console.log(`[Batch Page] Attempting to commit ${firestoreWriteCount} Firestore writes for batch ${newBatchId}.`);
         await firestoreBatch.commit();
-        console.log(`${firestoreWriteCount} registros escritos en Firestore para el lote ${newBatchId} con productContext.`);
+        console.log(`[Batch Page] ${firestoreWriteCount} registros escritos en Firestore para el lote ${newBatchId} con productContext.`);
       } catch (error) {
-        console.error("Error al escribir en Firestore:", error);
+        console.error("[Batch Page] Error al escribir lote en Firestore:", error);
         toast({
           title: "Error de Base de Datos",
-          description: "No se pudieron guardar los detalles de las imágenes subidas.",
+          description: "No se pudieron guardar los detalles de las imágenes subidas en Firestore. El procesamiento del lote no continuará.",
           variant: "destructive",
+          duration: 10000,
         });
         setIsUploading(false);
-        return;
+        return; // Stop if Firestore batch commit fails
       }
     }
 
     const successfulUploadsCount = Object.values(uploadProgress).filter(p => p === 100).length;
+    console.log(`[Batch Page] Uploads complete. Total attempted: ${totalPhotosAttempted}, Successful external uploads (marked 100%): ${successfulUploadsCount}`);
     setIsUploading(false);
 
     if (totalPhotosAttempted > 0) {
@@ -366,16 +383,21 @@ export default function BatchProcessingPage() {
                 ),
                 duration: 10000,
             });
+            // Allow user to decide, but also set up for viewing status
             setCurrentBatchId(newBatchId);
             setInitialLoadComplete(false);
-            setIsBackendProcessing(true);
-        } else {
+            setIsBackendProcessing(true); // To show status card even if not auto-triggered
+        } else { // successfulUploadsCount === 0
              toast({
                 title: "Subida Fallida",
                 description: "No se pudo subir ninguna imagen al servidor externo. Por favor, revisa los errores e inténtalo de nuevo.",
                 variant: "destructive",
             });
         }
+    } else {
+        // No photos were attempted, e.g., user cleared photos after selection but before upload
+        // Or getDetectedProducts() returned empty
+        console.log("[Batch Page] No photos were attempted for upload.");
     }
   };
 
@@ -384,18 +406,16 @@ export default function BatchProcessingPage() {
 
     const productGroups: Record<string, { displayName: string; imageNames: string[]; photoObjects: ProductPhoto[] }> = {};
     photos.forEach(photo => {
-      // Patrón: NombreProducto-IDENTIFICADORES-NUMERO.jpg o NombreProducto-NUMERO.jpg o NombreProducto.jpg
       const baseNamePartMatch = photo.name.match(/^(.*?)(?:-\d+)?\.(jpe?g|png|webp|gif)$/i);
-      let productKey = photo.name.replace(/\.(jpe?g|png|webp|gif)$/i, ''); // Fallback si no hay guiones
+      let productKey = photo.name.replace(/\.(jpe?g|png|webp|gif)$/i, ''); 
       
       if (baseNamePartMatch && baseNamePartMatch[1]) {
-          // Eliminar posibles sufijos numéricos como -1, -01, -001
           productKey = baseNamePartMatch[1].replace(/-(\d+)$/, '');
       }
 
 
       if (!productGroups[productKey]) {
-        const displayName = productKey.replace(/-/g, ' '); // Reemplazar guiones por espacios para un nombre más legible
+        const displayName = productKey.replace(/-/g, ' '); 
         productGroups[productKey] = {
           displayName: displayName,
           imageNames: [],
@@ -415,26 +435,26 @@ export default function BatchProcessingPage() {
 
   const getStatusBadgeVariant = (status: ProcessingStatusEntry['status']): "default" | "secondary" | "destructive" | "outline" => {
     if (status.startsWith('error')) return 'destructive';
-    if (status.startsWith('completed')) return 'default';
-    if (status === 'uploaded') return 'secondary';
+    if (status.startsWith('completed')) return 'default'; // "default" is typically primary color
+    if (status === 'uploaded' || status.startsWith('processing_image_')) return 'secondary';
     return 'outline';
   };
 
   const getStatusText = (status: ProcessingStatusEntry['status']): string => {
     const map: Record<ProcessingStatusEntry['status'], string> = {
-        uploaded: "Subido a Servidor Externo",
+        uploaded: "Subido, Pend. Proceso",
         processing_image_started: "Iniciando Proc. Imagen",
-        processing_image_downloaded: "Descargando de Servidor Externo",
+        processing_image_downloaded: "Descargando Imagen",
         processing_image_validated: "Validando Imagen",
         processing_image_optimized: "Optimizando Imagen",
         processing_image_seo_named: "Generando Nombre SEO",
         processing_image_metadata_generated: "Generando Metadatos",
         processing_image_rules_applied: "Aplicando Reglas",
-        processing_image_reuploaded: "Subiendo Imagen Procesada a Servidor Externo",
-        completed_image_pending_woocommerce: "Proc. Imagen Completo",
-        error_processing_image: "Error Proc. Imagen",
+        processing_image_reuploaded: "Subiendo Imagen Proc.",
+        completed_image_pending_woocommerce: "Imagen Lista, Pend. Woo",
+        error_processing_image: "Error Procesando Imagen",
         completed_woocommerce_integration: "Integrado con WooCommerce",
-        error_woocommerce_integration: "Error Integración WooCommerce"
+        error_woocommerce_integration: "Error Integración Woo"
     };
     return map[status] || status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
@@ -645,3 +665,5 @@ export default function BatchProcessingPage() {
   );
 }
 
+
+    
