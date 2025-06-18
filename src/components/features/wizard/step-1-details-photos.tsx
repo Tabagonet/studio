@@ -89,7 +89,7 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
                 <SelectValue placeholder="Selecciona un tipo de producto" />
               </SelectTrigger>
               <SelectContent>
-                {PRODUCT_TYPES.map(type => (
+                {PRODUCT_TYPES && PRODUCT_TYPES.map(type => (
                   <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
                 ))}
               </SelectContent>
