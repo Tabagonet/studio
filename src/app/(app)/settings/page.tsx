@@ -1,7 +1,7 @@
 
+import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-// import { Input } from "@/components/ui/input"; // Not used for .env vars
 import { Label } from "@/components/ui/label";
 import { KeyRound, DatabaseZap, Save, Download, Upload, Info, Globe } from "lucide-react";
 
@@ -11,12 +11,9 @@ export default function SettingsPage() {
                                      !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY &&
                                      !!process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
 
-  // Note: process.env for server-side vars will be undefined when this component renders on the client.
-  // For a true status check of server-side vars, an API call would be needed, or this page should be server-rendered.
-  // Given it's a settings *display* page, we'll show hints for server vars.
-  const firebaseAdminHint = "Se configura en .env (FIREBASE_SERVICE_ACCOUNT_JSON). Ver Firebase Console > Configuración del proyecto > Cuentas de servicio > Generar nueva clave privada. Pegar el contenido del JSON como una sola línea.";
+  const firebaseAdminHint = "Se configura en .env (FIREBASE_SERVICE_ACCOUNT_JSON). Ver Firebase Console > Configuración del proyecto > Cuentas de servicio > Generar nueva clave privada. Pegar el contenido COMPLETO del archivo JSON como una ÚNICA LÍNEA.";
   const wooCommerceStoreUrlHint = "Configurada en .env (WOOCOMMERCE_STORE_URL)";
-  const wooCommerceApiKeysHint = "Configuradas en .env (WOOCOMMERCE_API_KEY/SECRET)";
+  const wooCommerceApiKeysHint = "Configuradas en .env (WOOCOMMERCE_API_KEY y WOOCOMMERCE_API_SECRET)";
 
 
   return (
@@ -39,13 +36,19 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between p-3 border rounded-md">
-            <Label htmlFor="firebaseClientStatus" className="flex items-center"><img src="https://www.gstatic.com/mobilesdk/160503_mobilesdk/logo/2x/firebase_28.png" alt="Firebase" className="h-4 w-4 mr-2" />Configuración Firebase (Cliente)</Label>
+            <Label htmlFor="firebaseClientStatus" className="flex items-center">
+              <Image src="https://www.gstatic.com/mobilesdk/160503_mobilesdk/logo/2x/firebase_28.png" alt="Firebase" width={16} height={16} className="mr-2" />
+              Configuración Firebase (Cliente)
+            </Label>
              <span id="firebaseClientStatus" className={`px-2 py-1 text-xs rounded-full ${isFirebaseClientConfigured ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
               {isFirebaseClientConfigured ? "Detectada" : "No Detectada"}
             </span>
           </div>
           <div className="flex items-center justify-between p-3 border rounded-md bg-muted/30">
-            <Label htmlFor="firebaseAdminStatus" className="flex items-center"><img src="https://www.gstatic.com/mobilesdk/160503_mobilesdk/logo/2x/firebase_28.png" alt="Firebase" className="h-4 w-4 mr-2" />Configuración Firebase (Admin SDK)</Label>
+            <Label htmlFor="firebaseAdminStatus" className="flex items-center">
+              <Image src="https://www.gstatic.com/mobilesdk/160503_mobilesdk/logo/2x/firebase_28.png" alt="Firebase" width={16} height={16} className="mr-2" />
+              Configuración Firebase (Admin SDK)
+            </Label>
             <span id="firebaseAdminStatus" title={firebaseAdminHint} className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 cursor-help">
               Verificar en Variables de Entorno
             </span>
