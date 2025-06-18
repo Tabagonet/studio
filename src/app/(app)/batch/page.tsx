@@ -102,13 +102,13 @@ export default function BatchProcessingPage() {
       });
       if (!response.ok) {
         let errorMessage = `Error del servidor: ${response.status} ${response.statusText}`;
+        const responseText = await response.text();
         try {
-            const errorData = await response.json();
+            const errorData = JSON.parse(responseText);
             errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
-        } catch (jsonError) {
-            const textError = await response.text();
-            errorMessage = `Server returned non-JSON error for process-photos. Status: ${response.status}. Body: ${textError.substring(0,100)}...`;
-            console.error("Non-JSON error response from /api/process-photos:", textError);
+        } catch (parseError) {
+            errorMessage = `Server returned non-JSON error for process-photos. Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
+            console.error("Non-JSON error response from /api/process-photos:", responseText);
         }
         throw new Error(errorMessage);
       }
@@ -152,13 +152,13 @@ export default function BatchProcessingPage() {
 
         if (!response.ok) {
           let errorMessage = `Error al subir ${photo.file.name}: ${response.status} ${response.statusText}`;
+          const responseText = await response.text();
           try {
-            const errorData = await response.json();
+            const errorData = JSON.parse(responseText);
             errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
-          } catch (jsonError) {
-            const textError = await response.text();
-            errorMessage = `Server returned non-JSON error for upload-image-local. Status: ${response.status}. Body: ${textError.substring(0,100)}...`;
-            console.error("Non-JSON error response from /api/upload-image-local:", textError);
+          } catch (parseError) {
+            errorMessage = `Server returned non-JSON error for upload-image-local. Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
+            console.error("Non-JSON error response from /api/upload-image-local:", responseText);
           }
           throw new Error(errorMessage);
         }
@@ -248,8 +248,8 @@ export default function BatchProcessingPage() {
     
     const productGroups: Record<string, { displayName: string; imageNames: string[]; photoObjects: ProductPhoto[] }> = {};
     photos.forEach(photo => {
-      const baseNamePartMatch = photo.name.match(/^(.*)-\\d+\\.(jpe?g)$/i);
-      const productKey = baseNamePartMatch ? baseNamePartMatch[1] : photo.name.replace(/\\.(jpe?g)$/i, '');
+      const baseNamePartMatch = photo.name.match(/^(.*)-\d+\.(jpe?g)$/i);
+      const productKey = baseNamePartMatch ? baseNamePartMatch[1] : photo.name.replace(/\.(jpe?g)$/i, '');
       
       if (!productGroups[productKey]) {
         const displayName = productKey.replace(/-/g, ' '); 
@@ -291,7 +291,7 @@ export default function BatchProcessingPage() {
         completed_woocommerce_integration: "Integrado con WooCommerce",
         error_woocommerce_integration: "Error Integración WooCommerce"
     };
-    return map[status] || status.replace(/_/g, ' ').replace(/\\b\\w/g, l => l.toUpperCase());
+    return map[status] || status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
   
   const totalPhotosInBatch = batchPhotosStatus.length;
@@ -489,3 +489,5 @@ export default function BatchProcessingPage() {
     </div>
   );
 }
+
+    

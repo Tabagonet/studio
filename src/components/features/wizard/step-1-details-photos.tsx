@@ -32,14 +32,13 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
         const response = await fetch('/api/woocommerce/categories');
         if (!response.ok) {
           let errorMessage = `Error fetching categories: ${response.status} ${response.statusText}`;
+          const responseText = await response.text();
           try {
-            const errorData = await response.json();
+            const errorData = JSON.parse(responseText);
             errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
-          } catch (jsonError) {
-            // If parsing as JSON fails, it might be HTML or plain text
-            const textError = await response.text();
-            errorMessage = `Server returned non-JSON error for categories. Status: ${response.status}. Body: ${textError.substring(0,100)}...`;
-            console.error("Non-JSON error response from /api/woocommerce/categories:", textError);
+          } catch (parseError) {
+            errorMessage = `Server returned non-JSON error for categories. Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
+            console.error("Non-JSON error response from /api/woocommerce/categories:", responseText);
           }
           throw new Error(errorMessage);
         }
@@ -71,7 +70,7 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
     updateProductData({ photos });
     if (!productData.name && photos.length > 0) {
       const firstPhotoName = photos[0].name;
-      const potentialName = firstPhotoName.replace(/-\\d+\\.\\w+$/, '').replace(/-/g, ' ');
+      const potentialName = firstPhotoName.replace(/-\d+\.\w+$/, '').replace(/-/g, ' ');
       updateProductData({ name: potentialName });
     }
   };
@@ -230,3 +229,5 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
     </div>
   );
 }
+
+    

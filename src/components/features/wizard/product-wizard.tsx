@@ -3,8 +3,8 @@
 
 import React, { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { WIZARD_STEPS, INITIAL_PRODUCT_DATA } from "@/lib/constants";
-import type { ProductData, ProcessingStatusEntry, WizardProductContext } from "@/lib/types";
+import { WIZARD_STEPS, INITIAL_PRODUCT_DATA, PRODUCT_TYPES } from "@/lib/constants";
+import type { ProductData, ProcessingStatusEntry, WizardProductContext, ProductType } from "@/lib/types";
 import { Step1DetailsPhotos } from "./step-1-details-photos";
 import { Step2Preview } from "./step-2-preview";
 import { Step3Confirm } from "./step-3-confirm";
@@ -73,13 +73,13 @@ export function ProductWizard() {
 
         if (!response.ok) {
           let errorMessage = `Error al subir ${photo.file.name}: ${response.status} ${response.statusText}`;
+          const responseText = await response.text();
           try {
-            const errorData = await response.json();
+            const errorData = JSON.parse(responseText);
             errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
-          } catch (jsonError) {
-            const textError = await response.text();
-            errorMessage = `Server returned non-JSON error for upload-image-local (wizard). Status: ${response.status}. Body: ${textError.substring(0,100)}...`;
-            console.error("Non-JSON error response from /api/upload-image-local (wizard):", textError);
+          } catch (parseError) {
+            errorMessage = `Server returned non-JSON error for upload-image-local (wizard). Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
+            console.error("Non-JSON error response from /api/upload-image-local (wizard):", responseText);
           }
           throw new Error(errorMessage);
         }
@@ -154,13 +154,13 @@ export function ProductWizard() {
       
       if (!response.ok) {
         let errorMessage = `Error al iniciar procesamiento: ${response.status} ${response.statusText}`;
+        const responseText = await response.text();
         try {
-            const errorData = await response.json();
+            const errorData = JSON.parse(responseText);
             errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
-        } catch (jsonError) {
-            const textError = await response.text();
-            errorMessage = `Server returned non-JSON error for process-photos (wizard). Status: ${response.status}. Body: ${textError.substring(0,100)}...`;
-            console.error("Non-JSON error response from /api/process-photos (wizard):", textError);
+        } catch (parseError) {
+            errorMessage = `Server returned non-JSON error for process-photos (wizard). Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
+            console.error("Non-JSON error response from /api/process-photos (wizard):", responseText);
         }
         throw new Error(errorMessage);
       }
@@ -234,3 +234,5 @@ export function ProductWizard() {
     </div>
   );
 }
+
+    

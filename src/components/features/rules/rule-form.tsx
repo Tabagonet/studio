@@ -68,13 +68,13 @@ export function RuleForm({ initialData, onSubmit, onCancel, isSubmitting }: Rule
         const response = await fetch('/api/woocommerce/categories');
         if (!response.ok) {
           let errorMessage = `Error fetching categories for rules: ${response.status} ${response.statusText}`;
+          const responseText = await response.text();
           try {
-            const errorData = await response.json();
+            const errorData = JSON.parse(responseText);
             errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
-          } catch (jsonError) {
-            const textError = await response.text();
-            errorMessage = `Server returned non-JSON error for rule categories. Status: ${response.status}. Body: ${textError.substring(0,100)}...`;
-            console.error("Non-JSON error response from /api/woocommerce/categories (rules):", textError);
+          } catch (parseError) {
+            errorMessage = `Server returned non-JSON error for rule categories. Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
+            console.error("Non-JSON error response from /api/woocommerce/categories (rules):", responseText);
           }
           throw new Error(errorMessage);
         }
@@ -166,3 +166,5 @@ export function RuleForm({ initialData, onSubmit, onCancel, isSubmitting }: Rule
     </form>
   );
 }
+
+    
