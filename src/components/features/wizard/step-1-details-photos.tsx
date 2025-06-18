@@ -1,7 +1,7 @@
 
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,10 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from '@/components/ui/button';
 import { ImageUploader } from './image-uploader';
 import { AiAttributeSuggester } from './ai-attribute-suggester';
-import type { ProductData, ProductAttribute, ProductPhoto, ProductType } from '@/lib/types';
-import { PRODUCT_CATEGORIES, PRODUCT_TYPES } from '@/lib/constants';
-import { PlusCircle, Trash2 } from 'lucide-react';
+import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory } from '@/lib/types';
+import { PRODUCT_TYPES } from '@/lib/constants'; // PRODUCT_CATEGORIES ya no se usa aquí
+import { PlusCircle, Trash2, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
 
 interface Step1DetailsPhotosProps {
   productData: ProductData;
@@ -20,6 +21,35 @@ interface Step1DetailsPhotosProps {
 }
 
 export function Step1DetailsPhotos({ productData, updateProductData }: Step1DetailsPhotosProps) {
+  const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      setIsLoadingCategories(true);
+      try {
+        const response = await fetch('/api/woocommerce/categories');
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to fetch categories');
+        }
+        const data: WooCommerceCategory[] = await response.json();
+        setWooCategories(data);
+      } catch (error) {
+        console.error("Error fetching WooCommerce categories:", error);
+        toast({
+          title: "Error al Cargar Categorías",
+          description: (error as Error).message || "No se pudieron cargar las categorías de WooCommerce.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingCategories(false);
+      }
+    };
+    fetchCategories();
+  }, [toast]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     updateProductData({ [e.target.name]: e.target.value });
   };
@@ -30,11 +60,9 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
 
   const handlePhotosChange = (photos: ProductPhoto[]) => {
     updateProductData({ photos });
-     // Auto-fill product name from the first photo if name is empty and photos exist
     if (!productData.name && photos.length > 0) {
       const firstPhotoName = photos[0].name;
-      // Basic extraction: remove extension and trailing numbers like "-1"
-      const potentialName = firstPhotoName.replace(/-\d+\.\w+$/, '').replace(/-/g, ' ');
+      const potentialName = firstPhotoName.replace(/-\\d+\\.\\w+$/, '').replace(/-/g, ' ');
       updateProductData({ name: potentialName });
     }
   };
@@ -55,10 +83,8 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
   };
 
   const handleSuggestedAttributes = (suggested: ProductAttribute[]) => {
-    // Avoid duplicates, simple check by name
     const existingNames = new Set(productData.attributes.map(attr => attr.name.toLowerCase()));
     const newAttributesToAdd = suggested.filter(sAttr => !existingNames.has(sAttr.name.toLowerCase()));
-    
     updateProductData({ attributes: [...productData.attributes, ...newAttributesToAdd] });
   };
 
@@ -96,7 +122,7 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
             </Select>
             {productData.productType !== 'simple' && (
               <p className="text-xs text-muted-foreground mt-1">
-                Actualmente, la configuración detallada para productos variables o agrupados se realizará en WooCommerce.
+                La configuración detallada para productos variables o agrupados se realizará en WooCommerce.
               </p>
             )}
           </div>
@@ -115,15 +141,24 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
           <div>
             <Label htmlFor="category">Categoría</Label>
             <Select name="category" value={productData.category} onValueChange={(value) => handleSelectChange('category', value)}>
-              <SelectTrigger id="category">
-                <SelectValue placeholder="Selecciona una categoría" />
+              <SelectTrigger id="category" disabled={isLoadingCategories}>
+                {isLoadingCategories ? (
+                  <div className="flex items-center">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <SelectValue placeholder="Cargando categorías..." />
+                  </div>
+                ) : (
+                  <SelectValue placeholder="Selecciona una categoría" />
+                )}
               </SelectTrigger>
               <SelectContent>
-                {PRODUCT_CATEGORIES.map(cat => (
-                  <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+                {!isLoadingCategories && wooCategories.length === 0 && <SelectItem value="no-cat" disabled>No hay categorías disponibles</SelectItem>}
+                {wooCategories.map(cat => (
+                  <SelectItem key={cat.id} value={cat.slug}>{cat.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {isLoadingCategories && <p className="text-xs text-muted-foreground mt-1">Cargando categorías desde WooCommerce...</p>}
           </div>
 
           <div>

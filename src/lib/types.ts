@@ -34,10 +34,10 @@ export type ProductType = 'simple' | 'variable' | 'grouped';
 export interface ProductData {
   sku: string;
   name: string;
-  productType: ProductType; // Nuevo campo
+  productType: ProductType;
   regularPrice: string;
   salePrice?: string;
-  category: string;
+  category: string; // Guardará el slug de la categoría de WooCommerce
   keywords: string;
   shortDescription: string;
   longDescription: string;
@@ -54,7 +54,7 @@ export interface ProductTemplate {
   type: TemplateType;
   content: string;
   scope: TemplateScope;
-  categoryValue?: string; 
+  categoryValue?: string; // Sigue siendo el slug para compatibilidad con plantillas existentes
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -71,7 +71,7 @@ export interface AutomationRule {
   id: string;
   name: string;
   keyword: string;
-  categoryToAssign?: string; 
+  categoryToAssign?: string; // Sigue siendo el slug para compatibilidad
   tagsToAssign?: string; 
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -109,13 +109,13 @@ export type AttributeSuggestion = string;
 export interface WizardProductContext {
   name: string;
   sku: string;
-  productType: ProductType; // Nuevo campo
+  productType: ProductType;
   regularPrice: string;
   salePrice?: string;
-  category: string;
+  category: string; // Slug de la categoría de WooCommerce
   keywords: string;
   attributes: ProductAttribute[];
-  isPrimary: boolean; // Is this specific image the primary one for the product
+  isPrimary: boolean; 
 }
 
 
@@ -148,9 +148,14 @@ export interface ProcessingStatusEntry {
   resolutions?: Record<string, string>; 
   seoMetadata?: { alt?: string; title?: string };
   errorMessage?: string;
-  productAssociationId?: string; // Could be WooCommerce product ID later
+  productAssociationId?: string; 
   assignedCategory?: string; 
   assignedTags?: string[];
-  productContext?: WizardProductContext; // For wizard-originated items
+  productContext?: WizardProductContext; 
 }
 
+export interface WooCommerceCategory {
+  id: number;
+  name: string;
+  slug: string;
+}

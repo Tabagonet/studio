@@ -28,7 +28,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     title: 'Reglas de Automatización',
     href: '/rules',
-    icon: Cog, // Using Cog icon for rules
+    icon: Cog, 
   },
   {
     title: 'Notificaciones',
@@ -48,6 +48,9 @@ export const WIZARD_STEPS = [
   { id: '03', name: 'Confirmación', description: 'Finaliza y procesa.' },
 ];
 
+// PRODUCT_CATEGORIES ahora se obtiene dinámicamente de WooCommerce.
+// Se puede mantener como fallback o para propósitos de prueba si es necesario, o eliminar.
+/*
 export const PRODUCT_CATEGORIES = [
   { value: "ropa", label: "Ropa" },
   { value: "electronica", label: "Electrónica" },
@@ -56,6 +59,7 @@ export const PRODUCT_CATEGORIES = [
   { value: "deportes", label: "Deportes" },
   { value: "sin_categoria", label: "Sin Categoría" },
 ];
+*/
 
 export const PRODUCT_TYPES: { value: ProductType; label: string }[] = [
   { value: 'simple', label: 'Producto Simple (Físico)' },
@@ -66,10 +70,10 @@ export const PRODUCT_TYPES: { value: ProductType; label: string }[] = [
 export const INITIAL_PRODUCT_DATA = {
   sku: "",
   name: "",
-  productType: 'simple' as ProductType, // Default product type
+  productType: 'simple' as ProductType, 
   regularPrice: "",
   salePrice: "",
-  category: "",
+  category: "", // Será el slug de la categoría de WooCommerce
   keywords: "",
   shortDescription: "",
   longDescription: "",
@@ -89,12 +93,6 @@ export const TEMPLATE_SCOPES: { value: TemplateScope; label: string }[] = [
   { value: 'categoria_especifica', label: 'Categoría Específica' },
 ];
 
-// Firestore collection name for product templates
 export const PRODUCT_TEMPLATES_COLLECTION = "product_templates";
-
-// Firestore collection name for automation rules
 export const AUTOMATION_RULES_COLLECTION = "automation_rules";
-
-// Firestore collection name for app notifications
 export const APP_NOTIFICATIONS_COLLECTION = "app_notifications";
-

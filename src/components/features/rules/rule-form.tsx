@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -10,17 +10,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { PRODUCT_CATEGORIES } from '@/lib/constants';
-import type { AutomationRuleFormValues, AutomationRule } from '@/lib/types';
+// PRODUCT_CATEGORIES ya no se usa aquí directamente para el selector principal
+import type { AutomationRuleFormValues, AutomationRule, WooCommerceCategory } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 const ruleFormSchema = z.object({
   name: z.string().min(3, { message: "El nombre debe tener al menos 3 caracteres." }),
   keyword: z.string().min(2, { message: "La palabra clave debe tener al menos 2 caracteres." }),
-  categoryToAssign: z.string().optional(),
+  categoryToAssign: z.string().optional(), // Sigue siendo el slug
   tagsToAssign: z.string().optional().refine(val => {
-    if (val === undefined || val.trim() === "") return true; // Allow empty or undefined
-    // Check for valid tags format: comma-separated, no empty tags, no leading/trailing commas on tags themselves
+    if (val === undefined || val.trim() === "") return true; 
     return val.split(',').every(tag => tag.trim().length > 0) && !val.startsWith(',') && !val.endsWith(',');
   }, { message: "Las etiquetas deben estar separadas por comas y no deben estar vacías (ej: tag1,tag2)." }),
 });
@@ -34,6 +34,10 @@ interface RuleFormProps {
 }
 
 export function RuleForm({ initialData, onSubmit, onCancel, isSubmitting }: RuleFormProps) {
+  const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+  const { toast } = useToast();
+
   const { register, handleSubmit, control, formState: { errors }, setValue } = useForm<AutomationRuleFormValues>({
     resolver: zodResolver(ruleFormSchema),
     defaultValues: initialData ? {
@@ -58,6 +62,31 @@ export function RuleForm({ initialData, onSubmit, onCancel, isSubmitting }: Rule
     }
   }, [initialData, setValue]);
 
+  useEffect(() => {
+    const fetchCategories = async () => {
+      setIsLoadingCategories(true);
+      try {
+        const response = await fetch('/api/woocommerce/categories');
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to fetch categories for rules');
+        }
+        const data: WooCommerceCategory[] = await response.json();
+        setWooCategories(data);
+      } catch (error) {
+        console.error("Error fetching WooCommerce categories for rules:", error);
+        toast({
+          title: "Error al Cargar Categorías",
+          description: (error as Error).message || "No se pudieron cargar las categorías de WooCommerce para las reglas.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingCategories(false);
+      }
+    };
+    fetchCategories();
+  }, [toast]);
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div>
@@ -79,19 +108,32 @@ export function RuleForm({ initialData, onSubmit, onCancel, isSubmitting }: Rule
           name="categoryToAssign"
           control={control}
           render={({ field }) => (
-            <Select onValueChange={field.onChange} value={field.value || ""}>
+            <Select 
+              onValueChange={field.onChange} 
+              value={field.value || ""}
+              disabled={isLoadingCategories}
+            >
               <SelectTrigger id="categoryToAssign">
-                <SelectValue placeholder="Selecciona una categoría para asignar" />
+                {isLoadingCategories ? (
+                  <div className="flex items-center">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <SelectValue placeholder="Cargando categorías..." />
+                  </div>
+                ) : (
+                  <SelectValue placeholder="Selecciona una categoría para asignar" />
+                )}
               </SelectTrigger>
               <SelectContent>
                  <SelectItem value="">Ninguna</SelectItem>
-                {PRODUCT_CATEGORIES.map(cat => (
-                  <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+                 {!isLoadingCategories && wooCategories.length === 0 && <SelectItem value="no-cat-rules" disabled>No hay categorías disponibles</SelectItem>}
+                {wooCategories.map(cat => (
+                  <SelectItem key={cat.id} value={cat.slug}>{cat.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           )}
         />
+        {isLoadingCategories && <p className="text-xs text-muted-foreground mt-1">Cargando categorías desde WooCommerce...</p>}
         {errors.categoryToAssign && <p className="text-sm text-destructive mt-1">{errors.categoryToAssign.message}</p>}
       </div>
 

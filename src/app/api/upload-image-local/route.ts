@@ -29,10 +29,10 @@ export async function POST(request: NextRequest) {
 
     // Basic validation
     if (file.size > MAX_FILE_SIZE_BYTES_API_UPLOAD_LOCAL) {
-      return NextResponse.json({ error: \`File exceeds max size of \${MAX_FILE_SIZE_BYTES_API_UPLOAD_LOCAL / (1024*1024)}MB.\` }, { status: 413 });
+      return NextResponse.json({ error: `File exceeds max size of ${MAX_FILE_SIZE_BYTES_API_UPLOAD_LOCAL / (1024*1024)}MB.` }, { status: 413 });
     }
     if (!ALLOWED_MIME_TYPES_API_UPLOAD_LOCAL.includes(file.type)) {
-       return NextResponse.json({ error: \`Invalid file type: \${file.type}. Expected JPG/JPEG.\` }, { status: 415 });
+       return NextResponse.json({ error: `Invalid file type: ${file.type}. Expected JPG/JPEG.` }, { status: 415 });
     }
 
     // Sanitize fileName to prevent path traversal, though original name is used for now
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes);
     await fs.writeFile(localFilePath, buffer);
 
-    console.log(\`[API /api/upload-image-local] File \${safeFileName} saved to \${localFilePath} for batch \${batchId}\`);
+    console.log(`[API /api/upload-image-local] File ${safeFileName} saved to ${localFilePath} for batch ${batchId}`);
 
     return NextResponse.json({ 
       message: 'File uploaded successfully to local server.', 
@@ -63,3 +63,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to upload file.', details: errorMessage }, { status: 500 });
   }
 }
+
