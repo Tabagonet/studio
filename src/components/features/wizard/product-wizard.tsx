@@ -29,12 +29,14 @@ export function ProductWizard() {
   const nextStep = () => {
     if (currentStep < WIZARD_STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
+      window.scrollTo(0, 0);
     }
   };
 
   const prevStep = () => {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
+      window.scrollTo(0, 0);
     }
   };
 
@@ -59,8 +61,8 @@ export function ProductWizard() {
     for (const photo of productData.photos) {
       const formData = new FormData();
       formData.append('file', photo.file);
-      formData.append('batchId', wizardJobId); 
-      formData.append('userId', userId); 
+      formData.append('batchId', wizardJobId);
+      formData.append('userId', userId);
       formData.append('fileName', photo.file.name);
 
       try {
@@ -83,7 +85,7 @@ export function ProductWizard() {
           variant: "destructive",
         });
         allUploadsSuccessful = false;
-        break; 
+        break;
       }
     }
 
@@ -101,7 +103,7 @@ export function ProductWizard() {
         const productContextForEntry: WizardProductContext = {
             name: productData.name,
             sku: productData.sku,
-            productType: productData.productType, // Incluye productType
+            productType: productData.productType,
             regularPrice: productData.regularPrice,
             salePrice: productData.salePrice,
             category: productData.category,
@@ -111,7 +113,7 @@ export function ProductWizard() {
         };
 
         const entry: Omit<ProcessingStatusEntry, 'id' | 'updatedAt'> = {
-          userId: userId, 
+          userId: userId,
           batchId: wizardJobId,
           imageName: uploadedPhoto.name,
           originalStoragePath: uploadedPhoto.relativePath,
@@ -143,16 +145,16 @@ export function ProductWizard() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || `Error del servidor: ${response.status}`);
-      
+
       toast({
         title: "Producto Enviado a Procesamiento",
         description: "Las imágenes de tu producto se están procesando. Serás redirigido para ver el progreso.",
         duration: 7000,
       });
-      
+
       setCurrentStep(0);
       setProductData(INITIAL_PRODUCT_DATA);
-      router.push(`/batch?batchId=${wizardJobId}`); 
+      router.push(`/batch?batchId=${wizardJobId}`);
 
     } catch (error) {
       console.error("Error al iniciar el procesamiento backend para el asistente:", error);

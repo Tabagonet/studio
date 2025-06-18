@@ -17,7 +17,7 @@ interface Step2PreviewProps {
 }
 
 // Helper for inline editing
-const EditableField: React.FC<{label: string, value: string | undefined, name: string, onChange: (name: string, value: string) => void, type?: 'input' | 'textarea', readOnly?: boolean}> = 
+const EditableField: React.FC<{label: string, value: string | undefined, name: string, onChange: (name: string, value: string) => void, type?: 'input' | 'textarea', readOnly?: boolean}> =
   ({label, value, name, onChange, type = 'input', readOnly = false}) => (
   <div>
     <Label htmlFor={`preview-${name}`} className="text-sm font-medium">{label}</Label>
@@ -31,7 +31,7 @@ const EditableField: React.FC<{label: string, value: string | undefined, name: s
 
 
 export function Step2Preview({ productData, updateProductData }: Step2PreviewProps) {
-  
+
   const handleFieldChange = (fieldName: string, fieldValue: string) => {
     updateProductData({ [fieldName]: fieldValue });
   };
@@ -48,7 +48,7 @@ export function Step2Preview({ productData, updateProductData }: Step2PreviewPro
 
   const generatedShortDescription = productData.shortDescription || `Descripción corta generada para ${productData.name} basada en ${productData.keywords}.`;
   const generatedLongDescription = productData.longDescription || `Descripción extensa y detallada para ${productData.name}, categoría ${productData.category}, con palabras clave: ${productData.keywords}. Ideal para SEO.`;
-  
+
   const productTypeLabel = PRODUCT_TYPES.find(pt => pt.value === productData.productType)?.label || productData.productType;
 
   return (
@@ -74,13 +74,20 @@ export function Step2Preview({ productData, updateProductData }: Step2PreviewPro
               <EditableField label="Categoría" name="category" value={productData.category} onChange={handleFieldChange} />
               <EditableField label="Palabras Clave" name="keywords" value={productData.keywords} onChange={handleFieldChange} />
             </div>
-            
+
             <div className="space-y-4">
               {primaryPhoto && (
                 <div>
                   <Label>Imagen Principal</Label>
                   <div className="mt-1 w-full aspect-square relative rounded-md border overflow-hidden">
-                    <Image src={primaryPhoto.localPath || primaryPhoto.previewUrl} alt={primaryPhoto.name} layout="fill" objectFit="cover" data-ai-hint="product photo" unoptimized={primaryPhoto.previewUrl.startsWith('blob:')}/>
+                    <Image
+                        src={primaryPhoto.previewUrl}
+                        alt={primaryPhoto.name}
+                        layout="fill"
+                        objectFit="cover"
+                        unoptimized={true}
+                        data-ai-hint="product photo"
+                    />
                   </div>
                   {/* SEO Alt para imagen principal se generará en backend */}
                 </div>
@@ -108,7 +115,7 @@ export function Step2Preview({ productData, updateProductData }: Step2PreviewPro
             <EditableField label="Descripción Corta (SEO)*" name="shortDescription" value={generatedShortDescription} onChange={handleFieldChange} type="textarea" />
             <EditableField label="Descripción Larga (SEO)*" name="longDescription" value={generatedLongDescription} onChange={handleFieldChange} type="textarea" />
           </div>
-          
+
           {galleryPhotos.length > 0 && (
             <div>
               <h3 className="text-lg font-semibold mb-2">Galería de Imágenes</h3>
@@ -116,7 +123,14 @@ export function Step2Preview({ productData, updateProductData }: Step2PreviewPro
                 <div className="flex space-x-4 p-1">
                   {galleryPhotos.map(photo => (
                     <div key={photo.id} className="flex-shrink-0 w-32 h-32 relative rounded-md border overflow-hidden">
-                       <Image src={photo.localPath || photo.previewUrl} alt={photo.name} layout="fill" objectFit="cover" data-ai-hint="product photo" unoptimized={photo.previewUrl.startsWith('blob:')} />
+                       <Image
+                        src={photo.previewUrl}
+                        alt={photo.name}
+                        layout="fill"
+                        objectFit="cover"
+                        unoptimized={true}
+                        data-ai-hint="product photo"
+                       />
                     </div>
                   ))}
                 </div>
@@ -125,7 +139,7 @@ export function Step2Preview({ productData, updateProductData }: Step2PreviewPro
           )}
         </CardContent>
       </Card>
-      
+
       {/* Placeholder for Store Preview */}
       <Card>
         <CardHeader>
@@ -134,7 +148,6 @@ export function Step2Preview({ productData, updateProductData }: Step2PreviewPro
         </CardHeader>
         <CardContent className="border rounded-lg p-6 bg-muted/20 min-h-[300px] flex items-center justify-center">
             <div className="text-center">
-                {/* Replaced ImageIcon with a placeholder or direct NextImage if a generic placeholder image is better */}
                  <Image src="https://placehold.co/150x150.png" alt="Placeholder tienda" width={150} height={150} className="mx-auto mb-4 rounded opacity-50" data-ai-hint="store preview" />
                 <p className="text-muted-foreground">La vista previa simulada de la tienda aparecerá aquí.</p>
                 <p className="text-xs text-muted-foreground mt-1">(Esto es una representación y puede variar según el tema de tu tienda)</p>
