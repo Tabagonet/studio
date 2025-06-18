@@ -14,14 +14,14 @@ export interface NavItem {
 export interface ProductPhoto {
   id: string;
   file: File;
-  previewUrl: string; // For client-side preview, will point to local server path
+  previewUrl: string; 
   name: string;
   isPrimary?: boolean;
   seoAlt?: string;
   seoTitle?: string;
   seoDescription?: string;
   seoCaption?: string;
-  localPath?: string; // Path on the server after upload
+  localPath?: string; 
 }
 
 export interface ProductAttribute {
@@ -102,13 +102,26 @@ export interface AppNotification {
 
 export type AttributeSuggestion = string;
 
+// Product context to be stored with ProcessingStatusEntry for wizard flow
+export interface WizardProductContext {
+  name: string;
+  sku: string;
+  regularPrice: string;
+  salePrice?: string;
+  category: string;
+  keywords: string;
+  attributes: ProductAttribute[];
+  isPrimary: boolean; // Is this specific image the primary one for the product
+}
+
+
 export interface ProcessingStatusEntry {
   id: string; 
   userId: string;
   batchId: string;
   imageName: string;
-  originalStoragePath: string; // Will now be local path relative to 'public' dir
-  originalDownloadUrl: string; // Will now be local path relative to 'public' dir for serving
+  originalStoragePath: string; 
+  originalDownloadUrl: string; 
   status: "uploaded" | 
           "processing_image_started" | 
           "processing_image_downloaded" | 
@@ -126,12 +139,14 @@ export interface ProcessingStatusEntry {
   updatedAt?: Timestamp; 
   progress: number;
   seoName?: string;
-  processedImageStoragePath?: string; // Will now be local path relative to 'public' dir
-  processedImageDownloadUrl?: string; // Will now be local path relative to 'public' dir for serving
+  processedImageStoragePath?: string; 
+  processedImageDownloadUrl?: string; 
   resolutions?: Record<string, string>; 
   seoMetadata?: { alt?: string; title?: string };
   errorMessage?: string;
-  productAssociationId?: string;
+  productAssociationId?: string; // Could be WooCommerce product ID later
   assignedCategory?: string; 
-  assignedTags?: string[]; 
+  assignedTags?: string[];
+  productContext?: WizardProductContext; // For wizard-originated items
 }
+

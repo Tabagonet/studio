@@ -1,20 +1,26 @@
+
 "use client";
 
 import React, { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { WIZARD_STEPS, INITIAL_PRODUCT_DATA } from "@/lib/constants";
-import type { ProductData } from "@/lib/types";
+import type { ProductData, ProcessingStatusEntry } from "@/lib/types";
 import { Step1DetailsPhotos } from "./step-1-details-photos";
 import { Step2Preview } from "./step-2-preview";
 import { Step3Confirm } from "./step-3-confirm";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
+import { db } from '@/lib/firebase';
+import { doc, serverTimestamp, collection, writeBatch } from 'firebase/firestore';
+import { useRouter } from 'next/navigation';
+
 
 export function ProductWizard() {
   const [currentStep, setCurrentStep] = useState(0);
   const [productData, setProductData] = useState<ProductData>(INITIAL_PRODUCT_DATA);
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
+  const router = useRouter();
 
   const updateProductData = useCallback((data: Partial<ProductData>) => {
     setProductData((prev) => ({ ...prev, ...data }));
@@ -34,25 +40,137 @@ export function ProductWizard() {
 
   const handleSubmitProduct = async () => {
     setIsProcessing(true);
-    // Simulate API call for product creation
-    console.log("Submitting product data:", productData);
+    const wizardJobId = `wizard_${Date.now()}`;
+    // const userId = 'temp_user_id'; // TODO: Replace with actual authenticated user ID
 
-    // Simulate background processing
-    // In a real app, this would call an API endpoint that starts a background job
-    // e.g., await fetch('/api/process-product', { method: 'POST', body: JSON.stringify(productData) });
-    
-    // For now, simulate with a timeout
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // 1. Upload original images locally
+    const uploadedPhotoDetails: { name: string; relativePath: string; originalPhotoId: string }[] = [];
+    let allUploadsSuccessful = true;
 
-    setIsProcessing(false);
-    toast({
-      title: "Producto en Proceso",
-      description: "El producto se está creando en segundo plano. Recibirás una notificación al finalizar.",
-      variant: "default",
-    });
-    // Reset wizard or redirect
-    setCurrentStep(0);
-    setProductData(INITIAL_PRODUCT_DATA);
+    if (productData.photos.length === 0) {
+        toast({
+            title: "No hay imágenes",
+            description: "Por favor, sube al menos una imagen para el producto.",
+            variant: "destructive",
+        });
+        setIsProcessing(false);
+        return;
+    }
+
+
+    for (const photo of productData.photos) {
+      const formData = new FormData();
+      formData.append('file', photo.file);
+      formData.append('batchId', wizardJobId); // Use wizardJobId as batchId
+      // formData.append('userId', userId); // Uncomment when auth is ready
+      formData.append('fileName', photo.file.name);
+
+      try {
+        const response = await fetch('/api/upload-image-local', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorResult = await response.json();
+          throw new Error(errorResult.error || `Error al subir ${photo.file.name}`);
+        }
+        const result = await response.json();
+        uploadedPhotoDetails.push({ name: photo.file.name, relativePath: result.relativePath, originalPhotoId: photo.id });
+      } catch (error) {
+        console.error(`Error al subir ${photo.file.name} para el asistente:`, error);
+        toast({
+          title: `Error al Subir Imagen ${photo.file.name}`,
+          description: (error as Error).message,
+          variant: "destructive",
+        });
+        allUploadsSuccessful = false;
+        break; 
+      }
+    }
+
+    if (!allUploadsSuccessful) {
+      setIsProcessing(false);
+      // TODO: Consider cleanup of already uploaded files for this wizardJobId if some failed
+      return;
+    }
+
+    // 2. Create ProcessingStatusEntry documents in Firestore
+    const firestoreBatch = writeBatch(db);
+    try {
+      for (const uploadedPhoto of uploadedPhotoDetails) {
+        const photoDocRef = doc(collection(db, 'processing_status'));
+        const originalPhotoData = productData.photos.find(p => p.id === uploadedPhoto.originalPhotoId);
+
+        const entry: Omit<ProcessingStatusEntry, 'id' | 'updatedAt'> = {
+          // userId: userId, // Uncomment when auth is ready
+          userId: 'temp_user_id', // Placeholder
+          batchId: wizardJobId,
+          imageName: uploadedPhoto.name,
+          originalStoragePath: uploadedPhoto.relativePath,
+          originalDownloadUrl: uploadedPhoto.relativePath,
+          status: "uploaded",
+          uploadedAt: serverTimestamp() as any, // Firestore will convert this
+          progress: 0,
+          // Optional: Store product context if needed for WooCommerce step later
+          // This could be more structured, e.g., a 'productContext' object
+          productContext: {
+            name: productData.name,
+            sku: productData.sku,
+            regularPrice: productData.regularPrice,
+            salePrice: productData.salePrice,
+            category: productData.category,
+            keywords: productData.keywords,
+            attributes: productData.attributes,
+            isPrimary: originalPhotoData?.isPrimary || false,
+            // Note: Descriptions might be generated later by AI based on keywords/templates
+          }
+        };
+        firestoreBatch.set(photoDocRef, entry);
+      }
+      await firestoreBatch.commit();
+    } catch (error) {
+      console.error("Error al escribir en Firestore para el asistente:", error);
+      toast({
+        title: "Error de Base de Datos",
+        description: "No se pudieron registrar las imágenes para procesamiento.",
+        variant: "destructive",
+      });
+      setIsProcessing(false);
+      return;
+    }
+
+    // 3. Trigger backend processing
+    try {
+      const response = await fetch('/api/process-photos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchId: wizardJobId }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || `Error del servidor: ${response.status}`);
+      
+      toast({
+        title: "Producto Enviado a Procesamiento",
+        description: "Las imágenes de tu producto se están procesando. Serás redirigido a la página de lotes para ver el progreso.",
+        duration: 7000,
+      });
+      
+      // Reset wizard and navigate to batch page to see progress
+      setCurrentStep(0);
+      setProductData(INITIAL_PRODUCT_DATA);
+      router.push(`/batch?batchId=${wizardJobId}`); // Navigate to batch page to monitor
+
+    } catch (error) {
+      console.error("Error al iniciar el procesamiento backend para el asistente:", error);
+      toast({
+        title: "Error de Procesamiento",
+        description: "No se pudo iniciar el procesamiento de las imágenes del producto.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const progressPercentage = ((currentStep + 1) / WIZARD_STEPS.length) * 100;
@@ -91,13 +209,14 @@ export function ProductWizard() {
           Anterior
         </Button>
         {currentStep < WIZARD_STEPS.length - 1 ? (
-          <Button onClick={nextStep} disabled={isProcessing}>Siguiente</Button>
+          <Button onClick={nextStep} disabled={isProcessing || (currentStep === 0 && productData.photos.length === 0) }>Siguiente</Button>
         ) : (
-          <Button onClick={handleSubmitProduct} disabled={isProcessing}>
-            {isProcessing ? "Procesando..." : "Confirmar y Crear Producto"}
+          <Button onClick={handleSubmitProduct} disabled={isProcessing || productData.photos.length === 0}>
+            {isProcessing ? "Procesando..." : "Confirmar y Procesar Imágenes"}
           </Button>
         )}
       </div>
     </div>
   );
 }
+
