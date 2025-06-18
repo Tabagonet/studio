@@ -11,7 +11,7 @@ import { ImageUploader } from "@/components/features/wizard/image-uploader";
 import type { ProductPhoto, ProcessingStatusEntry } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { db, auth } from '@/lib/firebase'; // Firebase client SDK, import db and auth
+import { db, auth, app } from '@/lib/firebase'; // Firebase client SDK, import db and auth
 import { getIdToken } from 'firebase/auth'; 
 import { doc, serverTimestamp, collection, writeBatch, query, where, onSnapshot, Unsubscribe, Timestamp } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
@@ -20,53 +20,80 @@ import { useRouter } from 'next/navigation';
 export default function BatchProcessingPage() {
   const [photos, setPhotos] = useState<ProductPhoto[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [isBackendProcessing, setIsBackendProcessing] = useState(false);
+  const [isBackendProcessing, setIsBackendProcessing] = useState(true); // Default to true if batchId might be present
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const { toast } = useToast();
   const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
   const [batchPhotosStatus, setBatchPhotosStatus] = useState<ProcessingStatusEntry[]>([]);
   const router = useRouter();
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     const batchIdFromUrl = searchParams.get('batchId');
     if (batchIdFromUrl) {
       setCurrentBatchId(batchIdFromUrl);
+      setIsBackendProcessing(true); // Explicitly set to true when batchId is found
+      setInitialLoadComplete(false); // Reset for new batch
+    } else {
+      setIsBackendProcessing(false); // No batch, no processing
+      setInitialLoadComplete(true);
     }
   }, []);
 
   useEffect(() => {
     if (!currentBatchId) {
       setBatchPhotosStatus([]);
+      setIsBackendProcessing(false);
+      setInitialLoadComplete(true);
       return;
     }
 
-    setIsBackendProcessing(true);
+    // Set to true when starting to listen, will be updated by onSnapshot
+    setIsBackendProcessing(true); 
 
     const q = query(collection(db, 'processing_status'), where('batchId', '==', currentBatchId));
     
+    let firstSnapshot = true;
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const statuses: ProcessingStatusEntry[] = [];
       querySnapshot.forEach((doc) => {
         statuses.push({ id: doc.id, ...doc.data() } as ProcessingStatusEntry);
       });
+      
+      const prevStatuses = batchPhotosStatus;
       setBatchPhotosStatus(statuses.sort((a, b) => (a.imageName || "").localeCompare(b.imageName || "")));
 
-      const allProcessed = statuses.length > 0 && statuses.every(
-        s => s.status === 'completed_image_pending_woocommerce' || s.status === 'error_processing_image' || s.status === 'completed_woocommerce_integration' || s.status === 'error_woocommerce_integration'
+      const hasStatuses = statuses.length > 0;
+      const allTerminated = hasStatuses && statuses.every(
+        s => s.status === 'completed_image_pending_woocommerce' || 
+             s.status === 'error_processing_image' || 
+             s.status === 'completed_woocommerce_integration' || 
+             s.status === 'error_woocommerce_integration'
       );
 
-      if (allProcessed) {
+      if (allTerminated) {
         setIsBackendProcessing(false);
-        const errors = statuses.filter(s => s.status === 'error_processing_image' || s.status === 'error_woocommerce_integration').length;
-        const successes = statuses.length - errors;
-        toast({
-          title: `Procesamiento del Lote ${currentBatchId} Finalizado`,
-          description: `${successes} imágenes procesadas exitosamente, ${errors} con errores.`,
-          duration: 7000,
-        });
-      } else if (statuses.length > 0) {
-        setIsBackendProcessing(true);
+        // Only show toast if it's not the first load AND there was a change towards termination
+        if (!firstSnapshot && prevStatuses.some(ps => !statuses.find(s => s.id === ps.id) || (statuses.find(s => s.id === ps.id)?.status !== ps.status))) {
+          const errors = statuses.filter(s => s.status === 'error_processing_image' || s.status === 'error_woocommerce_integration').length;
+          const successes = statuses.length - errors;
+          toast({
+            title: `Procesamiento del Lote ${currentBatchId} Finalizado`,
+            description: `${successes} imágenes procesadas exitosamente, ${errors} con errores.`,
+            duration: 7000,
+          });
+        }
+      } else if (hasStatuses) {
+        setIsBackendProcessing(true); // Still processing some items
+      } else { // No statuses yet
+        setIsBackendProcessing(true); // Keep showing loader
+      }
+      
+      if (firstSnapshot) {
+        firstSnapshot = false;
+        setInitialLoadComplete(true);
       }
 
     }, (error) => {
@@ -77,6 +104,7 @@ export default function BatchProcessingPage() {
         variant: "destructive",
       });
       setIsBackendProcessing(false);
+      setInitialLoadComplete(true);
     });
 
     return () => unsubscribe();
@@ -90,9 +118,10 @@ export default function BatchProcessingPage() {
   };
 
   const getAuthToken = async (): Promise<string | null> => {
-    if (auth.currentUser) {
+    const currentAuth = getAuth(app);
+    if (currentAuth.currentUser) {
       try {
-        return await getIdToken(auth.currentUser);
+        return await getIdToken(currentAuth.currentUser);
       } catch (error) {
         console.error("Error getting auth token:", error);
         toast({
@@ -112,20 +141,22 @@ export default function BatchProcessingPage() {
   };
 
   const triggerBackendProcessing = async (batchId: string) => {
-    setCurrentBatchId(batchId); 
+    setCurrentBatchId(batchId); // This will trigger the useEffect to listen
+    setInitialLoadComplete(false); // Reset for new batch monitoring
+    setIsBackendProcessing(true); // Show spinner immediately
     
-    toast({
-      title: "Iniciando Monitoreo de Procesamiento Backend",
-      description: `Escuchando actualizaciones para el lote ${batchId}...`,
-    });
+    // toast({ // This toast might be redundant if the page updates quickly
+    //   title: "Iniciando Monitoreo de Procesamiento Backend",
+    //   description: `Escuchando actualizaciones para el lote ${batchId}...`,
+    // });
     
-    if (!auth.currentUser) {
+    const currentAuth = getAuth(app);
+    if (!currentAuth.currentUser) {
       toast({ title: "Usuario No Autenticado", description: "Debes iniciar sesión para procesar imágenes.", variant: "destructive" });
       router.push('/login');
       return;
     }
-    const userId = auth.currentUser.uid;
-
+    const userId = currentAuth.currentUser.uid;
 
     try {
       const response = await fetch('/api/process-photos', {
@@ -146,7 +177,8 @@ export default function BatchProcessingPage() {
         throw new Error(errorMessage);
       }
     } catch (error) {
-      console.error("Error al notificar al backend (puede continuar igualmente):", error);
+      console.error("Error al notificar al backend (el monitoreo puede continuar igualmente):", error);
+      // No need to set setIsBackendProcessing(false) here, listener will handle it
     }
   };
 
@@ -156,15 +188,16 @@ export default function BatchProcessingPage() {
       return;
     }
     
-    if (!auth.currentUser) {
+    const currentAuth = getAuth(app);
+    if (!currentAuth.currentUser) {
       toast({ title: "Usuario No Autenticado", description: "Debes iniciar sesión para subir imágenes.", variant: "destructive" });
       router.push('/login');
       return;
     }
-    const userId = auth.currentUser.uid;
+    const userId = currentAuth.currentUser.uid;
 
     setIsUploading(true);
-    setIsBackendProcessing(false); 
+    // setIsBackendProcessing(false); // Let the useEffect for currentBatchId handle this
     setBatchPhotosStatus([]);
     setUploadProgress({});
     const newBatchId = `batch_${Date.now()}`;
@@ -280,7 +313,11 @@ export default function BatchProcessingPage() {
                 ),
                 duration: 10000, 
             });
-            setCurrentBatchId(newBatchId);
+             // Set currentBatchId here so the listener starts, but don't call triggerBackendProcessing yet
+             // as the user might decide not to. The listener will show "waiting for data" if they don't click.
+            setCurrentBatchId(newBatchId); 
+            setInitialLoadComplete(false);
+            setIsBackendProcessing(true);
         } else {
              toast({
                 title: "Subida Fallida",
@@ -314,7 +351,10 @@ export default function BatchProcessingPage() {
   };
 
   const detectedProducts = getDetectedProducts();
-  const disableActions = isUploading || isBackendProcessing;
+  
+  // Determine if the general "Processing Lote..." spinner should be active
+  const isBatchGenerallyProcessing = isBackendProcessing && (!initialLoadComplete || (batchPhotosStatus.length > 0 && !batchPhotosStatus.every(s => s.status.startsWith('completed') || s.status.startsWith('error'))));
+
 
   const getStatusBadgeVariant = (status: ProcessingStatusEntry['status']): "default" | "secondary" | "destructive" | "outline" => {
     if (status.startsWith('error')) return 'destructive';
@@ -343,9 +383,9 @@ export default function BatchProcessingPage() {
   };
   
   const totalPhotosInBatch = batchPhotosStatus.length;
-  const processedPhotosCount = batchPhotosStatus.filter(p => p.status === 'completed_image_pending_woocommerce' || p.status === 'completed_woocommerce_integration').length;
+  const completedPhotosCount = batchPhotosStatus.filter(p => p.status === 'completed_image_pending_woocommerce' || p.status === 'completed_woocommerce_integration').length;
   const errorPhotosCount = batchPhotosStatus.filter(p => p.status.startsWith('error')).length;
-
+  const overallProgress = totalPhotosInBatch > 0 ? ((completedPhotosCount + errorPhotosCount) / totalPhotosInBatch) * 100 : 0;
 
   return (
     <div className="container mx-auto py-8 space-y-8">
@@ -464,24 +504,31 @@ export default function BatchProcessingPage() {
             <CardHeader>
                 <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                        {isBackendProcessing ? <Loader2 className="h-8 w-8 text-primary animate-spin" /> : <Eye className="h-8 w-8 text-primary"/>}
+                        {isBatchGenerallyProcessing ? <Loader2 className="h-8 w-8 text-primary animate-spin" /> : <Eye className="h-8 w-8 text-primary"/>}
                         <div>
                             <CardTitle>Estado del Lote: <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{currentBatchId}</code></CardTitle>
                             <CardDescription>
-                                {isBackendProcessing 
-                                    ? `Procesando ${totalPhotosInBatch} imágenes... (${processedPhotosCount} completadas, ${errorPhotosCount} errores)`
-                                    : `Procesamiento del lote finalizado. ${processedPhotosCount} imágenes procesadas, ${errorPhotosCount} con errores.`
+                                {isBatchGenerallyProcessing 
+                                    ? `Procesando ${totalPhotosInBatch > 0 ? totalPhotosInBatch : '...'} imágenes... (${completedPhotosCount} completadas, ${errorPhotosCount} errores)`
+                                    : batchPhotosStatus.length > 0 
+                                        ? `Procesamiento del lote finalizado. ${completedPhotosCount} imágenes procesadas, ${errorPhotosCount} con errores.`
+                                        : "Esperando información del lote..."
                                 }
                             </CardDescription>
                         </div>
                     </div>
-                    {isBackendProcessing && totalPhotosInBatch > 0 && (
-                         <Progress value={(processedPhotosCount + errorPhotosCount) / totalPhotosInBatch * 100} className="w-1/4 h-3" />
+                    {isBatchGenerallyProcessing && totalPhotosInBatch > 0 && (
+                         <Progress value={overallProgress} className="w-1/4 h-3" />
                     )}
                 </div>
             </CardHeader>
             <CardContent>
-                {batchPhotosStatus.length > 0 ? (
+                {!initialLoadComplete && isBackendProcessing ? (
+                     <div className="min-h-[100px] flex flex-col items-center justify-center text-center">
+                        <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto mb-2" />
+                        <p className="text-muted-foreground">Cargando información del lote...</p>
+                    </div>
+                ) : batchPhotosStatus.length > 0 ? (
                     <ScrollArea className="h-96">
                         <ul className="space-y-2">
                             {batchPhotosStatus.map(photoStatus => (
@@ -500,14 +547,14 @@ export default function BatchProcessingPage() {
                                             {getStatusText(photoStatus.status)}
                                         </Badge>
                                         <div className="w-24">
-                                          {(photoStatus.status !== 'uploaded' && !photoStatus.status.startsWith('error') && photoStatus.status !== 'completed_image_pending_woocommerce' && photoStatus.status !== 'completed_woocommerce_integration') || (photoStatus.status === 'uploaded' && isBackendProcessing) ? (
+                                          {photoStatus.status.startsWith('processing_') || (photoStatus.status === 'uploaded' && isBatchGenerallyProcessing) ? (
                                               <Progress value={photoStatus.progress || 0} className="h-2" />
                                           ) : photoStatus.status.startsWith('completed') ? (
                                               <CheckCircle className="h-5 w-5 text-green-500" />
                                           ) : photoStatus.status.startsWith('error') ? (
                                               <XCircle className="h-5 w-5 text-destructive" />
                                           ) : (
-                                              <span className="text-xs text-muted-foreground">Pendiente</span>
+                                            batchPhotosStatus.length > 0 ? <span className="text-xs text-muted-foreground">Pendiente</span> : null 
                                           )}
                                         </div>
                                     </div>
@@ -515,20 +562,20 @@ export default function BatchProcessingPage() {
                             ))}
                         </ul>
                     </ScrollArea>
-                ) : isBackendProcessing ? (
-                    <div className="min-h-[100px] flex flex-col items-center justify-center text-center">
-                        <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto mb-2" />
-                        <p className="text-muted-foreground">Esperando datos del procesamiento...</p>
-                    </div>
                 ) : (
                      <div className="min-h-[100px] flex flex-col items-center justify-center text-center">
                         <AlertTriangle className="h-10 w-10 text-muted-foreground mb-2" />
-                        <p className="text-muted-foreground">No hay detalles de procesamiento para este lote o el lote no se inició.</p>
+                        <p className="text-muted-foreground">No hay detalles de procesamiento para este lote o el lote no se inició correctamente.</p>
+                         <p className="text-xs text-muted-foreground">Si acabas de iniciar el lote, espera unos momentos.</p>
                     </div>
                 )}
             </CardContent>
              <CardFooter className="border-t pt-4 flex justify-end">
-                <Button onClick={() => { setCurrentBatchId(null); setPhotos([]); setUploadProgress({}); }} variant="outline" disabled={isBackendProcessing}>
+                <Button 
+                    onClick={() => { setCurrentBatchId(null); setPhotos([]); setUploadProgress({}); router.replace('/batch');}} 
+                    variant="outline" 
+                    disabled={isBatchGenerallyProcessing && batchPhotosStatus.length > 0}
+                >
                     Procesar Otro Lote
                 </Button>
             </CardFooter>
@@ -537,3 +584,6 @@ export default function BatchProcessingPage() {
     </div>
   );
 }
+
+
+    
