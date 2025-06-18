@@ -6,8 +6,8 @@ import type { ProductData } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { CheckCircle, Loader2 } from 'lucide-react';
-import Image from 'next/image';
-import { PRODUCT_TYPES } from '@/lib/constants'; // Importar para obtener la etiqueta
+import NextImage from 'next/image'; // Renamed for clarity
+import { PRODUCT_TYPES } from '@/lib/constants';
 
 interface Step3ConfirmProps {
   productData: ProductData;
@@ -37,7 +37,15 @@ export function Step3Confirm({ productData, isProcessing }: Step3ConfirmProps) {
             <div className="md:col-span-1">
               {primaryPhoto && (
                 <div className="aspect-square relative rounded-md border overflow-hidden shadow-md">
-                  <Image src={primaryPhoto.localPath || primaryPhoto.previewUrl} alt={productData.name} layout="fill" objectFit="cover" data-ai-hint="product photo" unoptimized={primaryPhoto.previewUrl.startsWith('blob:')} />
+                  <NextImage 
+                    src={primaryPhoto.localPath || primaryPhoto.previewUrl} 
+                    alt={productData.name} 
+                    fill
+                    className="object-cover"
+                    data-ai-hint="product photo" 
+                    unoptimized={true} // Important for blob URLs or if localPath isn't yet a public URL
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                  />
                 </div>
               )}
             </div>
@@ -73,7 +81,7 @@ export function Step3Confirm({ productData, isProcessing }: Step3ConfirmProps) {
              <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1 pl-4">
                 <li>Las imágenes se guardarán localmente y luego se procesarán (WebP, optimización).</li>
                 <li>Se aplicarán plantillas y reglas para SEO y categorización.</li>
-                <li>El producto (con sus datos e imágenes procesadas) estará listo para ser creado en WooCommerce (paso futuro).</li>
+                <li>El producto (con sus datos e imágenes procesadas) estará listo para ser creado en WooCommerce.</li>
              </ul>
           </div>
         </CardContent>
