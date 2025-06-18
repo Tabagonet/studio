@@ -31,6 +31,22 @@ const nextConfig: NextConfig = {
       }
     ],
   },
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      // Prevent bundling of Node.js core modules for the client
+      // This is often needed when server-side packages are inadvertently
+      // pulled into the client bundle via transitive dependencies.
+      config.resolve.fallback = {
+        ...config.resolve.fallback, // Spread existing fallbacks if any
+        dns: false,
+        net: false,
+        tls: false,
+        fs: false, 
+        child_process: false, // Also common for server-side utils
+      };
+    }
+    return config;
+  },
 };
 
 export default nextConfig;
