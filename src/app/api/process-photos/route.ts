@@ -12,35 +12,35 @@ import FormDataLib from "form-data";
 import { wooApi } from '@/lib/woocommerce';
 import path from 'path';
 
-// Helper function to upload a buffer to quefoto.es
+// Helper function to upload a buffer to quefoto.es/cargafotos.php
 async function uploadBufferToQueFoto(buffer: Buffer, fileName: string, mimeType: string): Promise<string> {
   const uploadFormData = new FormDataLib();
   uploadFormData.append("imagen", buffer, {
     filename: fileName, 
     contentType: mimeType,
   });
-  console.log(`[QueFoto Upload] Attempting to upload "${fileName}" (${(buffer.length / 1024).toFixed(2)} KB, mime: ${mimeType}) to quefoto.es`);
+  console.log(`[QueFoto Upload] Attempting to upload "${fileName}" (${(buffer.length / 1024).toFixed(2)} KB, mime: ${mimeType}) to quefoto.es/cargafotos.php`);
   try {
-    const response = await axios.post("https://quefoto.es/upload.php", uploadFormData, {
+    const response = await axios.post("https://quefoto.es/cargafotos.php", uploadFormData, { // URL actualizada
       headers: {
         ...uploadFormData.getHeaders(),
       },
       timeout: 30000,
     });
     if (response.data && response.data.success && response.data.url) {
-      console.log(`[QueFoto Upload] Successfully uploaded "${fileName}". URL from quefoto.es: ${response.data.url}`);
+      console.log(`[QueFoto Upload] Successfully uploaded "${fileName}". URL from quefoto.es/cargafotos.php: ${response.data.url}. Saved as: ${response.data.filename_saved}`);
       return response.data.url; 
     } else {
-      console.error(`[QueFoto Upload] Failed to upload "${fileName}". Response:`, response.data);
-      throw new Error(response.data.error || `Error al subir ${fileName} a quefoto.es (Respuesta no exitosa)`);
+      console.error(`[QueFoto Upload] Failed to upload "${fileName}" to quefoto.es/cargafotos.php. Response:`, response.data);
+      throw new Error(response.data.error || `Error al subir ${fileName} a quefoto.es/cargafotos.php (Respuesta no exitosa)`);
     }
   } catch (error) {
-    console.error(`[QueFoto Upload] Axios error uploading "${fileName}":`, error);
+    console.error(`[QueFoto Upload] Axios error uploading "${fileName}" to quefoto.es/cargafotos.php:`, error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     if (axios.isAxiosError(error) && error.response) {
         console.error("[QueFoto Upload] Axios error response data:", error.response.data);
     }
-    throw new Error(`Error conectando con quefoto.es para subir ${fileName}: ${errorMessage}`);
+    throw new Error(`Error conectando con quefoto.es/cargafotos.php para subir ${fileName}: ${errorMessage}`);
   }
 }
 
@@ -58,7 +58,7 @@ async function deleteImageFromQueFoto(imageUrl: string): Promise<void> {
   console.log(`[QueFoto Delete] Attempting to delete ${fileName} from quefoto.es (Source URL: ${imageUrl})`);
   try {
     const response = await axios.post(
-      "https://quefoto.es/delete.php",
+      "https://quefoto.es/delete.php", // Asumimos que delete.php no cambia de nombre
       { fileName: fileName },
       { headers: { "Content-Type": "application/json" }, timeout: 15000 }
     );
@@ -110,15 +110,15 @@ function cleanTextForFilename(text: string): string {
 function applyTemplate(templateContent: string, data: Record<string, string | number | undefined | null>): string {
   let result = templateContent;
 
+  // Basic handling for {{#if variable}} ... {{/if}}
   const ifRegex = /\{\{#if\s+([\w-]+)\}\}([\s\S]*?)\{\{\/if\}\}/g;
   result = result.replace(ifRegex, (match, variableName, innerContent) => {
     const value = data[variableName];
     // Check if value is truthy (not null, undefined, empty string, 0, false)
     if (value && String(value).trim() !== '' && value !== 0 && value !== false) {
-      // Remove the {{#if ...}} and {{/if}} tags, keep the inner content
       return innerContent.trim();
     } else {
-      return ''; // Remove the whole block
+      return ''; 
     }
   });
   
@@ -254,7 +254,7 @@ function generateSeoMetadataWithTemplate(
     console.log("[SeoMetadata] No 'metadatos_seo' template found or applied.");
   }
 
-  if (!altText || altText.length < 5) {
+  if (!altText || altText.length < 5) { // Ensure alt text is somewhat meaningful
     altText = `${productName}${categoryName ? ' en ' + categoryName : ''}${attributesSummary ? ' - ' + attributesSummary : ''} - Imagen ${imageIndex + 1}`;
     console.log(`[SeoMetadata] Using fallback alt text: "${altText}"`);
   }
@@ -485,7 +485,11 @@ async function createOrUpdateWooCommerceProduct(
   }
 
   const imageDetailsForDescription = productEntries
-    .map(entry => `- ${entry.seoName || entry.imageName}: (Imagen procesada${entry.processedImageDownloadUrl ? ' en quefoto.es' : ', URL no disponible'})`)
+    .map(entry => {
+      const filename = entry.seoName || entry.imageName; // Prefer seoName
+      const sourceInfo = entry.processedImageDownloadUrl ? `desde ${new URL(entry.processedImageDownloadUrl).hostname}` : '(URL de imagen procesada no disponible)';
+      return `- Archivo: ${filename} ${sourceInfo}`;
+    })
     .join('\n');
   const finalProductDescription = `${baseLongDescription}\n\nImágenes del Producto:\n${imageDetailsForDescription}`;
 
@@ -496,7 +500,7 @@ async function createOrUpdateWooCommerceProduct(
         console.log(`[WooCommerce Images] Mapping entry: seoName="${entry.seoName}", processedImageDownloadUrl="${entry.processedImageDownloadUrl}", alt="${entry.seoMetadata?.alt}"`);
         return {
             src: entry.processedImageDownloadUrl, 
-            name: entry.seoName, 
+            name: entry.seoName, // This name will be used by WooCommerce for the media library
             alt: entry.seoMetadata?.alt || entry.seoName,
             position: entry.productContext?.isPrimary ? 0 : index + 1 
         };
@@ -505,16 +509,23 @@ async function createOrUpdateWooCommerceProduct(
   wooImages.forEach((img, idx) => img.position = idx); 
 
   const wooCategoriesPayload: { slug?: string; id?: number }[] = [];
-  const categorySlugToUse = currentProductContext.category || primaryEntry.assignedCategorySlug; 
-  console.log(`[WooCommerce Categories] Candidate category slug: "${categorySlugToUse}" (Context: "${currentProductContext.category}", Rules: "${primaryEntry.assignedCategorySlug}")`);
+  // Prioritize category from productContext (wizard), then from rules applied to primary entry
+  let categorySlugToUse = currentProductContext.category; 
+  if (!categorySlugToUse && primaryEntry.assignedCategorySlug) {
+      categorySlugToUse = primaryEntry.assignedCategorySlug;
+      console.log(`[WooCommerce Categories] Using category slug from rules: "${categorySlugToUse}" as productContext.category was empty.`);
+  } else if (categorySlugToUse) {
+      console.log(`[WooCommerce Categories] Using category slug from productContext: "${categorySlugToUse}".`);
+  }
+
 
   if (categorySlugToUse) {
     const categoryInfo = allWooCategoriesCache?.find(c => c.slug === categorySlugToUse);
     if (categoryInfo) {
         wooCategoriesPayload.push({ id: categoryInfo.id }); // Use ID for more robust assignment
-        console.log(`[WooCommerce Categories] Valid category found: ID ${categoryInfo.id}, Name "${categoryInfo.name}". Will be sent to WooCommerce.`);
+        console.log(`[WooCommerce Categories] Valid category "${categoryInfo.name}" (ID: ${categoryInfo.id}, Slug: ${categorySlugToUse}) found. Will be sent to WooCommerce.`);
     } else {
-        console.warn(`[WooCommerce Categories] Category slug "${categorySlugToUse}" was not found in fetched WooCommerce categories (allWooCategoriesCache). It will not be assigned.`);
+        console.warn(`[WooCommerce Categories] Category slug "${categorySlugToUse}" was NOT FOUND in fetched WooCommerce categories (allWooCategoriesCache). It will not be assigned. Check for typos or if the category exists in WooCommerce.`);
         console.log('[WooCommerce Categories] Available categories in cache:', allWooCategoriesCache?.map(c => ({id: c.id, name: c.name, slug: c.slug })));
     }
   } else {
@@ -522,6 +533,7 @@ async function createOrUpdateWooCommerceProduct(
   }
   console.log("[WooCommerce Categories] Final categories payload to send to WooCommerce:", wooCategoriesPayload);
 
+  // Use tags from the primary entry (which should have had rules applied)
   const tagsToUse = primaryEntry.assignedTags && primaryEntry.assignedTags.length > 0 ? primaryEntry.assignedTags.map(tag => ({ name: tag })) : [];
   console.log("[WooCommerce] Final tags payload to send to WooCommerce:", tagsToUse);
 
@@ -559,7 +571,7 @@ async function createOrUpdateWooCommerceProduct(
 
   console.log(`[WooCommerce] About to create/update product. Number of images to send: ${wooImages.length}`);
   if (wooImages.length > 0) {
-      console.log(`[WooCommerce] Sample image being sent: Name='${wooImages[0].name}', Src='${wooImages[0].src}', Alt='${wooImages[0].alt}'`);
+      console.log(`[WooCommerce Images] Sample image being sent: Name='${wooImages[0].name}', Src='${wooImages[0].src}', Alt='${wooImages[0].alt}'`);
   } else {
       console.log("[WooCommerce] No images will be sent to WooCommerce for this product.");
   }
@@ -700,15 +712,20 @@ export async function POST(request: NextRequest) {
             allEntries.filter(e => e.status === 'completed_image_pending_woocommerce' || e.status === 'completed_woocommerce_integration'), 
             allTemplates
           );
-          const finalBatchSnapshot = await adminDb.collection('processing_status').where('batchId', '==', batchId).get();
-          const finalEntries = finalBatchSnapshot.docs.map(doc => doc.data() as ProcessingStatusEntry);
-          if (finalEntries.every(e => e.status === 'completed_woocommerce_integration' || e.status.startsWith('error_'))) {
+          // Re-fetch to check final status after WooCommerce attempt
+          const finalBatchSnapshotAfterWoo = await adminDb.collection('processing_status').where('batchId', '==', batchId).get();
+          const finalEntriesAfterWoo = finalBatchSnapshotAfterWoo.docs.map(doc => doc.data() as ProcessingStatusEntry);
+          if (finalEntriesAfterWoo.every(e => e.status === 'completed_woocommerce_integration' || e.status.startsWith('error_'))) {
+             console.log(`[API /api/process-photos] WooCommerce processing and image deletion likely complete for batch ${batchId}. Creating notification.`);
              await createBatchCompletionNotification(batchId, userIdForNotification, isWizardFlow);
+          } else {
+            console.log(`[API /api/process-photos] WooCommerce processing for batch ${batchId} might still have pending steps or errors. Notification will be based on current states.`);
+            await createBatchCompletionNotification(batchId, userIdForNotification, isWizardFlow); // Still notify with current state
           }
-          return NextResponse.json({ message: `Batch ${batchId} image processing complete. WooCommerce integration attempted.`, batchId: batchId, status: 'batch_woocommerce_triggered' }, { status: 200 });
+          return NextResponse.json({ message: `Batch ${batchId} image processing complete. WooCommerce integration attempted.`, batchId: batchId, status: 'batch_woocommerce_triggered_and_checked' }, { status: 200 });
 
       } else if (allImageProcessingDone && !needsWooCommerceProcessing) {
-          console.log(`[API /api/process-photos] Batch ${batchId} fully complete. Creating final notification if needed.`);
+          console.log(`[API /api/process-photos] Batch ${batchId} fully complete (no items pending WooCommerce). Creating final notification if needed.`);
           await createBatchCompletionNotification(batchId, userIdForNotification, isWizardFlow);
           return NextResponse.json({ message: `Batch ${batchId} processing fully complete.`, batchId: batchId, status: 'batch_completed_final' }, { status: 200 });
 
@@ -767,8 +784,9 @@ export async function POST(request: NextRequest) {
           photoData.productContext,
           overallPhotoIndex >= 0 ? overallPhotoIndex : 0
       );
+      console.log(`[API /api/process-photos] SEO Filename generated by generateSeoFilenameWithTemplate: ${generatedSeoName} for ${photoData.imageName}`);
       await photoDocRef.update({ progress: 55, seoName: generatedSeoName, status: 'processing_image_seo_named', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-      console.log(`[API /api/process-photos] Generated SEO Filename for Firestore update: ${generatedSeoName} for ${photoData.imageName}`);
+      console.log(`[API /api/process-photos] Updated Firestore with seoName: ${generatedSeoName}`);
 
       const seoMetadata = generateSeoMetadataWithTemplate(
           generatedSeoName,
@@ -786,6 +804,7 @@ export async function POST(request: NextRequest) {
         photoData.productContext,
         allAutomationRules
       );
+      console.log(`[API /api/process-photos] Rules applied for ${photoData.imageName}: Category Slug='${assignedCategorySlug}', Tags='${assignedTags.join(',')}'`);
       await photoDocRef.update({
         progress: 75,
         assignedCategorySlug: assignedCategorySlug, 
@@ -793,20 +812,19 @@ export async function POST(request: NextRequest) {
         status: 'processing_image_rules_applied',
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
-      console.log(`[API /api/process-photos] Applied rules for ${photoData.imageName}: Category Slug='${assignedCategorySlug}', Tags='${assignedTags.join(',')}'`);
 
 
-      console.log(`[API /api/process-photos] Uploading processed image "${generatedSeoName}" to quefoto.es`);
+      console.log(`[API /api/process-photos] Uploading processed image "${generatedSeoName}" (this should be the SEO name) to quefoto.es/cargafotos.php`);
       const processedImageExternalUrl = await uploadBufferToQueFoto(
         processedImageBuffer,
-        generatedSeoName, 
+        generatedSeoName, // Pass the SEO generated name here
         'image/webp'
       );
       await photoDocRef.update({
         progress: 90,
         status: 'processing_image_reuploaded',
         processedImageDownloadUrl: processedImageExternalUrl, 
-        processedImageStoragePath: processedImageExternalUrl, 
+        processedImageStoragePath: processedImageExternalUrl, // Storing the URL from quefoto.es
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
@@ -815,7 +833,7 @@ export async function POST(request: NextRequest) {
           progress: 100,
           updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
-      console.log(`[API /api/process-photos] Successfully processed ${photoData.imageName}. Status 'completed_image_pending_woocommerce'. Processed URL (quefoto.es): ${processedImageExternalUrl}`);
+      console.log(`[API /api/process-photos] Successfully processed ${photoData.imageName}. Status 'completed_image_pending_woocommerce'. Processed URL (quefoto.es/cargafotos.php): ${processedImageExternalUrl}`);
 
     } catch (imageError) {
       console.error(`[API /api/process-photos] Error processing ${photoData.imageName} (Doc ID: ${photoData.id}):`, imageError);
@@ -875,3 +893,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+

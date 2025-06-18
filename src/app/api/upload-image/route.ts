@@ -28,10 +28,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "No se proporcionó ninguna imagen válida" }, { status: 400 });
     }
 
-    // console.log("Nombre del archivo recibido en /api/upload-image:", imagen.name);
-    // console.log("Tipo MIME del archivo:", imagen.type);
-    // console.log("Tamaño del archivo:", imagen.size);
-
     const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
     if (!allowedTypes.includes(imagen.type)) {
       return NextResponse.json(
@@ -43,27 +39,26 @@ export async function POST(req: NextRequest) {
     // Convert File to Buffer for form-data library
     const imageBuffer = Buffer.from(await imagen.arrayBuffer());
     
-    console.log(`[API /api/upload-image] Enviando a quefoto.es con filename: ${imagen.name}, contentType: ${imagen.type}, size: ${imageBuffer.length} bytes`);
+    console.log(`[API /api/upload-image] Enviando a quefoto.es/cargafotos.php con filename: ${imagen.name}, contentType: ${imagen.type}, size: ${imageBuffer.length} bytes`);
 
     const uploadFormData = new FormDataLib(); // Use the library
     uploadFormData.append("imagen", imageBuffer, {
-        filename: imagen.name,
+        filename: imagen.name, // Este es el nombre que tu script PHP recibirá en $_FILES['imagen']['name']
         contentType: imagen.type,
     });
 
 
     let response;
     try {
-      response = await axios.post("https://quefoto.es/upload.php", uploadFormData, {
+      response = await axios.post("https://quefoto.es/cargafotos.php", uploadFormData, { // URL actualizada
         headers: {
           ...uploadFormData.getHeaders(), // Pass headers from form-data library
         },
-        timeout: 30000, // Added timeout
+        timeout: 30000, 
       });
     } catch (axiosError) {
-      console.error("Error en la solicitud a quefoto.es/upload.php:", axiosError);
+      console.error("Error en la solicitud a quefoto.es/cargafotos.php:", axiosError);
       const errorMessage = axiosError instanceof Error ? axiosError.message : String(axiosError);
-      // Log more details from axios error if available
       if (axios.isAxiosError(axiosError) && axiosError.response) {
         console.error("Axios error response data:", axiosError.response.data);
         console.error("Axios error response status:", axiosError.response.status);
@@ -75,26 +70,26 @@ export async function POST(req: NextRequest) {
     }
 
     const data = response.data;
-    // console.log("Respuesta de quefoto.es/upload.php:", data);
+    console.log("Respuesta de quefoto.es/cargafotos.php:", data);
 
     if (typeof data !== "object" || data === null) {
-      console.error("Respuesta inválida de quefoto.es/upload.php: no es un objeto JSON", data);
+      console.error("Respuesta inválida de quefoto.es/cargafotos.php: no es un objeto JSON", data);
       throw new Error("Respuesta inválida del servidor de imágenes: formato incorrecto.");
     }
     if (!data.hasOwnProperty("success")) {
-       console.error("Respuesta inválida de quefoto.es/upload.php: falta el campo 'success'", data);
+       console.error("Respuesta inválida de quefoto.es/cargafotos.php: falta el campo 'success'", data);
       throw new Error("Respuesta inválida del servidor de imágenes: falta el campo 'success'.");
     }
     if (data.success && !data.url) {
-      console.error("Respuesta inválida de quefoto.es/upload.php: falta 'url' en respuesta exitosa", data);
+      console.error("Respuesta inválida de quefoto.es/cargafotos.php: falta 'url' en respuesta exitosa", data);
       throw new Error("Respuesta inválida del servidor de imágenes: falta 'url' en respuesta exitosa.");
     }
     if (!data.success) {
-      console.error("Error de quefoto.es/upload.php:", data.error || "Error desconocido");
+      console.error("Error de quefoto.es/cargafotos.php:", data.error || "Error desconocido");
       throw new Error(data.error || "Error al subir la imagen al servidor externo.");
     }
 
-    return NextResponse.json({ success: true, url: data.url });
+    return NextResponse.json({ success: true, url: data.url, filename_saved_on_server: data.filename_saved }); // Devolvemos también el nombre con el que se guardó
   } catch (error) {
     console.error("Error al procesar la imagen en /api/upload-image:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
