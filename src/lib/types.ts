@@ -63,13 +63,23 @@ export interface ProductTemplateFormValues {
   categoryValue?: string;
 }
 
-
 export interface AutomationRule {
-  id:string;
+  id: string;
+  name: string;
   keyword: string;
-  category?: string;
-  tags?: string[];
+  categoryToAssign?: string; // Value from PRODUCT_CATEGORIES
+  tagsToAssign?: string; // Comma-separated string
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 }
+
+export interface AutomationRuleFormValues {
+  name: string;
+  keyword: string;
+  categoryToAssign?: string;
+  tagsToAssign?: string;
+}
+
 
 export interface ApiKeys {
   wooCommerceKey?: string;
@@ -109,8 +119,8 @@ export interface ProcessingStatusEntry {
           "error_processing_image" |
           "completed_woocommerce_integration" | 
           "error_woocommerce_integration";    
-  uploadedAt: any; 
-  updatedAt?: any; 
+  uploadedAt: Timestamp; 
+  updatedAt?: Timestamp; 
   progress: number;
   seoName?: string;
   processedImageStoragePath?: string;
@@ -120,5 +130,3 @@ export interface ProcessingStatusEntry {
   errorMessage?: string;
   productAssociationId?: string; 
 }
-
-    

@@ -28,7 +28,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     title: 'Reglas de Automatización',
     href: '/rules',
-    icon: Cog,
+    icon: Cog, // Using Cog icon for rules
   },
   {
     title: 'Notificaciones',
@@ -54,6 +54,7 @@ export const PRODUCT_CATEGORIES = [
   { value: "hogar", label: "Hogar y Jardín" },
   { value: "accesorios", label: "Accesorios" },
   { value: "deportes", label: "Deportes" },
+  { value: "sin_categoria", label: "Sin Categoría" }, // Added an option for no category
 ];
 
 export const INITIAL_PRODUCT_DATA = {
@@ -83,3 +84,6 @@ export const TEMPLATE_SCOPES: { value: TemplateScope; label: string }[] = [
 
 // Firestore collection name for product templates
 export const PRODUCT_TEMPLATES_COLLECTION = "product_templates";
+
+// Firestore collection name for automation rules
+export const AUTOMATION_RULES_COLLECTION = "automation_rules";
