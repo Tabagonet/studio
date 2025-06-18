@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -8,8 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from '@/components/ui/button';
 import { ImageUploader } from './image-uploader';
 import { AiAttributeSuggester } from './ai-attribute-suggester';
-import type { ProductData, ProductAttribute, ProductPhoto } from '@/lib/types';
-import { PRODUCT_CATEGORIES } from '@/lib/constants';
+import type { ProductData, ProductAttribute, ProductPhoto, ProductType } from '@/lib/types';
+import { PRODUCT_CATEGORIES, PRODUCT_TYPES } from '@/lib/constants';
 import { PlusCircle, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -23,7 +24,7 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
     updateProductData({ [e.target.name]: e.target.value });
   };
 
-  const handleSelectChange = (name: string, value: string) => {
+  const handleSelectChange = (name: string, value: string | ProductType) => {
     updateProductData({ [name]: value });
   };
 
@@ -81,6 +82,25 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
             </div>
           </div>
 
+          <div>
+            <Label htmlFor="productType">Tipo de Producto</Label>
+            <Select name="productType" value={productData.productType} onValueChange={(value) => handleSelectChange('productType', value as ProductType)}>
+              <SelectTrigger id="productType">
+                <SelectValue placeholder="Selecciona un tipo de producto" />
+              </SelectTrigger>
+              <SelectContent>
+                {PRODUCT_TYPES.map(type => (
+                  <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {productData.productType !== 'simple' && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Actualmente, la configuración detallada para productos variables o agrupados se realizará en WooCommerce.
+              </p>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <Label htmlFor="regularPrice">Precio Regular (€)</Label>
@@ -116,7 +136,7 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
       <Card>
         <CardHeader>
           <CardTitle>Atributos del Producto</CardTitle>
-          <CardDescription>Añade atributos como talla, color, material, etc.</CardDescription>
+          <CardDescription>Añade atributos como talla, color, material, etc. Para productos variables, define aquí los atributos que usarás para las variaciones.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {productData.attributes.map((attr, index) => (
@@ -131,13 +151,16 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
                 />
               </div>
               <div className="flex-1">
-                <Label htmlFor={`attrValue-${index}`}>Valor del Atributo</Label>
+                <Label htmlFor={`attrValue-${index}`}>Valor(es) del Atributo</Label>
                 <Input 
                   id={`attrValue-${index}`} 
                   value={attr.value} 
                   onChange={(e) => handleAttributeChange(index, 'value', e.target.value)}
-                  placeholder="Ej: Azul" 
+                  placeholder="Ej: Azul | Rojo | Verde (para variaciones)" 
                 />
+                 {productData.productType === 'variable' && (
+                    <p className="text-xs text-muted-foreground mt-1">Para variaciones, separa los valores con " | " (ej: S | M | L)</p>
+                  )}
               </div>
               <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo">
                 <Trash2 className="h-4 w-4 text-destructive" />

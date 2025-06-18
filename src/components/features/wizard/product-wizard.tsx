@@ -4,14 +4,14 @@
 import React, { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { WIZARD_STEPS, INITIAL_PRODUCT_DATA } from "@/lib/constants";
-import type { ProductData, ProcessingStatusEntry } from "@/lib/types";
+import type { ProductData, ProcessingStatusEntry, WizardProductContext } from "@/lib/types";
 import { Step1DetailsPhotos } from "./step-1-details-photos";
 import { Step2Preview } from "./step-2-preview";
 import { Step3Confirm } from "./step-3-confirm";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase';
-import { doc, serverTimestamp, collection, writeBatch } from 'firebase/firestore';
+import { doc, serverTimestamp, collection, writeBatch, Timestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 
 
@@ -41,9 +41,8 @@ export function ProductWizard() {
   const handleSubmitProduct = async () => {
     setIsProcessing(true);
     const wizardJobId = `wizard_${Date.now()}`;
-    // const userId = 'temp_user_id'; // TODO: Replace with actual authenticated user ID
+    const userId = 'temp_user_id'; // TODO: Replace with actual authenticated user ID
 
-    // 1. Upload original images locally
     const uploadedPhotoDetails: { name: string; relativePath: string; originalPhotoId: string }[] = [];
     let allUploadsSuccessful = true;
 
@@ -57,12 +56,11 @@ export function ProductWizard() {
         return;
     }
 
-
     for (const photo of productData.photos) {
       const formData = new FormData();
       formData.append('file', photo.file);
-      formData.append('batchId', wizardJobId); // Use wizardJobId as batchId
-      // formData.append('userId', userId); // Uncomment when auth is ready
+      formData.append('batchId', wizardJobId); 
+      formData.append('userId', userId); 
       formData.append('fileName', photo.file.name);
 
       try {
@@ -91,40 +89,37 @@ export function ProductWizard() {
 
     if (!allUploadsSuccessful) {
       setIsProcessing(false);
-      // TODO: Consider cleanup of already uploaded files for this wizardJobId if some failed
       return;
     }
 
-    // 2. Create ProcessingStatusEntry documents in Firestore
     const firestoreBatch = writeBatch(db);
     try {
       for (const uploadedPhoto of uploadedPhotoDetails) {
         const photoDocRef = doc(collection(db, 'processing_status'));
         const originalPhotoData = productData.photos.find(p => p.id === uploadedPhoto.originalPhotoId);
 
-        const entry: Omit<ProcessingStatusEntry, 'id' | 'updatedAt'> = {
-          // userId: userId, // Uncomment when auth is ready
-          userId: 'temp_user_id', // Placeholder
-          batchId: wizardJobId,
-          imageName: uploadedPhoto.name,
-          originalStoragePath: uploadedPhoto.relativePath,
-          originalDownloadUrl: uploadedPhoto.relativePath,
-          status: "uploaded",
-          uploadedAt: serverTimestamp() as any, // Firestore will convert this
-          progress: 0,
-          // Optional: Store product context if needed for WooCommerce step later
-          // This could be more structured, e.g., a 'productContext' object
-          productContext: {
+        const productContextForEntry: WizardProductContext = {
             name: productData.name,
             sku: productData.sku,
+            productType: productData.productType, // Incluye productType
             regularPrice: productData.regularPrice,
             salePrice: productData.salePrice,
             category: productData.category,
             keywords: productData.keywords,
             attributes: productData.attributes,
             isPrimary: originalPhotoData?.isPrimary || false,
-            // Note: Descriptions might be generated later by AI based on keywords/templates
-          }
+        };
+
+        const entry: Omit<ProcessingStatusEntry, 'id' | 'updatedAt'> = {
+          userId: userId, 
+          batchId: wizardJobId,
+          imageName: uploadedPhoto.name,
+          originalStoragePath: uploadedPhoto.relativePath,
+          originalDownloadUrl: uploadedPhoto.relativePath,
+          status: "uploaded",
+          uploadedAt: serverTimestamp() as Timestamp,
+          progress: 0,
+          productContext: productContextForEntry
         };
         firestoreBatch.set(photoDocRef, entry);
       }
@@ -140,7 +135,6 @@ export function ProductWizard() {
       return;
     }
 
-    // 3. Trigger backend processing
     try {
       const response = await fetch('/api/process-photos', {
         method: 'POST',
@@ -152,14 +146,13 @@ export function ProductWizard() {
       
       toast({
         title: "Producto Enviado a Procesamiento",
-        description: "Las imágenes de tu producto se están procesando. Serás redirigido a la página de lotes para ver el progreso.",
+        description: "Las imágenes de tu producto se están procesando. Serás redirigido para ver el progreso.",
         duration: 7000,
       });
       
-      // Reset wizard and navigate to batch page to see progress
       setCurrentStep(0);
       setProductData(INITIAL_PRODUCT_DATA);
-      router.push(`/batch?batchId=${wizardJobId}`); // Navigate to batch page to monitor
+      router.push(`/batch?batchId=${wizardJobId}`); 
 
     } catch (error) {
       console.error("Error al iniciar el procesamiento backend para el asistente:", error);
@@ -219,4 +212,3 @@ export function ProductWizard() {
     </div>
   );
 }
-

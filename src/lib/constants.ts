@@ -1,6 +1,6 @@
 
 import { Home, Wand2, FileText, Cog, Bell, Settings, ShoppingBag, PackagePlus, ListChecks, Tags, Layers } from 'lucide-react';
-import type { NavItem, TemplateType, TemplateScope } from '@/lib/types';
+import type { NavItem, TemplateType, TemplateScope, ProductType } from '@/lib/types';
 
 export const APP_NAME = "WooAutomate";
 
@@ -57,9 +57,16 @@ export const PRODUCT_CATEGORIES = [
   { value: "sin_categoria", label: "Sin Categoría" },
 ];
 
+export const PRODUCT_TYPES: { value: ProductType; label: string }[] = [
+  { value: 'simple', label: 'Producto Simple (Físico)' },
+  { value: 'variable', label: 'Producto Variable' },
+  { value: 'grouped', label: 'Producto Agrupado' },
+];
+
 export const INITIAL_PRODUCT_DATA = {
   sku: "",
   name: "",
+  productType: 'simple' as ProductType, // Default product type
   regularPrice: "",
   salePrice: "",
   category: "",

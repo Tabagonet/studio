@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -6,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { CheckCircle, Loader2 } from 'lucide-react';
 import Image from 'next/image';
+import { PRODUCT_TYPES } from '@/lib/constants'; // Importar para obtener la etiqueta
 
 interface Step3ConfirmProps {
   productData: ProductData;
@@ -14,6 +16,7 @@ interface Step3ConfirmProps {
 
 export function Step3Confirm({ productData, isProcessing }: Step3ConfirmProps) {
   const primaryPhoto = productData.photos.find(p => p.isPrimary) || productData.photos[0];
+  const productTypeLabel = PRODUCT_TYPES.find(pt => pt.value === productData.productType)?.label || productData.productType;
 
   return (
     <div className="space-y-6">
@@ -34,7 +37,7 @@ export function Step3Confirm({ productData, isProcessing }: Step3ConfirmProps) {
             <div className="md:col-span-1">
               {primaryPhoto && (
                 <div className="aspect-square relative rounded-md border overflow-hidden shadow-md">
-                  <Image src={primaryPhoto.previewUrl} alt={productData.name} layout="fill" objectFit="cover" />
+                  <Image src={primaryPhoto.localPath || primaryPhoto.previewUrl} alt={productData.name} layout="fill" objectFit="cover" data-ai-hint="product photo" unoptimized={primaryPhoto.previewUrl.startsWith('blob:')} />
                 </div>
               )}
             </div>
@@ -44,6 +47,7 @@ export function Step3Confirm({ productData, isProcessing }: Step3ConfirmProps) {
                 <p className="text-sm text-muted-foreground">SKU: {productData.sku || "No especificado"}</p>
               </div>
               <div>
+                 <p className="text-sm"><span className="font-medium">Tipo:</span> {productTypeLabel}</p>
                 <p className="text-sm">
                   <span className="font-medium">Precio:</span> €{productData.regularPrice}
                   {productData.salePrice && <span className="ml-2 line-through text-muted-foreground">€{productData.salePrice}</span>}
@@ -52,7 +56,7 @@ export function Step3Confirm({ productData, isProcessing }: Step3ConfirmProps) {
               </div>
                <div>
                 <p className="text-sm font-medium">Atributos:</p>
-                {productData.attributes.length > 0 ? (
+                {productData.attributes.length > 0 && productData.attributes.some(attr => attr.name && attr.value) ? (
                     <ul className="list-disc list-inside text-sm text-muted-foreground pl-2">
                     {productData.attributes.map((attr, i) => attr.name && attr.value ? <li key={i}>{attr.name}: {attr.value}</li> : null)}
                     </ul>
@@ -67,10 +71,9 @@ export function Step3Confirm({ productData, isProcessing }: Step3ConfirmProps) {
           <div className="pt-4 border-t">
              <h4 className="text-md font-semibold mb-2">Resumen de Procesamiento:</h4>
              <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1 pl-4">
-                <li>Las imágenes se convertirán a WebP y optimizarán.</li>
-                <li>Se generarán nombres SEO para imágenes y producto.</li>
-                <li>Se crearán descripciones y metadatos SEO basados en plantillas (si están configuradas).</li>
-                <li>El producto se publicará o guardará como borrador en WooCommerce.</li>
+                <li>Las imágenes se guardarán localmente y luego se procesarán (WebP, optimización).</li>
+                <li>Se aplicarán plantillas y reglas para SEO y categorización.</li>
+                <li>El producto (con sus datos e imágenes procesadas) estará listo para ser creado en WooCommerce (paso futuro).</li>
              </ul>
           </div>
         </CardContent>
@@ -83,8 +86,8 @@ export function Step3Confirm({ productData, isProcessing }: Step3ConfirmProps) {
         </div>
       )}
       <p className="text-xs text-center text-muted-foreground">
-        Al hacer clic en "Confirmar y Crear Producto", aceptas que la información es correcta y el proceso comenzará.
-        Recibirás una notificación cuando el producto haya sido creado.
+        Al hacer clic en "Confirmar y Procesar Imágenes", aceptas que la información es correcta y el proceso comenzará.
+        Serás redirigido para ver el progreso del procesamiento de imágenes.
       </p>
     </div>
   );

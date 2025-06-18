@@ -29,9 +29,12 @@ export interface ProductAttribute {
   value: string;
 }
 
+export type ProductType = 'simple' | 'variable' | 'grouped';
+
 export interface ProductData {
   sku: string;
   name: string;
+  productType: ProductType; // Nuevo campo
   regularPrice: string;
   salePrice?: string;
   category: string;
@@ -106,6 +109,7 @@ export type AttributeSuggestion = string;
 export interface WizardProductContext {
   name: string;
   sku: string;
+  productType: ProductType; // Nuevo campo
   regularPrice: string;
   salePrice?: string;
   category: string;
