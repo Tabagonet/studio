@@ -32,21 +32,46 @@ async function uploadBufferToStorage(
   await file.save(buffer, {
     metadata: { contentType: contentType },
   });
-  await file.makePublic();
+  // TODO: For production, consider using signed URLs instead of making files public.
+  // For now, makePublic is used for simplicity during development.
+  await file.makePublic(); 
   const downloadURL = file.publicUrl();
   return { downloadURL, storagePath: destinationPath };
 }
 
-async function triggerNextPhotoProcessing(batchId: string, requestUrl: string) {
-  // Construct the full URL for the API endpoint
-  // requestUrl already contains the base (e.g., http://localhost:3000 or https://your-app.vercel.app)
-  // We just need to ensure the path is correct.
-  const apiUrl = new URL('/api/process-photos', requestUrl).toString();
+function generateSeoFilename(originalName: string): string {
+  const nameWithoutExtension = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
   
+  let seoName = nameWithoutExtension
+    .toLowerCase()
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .replace(/[^a-z0-9-]/g, '') // Remove non-alphanumeric characters except hyphens
+    .replace(/-+/g, '-') // Replace multiple hyphens with a single one
+    .replace(/^-+|-+$/g, ''); // Trim leading/trailing hyphens
+
+  if (!seoName) { // Fallback if name becomes empty after cleaning
+    seoName = `image-${Date.now()}`;
+  }
+  return `${seoName}.webp`;
+}
+
+function generateSeoAltText(seoFilename: string): string {
+  const nameWithoutExtension = seoFilename.substring(0, seoFilename.lastIndexOf('.webp')) || seoFilename;
+  const productName = nameWithoutExtension.replace(/-/g, ' '); // Replace hyphens with spaces
+  // Capitalize first letter of each word for better readability
+  const capitalizedProductName = productName
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+  return `Imagen de ${capitalizedProductName}`;
+}
+
+
+async function triggerNextPhotoProcessing(batchId: string, requestUrl: string) {
+  const apiUrl = new URL('/api/process-photos', requestUrl).toString();
   console.log(`[API /api/process-photos] Triggering next photo processing for batch ${batchId} by calling: ${apiUrl}`);
   
-  // Fire-and-forget fetch call to process the next image in the batch
-  fetch(apiUrl, {
+  fetch(apiUrl, { // Fire-and-forget
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ batchId }),
@@ -72,7 +97,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Server configuration error, Firebase Admin (${missingService}) not available.` }, { status: 500 });
     }
 
-    // Find the first photo in the batch with 'uploaded' status
     const photosToProcessSnapshot = await adminDb.collection('processing_status')
                                           .where('batchId', '==', batchId)
                                           .where('status', '==', 'uploaded')
@@ -80,11 +104,10 @@ export async function POST(request: NextRequest) {
                                           .get();
 
     if (photosToProcessSnapshot.empty) {
-      console.log(`[API /api/process-photos] No more 'uploaded' photos found for batchId: ${batchId}. Batch processing likely complete or no pending images.`);
-      // Check if there are any images still in a processing state for this batch to avoid premature "complete" message
+      console.log(`[API /api/process-photos] No more 'uploaded' photos found for batchId: ${batchId}.`);
       const anyProcessingSnapshot = await adminDb.collection('processing_status')
                                             .where('batchId', '==', batchId)
-                                            .where('status', 'in', ['processing_image_started', 'processing_image_downloaded', 'processing_image_validated', 'processing_image_optimized', 'processing_image_seo_named', 'processing_image_reuploaded'])
+                                            .where('status', 'in', ['processing_image_started', 'processing_image_downloaded', 'processing_image_validated', 'processing_image_optimized', 'processing_image_seo_named', 'processing_image_metadata_generated', 'processing_image_reuploaded'])
                                             .limit(1)
                                             .get();
       if (anyProcessingSnapshot.empty) {
@@ -95,10 +118,10 @@ export async function POST(request: NextRequest) {
     }
 
     const photoDoc = photosToProcessSnapshot.docs[0];
-    const photo = { id: photoDoc.id, ...photoDoc.data() };
-    const photoDocRef = adminDb.collection('processing_status').doc(photo.id);
+    const photoData = { id: photoDoc.id, ...photoDoc.data() }; // Renamed to photoData to avoid conflict with sharp variable
+    const photoDocRef = adminDb.collection('processing_status').doc(photoData.id);
 
-    console.log(`[API /api/process-photos] Starting processing for: ${photo.imageName} (Doc ID: ${photo.id}) in batch ${batchId}`);
+    console.log(`[API /api/process-photos] Starting processing for: ${photoData.imageName} (Doc ID: ${photoData.id}) in batch ${batchId}`);
     
     let processedSuccessfully = false;
 
@@ -109,42 +132,44 @@ export async function POST(request: NextRequest) {
         updatedAt: admin.firestore.FieldValue.serverTimestamp() 
       });
 
-      if (!photo.originalDownloadUrl) {
-          throw new Error(`Missing originalDownloadUrl for ${photo.imageName}`);
+      if (!photoData.originalDownloadUrl) {
+          throw new Error(`Missing originalDownloadUrl for ${photoData.imageName}`);
       }
-      console.log(`[API /api/process-photos] Downloading ${photo.imageName} from ${photo.originalDownloadUrl}`);
-      const imageBuffer = await downloadImageFromURL(photo.originalDownloadUrl as string);
+      console.log(`[API /api/process-photos] Downloading ${photoData.imageName} from ${photoData.originalDownloadUrl}`);
+      const imageBuffer = await downloadImageFromURL(photoData.originalDownloadUrl as string);
       await photoDocRef.update({ progress: 15, status: 'processing_image_downloaded' });
       
-      console.log(`[API /api/process-photos] Validating file type and size for ${photo.imageName}`);
+      console.log(`[API /api/process-photos] Validating file type and size for ${photoData.imageName}`);
       if (imageBuffer.length > MAX_FILE_SIZE_BYTES) {
-          throw new Error(`File ${photo.imageName} exceeds max size of ${MAX_FILE_SIZE_BYTES / (1024 * 1024)}MB.`);
+          throw new Error(`File ${photoData.imageName} exceeds max size of ${MAX_FILE_SIZE_BYTES / (1024 * 1024)}MB.`);
       }
       const type = await fileTypeFromBuffer(imageBuffer);
       if (!type || !ALLOWED_MIME_TYPES.includes(type.mime)) {
-          throw new Error(`Invalid file type for ${photo.imageName}: ${type?.mime || 'unknown'}. Expected JPG.`);
+          throw new Error(`Invalid file type for ${photoData.imageName}: ${type?.mime || 'unknown'}. Expected JPG.`);
       }
       await photoDocRef.update({ progress: 25, status: 'processing_image_validated' });
 
-      console.log(`[API /api/process-photos] Optimizing image ${photo.imageName} with Sharp`);
+      console.log(`[API /api/process-photos] Optimizing image ${photoData.imageName} with Sharp`);
       const processedImageBuffer = await sharp(imageBuffer)
                                       .webp({ quality: 80 })
                                       .resize({ width: 800, height: 800, fit: 'inside', withoutEnlargement: true })
-                                      .withMetadata({ exif: {} }) // Attempt to strip all EXIF
+                                      .withMetadata({}) // Attempt to strip all EXIF by passing an empty object
                                       .toBuffer();
       await photoDocRef.update({ progress: 50, status: 'processing_image_optimized' });
+      
+      const generatedSeoName = generateSeoFilename(photoData.imageName as string);
+      console.log(`[API /api/process-photos] Generated SEO name for ${photoData.imageName}: ${generatedSeoName}`);
+      await photoDocRef.update({ progress: 60, seoName: generatedSeoName, status: 'processing_image_seo_named' });
 
-      const seoName = `${photo.imageName?.replace(/\.(jpe?g|png|gif)$/i, '') || `image-${photo.id}`}.webp`;
-      console.log(`[API /api/process-photos] TODO: Generate SEO name for ${photo.imageName}. Using: ${seoName}`);
-      await photoDocRef.update({ progress: 60, seoName: seoName, status: 'processing_image_seo_named' });
-
-      const seoMetadata = { alt: `Alt text for ${seoName}`, title: `Title for ${seoName}` };
-      console.log(`[API /api/process-photos] TODO: Generate SEO metadata for ${photo.imageName}`);
+      // TODO: Integrate Genkit flow for advanced SEO metadata (alt text, title) generation based on image content or product keywords.
+      const altText = generateSeoAltText(generatedSeoName);
+      const seoMetadata = { alt: altText, title: altText }; // Using same for title for now
+      console.log(`[API /api/process-photos] Generated SEO metadata for ${photoData.imageName}:`, seoMetadata);
       await photoDocRef.update({ progress: 75, seoMetadata: seoMetadata, status: 'processing_image_metadata_generated' });
       
-      const userId = photo.userId || 'temp_user_id';
-      const processedImageStoragePath = `processed_uploads/${userId}/${batchId}/${seoName}`;
-      console.log(`[API /api/process-photos] Uploading processed version of ${photo.imageName} to ${processedImageStoragePath}`);
+      const userId = photoData.userId || 'temp_user_id';
+      const processedImageStoragePath = `processed_uploads/${userId}/${batchId}/${generatedSeoName}`;
+      console.log(`[API /api/process-photos] Uploading processed version of ${photoData.imageName} to ${processedImageStoragePath}`);
       
       const { downloadURL: processedImageDownloadUrl, storagePath: finalProcessedPath } = await uploadBufferToStorage(
         processedImageBuffer,
@@ -160,57 +185,54 @@ export async function POST(request: NextRequest) {
           progress: 100, 
           updatedAt: admin.firestore.FieldValue.serverTimestamp() 
       });
-      console.log(`[API /api/process-photos] Successfully processed ${photo.imageName}. Status 'completed_image_pending_woocommerce'`);
+      console.log(`[API /api/process-photos] Successfully processed ${photoData.imageName}. Status 'completed_image_pending_woocommerce'`);
       processedSuccessfully = true;
 
     } catch (imageError) {
-      console.error(`[API /api/process-photos] Error processing ${photo.imageName} (Doc ID: ${photo.id}):`, imageError);
+      console.error(`[API /api/process-photos] Error processing ${photoData.imageName} (Doc ID: ${photoData.id}):`, imageError);
+      const currentProgress = (photoData.progress as number || 0);
       await photoDocRef.update({ 
         status: 'error_processing_image', 
         errorMessage: imageError instanceof Error ? imageError.message : String(imageError),
-        progress: (photo.progress as number || 0),
+        progress: currentProgress, // Keep current progress or a relevant value
         updatedAt: admin.firestore.FieldValue.serverTimestamp() 
       });
     }
 
-    // After processing (or attempting to process) the current photo,
-    // check if there are more 'uploaded' photos in this batch.
     const remainingPhotosSnapshot = await adminDb.collection('processing_status')
                                         .where('batchId', '==', batchId)
                                         .where('status', '==', 'uploaded')
-                                        .limit(1) // We only need to know if at least one exists
+                                        .limit(1)
                                         .get();
 
     if (!remainingPhotosSnapshot.empty) {
       console.log(`[API /api/process-photos] More images to process for batch ${batchId}. Triggering next.`);
-      // Pass the original request's URL to construct the full API URL for self-triggering
       await triggerNextPhotoProcessing(batchId, request.url);
       return NextResponse.json({ 
-        message: `Processed ${photo.imageName} (status: ${processedSuccessfully ? 'success' : 'error'}). Triggering next photo in batch ${batchId}.`,
+        message: `Processed ${photoData.imageName} (status: ${processedSuccessfully ? 'success' : 'error'}). Triggering next photo in batch ${batchId}.`,
         batchId: batchId,
-        processedPhotoId: photo.id,
+        processedPhotoId: photoData.id,
         status: 'batch_in_progress' 
       });
     } else {
-      console.log(`[API /api/process-photos] No more 'uploaded' images after processing ${photo.imageName} for batch ${batchId}.`);
-       // Check if there are any images still in a processing state for this batch
+      console.log(`[API /api/process-photos] No more 'uploaded' images after processing ${photoData.imageName} for batch ${batchId}.`);
       const anyProcessingSnapshot = await adminDb.collection('processing_status')
                                             .where('batchId', '==', batchId)
-                                            .where('status', 'in', ['processing_image_started', 'processing_image_downloaded', 'processing_image_validated', 'processing_image_optimized', 'processing_image_seo_named', 'processing_image_reuploaded'])
+                                            .where('status', 'in', ['processing_image_started', 'processing_image_downloaded', 'processing_image_validated', 'processing_image_optimized', 'processing_image_seo_named', 'processing_image_metadata_generated', 'processing_image_reuploaded'])
                                             .limit(1)
                                             .get();
       if (anyProcessingSnapshot.empty) {
           return NextResponse.json({ 
-            message: `Processed ${photo.imageName} (status: ${processedSuccessfully ? 'success' : 'error'}). Batch ${batchId} processing complete.`,
+            message: `Processed ${photoData.imageName} (status: ${processedSuccessfully ? 'success' : 'error'}). Batch ${batchId} processing complete.`,
             batchId: batchId,
-            processedPhotoId: photo.id,
+            processedPhotoId: photoData.id,
             status: 'batch_completed'
           });
       } else {
            return NextResponse.json({ 
-            message: `Processed ${photo.imageName} (status: ${processedSuccessfully ? 'success' : 'error'}). No more 'uploaded' photos for batch ${batchId}, but some are still processing.`,
+            message: `Processed ${photoData.imageName} (status: ${processedSuccessfully ? 'success' : 'error'}). No more 'uploaded' photos for batch ${batchId}, but some are still processing.`,
             batchId: batchId,
-            processedPhotoId: photo.id,
+            processedPhotoId: photoData.id,
             status: 'batch_in_progress'
           });
       }
@@ -222,5 +244,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to process request', details: errorMessage, status: 'error_general' }, { status: 500 });
   }
 }
+    
 
     
