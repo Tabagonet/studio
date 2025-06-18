@@ -8,19 +8,34 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { UploadCloud, ListTree, AlertTriangle, CheckCircle, Loader2, XCircle, Layers, Eye, FileText, Info } from "lucide-react";
 import { ImageUploader } from "@/components/features/wizard/image-uploader";
-import type { ProductPhoto, ProcessingStatusEntry } from '@/lib/types';
+import type { ProductPhoto, ProcessingStatusEntry, WizardProductContext, ProductType } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { db, auth, app } from '@/lib/firebase'; // Firebase client SDK, import db and auth
+import { db, auth, app } from '@/lib/firebase'; 
 import { getIdToken } from 'firebase/auth';
 import { doc, serverTimestamp, collection, writeBatch, query, where, onSnapshot, Unsubscribe, Timestamp } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
 
+// Helper function to create a sanitized version of product name for SKU generation (if needed)
+// This could be moved to a utils file if used elsewhere.
+function cleanTextForSku(text: string): string {
+  if (!text) return `prod-${Date.now().toString().slice(-5)}`;
+  return text
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove accents
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .replace(/[^\w-]+/g, '') // Remove non-alphanumeric characters (except hyphens and underscores)
+    .replace(/-+/g, '-') // Replace multiple hyphens with a single one
+    .replace(/^-+|-+$/g, '') // Trim hyphens from start/end
+    .substring(0, 30); // Max length
+}
+
+
 export default function BatchProcessingPage() {
   const [photos, setPhotos] = useState<ProductPhoto[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [isBackendProcessing, setIsBackendProcessing] = useState(true); // Default to true if batchId might be present
+  const [isBackendProcessing, setIsBackendProcessing] = useState(true); 
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const { toast } = useToast();
   const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
@@ -34,10 +49,10 @@ export default function BatchProcessingPage() {
     const batchIdFromUrl = searchParams.get('batchId');
     if (batchIdFromUrl) {
       setCurrentBatchId(batchIdFromUrl);
-      setIsBackendProcessing(true); // Explicitly set to true when batchId is found
-      setInitialLoadComplete(false); // Reset for new batch
+      setIsBackendProcessing(true); 
+      setInitialLoadComplete(false); 
     } else {
-      setIsBackendProcessing(false); // No batch, no processing
+      setIsBackendProcessing(false); 
       setInitialLoadComplete(true);
     }
   }, []);
@@ -50,9 +65,8 @@ export default function BatchProcessingPage() {
       return;
     }
 
-    // Set to true when starting to listen, will be updated by onSnapshot
     setIsBackendProcessing(true);
-    setInitialLoadComplete(false); // Ensure loader shows while first snapshot is fetched
+    setInitialLoadComplete(false); 
 
     const q = query(collection(db, 'processing_status'), where('batchId', '==', currentBatchId));
 
@@ -76,8 +90,6 @@ export default function BatchProcessingPage() {
 
       if (allTerminated) {
         setIsBackendProcessing(false);
-        // Show toast only if it's not the first load AND there was a change towards termination
-        // AND not all statuses are errors (to avoid success toast for total failure)
         if (!firstSnapshot &&
             prevStatuses.some(ps => !statuses.find(s => s.id === ps.id) || (statuses.find(s => s.id === ps.id)?.status !== ps.status)) &&
             statuses.some(s => s.status === 'completed_woocommerce_integration' || s.status === 'completed_image_pending_woocommerce')
@@ -86,14 +98,14 @@ export default function BatchProcessingPage() {
           const successes = statuses.length - errors;
           toast({
             title: `Procesamiento del Lote ${currentBatchId} Finalizado`,
-            description: `${successes} imágenes procesadas exitosamente, ${errors} con errores.`,
+            description: `${successes} imágenes procesadas exitosamente, ${errors} con errores. Revise los productos en WooCommerce.`,
             duration: 7000,
           });
         }
-      } else if (hasStatuses) { // Some are still processing
+      } else if (hasStatuses) { 
         setIsBackendProcessing(true);
-      } else { // No statuses yet for this batch (could be new or error)
-        setIsBackendProcessing(true); // Keep showing loader, expecting data
+      } else { 
+        setIsBackendProcessing(true); 
       }
 
       if (firstSnapshot) {
@@ -175,23 +187,37 @@ export default function BatchProcessingPage() {
             errorMessage = `Server returned non-JSON error for process-photos. Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
             console.error("Non-JSON error response from /api/process-photos:", responseText);
         }
-        throw new Error(errorMessage);
+        toast({
+          title: "Error Crítico al Iniciar Procesamiento",
+          description: `No se pudo contactar al servidor para iniciar el procesamiento del lote ${batchId}. Detalles: ${errorMessage}`,
+          variant: "destructive",
+          duration: 10000,
+        });
+        // No cambiar setIsBackendProcessing(false) aquí, ya que el listener de Firestore podría seguir activo
+        // o el usuario podría querer reintentar/ver estado.
+        throw new Error(errorMessage); // Lanzar para que no se considere exitoso
       }
-      console.log(`[Batch Page] Backend processing successfully triggered for batchId: ${batchId}. Response status: ${response.status}`);
+      const responseData = await response.json().catch(() => ({ message: "Respuesta no JSON del servidor."}));
+      console.log(`[Batch Page] Backend processing successfully triggered for batchId: ${batchId}. Response status: ${response.status}. Data:`, responseData);
     } catch (error) {
       console.error("Error al notificar al backend para iniciar el procesamiento:", error);
-      toast({
-        title: "Error Crítico al Iniciar Procesamiento",
-        description: `No se pudo contactar al servidor para iniciar el procesamiento del lote ${batchId}. Detalles: ${(error as Error).message}`,
-        variant: "destructive",
-        duration: 10000,
-      });
+      // El toast ya se maneja arriba si el response no es ok.
+      // Este catch es para errores de red u otros errores de fetch.
+      if (!(error instanceof Error && error.message.startsWith("Error del servidor al iniciar procesamiento"))) {
+        toast({
+            title: "Error de Red al Iniciar Procesamiento",
+            description: `No se pudo contactar al servidor para el lote ${batchId}. Revisa tu conexión. Detalles: ${(error as Error).message}`,
+            variant: "destructive",
+            duration: 10000,
+        });
+      }
     }
   };
 
   const handleStartUploads = async () => {
-    if (photos.length === 0) {
-      toast({ title: "No hay imágenes", description: "Por favor, sube algunas imágenes.", variant: "destructive" });
+    const productsToProcess = getDetectedProducts();
+    if (productsToProcess.length === 0) {
+      toast({ title: "No hay imágenes o productos detectados", description: "Por favor, sube algunas imágenes con el patrón de nombre correcto.", variant: "destructive" });
       return;
     }
 
@@ -216,80 +242,97 @@ export default function BatchProcessingPage() {
 
     const firestoreBatch = writeBatch(db);
     let firestoreWriteCount = 0;
+    let totalPhotosAttempted = 0;
 
-    for (let i = 0; i < photos.length; i++) {
-      const photo = photos[i];
-      setUploadProgress(prev => ({ ...prev, [photo.id]: 0 }));
+    for (const productGroup of productsToProcess) {
+      const productName = productGroup.displayName;
+      // Crear un contexto de producto base para este grupo
+      const baseProductContext: WizardProductContext = {
+        name: productName,
+        sku: '', // Se generará en el backend si es necesario o lo rellenará IA/plantillas
+        productType: 'simple' as ProductType, // Default para lotes
+        regularPrice: '', // Se generará o lo rellenará IA/plantillas
+        salePrice: '',
+        category: '', // Se asignará por reglas o plantillas
+        keywords: productName.toLowerCase().replace(/-/g, ' '), // Keywords básicas del nombre
+        attributes: [], // Se pueden generar por IA/plantillas
+        shortDescription: '', // Se generará por IA/plantillas
+        longDescription: '', // Se generará por IA/plantillas
+        isPrimary: false, // Se establecerá por imagen
+      };
 
-      const formData = new FormData();
-      formData.append('imagen', photo.file);
+      for (let i = 0; i < productGroup.photoObjects.length; i++) {
+        const photo = productGroup.photoObjects[i];
+        totalPhotosAttempted++;
+        setUploadProgress(prev => ({ ...prev, [photo.id]: 0 }));
 
-      try {
-        const response = await fetch('/api/upload-image', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${authToken}`,
-          },
-          body: formData,
-        });
+        const formData = new FormData();
+        formData.append('imagen', photo.file);
 
-        if (!response.ok) {
-          let errorMessage = `Error al subir ${photo.file.name}: ${response.status} ${response.statusText}`;
-          const responseText = await response.text();
-          try {
-            const errorData = JSON.parse(responseText);
-            errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
-          } catch (parseError) {
-            errorMessage = `Server returned non-JSON error for /api/upload-image. Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
-            console.error("Non-JSON error response from /api/upload-image:", responseText);
+        try {
+          const response = await fetch('/api/upload-image', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` },
+            body: formData,
+          });
+
+          if (!response.ok) {
+            let errorMessage = `Error al subir ${photo.file.name}: ${response.status} ${response.statusText}`;
+            const responseText = await response.text();
+            try {
+              const errorData = JSON.parse(responseText);
+              errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
+            } catch (parseError) {
+              errorMessage = `Server returned non-JSON error for /api/upload-image. Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
+            }
+            throw new Error(errorMessage);
           }
-          throw new Error(errorMessage);
+
+          const result = await response.json();
+          if (!result.success || !result.url) {
+              throw new Error(result.error || `La subida de ${photo.file.name} al servidor externo no devolvió una URL.`);
+          }
+          const externalUrl = result.url;
+
+          const photoDocRef = doc(collection(db, 'processing_status'));
+          const productContextForEntry: WizardProductContext = {
+            ...baseProductContext,
+            isPrimary: i === 0, // La primera imagen del grupo es la primaria
+          };
+          
+          firestoreBatch.set(photoDocRef, {
+            userId: userId,
+            batchId: newBatchId,
+            imageName: photo.file.name,
+            originalStoragePath: externalUrl,
+            originalDownloadUrl: externalUrl,
+            status: "uploaded",
+            uploadedAt: serverTimestamp() as Timestamp,
+            progress: 0,
+            productContext: productContextForEntry,
+          } as Omit<ProcessingStatusEntry, 'id' | 'updatedAt'>);
+          firestoreWriteCount++;
+
+          setUploadProgress(prev => ({ ...prev, [photo.id]: 100 }));
+          setPhotos(prevPhotos => prevPhotos.map(p => p.id === photo.id ? {...p, externalUrl: externalUrl} : p));
+
+        } catch (error) {
+          console.error(`Error al subir ${photo.file.name}:`, error);
+          setUploadProgress(prev => ({ ...prev, [photo.id]: -1 }));
+          toast({
+            title: `Error al subir ${photo.file.name}`,
+            description: (error as Error).message,
+            variant: "destructive",
+          });
         }
-
-        const result = await response.json();
-        if (!result.success || !result.url) {
-            console.error(`La subida de ${photo.file.name} al servidor externo no devolvió una URL o success:false. Result:`, result);
-            throw new Error(result.error || `La subida de ${photo.file.name} al servidor externo no devolvió una URL.`);
-        }
-        const externalUrl = result.url;
-
-
-        const photoDocRef = doc(collection(db, 'processing_status'));
-        // Para el flujo de lotes simple, productContext podría ser mínimo o inferido del nombre del archivo
-        // Por ahora, lo dejaremos sin productContext explícito desde el cliente para lotes.
-        // Se podría añadir lógica para inferir `productContext.name` del nombre de archivo si es necesario crear productos.
-        firestoreBatch.set(photoDocRef, {
-          userId: userId,
-          batchId: newBatchId,
-          imageName: photo.file.name,
-          originalStoragePath: externalUrl,
-          originalDownloadUrl: externalUrl,
-          status: "uploaded",
-          uploadedAt: serverTimestamp() as Timestamp,
-          progress: 0,
-        } as Omit<ProcessingStatusEntry, 'id' | 'updatedAt' | 'productContext'>); // productContext es opcional
-        firestoreWriteCount++;
-
-        setUploadProgress(prev => ({ ...prev, [photo.id]: 100 }));
-
-        setPhotos(prevPhotos => prevPhotos.map(p => p.id === photo.id ? {...p, externalUrl: externalUrl} : p));
-
-
-      } catch (error) {
-        console.error(`Error al subir ${photo.file.name}:`, error);
-        setUploadProgress(prev => ({ ...prev, [photo.id]: -1 }));
-        toast({
-          title: `Error al subir ${photo.file.name}`,
-          description: (error as Error).message,
-          variant: "destructive",
-        });
       }
     }
+
 
     if (firestoreWriteCount > 0) {
       try {
         await firestoreBatch.commit();
-        console.log(`${firestoreWriteCount} registros escritos en Firestore para el lote ${newBatchId}`);
+        console.log(`${firestoreWriteCount} registros escritos en Firestore para el lote ${newBatchId} con productContext.`);
       } catch (error) {
         console.error("Error al escribir en Firestore:", error);
         toast({
@@ -303,11 +346,10 @@ export default function BatchProcessingPage() {
     }
 
     const successfulUploadsCount = Object.values(uploadProgress).filter(p => p === 100).length;
-    const totalAttempted = photos.length;
     setIsUploading(false);
 
-    if (totalAttempted > 0) {
-        if (successfulUploadsCount === totalAttempted) {
+    if (totalPhotosAttempted > 0) {
+        if (successfulUploadsCount === totalPhotosAttempted) {
             toast({
                 title: "Subida a Servidor Externo Completa",
                 description: `Se subieron ${successfulUploadsCount} imágenes. Iniciando procesamiento backend...`,
@@ -316,7 +358,7 @@ export default function BatchProcessingPage() {
         } else if (successfulUploadsCount > 0) {
             toast({
                 title: "Subida Parcial",
-                description: `Se subieron ${successfulUploadsCount} de ${totalAttempted} imágenes. Algunas subidas fallaron. ¿Deseas procesar las imágenes subidas correctamente?`,
+                description: `Se subieron ${successfulUploadsCount} de ${totalPhotosAttempted} imágenes. Algunas subidas fallaron. ¿Deseas procesar las imágenes subidas correctamente?`,
                 action: (
                   <Button onClick={() => triggerBackendProcessing(newBatchId)} size="sm">
                     Procesar Igualmente
@@ -342,11 +384,18 @@ export default function BatchProcessingPage() {
 
     const productGroups: Record<string, { displayName: string; imageNames: string[]; photoObjects: ProductPhoto[] }> = {};
     photos.forEach(photo => {
-      const baseNamePartMatch = photo.name.match(/^(.*)-\d+\.(jpe?g)$/i);
-      const productKey = baseNamePartMatch ? baseNamePartMatch[1] : photo.name.replace(/\.(jpe?g)$/i, '');
+      // Patrón: NombreProducto-IDENTIFICADORES-NUMERO.jpg o NombreProducto-NUMERO.jpg o NombreProducto.jpg
+      const baseNamePartMatch = photo.name.match(/^(.*?)(?:-\d+)?\.(jpe?g|png|webp|gif)$/i);
+      let productKey = photo.name.replace(/\.(jpe?g|png|webp|gif)$/i, ''); // Fallback si no hay guiones
+      
+      if (baseNamePartMatch && baseNamePartMatch[1]) {
+          // Eliminar posibles sufijos numéricos como -1, -01, -001
+          productKey = baseNamePartMatch[1].replace(/-(\d+)$/, '');
+      }
+
 
       if (!productGroups[productKey]) {
-        const displayName = productKey.replace(/-/g, ' ');
+        const displayName = productKey.replace(/-/g, ' '); // Reemplazar guiones por espacios para un nombre más legible
         productGroups[productKey] = {
           displayName: displayName,
           imageNames: [],
@@ -361,7 +410,6 @@ export default function BatchProcessingPage() {
 
   const detectedProducts = getDetectedProducts();
 
-  // Determine if the general "Processing Lote..." spinner should be active
   const isBatchGenerallyProcessing = isBackendProcessing && (!initialLoadComplete || (batchPhotosStatus.length > 0 && !batchPhotosStatus.every(s => s.status.startsWith('completed') || s.status.startsWith('error'))));
 
 
@@ -402,7 +450,7 @@ export default function BatchProcessingPage() {
         <h1 className="text-3xl font-bold tracking-tight text-foreground font-headline">Procesamiento de Productos en Lote (Servidor Externo)</h1>
         <p className="text-muted-foreground">
           Sube múltiples imágenes JPG para crear varios productos. Las imágenes se subirán a tu servidor externo (quefoto.es).
-          Patrón: <code className="bg-muted px-1 py-0.5 rounded-sm font-code">NombreProducto-IDENTIFICADORES-NUMERO.jpg</code>
+          El nombre del producto se inferirá del nombre del archivo antes del último guion y número (ej: <code className="bg-muted px-1 py-0.5 rounded-sm font-code">NombreProducto-ID-1.jpg</code> crea "NombreProducto").
         </p>
       </div>
 
@@ -468,7 +516,7 @@ export default function BatchProcessingPage() {
               <div>
                 <CardTitle>Productos Detectados ({detectedProducts.length})</CardTitle>
                 <CardDescription>
-                  Revisa los productos agrupados. Estos grupos se usarán para crear productos o variantes.
+                  Revisa los productos agrupados. Cada grupo se intentará crear como un producto independiente en WooCommerce.
                 </CardDescription>
               </div>
             </div>
@@ -497,12 +545,12 @@ export default function BatchProcessingPage() {
           <CardFooter className="border-t pt-6 flex justify-end">
             <Button
               onClick={handleStartUploads}
-              disabled={isUploading || photos.length === 0}
+              disabled={isUploading || photos.length === 0 || detectedProducts.length === 0}
               className="w-full md:w-auto"
             >
               {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {!isUploading && <Layers className="mr-2 h-4 w-4" />}
-              {isUploading ? "Subiendo y Registrando..." : `Iniciar Subida a Servidor Externo y Procesamiento (${photos.length} ${photos.length === 1 ? 'imagen' : 'imágenes'})`}
+              {isUploading ? "Subiendo y Registrando..." : `Iniciar Subida y Creación de ${detectedProducts.length} Producto(s)`}
             </Button>
           </CardFooter>
         </Card>
@@ -518,7 +566,7 @@ export default function BatchProcessingPage() {
                             <CardTitle>Estado del Lote: <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{currentBatchId}</code></CardTitle>
                             <CardDescription>
                                 {isBatchGenerallyProcessing
-                                    ? `Procesando ${totalPhotosInBatch > 0 ? totalPhotosInBatch : '...'} imágenes... (${completedPhotosCount} completadas, ${errorPhotosCount} errores)`
+                                    ? `Procesando ${totalPhotosInBatch > 0 ? totalPhotosInBatch : '...'} imágenes para los productos del lote... (${completedPhotosCount} completadas, ${errorPhotosCount} errores)`
                                     : batchPhotosStatus.length > 0
                                         ? `Procesamiento del lote finalizado. ${completedPhotosCount} imágenes procesadas, ${errorPhotosCount} con errores.`
                                         : "Esperando información del lote..."
@@ -546,6 +594,9 @@ export default function BatchProcessingPage() {
                                         <div className="flex items-center space-x-2">
                                             <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0"/>
                                             <p className="text-sm font-medium text-foreground truncate" title={photoStatus.imageName}>{photoStatus.imageName}</p>
+                                            {photoStatus.productContext?.name && (
+                                              <Badge variant="outline" className="text-xs ml-1">Producto: {photoStatus.productContext.name}</Badge>
+                                            )}
                                         </div>
                                         {photoStatus.status.startsWith('error') && photoStatus.errorMessage && (
                                             <p className="text-xs text-destructive truncate" title={photoStatus.errorMessage}><Info className="inline h-3 w-3 mr-1"/>{photoStatus.errorMessage}</p>
