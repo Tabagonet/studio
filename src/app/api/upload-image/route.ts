@@ -28,6 +28,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "No se proporcionó ninguna imagen válida" }, { status: 400 });
     }
 
+    // console.log("Nombre del archivo recibido en /api/upload-image:", imagen.name);
+    // console.log("Tipo MIME del archivo:", imagen.type);
+    // console.log("Tamaño del archivo:", imagen.size);
+
     const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
     if (!allowedTypes.includes(imagen.type)) {
       return NextResponse.json(

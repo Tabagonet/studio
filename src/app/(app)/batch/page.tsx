@@ -52,6 +52,7 @@ export default function BatchProcessingPage() {
 
     // Set to true when starting to listen, will be updated by onSnapshot
     setIsBackendProcessing(true); 
+    setInitialLoadComplete(false); // Ensure loader shows while first snapshot is fetched
 
     const q = query(collection(db, 'processing_status'), where('batchId', '==', currentBatchId));
     
@@ -75,8 +76,12 @@ export default function BatchProcessingPage() {
 
       if (allTerminated) {
         setIsBackendProcessing(false);
-        // Only show toast if it's not the first load AND there was a change towards termination
-        if (!firstSnapshot && prevStatuses.some(ps => !statuses.find(s => s.id === ps.id) || (statuses.find(s => s.id === ps.id)?.status !== ps.status))) {
+        // Show toast only if it's not the first load AND there was a change towards termination
+        // AND not all statuses are errors (to avoid success toast for total failure)
+        if (!firstSnapshot && 
+            prevStatuses.some(ps => !statuses.find(s => s.id === ps.id) || (statuses.find(s => s.id === ps.id)?.status !== ps.status)) &&
+            statuses.some(s => s.status === 'completed_woocommerce_integration' || s.status === 'completed_image_pending_woocommerce')
+           ) {
           const errors = statuses.filter(s => s.status === 'error_processing_image' || s.status === 'error_woocommerce_integration').length;
           const successes = statuses.length - errors;
           toast({
@@ -85,10 +90,10 @@ export default function BatchProcessingPage() {
             duration: 7000,
           });
         }
-      } else if (hasStatuses) {
-        setIsBackendProcessing(true); // Still processing some items
-      } else { // No statuses yet
-        setIsBackendProcessing(true); // Keep showing loader
+      } else if (hasStatuses) { // Some are still processing
+        setIsBackendProcessing(true);
+      } else { // No statuses yet for this batch (could be new or error)
+        setIsBackendProcessing(true); // Keep showing loader, expecting data
       }
       
       if (firstSnapshot) {
@@ -109,7 +114,7 @@ export default function BatchProcessingPage() {
 
     return () => unsubscribe();
 
-  }, [currentBatchId, toast]);
+  }, [currentBatchId, toast]); // Removed batchPhotosStatus from deps
 
 
   const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
@@ -144,11 +149,6 @@ export default function BatchProcessingPage() {
     setCurrentBatchId(batchId); // This will trigger the useEffect to listen
     setInitialLoadComplete(false); // Reset for new batch monitoring
     setIsBackendProcessing(true); // Show spinner immediately
-    
-    // toast({ // This toast might be redundant if the page updates quickly
-    //   title: "Iniciando Monitoreo de Procesamiento Backend",
-    //   description: `Escuchando actualizaciones para el lote ${batchId}...`,
-    // });
     
     const currentAuth = auth; // Use the imported auth instance
     if (!currentAuth.currentUser) {
@@ -197,7 +197,6 @@ export default function BatchProcessingPage() {
     const userId = currentAuth.currentUser.uid;
 
     setIsUploading(true);
-    // setIsBackendProcessing(false); // Let the useEffect for currentBatchId handle this
     setBatchPhotosStatus([]);
     setUploadProgress({});
     const newBatchId = `batch_${Date.now()}`;
@@ -242,9 +241,12 @@ export default function BatchProcessingPage() {
 
         const result = await response.json();
         if (!result.success || !result.url) {
+            console.error(`La subida de ${photo.file.name} al servidor externo no devolvió una URL o success:false. Result:`, result);
             throw new Error(result.error || `La subida de ${photo.file.name} al servidor externo no devolvió una URL.`);
         }
         const externalUrl = result.url;
+        // console.log(`Uploaded ${photo.file.name} to external server. URL: ${externalUrl}, Saved as: ${result.filename_saved_on_server}`);
+
 
         const photoDocRef = doc(collection(db, 'processing_status')); 
         firestoreBatch.set(photoDocRef, {
@@ -313,8 +315,6 @@ export default function BatchProcessingPage() {
                 ),
                 duration: 10000, 
             });
-             // Set currentBatchId here so the listener starts, but don't call triggerBackendProcessing yet
-             // as the user might decide not to. The listener will show "waiting for data" if they don't click.
             setCurrentBatchId(newBatchId); 
             setInitialLoadComplete(false);
             setIsBackendProcessing(true);
