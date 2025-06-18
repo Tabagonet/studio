@@ -190,15 +190,23 @@ function generateSeoFilenameWithTemplate(
   imageIndex: number
 ): string {
   const originalNameWithoutExtension = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
-  const cleanedOriginalIdentifierPart = cleanTextForFilename(originalNameWithoutExtension.substring(0, 50)); // Limit original name part
-
-  let baseProductName = 'producto'; 
-  if (productContext && productContext.name && productContext.name.trim() !== '') {
-    baseProductName = cleanTextForFilename(productContext.name.substring(0,70)); // Limit product name part
-  }
+  // Prioritize product context name if available and not empty, otherwise use a cleaned version of original image name.
+  let baseNameForSeo = productContext?.name && productContext.name.trim() !== '' 
+    ? productContext.name 
+    : originalNameWithoutExtension;
   
-  const seoFilename = `${baseProductName}-${cleanedOriginalIdentifierPart}-${imageIndex + 1}.webp`;
-  console.log(`[SeoFilename] Generated: ${seoFilename} (Original: ${originalName}, Product Name: ${productContext?.name}, Index: ${imageIndex})`);
+  // Clean the base name for SEO filename
+  baseNameForSeo = cleanTextForFilename(baseNameForSeo.substring(0, 70)); 
+
+  // Add a part of the original image name only if it's different from the product name base, to ensure uniqueness
+  const cleanedOriginalIdentifierPart = cleanTextForFilename(originalNameWithoutExtension.substring(0, 50));
+  let uniquePart = '';
+  if (cleanedOriginalIdentifierPart && baseNameForSeo !== cleanedOriginalIdentifierPart) {
+      uniquePart = `-${cleanedOriginalIdentifierPart}`;
+  }
+
+  const seoFilename = `${baseNameForSeo}${uniquePart}-${imageIndex + 1}.webp`;
+  console.log(`[SeoFilename] Generated: ${seoFilename} (Original: ${originalName}, Product Name: ${productContext?.name}, Base for SEO: ${baseNameForSeo}, Index: ${imageIndex})`);
   return seoFilename;
 }
 
@@ -477,13 +485,10 @@ async function createOrUpdateWooCommerceProduct(
      console.log(`[WooCommerce] Using fallback long description: "${baseLongDescription}"`);
   }
 
-  const imageDetailsForDescription = productEntries
-    .map(entry => {
-      const filename = entry.seoName || entry.imageName; 
-      return `- Archivo: ${filename}`;
-    })
-    .join('\n');
-  const finalProductDescription = `${baseLongDescription}\n\nImágenes del Producto (nombres de archivo optimizados):\n${imageDetailsForDescription}`;
+  // Remove the automatic addition of image file list to the description
+  const finalProductDescription = baseLongDescription;
+  console.log(`[WooCommerce] Final product description (baseLongDescription): "${finalProductDescription}"`);
+
 
   const wooImages = productEntries
     .filter(entry => entry.processedImageDownloadUrl && entry.status === 'completed_image_pending_woocommerce' && entry.seoMetadata && entry.seoName)
@@ -501,6 +506,7 @@ async function createOrUpdateWooCommerceProduct(
 
   const wooCategoriesPayload: { slug?: string; id?: number }[] = [];
   let categorySlugToUse = currentProductContext.category; 
+  
   if (!categorySlugToUse && primaryEntry.assignedCategorySlug) {
       categorySlugToUse = primaryEntry.assignedCategorySlug;
       console.log(`[WooCommerce Categories] Using category slug from rules: "${categorySlugToUse}" as productContext.category was empty.`);
@@ -509,11 +515,11 @@ async function createOrUpdateWooCommerceProduct(
   }
 
   if (categorySlugToUse) {
-    console.log(`[WooCommerce Categories] Attempting to find category for slug: "${categorySlugToUse}" in cache:`, allWooCategoriesCache?.map(c => c.slug));
+    console.log(`[WooCommerce Categories] Attempting to find category for slug: "${categorySlugToUse}" in cache (total ${allWooCategoriesCache?.length} categories).`);
     const categoryInfo = allWooCategoriesCache?.find(c => c.slug === categorySlugToUse);
     if (categoryInfo) {
         wooCategoriesPayload.push({ id: categoryInfo.id }); 
-        console.log(`[WooCommerce Categories] Valid category "${categoryInfo.name}" (ID: ${categoryInfo.id}, Slug: ${categorySlugToUse}) found. Will be sent to WooCommerce.`);
+        console.log(`[WooCommerce Categories] Valid category "${categoryInfo.name}" (ID: ${categoryInfo.id}, Slug: ${categorySlugToUse}) found and added to payload.`);
     } else {
         console.warn(`[WooCommerce Categories] Category slug "${categorySlugToUse}" was NOT FOUND in fetched WooCommerce categories. It will not be assigned. Check for typos or if the category exists in WooCommerce.`);
     }
@@ -521,6 +527,7 @@ async function createOrUpdateWooCommerceProduct(
     console.log("[WooCommerce Categories] No category slug specified in product context or assigned by rules. Product will use default WooCommerce category or be uncategorized.");
   }
   console.log("[WooCommerce Categories] Final categories payload to send to WooCommerce:", wooCategoriesPayload);
+
 
   const tagsToUse = primaryEntry.assignedTags && primaryEntry.assignedTags.length > 0 ? primaryEntry.assignedTags.map(tag => ({ name: tag })) : [];
   console.log("[WooCommerce] Final tags payload to send to WooCommerce:", tagsToUse);
@@ -557,7 +564,7 @@ async function createOrUpdateWooCommerceProduct(
   }
   console.log("[WooCommerce] Full Product data to send (stringified for brevity in logs, check full object above):", JSON.stringify(wooProductData, (key, value) => key === 'images' && Array.isArray(value) && value.length > 1 ? `[${value.length} images, first: ${JSON.stringify(value[0])}]` : value, 2));
 
-  let productCreationAttemptedThisRun = false; // Flag for SKU retry within this specific product creation call
+  let productCreationAttemptedThisRun = false; 
   let finalWooProductId: number | string | null = null;
   let finalErrorMessage: string | null = null;
 
@@ -571,7 +578,7 @@ async function createOrUpdateWooCommerceProduct(
       const wooErrorMessage = error.response?.data?.message || error.message || "Unknown WooCommerce API error";
       const wooErrorCode = error.response?.data?.code || "";
       console.error(`[WooCommerce] Error (Attempt #${isRetry ? '2' : '1'}) creating product for batch ${batchId} with SKU ${productPayload.sku}: ${wooErrorMessage}`);
-      if (!isRetry) { // Only log full data on first attempt's error to avoid log spam on retry
+      if (!isRetry) { 
           console.error(`[WooCommerce] Request Data (Attempt #1) that caused error: ${JSON.stringify(productPayload, null, 2)}`);
       }
       console.error(`[WooCommerce] Error Details from API (Attempt #${isRetry ? '2' : '1'}):`, error.response?.data);
@@ -588,9 +595,9 @@ async function createOrUpdateWooCommerceProduct(
       console.log(`[WooCommerce] SKU Error Check: isSkuError=${isSkuError}, productCreationAttemptedThisRun=${productCreationAttemptedThisRun}`);
 
       if (isSkuError && !productCreationAttemptedThisRun) { 
-        productCreationAttemptedThisRun = true; // Set flag for this run
+        productCreationAttemptedThisRun = true;
         const originalSku = productPayload.sku || `fallback-sku-${Date.now().toString().slice(-3)}`;
-        const newSku = `${originalSku}-R${Date.now().toString().slice(-5)}`; // Use a shorter timestamp part
+        const newSku = `${originalSku}-R${Date.now().toString().slice(-5)}`; 
         console.warn(`[WooCommerce] SKU ${originalSku} is invalid or duplicate. Attempting retry with new SKU: ${newSku}`);
         
         const retryProductPayload = { ...productPayload, sku: newSku };
@@ -601,13 +608,13 @@ async function createOrUpdateWooCommerceProduct(
                 primaryEntry.productContext.sku = newSku;
             }
         }
-        return await attemptProductCreation(retryProductPayload, true); // Pass true for isRetry
+        return await attemptProductCreation(retryProductPayload, true);
       }
       return null; 
     }
   };
 
-  finalWooProductId = await attemptProductCreation(wooProductData, false); // Initial attempt
+  finalWooProductId = await attemptProductCreation(wooProductData, false); 
 
   if (finalWooProductId) {
     console.log(`[QueFoto Delete] Initiating deletion of processed images from quefoto.es for product ${finalWooProductId}`);
@@ -708,7 +715,7 @@ export async function POST(request: NextRequest) {
     const photosToProcessSnapshot = await adminDb.collection('processing_status')
                                           .where('batchId', '==', batchId)
                                           .where('status', '==', 'uploaded')
-                                          .orderBy(admin.firestore.FieldPath.documentId()) // Use a consistent order
+                                          .orderBy(admin.firestore.FieldPath.documentId()) 
                                           .limit(1)
                                           .get();
 
@@ -742,11 +749,11 @@ export async function POST(request: NextRequest) {
           await createOrUpdateWooCommerceProduct(
             request,
             batchId,
-            userIdForNotification, // Pass userId for notifications within createOrUpdate
+            userIdForNotification, 
             allEntries.filter(e => e.status === 'completed_image_pending_woocommerce' || e.status === 'completed_woocommerce_integration'), 
             allTemplates
           );
-          // Re-fetch to check final status after WooCommerce attempt
+          
           const finalBatchSnapshotAfterWoo = await adminDb.collection('processing_status').where('batchId', '==', batchId).get();
           const finalEntriesAfterWoo = finalBatchSnapshotAfterWoo.docs.map(doc => doc.data() as ProcessingStatusEntry);
           if (finalEntriesAfterWoo.every(e => e.status === 'completed_woocommerce_integration' || e.status.startsWith('error_'))) {
@@ -776,10 +783,10 @@ export async function POST(request: NextRequest) {
     const photoData = { id: photoDoc.id, ...photoDoc.data() } as ProcessingStatusEntry;
     const photoDocRef = adminDb.collection('processing_status').doc(photoData.id);
 
-    // Determine index based on ALL photos in the batch, not just 'uploaded' ones, for consistent naming
+    
     const allBatchPhotoDocsForIndexQuery = await adminDb.collection('processing_status')
                                                   .where('batchId', '==', batchId)
-                                                  .orderBy(admin.firestore.FieldPath.documentId()) // Ensure consistent ordering
+                                                  .orderBy(admin.firestore.FieldPath.documentId()) 
                                                   .get();
     const overallPhotoIndex = allBatchPhotoDocsForIndexQuery.docs.findIndex(doc => doc.id === photoData.id);
 
@@ -932,3 +939,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
