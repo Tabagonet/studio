@@ -36,12 +36,12 @@ export function SidebarNav() {
                 disabled={item.disabled}
                 tooltip={{ children: item.title, className: "bg-card text-card-foreground border-border"}}
               >
-                <>
+                <div>
                   <item.icon className="mr-2 h-5 w-5" />
                   <span className="truncate group-data-[collapsible=icon]:hidden">
                     {item.title}
                   </span>
-                </>
+                </div>
               </SidebarMenuButton>
             </Link>
           </SidebarMenuItem>
