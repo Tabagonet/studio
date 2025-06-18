@@ -1,3 +1,4 @@
+
 import type { LucideIcon } from 'lucide-react';
 
 export interface NavItem {
@@ -75,3 +76,37 @@ export interface AppNotification {
 
 // Type for AI attribute suggestion
 export type AttributeSuggestion = string;
+
+// Type for Firestore documents in 'processing_status' collection
+export interface ProcessingStatusEntry {
+  id: string; // Firestore document ID
+  userId: string;
+  batchId: string;
+  imageName: string;
+  originalStoragePath: string;
+  originalDownloadUrl: string;
+  status: "uploaded" | 
+          "processing_image_started" | 
+          "processing_image_downloaded" | 
+          "processing_image_validated" | 
+          "processing_image_optimized" | 
+          "processing_image_seo_named" | 
+          "processing_image_metadata_generated" |
+          "processing_image_reuploaded" | 
+          "completed_image_pending_woocommerce" | 
+          "error_processing_image" |
+          "completed_woocommerce_integration" | // Future status
+          "error_woocommerce_integration";     // Future status
+  uploadedAt: any; // Firebase Timestamp or ServerTimestampFieldValue
+  updatedAt?: any; // Firebase Timestamp or ServerTimestampFieldValue
+  progress: number;
+  seoName?: string;
+  processedImageStoragePath?: string;
+  processedImageDownloadUrl?: string;
+  resolutions?: Record<string, string>; // e.g., { "800x800": "url", "300x300": "url" }
+  seoMetadata?: { alt?: string; title?: string };
+  errorMessage?: string;
+  productAssociationId?: string; // WooCommerce Product ID, if/when created
+}
+
+    
