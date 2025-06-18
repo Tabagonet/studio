@@ -11,8 +11,9 @@ import axios from 'axios';
 import FormDataLib from "form-data";
 import { wooApi } from '@/lib/woocommerce';
 import path from 'path';
+import { generateProductDescription } from '@/ai/flows/generate-product-description';
 
-// Helper function to upload a buffer to quefoto.es/cargafotos.php
+
 async function uploadBufferToQueFoto(buffer: Buffer, fileName: string, mimeType: string): Promise<string> {
   const uploadFormData = new FormDataLib();
   uploadFormData.append("imagen", buffer, {
@@ -49,7 +50,15 @@ async function deleteImageFromQueFoto(imageUrl: string): Promise<void> {
     console.warn("[QueFoto Delete] No image URL provided for deletion.");
     return;
   }
-  const fileName = path.basename(new URL(imageUrl).pathname);
+  // Ensure imageUrl is a valid URL before trying to parse it
+  let fileName;
+  try {
+    fileName = path.basename(new URL(imageUrl).pathname);
+  } catch (e) {
+     console.warn(`[QueFoto Delete] Could not parse URL or extract filename from invalid URL: ${imageUrl}`);
+     return;
+  }
+
   if (!fileName) {
     console.warn(`[QueFoto Delete] Could not extract filename from URL: ${imageUrl}`);
     return;
@@ -113,12 +122,11 @@ function applyTemplate(templateContent: string, data: Record<string, string | nu
   const ifRegex = /\{\{#if\s+([\w-]+)\}\}([\s\S]*?)\{\{\/if\}\}/g;
   result = result.replace(ifRegex, (match, variableName, innerContent) => {
     const value = data[variableName];
+    // Condition is met if value is present, not an empty string, not zero, and not false.
     if (value && String(value).trim() !== '' && value !== 0 && value !== false) {
-      // If condition is met, remove the #if and /if tags, keep inner content
-      return innerContent.trim();
+      return innerContent; // Keep inner content, remove if/else tags
     } else {
-      // If condition is not met, remove the whole block
-      return ''; 
+      return ''; // Remove the whole block
     }
   });
   
@@ -190,22 +198,22 @@ function generateSeoFilenameWithTemplate(
   imageIndex: number
 ): string {
   const originalNameWithoutExtension = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
-  // Prioritize product context name if available and not empty, otherwise use a cleaned version of original image name.
+  
   let baseNameForSeo = productContext?.name && productContext.name.trim() !== '' 
     ? productContext.name 
     : originalNameWithoutExtension;
   
-  // Clean the base name for SEO filename
   baseNameForSeo = cleanTextForFilename(baseNameForSeo.substring(0, 70)); 
 
-  // Add a part of the original image name only if it's different from the product name base, to ensure uniqueness
   const cleanedOriginalIdentifierPart = cleanTextForFilename(originalNameWithoutExtension.substring(0, 50));
   let uniquePart = '';
   if (cleanedOriginalIdentifierPart && baseNameForSeo !== cleanedOriginalIdentifierPart) {
       uniquePart = `-${cleanedOriginalIdentifierPart}`;
   }
+  // Ensure the index part always has a leading dash if baseNameForSeo or uniquePart exists
+  const indexSuffix = (baseNameForSeo || uniquePart) ? `-${imageIndex + 1}` : `${imageIndex + 1}`;
+  const seoFilename = `${baseNameForSeo}${uniquePart}${indexSuffix}.webp`;
 
-  const seoFilename = `${baseNameForSeo}${uniquePart}-${imageIndex + 1}.webp`;
   console.log(`[SeoFilename] Generated: ${seoFilename} (Original: ${originalName}, Product Name: ${productContext?.name}, Base for SEO: ${baseNameForSeo}, Index: ${imageIndex})`);
   return seoFilename;
 }
@@ -277,22 +285,23 @@ function applyAutomationRules(
   productContext: WizardProductContext | undefined,
   rules: AutomationRule[]
 ): { assignedCategorySlug?: string; assignedTags: string[] } {
-  let categoryToAssignSlug: string | undefined = productContext?.category;
+  let categoryToAssignSlug: string | undefined = productContext?.category; // Start with wizard's category
   const initialTags = productContext?.keywords?.split(',').map(k => k.trim()).filter(k => k) || [];
   const tagsToAssign = new Set<string>(initialTags);
 
   const searchableProductName = (productContext?.name || imageNameWithoutExtension).toLowerCase().replace(/-/g, ' ').replace(/_/g, ' ');
   const searchableKeywords = (productContext?.keywords || '').toLowerCase();
 
-  console.log(`[Rules] Applying rules for: Name='${searchableProductName}', Keywords='${searchableKeywords}', Initial Category Slug='${categoryToAssignSlug}'`);
+  console.log(`[Rules] Applying rules for: Name='${searchableProductName}', Keywords='${searchableKeywords}', Initial Category Slug from ProductContext='${categoryToAssignSlug}'`);
 
   rules.forEach(rule => {
     const ruleKeywordLower = rule.keyword.toLowerCase();
     if (rule.keyword && (searchableProductName.includes(ruleKeywordLower) || searchableKeywords.includes(ruleKeywordLower))) {
       console.log(`[Rules] Match found for rule "${rule.name}" (keyword: "${rule.keyword}")`);
+      // Rule category assignment overrides wizard's category if rule specifies one.
       if (rule.categoryToAssign && rule.categoryToAssign !== "sin_categoria") {
         categoryToAssignSlug = rule.categoryToAssign;
-        console.log(`[Rules] Assigning category from rule: ${categoryToAssignSlug}`);
+        console.log(`[Rules] Assigning/Overriding category from rule: ${categoryToAssignSlug}`);
       }
       if (rule.tagsToAssign) {
         rule.tagsToAssign.split(',').forEach(tag => {
@@ -454,40 +463,65 @@ async function createOrUpdateWooCommerceProduct(
       precio_regular: currentProductContext.regularPrice || '0',
       precio_oferta: currentProductContext.salePrice || ''
   };
-  console.log("[WooCommerce] TemplateData for descriptions:", templateDataForDesc);
+  console.log("[WooCommerce] TemplateData for descriptions (placeholders & AI):", templateDataForDesc);
 
+  // AI Description Generation
+  let aiGeneratedShortDescription: string | undefined = undefined;
+  let aiGeneratedLongDescription: string | undefined = undefined;
 
-  const shortDescTemplateCat = templates.find(t => t.type === 'descripcion_corta' && t.scope === 'categoria_especifica' && t.categoryValue === currentProductContext.category);
-  const shortDescTemplateGlobal = templates.find(t => t.type === 'descripcion_corta' && t.scope === 'global');
-  const shortDescTemplate = shortDescTemplateCat || shortDescTemplateGlobal;
-  
-  let generatedShortDescription = currentProductContext.shortDescription || '';
-  if (!generatedShortDescription && shortDescTemplate && shortDescTemplate.content) {
-      console.log(`[WooCommerce] Applying 'descripcion_corta' template: "${shortDescTemplate.name}" (Scope: ${shortDescTemplate.scope})`);
-      generatedShortDescription = applyTemplate(shortDescTemplate.content, templateDataForDesc);
+  if (!currentProductContext.shortDescription || !currentProductContext.longDescription) {
+    console.log("[AI Description] Attempting to generate descriptions with AI as manual ones are missing.");
+    try {
+      const aiInput = {
+        productName: templateDataForDesc.nombre_producto,
+        categoryName: templateDataForDesc.categoria,
+        keywords: templateDataForDesc.palabras_clave,
+        attributesSummary: templateDataForDesc.atributos,
+      };
+      const aiOutput = await generateProductDescription(aiInput);
+      aiGeneratedShortDescription = aiOutput.shortDescription;
+      aiGeneratedLongDescription = aiOutput.longDescription;
+      if (aiGeneratedShortDescription) console.log("[AI Description] AI Generated Short Description:", aiGeneratedShortDescription);
+      if (aiGeneratedLongDescription) console.log("[AI Description] AI Generated Long Description:", aiGeneratedLongDescription);
+    } catch (aiError) {
+      console.warn("[AI Description] Error generating product descriptions with AI:", aiError);
+    }
   }
-  if (!generatedShortDescription && currentProductContext.name) {
+
+  // Determine Short Description (Priority: Manual -> AI -> Template -> Fallback)
+  let generatedShortDescription = currentProductContext.shortDescription || aiGeneratedShortDescription;
+  if (!generatedShortDescription) {
+    const shortDescTemplateCat = templates.find(t => t.type === 'descripcion_corta' && t.scope === 'categoria_especifica' && t.categoryValue === currentProductContext.category);
+    const shortDescTemplateGlobal = templates.find(t => t.type === 'descripcion_corta' && t.scope === 'global');
+    const shortDescTemplate = shortDescTemplateCat || shortDescTemplateGlobal;
+    if (shortDescTemplate && shortDescTemplate.content) {
+        console.log(`[WooCommerce] Applying 'descripcion_corta' template: "${shortDescTemplate.name}" (Scope: ${shortDescTemplate.scope})`);
+        generatedShortDescription = applyTemplate(shortDescTemplate.content, templateDataForDesc);
+    }
+  }
+  if (!generatedShortDescription) {
       generatedShortDescription = `Descubre ${templateDataForDesc.nombre_producto}. ${templateDataForDesc.palabras_clave ? `Ideal para ${templateDataForDesc.palabras_clave}.` : '' }`;
       console.log(`[WooCommerce] Using fallback short description: "${generatedShortDescription}"`);
   }
 
-  const longDescTemplateCat = templates.find(t => t.type === 'descripcion_larga' && t.scope === 'categoria_especifica' && t.categoryValue === currentProductContext.category);
-  const longDescTemplateGlobal = templates.find(t => t.type === 'descripcion_larga' && t.scope === 'global');
-  const longDescTemplate = longDescTemplateCat || longDescTemplateGlobal;
-
-  let baseLongDescription = currentProductContext.longDescription || '';
-  if (!baseLongDescription && longDescTemplate && longDescTemplate.content) {
-      console.log(`[WooCommerce] Applying 'descripcion_larga' template: "${longDescTemplate.name}" (Scope: ${longDescTemplate.scope})`);
-      baseLongDescription = applyTemplate(longDescTemplate.content, templateDataForDesc);
+  // Determine Long Description (Priority: Manual -> AI -> Template -> Fallback)
+  let baseLongDescription = currentProductContext.longDescription || aiGeneratedLongDescription;
+   if (!baseLongDescription) {
+    const longDescTemplateCat = templates.find(t => t.type === 'descripcion_larga' && t.scope === 'categoria_especifica' && t.categoryValue === currentProductContext.category);
+    const longDescTemplateGlobal = templates.find(t => t.type === 'descripcion_larga' && t.scope === 'global');
+    const longDescTemplate = longDescTemplateCat || longDescTemplateGlobal;
+    if (longDescTemplate && longDescTemplate.content) {
+        console.log(`[WooCommerce] Applying 'descripcion_larga' template: "${longDescTemplate.name}" (Scope: ${longDescTemplate.scope})`);
+        baseLongDescription = applyTemplate(longDescTemplate.content, templateDataForDesc);
+    }
   }
-  if (!baseLongDescription && currentProductContext.name) {
+  if (!baseLongDescription) {
      baseLongDescription = `Descripción detallada de ${templateDataForDesc.nombre_producto}. ${categoryNameForTemplate ? `Categoría: ${categoryNameForTemplate}.` : ''} ${templateDataForDesc.sku !== 'N/A' ? `SKU: ${templateDataForDesc.sku}.` : ''}`;
      console.log(`[WooCommerce] Using fallback long description: "${baseLongDescription}"`);
   }
 
-  // Remove the automatic addition of image file list to the description
-  const finalProductDescription = baseLongDescription;
-  console.log(`[WooCommerce] Final product description (baseLongDescription): "${finalProductDescription}"`);
+  const finalProductDescription = baseLongDescription; 
+  console.log(`[WooCommerce] Final product description to be used: "${finalProductDescription}"`);
 
 
   const wooImages = productEntries
@@ -505,20 +539,17 @@ async function createOrUpdateWooCommerceProduct(
   wooImages.forEach((img, idx) => img.position = idx); 
 
   const wooCategoriesPayload: { slug?: string; id?: number }[] = [];
-  let categorySlugToUse = currentProductContext.category; 
+  // Priority: 1. Category from Wizard (productContext), 2. Category from Rules
+  let categorySlugToUse = currentProductContext.category || primaryEntry.assignedCategorySlug; 
   
-  if (!categorySlugToUse && primaryEntry.assignedCategorySlug) {
-      categorySlugToUse = primaryEntry.assignedCategorySlug;
-      console.log(`[WooCommerce Categories] Using category slug from rules: "${categorySlugToUse}" as productContext.category was empty.`);
-  } else if (categorySlugToUse) {
-      console.log(`[WooCommerce Categories] Using category slug from productContext (wizard/manual): "${categorySlugToUse}".`);
-  }
+  console.log(`[WooCommerce Categories] Initial categorySlugToUse (Wizard: ${currentProductContext.category}, Rules: ${primaryEntry.assignedCategorySlug}): "${categorySlugToUse}"`);
+
 
   if (categorySlugToUse) {
     console.log(`[WooCommerce Categories] Attempting to find category for slug: "${categorySlugToUse}" in cache (total ${allWooCategoriesCache?.length} categories).`);
     const categoryInfo = allWooCategoriesCache?.find(c => c.slug === categorySlugToUse);
     if (categoryInfo) {
-        wooCategoriesPayload.push({ id: categoryInfo.id }); 
+        wooCategoriesPayload.push({ id: categoryInfo.id }); // Use ID for WooCommerce API
         console.log(`[WooCommerce Categories] Valid category "${categoryInfo.name}" (ID: ${categoryInfo.id}, Slug: ${categorySlugToUse}) found and added to payload.`);
     } else {
         console.warn(`[WooCommerce Categories] Category slug "${categorySlugToUse}" was NOT FOUND in fetched WooCommerce categories. It will not be assigned. Check for typos or if the category exists in WooCommerce.`);
@@ -535,7 +566,7 @@ async function createOrUpdateWooCommerceProduct(
   const wooProductData: any = {
     name: currentProductContext.name || 'Producto Sin Nombre',
     type: currentProductContext.productType || 'simple',
-    sku: currentProductContext.sku || '',
+    sku: currentProductContext.sku || '', // SKU will be handled by retry logic if duplicate
     regular_price: String(currentProductContext.regularPrice || '0'),
     description: finalProductDescription,
     short_description: generatedShortDescription,
@@ -562,7 +593,7 @@ async function createOrUpdateWooCommerceProduct(
             variation: currentProductContext.productType === 'variable' 
         }));
   }
-  console.log("[WooCommerce] Full Product data to send (stringified for brevity in logs, check full object above):", JSON.stringify(wooProductData, (key, value) => key === 'images' && Array.isArray(value) && value.length > 1 ? `[${value.length} images, first: ${JSON.stringify(value[0])}]` : value, 2));
+  console.log("[WooCommerce] Full Product data to send (images might be summarized in log):", JSON.stringify(wooProductData, (key, value) => key === 'images' && Array.isArray(value) && value.length > 1 ? `[${value.length} images, first: ${JSON.stringify(value[0])}]` : value, 2));
 
   let productCreationAttemptedThisRun = false; 
   let finalWooProductId: number | string | null = null;
@@ -570,19 +601,19 @@ async function createOrUpdateWooCommerceProduct(
 
   const attemptProductCreation = async (productPayload: any, isRetry: boolean): Promise<number | string | null> => {
     try {
-      console.log(`[WooCommerce] Attempt #${isRetry ? '2 (retry)' : '1'} to create/update product with SKU: ${productPayload.sku}`);
+      console.log(`[WooCommerce] Attempt #${isRetry ? '2 (retry)' : '1'} to create product with SKU: ${productPayload.sku}`);
       const response = await wooApi.post("products", productPayload);
       console.log(`[WooCommerce] Product ${response.data.id} processed successfully for batch ${batchId} with SKU: ${productPayload.sku}.`);
       return response.data.id;
     } catch (error: any) {
       const wooErrorMessage = error.response?.data?.message || error.message || "Unknown WooCommerce API error";
       const wooErrorCode = error.response?.data?.code || "";
-      console.error(`[WooCommerce] Error (Attempt #${isRetry ? '2' : '1'}) creating product for batch ${batchId} with SKU ${productPayload.sku}: ${wooErrorMessage}`);
-      if (!isRetry) { 
+      console.error(`[WooCommerce] Error (Attempt #${isRetry ? '2' : '1'}) creating product for batch ${batchId} with SKU ${productPayload.sku}: ${wooErrorMessage} (Code: ${wooErrorCode})`);
+      if (!isRetry && error.response?.data) { 
           console.error(`[WooCommerce] Request Data (Attempt #1) that caused error: ${JSON.stringify(productPayload, null, 2)}`);
+          console.error(`[WooCommerce] Error Details from API (Attempt #1):`, error.response.data);
       }
-      console.error(`[WooCommerce] Error Details from API (Attempt #${isRetry ? '2' : '1'}):`, error.response?.data);
-
+      
       finalErrorMessage = wooErrorMessage; 
 
       const isSkuError = (wooErrorMessage.toLowerCase().includes("sku") && 
@@ -590,25 +621,26 @@ async function createOrUpdateWooCommerceProduct(
                           wooErrorMessage.toLowerCase().includes("ya existe") || 
                           wooErrorMessage.toLowerCase().includes("no válido"))) ||
                          wooErrorCode === 'product_invalid_sku' ||
+                         wooErrorCode === 'term_exists' || // Sometimes SKU errors come as 'term_exists'
                          wooErrorCode === 'woocommerce_product_invalid_sku';
       
       console.log(`[WooCommerce] SKU Error Check: isSkuError=${isSkuError}, productCreationAttemptedThisRun=${productCreationAttemptedThisRun}`);
 
-      if (isSkuError && !productCreationAttemptedThisRun) { 
-        productCreationAttemptedThisRun = true;
+      if (isSkuError && !productCreationAttemptedThisRun && !isRetry) { 
+        productCreationAttemptedThisRun = true; // Mark that we are attempting a retry for SKU
         const originalSku = productPayload.sku || `fallback-sku-${Date.now().toString().slice(-3)}`;
         const newSku = `${originalSku}-R${Date.now().toString().slice(-5)}`; 
         console.warn(`[WooCommerce] SKU ${originalSku} is invalid or duplicate. Attempting retry with new SKU: ${newSku}`);
         
         const retryProductPayload = { ...productPayload, sku: newSku };
         
-        if (currentProductContext) {
+        if (currentProductContext) { // Update context for potential Firestore save later
             currentProductContext.sku = newSku; 
             if (primaryEntry && primaryEntry.productContext) {
                 primaryEntry.productContext.sku = newSku;
             }
         }
-        return await attemptProductCreation(retryProductPayload, true);
+        return await attemptProductCreation(retryProductPayload, true); // Pass true for isRetry
       }
       return null; 
     }
@@ -630,11 +662,11 @@ async function createOrUpdateWooCommerceProduct(
     if (productCreationAttemptedThisRun && currentProductContext && finalErrorMessage === null) { 
         console.log(`[Firestore] SKU was retried and product creation successful. Updating productContext.sku to ${currentProductContext.sku} for batch ${batchId}.`);
         const batchEntriesSnapshot = await adminDb.collection('processing_status').where('batchId', '==', batchId).get();
-        const firestoreBatch = adminDb.batch();
+        const firestoreBatchUpdate = adminDb.batch();
         batchEntriesSnapshot.forEach(doc => {
-            firestoreBatch.update(doc.ref, { 'productContext.sku': currentProductContext.sku });
+            firestoreBatchUpdate.update(doc.ref, { 'productContext.sku': currentProductContext.sku, 'updatedAt': admin.firestore.FieldValue.serverTimestamp() });
         });
-        await firestoreBatch.commit();
+        await firestoreBatchUpdate.commit();
         console.log(`[Firestore] Successfully updated productContext.sku for batch ${batchId}.`);
     }
 
@@ -903,7 +935,7 @@ export async function POST(request: NextRequest) {
   {
     console.error(`[API /api/process-photos] General Error in POST for batch ${body?.batchId || 'unknown'}:`, error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown server error occurred during photo processing.';
-    const userIdForNotification = body?.userId || 'system_user_general_error';
+    // const userIdForNotification = body?.userId || 'system_user_general_error';
 
     if (adminDb && body && body.batchId) {
         try {
@@ -939,4 +971,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

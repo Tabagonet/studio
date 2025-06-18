@@ -21,8 +21,8 @@ export interface ProductPhoto {
   seoTitle?: string;
   seoDescription?: string;
   seoCaption?: string;
-  localPath?: string; // Could be deprecated if all uploads are external
-  externalUrl?: string; // URL from quefoto.es or similar
+  localPath?: string; 
+  externalUrl?: string; 
 }
 
 export interface ProductAttribute {
@@ -122,22 +122,22 @@ export interface WizardProductContext {
 
 
 export interface ProcessingStatusEntry {
-  assignedCategorySlug: string | undefined | null; // Allow null
+  assignedCategorySlug: string | undefined | null; 
   id: string; 
   userId: string;
   batchId: string;
   imageName: string;
-  originalStoragePath: string; // Now stores external URL from quefoto.es
-  originalDownloadUrl: string; // Now stores external URL from quefoto.es
+  originalStoragePath: string; 
+  originalDownloadUrl: string; 
   status: "uploaded" | 
           "processing_image_started" | 
-          "processing_image_downloaded" | // Downloaded from quefoto.es
+          "processing_image_downloaded" | 
           "processing_image_validated" | 
           "processing_image_optimized" | 
           "processing_image_seo_named" | 
           "processing_image_metadata_generated" |
           "processing_image_rules_applied" |
-          "processing_image_reuploaded" | // Reuploaded processed image to quefoto.es
+          "processing_image_reuploaded" | 
           "completed_image_pending_woocommerce" | 
           "error_processing_image" |
           "completed_woocommerce_integration" | 
@@ -146,8 +146,8 @@ export interface ProcessingStatusEntry {
   updatedAt?: Timestamp; 
   progress: number;
   seoName?: string;
-  processedImageStoragePath?: string; // Now stores external URL of processed image from quefoto.es
-  processedImageDownloadUrl?: string; // Now stores external URL of processed image from quefoto.es
+  processedImageStoragePath?: string; 
+  processedImageDownloadUrl?: string; 
   resolutions?: Record<string, string>; 
   seoMetadata?: { alt?: string; title?: string };
   errorMessage?: string;
@@ -163,4 +163,15 @@ export interface WooCommerceCategory {
   slug: string;
 }
 
-    
+// Types for AI Product Description Generation
+export interface GenerateProductDescriptionInput {
+  productName: string;
+  categoryName?: string;
+  keywords?: string;
+  attributesSummary?: string;
+}
+
+export interface GenerateProductDescriptionOutput {
+  shortDescription?: string;
+  longDescription?: string;
+}
