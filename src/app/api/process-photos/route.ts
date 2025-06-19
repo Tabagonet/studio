@@ -54,7 +54,7 @@ async function generateContentWithMiniLM(
 
 async function uploadImageToWooCommerceMedia(
   localImagePathAbsolute: string,
-  originalImageName: string,
+  originalImageName: string, // Use original name for the upload
   productNameForAlt?: string
 ): Promise<{ id: number; source_url: string; name: string; alt_text: string; error?: string, details?: any } | { error: string, details?: any }> {
   const wooCommerceStoreUrl = process.env.WOOCOMMERCE_STORE_URL;
@@ -62,33 +62,35 @@ async function uploadImageToWooCommerceMedia(
   const wooCommerceApiSecret = process.env.WOOCOMMERCE_API_SECRET;
 
   console.log(`[WC Media Upload - ${originalImageName}] START. Path: ${localImagePathAbsolute}`);
+
   if (!wooCommerceStoreUrl || !wooCommerceApiKey || !wooCommerceApiSecret) {
     const errorMsg = "[WC Media Upload] WooCommerce API credentials or URL not configured in .env.";
     console.error(errorMsg);
     return { error: errorMsg };
   }
   if (!wooCommerceStoreUrl.startsWith('https://')) {
-    console.warn(`[WC Media Upload - ${originalImageName}] CRITICAL SECURITY WARNING: WOOCOMMERCE_STORE_URL is using HTTP. API keys and data are sent insecurely. Please update to HTTPS if your site supports it.`);
+    console.warn(`[WC Media Upload - ${originalImageName}] CRITICAL SECURITY WARNING: WOOCOMMERCE_STORE_URL ('${wooCommerceStoreUrl}') is using HTTP. API keys and data are sent insecurely. Please update to HTTPS if your site supports it.`);
   }
 
   try {
     const fileBuffer = await fs.readFile(localImagePathAbsolute);
     
     const form = new FormData();
-    form.append('file', new Blob([fileBuffer]), originalImageName);
-    form.append('title', productNameForAlt || originalImageName.split('.')[0]);
-    form.append('status', 'publish'); // Explicitly set status
+    // Use originalImageName for the 'filename' parameter in the Content-Disposition header
+    form.append('file', new Blob([fileBuffer]), originalImageName); 
+    form.append('title', productNameForAlt || originalImageName.split('.')[0]); // Add title
+    form.append('status', 'publish'); // Explicitly set status to publish
 
     const credentials = Buffer.from(`${wooCommerceApiKey}:${wooCommerceApiSecret}`).toString('base64');
     const headers: HeadersInit = {
       'Authorization': `Basic ${credentials}`,
+      // Content-Type will be set automatically by fetch for FormData
     };
     
     const mediaUploadUrl = `${wooCommerceStoreUrl}/wp-json/wp/v2/media`;
 
-    console.log(`[WC Media Upload - ${originalImageName}] Uploading (size ${fileBuffer.length} bytes) to WooCommerce Media using Basic Auth (Payload with title & status via native fetch)...`);
+    console.log(`[WC Media Upload - ${originalImageName}] Uploading (size ${fileBuffer.length} bytes) to WooCommerce Media using Basic Auth (Simplified Payload with native fetch)...`);
     console.log(`[WC Media Upload - ${originalImageName}] Target URL: ${mediaUploadUrl}`);
-    console.log(`[WC Media Upload - ${originalImageName}] Using Basic Auth. Credentials length: ${credentials.length}`);
     
     const uploadStartTime = Date.now();
     const response = await fetch(mediaUploadUrl, {
@@ -99,7 +101,12 @@ async function uploadImageToWooCommerceMedia(
     const uploadEndTime = Date.now();
     console.log(`[WC Media Upload - ${originalImageName}] Native fetch POST finished. Time: ${uploadEndTime - uploadStartTime}ms. Status: ${response.status}`);
 
-    const responseData = await response.json();
+    const responseData = await response.json().catch(async (jsonError) => {
+        const textResponse = await response.text();
+        console.error(`[WC Media Upload - ${originalImageName}] Failed to parse JSON response. Status: ${response.status}. Response text (first 300 chars): ${textResponse.substring(0,300)}`);
+        return { error: "Failed to parse JSON response from server.", details: { status: response.status, body: textResponse.substring(0,300) }};
+    });
+
 
     if (response.ok && responseData && responseData.id) {
       console.log(`[WC Media Upload - ${originalImageName}] Successfully uploaded. Media ID: ${responseData.id}, URL: ${responseData.source_url}`);
@@ -114,30 +121,16 @@ async function uploadImageToWooCommerceMedia(
       const errorMsg = `[WC Media Upload - ${originalImageName}] Failed to upload. Status: ${response.status}.`;
       console.error(errorMsg, 'Response Data:', responseData);
       console.log(`[WC Media Upload - ${originalImageName}] END - Failure (Invalid Response or Status)`);
-      return { error: responseData.message || "Failed to upload image to WooCommerce: Invalid response data or status.", details: responseData };
+      return { error: responseData.message || responseData.error || "Failed to upload image to WooCommerce: Invalid response data or status.", details: responseData };
     }
   } catch (error: any) {
     let wcErrorMessage = "Unknown error during media upload with fetch";
     let wcErrorDetails:any = null;
     console.error(`[WC Media Upload - ${originalImageName}] Fetch error uploading:`, error.message || error);
-    if (error.response && typeof error.response.json === 'function') { // This check is more for axios-like errors
-        try {
-            wcErrorDetails = await error.response.json();
-            wcErrorMessage = wcErrorDetails.message || JSON.stringify(wcErrorDetails);
-        } catch (e) {
-            wcErrorMessage = error.response.statusText || wcErrorMessage;
-        }
-    } else if (error.cause) { // More common for native fetch errors
+    if (error.cause) { 
         wcErrorMessage = String(error.cause);
     } else if (error.message) {
         wcErrorMessage = error.message;
-    }
-
-    // If error is from response.json() failing because response wasn't ok
-    if (error instanceof SyntaxError && error.message.includes("JSON")) {
-        // This block may not be reached if response.ok check above already handles it.
-        wcErrorMessage = `Failed to parse JSON response from media upload. Status: ${error.response?.status || 'unknown'}.`;
-        wcErrorDetails = { message: "Server returned non-JSON or empty response." };
     }
     
     console.log(`[WC Media Upload - ${originalImageName}] END - Failure (Fetch/Parsing Error)`);
@@ -168,17 +161,12 @@ function applyTemplate(templateContent: string, data: Record<string, string | nu
     if (typeof value === 'string') {
       conditionMet = value.trim() !== '';
     } else if (typeof value === 'number') {
-      // For price-related fields, condition is met if > 0. Otherwise, if not 0.
-      if (variableName.toLowerCase().includes('price')) {
-        conditionMet = value > 0;
-      } else {
-        conditionMet = value !== 0;
-      }
+      conditionMet = variableName.toLowerCase().includes('price') ? value > 0 : value !== 0;
     } else if (typeof value === 'boolean') {
       conditionMet = value;
-    } else if (value !== undefined && value !== null) { // Catches other non-empty, non-null values
-      conditionMet = true; 
-    } // else: value is undefined, null, or an empty string if not caught by `typeof value === 'string'`
+    } else { // Handles undefined, null
+      conditionMet = false;
+    }
     
     return conditionMet ? innerContent.trim() : '';
   });
@@ -188,7 +176,7 @@ function applyTemplate(templateContent: string, data: Record<string, string | nu
     const value = (data[key] === null || data[key] === undefined) ? '' : String(data[key]);
     result = result.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
   }
-  result = result.replace(/\{\{[\w-.]+\}\}/g, '').trim(); // Clean up any unreplaced placeholders
+  result = result.replace(/\{\{[\w-.]+\}\}/g, '').trim(); 
   return result;
 }
 
@@ -334,17 +322,30 @@ async function createBatchCompletionNotification(batchId: string, userId: string
   console.log(`[Notification] Batch ${batchId}: ${title} - ${description}`);
   await adminDb.collection(APP_NOTIFICATIONS_COLLECTION).add({
     userId, title, description, type,
-    timestamp: admin.firestore.FieldValue.serverTimestamp() as Timestamp, // Cast to Timestamp
+    timestamp: admin.firestore.FieldValue.serverTimestamp() as Timestamp,
     isRead: false, linkTo: `/batch?batchId=${batchId}`,
     lastMessage: description
   } as Omit<AppNotification, 'id'>);
 }
 
-async function triggerNextPhotoProcessing(batchId: string, requestUrl: string, userId?: string, context?: string) {
-  const apiUrl = new URL('/api/process-photos', requestUrl).toString();
+async function triggerNextPhotoProcessing(batchId: string, baseRequestUrl: string, userId?: string, context?: string) {
+  console.log(`[API Trigger - ${context || 'General'}] Base URL for self-trigger: '${baseRequestUrl}'`);
+  if (!baseRequestUrl || typeof baseRequestUrl !== 'string' || !baseRequestUrl.startsWith('http')) {
+    console.error(`[API Trigger - ${context || 'General'}] CRITICAL: Invalid baseRequestUrl received: '${baseRequestUrl}'. Cannot construct self-trigger URL. Aborting self-trigger.`);
+    return;
+  }
+
+  let apiUrl: string;
+  try {
+    apiUrl = new URL('/api/process-photos', baseRequestUrl).toString();
+    console.log(`[API Trigger - ${context || 'General'}] Constructed self-trigger apiUrl: '${apiUrl}'`);
+  } catch (e) {
+    console.error(`[API Trigger - ${context || 'General'}] ERROR constructing self-trigger URL with base '${baseRequestUrl}'. Error: `, e);
+    return; 
+  }
+  
   console.log(`[API Trigger - ${context || 'General'}] Triggering next processing for batch ${batchId} by calling: ${apiUrl}. UserId: ${userId || 'N/A'}`);
   try {
-
     fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -371,9 +372,8 @@ async function updateSpecificFirestoreEntries(
         status: status,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
-    // Ensure all keys in updateData are valid for ProcessingStatusEntry
     (Object.keys(updateData) as Array<keyof ProcessingStatusEntry>).forEach(key => {
-        if (updateData[key] !== undefined) { // Check for undefined before assigning
+        if (updateData[key] !== undefined) { 
             finalUpdateData[key] = updateData[key];
         }
     });
@@ -690,7 +690,8 @@ export async function POST(request: NextRequest) {
         if (!photoData.originalDownloadUrl) {
             console.error(`[ImgProc - ${photoData.imageName}] ERROR: originalDownloadUrl is missing. Cannot process.`);
             await photoDocRef.update({ status: 'error_processing_image', errorMessage: 'Missing originalDownloadUrl.', progress: 0, updatedAt: admin.firestore.FieldValue.serverTimestamp(), lastMessage: 'Error: URL de imagen original faltante.' });
-            await triggerNextPhotoProcessing(batchId, request.url.toString(), userIdForThisPhoto, `After critical URL error for ${photoData.imageName}`);
+            const currentRequestUrlForTrigger = request.url ? request.url.toString() : process.env.NEXT_PUBLIC_APP_URL || '';
+            await triggerNextPhotoProcessing(batchId, currentRequestUrlForTrigger, userIdForThisPhoto, `After critical URL error for ${photoData.imageName}`);
             return NextResponse.json({ message: `Error processing ${photoData.imageName}: missing URL. Triggered next.`, batchId: batchId, errorPhotoId: photoData.id });
         }
 
@@ -792,7 +793,7 @@ export async function POST(request: NextRequest) {
         
         const wcMediaUploadResult = await uploadImageToWooCommerceMedia(
             tempProcessedImageAbsolutePath,
-            photoData.imageName, 
+            photoData.imageName, // Pass original name here
             miniLMInput.productName 
         );
         const wcUploadEndTime = Date.now();
@@ -837,8 +838,10 @@ export async function POST(request: NextRequest) {
              console.error(`[ImgProc - ${photoData.imageName}] CRITICAL: Document ${photoData.id} not found during error handling.`);
         }
       } finally {
-        console.log(`[ImgProc - ${photoData.imageName}] FINALLY block: Triggering next processing for batch ${batchId}.`);
-        await triggerNextPhotoProcessing(batchId, request.url.toString(), userIdForThisPhoto, `After processing ${photoData.imageName}`);
+        console.log(`[API /process-photos] Batch ${batchId}: FINALLY block entered for ${photoData.imageName}.`);
+        const currentRequestUrl = request.url ? request.url.toString() : (process.env.NEXT_PUBLIC_APP_URL || '');
+        console.log(`[API /process-photos] Batch ${batchId}: In FINALLY, currentRequestUrl for self-trigger: '${currentRequestUrl}'`);
+        await triggerNextPhotoProcessing(batchId, currentRequestUrl, userIdForThisPhoto, `After processing ${photoData.imageName}`);
       }
       const requestEndTime = Date.now();
       console.log(`[API /process-photos] END - Processed single image ${photoData.imageName}. Total request time: ${requestEndTime - requestStartTime}ms.`);
@@ -912,7 +915,8 @@ export async function POST(request: NextRequest) {
               return NextResponse.json({ message: `Batch ${batchId} WC product creation complete & batch terminal.`, results: productCreationResults });
           } else {
               console.log(`[API /process-photos] Batch ${batchId}: WC product creation cycle done, but batch NOT fully terminal. Triggering next processing check.`);
-              await triggerNextPhotoProcessing(batchId, request.url.toString(), userIdForBatchOverall, `After WC product creation cycle (not terminal)`);
+              const currentRequestUrlForTrigger = request.url ? request.url.toString() : process.env.NEXT_PUBLIC_APP_URL || '';
+              await triggerNextPhotoProcessing(batchId, currentRequestUrlForTrigger, userIdForBatchOverall, `After WC product creation cycle (not terminal)`);
               const requestEndTime = Date.now();
               console.log(`[API /process-photos] END - Batch ${batchId} WC product creation cycle done, batch NOT fully terminal. Total request time: ${requestEndTime - requestStartTime}ms.`);
               return NextResponse.json({ message: `Batch ${batchId} WC product creation cycle done. Batch not terminal. Next check triggered.`, results: productCreationResults });
@@ -926,8 +930,8 @@ export async function POST(request: NextRequest) {
              if (isEntireBatchTerminal) {
                  await createBatchCompletionNotification(batchId, userIdForBatchOverall, productCreationResults); 
              } else {
-                 
-                 await triggerNextPhotoProcessing(batchId, request.url.toString(), userIdForBatchOverall, `No valid product groups but batch not terminal`);
+                 const currentRequestUrlForTrigger = request.url ? request.url.toString() : process.env.NEXT_PUBLIC_APP_URL || '';
+                 await triggerNextPhotoProcessing(batchId, currentRequestUrlForTrigger, userIdForBatchOverall, `No valid product groups but batch not terminal`);
              }
              const requestEndTime = Date.now();
              console.log(`[API /process-photos] END - Batch ${batchId}: No valid product groups for WC. Total request time: ${requestEndTime - requestStartTime}ms.`);
@@ -980,7 +984,7 @@ export async function POST(request: NextRequest) {
             const photoDocRef = adminDb.collection('processing_status').doc(currentPhotoDocIdForErrorHandling);
             console.log(`[API /process-photos] Attempting to mark doc ${currentPhotoDocIdForErrorHandling} with error status due to top-level catch.`);
             const currentEntrySnapshot = await photoDocRef.get();
-            if (currentEntrySnapshot.exists) { // Corrected: .exists is a property
+            if (currentEntrySnapshot.exists) { 
                 const currentEntryData = currentEntrySnapshot.data() as ProcessingStatusEntry;
                 if (!currentEntryData.status.startsWith('error_') && !currentEntryData.status.startsWith('completed_')) {
                      photoDocRef.update({ status: 'error_processing_image', errorMessage: `API General Error: ${errorMessageString.substring(0, 200)}`, updatedAt: admin.firestore.FieldValue.serverTimestamp(), lastMessage: `Error API General: ${errorMessageString.substring(0,50)}...` })
@@ -999,6 +1003,16 @@ export async function POST(request: NextRequest) {
         console.error(`[API /process-photos] General error for batch ${body.batchId}. Details: ${errorMessageString}. No specific photo document ID was set for error handling.`);
         
     }
+
+    // Ensure a fallback for request.url if it's not available when an error occurs before or during its access
+    const currentRequestUrlForTriggerOnError = typeof request !== 'undefined' && request.url ? request.url.toString() : (process.env.NEXT_PUBLIC_APP_URL || '');
+    if (body?.batchId && currentRequestUrlForTriggerOnError) {
+        console.log(`[API /process-photos] CRITICAL ERROR HANDLER: Attempting to trigger next processing for batch ${body.batchId} to avoid stall.`);
+        await triggerNextPhotoProcessing(body.batchId, currentRequestUrlForTriggerOnError, body.userId, "Critical error handler self-trigger");
+    } else {
+        console.error(`[API /process-photos] CRITICAL ERROR HANDLER: Could not self-trigger next processing. BatchId: ${body?.batchId}, RequestURL: ${currentRequestUrlForTriggerOnError}`);
+    }
+
 
     return NextResponse.json(
         {
