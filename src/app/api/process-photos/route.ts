@@ -4,14 +4,9 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { adminDb, admin, adminAuth } from '@/lib/firebase-admin';
 // sharp is confirmed to be disabled, no import needed
-// import sharp from 'sharp'; 
 import { fileTypeFromBuffer } from 'file-type';
 import type { ProductTemplate, ProcessingStatusEntry, AutomationRule, AppNotification, WizardProductContext, WooCommerceCategory, ProductType, ParsedNameData, MiniLMInput, GeneratedProductContent, SeoHistoryEntry } from '@/lib/types';
 import { PRODUCT_TEMPLATES_COLLECTION, AUTOMATION_RULES_COLLECTION, APP_NOTIFICATIONS_COLLECTION, SEO_HISTORY_COLLECTION, DEFAULT_PROMPTS } from '@/lib/constants';
-// Axios is being replaced by fetch for media uploads, but kept for now if used elsewhere or as a fallback.
-// import axios from 'axios';
-// FormDataLib (form-data) is being replaced by global FormData
-// import FormDataLib from "form-data"; 
 import { wooApi } from '@/lib/woocommerce';
 import path from 'path';
 import fs from 'fs/promises';
@@ -75,26 +70,29 @@ async function uploadImageToWooCommerceMedia(
 
   try {
     const fileBuffer = await fs.readFile(localImagePathAbsolute);
-    const form = new FormData(); // Use global FormData
+    const form = new FormData();
     
-    // Append the file. WooCommerce should pick up the filename from here.
-    // The 'type' might be inferred by WC or can be explicitly set if needed, but often not required if filename has extension.
+    // Only append the file itself
     form.append('file', new Blob([fileBuffer]), originalImageName);
-    // SIMPLIFIED: No 'title' or 'alt_text' being sent with the initial upload.
-    // These can be updated later via the media item ID if the upload is successful.
+    
+    // Use Basic Authentication
+    const credentials = Buffer.from(`${wooCommerceApiKey}:${wooCommerceApiSecret}`).toString('base64');
+    const headers: HeadersInit = {
+      'Authorization': `Basic ${credentials}`,
+      // Content-Disposition and Content-Type for multipart/form-data are typically set automatically by fetch when body is FormData
+    };
+    
+    // Using /wp/v2/media endpoint which is standard for WordPress media uploads
+    const mediaUploadUrl = `${wooCommerceStoreUrl}/wp-json/wp/v2/media`;
 
-    const mediaUploadUrlWithAuth = `${wooCommerceStoreUrl}/wp-json/wp/v2/media?consumer_key=${encodeURIComponent(wooCommerceApiKey)}&consumer_secret=${encodeURIComponent(wooCommerceApiSecret)}`;
-
-    console.log(`[WC Media Upload - ${originalImageName}] Uploading (size ${fileBuffer.length} bytes) to WooCommerce Media using Query String Auth (Simplified Payload with native fetch)...`);
-    console.log(`[WC Media Upload - ${originalImageName}] Target URL (secret redacted): ${wooCommerceStoreUrl}/wp-json/wp/v2/media?consumer_key=${encodeURIComponent(wooCommerceApiKey)}&consumer_secret=[REDACTED]`);
+    console.log(`[WC Media Upload - ${originalImageName}] Uploading (size ${fileBuffer.length} bytes) to WooCommerce Media using Basic Auth (Simplified Payload with native fetch)...`);
+    console.log(`[WC Media Upload - ${originalImageName}] Target URL: ${mediaUploadUrl}`);
     
     const uploadStartTime = Date.now();
-    const response = await fetch(mediaUploadUrlWithAuth, {
+    const response = await fetch(mediaUploadUrl, {
       method: 'POST',
-      body: form, // Pass FormData directly
-      // Headers for multipart/form-data are typically set automatically by fetch when body is FormData
-      // but let's ensure Content-Disposition is part of it, which form-data usually sets up via filename.
-      // For native FormData, this should be handled if `originalImageName` is passed in append.
+      headers: headers,
+      body: form,
     });
     const uploadEndTime = Date.now();
     console.log(`[WC Media Upload - ${originalImageName}] Native fetch POST finished. Time: ${uploadEndTime - uploadStartTime}ms. Status: ${response.status}`);
@@ -120,14 +118,14 @@ async function uploadImageToWooCommerceMedia(
     let wcErrorMessage = "Unknown error during media upload with fetch";
     let wcErrorDetails:any = null;
     console.error(`[WC Media Upload - ${originalImageName}] Fetch error uploading:`, error.message);
-    if (error.response && typeof error.response.json === 'function') { // Check if it's a Response object from fetch
+    if (error.response && typeof error.response.json === 'function') {
         try {
             wcErrorDetails = await error.response.json();
             wcErrorMessage = wcErrorDetails.message || JSON.stringify(wcErrorDetails);
         } catch (e) {
             wcErrorMessage = error.response.statusText || wcErrorMessage;
         }
-    } else if (error.cause) { // Node fetch might put original error in cause
+    } else if (error.cause) {
         wcErrorMessage = String(error.cause);
     }
     console.log(`[WC Media Upload - ${originalImageName}] END - Failure (Fetch Error)`);
@@ -147,7 +145,7 @@ function cleanTextForFilename(text: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-function applyTemplate(templateContent: string, data: Record<string, string | number | undefined | null>): string {
+function applyTemplate(templateContent: string, data: Record<string, string | number | boolean | undefined | null>): string {
   let result = templateContent;
   const ifRegex = /\{\{#if\s+([\w-]+)\}\}([\s\S]*?)\{\{\/if\}\}/g;
   
@@ -158,7 +156,6 @@ function applyTemplate(templateContent: string, data: Record<string, string | nu
     if (typeof value === 'string') {
       conditionMet = value.trim() !== '';
     } else if (typeof value === 'number') {
-      // For prices, specifically check if > 0. For other numbers, non-zero could be true.
       if (variableName.toLowerCase().includes('price')) {
         conditionMet = value > 0;
       } else {
@@ -167,10 +164,8 @@ function applyTemplate(templateContent: string, data: Record<string, string | nu
     } else if (typeof value === 'boolean') {
       conditionMet = value;
     } else if (value !== undefined && value !== null) {
-      // Handles other truthy non-empty objects/arrays if they were passed, though data is string/number/null/undefined
       conditionMet = true; 
     }
-    // If value is undefined or null, conditionMet remains false.
     return conditionMet ? innerContent.trim() : '';
   });
 
@@ -240,8 +235,8 @@ function applyAutomationRules(
   visualTags: string[] | undefined,
   productContext: WizardProductContext | undefined,
   rules: AutomationRule[]
-): { assignedCategorySlug?: string; assignedTags: string[] } {
-  let categoryToAssignSlug: string | undefined = productContext?.category;
+): { assignedCategorySlug?: string | null; assignedTags: string[] } {
+  let categoryToAssignSlug: string | undefined | null = productContext?.category;
   const initialKeywords = productContext?.keywords || parsedNameData?.extractedProductName || '';
   const tagsToAssign = new Set<string>(initialKeywords.split(',').map(k => k.trim()).filter(k => k));
   (visualTags || []).forEach(tag => tagsToAssign.add(tag.replace(/\s+/g, '')));
@@ -327,7 +322,7 @@ async function createBatchCompletionNotification(batchId: string, userId: string
     userId, title, description, type,
     timestamp: admin.firestore.FieldValue.serverTimestamp() as any,
     isRead: false, linkTo: `/batch?batchId=${batchId}`,
-    lastMessage: description // Added for consistency
+    lastMessage: description
   } as Omit<AppNotification, 'id'>);
 }
 
@@ -336,7 +331,7 @@ async function triggerNextPhotoProcessing(batchId: string, requestUrl: string, u
   console.log(`[API Trigger - ${context || 'General'}] Triggering next processing for batch ${batchId} by calling: ${apiUrl}. UserId: ${userId || 'N/A'}`);
   try {
 
-    fetch(apiUrl, { // Using native fetch
+    fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ batchId, userId }),
@@ -362,7 +357,6 @@ async function updateSpecificFirestoreEntries(
         status: status,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
-    // Iterate over keys of updateData and add them if they are not undefined
     (Object.keys(updateData) as Array<keyof ProcessingStatusEntry>).forEach(key => {
         if (updateData[key] !== undefined) {
             finalUpdateData[key] = updateData[key];
@@ -395,7 +389,7 @@ async function createWooCommerceProductForGroup(
     if (!primaryEntry || !primaryEntry.productContext) {
         const criticalErrorMsg = "Datos de contexto del producto primario no encontrados para el grupo.";
         console.error(`[WooCommerce CreateProduct - ${productNameFromContext}] CRITICAL ERROR: ${criticalErrorMsg}`);
-        await updateSpecificFirestoreEntries(productEntries.map(e => e.id), 'error_woocommerce_integration', { errorMessage: criticalErrorMsg});
+        await updateSpecificFirestoreEntries(productEntries.map(e => e.id), 'error_woocommerce_integration', { errorMessage: criticalErrorMsg, lastMessage: criticalErrorMsg});
         return { name: productNameFromContext, success: false, error: criticalErrorMsg };
     }
     console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Primary entry ID: ${primaryEntry.id}, Image name: ${primaryEntry.imageName}`);
@@ -439,7 +433,11 @@ async function createWooCommerceProductForGroup(
         palabras_clave: currentProductContext.keywords || (generatedContent?.tags || []).join(', '),
         atributos: (generatedContent?.attributes || currentProductContext.attributes)?.map(a => `${a.name}: ${a.value}`).join(', ') || '',
         precio_regular: currentProductContext.regularPrice || '0',
-        precio_oferta: currentProductContext.salePrice || ''
+        precio_oferta: currentProductContext.salePrice || '',
+        productName: currentProductContext.name,
+        categoryString: productCategories.find(c => c.slug === (primaryEntry.assignedCategorySlug || currentProductContext.category))?.name || '',
+        existingKeywordsString: currentProductContext.keywords || (generatedContent?.tags || []).join(', '),
+        attributesString: (generatedContent?.attributes || currentProductContext.attributes)?.map(a => `${a.name}: ${a.value}`).join(', ') || '',
     };
 
     if (!finalShortDescription || finalShortDescription.trim() === "" || finalShortDescription.includes("Placeholder MiniLM") || finalShortDescription.includes("Placeholder Genkit")) {
@@ -730,33 +728,29 @@ export async function POST(request: NextRequest) {
 
         console.warn(`[ImgProc - ${photoData.imageName}] SHARP image processing is TEMPORARILY DISABLED. Using original image for 'processed' paths.`);
         const fileExt = path.extname(photoData.imageName) || '.jpg';
-        const filenameForProcessing = generatedContent.seoFilenameBase && !generatedContent.seoFilenameBase.includes('placeholder')
-            ? `${generatedContent.seoFilenameBase}${fileExt}`
-            : photoData.imageName;
+        const baseFilenameForCopy = (generatedContent.seoFilenameBase && !generatedContent.seoFilenameBase.includes('placeholder'))
+            ? generatedContent.seoFilenameBase
+            : cleanTextForFilename(path.basename(photoData.imageName, fileExt)); 
+        const filenameForCopy = `${baseFilenameForCopy}${fileExt}`;
 
 
         const processedImageDir = path.join(process.cwd(), 'public', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId);
         await fs.mkdir(processedImageDir, { recursive: true });
-        // Use original filename (safeFileName) for the copy, not the seo-generated one yet for this temp step
-        const tempProcessedImageAbsolutePath = path.join(processedImageDir, path.basename(photoData.imageName)); 
+        const tempProcessedImageAbsolutePath = path.join(processedImageDir, filenameForCopy);
 
         try {
             await fs.copyFile(localImageAbsolutePath, tempProcessedImageAbsolutePath);
-            console.log(`[ImgProc - ${photoData.imageName}] SHARP SKIPPED. Copied original to processed path: ${tempProcessedImageAbsolutePath} (using filename: ${path.basename(photoData.imageName)})`);
+            console.log(`[ImgProc - ${photoData.imageName}] SHARP SKIPPED. Copied original to processed path: ${tempProcessedImageAbsolutePath} (using filename: ${filenameForCopy})`);
         } catch (copyError: any) {
             console.error(`[ImgProc - ${photoData.imageName}] SHARP SKIPPED. Error copying original to processed path: ${copyError.message}.`);
             await photoDocRef.update({ status: 'error_processing_image', errorMessage: `Error copying file locally: ${copyError.message.substring(0,100)}`, progress: 60, updatedAt: admin.firestore.FieldValue.serverTimestamp(), lastMessage: 'Error interno al copiar imagen.' });
-            throw copyError; // This will be caught by the outer try-catch for photo processing
+            throw copyError;
         }
         
-        // The actual filename used for upload to WC will be originalImageName
-        // The path will be tempProcessedImageAbsolutePath, which contains the original file content.
-        // seoName in Firestore will still reflect the desired SEO name.
-        
         const updateDataForOptimized: Partial<ProcessingStatusEntry> = {
-          status: 'processing_image_optimized', progress: 65, seoName: filenameForProcessing, // Desired SEO name
-          processedImageStoragePath: path.join('/', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId, path.basename(photoData.imageName)).replace(/\\\\/g, '/'), // Actual path of copied file
-          processedImageDownloadUrl: path.join('/', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId, path.basename(photoData.imageName)).replace(/\\\\/g, '/'),
+          status: 'processing_image_optimized', progress: 65, seoName: filenameForCopy,
+          processedImageStoragePath: path.join('/', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId, filenameForCopy).replace(/\\\\/g, '/'),
+          processedImageDownloadUrl: path.join('/', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId, filenameForCopy).replace(/\\\\/g, '/'),
           seoMetadata: generatedContent.seoMetadata, updatedAt: admin.firestore.FieldValue.serverTimestamp() as any,
           lastMessage: 'Imagen "optimizada" (copiada, Sharp deshabilitado).'
         };
@@ -778,12 +772,12 @@ export async function POST(request: NextRequest) {
         await photoDocRef.update(updateDataForRuleApp);
         console.log(`[ImgProc - ${photoData.imageName}] Rules applied. Cat: ${finalCategorySlug}, Tags: ${finalTags.join(', ')}`);
 
-        console.log(`[ImgProc - ${photoData.imageName}] uploadImageToWooCommerceMedia START for ${tempProcessedImageAbsolutePath} (original name for WC: ${photoData.imageName})`);
+        console.log(`[ImgProc - ${photoData.imageName}] uploadImageToWooCommerceMedia START for ${tempProcessedImageAbsolutePath} (original name: ${photoData.imageName})`);
         const wcUploadStartTime = Date.now();
         
         const wcMediaUploadResult = await uploadImageToWooCommerceMedia(
-            tempProcessedImageAbsolutePath, // Path to the copied original file
-            photoData.imageName, // Use original filename for the upload to WC
+            tempProcessedImageAbsolutePath,
+            photoData.imageName, 
             miniLMInput.productName 
         );
         const wcUploadEndTime = Date.now();
@@ -832,7 +826,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: `Processed ${photoData.imageName}. Triggered next.`, batchId: batchId, processedPhotoId: photoData.id });
 
     } else {
-      // No photos with 'uploaded' status, check for 'completed_image_pending_woocommerce'
       console.log(`[API /process-photos] Batch ${batchId}: NO 'uploaded' photos found. Checking for 'completed_image_pending_woocommerce'...`);
 
       const entriesReadyForWooCommerceSnapshot = await adminDb.collection('processing_status')
@@ -997,5 +990,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
     
