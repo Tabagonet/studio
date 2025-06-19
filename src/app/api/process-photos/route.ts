@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { adminDb, admin, adminAuth } from '@/lib/firebase-admin';
-// import sharp from 'sharp'; // SHARP TEMPORARILY DISABLED (as per user request to isolate issues)
+// import sharp from 'sharp'; // SHARP TEMPORARILY DISABLED
 import { fileTypeFromBuffer } from 'file-type';
 import type { ProductTemplate, ProcessingStatusEntry, AutomationRule, AppNotification, WizardProductContext, WooCommerceCategory, ProductType, ParsedNameData, MiniLMInput, GeneratedProductContent, SeoHistoryEntry } from '@/lib/types';
 import { PRODUCT_TEMPLATES_COLLECTION, AUTOMATION_RULES_COLLECTION, APP_NOTIFICATIONS_COLLECTION, SEO_HISTORY_COLLECTION, DEFAULT_PROMPTS } from '@/lib/constants';
@@ -54,36 +54,36 @@ async function generateContentWithMiniLM(
 
 async function uploadImageToWooCommerceMedia(
   localImagePathAbsolute: string,
-  filename: string,
-  productName?: string
+  originalImageName: string, // Changed from filename to originalImageName
+  productNameForAlt?: string
 ): Promise<{ id: number; source_url: string; name: string; alt_text: string; error?: string, details?: any } | { error: string, details?: any }> {
   const wooCommerceStoreUrl = process.env.WOOCOMMERCE_STORE_URL;
   const wooCommerceApiKey = process.env.WOOCOMMERCE_API_KEY;
   const wooCommerceApiSecret = process.env.WOOCOMMERCE_API_SECRET;
 
-  console.log(`[WC Media Upload - ${filename}] START. Path: ${localImagePathAbsolute}`);
+  console.log(`[WC Media Upload - ${originalImageName}] START. Path: ${localImagePathAbsolute}`);
   if (!wooCommerceStoreUrl || !wooCommerceApiKey || !wooCommerceApiSecret) {
     const errorMsg = "[WC Media Upload] WooCommerce API credentials or URL not configured in .env.";
     console.error(errorMsg);
     return { error: errorMsg };
   }
-  // Note: wooApi client might not be used for this specific media upload, we are using axios directly
-  // if (!wooApi) {
-  //   const errorMsg = "[WC Media Upload] WooCommerce API client (wooApi) is not initialized.";
-  //   console.error(errorMsg);
-  //   return { error: errorMsg };
-  // }
 
   try {
     const fileBuffer = await fs.readFile(localImagePathAbsolute);
     const form = new FormDataLib();
-    form.append('file', fileBuffer, filename);
+    // Use originalImageName for the file upload
+    form.append('file', fileBuffer, originalImageName); 
+    // Add an explicit title
+    form.append('title', (productNameForAlt || originalImageName.split('.')[0]).substring(0, 100));
+    form.append('alt_text', `Image of ${productNameForAlt || originalImageName.split('.')[0]}`);
+
 
     // Use Query String Authentication
     const mediaUploadUrlWithAuth = `${wooCommerceStoreUrl}/wp-json/wp/v2/media?consumer_key=${encodeURIComponent(wooCommerceApiKey)}&consumer_secret=${encodeURIComponent(wooCommerceApiSecret)}`;
 
-    console.log(`[WC Media Upload - ${filename}] Uploading (size ${fileBuffer.length} bytes) to WooCommerce Media using Query String Auth...`);
-    console.log(`[WC Media Upload - ${filename}] Target URL (secret redacted): ${wooCommerceStoreUrl}/wp-json/wp/v2/media?consumer_key=${encodeURIComponent(wooCommerceApiKey)}&consumer_secret=[REDACTED]`);
+    console.log(`[WC Media Upload - ${originalImageName}] Uploading (size ${fileBuffer.length} bytes) to WooCommerce Media using Query String Auth...`);
+    console.log(`[WC Media Upload - ${originalImageName}] Target URL (secret redacted): ${wooCommerceStoreUrl}/wp-json/wp/v2/media?consumer_key=${encodeURIComponent(wooCommerceApiKey)}&consumer_secret=[REDACTED]`);
+    console.log(`[WC Media Upload - ${originalImageName}] FormData includes: file (name: ${originalImageName}), title, alt_text.`);
 
     const uploadStartTime = Date.now();
     const response = await axios.post(
@@ -92,37 +92,36 @@ async function uploadImageToWooCommerceMedia(
       {
         headers: {
           ...form.getHeaders(),
-          // Authorization header is NOT used with query string auth
         },
-        timeout: 120000,
+        timeout: 120000, // 2 minutes timeout
       }
     );
     const uploadEndTime = Date.now();
-    console.log(`[WC Media Upload - ${filename}] Axios POST finished. Time: ${uploadEndTime - uploadStartTime}ms. Status: ${response.status}`);
+    console.log(`[WC Media Upload - ${originalImageName}] Axios POST finished. Time: ${uploadEndTime - uploadStartTime}ms. Status: ${response.status}`);
 
     if (response.data && response.data.id) {
-      console.log(`[WC Media Upload - ${filename}] Successfully uploaded. Media ID: ${response.data.id}, URL: ${response.data.source_url}`);
-      console.log(`[WC Media Upload - ${filename}] END - Success`);
+      console.log(`[WC Media Upload - ${originalImageName}] Successfully uploaded. Media ID: ${response.data.id}, URL: ${response.data.source_url}`);
+      console.log(`[WC Media Upload - ${originalImageName}] END - Success`);
       return {
         id: response.data.id,
         source_url: response.data.source_url,
-        name: response.data.slug || filename,
-        alt_text: response.data.alt_text || `Image of ${productName || filename.split('.')[0]}`
+        name: response.data.slug || originalImageName, // Use originalImageName as fallback for name
+        alt_text: response.data.alt_text || `Image of ${productNameForAlt || originalImageName.split('.')[0]}`
       };
     } else {
-      const errorMsg = `[WC Media Upload - ${filename}] Failed to upload. Invalid response data.`;
+      const errorMsg = `[WC Media Upload - ${originalImageName}] Failed to upload. Invalid response data.`;
       console.error(errorMsg, 'Response Data (first 200 chars):', JSON.stringify(response.data)?.substring(0,200));
-      console.log(`[WC Media Upload - ${filename}] END - Failure (Invalid Response Data)`);
+      console.log(`[WC Media Upload - ${originalImageName}] END - Failure (Invalid Response Data)`);
       return { error: "Failed to upload image to WooCommerce: Invalid response data.", details: response.data };
     }
   } catch (error: any) {
     let wcErrorMessage = "Unknown Axios error during media upload";
     let wcErrorDetails:any = null;
-    console.error(`[WC Media Upload - ${filename}] Axios error uploading:`, error.message);
+    console.error(`[WC Media Upload - ${originalImageName}] Axios error uploading:`, error.message);
     if (axios.isAxiosError(error)) {
         if (error.response) {
-            console.error(`[WC Media Upload - ${filename}] Axios error response status: ${error.response.status}`);
-            console.error(`[WC Media Upload - ${filename}] Axios error response data:`, error.response.data);
+            console.error(`[WC Media Upload - ${originalImageName}] Axios error response status: ${error.response.status}`);
+            console.error(`[WC Media Upload - ${originalImageName}] Axios error response data:`, error.response.data);
             wcErrorDetails = error.response.data;
             if (typeof error.response.data === 'object' && error.response.data !== null) {
                 wcErrorMessage = (error.response.data as any).message || JSON.stringify(error.response.data);
@@ -130,11 +129,11 @@ async function uploadImageToWooCommerceMedia(
                 wcErrorMessage = error.response.data;
             }
         } else if (error.request) {
-            console.error(`[WC Media Upload - ${filename}] Axios error: No response received.`);
+            console.error(`[WC Media Upload - ${originalImageName}] Axios error: No response received.`);
             wcErrorMessage = "No response from WooCommerce media server.";
         }
     }
-    console.log(`[WC Media Upload - ${filename}] END - Failure (Axios Error)`);
+    console.log(`[WC Media Upload - ${originalImageName}] END - Failure (Axios Error)`);
     return { error: wcErrorMessage, details: wcErrorDetails };
   }
 }
@@ -460,7 +459,7 @@ async function createWooCommerceProductForGroup(
     for (const entry of productEntries) {
         if (entry.wooCommerceMediaId) {
             const altText = entry.generatedContent?.seoMetadata?.alt || entry.seoMetadata?.alt || currentProductContext.name;
-            const imageName = entry.seoName || entry.imageName;
+            const imageName = entry.seoName || entry.imageName; // Use seoName if available, fallback to original imageName
             wooImagesPayload.push({ id: entry.wooCommerceMediaId, alt: altText, name: imageName, position: entry.productContext?.isPrimary ? 0 : (wooImagesPayload.length) });
              console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Added image to payload: Media ID ${entry.wooCommerceMediaId}, Alt: ${altText.substring(0,20)}...`);
         } else { console.warn(`[WooCommerce CreateProduct - ${productNameFromContext}] Entry ${entry.id} (Image: ${entry.imageName}) missing wooCommerceMediaId.`); }
@@ -500,6 +499,7 @@ async function createWooCommerceProductForGroup(
     console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Regular Price: ${wooProductData.regular_price}`);
     if (wooProductData.sale_price) console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Sale Price: ${wooProductData.sale_price}`);
     console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Short Description (first 50): ${(wooProductData.short_description || "").substring(0,50)}...`);
+    console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Long Description (first 50): ${(wooProductData.description || "").substring(0,50)}...`);
     console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Categories (IDs): ${wooProductData.categories.map((c:any) => c.id).join(', ')}`);
     console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Tags (Names): ${wooProductData.tags.map((t:any) => t.name).join(', ')}`);
     console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Images (Media IDs): ${wooProductData.images.map((img:any) => img.id).join(', ')}`);
@@ -714,28 +714,26 @@ export async function POST(request: NextRequest) {
         // ---- SHARP PROCESSING TEMPORARILY DISABLED ----
         console.warn(`[ImgProc - ${photoData.imageName}] SHARP image processing is TEMPORARILY DISABLED. Using original image for 'processed' paths.`);
         const fileExt = path.extname(photoData.imageName) || '.jpg';
-        const seoFilenameBase = generatedContent.seoFilenameBase || cleanTextForFilename(parsedNameData?.extractedProductName || photoData.imageName.split('.')[0]);
-        const seoFilenameWithExt = `${seoFilenameBase}${fileExt}`; // Using original extension since no conversion
+        // Use original filename if SEO name base is just a placeholder or seems invalid.
+        // For this test, let's use the original name directly to ensure WC compatibility
+        const filenameForProcessing = photoData.imageName; // Use original image name for "processing"
 
         const processedImageDir = path.join(process.cwd(), 'public', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId);
         await fs.mkdir(processedImageDir, { recursive: true });
+        const processedImageAbsolutePath = path.join(processedImageDir, filenameForProcessing); // Store with original name in processed dir
 
-        // Simulate processing by copying the original file to the "processed" location with new SEO name
-        // This also helps verify if the path for WC upload is correct.
-        const processedImageAbsolutePath = path.join(processedImageDir, seoFilenameWithExt);
         try {
             await fs.copyFile(localImageAbsolutePath, processedImageAbsolutePath);
-            console.log(`[ImgProc - ${photoData.imageName}] SHARP SKIPPED. Copied original to processed path: ${processedImageAbsolutePath}`);
+            console.log(`[ImgProc - ${photoData.imageName}] SHARP SKIPPED. Copied original to processed path: ${processedImageAbsolutePath} (using original name)`);
         } catch (copyError: any) {
             console.error(`[ImgProc - ${photoData.imageName}] SHARP SKIPPED. Error copying original to processed path: ${copyError.message}. Using original path directly.`);
-            // Fallback to original path if copy fails, though this might mean issues with the processed dir.
         }
 
-        const processedImageRelativePath = path.join('/', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId, seoFilenameWithExt).replace(/\\\\/g, '/');
+        const processedImageRelativePath = path.join('/', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId, filenameForProcessing).replace(/\\\\/g, '/');
         // ---- END SHARP DISABLED ----
 
         const updateDataForOptimized: Partial<ProcessingStatusEntry> = {
-          status: 'processing_image_optimized', progress: 65, seoName: seoFilenameWithExt,
+          status: 'processing_image_optimized', progress: 65, seoName: filenameForProcessing, // Use original name as seoName for now
           processedImageStoragePath: processedImageRelativePath, processedImageDownloadUrl: processedImageRelativePath,
           seoMetadata: generatedContent.seoMetadata, updatedAt: admin.firestore.FieldValue.serverTimestamp() as any,
         };
@@ -756,9 +754,14 @@ export async function POST(request: NextRequest) {
         await photoDocRef.update(updateDataForRuleApp);
         console.log(`[ImgProc - ${photoData.imageName}] Rules applied. Cat: ${finalCategorySlug}, Tags: ${finalTags.join(', ')}`);
 
-        console.log(`[ImgProc - ${photoData.imageName}] uploadImageToWooCommerceMedia START for ${processedImageAbsolutePath}`);
+        // Pass the original image name and the product name for context
+        console.log(`[ImgProc - ${photoData.imageName}] uploadImageToWooCommerceMedia START for ${processedImageAbsolutePath} (original name: ${photoData.imageName})`);
         const wcUploadStartTime = Date.now();
-        const wcMediaUploadResult = await uploadImageToWooCommerceMedia(processedImageAbsolutePath, seoFilenameWithExt, miniLMInput.productName);
+        const wcMediaUploadResult = await uploadImageToWooCommerceMedia(
+            processedImageAbsolutePath,
+            photoData.imageName, // Send original filename to WooCommerce
+            miniLMInput.productName // Send product name for alt text context
+        );
         const wcUploadEndTime = Date.now();
         console.log(`[ImgProc - ${photoData.imageName}] uploadImageToWooCommerceMedia END. Time: ${wcUploadEndTime - wcUploadStartTime}ms.`);
 
@@ -774,7 +777,7 @@ export async function POST(request: NextRequest) {
           else if (!currentSeoMetadata.alt && miniLMInput.productName) updateDataForWCMedia.seoMetadata = { ...currentSeoMetadata, alt: `Image of ${miniLMInput.productName}` };
           await photoDocRef.update(updateDataForWCMedia);
         } else {
-          const uploadErrorMsg = wcMediaUploadResult?.error || `Unknown error uploading ${seoFilenameWithExt} to WC Media.`;
+          const uploadErrorMsg = wcMediaUploadResult?.error || `Unknown error uploading ${photoData.imageName} to WC Media.`;
           const uploadErrorDetails = wcMediaUploadResult?.details ? JSON.stringify(wcMediaUploadResult.details) : "No additional details.";
           console.error(`[ImgProc - ${photoData.imageName}] FAILED to upload to WC Media. Error: ${uploadErrorMsg}`, "Details:", uploadErrorDetails);
           await photoDocRef.update({ status: 'error_processing_image', errorMessage: `${uploadErrorMsg.substring(0,100)} Details: ${uploadErrorDetails.substring(0,150)}`, progress: 85, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
