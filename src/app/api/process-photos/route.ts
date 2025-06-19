@@ -3,57 +3,59 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { adminDb, admin, adminAuth } from '@/lib/firebase-admin';
-// import sharp from 'sharp'; // SHARP TEMPORARILY DISABLED
+// import sharp from 'sharp'; // SHARP TEMPORARILY DISABLED (as per user request to isolate issues)
 import { fileTypeFromBuffer } from 'file-type';
 import type { ProductTemplate, ProcessingStatusEntry, AutomationRule, AppNotification, WizardProductContext, WooCommerceCategory, ProductType, ParsedNameData, MiniLMInput, GeneratedProductContent, SeoHistoryEntry } from '@/lib/types';
 import { PRODUCT_TEMPLATES_COLLECTION, AUTOMATION_RULES_COLLECTION, APP_NOTIFICATIONS_COLLECTION, SEO_HISTORY_COLLECTION, DEFAULT_PROMPTS } from '@/lib/constants';
 import axios from 'axios';
-import FormDataLib from "form-data"; 
+import FormDataLib from "form-data";
 import { wooApi } from '@/lib/woocommerce';
 import path from 'path';
-import fs from 'fs/promises'; 
+import fs from 'fs/promises';
 // import { generateProductDescription } from '@/ai/flows/generate-product-description'; // Genkit flow
-import { classifyImage } from '@/ai/services/image-classification'; 
+import { classifyImage } from '@/ai/services/image-classification';
 import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
-// import { generateContentWithMiniLM } from '@/ai/services/minilm-text-generation'; 
+// import { generateContentWithMiniLM } from '@/ai/services/minilm-text-generation';
 import { LOCAL_UPLOAD_RAW_DIR_RELATIVE, LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE } from '@/lib/local-storage-constants';
 
 
-// TEMPORARY PLACEHOLDER FUNCTIONS (AI DISABLED)
+// --- START TEMPORARY PLACEHOLDER FUNCTIONS (AI DISABLED as per user request) ---
 async function generateProductDescription(
   input: any
 ): Promise<{ shortDescription?: string; longDescription?: string }> {
-  console.warn("[API /process-photos] generateProductDescription (Genkit) is TEMPORARILY DISABLED. Returning placeholders.");
+  console.warn("[API /process-photos] TEMPORARILY DISABLED: generateProductDescription (Genkit) is returning placeholders.");
+  const productName = input.productName || "Producto";
   return {
-    shortDescription: `Placeholder Genkit short description for ${input.productName}.`,
-    longDescription: `Placeholder Genkit long description for ${input.productName} including details about category: ${input.categoryName}, keywords: ${input.keywords}, attributes: ${input.attributesSummary}.`,
+    shortDescription: `Placeholder (Genkit Deshabilitado) descripción corta para ${productName}.`,
+    longDescription: `Placeholder (Genkit Deshabilitado) descripción larga para ${productName}. Categoría: ${input.categoryName}, Palabras Clave: ${input.keywords}, Atributos: ${input.attributesSummary}.`,
   };
 }
 
 async function generateContentWithMiniLM(
   input: MiniLMInput
 ): Promise<GeneratedProductContent> {
-  console.warn(`[API /process-photos] generateContentWithMiniLM (MiniLM) is TEMPORARILY DISABLED. Returning placeholders for ${input.productName}.`);
+  console.warn(`[API /process-photos] TEMPORARILY DISABLED: generateContentWithMiniLM (MiniLM) is returning placeholders for ${input.productName}.`);
   const baseName = cleanTextForFilename(input.productName || 'placeholder-product');
   return {
     seoFilenameBase: baseName,
-    shortDescription: `Placeholder MiniLM short description for ${input.productName}.`,
-    longDescription: `Placeholder MiniLM long description for ${input.productName}.`,
+    shortDescription: `Placeholder (MiniLM Deshabilitado) descripción corta para ${input.productName}.`,
+    longDescription: `Placeholder (MiniLM Deshabilitado) descripción larga para ${input.productName}.`,
     seoMetadata: {
-      alt: `Placeholder alt text for ${input.productName}`,
-      title: `Placeholder Title: ${input.productName}`,
-      description: `Placeholder meta description for ${input.productName}.`,
+      alt: `Placeholder (MiniLM Deshabilitado) alt text para ${input.productName}`,
+      title: `Placeholder (MiniLM Deshabilitado) Título: ${input.productName}`,
+      description: `Placeholder (MiniLM Deshabilitado) meta descripción para ${input.productName}.`,
     },
-    attributes: input.existingAttributes || [{ name: 'Placeholder Attr', value: 'Placeholder Value' }],
+    attributes: input.existingAttributes || [{ name: 'Atributo Placeholder', value: 'Valor Placeholder' }],
     tags: input.existingKeywords?.split(',').map(k => k.trim()).filter(k => k) || ['placeholder-tag'],
   };
 }
+// --- END TEMPORARY PLACEHOLDER FUNCTIONS ---
 
 
 async function uploadImageToWooCommerceMedia(
-  localImagePathAbsolute: string, 
-  filename: string, 
-  productName?: string 
+  localImagePathAbsolute: string,
+  filename: string,
+  productName?: string
 ): Promise<{ id: number; source_url: string; name: string; alt_text: string; error?: string, details?: any } | { error: string, details?: any }> {
   const wooCommerceStoreUrl = process.env.WOOCOMMERCE_STORE_URL;
   const wooCommerceApiKey = process.env.WOOCOMMERCE_API_KEY;
@@ -61,32 +63,38 @@ async function uploadImageToWooCommerceMedia(
 
   console.log(`[WC Media Upload - ${filename}] START. Path: ${localImagePathAbsolute}`);
   if (!wooCommerceStoreUrl || !wooCommerceApiKey || !wooCommerceApiSecret) {
-    const errorMsg = "[WC Media Upload] WooCommerce API credentials or URL not configured.";
+    const errorMsg = "[WC Media Upload] WooCommerce API credentials or URL not configured in .env.";
     console.error(errorMsg);
     return { error: errorMsg };
   }
-  if (!wooApi) {
-    const errorMsg = "[WC Media Upload] WooCommerce API client (wooApi) is not initialized.";
-    console.error(errorMsg);
-    return { error: errorMsg };
-  }
+  // Note: wooApi client might not be used for this specific media upload, we are using axios directly
+  // if (!wooApi) {
+  //   const errorMsg = "[WC Media Upload] WooCommerce API client (wooApi) is not initialized.";
+  //   console.error(errorMsg);
+  //   return { error: errorMsg };
+  // }
 
   try {
     const fileBuffer = await fs.readFile(localImagePathAbsolute);
     const form = new FormDataLib();
     form.append('file', fileBuffer, filename);
-    
-    console.log(`[WC Media Upload - ${filename}] Uploading (size ${fileBuffer.length} bytes) to WooCommerce Media...`);
+
+    // Use Query String Authentication
+    const mediaUploadUrlWithAuth = `${wooCommerceStoreUrl}/wp-json/wp/v2/media?consumer_key=${encodeURIComponent(wooCommerceApiKey)}&consumer_secret=${encodeURIComponent(wooCommerceApiSecret)}`;
+
+    console.log(`[WC Media Upload - ${filename}] Uploading (size ${fileBuffer.length} bytes) to WooCommerce Media using Query String Auth...`);
+    console.log(`[WC Media Upload - ${filename}] Target URL (secret redacted): ${wooCommerceStoreUrl}/wp-json/wp/v2/media?consumer_key=${encodeURIComponent(wooCommerceApiKey)}&consumer_secret=[REDACTED]`);
+
     const uploadStartTime = Date.now();
     const response = await axios.post(
-      `${wooCommerceStoreUrl}/wp-json/wp/v2/media`, 
+      mediaUploadUrlWithAuth,
       form,
       {
         headers: {
           ...form.getHeaders(),
-          'Authorization': `Basic ${Buffer.from(`${wooCommerceApiKey}:${wooCommerceApiSecret}`).toString('base64')}`,
+          // Authorization header is NOT used with query string auth
         },
-        timeout: 120000, 
+        timeout: 120000,
       }
     );
     const uploadEndTime = Date.now();
@@ -98,7 +106,7 @@ async function uploadImageToWooCommerceMedia(
       return {
         id: response.data.id,
         source_url: response.data.source_url,
-        name: response.data.slug || filename, 
+        name: response.data.slug || filename,
         alt_text: response.data.alt_text || `Image of ${productName || filename.split('.')[0]}`
       };
     } else {
@@ -114,7 +122,7 @@ async function uploadImageToWooCommerceMedia(
     if (axios.isAxiosError(error)) {
         if (error.response) {
             console.error(`[WC Media Upload - ${filename}] Axios error response status: ${error.response.status}`);
-            console.error(`[WC Media Upload - ${filename}] Axios error response data:`, error.response.data); 
+            console.error(`[WC Media Upload - ${filename}] Axios error response data:`, error.response.data);
             wcErrorDetails = error.response.data;
             if (typeof error.response.data === 'object' && error.response.data !== null) {
                 wcErrorMessage = (error.response.data as any).message || JSON.stringify(error.response.data);
@@ -184,7 +192,7 @@ async function getAutomationRules(): Promise<AutomationRule[]> {
 
 let allWooCategoriesCache: WooCommerceCategory[] | null = null;
 let lastCategoryFetchAttempt = 0;
-const CATEGORY_FETCH_COOLDOWN = 5 * 60 * 1000; 
+const CATEGORY_FETCH_COOLDOWN = 5 * 60 * 1000;
 
 async function fetchWooCommerceCategories(forceRefresh: boolean = false): Promise<WooCommerceCategory[]> {
     const now = Date.now();
@@ -204,10 +212,10 @@ async function fetchWooCommerceCategories(forceRefresh: boolean = false): Promis
             return allWooCategoriesCache;
         }
         console.warn("[WooCommerce Categories] Failed to fetch categories, response not OK or not an array. Status:", response.status, "Data (first 100 chars):", response.data ? String(response.data).substring(0,100) + '...' : 'N/A');
-        return allWooCategoriesCache || []; 
+        return allWooCategoriesCache || [];
     } catch (error: any) {
         console.error("[WooCommerce Categories] Error fetching:", error.message || error);
-        return allWooCategoriesCache || []; 
+        return allWooCategoriesCache || [];
     }
 }
 
@@ -311,7 +319,7 @@ async function triggerNextPhotoProcessing(batchId: string, requestUrl: string, u
   const apiUrl = new URL('/api/process-photos', requestUrl).toString();
   console.log(`[API Trigger - ${context || 'General'}] Triggering next processing for batch ${batchId} by calling: ${apiUrl}. UserId: ${userId || 'N/A'}`);
   try {
-    
+
     fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -389,7 +397,7 @@ async function createWooCommerceProductForGroup(
         existingKeywords: currentProductContext.keywords,
         existingAttributes: currentProductContext.attributes,
       };
-      generatedContent = await generateContentWithMiniLM(miniLMInput); 
+      generatedContent = await generateContentWithMiniLM(miniLMInput);
       console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Placeholder content generated for product group. SEO Base='${generatedContent.seoFilenameBase}'`);
     } else {
       console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Using existing generatedContent from primary entry. SEO Base='${generatedContent.seoFilenameBase}'`);
@@ -417,30 +425,30 @@ async function createWooCommerceProductForGroup(
         precio_oferta: currentProductContext.salePrice || ''
     };
 
-    if (!finalShortDescription || finalShortDescription.trim() === "" || finalShortDescription.includes("Placeholder MiniLM short description") || finalShortDescription.includes("Placeholder Genkit short description")) {
+    if (!finalShortDescription || finalShortDescription.trim() === "" || finalShortDescription.includes("Placeholder MiniLM") || finalShortDescription.includes("Placeholder Genkit")) {
         console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Short description missing or placeholder, attempting Genkit/Template fallback.`);
         try {
             console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Invoking generateProductDescription...`);
             const aiDescInput = { productName: currentProductContext.name, categoryName: templateDataForDesc.categoria, keywords: templateDataForDesc.palabras_clave, attributesSummary: templateDataForDesc.atributos };
-            const aiOutput = await generateProductDescription(aiDescInput); 
+            const aiOutput = await generateProductDescription(aiDescInput);
             if (aiOutput.shortDescription) { finalShortDescription = aiOutput.shortDescription; console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Genkit generated short desc.`); }
         } catch (aiError) { console.warn(`[WooCommerce CreateProduct - ${productNameFromContext}] Genkit short desc generation failed:`, aiError); }
-        if (!finalShortDescription || finalShortDescription.trim() === "" || finalShortDescription.includes("Placeholder MiniLM short description") || finalShortDescription.includes("Placeholder Genkit short description")) {
+        if (!finalShortDescription || finalShortDescription.trim() === "" || finalShortDescription.includes("Placeholder MiniLM") || finalShortDescription.includes("Placeholder Genkit")) {
             const shortDescTemplate = templates.find(t => t.type === 'descripcion_corta' && (t.scope === 'global' || (t.scope === 'categoria_especifica' && t.categoryValue === (primaryEntry.assignedCategorySlug || currentProductContext.category))));
             finalShortDescription = shortDescTemplate ? applyTemplate(shortDescTemplate.content, templateDataForDesc) : `Descubre ${currentProductContext.name}.`;
             console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Using template/fallback for short desc.`);
         }
     }
 
-    if (!finalLongDescription || finalLongDescription.trim() === "" || finalLongDescription.includes("Placeholder MiniLM long description") || finalLongDescription.includes("Placeholder Genkit long description")) {
+    if (!finalLongDescription || finalLongDescription.trim() === "" || finalLongDescription.includes("Placeholder MiniLM") || finalLongDescription.includes("Placeholder Genkit")) {
         console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Long description missing or placeholder, attempting Genkit/Template fallback.`);
          try {
             console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Invoking generateProductDescription for long desc...`);
             const aiDescInput = { productName: currentProductContext.name, categoryName: templateDataForDesc.categoria, keywords: templateDataForDesc.palabras_clave, attributesSummary: templateDataForDesc.atributos };
-            const aiOutput = await generateProductDescription(aiDescInput); 
+            const aiOutput = await generateProductDescription(aiDescInput);
             if (aiOutput.longDescription) { finalLongDescription = aiOutput.longDescription; console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Genkit generated long desc.`); }
         } catch (aiError) { console.warn(`[WooCommerce CreateProduct - ${productNameFromContext}] Genkit long desc generation failed:`, aiError); }
-        if (!finalLongDescription || finalLongDescription.trim() === "" || finalLongDescription.includes("Placeholder MiniLM long description") || finalLongDescription.includes("Placeholder Genkit long description")) {
+        if (!finalLongDescription || finalLongDescription.trim() === "" || finalLongDescription.includes("Placeholder MiniLM") || finalLongDescription.includes("Placeholder Genkit")) {
             const longDescTemplate = templates.find(t => t.type === 'descripcion_larga' && (t.scope === 'global' || (t.scope === 'categoria_especifica' && t.categoryValue === (primaryEntry.assignedCategorySlug || currentProductContext.category))));
             finalLongDescription = longDescTemplate ? applyTemplate(longDescTemplate.content, templateDataForDesc) : `Descripción detallada de ${currentProductContext.name}.`;
             console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Using template/fallback for long desc.`);
@@ -473,7 +481,7 @@ async function createWooCommerceProductForGroup(
     console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Tags:`, tagsToUse.map(t => t.name).join(', '));
 
     const attributesToUse = (generatedContent?.attributes && generatedContent.attributes.length > 0 ? generatedContent.attributes : currentProductContext.attributes || [])
-        .filter(attr => attr.name && attr.name.trim() !== "" && attr.value && attr.value.trim() !== "") 
+        .filter(attr => attr.name && attr.name.trim() !== "" && attr.value && attr.value.trim() !== "")
         .map((attr, index) => ({ name: attr.name, options: attr.value.split('|').map(o => o.trim()), position: index, visible: true, variation: currentProductContext.productType === 'variable' }));
     console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Attributes (count: ${attributesToUse.length}): ${attributesToUse.map(a => `(n:${a.name},opts:${a.options.length},var:${a.variation})`).join('; ')}`);
 
@@ -517,7 +525,7 @@ async function createWooCommerceProductForGroup(
         try {
             console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Attempting to POST product to WC. SKU: ${currentSkuAttempt}, Retry: ${isRetry}. Timeout: 120s`);
             const wcPostStartTime = Date.now();
-            const response = await wooApi.post("products", productPayload, { timeout: 120000 }); 
+            const response = await wooApi.post("products", productPayload, { timeout: 120000 });
             const wcPostEndTime = Date.now();
             console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] WooCommerce Product POSTED. SKU: ${currentSkuAttempt}, WC Product ID: ${response.data.id}. Time: ${wcPostEndTime - wcPostStartTime}ms`);
             return {id: response.data.id, skuUsed: currentSkuAttempt};
@@ -580,12 +588,12 @@ async function createWooCommerceProductForGroup(
 
 export async function POST(request: NextRequest) {
   let body: { batchId?: string; userId?: string } = {};
-  let currentPhotoDocIdForErrorHandling: string | null = null; 
+  let currentPhotoDocIdForErrorHandling: string | null = null;
 
   try {
     const requestStartTime = Date.now();
     console.log(`\n\n[API /process-photos] START - POST request received at ${new Date(requestStartTime).toISOString()}`);
-    
+
     try {
         body = await request.clone().json();
         console.log(`[API /process-photos] Request body parsed: batchId='${body.batchId}', userId='${body.userId}'`);
@@ -617,14 +625,14 @@ export async function POST(request: NextRequest) {
     console.log(`[API /process-photos] Batch ${batchId}: Processing initiated.`);
 
     console.log(`[API /process-photos] Batch ${batchId}: Attempting to load shared resources (categories, templates, rules)...`);
-    const fetchCategoriesPromise = fetchWooCommerceCategories(); 
+    const fetchCategoriesPromise = fetchWooCommerceCategories();
     const getTemplatesPromise = getTemplates();
     const getAutomationRulesPromise = getAutomationRules();
     const [productCategories, allTemplates, allAutomationRules] = await Promise.all([fetchCategoriesPromise, getTemplatesPromise, getAutomationRulesPromise]);
     console.log(`[API /process-photos] Batch ${batchId}: Shared resources loaded. Categories: ${productCategories?.length || 0}, Templates: ${allTemplates.length}, Rules: ${allAutomationRules.length}`);
 
 
-    
+
     console.log(`[API /process-photos] Batch ${batchId}: Querying for photos with status 'uploaded'.`);
     const photosToProcessSnapshot = await adminDb.collection('processing_status')
                                           .where('batchId', '==', batchId)
@@ -664,7 +672,7 @@ export async function POST(request: NextRequest) {
         } catch (readError: any) {
            console.error(`[ImgProc - ${photoData.imageName}] Error reading local file ${localImageAbsolutePath}:`, readError.message);
            await photoDocRef.update({ status: 'error_processing_image', errorMessage: `Failed to read local image file: ${readError.message.substring(0,200)}`, progress: 5, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-           throw readError; 
+           throw readError;
         }
         console.log(`[ImgProc - ${photoData.imageName}] Image buffer loaded. Size: ${imageBuffer.length} bytes.`);
         await photoDocRef.update({ status: 'processing_image_downloaded', progress: 10, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
@@ -675,7 +683,7 @@ export async function POST(request: NextRequest) {
         await photoDocRef.update({ status: 'processing_image_name_parsed', progress: 15, parsedNameData, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
         console.log(`[ImgProc - ${photoData.imageName}] Name parsed. Prod='${parsedNameData.extractedProductName}', Attrs='${parsedNameData.potentialAttributes.join(',')}'`);
 
-        
+
         console.log(`[ImgProc - ${photoData.imageName}] AI: classifyImage START (stubbed)`);
         const classifyStartTime = Date.now();
         const visualTags = (await classifyImage(imageBuffer).catch(e => {
@@ -684,10 +692,10 @@ export async function POST(request: NextRequest) {
         const classifyEndTime = Date.now();
         console.log(`[ImgProc - ${photoData.imageName}] AI: classifyImage END (stubbed). Time: ${classifyEndTime - classifyStartTime}ms. Tags: ${visualTags.join(', ')}`);
         await photoDocRef.update({ status: 'processing_image_classified', progress: 25, visualTags, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-        
 
-        
-        const productCategoriesForMiniLM = await fetchWooCommerceCategories(); 
+
+
+        const productCategoriesForMiniLM = await fetchWooCommerceCategories();
         const miniLMInput: MiniLMInput = {
           productName: parsedNameData?.extractedProductName || photoData.productContext?.name || photoData.imageName.split('.')[0],
           visualTags,
@@ -697,32 +705,42 @@ export async function POST(request: NextRequest) {
         };
         console.log(`[ImgProc - ${photoData.imageName}] AI: generateContentWithMiniLM START. ProductName: ${miniLMInput.productName}, Category: ${miniLMInput.category}`);
         const miniLMStartTime = Date.now();
-        const generatedContent = await generateContentWithMiniLM(miniLMInput); 
+        const generatedContent = await generateContentWithMiniLM(miniLMInput);
         const miniLMEndTime = Date.now();
         console.log(`[ImgProc - ${photoData.imageName}] AI: generateContentWithMiniLM END. Time: ${miniLMEndTime - miniLMStartTime}ms. SEO Base='${generatedContent.seoFilenameBase}'`);
         await photoDocRef.update({ status: 'processing_image_content_generated', progress: 45, generatedContent, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-        
-        
+
+
         // ---- SHARP PROCESSING TEMPORARILY DISABLED ----
-        console.warn(`[ImgProc - ${photoData.imageName}] SHARP image processing is TEMPORARILY DISABLED.`);
+        console.warn(`[ImgProc - ${photoData.imageName}] SHARP image processing is TEMPORARILY DISABLED. Using original image for 'processed' paths.`);
+        const fileExt = path.extname(photoData.imageName) || '.jpg';
+        const seoFilenameBase = generatedContent.seoFilenameBase || cleanTextForFilename(parsedNameData?.extractedProductName || photoData.imageName.split('.')[0]);
+        const seoFilenameWithExt = `${seoFilenameBase}${fileExt}`; // Using original extension since no conversion
+
         const processedImageDir = path.join(process.cwd(), 'public', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId);
         await fs.mkdir(processedImageDir, { recursive: true });
-        
-        // Simulate processing by using the original file
-        const seoFilenameWithExt = photoData.imageName; // Use original filename
-        const processedImageAbsolutePath = localImageAbsolutePath; // Use original path
-        const processedImageRelativePath = photoData.originalDownloadUrl; // Use original relative path
 
-        console.log(`[ImgProc - ${photoData.imageName}] SHARP SKIPPED. Using original image: ${processedImageAbsolutePath}`);
+        // Simulate processing by copying the original file to the "processed" location with new SEO name
+        // This also helps verify if the path for WC upload is correct.
+        const processedImageAbsolutePath = path.join(processedImageDir, seoFilenameWithExt);
+        try {
+            await fs.copyFile(localImageAbsolutePath, processedImageAbsolutePath);
+            console.log(`[ImgProc - ${photoData.imageName}] SHARP SKIPPED. Copied original to processed path: ${processedImageAbsolutePath}`);
+        } catch (copyError: any) {
+            console.error(`[ImgProc - ${photoData.imageName}] SHARP SKIPPED. Error copying original to processed path: ${copyError.message}. Using original path directly.`);
+            // Fallback to original path if copy fails, though this might mean issues with the processed dir.
+        }
+
+        const processedImageRelativePath = path.join('/', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId, seoFilenameWithExt).replace(/\\\\/g, '/');
         // ---- END SHARP DISABLED ----
-        
+
         const updateDataForOptimized: Partial<ProcessingStatusEntry> = {
           status: 'processing_image_optimized', progress: 65, seoName: seoFilenameWithExt,
           processedImageStoragePath: processedImageRelativePath, processedImageDownloadUrl: processedImageRelativePath,
           seoMetadata: generatedContent.seoMetadata, updatedAt: admin.firestore.FieldValue.serverTimestamp() as any,
         };
         await photoDocRef.update(updateDataForOptimized);
-        
+
         const ruleApplicationResult = applyAutomationRules(parsedNameData, visualTags, photoData.productContext, allAutomationRules);
         const finalTags = Array.from(new Set([...(generatedContent.tags || []), ...ruleApplicationResult.assignedTags]));
         const finalCategorySlug = ruleApplicationResult.assignedCategorySlug || photoData.productContext?.category;
@@ -732,7 +750,7 @@ export async function POST(request: NextRequest) {
           assignedTags: finalTags, updatedAt: admin.firestore.FieldValue.serverTimestamp() as any,
         };
         if (generatedContent.attributes && generatedContent.attributes.length > 0) {
-          const currentProductContext = photoData.productContext || {} as WizardProductContext; 
+          const currentProductContext = photoData.productContext || {} as WizardProductContext;
           updateDataForRuleApp.productContext = { ...currentProductContext, attributes: generatedContent.attributes } as WizardProductContext;
         }
         await photoDocRef.update(updateDataForRuleApp);
@@ -743,7 +761,7 @@ export async function POST(request: NextRequest) {
         const wcMediaUploadResult = await uploadImageToWooCommerceMedia(processedImageAbsolutePath, seoFilenameWithExt, miniLMInput.productName);
         const wcUploadEndTime = Date.now();
         console.log(`[ImgProc - ${photoData.imageName}] uploadImageToWooCommerceMedia END. Time: ${wcUploadEndTime - wcUploadStartTime}ms.`);
-        
+
         if (wcMediaUploadResult && 'id' in wcMediaUploadResult && wcMediaUploadResult.id) {
           console.log(`[ImgProc - ${photoData.imageName}] WC Media Upload SUCCESS. Media ID: ${wcMediaUploadResult.id}`);
           const updateDataForWCMedia: Partial<ProcessingStatusEntry> = {
@@ -757,22 +775,23 @@ export async function POST(request: NextRequest) {
           await photoDocRef.update(updateDataForWCMedia);
         } else {
           const uploadErrorMsg = wcMediaUploadResult?.error || `Unknown error uploading ${seoFilenameWithExt} to WC Media.`;
-          console.error(`[ImgProc - ${photoData.imageName}] FAILED to upload to WC Media. Error: ${uploadErrorMsg}`, "Details:", wcMediaUploadResult?.details);
-          await photoDocRef.update({ status: 'error_processing_image', errorMessage: uploadErrorMsg.substring(0,250), progress: 85, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-          throw new Error(uploadErrorMsg); 
+          const uploadErrorDetails = wcMediaUploadResult?.details ? JSON.stringify(wcMediaUploadResult.details) : "No additional details.";
+          console.error(`[ImgProc - ${photoData.imageName}] FAILED to upload to WC Media. Error: ${uploadErrorMsg}`, "Details:", uploadErrorDetails);
+          await photoDocRef.update({ status: 'error_processing_image', errorMessage: `${uploadErrorMsg.substring(0,100)} Details: ${uploadErrorDetails.substring(0,150)}`, progress: 85, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+          throw new Error(uploadErrorMsg);
         }
         const imgProcEndTime = Date.now();
         console.log(`[ImgProc - ${photoData.imageName}] END individual image processing. Status: completed_image_pending_woocommerce. Total time: ${imgProcEndTime - imgProcStartTime}ms`);
       } catch (photoProcessingError: any) {
         const imgProcEndTime = Date.now();
         console.error(`[ImgProc - ${photoData.imageName}] ERROR during individual photo processing steps after ${imgProcEndTime - imgProcStartTime}ms. Doc ID: ${photoData.id}. Error: ${photoProcessingError.message}`);
-        const currentStatusSnapshot = await photoDocRef.get(); 
+        const currentStatusSnapshot = await photoDocRef.get();
         const currentStatus = currentStatusSnapshot.data()?.status;
-        if (currentStatus !== 'error_processing_image' && currentStatus !== 'error_woocommerce_integration') { 
+        if (currentStatus !== 'error_processing_image' && currentStatus !== 'error_woocommerce_integration') {
             await photoDocRef.update({
                 status: 'error_processing_image',
                 errorMessage: `PhotoProc Error: ${photoProcessingError.message?.substring(0, 250) || 'Unknown error during image processing.'}`,
-                progress: photoData.progress || 0, 
+                progress: photoData.progress || 0,
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
         }
@@ -785,7 +804,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: `Processed ${photoData.imageName}. Triggered next.`, batchId: batchId, processedPhotoId: photoData.id });
 
     } else {
-      
+
       console.log(`[API /process-photos] Batch ${batchId}: NO 'uploaded' photos found. Checking for 'completed_image_pending_woocommerce'...`);
 
       const entriesReadyForWooCommerceSnapshot = await adminDb.collection('processing_status')
@@ -795,7 +814,7 @@ export async function POST(request: NextRequest) {
 
       const entriesReadyForWooCommerce = entriesReadyForWooCommerceSnapshot.docs
                                             .map(doc => ({id: doc.id, ...doc.data() } as ProcessingStatusEntry))
-                                            .filter(entry => entry.productContext && entry.productContext.name); 
+                                            .filter(entry => entry.productContext && entry.productContext.name);
 
 
       const userIdForBatchOverall = userIdFromRequest || entriesReadyForWooCommerce[0]?.userId || 'batch_processing_user';
@@ -805,8 +824,8 @@ export async function POST(request: NextRequest) {
       if (entriesReadyForWooCommerce.length > 0) {
         const productsMap: Record<string, ProcessingStatusEntry[]> = {};
         entriesReadyForWooCommerce.forEach(entry => {
-            const productNameKey = entry.productContext?.name; 
-            if (!productNameKey) { 
+            const productNameKey = entry.productContext?.name;
+            if (!productNameKey) {
                 console.warn(`[API /process-photos] Batch ${batchId}: Entry ${entry.id} (Image: ${entry.imageName}) missing productContext.name. Marking error.`);
                 updateSpecificFirestoreEntries([entry.id], 'error_woocommerce_integration', { errorMessage: "Contexto de nombre de producto faltante."});
                 return;
@@ -850,9 +869,11 @@ export async function POST(request: NextRequest) {
               console.log(`[API /process-photos] END - Batch ${batchId} WC product creation complete & batch terminal. Total request time: ${requestEndTime - requestStartTime}ms.`);
               return NextResponse.json({ message: `Batch ${batchId} WC product creation complete & batch terminal.`, results: productCreationResults });
           } else {
+              console.log(`[API /process-photos] Batch ${batchId}: WC product creation cycle done, but batch NOT fully terminal. Triggering next processing check.`);
+              await triggerNextPhotoProcessing(batchId, request.url, userIdForBatchOverall, `After WC product creation cycle (not terminal)`);
               const requestEndTime = Date.now();
-              console.log(`[API /process-photos] END - Batch ${batchId} WC product creation cycle done, but batch NOT fully terminal. Total request time: ${requestEndTime - requestStartTime}ms.`);
-              return NextResponse.json({ message: `Batch ${batchId} WC product creation cycle done. Batch not terminal.`, results: productCreationResults });
+              console.log(`[API /process-photos] END - Batch ${batchId} WC product creation cycle done, batch NOT fully terminal. Total request time: ${requestEndTime - requestStartTime}ms.`);
+              return NextResponse.json({ message: `Batch ${batchId} WC product creation cycle done. Batch not terminal. Next check triggered.`, results: productCreationResults });
           }
         } else {
              console.log(`[API /process-photos] Batch ${batchId}: No valid product groups after filtering for WC creation.`);
@@ -861,7 +882,7 @@ export async function POST(request: NextRequest) {
              return NextResponse.json({ message: `Batch ${batchId}: No valid product groups. No products created.`, status: 'batch_completed_no_valid_groups' });
         }
       } else {
-        
+
         const allBatchEntriesSnapshot = await adminDb.collection('processing_status').where('batchId', '==', batchId).get();
         if (allBatchEntriesSnapshot.empty) {
              console.log(`[API /process-photos] Batch ${batchId}: Is empty or fully processed/removed.`);
@@ -876,6 +897,12 @@ export async function POST(request: NextRequest) {
 
         if (allTerminal) {
             console.log(`[API /process-photos] Batch ${batchId}: FINAL CHECK - All entries terminal. Processing complete.`);
+            // Perform final cleanup for terminal batches if not done before
+            const rawBatchDir = path.join(process.cwd(), 'public', LOCAL_UPLOAD_RAW_DIR_RELATIVE, batchId);
+            const processedBatchDir = path.join(process.cwd(), 'public', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId);
+            try { await fs.rm(rawBatchDir, { recursive: true, force: true }); console.log(`[Cleanup] Deleted raw batch dir: ${rawBatchDir}`); } catch (e: any) { /* ignore */ }
+            try { await fs.rm(processedBatchDir, { recursive: true, force: true }); console.log(`[Cleanup] Deleted processed batch dir: ${processedBatchDir}`); } catch (e: any) { /* ignore */ }
+
             const requestEndTime = Date.now();
             console.log(`[API /process-photos] END - Batch ${batchId}: Fully terminal. Total request time: ${requestEndTime - requestStartTime}ms.`);
              return NextResponse.json({ message: `Batch ${batchId} processing fully terminal.`, status: 'batch_already_terminal' });
@@ -891,9 +918,9 @@ export async function POST(request: NextRequest) {
     console.error(`[API /process-photos] CRITICAL TOP-LEVEL ERROR at ${new Date(errorTime).toISOString()}. Batch: ${body?.batchId || 'unknown'}, PhotoDoc ID (if set): ${currentPhotoDocIdForErrorHandling || 'N/A'}.`);
     console.error("Error message:", error.message || "Unknown error");
     console.error("Error stack:", error.stack || "No stack available");
-    
+
     const errorMessageString = String(error.message || 'Unknown server error during batch processing.');
-    
+
     if (adminDb && currentPhotoDocIdForErrorHandling) {
         try {
             const photoDocRef = adminDb.collection('processing_status').doc(currentPhotoDocIdForErrorHandling);
@@ -908,7 +935,7 @@ export async function POST(request: NextRequest) {
                     console.log(`[API /process-photos] Doc ${currentPhotoDocIdForErrorHandling} already in a terminal state (${currentEntryData.status}). Not updating with general error.`);
                 }
             }
-        } catch (dbUpdateError) { 
+        } catch (dbUpdateError) {
             console.error("[API /process-photos] Synchronous error during Firestore update attempt in CRITICAL ERROR handling:", dbUpdateError);
         }
     } else if (body?.batchId) {
@@ -916,12 +943,12 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-        { 
-            error: 'Failed to process photos due to a critical server error.', 
+        {
+            error: 'Failed to process photos due to a critical server error.',
             details: errorMessageString.substring(0,500),
             batchId: body?.batchId || 'unknown',
             photoIdOnError: currentPhotoDocIdForErrorHandling || 'N/A'
-        }, 
+        },
         { status: 500 }
     );
   }
