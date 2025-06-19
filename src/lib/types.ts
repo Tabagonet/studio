@@ -21,7 +21,7 @@ export interface ProductPhoto {
   seoTitle?: string;
   seoDescription?: string;
   seoCaption?: string;
-  localPath?: string; // Path on the server after local upload (e.g., /user_uploads/raw/batch_id/image.jpg)
+  localPath?: string; 
   externalUrl?: string; 
 }
 
@@ -126,42 +126,42 @@ export interface ProcessingStatusEntry {
   id: string; 
   userId: string;
   batchId: string;
-  imageName: string; // Original filename
-  originalStoragePath: string; // Initially path to local /user_uploads/raw/...
-  originalDownloadUrl: string; // Initially path to local /user_uploads/raw/...
+  imageName: string; 
+  originalStoragePath: string; 
+  originalDownloadUrl: string; 
   status: "uploaded" | 
           "processing_image_started" | 
-          "processing_image_name_parsed" | // New status for Natural.js output
-          "processing_image_classified" | // New status for MobileNet output
-          "processing_image_content_generated" | // New status for MiniLM output
-          "processing_image_downloaded" | // Kept if needed, but flow changes
+          "processing_image_name_parsed" | 
+          "processing_image_classified" | 
+          "processing_image_content_generated" | 
+          "processing_image_downloaded" | 
           "processing_image_validated" | 
-          "processing_image_optimized" | // Image optimized by Sharp
-          "processing_image_seo_named" | // Kept, but name comes from MiniLM
-          "processing_image_metadata_generated" |// Kept, but metadata from MiniLM
+          "processing_image_optimized" | 
+          "processing_image_seo_named" | 
+          "processing_image_metadata_generated" |
           "processing_image_rules_applied" |
-          "processing_image_reuploaded" | // This now means uploaded to WooCommerce Media
-          "completed_image_pending_woocommerce" | // Image processed locally, ready for WC product
+          "processing_image_reuploaded" | 
+          "completed_image_pending_woocommerce" | 
           "error_processing_image" |
           "completed_woocommerce_integration" | 
           "error_woocommerce_integration";    
   uploadedAt: Timestamp; 
   updatedAt?: Timestamp; 
   progress: number;
-  seoName?: string; // SEO filename from MiniLM (e.g. agave-cavanillesii-awesome.webp)
-  processedImageStoragePath?: string; // Path to local /user_uploads/processed/...
-  processedImageDownloadUrl?: string; // Path to local /user_uploads/processed/... (can be same as storage path)
-  wooCommerceMediaId?: number; // ID from WooCommerce after media upload
+  seoName?: string; 
+  processedImageStoragePath?: string; 
+  processedImageDownloadUrl?: string; 
+  wooCommerceMediaId?: number; 
   resolutions?: Record<string, string>; 
-  seoMetadata?: { alt?: string; title?: string, description?: string, caption?: string }; // Expanded
+  seoMetadata?: { alt?: string; title?: string, description?: string, caption?: string }; 
   errorMessage?: string;
   productAssociationId?: string; 
   assignedCategory?: string; 
   assignedTags?: string[];
   productContext?: WizardProductContext; 
-  parsedNameData?: ParsedNameData; // From Natural.js
-  visualTags?: string[]; // From MobileNetV2
-  generatedContent?: GeneratedProductContent; // From MiniLM
+  parsedNameData?: ParsedNameData; 
+  visualTags?: string[]; 
+  generatedContent?: GeneratedProductContent; 
 }
 
 export interface WooCommerceCategory {
@@ -170,7 +170,6 @@ export interface WooCommerceCategory {
   slug: string;
 }
 
-// Types for AI Product Description Generation (Genkit - will be replaced/augmented)
 export interface GenerateProductDescriptionInput {
   productName: string;
   categoryName?: string;
@@ -183,45 +182,41 @@ export interface GenerateProductDescriptionOutput {
   longDescription?: string;
 }
 
-// For Natural.js filename parsing
 export interface ParsedNameData {
   extractedProductName: string;
-  potentialAttributes: string[]; // e.g. "1" from "product-1.jpg"
+  potentialAttributes: string[]; 
   normalizedProductName: string;
 }
 
-// For MiniLM content generation
 export interface MiniLMInput {
-  productName: string; // From Natural.js
-  visualTags: string[]; // From MobileNetV2
+  productName: string; 
+  visualTags: string[]; 
   category?: string;
   existingKeywords?: string;
   existingAttributes?: ProductAttribute[];
-  // potentially add existing template content here
 }
 
 export interface GeneratedProductContent {
-  seoFilenameBase: string; // e.g., "agave-cavanillesii-succulent-plant" (without .webp)
+  seoFilenameBase: string; 
   shortDescription: string;
   longDescription: string;
   seoMetadata: {
     alt: string;
     title: string;
-    description?: string; // Meta description
-    caption?: string; // Image caption if applicable
+    description?: string; 
+    caption?: string; 
   };
-  attributes: ProductAttribute[]; // Suggested or refined attributes
-  tags: string[]; // Suggested tags
+  attributes: ProductAttribute[]; 
+  tags: string[]; 
 }
 
-// For Firestore SEO History
 export interface SeoHistoryEntry {
-  id?: string; // Firestore document ID
+  id?: string; 
   batchId: string;
   originalImageName: string;
-  productId?: string | number; // WooCommerce Product ID
-  productName: string; // Name used for generation
-  seoName?: string; // Filename
+  productId?: string | number; 
+  productName: string; 
+  seoName?: string; 
   shortDescription?: string;
   longDescription?: string;
   seoMetadata?: GeneratedProductContent['seoMetadata'];
@@ -231,3 +226,33 @@ export interface SeoHistoryEntry {
   processedAt: Timestamp;
 }
 
+export type AiPromptKey = 
+  | 'seoFilenameBase' 
+  | 'shortDescription' 
+  | 'longDescription' 
+  | 'seoAltText' 
+  | 'seoTitle' 
+  | 'metaDescription'
+  | 'suggestAttributes' // Placeholder for future, more complex attribute generation
+  | 'suggestTags';      // Placeholder for future, more complex tag generation
+
+export interface AiPrompt {
+  id: string; // Firestore document ID
+  promptKey: AiPromptKey;
+  description: string;
+  modelType: 'text-generation' | 'text2text-generation';
+  modelName: string; // e.g., "Xenova/distilgpt2"
+  promptTemplate: string;
+  defaultGenerationParams: Record<string, any>; // e.g., { "max_new_tokens": 70, "temperature": 0.7 }
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface AiPromptFormValues {
+  promptKey: AiPromptKey; // Should be read-only in form
+  description: string;
+  modelType: 'text-generation' | 'text2text-generation';
+  modelName: string;
+  promptTemplate: string;
+  defaultGenerationParamsText: string; // For textarea input of JSON
+}

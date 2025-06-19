@@ -1,5 +1,5 @@
 
-import { Home, Wand2, FileText, Cog, Bell, Settings, ShoppingBag, PackagePlus, ListChecks, Tags, Layers } from 'lucide-react';
+import { Home, Wand2, FileText, Cog, Bell, Settings, ShoppingBag, PackagePlus, ListChecks, Tags, Layers, Brain } from 'lucide-react';
 import type { NavItem, TemplateType, TemplateScope, ProductType } from '@/lib/types';
 
 export const APP_NAME = "WooAutomate";
@@ -29,6 +29,11 @@ export const NAV_ITEMS: NavItem[] = [
     title: 'Reglas de Automatización',
     href: '/rules',
     icon: Cog, 
+  },
+  {
+    title: 'Gestión de Prompts IA', // Nueva página
+    href: '/prompts',
+    icon: Brain, 
   },
   {
     title: 'Notificaciones',
@@ -84,5 +89,5 @@ export const TEMPLATE_SCOPES: { value: TemplateScope; label: string }[] = [
 export const PRODUCT_TEMPLATES_COLLECTION = "product_templates";
 export const AUTOMATION_RULES_COLLECTION = "automation_rules";
 export const APP_NOTIFICATIONS_COLLECTION = "app_notifications";
-export const SEO_HISTORY_COLLECTION = "seo_history"; // New collection for logging
-
+export const SEO_HISTORY_COLLECTION = "seo_history"; 
+export const AI_PROMPTS_COLLECTION = "ai_prompts"; // Nueva colección para prompts
