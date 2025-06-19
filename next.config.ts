@@ -1,6 +1,6 @@
 
 import type {NextConfig} from 'next';
-import path from 'path'; // Added import
+import path from 'path'; // Ensure path is imported
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -51,6 +51,7 @@ const nextConfig: NextConfig = {
     // This prevents the "Unknown module type" error for this specific file.
     config.resolve.alias = {
       ...config.resolve.alias,
+      // Ensure the path is correctly joined and points to the problematic file
       [path.join(__dirname, 'node_modules/@mapbox/node-pre-gyp/lib/util/nw-pre-gyp/index.html')]: false,
     };
 
