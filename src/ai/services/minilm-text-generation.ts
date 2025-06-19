@@ -21,7 +21,7 @@ let configuredPrompts: Map<AiPromptKey, AiPrompt> = new Map();
 let promptsLoaded = false;
 
 // Default prompts (fallbacks)
-const DEFAULT_PROMPTS: Record<AiPromptKey, Omit<AiPrompt, 'id' | 'createdAt' | 'updatedAt'>> = {
+export const DEFAULT_PROMPTS: Record<AiPromptKey, Omit<AiPrompt, 'id' | 'createdAt' | 'updatedAt'>> = {
   seoFilenameBase: {
     promptKey: 'seoFilenameBase',
     description: 'Genera un nombre de archivo base SEO (slug) para un producto.',
@@ -406,3 +406,4 @@ export async function generateContentWithMiniLM(
 // Call seedDefaultPrompts() once if you want to populate Firestore on first run.
 // Be careful not to call it on every server start unless you want to overwrite changes made via UI.
 // A better approach would be a separate script or a check on app init.
+
