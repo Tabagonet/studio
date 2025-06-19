@@ -63,49 +63,56 @@ async function uploadImageToWooCommerceMedia(
   const wooCommerceApiKey = process.env.WOOCOMMERCE_API_KEY;
   const wooCommerceApiSecret = process.env.WOOCOMMERCE_API_SECRET;
 
-  console.log(`[WC Media Upload - ${originalImageName}] START. Path: ${localImagePathAbsolute}`);
+  console.log(`[WC Media Upload - ${originalImageName}] START. Local Path: ${localImagePathAbsolute}`);
 
   if (!wooCommerceStoreUrl || !wooCommerceApiKey || !wooCommerceApiSecret) {
-    const errorMsg = "[WC Media Upload] WooCommerce API credentials or URL not configured in .env.";
+    const errorMsg = "[WC Media Upload] CRITICAL: WooCommerce API credentials or URL not configured in .env.";
     console.error(errorMsg);
     return { error: errorMsg };
   }
   if (!wooCommerceStoreUrl.startsWith('https://')) {
-    console.warn(`[WC Media Upload - ${originalImageName}] CRITICAL SECURITY WARNING: WOOCOMMERCE_STORE_URL ('${wooCommerceStoreUrl}') is using HTTP. API keys and data are sent insecurely. Please update to HTTPS if your site supports it.`);
+    console.warn(`[WC Media Upload - ${originalImageName}] CRITICAL SECURITY WARNING: WOOCOMMERCE_STORE_URL ('${wooCommerceStoreUrl}') is using HTTP. API keys and data are sent insecurely. Please update to HTTPS if your site supports it. This might also be causing permission issues.`);
   }
 
   try {
+    console.log(`[WC Media Upload - ${originalImageName}] Reading file buffer from: ${localImagePathAbsolute}`);
     const fileBuffer = await fs.readFile(localImagePathAbsolute);
     const fileTypeResult = await fileTypeFromBuffer(fileBuffer);
     const contentType = fileTypeResult ? fileTypeResult.mime : 'application/octet-stream';
+    console.log(`[WC Media Upload - ${originalImageName}] File buffer read. Size: ${fileBuffer.length} bytes, Content-Type: ${contentType}`);
 
     const form = new FormDataLib();
     form.append('file', fileBuffer, {
-        filename: originalImageName, // Use original name
+        filename: originalImageName, // Use original name for WC
         contentType: contentType,
         knownLength: fileBuffer.length
     });
-    form.append('title', productNameForAlt || originalImageName.split('.')[0]);
-    form.append('status', 'publish'); // Explicitly set status
+    const titleForUpload = productNameForAlt || originalImageName.split('.')[0].replace(/[-_]/g, ' ');
+    form.append('title', titleForUpload);
+    form.append('status', 'publish');
+    console.log(`[WC Media Upload - ${originalImageName}] FormData prepared. Appending 'file' (name: ${originalImageName}), 'title' (value: ${titleForUpload}), 'status' (value: 'publish')`);
 
     const mediaUploadUrl = `${wooCommerceStoreUrl}/wp-json/wp/v2/media`;
+    const authString = Buffer.from(`${wooCommerceApiKey}:${wooCommerceApiSecret}`).toString('base64');
+    const headers = {
+      ...form.getHeaders(), // Important for multipart/form-data
+      'Authorization': `Basic ${authString}`,
+    };
 
-    console.log(`[WC Media Upload - ${originalImageName}] Uploading (size ${fileBuffer.length} bytes, type ${contentType}) to WooCommerce Media using Axios with Basic Auth...`);
-    console.log(`[WC Media Upload - ${originalImageName}] Target URL: ${mediaUploadUrl}`);
+    console.log(`[WC Media Upload - ${originalImageName}] Attempting to POST to: ${mediaUploadUrl} using Basic Auth.`);
+    console.log(`[WC Media Upload - ${originalImageName}] Auth Header Prefix: Basic [REDACTED]`);
+    // console.log(`[WC Media Upload - ${originalImageName}] Full Headers (excluding form-data boundary details for brevity):`, { ...headers, 'content-type': 'multipart/form-data; ...' }); // Be careful logging full headers if sensitive
     
     const uploadStartTime = Date.now();
     const response = await axios.post(mediaUploadUrl, form, {
-      headers: {
-        ...form.getHeaders(), // Important for multipart/form-data
-      },
-      auth: { // Axios way for Basic Auth
-        username: wooCommerceApiKey,
-        password: wooCommerceApiSecret,
-      },
+      headers: headers,
       timeout: 60000, // 60 seconds timeout
     });
     const uploadEndTime = Date.now();
     console.log(`[WC Media Upload - ${originalImageName}] Axios POST finished. Time: ${uploadEndTime - uploadStartTime}ms. Status: ${response.status}`);
+    console.log(`[WC Media Upload - ${originalImageName}] Response Headers:`, JSON.stringify(response.headers, null, 2).substring(0, 500) + "...");
+    console.log(`[WC Media Upload - ${originalImageName}] Response Data:`, JSON.stringify(response.data, null, 2).substring(0, 1000) + "...");
+
 
     const responseData = response.data;
 
@@ -120,7 +127,7 @@ async function uploadImageToWooCommerceMedia(
       };
     } else {
       const errorMsg = `[WC Media Upload - ${originalImageName}] Failed to upload. Status: ${response.status}.`;
-      console.error(errorMsg, 'Response Data:', responseData);
+      console.error(errorMsg, 'Full Response Data:', responseData); // Log full data on error
       console.log(`[WC Media Upload - ${originalImageName}] END - Failure (Invalid Response or Status)`);
       return { error: responseData.message || responseData.error || "Failed to upload image to WooCommerce: Invalid response data or status.", details: responseData };
     }
@@ -129,16 +136,19 @@ async function uploadImageToWooCommerceMedia(
     let wcErrorDetails:any = null;
 
     if (axios.isAxiosError(error)) {
-      console.error(`[WC Media Upload - ${originalImageName}] Axios error uploading:`, error.message);
+      console.error(`[WC Media Upload - ${originalImageName}] Axios error during upload. Message: ${error.message}`);
       wcErrorMessage = error.message;
       if (error.response) {
-        console.error(`[WC Media Upload - ${originalImageName}] Axios error response status:`, error.response.status);
-        console.error(`[WC Media Upload - ${originalImageName}] Axios error response data:`, error.response.data);
+        console.error(`[WC Media Upload - ${originalImageName}] Axios error response status: ${error.response.status}`);
+        console.error(`[WC Media Upload - ${originalImageName}] Axios error response data:`, JSON.stringify(error.response.data, null, 2));
         wcErrorDetails = error.response.data;
         if (error.response.data?.message) wcErrorMessage = error.response.data.message;
+      } else if (error.request) {
+        console.error(`[WC Media Upload - ${originalImageName}] Axios error: No response received. Request details:`, error.request);
+        wcErrorMessage = "No response received from WooCommerce server for media upload.";
       }
     } else {
-      console.error(`[WC Media Upload - ${originalImageName}] Non-Axios error during upload:`, error.message || error);
+      console.error(`[WC Media Upload - ${originalImageName}] Non-Axios error during upload: ${error.message || String(error)}`);
       wcErrorMessage = error.message || "Non-Axios upload error";
     }
     
@@ -339,17 +349,18 @@ async function createBatchCompletionNotification(batchId: string, userId: string
 
 async function triggerNextPhotoProcessing(batchId: string, baseRequestUrl: string, userId?: string, context?: string) {
   console.log(`[API Trigger - ${context || 'General'}] Base URL for self-trigger: '${baseRequestUrl}'`);
-  if (!baseRequestUrl || typeof baseRequestUrl !== 'string' || !baseRequestUrl.startsWith('http')) {
+  if (!baseRequestUrl || typeof baseRequestUrl !== 'string' || !(baseRequestUrl.startsWith('http://') || baseRequestUrl.startsWith('https://'))) {
     console.error(`[API Trigger - ${context || 'General'}] CRITICAL: Invalid baseRequestUrl received: '${baseRequestUrl}'. Cannot construct self-trigger URL. Aborting self-trigger.`);
     return;
   }
 
   let apiUrl: string;
   try {
-    apiUrl = new URL('/api/process-photos', baseRequestUrl).toString();
-    console.log(`[API Trigger - ${context || 'General'}] Constructed self-trigger apiUrl: '${apiUrl}'`);
-  } catch (e) {
-    console.error(`[API Trigger - ${context || 'General'}] ERROR constructing self-trigger URL with base '${baseRequestUrl}'. Error: `, e);
+    const url = new URL(baseRequestUrl); // Validate the base URL first
+    apiUrl = new URL('/api/process-photos', url).toString();
+    console.log(`[API Trigger - ${context || 'General'}] Constructed self-trigger apiUrl: '${apiUrl}' from base: '${baseRequestUrl}'`);
+  } catch (e: any) {
+    console.error(`[API Trigger - ${context || 'General'}] ERROR constructing self-trigger URL with base '${baseRequestUrl}'. Error: ${e.message}`);
     return; 
   }
   
@@ -629,15 +640,18 @@ async function createWooCommerceProductForGroup(
 export async function POST(request: NextRequest) {
   let body: { batchId?: string; userId?: string } = {};
   let currentPhotoDocIdForErrorHandling: string | null = null;
+  let originalRequestUrl: string = "unknown_url_from_request_object";
+
 
   try {
     const requestStartTime = Date.now();
     console.log(`\n\n[API /process-photos] START - POST request received at ${new Date(requestStartTime).toISOString()}`);
-    let originalRequestUrl = "unknown";
+    
     try {
         originalRequestUrl = request.url; // Store it early
+        console.log(`[API /process-photos] Original request.url: ${originalRequestUrl}`);
         body = await request.clone().json();
-        console.log(`[API /process-photos] Request body parsed: batchId='${body.batchId}', userId='${body.userId}', from URL: ${originalRequestUrl}`);
+        console.log(`[API /process-photos] Request body parsed: batchId='${body.batchId}', userId='${body.userId}'`);
     } catch (jsonError: any) {
         console.error("[API /process-photos] ERROR: Failed to parse request body as JSON.", jsonError.message);
         const rawBody = await request.text().catch(() => "Could not read raw body.");
@@ -1009,8 +1023,8 @@ export async function POST(request: NextRequest) {
         
     }
 
-    const originalRequestUrlForTrigger = typeof request !== 'undefined' && request.url ? request.url.toString() : (process.env.NEXT_PUBLIC_APP_URL || '');
-    if (body?.batchId && originalRequestUrlForTrigger) {
+    const originalRequestUrlForTrigger = originalRequestUrl; // Use the captured request.url
+    if (body?.batchId && originalRequestUrlForTrigger && originalRequestUrlForTrigger !== "unknown_url_from_request_object") {
         console.log(`[API /process-photos] CRITICAL ERROR HANDLER: Attempting to trigger next processing for batch ${body.batchId} to avoid stall. Original URL: ${originalRequestUrlForTrigger}`);
         await triggerNextPhotoProcessing(body.batchId, originalRequestUrlForTrigger, body.userId, "Critical error handler self-trigger");
     } else {
@@ -1029,6 +1043,8 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+    
+
     
 
     
