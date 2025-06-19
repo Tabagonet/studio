@@ -34,9 +34,7 @@ const nextConfig: NextConfig = {
   },
   webpack: (config, { isServer }) => {
     if (!isServer) {
-      // Prevent bundling of Node.js core modules for the client
-      // This is often needed when server-side packages are inadvertently
-      // pulled into the client bundle via transitive dependencies.
+      // Prevent bundling of Node.js core modules and problematic transitive dependencies for the client
       config.resolve.fallback = {
         ...config.resolve.fallback, // Spread existing fallbacks if any
         dns: false,
@@ -44,6 +42,9 @@ const nextConfig: NextConfig = {
         tls: false,
         fs: false,
         child_process: false, // Also common for server-side utils
+        'aws-sdk': false, // Add fallback for aws-sdk
+        'mock-aws-s3': false, // Add fallback for mock-aws-s3
+        'nock': false, // Add fallback for nock
       };
     }
 
@@ -51,7 +52,6 @@ const nextConfig: NextConfig = {
     // This prevents the "Unknown module type" error for this specific file.
     config.resolve.alias = {
       ...config.resolve.alias,
-      // Corrected path: __dirname is the project root, so node_modules is directly under it.
       [path.join(__dirname, 'node_modules/@mapbox/node-pre-gyp/lib/util/nw-pre-gyp/index.html')]: false,
     };
 
