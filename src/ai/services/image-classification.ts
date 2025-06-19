@@ -4,10 +4,11 @@
  * @fileOverview Image classification services using TensorFlow.js and MobileNet.
  * - classifyImage - Classifies an image buffer and returns potential labels.
  */
-// import * as tf from '@tensorflow/tfjs-node';
-// import * as mobilenet from '@tensorflow-models/mobilenet';
 
-// let model: mobilenet.MobileNet | null = null;
+// import * as tf from '@tensorflow/tfjs-node'; // Temporarily commented out
+// import * as mobilenet from '@tensorflow-models/mobilenet'; // Temporarily commented out
+
+// let model: mobilenet.MobileNet | null = null; // Temporarily commented out
 
 // async function loadMobileNetModel(): Promise<mobilenet.MobileNet> {
 //   if (model) {
@@ -32,7 +33,7 @@ export interface ClassificationResult {
  * @throws Error if classification fails.
  */
 export async function classifyImage(imageBuffer: Buffer): Promise<ClassificationResult[]> {
-  console.warn('[MobileNet] Image classification with tfjs-node is temporarily disabled.');
+  console.warn('[MobileNet] Image classification with tfjs-node is temporarily disabled due to installation issues.');
   // Return a placeholder or empty array to avoid breaking the calling code.
   // This allows the application to continue functioning without this specific AI feature.
   if (imageBuffer.length > 0) { // Basic check to simulate some work
@@ -94,4 +95,3 @@ async function processMyImage(downloadedImageBuffer: Buffer) {
   }
 }
 */
-
