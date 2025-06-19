@@ -122,7 +122,7 @@ export interface WizardProductContext {
 
 
 export interface ProcessingStatusEntry {
-  assignedCategorySlug: string | undefined | null;
+  assignedCategorySlug?: string | null; // Allow null
   id: string;
   userId: string;
   batchId: string;
@@ -156,13 +156,13 @@ export interface ProcessingStatusEntry {
   seoMetadata?: { alt?: string; title?: string, description?: string, caption?: string };
   errorMessage?: string;
   productAssociationId?: string;
-  assignedCategory?: string;
+  // assignedCategory?: string; // Replaced by assignedCategorySlug for consistency
   assignedTags?: string[];
   productContext?: WizardProductContext;
   parsedNameData?: ParsedNameData;
   visualTags?: string[];
   generatedContent?: GeneratedProductContent;
-  lastMessage?: string; // Added this field
+  lastMessage?: string;
 }
 
 export interface WooCommerceCategory {
@@ -223,7 +223,7 @@ export interface SeoHistoryEntry {
   seoMetadata?: GeneratedProductContent['seoMetadata'];
   tags?: string[];
   attributes?: ProductAttribute[];
-  category?: string;
+  category?: string | null; // Allow null
   processedAt: Timestamp;
 }
 
@@ -234,26 +234,26 @@ export type AiPromptKey =
   | 'seoAltText'
   | 'seoTitle'
   | 'metaDescription'
-  | 'suggestAttributes' // Placeholder for future, more complex attribute generation
-  | 'suggestTags';      // Placeholder for future, more complex tag generation
+  | 'suggestAttributes'
+  | 'suggestTags';
 
 export interface AiPrompt {
-  id: string; // Firestore document ID
+  id: string; 
   promptKey: AiPromptKey;
   description: string;
   modelType: 'text-generation' | 'text2text-generation';
-  modelName: string; // e.g., "Xenova/distilgpt2"
+  modelName: string; 
   promptTemplate: string;
-  defaultGenerationParams: Record<string, any>; // e.g., { "max_new_tokens": 70, "temperature": 0.7 }
+  defaultGenerationParams: Record<string, any>; 
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
 
 export interface AiPromptFormValues {
-  promptKey: AiPromptKey; // Should be read-only in form
+  promptKey: AiPromptKey; 
   description: string;
   modelType: 'text-generation' | 'text2text-generation';
   modelName: string;
   promptTemplate: string;
-  defaultGenerationParamsText: string; // For textarea input of JSON
+  defaultGenerationParamsText: string; 
 }
