@@ -17,6 +17,8 @@ import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
 // MiniLM temporarily disabled
 // import { generateContentWithMiniLM } from '@/ai/services/minilm-text-generation';
 import { LOCAL_UPLOAD_RAW_DIR_RELATIVE, LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE } from '@/lib/local-storage-constants';
+import axios from 'axios';
+import FormDataLib from 'form-data';
 
 
 // --- START TEMPORARY PLACEHOLDER FUNCTIONS (AI DISABLED) ---
@@ -54,7 +56,7 @@ async function generateContentWithMiniLM(
 
 async function uploadImageToWooCommerceMedia(
   localImagePathAbsolute: string,
-  originalImageName: string, // Use original name for the upload
+  originalImageName: string,
   productNameForAlt?: string
 ): Promise<{ id: number; source_url: string; name: string; alt_text: string; error?: string, details?: any } | { error: string, details?: any }> {
   const wooCommerceStoreUrl = process.env.WOOCOMMERCE_STORE_URL;
@@ -74,41 +76,40 @@ async function uploadImageToWooCommerceMedia(
 
   try {
     const fileBuffer = await fs.readFile(localImagePathAbsolute);
-    
-    const form = new FormData();
-    // Use originalImageName for the 'filename' parameter in the Content-Disposition header
-    form.append('file', new Blob([fileBuffer]), originalImageName); 
-    form.append('title', productNameForAlt || originalImageName.split('.')[0]); // Add title
-    form.append('status', 'publish'); // Explicitly set status to publish
+    const fileTypeResult = await fileTypeFromBuffer(fileBuffer);
+    const contentType = fileTypeResult ? fileTypeResult.mime : 'application/octet-stream';
 
-    const credentials = Buffer.from(`${wooCommerceApiKey}:${wooCommerceApiSecret}`).toString('base64');
-    const headers: HeadersInit = {
-      'Authorization': `Basic ${credentials}`,
-      // Content-Type will be set automatically by fetch for FormData
-    };
-    
+    const form = new FormDataLib();
+    form.append('file', fileBuffer, {
+        filename: originalImageName, // Use original name
+        contentType: contentType,
+        knownLength: fileBuffer.length
+    });
+    form.append('title', productNameForAlt || originalImageName.split('.')[0]);
+    form.append('status', 'publish'); // Explicitly set status
+
     const mediaUploadUrl = `${wooCommerceStoreUrl}/wp-json/wp/v2/media`;
 
-    console.log(`[WC Media Upload - ${originalImageName}] Uploading (size ${fileBuffer.length} bytes) to WooCommerce Media using Basic Auth (Simplified Payload with native fetch)...`);
+    console.log(`[WC Media Upload - ${originalImageName}] Uploading (size ${fileBuffer.length} bytes, type ${contentType}) to WooCommerce Media using Axios with Basic Auth...`);
     console.log(`[WC Media Upload - ${originalImageName}] Target URL: ${mediaUploadUrl}`);
     
     const uploadStartTime = Date.now();
-    const response = await fetch(mediaUploadUrl, {
-      method: 'POST',
-      headers: headers,
-      body: form,
+    const response = await axios.post(mediaUploadUrl, form, {
+      headers: {
+        ...form.getHeaders(), // Important for multipart/form-data
+      },
+      auth: { // Axios way for Basic Auth
+        username: wooCommerceApiKey,
+        password: wooCommerceApiSecret,
+      },
+      timeout: 60000, // 60 seconds timeout
     });
     const uploadEndTime = Date.now();
-    console.log(`[WC Media Upload - ${originalImageName}] Native fetch POST finished. Time: ${uploadEndTime - uploadStartTime}ms. Status: ${response.status}`);
+    console.log(`[WC Media Upload - ${originalImageName}] Axios POST finished. Time: ${uploadEndTime - uploadStartTime}ms. Status: ${response.status}`);
 
-    const responseData = await response.json().catch(async (jsonError) => {
-        const textResponse = await response.text();
-        console.error(`[WC Media Upload - ${originalImageName}] Failed to parse JSON response. Status: ${response.status}. Response text (first 300 chars): ${textResponse.substring(0,300)}`);
-        return { error: "Failed to parse JSON response from server.", details: { status: response.status, body: textResponse.substring(0,300) }};
-    });
+    const responseData = response.data;
 
-
-    if (response.ok && responseData && responseData.id) {
+    if (response.status >= 200 && response.status < 300 && responseData && responseData.id) {
       console.log(`[WC Media Upload - ${originalImageName}] Successfully uploaded. Media ID: ${responseData.id}, URL: ${responseData.source_url}`);
       console.log(`[WC Media Upload - ${originalImageName}] END - Success`);
       return {
@@ -124,16 +125,24 @@ async function uploadImageToWooCommerceMedia(
       return { error: responseData.message || responseData.error || "Failed to upload image to WooCommerce: Invalid response data or status.", details: responseData };
     }
   } catch (error: any) {
-    let wcErrorMessage = "Unknown error during media upload with fetch";
+    let wcErrorMessage = "Unknown error during media upload with axios";
     let wcErrorDetails:any = null;
-    console.error(`[WC Media Upload - ${originalImageName}] Fetch error uploading:`, error.message || error);
-    if (error.cause) { 
-        wcErrorMessage = String(error.cause);
-    } else if (error.message) {
-        wcErrorMessage = error.message;
+
+    if (axios.isAxiosError(error)) {
+      console.error(`[WC Media Upload - ${originalImageName}] Axios error uploading:`, error.message);
+      wcErrorMessage = error.message;
+      if (error.response) {
+        console.error(`[WC Media Upload - ${originalImageName}] Axios error response status:`, error.response.status);
+        console.error(`[WC Media Upload - ${originalImageName}] Axios error response data:`, error.response.data);
+        wcErrorDetails = error.response.data;
+        if (error.response.data?.message) wcErrorMessage = error.response.data.message;
+      }
+    } else {
+      console.error(`[WC Media Upload - ${originalImageName}] Non-Axios error during upload:`, error.message || error);
+      wcErrorMessage = error.message || "Non-Axios upload error";
     }
     
-    console.log(`[WC Media Upload - ${originalImageName}] END - Failure (Fetch/Parsing Error)`);
+    console.log(`[WC Media Upload - ${originalImageName}] END - Failure (Exception)`);
     return { error: wcErrorMessage, details: wcErrorDetails };
   }
 }
@@ -346,7 +355,7 @@ async function triggerNextPhotoProcessing(batchId: string, baseRequestUrl: strin
   
   console.log(`[API Trigger - ${context || 'General'}] Triggering next processing for batch ${batchId} by calling: ${apiUrl}. UserId: ${userId || 'N/A'}`);
   try {
-    fetch(apiUrl, {
+    fetch(apiUrl, { // Using fetch here as it's simple and non-blocking for a self-trigger
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ batchId, userId }),
@@ -624,10 +633,11 @@ export async function POST(request: NextRequest) {
   try {
     const requestStartTime = Date.now();
     console.log(`\n\n[API /process-photos] START - POST request received at ${new Date(requestStartTime).toISOString()}`);
-
+    let originalRequestUrl = "unknown";
     try {
+        originalRequestUrl = request.url; // Store it early
         body = await request.clone().json();
-        console.log(`[API /process-photos] Request body parsed: batchId='${body.batchId}', userId='${body.userId}'`);
+        console.log(`[API /process-photos] Request body parsed: batchId='${body.batchId}', userId='${body.userId}', from URL: ${originalRequestUrl}`);
     } catch (jsonError: any) {
         console.error("[API /process-photos] ERROR: Failed to parse request body as JSON.", jsonError.message);
         const rawBody = await request.text().catch(() => "Could not read raw body.");
@@ -690,8 +700,7 @@ export async function POST(request: NextRequest) {
         if (!photoData.originalDownloadUrl) {
             console.error(`[ImgProc - ${photoData.imageName}] ERROR: originalDownloadUrl is missing. Cannot process.`);
             await photoDocRef.update({ status: 'error_processing_image', errorMessage: 'Missing originalDownloadUrl.', progress: 0, updatedAt: admin.firestore.FieldValue.serverTimestamp(), lastMessage: 'Error: URL de imagen original faltante.' });
-            const currentRequestUrlForTrigger = request.url ? request.url.toString() : process.env.NEXT_PUBLIC_APP_URL || '';
-            await triggerNextPhotoProcessing(batchId, currentRequestUrlForTrigger, userIdForThisPhoto, `After critical URL error for ${photoData.imageName}`);
+            await triggerNextPhotoProcessing(batchId, originalRequestUrl, userIdForThisPhoto, `After critical URL error for ${photoData.imageName}`);
             return NextResponse.json({ message: `Error processing ${photoData.imageName}: missing URL. Triggered next.`, batchId: batchId, errorPhotoId: photoData.id });
         }
 
@@ -793,7 +802,7 @@ export async function POST(request: NextRequest) {
         
         const wcMediaUploadResult = await uploadImageToWooCommerceMedia(
             tempProcessedImageAbsolutePath,
-            photoData.imageName, // Pass original name here
+            photoData.imageName, 
             miniLMInput.productName 
         );
         const wcUploadEndTime = Date.now();
@@ -826,7 +835,7 @@ export async function POST(request: NextRequest) {
         if (currentStatusSnapshot.exists) {
             const currentStatusData = currentStatusSnapshot.data() as ProcessingStatusEntry;
             if (currentStatusData.status !== 'error_processing_image' && currentStatusData.status !== 'error_woocommerce_integration') {
-                 await photoDocRef.update({
+                 photoDocRef.update({
                     status: 'error_processing_image',
                     errorMessage: `PhotoProc Error: ${photoProcessingError.message?.substring(0, 250) || 'Unknown error during image processing.'}`,
                     progress: photoData.progress || 0, 
@@ -838,10 +847,8 @@ export async function POST(request: NextRequest) {
              console.error(`[ImgProc - ${photoData.imageName}] CRITICAL: Document ${photoData.id} not found during error handling.`);
         }
       } finally {
-        console.log(`[API /process-photos] Batch ${batchId}: FINALLY block entered for ${photoData.imageName}.`);
-        const currentRequestUrl = request.url ? request.url.toString() : (process.env.NEXT_PUBLIC_APP_URL || '');
-        console.log(`[API /process-photos] Batch ${batchId}: In FINALLY, currentRequestUrl for self-trigger: '${currentRequestUrl}'`);
-        await triggerNextPhotoProcessing(batchId, currentRequestUrl, userIdForThisPhoto, `After processing ${photoData.imageName}`);
+        console.log(`[ImgProc - ${photoData.imageName}] FINALLY block: Triggering next processing for batch ${batchId}.`);
+        await triggerNextPhotoProcessing(batchId, originalRequestUrl, userIdForThisPhoto, `After processing ${photoData.imageName}`);
       }
       const requestEndTime = Date.now();
       console.log(`[API /process-photos] END - Processed single image ${photoData.imageName}. Total request time: ${requestEndTime - requestStartTime}ms.`);
@@ -915,8 +922,7 @@ export async function POST(request: NextRequest) {
               return NextResponse.json({ message: `Batch ${batchId} WC product creation complete & batch terminal.`, results: productCreationResults });
           } else {
               console.log(`[API /process-photos] Batch ${batchId}: WC product creation cycle done, but batch NOT fully terminal. Triggering next processing check.`);
-              const currentRequestUrlForTrigger = request.url ? request.url.toString() : process.env.NEXT_PUBLIC_APP_URL || '';
-              await triggerNextPhotoProcessing(batchId, currentRequestUrlForTrigger, userIdForBatchOverall, `After WC product creation cycle (not terminal)`);
+              await triggerNextPhotoProcessing(batchId, originalRequestUrl, userIdForBatchOverall, `After WC product creation cycle (not terminal)`);
               const requestEndTime = Date.now();
               console.log(`[API /process-photos] END - Batch ${batchId} WC product creation cycle done, batch NOT fully terminal. Total request time: ${requestEndTime - requestStartTime}ms.`);
               return NextResponse.json({ message: `Batch ${batchId} WC product creation cycle done. Batch not terminal. Next check triggered.`, results: productCreationResults });
@@ -930,8 +936,7 @@ export async function POST(request: NextRequest) {
              if (isEntireBatchTerminal) {
                  await createBatchCompletionNotification(batchId, userIdForBatchOverall, productCreationResults); 
              } else {
-                 const currentRequestUrlForTrigger = request.url ? request.url.toString() : process.env.NEXT_PUBLIC_APP_URL || '';
-                 await triggerNextPhotoProcessing(batchId, currentRequestUrlForTrigger, userIdForBatchOverall, `No valid product groups but batch not terminal`);
+                 await triggerNextPhotoProcessing(batchId, originalRequestUrl, userIdForBatchOverall, `No valid product groups but batch not terminal`);
              }
              const requestEndTime = Date.now();
              console.log(`[API /process-photos] END - Batch ${batchId}: No valid product groups for WC. Total request time: ${requestEndTime - requestStartTime}ms.`);
@@ -1004,13 +1009,12 @@ export async function POST(request: NextRequest) {
         
     }
 
-    // Ensure a fallback for request.url if it's not available when an error occurs before or during its access
-    const currentRequestUrlForTriggerOnError = typeof request !== 'undefined' && request.url ? request.url.toString() : (process.env.NEXT_PUBLIC_APP_URL || '');
-    if (body?.batchId && currentRequestUrlForTriggerOnError) {
-        console.log(`[API /process-photos] CRITICAL ERROR HANDLER: Attempting to trigger next processing for batch ${body.batchId} to avoid stall.`);
-        await triggerNextPhotoProcessing(body.batchId, currentRequestUrlForTriggerOnError, body.userId, "Critical error handler self-trigger");
+    const originalRequestUrlForTrigger = typeof request !== 'undefined' && request.url ? request.url.toString() : (process.env.NEXT_PUBLIC_APP_URL || '');
+    if (body?.batchId && originalRequestUrlForTrigger) {
+        console.log(`[API /process-photos] CRITICAL ERROR HANDLER: Attempting to trigger next processing for batch ${body.batchId} to avoid stall. Original URL: ${originalRequestUrlForTrigger}`);
+        await triggerNextPhotoProcessing(body.batchId, originalRequestUrlForTrigger, body.userId, "Critical error handler self-trigger");
     } else {
-        console.error(`[API /process-photos] CRITICAL ERROR HANDLER: Could not self-trigger next processing. BatchId: ${body?.batchId}, RequestURL: ${currentRequestUrlForTriggerOnError}`);
+        console.error(`[API /process-photos] CRITICAL ERROR HANDLER: Could not self-trigger next processing. BatchId: ${body?.batchId}, RequestURL: ${originalRequestUrlForTrigger}`);
     }
 
 
