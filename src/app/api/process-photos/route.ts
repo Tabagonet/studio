@@ -32,6 +32,10 @@ async function uploadImageToWooCommerceMedia(
     console.error("[WC Media Upload] WooCommerce API credentials or URL not configured.");
     return null;
   }
+  if (!wooApi) {
+    console.error("[WC Media Upload] WooCommerce API client (wooApi) is not initialized.");
+    return null;
+  }
 
   try {
     const fileBuffer = await fs.readFile(localImagePathAbsolute);
@@ -48,7 +52,7 @@ async function uploadImageToWooCommerceMedia(
           ...form.getHeaders(),
           'Authorization': `Basic ${Buffer.from(`${wooCommerceApiKey}:${wooCommerceApiSecret}`).toString('base64')}`,
         },
-        timeout: 60000,
+        timeout: 60000, // 60 seconds timeout
       }
     );
 
@@ -107,22 +111,37 @@ function applyTemplate(templateContent: string, data: Record<string, string | nu
 
 
 async function getTemplates(): Promise<ProductTemplate[]> {
-  if (!adminDb) throw new Error("Server configuration error: Firestore not available for templates.");
+  if (!adminDb) {
+      console.warn("[API /process-photos] getTemplates: adminDb not available. Returning empty array.");
+      return [];
+  }
   const templatesSnapshot = await adminDb.collection(PRODUCT_TEMPLATES_COLLECTION).get();
   return templatesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProductTemplate));
 }
 
 async function getAutomationRules(): Promise<AutomationRule[]> {
-  if (!adminDb) throw new Error("Server configuration error: Firestore not available for rules.");
+  if (!adminDb) {
+    console.warn("[API /process-photos] getAutomationRules: adminDb not available. Returning empty array.");
+    return [];
+  }
   const rulesSnapshot = await adminDb.collection(AUTOMATION_RULES_COLLECTION).get();
   return rulesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AutomationRule));
 }
 
 let allWooCategoriesCache: WooCommerceCategory[] | null = null;
-async function fetchWooCommerceCategories(): Promise<WooCommerceCategory[]> {
-    if (allWooCategoriesCache && allWooCategoriesCache.length > 0) return allWooCategoriesCache; // Return if already populated
-    if (!wooApi) { console.warn("[WooCommerce Categories] API client not initialized."); return []; }
-    console.log("[WooCommerce Categories] Attempting to fetch categories from WooCommerce...");
+let lastCategoryFetchAttempt = 0;
+const CATEGORY_FETCH_COOLDOWN = 5 * 60 * 1000; // 5 minutes
+
+async function fetchWooCommerceCategories(forceRefresh: boolean = false): Promise<WooCommerceCategory[]> {
+    const now = Date.now();
+    if (!forceRefresh && allWooCategoriesCache && allWooCategoriesCache.length > 0 && (now - lastCategoryFetchAttempt < CATEGORY_FETCH_COOLDOWN)) {
+        console.log("[WooCommerce Categories] Using cached categories.");
+        return allWooCategoriesCache;
+    }
+    if (!wooApi) { console.warn("[WooCommerce Categories] API client not initialized. Cannot fetch."); return allWooCategoriesCache || []; }
+
+    console.log(`[WooCommerce Categories] Attempting to fetch categories from WooCommerce (Force refresh: ${forceRefresh}).`);
+    lastCategoryFetchAttempt = now;
     try {
         const response = await wooApi.get("products/categories", { per_page: 100, orderby: "name", order: "asc" });
         if (response.status === 200 && Array.isArray(response.data)) {
@@ -130,9 +149,12 @@ async function fetchWooCommerceCategories(): Promise<WooCommerceCategory[]> {
             console.log(`[WooCommerce Categories] Fetched and cached ${allWooCategoriesCache.length} categories.`);
             return allWooCategoriesCache;
         }
-        console.warn("[WooCommerce Categories] Failed to fetch categories, response not OK or not an array:", response.status, response.data);
-        return [];
-    } catch (error) { console.error("[WooCommerce Categories] Error fetching:", error); return []; }
+        console.warn("[WooCommerce Categories] Failed to fetch categories, response not OK or not an array:", response.status, response.data ? String(response.data).substring(0,100) + '...' : 'N/A');
+        return allWooCategoriesCache || []; // Return old cache on failure if exists
+    } catch (error: any) {
+        console.error("[WooCommerce Categories] Error fetching:", error.message || error);
+        return allWooCategoriesCache || []; // Return old cache on failure if exists
+    }
 }
 
 
@@ -203,7 +225,10 @@ async function cleanupTempFiles(localFilePaths: string[]) {
 
 
 async function createBatchCompletionNotification(batchId: string, userId: string, productResults: Array<{name: string, success: boolean, id?: number | string, error?: string }>) {
-  if (!adminDb) return;
+  if (!adminDb) {
+      console.warn("[API /process-photos] createBatchCompletionNotification: adminDb not available. Skipping notification.");
+      return;
+  }
   const totalProductsAttempted = productResults.length;
   const successfulProducts = productResults.filter(r => r.success).length;
   const erroredProducts = totalProductsAttempted - successfulProducts;
@@ -230,13 +255,18 @@ async function createBatchCompletionNotification(batchId: string, userId: string
 
 async function triggerNextPhotoProcessing(batchId: string, requestUrl: string, userId?: string, context?: string) {
   const apiUrl = new URL('/api/process-photos', requestUrl).toString();
-  console.log(`[API Trigger - ${context || 'General'}] Triggering next processing for batch ${batchId} by calling: ${apiUrl}. UserId: ${userId}`);
+  console.log(`[API Trigger - ${context || 'General'}] Triggering next processing for batch ${batchId} by calling: ${apiUrl}. UserId: ${userId || 'N/A'}`);
   // Intentionally not awaiting this, as it's a "fire and forget" to kick off the next step.
-  fetch(apiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ batchId, userId }),
-  }).catch(error => console.error(`[API Trigger - ${context || 'General'}] Error self-triggering for batch ${batchId}:`, error));
+  // Use a try-catch for the fetch itself to prevent unhandled rejections if the fetch call fails.
+  try {
+    fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ batchId, userId }),
+    }).catch(fetchError => console.error(`[API Trigger - ${context || 'General'}] Error during self-trigger fetch for batch ${batchId}:`, fetchError));
+  } catch (error) {
+      console.error(`[API Trigger - ${context || 'General'}] Synchronous error setting up self-trigger for batch ${batchId}:`, error);
+  }
 }
 
 async function updateSpecificFirestoreEntries(
@@ -244,7 +274,10 @@ async function updateSpecificFirestoreEntries(
   status: ProcessingStatusEntry['status'],
   updateData: Partial<ProcessingStatusEntry> = {}
 ) {
-  if (!adminDb || entryIds.length === 0) return;
+  if (!adminDb || entryIds.length === 0) {
+    console.warn("[API /process-photos] updateSpecificFirestoreEntries: adminDb not available or no entry IDs. Skipping update.");
+    return;
+  }
   const firestoreBatch = adminDb.batch();
   entryIds.forEach(entryId => {
     const docRef = adminDb.collection('processing_status').doc(entryId);
@@ -261,7 +294,8 @@ async function updateSpecificFirestoreEntries(
   });
   try {
     await firestoreBatch.commit();
-    console.log(`[Firestore Update] Updated status for ${entryIds.length} entries to ${status}. Data:`, JSON.stringify(updateData));
+    // Avoid JSON.stringify on potentially large updateData
+    console.log(`[Firestore Update] Updated status for ${entryIds.length} entries to ${status}. First ID: ${entryIds[0]}, Keys updated: ${Object.keys(updateData).join(', ')}`);
   } catch (error){
       console.error(`[Firestore Update] Error committing batch update for ${entryIds.length} entries to ${status}:`, error);
   }
@@ -287,7 +321,7 @@ async function createWooCommerceProductForGroup(
     console.log(`[WooCommerce - ${productNameFromContext}] Primary entry ID: ${primaryEntry.id}, Image name: ${primaryEntry.imageName}`);
 
     let currentProductContext = { ...primaryEntry.productContext };
-    console.log(`[WooCommerce - ${productNameFromContext}] Initial product context from primary entry:`, JSON.stringify(currentProductContext, null, 2));
+    console.log(`[WooCommerce - ${productNameFromContext}] Initial product context from primary entry. Name: ${currentProductContext.name}, SKU: ${currentProductContext.sku}`);
 
     let generatedContent = primaryEntry.generatedContent;
     if (!generatedContent) {
@@ -295,7 +329,7 @@ async function createWooCommerceProductForGroup(
       const miniLMInput: MiniLMInput = {
         productName: currentProductContext.name,
         visualTags: primaryEntry.visualTags || [],
-        category: allWooCategoriesCache?.find(c => c.slug === (primaryEntry.assignedCategorySlug || currentProductContext.category))?.name,
+        category: (await fetchWooCommerceCategories()).find(c => c.slug === (primaryEntry.assignedCategorySlug || currentProductContext.category))?.name,
         existingKeywords: currentProductContext.keywords,
         existingAttributes: currentProductContext.attributes,
       };
@@ -320,10 +354,11 @@ async function createWooCommerceProductForGroup(
 
     let finalShortDescription = currentProductContext.shortDescription || generatedContent?.shortDescription;
     let finalLongDescription = currentProductContext.longDescription || generatedContent?.longDescription;
+    const productCategories = await fetchWooCommerceCategories();
 
     const templateDataForDesc = {
         nombre_producto: currentProductContext.name,
-        categoria: allWooCategoriesCache?.find(c => c.slug === (primaryEntry.assignedCategorySlug || currentProductContext.category))?.name || '',
+        categoria: productCategories.find(c => c.slug === (primaryEntry.assignedCategorySlug || currentProductContext.category))?.name || '',
         sku: currentProductContext.sku,
         palabras_clave: currentProductContext.keywords || (generatedContent?.tags || []).join(', '),
         atributos: (generatedContent?.attributes || currentProductContext.attributes)?.map(a => `${a.name}: ${a.value}`).join(', ') || '',
@@ -371,12 +406,12 @@ async function createWooCommerceProductForGroup(
     }
     wooImagesPayload.sort((a,b) => (a.position || 99) - (b.position || 99));
     wooImagesPayload.forEach((img, idx) => img.position = idx);
-    console.log(`[WooCommerce - ${productNameFromContext}] Final WooCommerce Images Payload (Media IDs sorted):`, JSON.stringify(wooImagesPayload.map(i => ({id: i.id, pos: i.position})), null, 2));
+    console.log(`[WooCommerce - ${productNameFromContext}] Final WooCommerce Images Payload (Media IDs sorted): ${wooImagesPayload.map(i => `(id:${i.id},pos:${i.position})`).join(', ')}`);
 
     const wooCategoriesForProduct: { id: number }[] = [];
     const catSlugToUse = primaryEntry.assignedCategorySlug || currentProductContext.category;
     if (catSlugToUse) {
-        const categoryInfo = allWooCategoriesCache?.find(c => c.slug === catSlugToUse);
+        const categoryInfo = productCategories.find(c => c.slug === catSlugToUse);
         if (categoryInfo) { wooCategoriesForProduct.push({ id: categoryInfo.id }); console.log(`[WooCommerce - ${productNameFromContext}] Assigning category: ID ${categoryInfo.id}`); }
         else { console.warn(`[WooCommerce - ${productNameFromContext}] Category slug "${catSlugToUse}" not found.`); }
     } else { console.log(`[WooCommerce - ${productNameFromContext}] No category slug to use.`); }
@@ -387,7 +422,7 @@ async function createWooCommerceProductForGroup(
     const attributesToUse = (generatedContent?.attributes && generatedContent.attributes.length > 0 ? generatedContent.attributes : currentProductContext.attributes || [])
         .filter(attr => attr.name && attr.value)
         .map((attr, index) => ({ name: attr.name, options: attr.value.split('|').map(o => o.trim()), position: index, visible: true, variation: currentProductContext.productType === 'variable' }));
-    console.log(`[WooCommerce - ${productNameFromContext}] Attributes:`, JSON.stringify(attributesToUse.map(a => ({n: a.name, o_count: a.options.length, v: a.variation})), null, 2));
+    console.log(`[WooCommerce - ${productNameFromContext}] Attributes (count: ${attributesToUse.length}): ${attributesToUse.map(a => `(n:${a.name},opts:${a.options.length},var:${a.variation})`).join('; ')}`);
 
     const wooProductData: any = {
         name: currentProductContext.name, type: currentProductContext.productType, sku: currentProductContext.sku,
@@ -397,7 +432,7 @@ async function createWooCommerceProductForGroup(
     };
     if (currentProductContext.salePrice && parseFloat(currentProductContext.salePrice) > 0) { wooProductData.sale_price = String(currentProductContext.salePrice); console.log(`[WooCommerce - ${productNameFromContext}] Sale price: ${currentProductContext.salePrice}`); }
 
-    console.log(`[WooCommerce - ${productNameFromContext}] Final wooProductData before POST (summary):`, JSON.stringify({ name: wooProductData.name, sku: wooProductData.sku, images_count: wooProductData.images?.length }, null, 2));
+    console.log(`[WooCommerce - ${productNameFromContext}] Final wooProductData before POST (summary): Name: ${wooProductData.name}, SKU: ${wooProductData.sku}, Images Count: ${wooProductData.images?.length}`);
 
     let finalWooProductId: number | string | null = null;
     let finalErrorMessage: string | null = null;
@@ -405,6 +440,10 @@ async function createWooCommerceProductForGroup(
 
     const attemptProductCreation = async (productPayload: any, isRetry: boolean): Promise<{id: number | string | null, skuUsed: string | null, errorMsg?: string}> => {
         let currentSkuAttempt = productPayload.sku;
+        if (!wooApi) {
+          console.error(`[WooCommerce - ${productNameFromContext}] CRITICAL: wooApi not initialized. Cannot POST product.`);
+          return {id: null, skuUsed: currentSkuAttempt, errorMsg: "WooCommerce API client not initialized."};
+        }
         try {
             console.log(`[WooCommerce - ${productNameFromContext}] POSTing product. SKU: ${currentSkuAttempt}, Retry: ${isRetry}`);
             const response = await wooApi.post("products", productPayload);
@@ -413,7 +452,7 @@ async function createWooCommerceProductForGroup(
         } catch (error: any) {
             const wooErrorMessage = error.response?.data?.message || error.message || "Unknown WC API error";
             const wooErrorCode = error.response?.data?.code || "";
-            console.error(`[WooCommerce - ${productNameFromContext}] Error (Attempt ${isRetry ? '2' : '1'}) SKU ${currentSkuAttempt}: ${wooErrorMessage} (Code: ${wooErrorCode}). WC Response:`, JSON.stringify(error.response?.data, null, 2));
+            console.error(`[WooCommerce - ${productNameFromContext}] Error (Attempt ${isRetry ? '2' : '1'}) SKU ${currentSkuAttempt}: ${wooErrorMessage} (Code: ${wooErrorCode}). WC Response (data):`, error.response?.data ? String(error.response.data).substring(0, 300) + '...' : 'N/A');
             const isSkuError = (wooErrorMessage.toLowerCase().includes("sku") && (wooErrorMessage.toLowerCase().includes("duplicate") || wooErrorMessage.toLowerCase().includes("ya existe") || wooErrorMessage.toLowerCase().includes("no válido") || wooErrorMessage.toLowerCase().includes("invalid"))) || wooErrorCode === 'product_invalid_sku' || (error.response?.data?.data?.params?.sku);
             if (isSkuError && !isRetry) {
                 const newSku = `${cleanTextForFilename(productPayload.name || `fallback-sku`).substring(0,15)}-R${Date.now().toString().slice(-5)}`;
@@ -457,16 +496,31 @@ async function createWooCommerceProductForGroup(
 
 export async function POST(request: NextRequest) {
   let body: { batchId?: string; userId?: string } = {};
-  let currentPhotoDocIdForErrorHandling: string | null = null; // For top-level catch
+  let currentPhotoDocIdForErrorHandling: string | null = null; 
 
   try {
-    body = await request.clone().json().catch(() => ({}));
-    console.log(`\n\n[API /process-photos] START - POST request received. Body:`, JSON.stringify(body));
+    const requestStartTime = Date.now();
+    console.log(`\n\n[API /process-photos] START - POST request received at ${new Date(requestStartTime).toISOString()}`);
+    
+    try {
+        body = await request.clone().json();
+        console.log(`[API /process-photos] Request body parsed: batchId='${body.batchId}', userId='${body.userId}'`);
+    } catch (jsonError: any) {
+        console.error("[API /process-photos] ERROR: Failed to parse request body as JSON.", jsonError.message);
+        const rawBody = await request.text().catch(() => "Could not read raw body.");
+        console.error("[API /process-photos] Raw request body (first 200 chars):", rawBody.substring(0,200));
+        return NextResponse.json({ error: 'Invalid request body: Must be JSON.', details: jsonError.message }, { status: 400 });
+    }
 
     if (!adminDb || !adminAuth) {
-      console.error("[API /process-photos] CRITICAL: Firebase Admin SDK not initialized. Aborting.");
+      console.error("[API /process-photos] CRITICAL: Firebase Admin SDK (adminDb or adminAuth) not initialized. Aborting.");
       return NextResponse.json({ error: 'Server configuration error: Firebase Admin not available.' }, { status: 500 });
     }
+     if (!wooApi) {
+      console.error("[API /process-photos] CRITICAL: WooCommerce API client (wooApi) not initialized. Aborting.");
+      return NextResponse.json({ error: 'Server configuration error: WooCommerce API not available.' }, { status: 500 });
+    }
+
 
     const { batchId } = body;
     const userIdFromRequest = body.userId;
@@ -501,7 +555,7 @@ export async function POST(request: NextRequest) {
       const photoDocRef = adminDb.collection('processing_status').doc(photoData.id);
       const userIdForThisPhoto = userIdFromRequest || photoData.userId;
 
-      console.log(`[ImgProc - ${photoData.imageName}] START individual processing. Doc ID: ${photoData.id}, Batch: ${batchId}. Context: ${JSON.stringify(photoData.productContext || {})}`);
+      console.log(`[ImgProc - ${photoData.imageName}] START individual processing. Doc ID: ${photoData.id}, Batch: ${batchId}. Product Context Name: ${photoData.productContext?.name || 'N/A'}`);
 
       try {
         await photoDocRef.update({ status: 'processing_image_started', progress: 5, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
@@ -509,9 +563,8 @@ export async function POST(request: NextRequest) {
         if (!photoData.originalDownloadUrl) {
             console.error(`[ImgProc - ${photoData.imageName}] ERROR: originalDownloadUrl is missing. Cannot process.`);
             await photoDocRef.update({ status: 'error_processing_image', errorMessage: 'Missing originalDownloadUrl.', progress: 0, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-            // Explicitly trigger next even on critical early failure for THIS image
             await triggerNextPhotoProcessing(batchId, request.url, userIdForThisPhoto, `After critical URL error for ${photoData.imageName}`);
-            return NextResponse.json({ message: `Error processing ${photoData.imageName}: missing URL. Triggered next.`, batchId: batchId, errorPhotoId: photoData.id }, { status: 500 });
+            return NextResponse.json({ message: `Error processing ${photoData.imageName}: missing URL. Triggered next.`, batchId: batchId, errorPhotoId: photoData.id });
         }
 
         const localImageAbsolutePath = path.join(process.cwd(), 'public', photoData.originalDownloadUrl.startsWith('/') ? photoData.originalDownloadUrl.substring(1) : photoData.originalDownloadUrl);
@@ -521,7 +574,7 @@ export async function POST(request: NextRequest) {
         } catch (readError: any) {
            console.error(`[ImgProc - ${photoData.imageName}] Error reading local file ${localImageAbsolutePath}:`, readError.message);
            await photoDocRef.update({ status: 'error_processing_image', errorMessage: `Failed to read local image file: ${readError.message}`, progress: 5, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-           throw readError;
+           throw readError; // Re-throw to be caught by outer catch
         }
         console.log(`[ImgProc - ${photoData.imageName}] Image buffer loaded. Size: ${imageBuffer.length} bytes.`);
         await photoDocRef.update({ status: 'processing_image_downloaded', progress: 10, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
@@ -538,14 +591,15 @@ export async function POST(request: NextRequest) {
         await photoDocRef.update({ status: 'processing_image_classified', progress: 25, visualTags, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
         console.log(`[ImgProc - ${photoData.imageName}] Visual tags: ${visualTags.join(', ')}`);
 
+        const productCategoriesForMiniLM = await fetchWooCommerceCategories();
         const miniLMInput: MiniLMInput = {
           productName: parsedNameData?.extractedProductName || photoData.productContext?.name || photoData.imageName.split('.')[0],
           visualTags,
-          category: allWooCategoriesCache?.find(c => c.slug === (photoData.assignedCategorySlug || photoData.productContext?.category))?.name || photoData.productContext?.category,
+          category: productCategoriesForMiniLM?.find(c => c.slug === (photoData.assignedCategorySlug || photoData.productContext?.category))?.name || photoData.productContext?.category,
           existingKeywords: photoData.productContext?.keywords,
           existingAttributes: photoData.productContext?.attributes,
         };
-        console.log(`[ImgProc - ${photoData.imageName}] Input for MiniLM:`, JSON.stringify(miniLMInput));
+        console.log(`[ImgProc - ${photoData.imageName}] Input for MiniLM. ProductName: ${miniLMInput.productName}, Category: ${miniLMInput.category}`);
         const generatedContent = await generateContentWithMiniLM(miniLMInput);
         await photoDocRef.update({ status: 'processing_image_content_generated', progress: 45, generatedContent, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
         console.log(`[ImgProc - ${photoData.imageName}] MiniLM content generated. SEO Base='${generatedContent.seoFilenameBase}'`);
@@ -574,7 +628,7 @@ export async function POST(request: NextRequest) {
           assignedTags: finalTags, updatedAt: admin.firestore.FieldValue.serverTimestamp() as any,
         };
         if (generatedContent.attributes && generatedContent.attributes.length > 0) {
-          const currentProductContext = photoData.productContext || {};
+          const currentProductContext = photoData.productContext || {} as WizardProductContext; // Ensure defined
           updateDataForRuleApp.productContext = { ...currentProductContext, attributes: generatedContent.attributes } as WizardProductContext;
         }
         await photoDocRef.update(updateDataForRuleApp);
@@ -600,13 +654,13 @@ export async function POST(request: NextRequest) {
         console.log(`[ImgProc - ${photoData.imageName}] END individual image processing. Status: completed_image_pending_woocommerce.`);
       } catch (photoProcessingError: any) {
         console.error(`[ImgProc - ${photoData.imageName}] ERROR during individual photo processing steps. Doc ID: ${photoData.id}. Error: ${photoProcessingError.message}`);
-        const currentStatusSnapshot = await photoDocRef.get(); // Get latest status
+        const currentStatusSnapshot = await photoDocRef.get(); 
         const currentStatus = currentStatusSnapshot.data()?.status;
-        if (currentStatus !== 'error_processing_image' && currentStatus !== 'error_woocommerce_integration') { // Avoid overwriting specific WC error
+        if (currentStatus !== 'error_processing_image' && currentStatus !== 'error_woocommerce_integration') { 
             await photoDocRef.update({
                 status: 'error_processing_image',
                 errorMessage: `PhotoProc Error: ${photoProcessingError.message?.substring(0, 250) || 'Unknown error during image processing.'}`,
-                progress: photoData.progress || 0,
+                progress: photoData.progress || 0, 
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
         }
@@ -623,10 +677,14 @@ export async function POST(request: NextRequest) {
       const entriesReadyForWooCommerceSnapshot = await adminDb.collection('processing_status')
                                                       .where('batchId', '==', batchId)
                                                       .where('status', '==', 'completed_image_pending_woocommerce')
-                                                      .where('productContext.name', '!=', null)
+                                                      // .where('productContext.name', '!=', null) // This can be problematic if productContext is not guaranteed
                                                       .get();
 
-      const entriesReadyForWooCommerce = entriesReadyForWooCommerceSnapshot.docs.map(doc => ({id: doc.id, ...doc.data() } as ProcessingStatusEntry));
+      const entriesReadyForWooCommerce = entriesReadyForWooCommerceSnapshot.docs
+                                            .map(doc => ({id: doc.id, ...doc.data() } as ProcessingStatusEntry))
+                                            .filter(entry => entry.productContext && entry.productContext.name); // Filter here instead
+
+
       const userIdForBatchOverall = userIdFromRequest || entriesReadyForWooCommerce[0]?.userId || 'batch_processing_user';
 
       console.log(`[API /process-photos] Batch ${batchId}: Found ${entriesReadyForWooCommerce.length} entries for WC product creation.`);
@@ -634,8 +692,8 @@ export async function POST(request: NextRequest) {
       if (entriesReadyForWooCommerce.length > 0) {
         const productsMap: Record<string, ProcessingStatusEntry[]> = {};
         entriesReadyForWooCommerce.forEach(entry => {
-            const productNameKey = entry.productContext?.name;
-            if (!productNameKey) {
+            const productNameKey = entry.productContext?.name; // Safe navigation
+            if (!productNameKey) { // Should have been filtered above, but double check
                 console.warn(`[API /process-photos] Batch ${batchId}: Entry ${entry.id} (Image: ${entry.imageName}) missing productContext.name. Marking error.`);
                 updateSpecificFirestoreEntries([entry.id], 'error_woocommerce_integration', { errorMessage: "Contexto de nombre de producto faltante."});
                 return;
@@ -662,7 +720,7 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          console.log(`[API /process-photos] Batch ${batchId}: Finished all product creations. Results:`, JSON.stringify(productCreationResults));
+          console.log(`[API /process-photos] Batch ${batchId}: Finished all product creations. Results count: ${productCreationResults.length}`);
           await createBatchCompletionNotification(batchId, userIdForBatchOverall, productCreationResults);
 
           const allBatchEntriesFinalSnapshot = await adminDb.collection('processing_status').where('batchId', '==', batchId).get();
@@ -704,26 +762,39 @@ export async function POST(request: NextRequest) {
       }
     }
   } catch (error: any) {
-    console.error(`[API /process-photos] CRITICAL TOP-LEVEL ERROR. Batch: ${body?.batchId || 'unknown'}, PhotoDoc ID (if set): ${currentPhotoDocIdForErrorHandling || 'N/A'}.`);
-    console.error("Error message:", error.message);
-    console.error("Error stack:", error.stack);
-    const errorMessageString = error.message || 'Unknown server error during batch processing.';
+    const errorTime = Date.now();
+    console.error(`[API /process-photos] CRITICAL TOP-LEVEL ERROR at ${new Date(errorTime).toISOString()}. Batch: ${body?.batchId || 'unknown'}, PhotoDoc ID (if set): ${currentPhotoDocIdForErrorHandling || 'N/A'}.`);
+    console.error("Error message:", error.message || "Unknown error");
+    console.error("Error stack:", error.stack || "No stack available");
+    
+    const errorMessageString = String(error.message || 'Unknown server error during batch processing.');
+    
     if (adminDb && currentPhotoDocIdForErrorHandling) {
         try {
             const photoDocRef = adminDb.collection('processing_status').doc(currentPhotoDocIdForErrorHandling);
-            const currentStatusSnapshot = await photoDocRef.get();
-            if (currentStatusSnapshot.exists()) {
-                const currentStatus = currentStatusSnapshot.data()?.status;
-                if (currentStatus !== 'error_processing_image' && currentStatus !== 'error_woocommerce_integration') {
-                    await photoDocRef.update({ status: 'error_processing_image', errorMessage: `API General Error: ${errorMessageString.substring(0, 200)}`, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-                    console.log(`[API /process-photos] Updated error status for doc ${currentPhotoDocIdForErrorHandling}.`);
-                }
-            }
-        } catch (dbError) { console.error("[API /process-photos] Firestore update FAILED during CRITICAL ERROR handling:", dbError); }
-    } else if (adminDb && body?.batchId) {
-        console.error(`[API /process-photos] General error for batch ${body.batchId}. Details: ${errorMessageString}.`);
+            // Avoid further async operations if possible, log what we have
+            console.log(`[API /process-photos] Attempting to mark doc ${currentPhotoDocIdForErrorHandling} with error status due to top-level catch.`);
+            // Not awaiting here, best effort
+            photoDocRef.update({ status: 'error_processing_image', errorMessage: `API General Error: ${errorMessageString.substring(0, 200)}`, updatedAt: admin.firestore.FieldValue.serverTimestamp() })
+                       .catch(dbError => console.error("[API /process-photos] Firestore update FAILED during CRITICAL ERROR handling:", dbError));
+        } catch (dbUpdateError) { 
+            console.error("[API /process-photos] Synchronous error during Firestore update attempt in CRITICAL ERROR handling:", dbUpdateError);
+        }
+    } else if (body?.batchId) {
+        console.error(`[API /process-photos] General error for batch ${body.batchId}. Details: ${errorMessageString}. No specific photo document ID was set for error handling.`);
     }
-    return NextResponse.json({ error: 'Failed to process photos due to a critical server error.', details: errorMessageString.substring(0,500) }, { status: 500 });
+
+    // Ensure a JSON response is sent
+    return NextResponse.json(
+        { 
+            error: 'Failed to process photos due to a critical server error.', 
+            details: errorMessageString.substring(0,500),
+            batchId: body?.batchId || 'unknown',
+            photoIdOnError: currentPhotoDocIdForErrorHandling || 'N/A'
+        }, 
+        { status: 500 }
+    );
   }
 }
+
     
