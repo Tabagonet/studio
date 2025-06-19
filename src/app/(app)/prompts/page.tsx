@@ -20,8 +20,7 @@ import type { AiPrompt, AiPromptFormValues } from '@/lib/types';
 import { db } from '@/lib/firebase';
 import { collection, doc, updateDoc, serverTimestamp, query, orderBy, onSnapshot, setDoc, getDocs } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { AI_PROMPTS_COLLECTION, APP_NAME } from '@/lib/constants';
-import { DEFAULT_PROMPTS } from '@/ai/services/minilm-text-generation'; // Import defaults to ensure they are created
+import { AI_PROMPTS_COLLECTION, APP_NAME, DEFAULT_PROMPTS } from '@/lib/constants'; // Import defaults from constants
 
 export default function PromptsPage() {
   const [prompts, setPrompts] = useState<AiPrompt[]>([]);
@@ -31,45 +30,6 @@ export default function PromptsPage() {
   const [currentPrompt, setCurrentPrompt] = useState<AiPrompt | null>(null);
 
   const { toast } = useToast();
-
-  // Function to seed/ensure default prompts exist in Firestore
-  const ensureDefaultPrompts = async () => {
-    console.log('[PromptsPage] Ensuring default prompts in Firestore...');
-    const defaultPromptKeys = Object.keys(DEFAULT_PROMPTS) as (keyof typeof DEFAULT_PROMPTS)[];
-    let createdCount = 0;
-
-    for (const key of defaultPromptKeys) {
-      const promptData = DEFAULT_PROMPTS[key];
-      const docRef = doc(db, AI_PROMPTS_COLLECTION, promptData.promptKey); // Use promptKey as doc ID
-      
-      // Check if doc exists client-side first for onSnapshot to pick up later
-      // This is a bit simplified; a robust solution might check server-side if not found
-      // or use a dedicated "seed" function. For UI, we fetch and then allow edits.
-      const existingPrompt = prompts.find(p => p.promptKey === promptData.promptKey);
-      if (!existingPrompt) {
-         try {
-            // Attempt to set (create if not exists)
-            // This may run multiple times if called before initial snapshot loads all prompts
-            // A better approach is a one-time server-side seed or checking existence with getDoc
-            await setDoc(docRef, {
-                ...promptData,
-                id: promptData.promptKey, // Set id to promptKey for consistency
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-            }, { merge: true }); // Merge true to avoid overwriting if called multiple times rapidly
-            createdCount++;
-         } catch (error) {
-            console.error(`[PromptsPage] Error trying to ensure default prompt ${promptData.promptKey}:`, error);
-         }
-      }
-    }
-    if (createdCount > 0) {
-        toast({ title: "Prompts por Defecto", description: `Asegurados ${createdCount} prompts por defecto en Firestore.` });
-        // Snapshot listener should pick up these changes.
-    }
-    console.log('[PromptsPage] Default prompt check complete.');
-  };
-
 
   useEffect(() => {
     setIsLoading(true);
@@ -81,11 +41,8 @@ export default function PromptsPage() {
         fetchedPrompts.push({ id: doc.id, ...doc.data() } as AiPrompt);
       });
       setPrompts(fetchedPrompts);
-      
-      // After first load, ensure defaults are there if any are missing
-      // This logic is a bit tricky with onSnapshot. Ideally, seeding is a one-time admin operation.
-      // For simplicity here, we'll call ensureDefaultPrompts, which is idempotent due to using promptKey as ID.
-      if (isLoading) { // Only run ensure on initial load phase triggered by isLoading
+
+      if (isLoading) {
           await ensureDefaultPromptsClientSide(fetchedPrompts);
       }
 
@@ -99,12 +56,10 @@ export default function PromptsPage() {
       });
       setIsLoading(false);
     });
-    
-    return () => unsubscribe();
-  }, [toast, isLoading]); // isLoading in dependency array to control ensureDefaultPrompts call
 
-  // Client-side check and creation of default prompts if they are missing
-  // This is to ensure the UI can always list and edit the core prompts.
+    return () => unsubscribe();
+  }, [toast, isLoading]);
+
   const ensureDefaultPromptsClientSide = async (currentFirestorePrompts: AiPrompt[]) => {
     console.log('[PromptsPage] Client-side: Ensuring default prompts exist based on current snapshot.');
     const defaultPromptMap = new Map((Object.values(DEFAULT_PROMPTS)).map(p => [p.promptKey, p]));
@@ -117,7 +72,7 @@ export default function PromptsPage() {
           const docRef = doc(db, AI_PROMPTS_COLLECTION, promptData.promptKey);
           await setDoc(docRef, {
             ...promptData,
-            id: promptData.promptKey, // Ensure 'id' field matches promptKey
+            id: promptData.promptKey,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           });
@@ -133,7 +88,6 @@ export default function PromptsPage() {
         title: "Prompts por Defecto Creados",
         description: `Se crearon ${createdCount} prompts por defecto en Firestore. La lista se actualizará.`,
       });
-      // The onSnapshot listener should eventually pick up these changes.
     }
   };
 
@@ -162,7 +116,7 @@ export default function PromptsPage() {
         return;
       }
 
-      const promptRef = doc(db, AI_PROMPTS_COLLECTION, currentPrompt.id); // Use currentPrompt.id (which should be promptKey)
+      const promptRef = doc(db, AI_PROMPTS_COLLECTION, currentPrompt.id);
       await updateDoc(promptRef, {
         ...formData,
         defaultGenerationParams,
@@ -189,7 +143,6 @@ export default function PromptsPage() {
             <h1 className="text-3xl font-bold tracking-tight text-foreground font-headline">Gestión de Prompts de IA</h1>
             <p className="text-muted-foreground">Edita los prompts utilizados por los modelos de IA locales para generar contenido.</p>
         </div>
-        {/* <Button onClick={ensureDefaultPrompts} variant="outline">Asegurar Prompts por Defecto</Button> */}
       </div>
 
       <Card className="shadow-lg rounded-lg">
