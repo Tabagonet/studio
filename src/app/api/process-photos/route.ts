@@ -3,13 +3,15 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { adminDb, admin, adminAuth } from '@/lib/firebase-admin';
-// sharp is temporarily disabled
-// import sharp from 'sharp';
+// sharp is confirmed to be disabled, no import needed
+// import sharp from 'sharp'; 
 import { fileTypeFromBuffer } from 'file-type';
 import type { ProductTemplate, ProcessingStatusEntry, AutomationRule, AppNotification, WizardProductContext, WooCommerceCategory, ProductType, ParsedNameData, MiniLMInput, GeneratedProductContent, SeoHistoryEntry } from '@/lib/types';
 import { PRODUCT_TEMPLATES_COLLECTION, AUTOMATION_RULES_COLLECTION, APP_NOTIFICATIONS_COLLECTION, SEO_HISTORY_COLLECTION, DEFAULT_PROMPTS } from '@/lib/constants';
-import axios from 'axios';
-import FormDataLib from "form-data";
+// Axios is being replaced by fetch for media uploads, but kept for now if used elsewhere or as a fallback.
+// import axios from 'axios';
+// FormDataLib (form-data) is being replaced by global FormData
+// import FormDataLib from "form-data"; 
 import { wooApi } from '@/lib/woocommerce';
 import path from 'path';
 import fs from 'fs/promises';
@@ -58,7 +60,7 @@ async function generateContentWithMiniLM(
 async function uploadImageToWooCommerceMedia(
   localImagePathAbsolute: string,
   originalImageName: string, // Use original name for the upload
-  productNameForAlt?: string
+  productNameForAlt?: string // For generating alt text if needed
 ): Promise<{ id: number; source_url: string; name: string; alt_text: string; error?: string, details?: any } | { error: string, details?: any }> {
   const wooCommerceStoreUrl = process.env.WOOCOMMERCE_STORE_URL;
   const wooCommerceApiKey = process.env.WOOCOMMERCE_API_KEY;
@@ -73,69 +75,62 @@ async function uploadImageToWooCommerceMedia(
 
   try {
     const fileBuffer = await fs.readFile(localImagePathAbsolute);
-    const form = new FormDataLib();
-    // SIMPLIFIED: Only append the file. Title and alt_text can be set later if needed.
-    form.append('file', fileBuffer, originalImageName);
-    // form.append('title', (productNameForAlt || originalImageName.split('.')[0]).substring(0, 100));
-    // form.append('alt_text', `Image of ${productNameForAlt || originalImageName.split('.')[0]}`);
-
+    const form = new FormData(); // Use global FormData
+    
+    // Append the file. WooCommerce should pick up the filename from here.
+    // The 'type' might be inferred by WC or can be explicitly set if needed, but often not required if filename has extension.
+    form.append('file', new Blob([fileBuffer]), originalImageName);
+    // SIMPLIFIED: No 'title' or 'alt_text' being sent with the initial upload.
+    // These can be updated later via the media item ID if the upload is successful.
 
     const mediaUploadUrlWithAuth = `${wooCommerceStoreUrl}/wp-json/wp/v2/media?consumer_key=${encodeURIComponent(wooCommerceApiKey)}&consumer_secret=${encodeURIComponent(wooCommerceApiSecret)}`;
 
-    console.log(`[WC Media Upload - ${originalImageName}] Uploading (size ${fileBuffer.length} bytes) to WooCommerce Media using Query String Auth (Simplified Payload)...`);
+    console.log(`[WC Media Upload - ${originalImageName}] Uploading (size ${fileBuffer.length} bytes) to WooCommerce Media using Query String Auth (Simplified Payload with native fetch)...`);
     console.log(`[WC Media Upload - ${originalImageName}] Target URL (secret redacted): ${wooCommerceStoreUrl}/wp-json/wp/v2/media?consumer_key=${encodeURIComponent(wooCommerceApiKey)}&consumer_secret=[REDACTED]`);
-    // console.log(`[WC Media Upload - ${originalImageName}] FormData includes ONLY: file (name: ${originalImageName}).`);
-
-
+    
     const uploadStartTime = Date.now();
-    const response = await axios.post(
-      mediaUploadUrlWithAuth,
-      form,
-      {
-        headers: {
-          ...form.getHeaders(),
-        },
-        timeout: 120000,
-      }
-    );
+    const response = await fetch(mediaUploadUrlWithAuth, {
+      method: 'POST',
+      body: form, // Pass FormData directly
+      // Headers for multipart/form-data are typically set automatically by fetch when body is FormData
+      // but let's ensure Content-Disposition is part of it, which form-data usually sets up via filename.
+      // For native FormData, this should be handled if `originalImageName` is passed in append.
+    });
     const uploadEndTime = Date.now();
-    console.log(`[WC Media Upload - ${originalImageName}] Axios POST finished. Time: ${uploadEndTime - uploadStartTime}ms. Status: ${response.status}`);
+    console.log(`[WC Media Upload - ${originalImageName}] Native fetch POST finished. Time: ${uploadEndTime - uploadStartTime}ms. Status: ${response.status}`);
 
-    if (response.data && response.data.id) {
-      console.log(`[WC Media Upload - ${originalImageName}] Successfully uploaded. Media ID: ${response.data.id}, URL: ${response.data.source_url}`);
+    const responseData = await response.json();
+
+    if (response.ok && responseData && responseData.id) {
+      console.log(`[WC Media Upload - ${originalImageName}] Successfully uploaded. Media ID: ${responseData.id}, URL: ${responseData.source_url}`);
       console.log(`[WC Media Upload - ${originalImageName}] END - Success`);
       return {
-        id: response.data.id,
-        source_url: response.data.source_url,
-        name: response.data.slug || originalImageName, // Use slug if available, else original
-        alt_text: response.data.alt_text || `Image of ${productNameForAlt || originalImageName.split('.')[0]}` // Use returned alt or generate simple one
+        id: responseData.id,
+        source_url: responseData.source_url,
+        name: responseData.slug || originalImageName, 
+        alt_text: responseData.alt_text || `Image of ${productNameForAlt || originalImageName.split('.')[0]}`
       };
     } else {
-      const errorMsg = `[WC Media Upload - ${originalImageName}] Failed to upload. Invalid response data.`;
-      console.error(errorMsg, 'Response Data (first 200 chars):', JSON.stringify(response.data)?.substring(0,200));
-      console.log(`[WC Media Upload - ${originalImageName}] END - Failure (Invalid Response Data)`);
-      return { error: "Failed to upload image to WooCommerce: Invalid response data.", details: response.data };
+      const errorMsg = `[WC Media Upload - ${originalImageName}] Failed to upload. Status: ${response.status}.`;
+      console.error(errorMsg, 'Response Data:', responseData);
+      console.log(`[WC Media Upload - ${originalImageName}] END - Failure (Invalid Response or Status)`);
+      return { error: responseData.message || "Failed to upload image to WooCommerce: Invalid response data or status.", details: responseData };
     }
   } catch (error: any) {
-    let wcErrorMessage = "Unknown Axios error during media upload";
+    let wcErrorMessage = "Unknown error during media upload with fetch";
     let wcErrorDetails:any = null;
-    console.error(`[WC Media Upload - ${originalImageName}] Axios error uploading:`, error.message);
-    if (axios.isAxiosError(error)) {
-        if (error.response) {
-            console.error(`[WC Media Upload - ${originalImageName}] Axios error response status: ${error.response.status}`);
-            console.error(`[WC Media Upload - ${originalImageName}] Axios error response data:`, error.response.data);
-            wcErrorDetails = error.response.data;
-            if (typeof error.response.data === 'object' && error.response.data !== null) {
-                wcErrorMessage = (error.response.data as any).message || JSON.stringify(error.response.data);
-            } else if (typeof error.response.data === 'string') {
-                wcErrorMessage = error.response.data;
-            }
-        } else if (error.request) {
-            console.error(`[WC Media Upload - ${originalImageName}] Axios error: No response received.`);
-            wcErrorMessage = "No response from WooCommerce media server.";
+    console.error(`[WC Media Upload - ${originalImageName}] Fetch error uploading:`, error.message);
+    if (error.response && typeof error.response.json === 'function') { // Check if it's a Response object from fetch
+        try {
+            wcErrorDetails = await error.response.json();
+            wcErrorMessage = wcErrorDetails.message || JSON.stringify(wcErrorDetails);
+        } catch (e) {
+            wcErrorMessage = error.response.statusText || wcErrorMessage;
         }
+    } else if (error.cause) { // Node fetch might put original error in cause
+        wcErrorMessage = String(error.cause);
     }
-    console.log(`[WC Media Upload - ${originalImageName}] END - Failure (Axios Error)`);
+    console.log(`[WC Media Upload - ${originalImageName}] END - Failure (Fetch Error)`);
     return { error: wcErrorMessage, details: wcErrorDetails };
   }
 }
@@ -155,24 +150,28 @@ function cleanTextForFilename(text: string): string {
 function applyTemplate(templateContent: string, data: Record<string, string | number | undefined | null>): string {
   let result = templateContent;
   const ifRegex = /\{\{#if\s+([\w-]+)\}\}([\s\S]*?)\{\{\/if\}\}/g;
+  
   result = result.replace(ifRegex, (match, variableName, innerContent) => {
     const value = data[variableName];
-    // Handle price specifically
-    if (variableName.toLowerCase().includes('price')) {
-        return (value !== undefined && value !== null && String(value).trim() !== '' && parseFloat(String(value)) > 0) ? innerContent.trim() : '';
-    }
-    // General case for other types
+    let conditionMet = false;
+
     if (typeof value === 'string') {
-      return value.trim() !== '' ? innerContent.trim() : '';
+      conditionMet = value.trim() !== '';
+    } else if (typeof value === 'number') {
+      // For prices, specifically check if > 0. For other numbers, non-zero could be true.
+      if (variableName.toLowerCase().includes('price')) {
+        conditionMet = value > 0;
+      } else {
+        conditionMet = value !== 0;
+      }
+    } else if (typeof value === 'boolean') {
+      conditionMet = value;
+    } else if (value !== undefined && value !== null) {
+      // Handles other truthy non-empty objects/arrays if they were passed, though data is string/number/null/undefined
+      conditionMet = true; 
     }
-    if (typeof value === 'number') {
-      return value !== 0 ? innerContent.trim() : '';
-    }
-    if (typeof value === 'boolean') {
-      return value ? innerContent.trim() : '';
-    }
-    // For null or undefined, or other falsy values not caught above
-    return value ? innerContent.trim() : '';
+    // If value is undefined or null, conditionMet remains false.
+    return conditionMet ? innerContent.trim() : '';
   });
 
   for (const key in data) {
@@ -215,7 +214,7 @@ async function fetchWooCommerceCategories(forceRefresh: boolean = false): Promis
     }
     if (!wooApi) {
       console.warn("[WooCommerce Categories] API client not initialized. Cannot fetch.");
-      return allWooCategoriesCache; // Return current cache (might be empty if first call and wooApi is null)
+      return allWooCategoriesCache; 
     }
 
     console.log(`[WooCommerce Categories] Attempting to fetch categories from WooCommerce (Force refresh: ${forceRefresh}).`);
@@ -228,10 +227,10 @@ async function fetchWooCommerceCategories(forceRefresh: boolean = false): Promis
             return allWooCategoriesCache;
         }
         console.warn("[WooCommerce Categories] Failed to fetch categories, response not OK or not an array. Status:", response.status, "Data (first 100 chars):", response.data ? String(response.data).substring(0,100) + '...' : 'N/A');
-        return allWooCategoriesCache; // Return current cache on failure
+        return allWooCategoriesCache; 
     } catch (error: any) {
         console.error("[WooCommerce Categories] Error fetching:", error.message || error);
-        return allWooCategoriesCache; // Return current cache on error
+        return allWooCategoriesCache; 
     }
 }
 
@@ -327,7 +326,8 @@ async function createBatchCompletionNotification(batchId: string, userId: string
   await adminDb.collection(APP_NOTIFICATIONS_COLLECTION).add({
     userId, title, description, type,
     timestamp: admin.firestore.FieldValue.serverTimestamp() as any,
-    isRead: false, linkTo: `/batch?batchId=${batchId}`
+    isRead: false, linkTo: `/batch?batchId=${batchId}`,
+    lastMessage: description // Added for consistency
   } as Omit<AppNotification, 'id'>);
 }
 
@@ -336,7 +336,7 @@ async function triggerNextPhotoProcessing(batchId: string, requestUrl: string, u
   console.log(`[API Trigger - ${context || 'General'}] Triggering next processing for batch ${batchId} by calling: ${apiUrl}. UserId: ${userId || 'N/A'}`);
   try {
 
-    fetch(apiUrl, {
+    fetch(apiUrl, { // Using native fetch
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ batchId, userId }),
@@ -592,9 +592,9 @@ async function createWooCommerceProductForGroup(
     } else {
         const detailedError = finalErrorDetails ? JSON.stringify(finalErrorDetails) : (finalErrorMessage || "Error desconocido en WC");
         console.error(`[WooCommerce CreateProduct - ${productNameFromContext}] Product creation FAILED. SKU Attempted: ${finalSkuUsed}. Error: ${finalErrorMessage}. Details: ${detailedError}`);
-        await updateSpecificFirestoreEntries(entryIdsForThisProduct, 'error_woocommerce_integration', { errorMessage: `Error WooCommerce: ${detailedError.substring(0,250)}`, progress: 100 });
+        await updateSpecificFirestoreEntries(entryIdsForThisProduct, 'error_woocommerce_integration', { errorMessage: `Error WooCommerce: ${detailedError.substring(0,250)}`, progress: 100, lastMessage: `Error WooCommerce: ${detailedError.substring(0,100)}...`});
         if (adminDb && userId) {
-            await adminDb.collection(APP_NOTIFICATIONS_COLLECTION).add({ userId, title: `Error al crear producto "${productNameFromContext}"`, description: `SKU: ${finalSkuUsed || 'N/A'}. Error: ${detailedError.substring(0, 150)}`, type: 'error', timestamp: admin.firestore.FieldValue.serverTimestamp() as any, isRead: false, linkTo: `/batch?batchId=${batchId}` } as Omit<AppNotification, 'id'>);
+            await adminDb.collection(APP_NOTIFICATIONS_COLLECTION).add({ userId, title: `Error al crear producto "${productNameFromContext}"`, description: `SKU: ${finalSkuUsed || 'N/A'}. Error: ${detailedError.substring(0, 150)}`, type: 'error', timestamp: admin.firestore.FieldValue.serverTimestamp() as any, isRead: false, linkTo: `/batch?batchId=${batchId}`, lastMessage: `Error creando producto: ${detailedError.substring(0,100)}` } as Omit<AppNotification, 'id'>);
         }
         const productCreationEndTime = Date.now();
         console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] END - Failure. Total time: ${productCreationEndTime - productCreationStartTime}ms`);
@@ -672,12 +672,12 @@ export async function POST(request: NextRequest) {
       const imgProcStartTime = Date.now();
 
       try {
-        await photoDocRef.update({ status: 'processing_image_started', progress: 5, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+        await photoDocRef.update({ status: 'processing_image_started', progress: 5, updatedAt: admin.firestore.FieldValue.serverTimestamp(), lastMessage: 'Iniciando procesamiento de imagen.' });
 
         if (!photoData.originalDownloadUrl) {
             console.error(`[ImgProc - ${photoData.imageName}] ERROR: originalDownloadUrl is missing. Cannot process.`);
-            await photoDocRef.update({ status: 'error_processing_image', errorMessage: 'Missing originalDownloadUrl.', progress: 0, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-            await triggerNextPhotoProcessing(batchId, request.url, userIdForThisPhoto, `After critical URL error for ${photoData.imageName}`);
+            await photoDocRef.update({ status: 'error_processing_image', errorMessage: 'Missing originalDownloadUrl.', progress: 0, updatedAt: admin.firestore.FieldValue.serverTimestamp(), lastMessage: 'Error: URL de imagen original faltante.' });
+            await triggerNextPhotoProcessing(batchId, request.url.toString(), userIdForThisPhoto, `After critical URL error for ${photoData.imageName}`);
             return NextResponse.json({ message: `Error processing ${photoData.imageName}: missing URL. Triggered next.`, batchId: batchId, errorPhotoId: photoData.id });
         }
 
@@ -689,16 +689,16 @@ export async function POST(request: NextRequest) {
           console.log(`[ImgProc - ${photoData.imageName}] Local file read successfully. Size: ${imageBuffer.length}`);
         } catch (readError: any) {
            console.error(`[ImgProc - ${photoData.imageName}] Error reading local file ${localImageAbsolutePath}:`, readError.message);
-           await photoDocRef.update({ status: 'error_processing_image', errorMessage: `Failed to read local image file: ${readError.message.substring(0,200)}`, progress: 5, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+           await photoDocRef.update({ status: 'error_processing_image', errorMessage: `Failed to read local image file: ${readError.message.substring(0,200)}`, progress: 5, updatedAt: admin.firestore.FieldValue.serverTimestamp(), lastMessage: `Error leyendo archivo local: ${readError.message.substring(0,50)}...` });
            throw readError;
         }
         console.log(`[ImgProc - ${photoData.imageName}] Image buffer loaded. Size: ${imageBuffer.length} bytes.`);
-        await photoDocRef.update({ status: 'processing_image_downloaded', progress: 10, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+        await photoDocRef.update({ status: 'processing_image_downloaded', progress: 10, updatedAt: admin.firestore.FieldValue.serverTimestamp(), lastMessage: 'Imagen cargada desde servidor local (backend).' });
 
         const parsedNameData = photoData.productContext?.name ?
           extractProductNameAndAttributesFromFilename(photoData.imageName, photoData.productContext.name) :
           extractProductNameAndAttributesFromFilename(photoData.imageName);
-        await photoDocRef.update({ status: 'processing_image_name_parsed', progress: 15, parsedNameData, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+        await photoDocRef.update({ status: 'processing_image_name_parsed', progress: 15, parsedNameData, updatedAt: admin.firestore.FieldValue.serverTimestamp(), lastMessage: 'Nombre de archivo analizado.' });
         console.log(`[ImgProc - ${photoData.imageName}] Name parsed. Prod='${parsedNameData.extractedProductName}', Attrs='${parsedNameData.potentialAttributes.join(',')}'`);
 
 
@@ -709,10 +709,10 @@ export async function POST(request: NextRequest) {
         })).slice(0, 5).map(item => item.className.split(',')[0].trim());
         const classifyEndTime = Date.now();
         console.log(`[ImgProc - ${photoData.imageName}] AI: classifyImage END (stubbed). Time: ${classifyEndTime - classifyStartTime}ms. Tags: ${visualTags.join(', ')}`);
-        await photoDocRef.update({ status: 'processing_image_classified', progress: 25, visualTags, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+        await photoDocRef.update({ status: 'processing_image_classified', progress: 25, visualTags, updatedAt: admin.firestore.FieldValue.serverTimestamp(), lastMessage: 'Imagen clasificada (IA Stub).' });
 
 
-        const productCategoriesForMiniLM = await fetchWooCommerceCategories(); // Ensure this uses the cached or fresh list
+        const productCategoriesForMiniLM = await fetchWooCommerceCategories(); 
         const miniLMInput: MiniLMInput = {
           productName: parsedNameData?.extractedProductName || photoData.productContext?.name || photoData.imageName.split('.')[0],
           visualTags,
@@ -725,7 +725,7 @@ export async function POST(request: NextRequest) {
         const generatedContent = await generateContentWithMiniLM(miniLMInput);
         const miniLMEndTime = Date.now();
         console.log(`[ImgProc - ${photoData.imageName}] AI: generateContentWithMiniLM END. Time: ${miniLMEndTime - miniLMStartTime}ms. SEO Base='${generatedContent.seoFilenameBase}'`);
-        await photoDocRef.update({ status: 'processing_image_content_generated', progress: 45, generatedContent, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+        await photoDocRef.update({ status: 'processing_image_content_generated', progress: 45, generatedContent, updatedAt: admin.firestore.FieldValue.serverTimestamp(), lastMessage: 'Contenido generado (IA Stub).' });
 
 
         console.warn(`[ImgProc - ${photoData.imageName}] SHARP image processing is TEMPORARILY DISABLED. Using original image for 'processed' paths.`);
@@ -737,25 +737,28 @@ export async function POST(request: NextRequest) {
 
         const processedImageDir = path.join(process.cwd(), 'public', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId);
         await fs.mkdir(processedImageDir, { recursive: true });
-        const processedImageAbsolutePath = path.join(processedImageDir, filenameForProcessing);
+        // Use original filename (safeFileName) for the copy, not the seo-generated one yet for this temp step
+        const tempProcessedImageAbsolutePath = path.join(processedImageDir, path.basename(photoData.imageName)); 
 
         try {
-            await fs.copyFile(localImageAbsolutePath, processedImageAbsolutePath);
-            console.log(`[ImgProc - ${photoData.imageName}] SHARP SKIPPED. Copied original to processed path: ${processedImageAbsolutePath} (using filename: ${filenameForProcessing})`);
+            await fs.copyFile(localImageAbsolutePath, tempProcessedImageAbsolutePath);
+            console.log(`[ImgProc - ${photoData.imageName}] SHARP SKIPPED. Copied original to processed path: ${tempProcessedImageAbsolutePath} (using filename: ${path.basename(photoData.imageName)})`);
         } catch (copyError: any) {
-            console.error(`[ImgProc - ${photoData.imageName}] SHARP SKIPPED. Error copying original to processed path: ${copyError.message}. Using original path directly and original name.`);
-            // Fallback: if copy fails, use the original path and name, but this might cause issues later.
-            // processedImageAbsolutePath = localImageAbsolutePath;
-            // filenameForProcessing = photoData.imageName;
+            console.error(`[ImgProc - ${photoData.imageName}] SHARP SKIPPED. Error copying original to processed path: ${copyError.message}.`);
+            await photoDocRef.update({ status: 'error_processing_image', errorMessage: `Error copying file locally: ${copyError.message.substring(0,100)}`, progress: 60, updatedAt: admin.firestore.FieldValue.serverTimestamp(), lastMessage: 'Error interno al copiar imagen.' });
+            throw copyError; // This will be caught by the outer try-catch for photo processing
         }
-
-        const processedImageRelativePath = path.join('/', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId, filenameForProcessing).replace(/\\\\/g, '/');
-
-
+        
+        // The actual filename used for upload to WC will be originalImageName
+        // The path will be tempProcessedImageAbsolutePath, which contains the original file content.
+        // seoName in Firestore will still reflect the desired SEO name.
+        
         const updateDataForOptimized: Partial<ProcessingStatusEntry> = {
-          status: 'processing_image_optimized', progress: 65, seoName: filenameForProcessing,
-          processedImageStoragePath: processedImageRelativePath, processedImageDownloadUrl: processedImageRelativePath,
+          status: 'processing_image_optimized', progress: 65, seoName: filenameForProcessing, // Desired SEO name
+          processedImageStoragePath: path.join('/', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId, path.basename(photoData.imageName)).replace(/\\\\/g, '/'), // Actual path of copied file
+          processedImageDownloadUrl: path.join('/', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId, path.basename(photoData.imageName)).replace(/\\\\/g, '/'),
           seoMetadata: generatedContent.seoMetadata, updatedAt: admin.firestore.FieldValue.serverTimestamp() as any,
+          lastMessage: 'Imagen "optimizada" (copiada, Sharp deshabilitado).'
         };
         await photoDocRef.update(updateDataForOptimized);
 
@@ -766,21 +769,22 @@ export async function POST(request: NextRequest) {
         const updateDataForRuleApp: Partial<ProcessingStatusEntry> = {
           status: 'processing_image_rules_applied', progress: 75, assignedCategorySlug: finalCategorySlug,
           assignedTags: finalTags, updatedAt: admin.firestore.FieldValue.serverTimestamp() as any,
+          lastMessage: 'Reglas de automatización aplicadas.'
         };
         if (generatedContent.attributes && generatedContent.attributes.length > 0) {
-          const currentProductContext = photoData.productContext || {} as WizardProductContext; // Ensure productContext exists
+          const currentProductContext = photoData.productContext || {} as WizardProductContext; 
           updateDataForRuleApp.productContext = { ...currentProductContext, attributes: generatedContent.attributes } as WizardProductContext;
         }
         await photoDocRef.update(updateDataForRuleApp);
         console.log(`[ImgProc - ${photoData.imageName}] Rules applied. Cat: ${finalCategorySlug}, Tags: ${finalTags.join(', ')}`);
 
-        console.log(`[ImgProc - ${photoData.imageName}] uploadImageToWooCommerceMedia START for ${processedImageAbsolutePath} (original name: ${photoData.imageName})`);
+        console.log(`[ImgProc - ${photoData.imageName}] uploadImageToWooCommerceMedia START for ${tempProcessedImageAbsolutePath} (original name for WC: ${photoData.imageName})`);
         const wcUploadStartTime = Date.now();
-        // Pass original name and product name for alt text
+        
         const wcMediaUploadResult = await uploadImageToWooCommerceMedia(
-            processedImageAbsolutePath,
-            photoData.imageName, 
-            miniLMInput.productName
+            tempProcessedImageAbsolutePath, // Path to the copied original file
+            photoData.imageName, // Use original filename for the upload to WC
+            miniLMInput.productName 
         );
         const wcUploadEndTime = Date.now();
         console.log(`[ImgProc - ${photoData.imageName}] uploadImageToWooCommerceMedia END. Time: ${wcUploadEndTime - wcUploadStartTime}ms.`);
@@ -790,18 +794,18 @@ export async function POST(request: NextRequest) {
           const updateDataForWCMedia: Partial<ProcessingStatusEntry> = {
               status: 'completed_image_pending_woocommerce', progress: 100, wooCommerceMediaId: wcMediaUploadResult.id,
               updatedAt: admin.firestore.FieldValue.serverTimestamp() as any,
-              lastMessage: `Image uploaded to WC Media (ID: ${wcMediaUploadResult.id}).`
+              lastMessage: `Imagen subida a WC Media (ID: ${wcMediaUploadResult.id}).`
           };
           const currentSeoMetadata = photoData.generatedContent?.seoMetadata || photoData.seoMetadata || {};
           if(wcMediaUploadResult.alt_text) updateDataForWCMedia.seoMetadata = { ...currentSeoMetadata, alt: wcMediaUploadResult.alt_text };
           else if (!currentSeoMetadata.alt && miniLMInput.productName) updateDataForWCMedia.seoMetadata = { ...currentSeoMetadata, alt: `Image of ${miniLMInput.productName}` };
           await photoDocRef.update(updateDataForWCMedia);
         } else {
-          const uploadErrorMsg = wcMediaUploadResult?.error || `Unknown error uploading ${filenameForProcessing} to WC Media.`;
+          const uploadErrorMsg = wcMediaUploadResult?.error || `Unknown error uploading ${photoData.imageName} to WC Media.`;
           const uploadErrorDetails = wcMediaUploadResult?.details ? JSON.stringify(wcMediaUploadResult.details) : "No additional details.";
           console.error(`[ImgProc - ${photoData.imageName}] FAILED to upload to WC Media. Error: ${uploadErrorMsg}`, "Details:", uploadErrorDetails);
-          await photoDocRef.update({ status: 'error_processing_image', errorMessage: `${uploadErrorMsg.substring(0,100)} Details: ${uploadErrorDetails.substring(0,150)}`, progress: 85, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-          throw new Error(uploadErrorMsg); // This will be caught by the outer try-catch for photo processing
+          await photoDocRef.update({ status: 'error_processing_image', errorMessage: `${uploadErrorMsg.substring(0,100)} Details: ${uploadErrorDetails.substring(0,150)}`, progress: 85, updatedAt: admin.firestore.FieldValue.serverTimestamp(), lastMessage: `Error subiendo a WC: ${uploadErrorMsg.substring(0,50)}...` });
+          throw new Error(uploadErrorMsg); 
         }
         const imgProcEndTime = Date.now();
         console.log(`[ImgProc - ${photoData.imageName}] END individual image processing. Status: completed_image_pending_woocommerce. Total time: ${imgProcEndTime - imgProcStartTime}ms`);
@@ -814,13 +818,14 @@ export async function POST(request: NextRequest) {
             await photoDocRef.update({
                 status: 'error_processing_image',
                 errorMessage: `PhotoProc Error: ${photoProcessingError.message?.substring(0, 250) || 'Unknown error during image processing.'}`,
-                progress: photoData.progress || 0, // Use existing progress or default
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                progress: photoData.progress || 0, 
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                lastMessage: `Error procesando imagen: ${photoProcessingError.message?.substring(0,50)}...`
             });
         }
       } finally {
         console.log(`[ImgProc - ${photoData.imageName}] FINALLY block: Triggering next processing for batch ${batchId}.`);
-        await triggerNextPhotoProcessing(batchId, request.url, userIdForThisPhoto, `After processing ${photoData.imageName}`);
+        await triggerNextPhotoProcessing(batchId, request.url.toString(), userIdForThisPhoto, `After processing ${photoData.imageName}`);
       }
       const requestEndTime = Date.now();
       console.log(`[API /process-photos] END - Processed single image ${photoData.imageName}. Total request time: ${requestEndTime - requestStartTime}ms.`);
@@ -837,7 +842,7 @@ export async function POST(request: NextRequest) {
 
       const entriesReadyForWooCommerce = entriesReadyForWooCommerceSnapshot.docs
                                             .map(doc => ({id: doc.id, ...doc.data() } as ProcessingStatusEntry))
-                                            .filter(entry => entry.productContext && entry.productContext.name); // Ensure product context exists
+                                            .filter(entry => entry.productContext && entry.productContext.name); 
 
 
       const userIdForBatchOverall = userIdFromRequest || entriesReadyForWooCommerce[0]?.userId || 'batch_processing_user';
@@ -847,10 +852,10 @@ export async function POST(request: NextRequest) {
       if (entriesReadyForWooCommerce.length > 0) {
         const productsMap: Record<string, ProcessingStatusEntry[]> = {};
         entriesReadyForWooCommerce.forEach(entry => {
-            const productNameKey = entry.productContext?.name; // Checked by filter above
-            if (!productNameKey) { // Should not happen due to filter, but defensive
+            const productNameKey = entry.productContext?.name; 
+            if (!productNameKey) { 
                 console.warn(`[API /process-photos] Batch ${batchId}: Entry ${entry.id} (Image: ${entry.imageName}) missing productContext.name in product creation phase. Marking error.`);
-                updateSpecificFirestoreEntries([entry.id], 'error_woocommerce_integration', { errorMessage: "Contexto de nombre de producto faltante para creación WC."});
+                updateSpecificFirestoreEntries([entry.id], 'error_woocommerce_integration', { errorMessage: "Contexto de nombre de producto faltante para creación WC.", lastMessage: "Error: Falta nombre de producto para WC."});
                 return;
             }
             if (!productsMap[productNameKey]) productsMap[productNameKey] = [];
@@ -869,7 +874,7 @@ export async function POST(request: NextRequest) {
             console.log(`[API /process-photos] Batch ${batchId}: createWooCommerceProductForGroup END for product group "${productNameKey}". Success: ${result.success}`);
             productCreationResults.push(result);
             if (result.success) {
-                // Cleanup local files only after successful WC product creation for this group
+                
                 const pathsToDelete = productEntries.flatMap(e => [e.originalDownloadUrl, e.processedImageStoragePath]).filter(p => !!p) as string[];
                 await cleanupTempFiles(pathsToDelete);
                 console.log(`[Cleanup] Batch ${batchId}: Cleaned images for product "${productNameKey}".`);
@@ -879,7 +884,7 @@ export async function POST(request: NextRequest) {
           console.log(`[API /process-photos] Batch ${batchId}: Finished all product creations. Results count: ${productCreationResults.length}`);
           await createBatchCompletionNotification(batchId, userIdForBatchOverall, productCreationResults);
 
-          // Check if the entire batch is now terminal (all entries are completed or errored)
+          
           const allBatchEntriesFinalSnapshot = await adminDb.collection('processing_status').where('batchId', '==', batchId).get();
           const allBatchEntriesFinal = allBatchEntriesFinalSnapshot.docs.map(d => d.data() as ProcessingStatusEntry);
           const isEntireBatchTerminal = allBatchEntriesFinal.every(e => e.status.startsWith('completed_') || e.status.startsWith('error_'));
@@ -895,33 +900,32 @@ export async function POST(request: NextRequest) {
               return NextResponse.json({ message: `Batch ${batchId} WC product creation complete & batch terminal.`, results: productCreationResults });
           } else {
               console.log(`[API /process-photos] Batch ${batchId}: WC product creation cycle done, but batch NOT fully terminal. Triggering next processing check.`);
-              await triggerNextPhotoProcessing(batchId, request.url, userIdForBatchOverall, `After WC product creation cycle (not terminal)`);
+              await triggerNextPhotoProcessing(batchId, request.url.toString(), userIdForBatchOverall, `After WC product creation cycle (not terminal)`);
               const requestEndTime = Date.now();
               console.log(`[API /process-photos] END - Batch ${batchId} WC product creation cycle done, batch NOT fully terminal. Total request time: ${requestEndTime - requestStartTime}ms.`);
               return NextResponse.json({ message: `Batch ${batchId} WC product creation cycle done. Batch not terminal. Next check triggered.`, results: productCreationResults });
           }
         } else {
-             // This means entries were 'completed_image_pending_woocommerce' but no valid product groups were formed (e.g., all missing productContext.name)
+             
              console.log(`[API /process-photos] Batch ${batchId}: No valid product groups after filtering for WC creation.`);
-             // Check if batch is now terminal due to these errors
+             
              const allBatchEntriesFinalSnapshot = await adminDb.collection('processing_status').where('batchId', '==', batchId).get();
              const isEntireBatchTerminal = allBatchEntriesFinalSnapshot.docs.every(d => { const s = d.data().status; return s.startsWith('completed_') || s.startsWith('error_');});
              if (isEntireBatchTerminal) {
-                 await createBatchCompletionNotification(batchId, userIdForBatchOverall, productCreationResults); // Will show 0 successes
+                 await createBatchCompletionNotification(batchId, userIdForBatchOverall, productCreationResults); 
              } else {
-                 // This case should ideally not happen if errors are marked correctly, but good to have a trigger.
-                 await triggerNextPhotoProcessing(batchId, request.url, userIdForBatchOverall, `No valid product groups but batch not terminal`);
+                 
+                 await triggerNextPhotoProcessing(batchId, request.url.toString(), userIdForBatchOverall, `No valid product groups but batch not terminal`);
              }
              const requestEndTime = Date.now();
              console.log(`[API /process-photos] END - Batch ${batchId}: No valid product groups for WC. Total request time: ${requestEndTime - requestStartTime}ms.`);
              return NextResponse.json({ message: `Batch ${batchId}: No valid product groups. No products created.`, status: 'batch_completed_no_valid_groups' });
         }
       } else {
-        // No photos with 'uploaded' or 'completed_image_pending_woocommerce' status.
-        // Check if all entries in the batch are in a terminal state (completed or error).
+        
         const allBatchEntriesSnapshot = await adminDb.collection('processing_status').where('batchId', '==', batchId).get();
         if (allBatchEntriesSnapshot.empty) {
-             // This batch ID doesn't exist or is fully processed and entries removed (if that's a future feature)
+             
              console.log(`[API /process-photos] Batch ${batchId}: Is empty or fully processed/removed.`);
              const requestEndTime = Date.now();
              console.log(`[API /process-photos] END - Batch ${batchId}: Empty or fully processed. Total request time: ${requestEndTime - requestStartTime}ms.`);
@@ -934,7 +938,7 @@ export async function POST(request: NextRequest) {
 
         if (allTerminal) {
             console.log(`[API /process-photos] Batch ${batchId}: FINAL CHECK - All entries terminal. Processing complete.`);
-            // Perform final cleanup for terminal batches if not done before
+            
             const rawBatchDir = path.join(process.cwd(), 'public', LOCAL_UPLOAD_RAW_DIR_RELATIVE, batchId);
             const processedBatchDir = path.join(process.cwd(), 'public', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId);
             try { await fs.rm(rawBatchDir, { recursive: true, force: true }); console.log(`[Cleanup] Deleted raw batch dir: ${rawBatchDir}`); } catch (e: any) { /* ignore */ }
@@ -944,7 +948,7 @@ export async function POST(request: NextRequest) {
             console.log(`[API /process-photos] END - Batch ${batchId}: Fully terminal. Total request time: ${requestEndTime - requestStartTime}ms.`);
              return NextResponse.json({ message: `Batch ${batchId} processing fully terminal.`, status: 'batch_already_terminal' });
         }
-        // If not all terminal, but no actionable entries, it means something is stuck or waiting.
+        
         console.log(`[API /process-photos] Batch ${batchId}: No 'uploaded' or 'completed_image_pending_woocommerce' entries, AND not all entries are terminal. Batch stalled or waiting.`);
         const requestEndTime = Date.now();
         console.log(`[API /process-photos] END - Batch ${batchId}: Stalled or waiting. Total request time: ${requestEndTime - requestStartTime}ms.`);
@@ -967,7 +971,7 @@ export async function POST(request: NextRequest) {
             if (currentEntrySnapshot.exists) {
                 const currentEntryData = currentEntrySnapshot.data() as ProcessingStatusEntry;
                 if (!currentEntryData.status.startsWith('error_') && !currentEntryData.status.startsWith('completed_')) {
-                     photoDocRef.update({ status: 'error_processing_image', errorMessage: `API General Error: ${errorMessageString.substring(0, 200)}`, updatedAt: admin.firestore.FieldValue.serverTimestamp() })
+                     photoDocRef.update({ status: 'error_processing_image', errorMessage: `API General Error: ${errorMessageString.substring(0, 200)}`, updatedAt: admin.firestore.FieldValue.serverTimestamp(), lastMessage: `Error API General: ${errorMessageString.substring(0,50)}...` })
                                .catch(dbError => console.error("[API /process-photos] Firestore update FAILED during CRITICAL ERROR handling:", dbError));
                 } else {
                     console.log(`[API /process-photos] Doc ${currentPhotoDocIdForErrorHandling} already in a terminal state (${currentEntryData.status}). Not updating with general error.`);
@@ -977,10 +981,9 @@ export async function POST(request: NextRequest) {
             console.error("[API /process-photos] Synchronous error during Firestore update attempt in CRITICAL ERROR handling:", dbUpdateError);
         }
     } else if (body?.batchId) {
-        // If a general error occurs for a batch before a specific photo is processed
+        
         console.error(`[API /process-photos] General error for batch ${body.batchId}. Details: ${errorMessageString}. No specific photo document ID was set for error handling.`);
-        // Potentially update all non-terminal entries for this batch to an error state
-        // Or send a general batch error notification.
+        
     }
 
     return NextResponse.json(
@@ -994,3 +997,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+    

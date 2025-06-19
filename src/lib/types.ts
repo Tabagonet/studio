@@ -102,6 +102,7 @@ export interface AppNotification {
   timestamp: Timestamp;
   isRead: boolean;
   linkTo?: string;
+  lastMessage?: string; // Added lastMessage
 }
 
 export type AttributeSuggestion = string;
@@ -122,7 +123,7 @@ export interface WizardProductContext {
 
 
 export interface ProcessingStatusEntry {
-  assignedCategorySlug?: string | null; // Allow null
+  assignedCategorySlug?: string | null; 
   id: string;
   userId: string;
   batchId: string;
@@ -156,13 +157,12 @@ export interface ProcessingStatusEntry {
   seoMetadata?: { alt?: string; title?: string, description?: string, caption?: string };
   errorMessage?: string;
   productAssociationId?: string;
-  // assignedCategory?: string; // Replaced by assignedCategorySlug for consistency
   assignedTags?: string[];
   productContext?: WizardProductContext;
   parsedNameData?: ParsedNameData;
   visualTags?: string[];
   generatedContent?: GeneratedProductContent;
-  lastMessage?: string;
+  lastMessage?: string; 
 }
 
 export interface WooCommerceCategory {
@@ -223,7 +223,7 @@ export interface SeoHistoryEntry {
   seoMetadata?: GeneratedProductContent['seoMetadata'];
   tags?: string[];
   attributes?: ProductAttribute[];
-  category?: string | null; // Allow null
+  category?: string | null; 
   processedAt: Timestamp;
 }
 
@@ -257,3 +257,5 @@ export interface AiPromptFormValues {
   promptTemplate: string;
   defaultGenerationParamsText: string; 
 }
+
+    
