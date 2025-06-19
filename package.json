@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.8.0",
@@ -77,6 +78,9 @@
     "typescript": "^5",
     "aws-sdk": "^2.1659.0",
     "mock-aws-s3": "^4.0.2",
-    "nock": "^13.5.4"
+    "nock": "^13.5.4",
+    "node-gyp": "^10.1.0",
+    "npm": "^10.8.1",
+    "@opentelemetry/exporter-jaeger": "^1.25.1"
   }
 }
