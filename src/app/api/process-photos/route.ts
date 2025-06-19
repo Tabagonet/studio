@@ -61,16 +61,26 @@ async function uploadImageToWooCommerceMedia(
 ): Promise<{ id: number; source_url: string; name: string; alt_text: string; error?: string; details?: any } | { error: string; details?: any }> {
   console.log(`[WC Media Upload - ${originalImageName}] START. Local Path: ${localImagePathAbsolute}`);
 
-  if (!wooApi) {
-    const errorMsg = "[WC Media Upload] CRITICAL: WooCommerce API client not initialized.";
+  const wooCommerceStoreUrl = process.env.WOOCOMMERCE_STORE_URL;
+  const wooCommerceApiKey = process.env.WOOCOMMERCE_API_KEY;
+  const wooCommerceApiSecret = process.env.WOOCOMMERCE_API_SECRET;
+
+  if (!wooCommerceStoreUrl || !wooCommerceApiKey || !wooCommerceApiSecret) {
+    const errorMsg = "[WC Media Upload] CRITICAL: WooCommerce API credentials or URL not configured in .env.";
     console.error(errorMsg);
     return { error: errorMsg };
   }
+  console.log(`[WC Media Upload - ${originalImageName}] Target Store URL from env: ${wooCommerceStoreUrl}`);
+
+  if (!wooCommerceStoreUrl.startsWith('https://')) {
+    console.warn(`[WC Media Upload - ${originalImageName}] CRITICAL SECURITY WARNING: WOOCOMMERCE_STORE_URL ('${wooCommerceStoreUrl}') is using HTTP. API keys and data are sent insecurely. Please update to HTTPS if your site supports it. This might also be causing permission issues.`);
+  }
+
 
   try {
     console.log(`[WC Media Upload - ${originalImageName}] Reading file buffer from: ${localImagePathAbsolute}`);
     const fileBuffer = await fs.readFile(localImagePathAbsolute);
-    const fileTypeResult = await fileTypeFromBuffer(fileBuffer);
+    const fileTypeResult = await fileTypeFromBuffer(fileBuffer); // Correct usage
     const contentType = fileTypeResult ? fileTypeResult.mime : 'application/octet-stream';
     console.log(`[WC Media Upload - ${originalImageName}] File buffer read. Size: ${fileBuffer.length} bytes, Content-Type: ${contentType}`);
 
@@ -80,21 +90,58 @@ async function uploadImageToWooCommerceMedia(
       contentType: contentType,
       knownLength: fileBuffer.length,
     });
+
     const titleForUpload = productNameForAlt || originalImageName.split('.')[0].replace(/[-_]/g, ' ');
     form.append('title', titleForUpload);
-    form.append('alt_text', `Image of ${titleForUpload}`); // Added alt_text directly to form
-    form.append('status', 'publish');
-    console.log(`[WC Media Upload - ${originalImageName}] FormData prepared. Appending 'file' (name: ${originalImageName}), 'title' (value: ${titleForUpload}), 'alt_text', 'status' (value: 'publish')`);
+    form.append('status', 'publish'); 
+    console.log(`[WC Media Upload - ${originalImageName}] FormData prepared. Appending 'file' (name: ${originalImageName}), 'title' (value: ${titleForUpload}), 'status' (value: 'publish')`);
 
-    console.log(`[WC Media Upload - ${originalImageName}] Attempting to POST to /wc/v3/media using wooApi.`);
-    const uploadStartTime = Date.now();
-    // The wooApi.post('media', ...) will construct the URL as WOOCOMMERCE_STORE_URL/wp-json/wc/v3/media
-    const response = await wooApi.post('media', form, {
-      headers: form.getHeaders(), // Pass headers from form-data library
+    const targetUrl = `${wooCommerceStoreUrl.replace(/\/$/, '')}/wp-json/wp/v2/media`;
+    console.log(`[WC Media Upload - ${originalImageName}] Attempting to POST to: ${targetUrl} using Basic Auth.`);
+
+    const encodedCredentials = Buffer.from(`${wooCommerceApiKey}:${wooCommerceApiSecret}`).toString('base64');
+    console.log(`[WC Media Upload - ${originalImageName}] Auth Header Prefix: Basic [REDACTED]`);
+
+    // Log FormData entries
+    console.log(`[WC Media Upload - ${originalImageName}] FormData entries being sent:`);
+    for (const pair of (form as any)._streams) { // Access internal streams for logging
+        if (typeof pair === 'string' && pair.includes('Content-Disposition: form-data; name="')) {
+            const matchName = pair.match(/name="([^"]+)"/);
+            const name = matchName ? matchName[1] : 'unknown_field';
+            if (pair.includes('filename=')) {
+                 const matchFilename = pair.match(/filename="([^"]+)"/);
+                 const filename = matchFilename ? matchFilename[1] : 'unknown_file';
+                 const matchContentType = pair.match(/Content-Type: ([^\r\n]+)/);
+                 const fieldContentType = matchContentType ? matchContentType[1] : 'unknown_type';
+                 console.log(`  - File part: name='${name}', filename='${filename}', contentType='${fieldContentType}', size=${fileBuffer.length}`);
+            } else {
+                // For simple fields, the value is typically in the next string element or after \r\n\r\n
+                // This is a simplified log, actual value might be harder to extract reliably from _streams
+                const valueMatch = pair.split('\r\n\r\n');
+                console.log(`  - Field part: name='${name}', value='${valueMatch[1] ? valueMatch[1].split('\r\n--')[0] : 'logged_value_complex'}'`);
+            }
+        }
+    }
+
+
+    const axiosConfig = {
       timeout: 60000,
-    });
+      headers: {
+        ...form.getHeaders(), // Includes 'Content-Type': 'multipart/form-data; boundary=...'
+        'Authorization': `Basic ${encodedCredentials}`
+      },
+      // The `auth` object in axios is for basic auth, but we're setting the header manually.
+      // To avoid potential conflicts if axios tries to double-apply auth, ensure only one method is primary.
+      // Manual header is explicit.
+    };
+    
+    console.log(`[WC Media Upload - ${originalImageName}] Axios config for POST (auth and other headers redacted for brevity):`, JSON.stringify({ timeout: axiosConfig.timeout, headers: { "content-type": axiosConfig.headers['content-type'], "Authorization": "Basic [REDACTED]" } }, null, 2));
+
+
+    const response = await axios.post(targetUrl, form, axiosConfig);
+    
     const uploadEndTime = Date.now();
-    console.log(`[WC Media Upload - ${originalImageName}] WooApi POST finished. Time: ${uploadEndTime - uploadStartTime}ms. Status: ${response.status}`);
+    console.log(`[WC Media Upload - ${originalImageName}] Axios POST finished. Time: ${uploadEndTime - Date.now()}ms. Status: ${response.status}`);
 
     const responseData = response.data;
     if (response.status >= 200 && response.status < 300 && responseData && responseData.id) {
@@ -103,8 +150,8 @@ async function uploadImageToWooCommerceMedia(
       return {
         id: responseData.id,
         source_url: responseData.source_url,
-        name: responseData.slug || originalImageName, // WooCommerce often uses 'slug' for the name in media responses
-        alt_text: responseData.alt_text || `Image of ${titleForUpload}`, // Use alt_text from response if available
+        name: responseData.slug || originalImageName,
+        alt_text: responseData.alt_text || `Image of ${titleForUpload}`,
       };
     } else {
       const errorMsg = `[WC Media Upload - ${originalImageName}] Failed to upload. Status: ${response.status}.`;
@@ -113,10 +160,15 @@ async function uploadImageToWooCommerceMedia(
       return { error: responseData.message || responseData.error || "Failed to upload image to WooCommerce: Invalid response data or status.", details: responseData };
     }
   } catch (error: any) {
-    // Log the error response from WooCommerce API if available
-    console.error(`[WC Media Upload - ${originalImageName}] Error:`, error.response?.data || error.message);
+    console.error(`[WC Media Upload - ${originalImageName}] Full exception during upload with Axios:`, error);
+    const errorMessage = error.response?.data?.message || error.message || 'Unknown error uploading to WooCommerce.';
+    console.error(`[WC Media Upload - ${originalImageName}] Axios error during upload. Message: ${error.message}`);
+    if (error.response) {
+      console.error(`[WC Media Upload - ${originalImageName}] Axios error response status: ${error.response.status}`);
+      console.error(`[WC Media Upload - ${originalImageName}] Axios error response data:`, JSON.stringify(error.response.data, null, 2));
+    }
     console.log(`[WC Media Upload - ${originalImageName}] END - Failure (Exception)`);
-    return { error: error.response?.data?.message || error.message || 'Unknown error uploading to WooCommerce.', details: error.response?.data };
+    return { error: errorMessage, details: error.response?.data };
   }
 }
 
@@ -612,7 +664,7 @@ export async function POST(request: NextRequest) {
     console.log(`\n\n[API /process-photos] START - POST request received at ${new Date(requestStartTime).toISOString()}`);
     
     try {
-        originalRequestUrlString = request.url; // Store the original URL string
+        originalRequestUrlString = request.url; 
         console.log(`[API /process-photos] Original request.url: ${originalRequestUrlString}`);
         
         body = await request.clone().json(); 
@@ -629,9 +681,25 @@ export async function POST(request: NextRequest) {
       console.error("[API /process-photos] CRITICAL: Firebase Admin SDK (adminDb or adminAuth) not initialized. Aborting.");
       return NextResponse.json({ error: 'Server configuration error: Firebase Admin not available.' }, { status: 500 });
     }
-     if (!wooApi) {
-      console.error("[API /process-photos] CRITICAL: WooCommerce API client (wooApi) not initialized. Aborting.");
-      return NextResponse.json({ error: 'Server configuration error: WooCommerce API not available.' }, { status: 500 });
+     if (!wooApi && process.env.WOOCOMMERCE_STORE_URL && process.env.WOOCOMMERCE_API_KEY && process.env.WOOCOMMERCE_API_SECRET) {
+      // Attempt to initialize wooApi again if it's null but env vars are present
+      // This is a fallback, ideally it should be initialized at startup in lib/woocommerce.ts
+      console.warn("[API /process-photos] wooApi was null, attempting re-initialization. This should ideally not happen.");
+      try {
+        const tempWooApi = (await import('@/lib/woocommerce')).wooApi;
+        if (!tempWooApi) {
+           console.error("[API /process-photos] CRITICAL: Re-initialization of wooApi failed. Aborting.");
+           return NextResponse.json({ error: 'Server configuration error: WooCommerce API could not be initialized.' }, { status: 500 });
+        }
+         // If successful, the global wooApi in lib/woocommerce should now be set
+         console.log("[API /process-photos] wooApi re-initialized successfully (or was already set by import).");
+      } catch (initError) {
+          console.error("[API /process-photos] CRITICAL: Error during dynamic import/re-initialization of wooApi:", initError);
+          return NextResponse.json({ error: 'Server configuration error: WooCommerce API dynamic initialization failed.' }, { status: 500 });
+      }
+    } else if (!wooApi) {
+        console.error("[API /process-photos] CRITICAL: WooCommerce API client (wooApi) not initialized and env vars might be missing. Aborting.");
+        return NextResponse.json({ error: 'Server configuration error: WooCommerce API not available or not configured.' }, { status: 500 });
     }
     console.log(`[API /process-photos] Batch ${body.batchId}: Firebase Admin SDK and WooCommerce API client seem initialized.`);
 
@@ -1014,6 +1082,7 @@ export async function POST(request: NextRequest) {
     
 
     
+
 
 
 
