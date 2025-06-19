@@ -72,13 +72,13 @@ async function uploadImageToWooCommerceMedia(
     return { error: errorMsg };
   }
 
-  if (!wooCommerceStoreUrl.startsWith('https://')) {
+  if (wooCommerceStoreUrl.startsWith('http://') && !wooCommerceStoreUrl.startsWith('http://localhost')) {
     console.warn(`[WC Media Upload - ${originalImageName}] CRITICAL SECURITY WARNING: WOOCOMMERCE_STORE_URL ('${wooCommerceStoreUrl}') is using HTTP. API keys and data are sent insecurely. Please update to HTTPS if your site supports it. This might also be causing permission issues.`);
   }
 
   // Ensure the base URL does not end with a slash for consistent path joining
   const baseUrl = wooCommerceStoreUrl.endsWith('/') ? wooCommerceStoreUrl.slice(0, -1) : wooCommerceStoreUrl;
-  const targetUrl = `${baseUrl}/wp-json/wp/v2/media`;
+  const targetUrl = `${baseUrl}/wp-json/wp/v2/media`; // Standard WordPress media endpoint
 
   try {
     console.log(`[WC Media Upload - ${originalImageName}] Reading file buffer from: ${localImagePathAbsolute}`);
@@ -96,26 +96,42 @@ async function uploadImageToWooCommerceMedia(
     
     const titleForUpload = productNameForAlt || originalImageName.split('.')[0].replace(/[-_]/g, ' ');
     form.append('title', titleForUpload);
-    form.append('status', 'publish');
+    form.append('status', 'publish'); // Explicitly set status
     console.log(`[WC Media Upload - ${originalImageName}] FormData prepared. Appending 'file' (name: ${originalImageName}), 'title' (value: ${titleForUpload}), 'status' (value: 'publish')`);
     
     console.log(`[WC Media Upload - ${originalImageName}] Attempting to POST to: ${targetUrl} using Basic Auth.`);
     
-    const authString = Buffer.from(`${wooCommerceApiKey}:${wooCommerceApiSecret}`).toString('base64');
-    const authHeader = `Basic ${authString}`;
+    const authHeader = `Basic ${Buffer.from(`${wooCommerceApiKey}:${wooCommerceApiSecret}`).toString('base64')}`;
     console.log(`[WC Media Upload - ${originalImageName}] Auth Header Prefix: Basic [REDACTED]`);
     
     const axiosConfig = {
       headers: {
-        ...form.getHeaders(), // Important for multipart/form-data
-        'Authorization': authHeader,
-         // Axios might set Content-Length automatically, but it's good practice if known,
-         // form-data library might handle this via getHeaders() as well.
+        ...form.getHeaders(), 
+        'Authorization': authHeader, // Explicit Basic Auth header
       },
       timeout: 60000, // 60 seconds timeout
     };
     
-    console.log(`[WC Media Upload - ${originalImageName}] Axios config for POST (auth and other headers redacted for brevity):`, JSON.stringify({ timeout: axiosConfig.timeout, headers: { "Content-Type": form.getHeaders()["content-type"], "Authorization": "Basic [REDACTED]" } }, null, 2));
+    console.log(`[WC Media Upload - ${originalImageName}] FormData entries being sent:`);
+    // @ts-ignore
+    for (const pair of form._streams) { // form-data internal structure access
+        if (typeof pair === 'string' && pair.includes('Content-Disposition: form-data; name="file"')) {
+            console.log(`  - File part: name='file', filename='${originalImageName}', contentType='${contentType}', size=${fileBuffer.length}`);
+        } else if (typeof pair === 'string' && pair.includes('Content-Disposition: form-data; name="title"')) {
+            console.log(`  - Field part: name='title', value='${titleForUpload}'`);
+        } else if (typeof pair === 'string' && pair.includes('Content-Disposition: form-data; name="status"')) {
+            console.log(`  - Field part: name='status', value='publish'`);
+        }
+    }
+
+    console.log(`[WC Media Upload - ${originalImageName}] Axios config for POST (auth and other headers redacted for brevity):`, JSON.stringify({
+      timeout: axiosConfig.timeout,
+      headers: { 
+        ...axiosConfig.headers, // Spread the actual headers
+        Authorization: "Basic [REDACTED]" // Keep Authorization redacted for log
+      }
+    }, null, 2));
+
 
     const uploadStartTime = Date.now();
     const response = await axios.post(targetUrl, form, axiosConfig);
@@ -145,8 +161,8 @@ async function uploadImageToWooCommerceMedia(
   } catch (error: any) {
     let wcErrorMessage = `Unknown error during media upload with Axios for ${originalImageName}`;
     let wcErrorDetails: any = null;
-    const errorDetailsString = error.stack || String(error);
-    console.error(`[WC Media Upload - ${originalImageName}] Full exception during upload with Axios: ${errorDetailsString}`);
+    
+    console.error(`[WC Media Upload - ${originalImageName}] Full exception during upload with Axios:`, error.stack || error.message || String(error));
 
     if (axios.isAxiosError(error) && error.response) {
       console.error(`[WC Media Upload - ${originalImageName}] Axios error during upload. Message: ${error.message}`);
@@ -656,7 +672,7 @@ export async function POST(request: NextRequest) {
     console.log(`\n\n[API /process-photos] START - POST request received at ${new Date(requestStartTime).toISOString()}`);
     
     try {
-        originalRequestUrlString = request.url; 
+        originalRequestUrlString = request.url.toString(); 
         console.log(`[API /process-photos] Original request.url: ${originalRequestUrlString}`);
         
         body = await request.clone().json(); 
@@ -1057,6 +1073,7 @@ export async function POST(request: NextRequest) {
     
 
     
+
 
 
 
