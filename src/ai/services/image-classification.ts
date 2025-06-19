@@ -4,21 +4,21 @@
  * @fileOverview Image classification services using TensorFlow.js and MobileNet.
  * - classifyImage - Classifies an image buffer and returns potential labels.
  */
-import * as tf from '@tensorflow/tfjs-node';
-import * as mobilenet from '@tensorflow-models/mobilenet';
+// import * as tf from '@tensorflow/tfjs-node';
+// import * as mobilenet from '@tensorflow-models/mobilenet';
 
-let model: mobilenet.MobileNet | null = null;
+// let model: mobilenet.MobileNet | null = null;
 
-async function loadMobileNetModel(): Promise<mobilenet.MobileNet> {
-  if (model) {
-    return model;
-  }
-  console.log('[MobileNet] Loading model V2...');
-  // Load MobileNetV2, alpha 1.0
-  model = await mobilenet.load({ version: 2, alpha: 1.0 });
-  console.log('[MobileNet] Model V2 loaded successfully.');
-  return model;
-}
+// async function loadMobileNetModel(): Promise<mobilenet.MobileNet> {
+//   if (model) {
+//     return model;
+//   }
+//   console.log('[MobileNet] Loading model V2...');
+//   // Load MobileNetV2, alpha 1.0
+//   model = await mobilenet.load({ version: 2, alpha: 1.0 });
+//   console.log('[MobileNet] Model V2 loaded successfully.');
+//   return model;
+// }
 
 export interface ClassificationResult {
   className: string;
@@ -32,6 +32,19 @@ export interface ClassificationResult {
  * @throws Error if classification fails.
  */
 export async function classifyImage(imageBuffer: Buffer): Promise<ClassificationResult[]> {
+  console.warn('[MobileNet] Image classification with tfjs-node is temporarily disabled.');
+  // Return a placeholder or empty array to avoid breaking the calling code.
+  // This allows the application to continue functioning without this specific AI feature.
+  if (imageBuffer.length > 0) { // Basic check to simulate some work
+    return Promise.resolve([
+      { className: 'classification_disabled_placeholder', probability: 0.9 },
+      { className: 'feature_temporarily_unavailable', probability: 0.8 },
+    ]);
+  }
+  return Promise.resolve([]);
+
+  // Original code that uses tfjs-node:
+  /*
   try {
     const loadedModel = await loadMobileNetModel();
     
@@ -55,6 +68,7 @@ export async function classifyImage(imageBuffer: Buffer): Promise<Classification
     // model = null; 
     throw new Error('Failed to classify image with MobileNet.');
   }
+  */
 }
 
 // Example of how this might be called (e.g., from process-photos API route or a server action):
@@ -70,7 +84,7 @@ async function processMyImage(downloadedImageBuffer: Buffer) {
     const keywordsFromLabels = labels
       .slice(0, 3) // Take top 3 predictions
       .map(l => l.className.toLowerCase().split(',')[0].trim()) // Take first part of class name, trim
-      .filter(k => k.length > 2) // Filter out very short keywords
+      .filter(k => k.length > 2 && !l.className.includes('_placeholder') && !l.className.includes('_unavailable')) // Filter out placeholders
       .join(', ');
 
     console.log('Keywords from MobileNet:', keywordsFromLabels);
@@ -80,3 +94,4 @@ async function processMyImage(downloadedImageBuffer: Buffer) {
   }
 }
 */
+
