@@ -33,27 +33,28 @@ const nextConfig: NextConfig = {
     ],
   },
   webpack: (config, { isServer }) => {
+    // Ensure resolve.fallback and resolve.alias objects exist
+    config.resolve.fallback = config.resolve.fallback || {};
+    config.resolve.alias = config.resolve.alias || {};
+
+    // Add fallbacks for problematic transitive dependencies (aws-sdk, etc.)
+    // These should apply to both server and client builds to prevent "Module not found"
+    // during server build, and to exclude from client bundle.
+    config.resolve.fallback['aws-sdk'] = false;
+    config.resolve.fallback['mock-aws-s3'] = false;
+    config.resolve.fallback['nock'] = false;
+
+    // Client-specific fallbacks for Node.js core modules
     if (!isServer) {
-      // Prevent bundling of Node.js core modules and problematic transitive dependencies for the client
-      config.resolve.fallback = {
-        ...config.resolve.fallback, // Spread existing fallbacks if any
-        dns: false,
-        net: false,
-        tls: false,
-        fs: false,
-        child_process: false, // Also common for server-side utils
-        'aws-sdk': false, // Add fallback for aws-sdk
-        'mock-aws-s3': false, // Add fallback for mock-aws-s3
-        'nock': false, // Add fallback for nock
-      };
+      config.resolve.fallback.dns = false;
+      config.resolve.fallback.net = false;
+      config.resolve.fallback.tls = false;
+      config.resolve.fallback.fs = false;
+      config.resolve.fallback.child_process = false;
     }
 
     // Alias the problematic HTML file to 'false' to make Webpack treat it as an empty module
-    // This prevents the "Unknown module type" error for this specific file.
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      [path.join(__dirname, 'node_modules/@mapbox/node-pre-gyp/lib/util/nw-pre-gyp/index.html')]: false,
-    };
+    config.resolve.alias[path.join(__dirname, 'node_modules/@mapbox/node-pre-gyp/lib/util/nw-pre-gyp/index.html')] = false;
 
     return config;
   },
