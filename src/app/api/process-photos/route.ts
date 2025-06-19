@@ -71,7 +71,6 @@ async function uploadImageToWooCommerceMedia(
     return { error: errorMsg };
   }
   if (!wooCommerceStoreUrl.startsWith('https://')) {
-    // THIS IS A CRITICAL WARNING. Using HTTP for authenticated API calls is insecure and might be the cause of permission issues.
     console.warn(`[WC Media Upload - ${originalImageName}] CRITICAL SECURITY WARNING: WOOCOMMERCE_STORE_URL ('${wooCommerceStoreUrl}') is using HTTP. API keys and data are sent insecurely. Please update to HTTPS if your site supports it. This might also be causing permission issues.`);
   }
 
@@ -91,25 +90,25 @@ async function uploadImageToWooCommerceMedia(
     
     const titleForUpload = productNameForAlt || originalImageName.split('.')[0].replace(/[-_]/g, ' ');
     form.append('title', titleForUpload);
-    form.append('status', 'publish'); // Explicitly set status
+    form.append('status', 'publish');
     console.log(`[WC Media Upload - ${originalImageName}] FormData prepared. Appending 'file' (name: ${originalImageName}), 'title' (value: ${titleForUpload}), 'status' (value: 'publish')`);
 
     const mediaUploadUrl = `${wooCommerceStoreUrl}/wp-json/wp/v2/media`;
     
-    console.log(`[WC Media Upload - ${originalImageName}] Attempting to POST to: ${mediaUploadUrl} using Basic Auth (via axios 'auth' option).`);
+    console.log(`[WC Media Upload - ${originalImageName}] Attempting to POST to: ${mediaUploadUrl} using Basic Auth.`);
     
     const axiosConfig = {
       headers: {
-        ...form.getHeaders(), // Important for multipart/form-data
+        ...form.getHeaders(), 
       },
-      auth: { // Use axios 'auth' option for Basic Authentication
+      auth: { 
         username: wooCommerceApiKey,
         password: wooCommerceApiSecret,
       },
-      timeout: 60000, // 60 seconds timeout
+      timeout: 60000, 
     };
-    console.log(`[WC Media Upload - ${originalImageName}] Axios config (auth.password redacted, headers content-type may be dynamic):`, 
-      JSON.stringify({...axiosConfig, auth: {...axiosConfig.auth, password: '[REDACTED]'}, headers: {...axiosConfig.headers, 'Content-Type': 'multipart/form-data; boundary=...'}}, null, 2)
+    console.log(`[WC Media Upload - ${originalImageName}] Axios config (auth.password redacted):`, 
+      JSON.stringify({...axiosConfig, auth: {...axiosConfig.auth, password: '[REDACTED]'}, headers: form.getHeaders()}, null, 2)
     );
     
     const uploadStartTime = Date.now();
@@ -188,11 +187,10 @@ function applyTemplate(templateContent: string, data: Record<string, string | nu
     if (typeof value === 'string') {
       conditionMet = value.trim() !== '';
     } else if (typeof value === 'number') {
-      // For price, > 0. For other numbers, != 0.
       conditionMet = (variableName.toLowerCase().includes('price') || variableName.toLowerCase().includes('precio')) ? value > 0 : value !== 0;
     } else if (typeof value === 'boolean') {
       conditionMet = value;
-    } else { // Handles undefined, null, etc.
+    } else { 
       conditionMet = false;
     }
     
@@ -367,9 +365,6 @@ async function triggerNextPhotoProcessing(batchId: string, baseRequestUrl: strin
   let apiUrl: string;
   try {
     const url = new URL(baseRequestUrl); 
-    // Ensure the pathname is correctly set to /api/process-photos from the base
-    // If baseRequestUrl is already "http://localhost:9002/api/process-photos", this is fine.
-    // If baseRequestUrl is just "http://localhost:9002/", new URL('/api/process-photos', url) is correct.
     apiUrl = new URL(url.pathname.startsWith('/api/process-photos') ? url.pathname : '/api/process-photos', url).toString();
     console.log(`[API Trigger - ${context || 'General'}] Constructed self-trigger apiUrl: '${apiUrl}' from base: '${baseRequestUrl}'`);
   } catch (e: any) {
@@ -379,8 +374,6 @@ async function triggerNextPhotoProcessing(batchId: string, baseRequestUrl: strin
   
   console.log(`[API Trigger - ${context || 'General'}] Triggering next processing for batch ${batchId} by calling: ${apiUrl}. UserId: ${userId || 'N/A'}`);
   try {
-    // Use a timeout to avoid immediate re-entry if something is very wrong, but allow processing to continue
-    // This fetch is fire-and-forget
     fetch(apiUrl, { 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -663,11 +656,10 @@ export async function POST(request: NextRequest) {
     console.log(`\n\n[API /process-photos] START - POST request received at ${new Date(requestStartTime).toISOString()}`);
     
     try {
-        // Store request.url as a string immediately
         originalRequestUrlString = request.url; 
         console.log(`[API /process-photos] Original request.url: ${originalRequestUrlString}`);
         
-        body = await request.clone().json(); // Clone for logging if json parsing fails
+        body = await request.clone().json(); 
         console.log(`[API /process-photos] Request body parsed: batchId='${body.batchId}', userId='${body.userId}'`);
     } catch (jsonError: any) {
         console.error("[API /process-photos] ERROR: Failed to parse request body as JSON.", jsonError.message);
@@ -869,7 +861,7 @@ export async function POST(request: NextRequest) {
                  photoDocRef.update({
                     status: 'error_processing_image',
                     errorMessage: `PhotoProc Error: ${photoProcessingError.message?.substring(0, 250) || 'Unknown error during image processing.'}`,
-                    progress: currentStatusData.progress || 0, // Use existing progress
+                    progress: currentStatusData.progress || 0, 
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                     lastMessage: `Error procesando imagen: ${photoProcessingError.message?.substring(0,50)}...`
                 });
@@ -1065,3 +1057,4 @@ export async function POST(request: NextRequest) {
     
 
     
+
