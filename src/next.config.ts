@@ -51,8 +51,8 @@ const nextConfig: NextConfig = {
     // This prevents the "Unknown module type" error for this specific file.
     config.resolve.alias = {
       ...config.resolve.alias,
-      // Corrected path: __dirname is the project root, so node_modules is directly under it.
-      [path.join(__dirname, 'node_modules/@mapbox/node-pre-gyp/lib/util/nw-pre-gyp/index.html')]: false,
+      // Ensure the path is correctly joined and points to the problematic file
+      [path.join(__dirname, '../node_modules/@mapbox/node-pre-gyp/lib/util/nw-pre-gyp/index.html')]: false,
     };
 
     return config;
