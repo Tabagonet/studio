@@ -27,7 +27,12 @@ const GenerateProductDescriptionOutputSchema = z.object({
 export async function generateProductDescription(
   input: GenerateProductDescriptionInput
 ): Promise<GenerateProductDescriptionOutput> {
-  return generateProductDescriptionFlow(input);
+  console.warn("[AI Description Flow] Genkit LLM call is TEMPORARILY DISABLED for performance testing. Returning placeholders.");
+  return {
+    shortDescription: `Placeholder short description for ${input.productName} (Genkit Disabled).`,
+    longDescription: `Placeholder long description for ${input.productName} (Genkit Disabled). Category: ${input.categoryName}, Keywords: ${input.keywords}, Attributes: ${input.attributesSummary}.`,
+  };
+  // Original call: return generateProductDescriptionFlow(input);
 }
 
 const prompt = ai.definePrompt({
@@ -70,15 +75,25 @@ const generateProductDescriptionFlow = ai.defineFlow(
     outputSchema: GenerateProductDescriptionOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input);
-    if (!output) {
-        console.warn("[AI Description Flow] LLM did not return an output for input:", input);
-        return { shortDescription: undefined, longDescription: undefined };
-    }
-    // Ensure undefined if empty strings are returned, to allow fallbacks
+    // TEMPORARILY DISABLED FOR PERFORMANCE TESTING
+    // const { output } = await prompt(input);
+    // console.log("[AI Description Flow] LLM call to 'prompt' has been executed.");
+    // if (!output) {
+    //     console.warn("[AI Description Flow] LLM did not return an output for input:", input);
+    //     return { shortDescription: undefined, longDescription: undefined };
+    // }
+    // // Ensure undefined if empty strings are returned, to allow fallbacks
+    // return {
+    //     shortDescription: output.shortDescription?.trim() || undefined,
+    //     longDescription: output.longDescription?.trim() || undefined,
+    // };
+    
+    // Placeholder return for when Genkit is disabled
+    console.warn("[AI Description Flow] generateProductDescriptionFlow is TEMPORARILY DISABLED. Returning placeholders.");
     return {
-        shortDescription: output.shortDescription?.trim() || undefined,
-        longDescription: output.longDescription?.trim() || undefined,
+        shortDescription: `Placeholder short description (from flow) for ${input.productName}.`,
+        longDescription: `Placeholder long description (from flow) for ${input.productName}.`,
     };
   }
 );
+

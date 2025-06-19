@@ -12,11 +12,43 @@ import FormDataLib from "form-data"; // Use form-data for Node.js
 import { wooApi } from '@/lib/woocommerce';
 import path from 'path';
 import fs from 'fs/promises'; // For reading local files
-import { generateProductDescription } from '@/ai/flows/generate-product-description'; // Genkit flow
+// import { generateProductDescription } from '@/ai/flows/generate-product-description'; // Genkit flow - TEMPORARILY DISABLED
 import { classifyImage } from '@/ai/services/image-classification'; // MobileNetV2 (stubbed)
 import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
-import { generateContentWithMiniLM } from '@/ai/services/minilm-text-generation'; // MiniLM service
+// import { generateContentWithMiniLM } from '@/ai/services/minilm-text-generation'; // MiniLM service - TEMPORARILY DISABLED
 import { LOCAL_UPLOAD_RAW_DIR_RELATIVE, LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE } from '@/lib/local-storage-constants';
+
+// START: TEMPORARY PLACEHOLDER FUNCTIONS AND DATA
+async function generateProductDescription(
+  input: any
+): Promise<{ shortDescription?: string; longDescription?: string }> {
+  console.warn("[API /process-photos] generateProductDescription (Genkit) is TEMPORARILY DISABLED. Returning placeholders.");
+  return {
+    shortDescription: `Placeholder short description for ${input.productName}.`,
+    longDescription: `Placeholder long description for ${input.productName} including details about category: ${input.categoryName}, keywords: ${input.keywords}, attributes: ${input.attributesSummary}.`,
+  };
+}
+
+async function generateContentWithMiniLM(
+  input: MiniLMInput
+): Promise<GeneratedProductContent> {
+  console.warn(`[API /process-photos] generateContentWithMiniLM (MiniLM) is TEMPORARILY DISABLED. Returning placeholders for ${input.productName}.`);
+  const baseName = cleanTextForFilename(input.productName || 'placeholder-product');
+  return {
+    seoFilenameBase: baseName,
+    shortDescription: `Placeholder MiniLM short description for ${input.productName}.`,
+    longDescription: `Placeholder MiniLM long description for ${input.productName}.`,
+    seoMetadata: {
+      alt: `Placeholder alt text for ${input.productName}`,
+      title: `Placeholder Title: ${input.productName}`,
+      description: `Placeholder meta description for ${input.productName}.`,
+    },
+    attributes: input.existingAttributes || [{ name: 'Placeholder Attr', value: 'Placeholder Value' }],
+    tags: input.existingKeywords?.split(',').map(k => k.trim()).filter(k => k) || ['placeholder-tag'],
+  };
+}
+// END: TEMPORARY PLACEHOLDER FUNCTIONS AND DATA
+
 
 // Helper to upload a local image file to WooCommerce Media
 async function uploadImageToWooCommerceMedia(
@@ -76,7 +108,7 @@ async function uploadImageToWooCommerceMedia(
   } catch (error) {
     console.error(`[WC Media Upload - ${filename}] Axios error uploading:`, error);
     if (axios.isAxiosError(error) && error.response) {
-        console.error("[WC Media Upload - ${filename}] Axios error response data (first 200 chars):", JSON.stringify(error.response.data)?.substring(0,200));
+        console.error(`[WC Media Upload - ${filename}] Axios error response data (first 200 chars):`, JSON.stringify(error.response.data)?.substring(0,200));
     }
     console.log(`[WC Media Upload - ${filename}] END - Failure (Axios Error)`);
     return null;
@@ -299,8 +331,7 @@ async function updateSpecificFirestoreEntries(
   });
   try {
     await firestoreBatch.commit();
-    // Avoid JSON.stringify on potentially large updateData
-    console.log(`[Firestore Update] Updated status for ${entryIds.length} entries to ${status}. First ID: ${entryIds[0]}, Keys updated: ${Object.keys(updateData).join(', ')}`);
+    console.log(`[Firestore Update] Updated status for ${entryIds.length} entries to ${status}. First ID: ${entryIds[0]}, Keys updated: ${Object.keys(updateData).length > 0 ? Object.keys(updateData).join(', ') : 'none'}`);
   } catch (error){
       console.error(`[Firestore Update] Error committing batch update for ${entryIds.length} entries to ${status}:`, error);
   }
@@ -331,7 +362,7 @@ async function createWooCommerceProductForGroup(
 
     let generatedContent = primaryEntry.generatedContent;
     if (!generatedContent) {
-      console.warn(`[WooCommerce CreateProduct - ${productNameFromContext}] Generated content was missing from primary entry. Attempting to generate it now for the product group.`);
+      console.warn(`[WooCommerce CreateProduct - ${productNameFromContext}] Generated content was missing from primary entry. Using placeholder content now.`);
       const miniLMInput: MiniLMInput = {
         productName: currentProductContext.name,
         visualTags: primaryEntry.visualTags || [],
@@ -339,14 +370,9 @@ async function createWooCommerceProductForGroup(
         existingKeywords: currentProductContext.keywords,
         existingAttributes: currentProductContext.attributes,
       };
-      try {
-        console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Invoking MiniLM for fallback content generation...`);
-        generatedContent = await generateContentWithMiniLM(miniLMInput);
-        console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] MiniLM content generated for product group. SEO Base='${generatedContent.seoFilenameBase}'`);
-      } catch(minilmerror) {
-        console.error(`[WooCommerce CreateProduct - ${productNameFromContext}] MiniLM content generation FAILED for product group:`, minilmerror);
-        generatedContent = { seoFilenameBase: cleanTextForFilename(currentProductContext.name), shortDescription: "", longDescription: "", seoMetadata: { alt: "", title: ""}, attributes: [], tags: [] };
-      }
+      // Using the TEMPORARILY DISABLED placeholder function
+      generatedContent = await generateContentWithMiniLM(miniLMInput);
+      console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Placeholder content generated for product group. SEO Base='${generatedContent.seoFilenameBase}'`);
     } else {
       console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Using existing generatedContent from primary entry. SEO Base='${generatedContent.seoFilenameBase}'`);
     }
@@ -374,13 +400,13 @@ async function createWooCommerceProductForGroup(
     };
 
     if (!finalShortDescription || finalShortDescription.trim() === "") {
-        console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Short description missing, attempting Genkit/Template fallback.`);
+        console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Short description missing, attempting Genkit/Template fallback (Genkit TEMPORARILY DISABLED).`);
         try {
-            console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Invoking Genkit generateProductDescription...`);
+            console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Invoking (placeholder) generateProductDescription...`);
             const aiDescInput = { productName: currentProductContext.name, categoryName: templateDataForDesc.categoria, keywords: templateDataForDesc.palabras_clave, attributesSummary: templateDataForDesc.atributos };
-            const aiOutput = await generateProductDescription(aiDescInput);
-            if (aiOutput.shortDescription) { finalShortDescription = aiOutput.shortDescription; console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Genkit generated short desc.`); }
-        } catch (aiError) { console.warn(`[WooCommerce CreateProduct - ${productNameFromContext}] Genkit short desc generation failed:`, aiError); }
+            const aiOutput = await generateProductDescription(aiDescInput); // Using placeholder
+            if (aiOutput.shortDescription) { finalShortDescription = aiOutput.shortDescription; console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Placeholder Genkit generated short desc.`); }
+        } catch (aiError) { console.warn(`[WooCommerce CreateProduct - ${productNameFromContext}] Placeholder Genkit short desc generation failed:`, aiError); }
         if (!finalShortDescription || finalShortDescription.trim() === "") {
             const shortDescTemplate = templates.find(t => t.type === 'descripcion_corta' && (t.scope === 'global' || (t.scope === 'categoria_especifica' && t.categoryValue === (primaryEntry.assignedCategorySlug || currentProductContext.category))));
             finalShortDescription = shortDescTemplate ? applyTemplate(shortDescTemplate.content, templateDataForDesc) : `Descubre ${currentProductContext.name}.`;
@@ -389,13 +415,13 @@ async function createWooCommerceProductForGroup(
     }
 
     if (!finalLongDescription || finalLongDescription.trim() === "") {
-        console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Long description missing, attempting Genkit/Template fallback.`);
+        console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Long description missing, attempting Genkit/Template fallback (Genkit TEMPORARILY DISABLED).`);
          try {
-            console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Invoking Genkit generateProductDescription for long desc...`);
+            console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Invoking (placeholder) generateProductDescription for long desc...`);
             const aiDescInput = { productName: currentProductContext.name, categoryName: templateDataForDesc.categoria, keywords: templateDataForDesc.palabras_clave, attributesSummary: templateDataForDesc.atributos };
-            const aiOutput = await generateProductDescription(aiDescInput);
-            if (aiOutput.longDescription) { finalLongDescription = aiOutput.longDescription; console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Genkit generated long desc.`); }
-        } catch (aiError) { console.warn(`[WooCommerce CreateProduct - ${productNameFromContext}] Genkit long desc generation failed:`, aiError); }
+            const aiOutput = await generateProductDescription(aiDescInput); // Using placeholder
+            if (aiOutput.longDescription) { finalLongDescription = aiOutput.longDescription; console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Placeholder Genkit generated long desc.`); }
+        } catch (aiError) { console.warn(`[WooCommerce CreateProduct - ${productNameFromContext}] Placeholder Genkit long desc generation failed:`, aiError); }
         if (!finalLongDescription || finalLongDescription.trim() === "") {
             const longDescTemplate = templates.find(t => t.type === 'descripcion_larga' && (t.scope === 'global' || (t.scope === 'categoria_especifica' && t.categoryValue === (primaryEntry.assignedCategorySlug || currentProductContext.category))));
             finalLongDescription = longDescTemplate ? applyTemplate(longDescTemplate.content, templateDataForDesc) : `Descripción detallada de ${currentProductContext.name}.`;
@@ -464,7 +490,7 @@ async function createWooCommerceProductForGroup(
             const wcPostEndTime = Date.now();
             const wooErrorMessage = error.response?.data?.message || error.message || "Unknown WC API error";
             const wooErrorCode = error.response?.data?.code || "";
-            console.error(`[WooCommerce CreateProduct - ${productNameFromContext}] Error (Attempt ${isRetry ? '2' : '1'}) SKU ${currentSkuAttempt}: ${wooErrorMessage} (Code: ${wooErrorCode}). Time: ${wcPostEndTime - productCreationStartTime}ms. WC Response (data, first 200 chars):`, error.response?.data ? String(error.response.data).substring(0, 200) + '...' : 'N/A');
+            console.error(`[WooCommerce CreateProduct - ${productNameFromContext}] Error (Attempt ${isRetry ? '2' : '1'}) SKU ${currentSkuAttempt}: ${wooErrorMessage} (Code: ${wooErrorCode}). Time: ${wcPostEndTime - productCreationStartTime}ms. WC Response (data, first 200 chars):`, error.response?.data ? String(JSON.stringify(error.response.data)).substring(0, 200) + '...' : 'N/A');
             const isSkuError = (wooErrorMessage.toLowerCase().includes("sku") && (wooErrorMessage.toLowerCase().includes("duplicate") || wooErrorMessage.toLowerCase().includes("ya existe") || wooErrorMessage.toLowerCase().includes("no válido") || wooErrorMessage.toLowerCase().includes("invalid"))) || wooErrorCode === 'product_invalid_sku' || (error.response?.data?.data?.params?.sku);
             if (isSkuError && !isRetry) {
                 const newSku = `${cleanTextForFilename(productPayload.name || `fallback-sku`).substring(0,15)}-R${Date.now().toString().slice(-5)}`;
@@ -549,10 +575,11 @@ export async function POST(request: NextRequest) {
     console.log(`[API /process-photos] Batch ${batchId}: Processing initiated.`);
 
     console.log(`[API /process-photos] Batch ${batchId}: Attempting to load shared resources (categories, templates, rules)...`);
-    await fetchWooCommerceCategories(); 
-    const allTemplates = await getTemplates();
-    const allAutomationRules = await getAutomationRules();
-    console.log(`[API /process-photos] Batch ${batchId}: Shared resources loaded. Categories: ${allWooCategoriesCache?.length || 0}, Templates: ${allTemplates.length}, Rules: ${allAutomationRules.length}`);
+    const fetchCategoriesPromise = fetchWooCommerceCategories(); 
+    const getTemplatesPromise = getTemplates();
+    const getAutomationRulesPromise = getAutomationRules();
+    const [productCategories, allTemplates, allAutomationRules] = await Promise.all([fetchCategoriesPromise, getTemplatesPromise, getAutomationRulesPromise]);
+    console.log(`[API /process-photos] Batch ${batchId}: Shared resources loaded. Categories: ${productCategories?.length || 0}, Templates: ${allTemplates.length}, Rules: ${allAutomationRules.length}`);
 
 
     // ---- Stage 1: Process individual 'uploaded' photos ----
@@ -618,9 +645,9 @@ export async function POST(request: NextRequest) {
           existingKeywords: photoData.productContext?.keywords,
           existingAttributes: photoData.productContext?.attributes,
         };
-        console.log(`[ImgProc - ${photoData.imageName}] generateContentWithMiniLM START. ProductName: ${miniLMInput.productName}, Category: ${miniLMInput.category}`);
-        const generatedContent = await generateContentWithMiniLM(miniLMInput);
-        console.log(`[ImgProc - ${photoData.imageName}] generateContentWithMiniLM END. SEO Base='${generatedContent.seoFilenameBase}'`);
+        console.log(`[ImgProc - ${photoData.imageName}] generateContentWithMiniLM START (TEMPORARILY DISABLED). ProductName: ${miniLMInput.productName}, Category: ${miniLMInput.category}`);
+        const generatedContent = await generateContentWithMiniLM(miniLMInput); // Using placeholder function
+        console.log(`[ImgProc - ${photoData.imageName}] generateContentWithMiniLM END (TEMPORARILY DISABLED). SEO Base='${generatedContent.seoFilenameBase}'`);
         await photoDocRef.update({ status: 'processing_image_content_generated', progress: 45, generatedContent, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
         
 
@@ -808,9 +835,7 @@ export async function POST(request: NextRequest) {
     if (adminDb && currentPhotoDocIdForErrorHandling) {
         try {
             const photoDocRef = adminDb.collection('processing_status').doc(currentPhotoDocIdForErrorHandling);
-            // Avoid further async operations if possible, log what we have
             console.log(`[API /process-photos] Attempting to mark doc ${currentPhotoDocIdForErrorHandling} with error status due to top-level catch.`);
-            // Not awaiting here, best effort
             photoDocRef.update({ status: 'error_processing_image', errorMessage: `API General Error: ${errorMessageString.substring(0, 200)}`, updatedAt: admin.firestore.FieldValue.serverTimestamp() })
                        .catch(dbError => console.error("[API /process-photos] Firestore update FAILED during CRITICAL ERROR handling:", dbError));
         } catch (dbUpdateError) { 
@@ -820,7 +845,6 @@ export async function POST(request: NextRequest) {
         console.error(`[API /process-photos] General error for batch ${body.batchId}. Details: ${errorMessageString}. No specific photo document ID was set for error handling.`);
     }
 
-    // Ensure a JSON response is sent
     return NextResponse.json(
         { 
             error: 'Failed to process photos due to a critical server error.', 

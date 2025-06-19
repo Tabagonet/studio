@@ -5,10 +5,13 @@
  * This service is responsible for generating various product content fields using local AI models.
  * Prompts are loaded from Firestore and fall back to defaults if not found.
  */
-import type { Pipeline } from '@xenova/transformers';
+// import type { Pipeline } from '@xenova/transformers'; // TEMPORARILY DISABLED
 import type { MiniLMInput, GeneratedProductContent, ProductAttribute, AiPrompt, AiPromptKey } from '@/lib/types';
 import { adminDb } from '@/lib/firebase-admin';
 import { AI_PROMPTS_COLLECTION, DEFAULT_PROMPTS } from '@/lib/constants'; // Import DEFAULT_PROMPTS from constants
+
+// TEMPORARILY MOCK Pipeline TYPE
+type Pipeline = (prompt: string, params: any) => Promise<any[] | string>;
 
 let textGenerationPipeline: Pipeline | null = null;
 let text2textPipeline: Pipeline | null = null;
@@ -72,8 +75,33 @@ function getPrompt(key: AiPromptKey): Omit<AiPrompt, 'id' | 'createdAt' | 'updat
 
 async function getPipeline(task: 'text-generation' | 'text2text-generation', modelNameFromPrompt: string): Promise<Pipeline> {
   const targetModel = modelNameFromPrompt || (task === 'text-generation' ? MODEL_TEXT_GENERATION_DEFAULT : MODEL_TEXT2TEXT_DEFAULT);
-  console.log(`[MiniLM - getPipeline] START for task "${task}", model "${targetModel}"`);
+  console.log(`[MiniLM - getPipeline] START for task "${task}", model "${targetModel}" (TEMPORARILY DISABLED - MOCKING)`);
 
+  // TEMPORARY: Return a mock pipeline that quickly returns empty/placeholder text
+  const mockPipeline: Pipeline = async (prompt: string, params: any) => {
+    console.log(`[MiniLM - MockPipeline] Called for task "${task}", model "${targetModel}". Prompt (first 50): ${prompt.substring(0,50)}...`);
+    if (task === 'text-generation') {
+      return [{ generated_text: `Mocked text-generation output for: ${prompt.substring(0, 30)}...` }];
+    } else if (task === 'text2text-generation') {
+      return [{ generated_text: `Mocked text2text output for: ${prompt.substring(0, 30)}...` }];
+    }
+    return [];
+  };
+
+  if (task === 'text-generation') {
+    if (!textGenerationPipeline) textGenerationPipeline = mockPipeline;
+    return textGenerationPipeline;
+  }
+  if (task === 'text2text-generation') {
+    if (!text2textPipeline) text2textPipeline = mockPipeline;
+    return text2textPipeline;
+  }
+  
+  console.log(`[MiniLM - getPipeline] END for task "${task}", model "${targetModel}" (MOCKED)`);
+  return mockPipeline; // Should not be reached if logic above is correct
+
+  // --- ORIGINAL CODE ---
+  /*
   if (task === 'text-generation' && textGenerationPipeline && textGenerationPipeline.model.model_name_or_path === targetModel) {
     console.log(`[MiniLM - getPipeline] Using cached text-generation pipeline for ${targetModel}.`);
     return textGenerationPipeline;
@@ -110,6 +138,7 @@ async function getPipeline(task: 'text-generation' | 'text2text-generation', mod
   
   console.log(`[MiniLM - getPipeline] END for task "${task}", model "${targetModel}"`);
   return newPipeline;
+  */
 }
 
 function cleanGeneratedText(text: string, promptContent?: string, maxLength?: number): string {
@@ -133,19 +162,23 @@ function cleanGeneratedText(text: string, promptContent?: string, maxLength?: nu
     cleaned = cleaned.replace(/^(Output:|Generated text:|Answer:|Response:)\s*/i, '');
     cleaned = cleaned.trim().replace(/^["'\s]+|["'\s]+$/g, '');
 
-    const sentences = cleaned.split(/(?<=[.!?])\s+/);
-    if (sentences.length > 1 && sentences[sentences.length - 1].length < 25 && !/[.!?]$/.test(sentences[sentences.length-1])) {
-        cleaned = sentences.slice(0, -1).join(' ').trim();
+    // Avoid adding "." if it's mocked output
+    if (!cleaned.startsWith("Mocked ")) {
+        const sentences = cleaned.split(/(?<=[.!?])\s+/);
+        if (sentences.length > 1 && sentences[sentences.length - 1].length < 25 && !/[.!?]$/.test(sentences[sentences.length-1])) {
+            cleaned = sentences.slice(0, -1).join(' ').trim();
+        }
+        if (cleaned.length > 30 && !/[.!?]$/.test(cleaned)) {
+            cleaned += '.';
+        }
     }
-    if (cleaned.length > 30 && !/[.!?]$/.test(cleaned)) {
-        cleaned += '.';
-    }
+
 
     if (maxLength && cleaned.length > maxLength) {
         cleaned = cleaned.substring(0, maxLength).trim();
         const lastSpace = cleaned.lastIndexOf(' ');
         if (lastSpace > 0) cleaned = cleaned.substring(0, lastSpace);
-        if (!/[.!?]$/.test(cleaned)) cleaned += '...';
+        if (!/[.!?]$/.test(cleaned) && !cleaned.startsWith("Mocked ")) cleaned += '...';
     }
     return cleaned.trim();
 }
@@ -164,8 +197,8 @@ function interpolatePrompt(promptTemplate: string, data: Record<string, string>)
 }
 
 async function generateWithModel(promptKey: AiPromptKey, inputData: Record<string, string>): Promise<string> {
-  console.log(`[MiniLM - generateWithModel] START for promptKey: "${promptKey}"`);
-  await loadPromptsFromFirestore();
+  console.log(`[MiniLM - generateWithModel] START for promptKey: "${promptKey}" (MODEL TEMPORARILY DISABLED - MOCKING)`);
+  await loadPromptsFromFirestore(); // Still load prompts to check logic
   const promptConfig = getPrompt(promptKey);
   if (!promptConfig) {
     console.error(`[MiniLM Service] Prompt configuration for key "${promptKey}" not found. Cannot generate.`);
@@ -177,16 +210,26 @@ async function generateWithModel(promptKey: AiPromptKey, inputData: Record<strin
   
   let generator: Pipeline;
   try {
-    generator = await getPipeline(promptConfig.modelType, promptConfig.modelName);
+    generator = await getPipeline(promptConfig.modelType, promptConfig.modelName); // Will get mock pipeline
   } catch (pipelineError) {
-     console.error(`[MiniLM - generateWithModel - ${promptKey}] Could not get pipeline. Error:`, pipelineError);
+     console.error(`[MiniLM - generateWithModel - ${promptKey}] Could not get (mock) pipeline. Error:`, pipelineError);
      return ""; // Return empty if pipeline fails
   }
 
 
-  console.log(`[MiniLM - generateWithModel - ${promptKey}] Calling generator...`);
+  console.log(`[MiniLM - generateWithModel - ${promptKey}] Calling (mock) generator...`);
   const genStartTime = Date.now();
   try {
+    // TEMPORARY MOCK - Return quickly
+    const mockedResult = `Mocked result for ${promptKey}: ${inputData.productName || inputData.shortDescriptionInput || 'input'}`;
+    const genEndTime = Date.now();
+    console.log(`[MiniLM - generateWithModel - ${promptKey}] (Mock) Generator finished. Time: ${genEndTime - genStartTime}ms`);
+    const cleanedText = cleanGeneratedText(mockedResult, finalPrompt);
+    console.log(`[MiniLM - generateWithModel - ${promptKey}] END (MOCKED). Generated (cleaned, first 50): ${cleanedText.substring(0,50)}...`);
+    return cleanedText;
+
+    // --- ORIGINAL CODE ---
+    /*
     const result = await generator(finalPrompt, promptConfig.defaultGenerationParams || {});
     const genEndTime = Date.now();
     console.log(`[MiniLM - generateWithModel - ${promptKey}] Generator finished. Time: ${genEndTime - genStartTime}ms`);
@@ -205,23 +248,24 @@ async function generateWithModel(promptKey: AiPromptKey, inputData: Record<strin
     console.warn(`[MiniLM - generateWithModel - ${promptKey}] Unexpected result format from model:`, result);
     console.log(`[MiniLM - generateWithModel - ${promptKey}] END with unexpected format.`);
     return "";
+    */
   } catch (e) {
     const genEndTime = Date.now();
-    console.error(`[MiniLM - generateWithModel - ${promptKey}] Error during generation after ${genEndTime - genStartTime}ms:`, e);
-    console.log(`[MiniLM - generateWithModel - ${promptKey}] END with error.`);
+    console.error(`[MiniLM - generateWithModel - ${promptKey}] Error during (mock) generation after ${genEndTime - genStartTime}ms:`, e);
+    console.log(`[MiniLM - generateWithModel - ${promptKey}] END with error (MOCKED).`);
     return "";
   }
 }
 
 async function generateSeoFilenameBase(productName: string, visualTags: string[]): Promise<string> {
-  console.log(`[MiniLM - SEO Filename] START for ProductName: ${productName}`);
+  console.log(`[MiniLM - SEO Filename] START (MOCKED) for ProductName: ${productName}`);
   const inputData = {
     productName,
     visualTagsString: visualTags.slice(0,2).join(', ')
   };
-  const slug = await generateWithModel('seoFilenameBase', inputData);
+  const slug = await generateWithModel('seoFilenameBase', inputData); // Will be mocked
   const cleanedSlug = slug.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/-+/g, '-').replace(/^-+|-+$/g, '').split('-').slice(0,5).join('-') || cleanTextForFilenameHelper(productName);
-  console.log(`[MiniLM - SEO Filename] END. Generated: ${cleanedSlug}`);
+  console.log(`[MiniLM - SEO Filename] END (MOCKED). Generated: ${cleanedSlug}`);
   return cleanedSlug;
 }
 
@@ -231,21 +275,21 @@ function cleanTextForFilenameHelper(text: string): string {
 }
 
 async function generateShortDescription(input: MiniLMInput): Promise<string> {
-  console.log(`[MiniLM - Short Desc] START for ProductName: ${input.productName}`);
+  console.log(`[MiniLM - Short Desc] START (MOCKED) for ProductName: ${input.productName}`);
   const inputData = {
     productName: input.productName,
     categoryString: input.category || 'plants',
     visualTagsString: input.visualTags.join(', ') || 'unique beauty',
     existingKeywordsString: input.existingKeywords || 'decorative, easy-care'
   };
-  const desc = await generateWithModel('shortDescription', inputData);
+  const desc = await generateWithModel('shortDescription', inputData); // Will be mocked
   const finalDesc = desc || `Discover the stunning ${input.productName}, a perfect ${input.category || 'addition'} for your collection.`;
-  console.log(`[MiniLM - Short Desc] END. Generated (first 50): ${finalDesc.substring(0,50)}...`);
+  console.log(`[MiniLM - Short Desc] END (MOCKED). Generated (first 50): ${finalDesc.substring(0,50)}...`);
   return finalDesc;
 }
 
 async function generateLongDescription(input: MiniLMInput): Promise<string> {
-  console.log(`[MiniLM - Long Desc] START for ProductName: ${input.productName}`);
+  console.log(`[MiniLM - Long Desc] START (MOCKED) for ProductName: ${input.productName}`);
   const attributesString = (input.existingAttributes || []).map(a => `${a.name}: ${a.value}`).join(', ');
   const inputData = {
     productName: input.productName,
@@ -254,58 +298,58 @@ async function generateLongDescription(input: MiniLMInput): Promise<string> {
     existingKeywordsString: input.existingKeywords || 'houseplant, garden, collector item',
     attributesString: attributesString
   };
-  const desc = await generateWithModel('longDescription', inputData);
+  const desc = await generateWithModel('longDescription', inputData); // Will be mocked
   const finalDesc = desc || `Explore the exquisite ${input.productName}, a prized ${input.category || 'plant'} celebrated for its beauty.`;
-  console.log(`[MiniLM - Long Desc] END. Generated (first 50): ${finalDesc.substring(0,50)}...`);
+  console.log(`[MiniLM - Long Desc] END (MOCKED). Generated (first 50): ${finalDesc.substring(0,50)}...`);
   return finalDesc;
 }
 
 async function generateSeoAltText(productName: string, visualTags: string[], category?: string): Promise<string> {
-  console.log(`[MiniLM - Alt Text] START for ProductName: ${productName}`);
+  console.log(`[MiniLM - Alt Text] START (MOCKED) for ProductName: ${productName}`);
   const inputData = {
     productName,
     visualTagsString: visualTags.join(', '),
     categoryString: category || 'plant'
   };
-  const alt = await generateWithModel('seoAltText', inputData);
+  const alt = await generateWithModel('seoAltText', inputData); // Will be mocked
   const finalAlt = alt || `${productName} - ${category || ''} - ${visualTags.join(' ')}`.substring(0,125).trim();
-  console.log(`[MiniLM - Alt Text] END. Generated: ${finalAlt}`);
+  console.log(`[MiniLM - Alt Text] END (MOCKED). Generated: ${finalAlt}`);
   return finalAlt;
 }
 
 async function generateSeoTitle(productName: string, category?: string, keywords?: string): Promise<string> {
-  console.log(`[MiniLM - SEO Title] START for ProductName: ${productName}`);
+  console.log(`[MiniLM - SEO Title] START (MOCKED) for ProductName: ${productName}`);
   const inputData = {
     productName,
     categoryString: category || 'Plant',
     existingKeywordsString: keywords || productName
   };
-  const title = await generateWithModel('seoTitle', inputData);
+  const title = await generateWithModel('seoTitle', inputData); // Will be mocked
   const finalTitle = title || `${productName} | ${category || 'Premium Plant'}`.substring(0, 60);
-  console.log(`[MiniLM - SEO Title] END. Generated: ${finalTitle}`);
+  console.log(`[MiniLM - SEO Title] END (MOCKED). Generated: ${finalTitle}`);
   return finalTitle;
 }
 
 async function generateMetaDescription(shortDescriptionInput: string, productName: string): Promise<string> {
-    console.log(`[MiniLM - Meta Desc] START for ProductName: ${productName}`);
+    console.log(`[MiniLM - Meta Desc] START (MOCKED) for ProductName: ${productName}`);
     if (!shortDescriptionInput && productName) {
         shortDescriptionInput = `High-quality ${productName}, perfect for your collection. Discover more about its unique features and care.`;
     } else if (!shortDescriptionInput && !productName) {
         shortDescriptionInput = "Discover our unique collection of ornamental plants and accessories. High-quality items for enthusiasts.";
     }
     const inputData = { shortDescriptionInput: shortDescriptionInput.substring(0, 500) };
-    const metaDesc = await generateWithModel('metaDescription', inputData);
+    const metaDesc = await generateWithModel('metaDescription', inputData); // Will be mocked
     const finalMetaDesc = metaDesc.substring(0, 160) || shortDescriptionInput.substring(0, 160);
-    console.log(`[MiniLM - Meta Desc] END. Generated: ${finalMetaDesc}`);
+    console.log(`[MiniLM - Meta Desc] END (MOCKED). Generated: ${finalMetaDesc}`);
     return finalMetaDesc;
 }
 
 export async function generateContentWithMiniLM(
   input: MiniLMInput
 ): Promise<GeneratedProductContent> {
-  console.log('[MiniLM Service] START generateContentWithMiniLM. Input ProductName:', input.productName);
+  console.log('[MiniLM Service] START generateContentWithMiniLM (MODELS TEMPORARILY DISABLED - MOCKING). Input ProductName:', input.productName);
   const overallStartTime = Date.now();
-  await loadPromptsFromFirestore();
+  await loadPromptsFromFirestore(); // Still load prompts to ensure no errors there
 
   const { productName, visualTags, category, existingKeywords, existingAttributes } = input;
 
@@ -339,7 +383,7 @@ export async function generateContentWithMiniLM(
   const tags = Array.from(tagsSet).slice(0, 10);
   
   const overallEndTime = Date.now();
-  console.log(`[MiniLM Service] END generateContentWithMiniLM for ${productName}. Total Time: ${overallEndTime - overallStartTime}ms`);
+  console.log(`[MiniLM Service] END generateContentWithMiniLM for ${productName} (MOCKED). Total Time: ${overallEndTime - overallStartTime}ms`);
 
   return {
     seoFilenameBase,
