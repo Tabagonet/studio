@@ -17,8 +17,8 @@ import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
 // MiniLM temporarily disabled
 // import { generateContentWithMiniLM } from '@/ai/services/minilm-text-generation';
 import { LOCAL_UPLOAD_RAW_DIR_RELATIVE, LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE } from '@/lib/local-storage-constants';
-import FormDataLib from 'form-data'; // Keep for constructing the form
-import axios from 'axios'; // Keep for potential direct calls if wooApi fails differently
+import FormDataLib from 'form-data'; 
+import axios from 'axios'; 
 
 
 // --- START TEMPORARY PLACEHOLDER FUNCTIONS (AI DISABLED) ---
@@ -60,17 +60,14 @@ async function uploadImageToWooCommerceMedia(
   productNameForAlt?: string
 ): Promise<{ id: number; source_url: string; name: string; alt_text: string; error?: string, details?: any } | { error: string, details?: any }> {
   const wooCommerceStoreUrl = process.env.WOOCOMMERCE_STORE_URL;
+  const wooCommerceApiKey = process.env.WOOCOMMERCE_API_KEY;
+  const wooCommerceApiSecret = process.env.WOOCOMMERCE_API_SECRET;
 
   console.log(`[WC Media Upload - ${originalImageName}] START. Local Path: ${localImagePathAbsolute}`);
   console.log(`[WC Media Upload - ${originalImageName}] Target Store URL from env: ${wooCommerceStoreUrl}`);
 
-  if (!wooApi) {
-    const errorMsg = "[WC Media Upload] CRITICAL: WooCommerce API client (wooApi) not initialized.";
-    console.error(errorMsg);
-    return { error: errorMsg };
-  }
-  if (!wooCommerceStoreUrl) {
-    const errorMsg = "[WC Media Upload] CRITICAL: WOOCOMMERCE_STORE_URL not configured in .env.";
+  if (!wooCommerceStoreUrl || !wooCommerceApiKey || !wooCommerceApiSecret) {
+    const errorMsg = "[WC Media Upload] CRITICAL: WooCommerce credentials or store URL not fully configured in .env.";
     console.error(errorMsg);
     return { error: errorMsg };
   }
@@ -78,6 +75,10 @@ async function uploadImageToWooCommerceMedia(
   if (!wooCommerceStoreUrl.startsWith('https://')) {
     console.warn(`[WC Media Upload - ${originalImageName}] CRITICAL SECURITY WARNING: WOOCOMMERCE_STORE_URL ('${wooCommerceStoreUrl}') is using HTTP. API keys and data are sent insecurely. Please update to HTTPS if your site supports it. This might also be causing permission issues.`);
   }
+
+  // Ensure the base URL does not end with a slash for consistent path joining
+  const baseUrl = wooCommerceStoreUrl.endsWith('/') ? wooCommerceStoreUrl.slice(0, -1) : wooCommerceStoreUrl;
+  const targetUrl = `${baseUrl}/wp-json/wp/v2/media`;
 
   try {
     console.log(`[WC Media Upload - ${originalImageName}] Reading file buffer from: ${localImagePathAbsolute}`);
@@ -95,68 +96,70 @@ async function uploadImageToWooCommerceMedia(
     
     const titleForUpload = productNameForAlt || originalImageName.split('.')[0].replace(/[-_]/g, ' ');
     form.append('title', titleForUpload);
-    form.append('status', 'publish'); // Suggested by WordPress REST API docs for media
+    form.append('status', 'publish');
     console.log(`[WC Media Upload - ${originalImageName}] FormData prepared. Appending 'file' (name: ${originalImageName}), 'title' (value: ${titleForUpload}), 'status' (value: 'publish')`);
-
-    // Using wooApi client to POST to 'media' which implies /wc/v3/media
-    const targetWooCommerceEndpoint = 'media'; 
-    console.log(`[WC Media Upload - ${originalImageName}] Attempting to POST to WooCommerce endpoint '${targetWooCommerceEndpoint}' using wooApi client (effectively ${wooCommerceStoreUrl}/wp-json/wc/v3/${targetWooCommerceEndpoint}).`);
-
-    // The wooApi client handles authentication (Basic or Query String based on its init)
-    // and Content-Type for FormData.
-    const wooApiConfig = {
-      timeout: 60000, // 60 seconds timeout
-      // Headers like Content-Type for multipart/form-data are typically set by axios (used internally by wooApi)
-      // when it detects a FormData object.
-    };
-    console.log(`[WC Media Upload - ${originalImageName}] wooApi.post config (timeout):`, JSON.stringify(wooApiConfig, null, 2));
     
+    console.log(`[WC Media Upload - ${originalImageName}] Attempting to POST to: ${targetUrl} using Basic Auth.`);
+    
+    const authString = Buffer.from(`${wooCommerceApiKey}:${wooCommerceApiSecret}`).toString('base64');
+    const authHeader = `Basic ${authString}`;
+    console.log(`[WC Media Upload - ${originalImageName}] Auth Header Prefix: Basic [REDACTED]`);
+    
+    const axiosConfig = {
+      headers: {
+        ...form.getHeaders(), // Important for multipart/form-data
+        'Authorization': authHeader,
+         // Axios might set Content-Length automatically, but it's good practice if known,
+         // form-data library might handle this via getHeaders() as well.
+      },
+      timeout: 60000, // 60 seconds timeout
+    };
+    
+    console.log(`[WC Media Upload - ${originalImageName}] Axios config for POST (auth and other headers redacted for brevity):`, JSON.stringify({ timeout: axiosConfig.timeout, headers: { "Content-Type": form.getHeaders()["content-type"], "Authorization": "Basic [REDACTED]" } }, null, 2));
+
     const uploadStartTime = Date.now();
-    // The user's provided snippet uses `form.getHeaders()` which is for `form-data` with raw `axios`.
-    // When using `@woocommerce/woocommerce-rest-api`, it's generally better to let the library handle headers.
-    // However, if issues persist, we can try adding `headers: form.getHeaders()` to the config.
-    // For now, let the library manage headers.
-    const response = await wooApi.post(targetWooCommerceEndpoint, form, wooApiConfig);
+    const response = await axios.post(targetUrl, form, axiosConfig);
     const uploadEndTime = Date.now();
 
-    console.log(`[WC Media Upload - ${originalImageName}] wooApi.post finished. Time: ${uploadEndTime - uploadStartTime}ms. Status: ${response.status}`);
-    // console.log(`[WC Media Upload - ${originalImageName}] Response Headers (first 500 chars):`, JSON.stringify(response.headers, null, 2).substring(0, 500) + "...");
+    console.log(`[WC Media Upload - ${originalImageName}] Axios POST finished. Time: ${uploadEndTime - uploadStartTime}ms. Status: ${response.status}`);
+    console.log(`[WC Media Upload - ${originalImageName}] Response Headers (first 500 chars):`, JSON.stringify(response.headers, null, 2).substring(0, 500) + "...");
     console.log(`[WC Media Upload - ${originalImageName}] Response Data (first 1000 chars):`, JSON.stringify(response.data, null, 2).substring(0, 1000) + "...");
 
     const responseData = response.data;
 
     if (response.status >= 200 && response.status < 300 && responseData && responseData.id) {
-      console.log(`[WC Media Upload - ${originalImageName}] Successfully uploaded via wooApi. Media ID: ${responseData.id}, URL: ${responseData.source_url}`);
+      console.log(`[WC Media Upload - ${originalImageName}] Successfully uploaded via Axios. Media ID: ${responseData.id}, URL: ${responseData.source_url}`);
       console.log(`[WC Media Upload - ${originalImageName}] END - Success`);
       return {
         id: responseData.id,
-        source_url: responseData.source_url || responseData.guid?.rendered, // guid.rendered is typical for /wp/v2/media
+        source_url: responseData.source_url || responseData.guid?.rendered,
         name: responseData.slug || responseData.title?.rendered || originalImageName, 
         alt_text: responseData.alt_text || `Image of ${titleForUpload}`
       };
     } else {
-      const errorMsg = `[WC Media Upload - ${originalImageName}] Failed to upload via wooApi. Status: ${response.status}.`;
+      const errorMsg = `[WC Media Upload - ${originalImageName}] Failed to upload via Axios. Status: ${response.status}.`;
       console.error(errorMsg, 'Full Response Data:', responseData); 
-      console.log(`[WC Media Upload - ${originalImageName}] END - Failure (Invalid Response or Status from wooApi)`);
-      return { error: responseData.message || responseData.error || "Failed to upload image to WooCommerce via wooApi: Invalid response data or status.", details: responseData };
+      console.log(`[WC Media Upload - ${originalImageName}] END - Failure (Invalid Response or Status from Axios)`);
+      return { error: responseData.message || responseData.error || "Failed to upload image to WooCommerce via Axios: Invalid response data or status.", details: responseData };
     }
   } catch (error: any) {
-    let wcErrorMessage = `Unknown error during media upload with wooApi for ${originalImageName}`;
+    let wcErrorMessage = `Unknown error during media upload with Axios for ${originalImageName}`;
     let wcErrorDetails: any = null;
     const errorDetailsString = error.stack || String(error);
-    console.error(`[WC Media Upload - ${originalImageName}] Full exception during upload with wooApi: ${errorDetailsString}`);
+    console.error(`[WC Media Upload - ${originalImageName}] Full exception during upload with Axios: ${errorDetailsString}`);
 
-    if (error.response) { // Check if it's an Axios-like error structure from wooApi's internal client
-      console.error(`[WC Media Upload - ${originalImageName}] Error from wooApi. Status: ${error.response.status}`);
-      console.error(`[WC Media Upload - ${originalImageName}] Error data from wooApi:`, JSON.stringify(error.response.data, null, 2));
+    if (axios.isAxiosError(error) && error.response) {
+      console.error(`[WC Media Upload - ${originalImageName}] Axios error during upload. Message: ${error.message}`);
+      console.error(`[WC Media Upload - ${originalImageName}] Axios error response status: ${error.response.status}`);
+      console.error(`[WC Media Upload - ${originalImageName}] Axios error response data:`, JSON.stringify(error.response.data, null, 2));
       wcErrorDetails = error.response.data;
       wcErrorMessage = error.response.data?.message || error.message || `WooCommerce API Error ${error.response.status}`;
     } else {
-      console.error(`[WC Media Upload - ${originalImageName}] Non-response error during wooApi upload: ${error.message || String(error)}`);
-      wcErrorMessage = error.message || "Non-response error during wooApi upload";
+      console.error(`[WC Media Upload - ${originalImageName}] Non-Axios error during upload: ${error.message || String(error)}`);
+      wcErrorMessage = error.message || "Non-Axios error during media upload";
     }
     
-    console.log(`[WC Media Upload - ${originalImageName}] END - Failure (Exception with wooApi)`);
+    console.log(`[WC Media Upload - ${originalImageName}] END - Failure (Exception)`);
     return { error: wcErrorMessage, details: wcErrorDetails };
   }
 }
@@ -1054,6 +1057,7 @@ export async function POST(request: NextRequest) {
     
 
     
+
 
 
 
