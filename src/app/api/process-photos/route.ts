@@ -6,7 +6,7 @@ import { adminDb, admin, adminAuth } from '@/lib/firebase-admin';
 import sharp from 'sharp';
 import { fileTypeFromBuffer } from 'file-type';
 import type { ProductTemplate, ProcessingStatusEntry, AutomationRule, AppNotification, WizardProductContext, WooCommerceCategory, ProductType, ParsedNameData, MiniLMInput, GeneratedProductContent, SeoHistoryEntry } from '@/lib/types';
-import { PRODUCT_TEMPLATES_COLLECTION, AUTOMATION_RULES_COLLECTION, APP_NOTIFICATIONS_COLLECTION, SEO_HISTORY_COLLECTION } from '@/lib/constants';
+import { PRODUCT_TEMPLATES_COLLECTION, AUTOMATION_RULES_COLLECTION, APP_NOTIFICATIONS_COLLECTION, SEO_HISTORY_COLLECTION, DEFAULT_PROMPTS } from '@/lib/constants';
 import axios from 'axios';
 import FormDataLib from "form-data"; // Use form-data for Node.js
 import { wooApi } from '@/lib/woocommerce';
@@ -616,7 +616,7 @@ export async function POST(request: NextRequest) {
       console.log(`[ImgProc - ${photoData.imageName}] Input for MiniLM:`, JSON.stringify(miniLMInput));
       const generatedContent = await generateContentWithMiniLM(miniLMInput);
       await photoDocRef.update({ status: 'processing_image_content_generated', progress: 45, generatedContent, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-      console.log(`[ImgProc - ${photoData.imageName}] MiniLM content generated (placeholder). SEO Base='${generatedContent.seoFilenameBase}', ShortDesc='${generatedContent.shortDescription?.substring(0,30)}...'`);
+      console.log(`[ImgProc - ${photoData.imageName}] MiniLM content generated. SEO Base='${generatedContent.seoFilenameBase}', ShortDesc='${generatedContent.shortDescription?.substring(0,30)}...'`);
 
       const processedImageDir = path.join(process.cwd(), 'public', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId);
       await fs.mkdir(processedImageDir, { recursive: true });
@@ -648,7 +648,9 @@ export async function POST(request: NextRequest) {
         updatedAt: admin.firestore.FieldValue.serverTimestamp() as any,
       };
       if (generatedContent.attributes && generatedContent.attributes.length > 0) {
-        updateDataForRuleApp['productContext.attributes'] = generatedContent.attributes; // Update attributes if MiniLM refined them
+        // Make sure productContext exists before trying to update its attributes property
+        const currentProductContext = photoData.productContext || {};
+        updateDataForRuleApp.productContext = { ...currentProductContext, attributes: generatedContent.attributes } as WizardProductContext;
       }
       await photoDocRef.update(updateDataForRuleApp);
       console.log(`[ImgProc - ${photoData.imageName}] Rules applied. Final Category Slug: ${finalCategorySlug}, Final Tags: ${finalTags.join(', ')}`);
@@ -775,13 +777,19 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error: any) {
-    console.error(`[API /process-photos] CRITICAL ERROR. Batch: ${body?.batchId || 'unknown'}, PhotoDoc being processed: ${currentPhotoDocId || 'N/A'}. Error:`, error.message, error.stack);
-    const errorMessage = error.message || 'An unknown server error occurred during photo processing.';
+    console.error(`[API /process-photos] CRITICAL ERROR CAUGHT. Batch: ${body?.batchId || 'unknown'}, PhotoDoc being processed: ${currentPhotoDocId || 'N/A'}.`);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+    
+    const errorMessageString = (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string')
+      ? error.message
+      : 'An unknown server error occurred during photo processing.';
+
     if (adminDb && currentPhotoDocId) { 
         try {
             await adminDb.collection('processing_status').doc(currentPhotoDocId).update({
                 status: 'error_processing_image', 
-                errorMessage: `API General Error: ${errorMessage.substring(0, 200)}`,
+                errorMessage: `API General Error: ${errorMessageString.substring(0, 200)}`,
                 progress: 0, 
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
@@ -789,11 +797,12 @@ export async function POST(request: NextRequest) {
             console.error("[API /process-photos] Firestore update FAILED during CRITICAL ERROR handling for photo doc:", dbError);
         }
     } else if (adminDb && body?.batchId) { 
-        console.error(`[API /process-photos] General error for batch ${body.batchId} before specific photo processing started or after.`);
+        console.error(`[API /process-photos] General error for batch ${body.batchId} before specific photo processing started or after. Error details: ${errorMessageString}`);
     }
-    return NextResponse.json({ error: 'Failed to process photos due to a server error.', details: errorMessage.substring(0,500) }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to process photos due to a server error.', details: errorMessageString.substring(0,500) }, { status: 500 });
   }
 }
-
     
+    
+
     

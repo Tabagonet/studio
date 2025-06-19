@@ -1,5 +1,6 @@
 
 import type {NextConfig} from 'next';
+import path from 'path'; // Added import
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -41,10 +42,18 @@ const nextConfig: NextConfig = {
         dns: false,
         net: false,
         tls: false,
-        fs: false, 
+        fs: false,
         child_process: false, // Also common for server-side utils
       };
     }
+
+    // Alias the problematic HTML file to 'false' to make Webpack treat it as an empty module
+    // This prevents the "Unknown module type" error for this specific file.
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      [path.join(__dirname, 'node_modules/@mapbox/node-pre-gyp/lib/util/nw-pre-gyp/index.html')]: false,
+    };
+
     return config;
   },
 };
