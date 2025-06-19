@@ -54,8 +54,8 @@ async function generateContentWithMiniLM(
 
 async function uploadImageToWooCommerceMedia(
   localImagePathAbsolute: string,
-  originalImageName: string, // Use original name for the upload
-  productNameForAlt?: string // For generating alt text if needed
+  originalImageName: string,
+  productNameForAlt?: string
 ): Promise<{ id: number; source_url: string; name: string; alt_text: string; error?: string, details?: any } | { error: string, details?: any }> {
   const wooCommerceStoreUrl = process.env.WOOCOMMERCE_STORE_URL;
   const wooCommerceApiKey = process.env.WOOCOMMERCE_API_KEY;
@@ -67,26 +67,28 @@ async function uploadImageToWooCommerceMedia(
     console.error(errorMsg);
     return { error: errorMsg };
   }
+  if (!wooCommerceStoreUrl.startsWith('https://')) {
+    console.warn(`[WC Media Upload - ${originalImageName}] CRITICAL SECURITY WARNING: WOOCOMMERCE_STORE_URL is using HTTP. API keys and data are sent insecurely. Please update to HTTPS if your site supports it.`);
+  }
 
   try {
     const fileBuffer = await fs.readFile(localImagePathAbsolute);
+    
     const form = new FormData();
-    
-    // Only append the file itself
     form.append('file', new Blob([fileBuffer]), originalImageName);
-    
-    // Use Basic Authentication
+    form.append('title', productNameForAlt || originalImageName.split('.')[0]);
+    form.append('status', 'publish'); // Explicitly set status
+
     const credentials = Buffer.from(`${wooCommerceApiKey}:${wooCommerceApiSecret}`).toString('base64');
     const headers: HeadersInit = {
       'Authorization': `Basic ${credentials}`,
-      // Content-Disposition and Content-Type for multipart/form-data are typically set automatically by fetch when body is FormData
     };
     
-    // Using /wp/v2/media endpoint which is standard for WordPress media uploads
     const mediaUploadUrl = `${wooCommerceStoreUrl}/wp-json/wp/v2/media`;
 
-    console.log(`[WC Media Upload - ${originalImageName}] Uploading (size ${fileBuffer.length} bytes) to WooCommerce Media using Basic Auth (Simplified Payload with native fetch)...`);
+    console.log(`[WC Media Upload - ${originalImageName}] Uploading (size ${fileBuffer.length} bytes) to WooCommerce Media using Basic Auth (Payload with title & status via native fetch)...`);
     console.log(`[WC Media Upload - ${originalImageName}] Target URL: ${mediaUploadUrl}`);
+    console.log(`[WC Media Upload - ${originalImageName}] Using Basic Auth. Credentials length: ${credentials.length}`);
     
     const uploadStartTime = Date.now();
     const response = await fetch(mediaUploadUrl, {
@@ -117,18 +119,28 @@ async function uploadImageToWooCommerceMedia(
   } catch (error: any) {
     let wcErrorMessage = "Unknown error during media upload with fetch";
     let wcErrorDetails:any = null;
-    console.error(`[WC Media Upload - ${originalImageName}] Fetch error uploading:`, error.message);
-    if (error.response && typeof error.response.json === 'function') {
+    console.error(`[WC Media Upload - ${originalImageName}] Fetch error uploading:`, error.message || error);
+    if (error.response && typeof error.response.json === 'function') { // This check is more for axios-like errors
         try {
             wcErrorDetails = await error.response.json();
             wcErrorMessage = wcErrorDetails.message || JSON.stringify(wcErrorDetails);
         } catch (e) {
             wcErrorMessage = error.response.statusText || wcErrorMessage;
         }
-    } else if (error.cause) {
+    } else if (error.cause) { // More common for native fetch errors
         wcErrorMessage = String(error.cause);
+    } else if (error.message) {
+        wcErrorMessage = error.message;
     }
-    console.log(`[WC Media Upload - ${originalImageName}] END - Failure (Fetch Error)`);
+
+    // If error is from response.json() failing because response wasn't ok
+    if (error instanceof SyntaxError && error.message.includes("JSON")) {
+        // This block may not be reached if response.ok check above already handles it.
+        wcErrorMessage = `Failed to parse JSON response from media upload. Status: ${error.response?.status || 'unknown'}.`;
+        wcErrorDetails = { message: "Server returned non-JSON or empty response." };
+    }
+    
+    console.log(`[WC Media Upload - ${originalImageName}] END - Failure (Fetch/Parsing Error)`);
     return { error: wcErrorMessage, details: wcErrorDetails };
   }
 }
@@ -156,6 +168,7 @@ function applyTemplate(templateContent: string, data: Record<string, string | nu
     if (typeof value === 'string') {
       conditionMet = value.trim() !== '';
     } else if (typeof value === 'number') {
+      // For price-related fields, condition is met if > 0. Otherwise, if not 0.
       if (variableName.toLowerCase().includes('price')) {
         conditionMet = value > 0;
       } else {
@@ -163,9 +176,10 @@ function applyTemplate(templateContent: string, data: Record<string, string | nu
       }
     } else if (typeof value === 'boolean') {
       conditionMet = value;
-    } else if (value !== undefined && value !== null) {
+    } else if (value !== undefined && value !== null) { // Catches other non-empty, non-null values
       conditionMet = true; 
-    }
+    } // else: value is undefined, null, or an empty string if not caught by `typeof value === 'string'`
+    
     return conditionMet ? innerContent.trim() : '';
   });
 
@@ -174,7 +188,7 @@ function applyTemplate(templateContent: string, data: Record<string, string | nu
     const value = (data[key] === null || data[key] === undefined) ? '' : String(data[key]);
     result = result.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
   }
-  result = result.replace(/\{\{[\w-.]+\}\}/g, '').trim();
+  result = result.replace(/\{\{[\w-.]+\}\}/g, '').trim(); // Clean up any unreplaced placeholders
   return result;
 }
 
@@ -208,7 +222,7 @@ async function fetchWooCommerceCategories(forceRefresh: boolean = false): Promis
         return allWooCategoriesCache;
     }
     if (!wooApi) {
-      console.warn("[WooCommerce Categories] API client not initialized. Cannot fetch.");
+      console.warn("[WooCommerce Categories] API client not initialized. Cannot fetch. Returning current cache (if any).");
       return allWooCategoriesCache; 
     }
 
@@ -320,7 +334,7 @@ async function createBatchCompletionNotification(batchId: string, userId: string
   console.log(`[Notification] Batch ${batchId}: ${title} - ${description}`);
   await adminDb.collection(APP_NOTIFICATIONS_COLLECTION).add({
     userId, title, description, type,
-    timestamp: admin.firestore.FieldValue.serverTimestamp() as any,
+    timestamp: admin.firestore.FieldValue.serverTimestamp() as Timestamp, // Cast to Timestamp
     isRead: false, linkTo: `/batch?batchId=${batchId}`,
     lastMessage: description
   } as Omit<AppNotification, 'id'>);
@@ -357,8 +371,9 @@ async function updateSpecificFirestoreEntries(
         status: status,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
+    // Ensure all keys in updateData are valid for ProcessingStatusEntry
     (Object.keys(updateData) as Array<keyof ProcessingStatusEntry>).forEach(key => {
-        if (updateData[key] !== undefined) {
+        if (updateData[key] !== undefined) { // Check for undefined before assigning
             finalUpdateData[key] = updateData[key];
         }
     });
@@ -592,7 +607,7 @@ async function createWooCommerceProductForGroup(
         console.error(`[WooCommerce CreateProduct - ${productNameFromContext}] Product creation FAILED. SKU Attempted: ${finalSkuUsed}. Error: ${finalErrorMessage}. Details: ${detailedError}`);
         await updateSpecificFirestoreEntries(entryIdsForThisProduct, 'error_woocommerce_integration', { errorMessage: `Error WooCommerce: ${detailedError.substring(0,250)}`, progress: 100, lastMessage: `Error WooCommerce: ${detailedError.substring(0,100)}...`});
         if (adminDb && userId) {
-            await adminDb.collection(APP_NOTIFICATIONS_COLLECTION).add({ userId, title: `Error al crear producto "${productNameFromContext}"`, description: `SKU: ${finalSkuUsed || 'N/A'}. Error: ${detailedError.substring(0, 150)}`, type: 'error', timestamp: admin.firestore.FieldValue.serverTimestamp() as any, isRead: false, linkTo: `/batch?batchId=${batchId}`, lastMessage: `Error creando producto: ${detailedError.substring(0,100)}` } as Omit<AppNotification, 'id'>);
+            await adminDb.collection(APP_NOTIFICATIONS_COLLECTION).add({ userId, title: `Error al crear producto "${productNameFromContext}"`, description: `SKU: ${finalSkuUsed || 'N/A'}. Error: ${detailedError.substring(0, 150)}`, type: 'error', timestamp: admin.firestore.FieldValue.serverTimestamp() as Timestamp, isRead: false, linkTo: `/batch?batchId=${batchId}`, lastMessage: `Error creando producto: ${detailedError.substring(0,100)}` } as Omit<AppNotification, 'id'>);
         }
         const productCreationEndTime = Date.now();
         console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] END - Failure. Total time: ${productCreationEndTime - productCreationStartTime}ms`);
@@ -751,7 +766,7 @@ export async function POST(request: NextRequest) {
           status: 'processing_image_optimized', progress: 65, seoName: filenameForCopy,
           processedImageStoragePath: path.join('/', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId, filenameForCopy).replace(/\\\\/g, '/'),
           processedImageDownloadUrl: path.join('/', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId, filenameForCopy).replace(/\\\\/g, '/'),
-          seoMetadata: generatedContent.seoMetadata, updatedAt: admin.firestore.FieldValue.serverTimestamp() as any,
+          seoMetadata: generatedContent.seoMetadata, updatedAt: admin.firestore.FieldValue.serverTimestamp() as Timestamp,
           lastMessage: 'Imagen "optimizada" (copiada, Sharp deshabilitado).'
         };
         await photoDocRef.update(updateDataForOptimized);
@@ -762,7 +777,7 @@ export async function POST(request: NextRequest) {
 
         const updateDataForRuleApp: Partial<ProcessingStatusEntry> = {
           status: 'processing_image_rules_applied', progress: 75, assignedCategorySlug: finalCategorySlug,
-          assignedTags: finalTags, updatedAt: admin.firestore.FieldValue.serverTimestamp() as any,
+          assignedTags: finalTags, updatedAt: admin.firestore.FieldValue.serverTimestamp() as Timestamp,
           lastMessage: 'Reglas de automatización aplicadas.'
         };
         if (generatedContent.attributes && generatedContent.attributes.length > 0) {
@@ -787,7 +802,7 @@ export async function POST(request: NextRequest) {
           console.log(`[ImgProc - ${photoData.imageName}] WC Media Upload SUCCESS. Media ID: ${wcMediaUploadResult.id}`);
           const updateDataForWCMedia: Partial<ProcessingStatusEntry> = {
               status: 'completed_image_pending_woocommerce', progress: 100, wooCommerceMediaId: wcMediaUploadResult.id,
-              updatedAt: admin.firestore.FieldValue.serverTimestamp() as any,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp() as Timestamp,
               lastMessage: `Imagen subida a WC Media (ID: ${wcMediaUploadResult.id}).`
           };
           const currentSeoMetadata = photoData.generatedContent?.seoMetadata || photoData.seoMetadata || {};
@@ -807,15 +822,19 @@ export async function POST(request: NextRequest) {
         const imgProcEndTime = Date.now();
         console.error(`[ImgProc - ${photoData.imageName}] ERROR during individual photo processing steps after ${imgProcEndTime - imgProcStartTime}ms. Doc ID: ${photoData.id}. Error: ${photoProcessingError.message}`);
         const currentStatusSnapshot = await photoDocRef.get();
-        const currentStatus = currentStatusSnapshot.data()?.status;
-        if (currentStatus !== 'error_processing_image' && currentStatus !== 'error_woocommerce_integration') {
-            await photoDocRef.update({
-                status: 'error_processing_image',
-                errorMessage: `PhotoProc Error: ${photoProcessingError.message?.substring(0, 250) || 'Unknown error during image processing.'}`,
-                progress: photoData.progress || 0, 
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                lastMessage: `Error procesando imagen: ${photoProcessingError.message?.substring(0,50)}...`
-            });
+        if (currentStatusSnapshot.exists) {
+            const currentStatusData = currentStatusSnapshot.data() as ProcessingStatusEntry;
+            if (currentStatusData.status !== 'error_processing_image' && currentStatusData.status !== 'error_woocommerce_integration') {
+                 await photoDocRef.update({
+                    status: 'error_processing_image',
+                    errorMessage: `PhotoProc Error: ${photoProcessingError.message?.substring(0, 250) || 'Unknown error during image processing.'}`,
+                    progress: photoData.progress || 0, 
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    lastMessage: `Error procesando imagen: ${photoProcessingError.message?.substring(0,50)}...`
+                });
+            }
+        } else {
+             console.error(`[ImgProc - ${photoData.imageName}] CRITICAL: Document ${photoData.id} not found during error handling.`);
         }
       } finally {
         console.log(`[ImgProc - ${photoData.imageName}] FINALLY block: Triggering next processing for batch ${batchId}.`);
@@ -961,7 +980,7 @@ export async function POST(request: NextRequest) {
             const photoDocRef = adminDb.collection('processing_status').doc(currentPhotoDocIdForErrorHandling);
             console.log(`[API /process-photos] Attempting to mark doc ${currentPhotoDocIdForErrorHandling} with error status due to top-level catch.`);
             const currentEntrySnapshot = await photoDocRef.get();
-            if (currentEntrySnapshot.exists) {
+            if (currentEntrySnapshot.exists) { // Corrected: .exists is a property
                 const currentEntryData = currentEntrySnapshot.data() as ProcessingStatusEntry;
                 if (!currentEntryData.status.startsWith('error_') && !currentEntryData.status.startsWith('completed_')) {
                      photoDocRef.update({ status: 'error_processing_image', errorMessage: `API General Error: ${errorMessageString.substring(0, 200)}`, updatedAt: admin.firestore.FieldValue.serverTimestamp(), lastMessage: `Error API General: ${errorMessageString.substring(0,50)}...` })
@@ -969,6 +988,8 @@ export async function POST(request: NextRequest) {
                 } else {
                     console.log(`[API /process-photos] Doc ${currentPhotoDocIdForErrorHandling} already in a terminal state (${currentEntryData.status}). Not updating with general error.`);
                 }
+            } else {
+                console.error(`[API /process-photos] Document ${currentPhotoDocIdForErrorHandling} NOT FOUND during top-level error handling.`);
             }
         } catch (dbUpdateError) {
             console.error("[API /process-photos] Synchronous error during Firestore update attempt in CRITICAL ERROR handling:", dbUpdateError);
@@ -990,4 +1011,6 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+    
+
     
