@@ -13,7 +13,7 @@ import { wooApi } from '@/lib/woocommerce';
 import path from 'path';
 import fs from 'fs/promises'; // For reading local files
 import { generateProductDescription } from '@/ai/flows/generate-product-description'; // Genkit flow
-import { classifyImage } from '@/ai/services/image-classification'; // MobileNetV2
+import { classifyImage } from '@/ai/services/image-classification'; // MobileNetV2 (stubbed)
 import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
 import { generateContentWithMiniLM } from '@/ai/services/minilm-text-generation'; // MiniLM service
 import { LOCAL_UPLOAD_RAW_DIR_RELATIVE, LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE } from '@/lib/local-storage-constants';
@@ -28,6 +28,7 @@ async function uploadImageToWooCommerceMedia(
   const wooCommerceApiKey = process.env.WOOCOMMERCE_API_KEY;
   const wooCommerceApiSecret = process.env.WOOCOMMERCE_API_SECRET;
 
+  console.log(`[WC Media Upload - ${filename}] START`);
   if (!wooCommerceStoreUrl || !wooCommerceApiKey || !wooCommerceApiSecret) {
     console.error("[WC Media Upload] WooCommerce API credentials or URL not configured.");
     return null;
@@ -42,8 +43,8 @@ async function uploadImageToWooCommerceMedia(
     const form = new FormDataLib();
     form.append('file', fileBuffer, filename);
 
-    console.log(`[WC Media Upload] Uploading ${filename} (from ${localImagePathAbsolute}) to WooCommerce Media...`);
-
+    console.log(`[WC Media Upload - ${filename}] Uploading (from ${localImagePathAbsolute}) to WooCommerce Media...`);
+    const uploadStartTime = Date.now();
     const response = await axios.post(
       `${wooCommerceStoreUrl}/wp-json/wc/v3/media`,
       form,
@@ -52,12 +53,15 @@ async function uploadImageToWooCommerceMedia(
           ...form.getHeaders(),
           'Authorization': `Basic ${Buffer.from(`${wooCommerceApiKey}:${wooCommerceApiSecret}`).toString('base64')}`,
         },
-        timeout: 60000, // 60 seconds timeout
+        timeout: 120000, // Increased timeout to 120 seconds
       }
     );
+    const uploadEndTime = Date.now();
+    console.log(`[WC Media Upload - ${filename}] Axios POST finished. Time: ${uploadEndTime - uploadStartTime}ms. Status: ${response.status}`);
 
     if (response.data && response.data.id) {
-      console.log(`[WC Media Upload] Successfully uploaded ${filename} to WooCommerce. Media ID: ${response.data.id}, URL: ${response.data.source_url}`);
+      console.log(`[WC Media Upload - ${filename}] Successfully uploaded. Media ID: ${response.data.id}, URL: ${response.data.source_url}`);
+      console.log(`[WC Media Upload - ${filename}] END - Success`);
       return {
         id: response.data.id,
         source_url: response.data.source_url,
@@ -65,14 +69,16 @@ async function uploadImageToWooCommerceMedia(
         alt_text: response.data.alt_text || `Image of ${productName || filename.split('.')[0]}`
       };
     } else {
-      console.error(`[WC Media Upload] Failed to upload ${filename} to WooCommerce. Response:`, response.data);
+      console.error(`[WC Media Upload - ${filename}] Failed to upload. Response Data (first 200 chars):`, JSON.stringify(response.data)?.substring(0,200));
+      console.log(`[WC Media Upload - ${filename}] END - Failure (Invalid Response Data)`);
       return null;
     }
   } catch (error) {
-    console.error(`[WC Media Upload] Axios error uploading ${filename} to WooCommerce:`, error);
+    console.error(`[WC Media Upload - ${filename}] Axios error uploading:`, error);
     if (axios.isAxiosError(error) && error.response) {
-        console.error("[WC Media Upload] Axios error response data:", error.response.data);
+        console.error("[WC Media Upload - ${filename}] Axios error response data (first 200 chars):", JSON.stringify(error.response.data)?.substring(0,200));
     }
+    console.log(`[WC Media Upload - ${filename}] END - Failure (Axios Error)`);
     return null;
   }
 }
@@ -149,7 +155,7 @@ async function fetchWooCommerceCategories(forceRefresh: boolean = false): Promis
             console.log(`[WooCommerce Categories] Fetched and cached ${allWooCategoriesCache.length} categories.`);
             return allWooCategoriesCache;
         }
-        console.warn("[WooCommerce Categories] Failed to fetch categories, response not OK or not an array:", response.status, response.data ? String(response.data).substring(0,100) + '...' : 'N/A');
+        console.warn("[WooCommerce Categories] Failed to fetch categories, response not OK or not an array. Status:", response.status, "Data (first 100 chars):", response.data ? String(response.data).substring(0,100) + '...' : 'N/A');
         return allWooCategoriesCache || []; // Return old cache on failure if exists
     } catch (error: any) {
         console.error("[WooCommerce Categories] Error fetching:", error.message || error);
@@ -256,9 +262,8 @@ async function createBatchCompletionNotification(batchId: string, userId: string
 async function triggerNextPhotoProcessing(batchId: string, requestUrl: string, userId?: string, context?: string) {
   const apiUrl = new URL('/api/process-photos', requestUrl).toString();
   console.log(`[API Trigger - ${context || 'General'}] Triggering next processing for batch ${batchId} by calling: ${apiUrl}. UserId: ${userId || 'N/A'}`);
-  // Intentionally not awaiting this, as it's a "fire and forget" to kick off the next step.
-  // Use a try-catch for the fetch itself to prevent unhandled rejections if the fetch call fails.
   try {
+    // Fire and forget, but handle immediate errors from fetch() itself
     fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -310,22 +315,23 @@ async function createWooCommerceProductForGroup(
     templates: ProductTemplate[],
     rules: AutomationRule[]
 ): Promise<{name: string, success: boolean, id?: number | string, error?: string }> {
-    console.log(`[WooCommerce - ${productNameFromContext}] Starting product group creation. Total image entries: ${productEntries.length}`);
+    console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] START. Total image entries: ${productEntries.length}`);
+    const productCreationStartTime = Date.now();
 
     const primaryEntry = productEntries.find(e => e.productContext?.isPrimary) || productEntries[0];
     if (!primaryEntry || !primaryEntry.productContext) {
-        console.error(`[WooCommerce - ${productNameFromContext}] CRITICAL: Missing primary entry or product context. Cannot proceed.`);
+        console.error(`[WooCommerce CreateProduct - ${productNameFromContext}] CRITICAL: Missing primary entry or product context. Cannot proceed.`);
         await updateSpecificFirestoreEntries(productEntries.map(e => e.id), 'error_woocommerce_integration', { errorMessage: "Datos de contexto del producto primario no encontrados."});
         return { name: productNameFromContext, success: false, error: "Datos de contexto del producto primario no encontrados." };
     }
-    console.log(`[WooCommerce - ${productNameFromContext}] Primary entry ID: ${primaryEntry.id}, Image name: ${primaryEntry.imageName}`);
+    console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Primary entry ID: ${primaryEntry.id}, Image name: ${primaryEntry.imageName}`);
 
     let currentProductContext = { ...primaryEntry.productContext };
-    console.log(`[WooCommerce - ${productNameFromContext}] Initial product context from primary entry. Name: ${currentProductContext.name}, SKU: ${currentProductContext.sku}`);
+    console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Initial product context from primary entry. Name: ${currentProductContext.name}, SKU: ${currentProductContext.sku}`);
 
     let generatedContent = primaryEntry.generatedContent;
     if (!generatedContent) {
-      console.warn(`[WooCommerce - ${productNameFromContext}] Generated content was missing from primary entry. Attempting to generate it now for the product group.`);
+      console.warn(`[WooCommerce CreateProduct - ${productNameFromContext}] Generated content was missing from primary entry. Attempting to generate it now for the product group.`);
       const miniLMInput: MiniLMInput = {
         productName: currentProductContext.name,
         visualTags: primaryEntry.visualTags || [],
@@ -334,22 +340,23 @@ async function createWooCommerceProductForGroup(
         existingAttributes: currentProductContext.attributes,
       };
       try {
+        console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Invoking MiniLM for fallback content generation...`);
         generatedContent = await generateContentWithMiniLM(miniLMInput);
-        console.log(`[WooCommerce - ${productNameFromContext}] MiniLM content generated for product group. SEO Base='${generatedContent.seoFilenameBase}'`);
+        console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] MiniLM content generated for product group. SEO Base='${generatedContent.seoFilenameBase}'`);
       } catch(minilmerror) {
-        console.error(`[WooCommerce - ${productNameFromContext}] MiniLM content generation FAILED for product group:`, minilmerror);
+        console.error(`[WooCommerce CreateProduct - ${productNameFromContext}] MiniLM content generation FAILED for product group:`, minilmerror);
         generatedContent = { seoFilenameBase: cleanTextForFilename(currentProductContext.name), shortDescription: "", longDescription: "", seoMetadata: { alt: "", title: ""}, attributes: [], tags: [] };
       }
     } else {
-      console.log(`[WooCommerce - ${productNameFromContext}] Using existing generatedContent from primary entry. SEO Base='${generatedContent.seoFilenameBase}'`);
+      console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Using existing generatedContent from primary entry. SEO Base='${generatedContent.seoFilenameBase}'`);
     }
 
 
     if (!currentProductContext.sku || currentProductContext.sku.trim() === "") {
         currentProductContext.sku = `${cleanTextForFilename(currentProductContext.name).substring(0, 20)}-${Date.now().toString().slice(-4)}`;
-        console.log(`[WooCommerce - ${productNameFromContext}] SKU was missing, generated: ${currentProductContext.sku}`);
+        console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] SKU was missing, generated: ${currentProductContext.sku}`);
     } else {
-        console.log(`[WooCommerce - ${productNameFromContext}] Using provided SKU: ${currentProductContext.sku}`);
+        console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Using provided SKU: ${currentProductContext.sku}`);
     }
 
     let finalShortDescription = currentProductContext.shortDescription || generatedContent?.shortDescription;
@@ -367,33 +374,35 @@ async function createWooCommerceProductForGroup(
     };
 
     if (!finalShortDescription || finalShortDescription.trim() === "") {
-        console.log(`[WooCommerce - ${productNameFromContext}] Short description missing, attempting Genkit/Template fallback.`);
+        console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Short description missing, attempting Genkit/Template fallback.`);
         try {
+            console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Invoking Genkit generateProductDescription...`);
             const aiDescInput = { productName: currentProductContext.name, categoryName: templateDataForDesc.categoria, keywords: templateDataForDesc.palabras_clave, attributesSummary: templateDataForDesc.atributos };
             const aiOutput = await generateProductDescription(aiDescInput);
-            if (aiOutput.shortDescription) { finalShortDescription = aiOutput.shortDescription; console.log(`[WooCommerce - ${productNameFromContext}] Genkit generated short desc.`); }
-        } catch (aiError) { console.warn(`[WooCommerce - ${productNameFromContext}] Genkit short desc generation failed:`, aiError); }
+            if (aiOutput.shortDescription) { finalShortDescription = aiOutput.shortDescription; console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Genkit generated short desc.`); }
+        } catch (aiError) { console.warn(`[WooCommerce CreateProduct - ${productNameFromContext}] Genkit short desc generation failed:`, aiError); }
         if (!finalShortDescription || finalShortDescription.trim() === "") {
             const shortDescTemplate = templates.find(t => t.type === 'descripcion_corta' && (t.scope === 'global' || (t.scope === 'categoria_especifica' && t.categoryValue === (primaryEntry.assignedCategorySlug || currentProductContext.category))));
             finalShortDescription = shortDescTemplate ? applyTemplate(shortDescTemplate.content, templateDataForDesc) : `Descubre ${currentProductContext.name}.`;
-            console.log(`[WooCommerce - ${productNameFromContext}] Using template/fallback for short desc.`);
+            console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Using template/fallback for short desc.`);
         }
     }
 
     if (!finalLongDescription || finalLongDescription.trim() === "") {
-        console.log(`[WooCommerce - ${productNameFromContext}] Long description missing, attempting Genkit/Template fallback.`);
+        console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Long description missing, attempting Genkit/Template fallback.`);
          try {
+            console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Invoking Genkit generateProductDescription for long desc...`);
             const aiDescInput = { productName: currentProductContext.name, categoryName: templateDataForDesc.categoria, keywords: templateDataForDesc.palabras_clave, attributesSummary: templateDataForDesc.atributos };
             const aiOutput = await generateProductDescription(aiDescInput);
-            if (aiOutput.longDescription) { finalLongDescription = aiOutput.longDescription; console.log(`[WooCommerce - ${productNameFromContext}] Genkit generated long desc.`); }
-        } catch (aiError) { console.warn(`[WooCommerce - ${productNameFromContext}] Genkit long desc generation failed:`, aiError); }
+            if (aiOutput.longDescription) { finalLongDescription = aiOutput.longDescription; console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Genkit generated long desc.`); }
+        } catch (aiError) { console.warn(`[WooCommerce CreateProduct - ${productNameFromContext}] Genkit long desc generation failed:`, aiError); }
         if (!finalLongDescription || finalLongDescription.trim() === "") {
             const longDescTemplate = templates.find(t => t.type === 'descripcion_larga' && (t.scope === 'global' || (t.scope === 'categoria_especifica' && t.categoryValue === (primaryEntry.assignedCategorySlug || currentProductContext.category))));
             finalLongDescription = longDescTemplate ? applyTemplate(longDescTemplate.content, templateDataForDesc) : `Descripción detallada de ${currentProductContext.name}.`;
-            console.log(`[WooCommerce - ${productNameFromContext}] Using template/fallback for long desc.`);
+            console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Using template/fallback for long desc.`);
         }
     }
-    console.log(`[WooCommerce - ${productNameFromContext}] Final Descriptions: Short="${(finalShortDescription || '').substring(0,30)}...", Long="${(finalLongDescription || '').substring(0,30)}..."`);
+    console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Final Descriptions: Short="${(finalShortDescription || '').substring(0,30)}...", Long="${(finalLongDescription || '').substring(0,30)}..."`);
 
     const wooImagesPayload: { id: number; alt?: string; name?: string, position?: number }[] = [];
     for (const entry of productEntries) {
@@ -401,28 +410,28 @@ async function createWooCommerceProductForGroup(
             const altText = entry.generatedContent?.seoMetadata?.alt || entry.seoMetadata?.alt || currentProductContext.name;
             const imageName = entry.seoName || entry.imageName;
             wooImagesPayload.push({ id: entry.wooCommerceMediaId, alt: altText, name: imageName, position: entry.productContext?.isPrimary ? 0 : (wooImagesPayload.length) });
-             console.log(`[WooCommerce - ${productNameFromContext}] Added image to payload: Media ID ${entry.wooCommerceMediaId}, Alt: ${altText.substring(0,20)}...`);
-        } else { console.warn(`[WooCommerce - ${productNameFromContext}] Entry ${entry.id} (Image: ${entry.imageName}) missing wooCommerceMediaId.`); }
+             console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Added image to payload: Media ID ${entry.wooCommerceMediaId}, Alt: ${altText.substring(0,20)}...`);
+        } else { console.warn(`[WooCommerce CreateProduct - ${productNameFromContext}] Entry ${entry.id} (Image: ${entry.imageName}) missing wooCommerceMediaId.`); }
     }
     wooImagesPayload.sort((a,b) => (a.position || 99) - (b.position || 99));
     wooImagesPayload.forEach((img, idx) => img.position = idx);
-    console.log(`[WooCommerce - ${productNameFromContext}] Final WooCommerce Images Payload (Media IDs sorted): ${wooImagesPayload.map(i => `(id:${i.id},pos:${i.position})`).join(', ')}`);
+    console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Final WooCommerce Images Payload (Media IDs sorted): ${wooImagesPayload.map(i => `(id:${i.id},pos:${i.position})`).join(', ')}`);
 
     const wooCategoriesForProduct: { id: number }[] = [];
     const catSlugToUse = primaryEntry.assignedCategorySlug || currentProductContext.category;
     if (catSlugToUse) {
         const categoryInfo = productCategories.find(c => c.slug === catSlugToUse);
-        if (categoryInfo) { wooCategoriesForProduct.push({ id: categoryInfo.id }); console.log(`[WooCommerce - ${productNameFromContext}] Assigning category: ID ${categoryInfo.id}`); }
-        else { console.warn(`[WooCommerce - ${productNameFromContext}] Category slug "${catSlugToUse}" not found.`); }
-    } else { console.log(`[WooCommerce - ${productNameFromContext}] No category slug to use.`); }
+        if (categoryInfo) { wooCategoriesForProduct.push({ id: categoryInfo.id }); console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Assigning category: ID ${categoryInfo.id}`); }
+        else { console.warn(`[WooCommerce CreateProduct - ${productNameFromContext}] Category slug "${catSlugToUse}" not found.`); }
+    } else { console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] No category slug to use.`); }
 
     const tagsToUse = (generatedContent?.tags && generatedContent.tags.length > 0 ? generatedContent.tags : (primaryEntry.assignedTags || [])).map(tag => ({ name: tag }));
-    console.log(`[WooCommerce - ${productNameFromContext}] Tags:`, tagsToUse.map(t => t.name).join(', '));
+    console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Tags:`, tagsToUse.map(t => t.name).join(', '));
 
     const attributesToUse = (generatedContent?.attributes && generatedContent.attributes.length > 0 ? generatedContent.attributes : currentProductContext.attributes || [])
         .filter(attr => attr.name && attr.value)
         .map((attr, index) => ({ name: attr.name, options: attr.value.split('|').map(o => o.trim()), position: index, visible: true, variation: currentProductContext.productType === 'variable' }));
-    console.log(`[WooCommerce - ${productNameFromContext}] Attributes (count: ${attributesToUse.length}): ${attributesToUse.map(a => `(n:${a.name},opts:${a.options.length},var:${a.variation})`).join('; ')}`);
+    console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Attributes (count: ${attributesToUse.length}): ${attributesToUse.map(a => `(n:${a.name},opts:${a.options.length},var:${a.variation})`).join('; ')}`);
 
     const wooProductData: any = {
         name: currentProductContext.name, type: currentProductContext.productType, sku: currentProductContext.sku,
@@ -430,9 +439,9 @@ async function createWooCommerceProductForGroup(
         categories: wooCategoriesForProduct, tags: tagsToUse, images: wooImagesPayload, attributes: attributesToUse,
         meta_data: [ { key: '_wooautomate_batch_id', value: batchId }, { key: '_wooautomate_product_name_in_batch', value: productNameFromContext}, { key: '_seo_title', value: generatedContent?.seoMetadata?.title || currentProductContext.name }, { key: '_seo_description', value: generatedContent?.seoMetadata?.description || finalShortDescription?.substring(0,160) } ]
     };
-    if (currentProductContext.salePrice && parseFloat(currentProductContext.salePrice) > 0) { wooProductData.sale_price = String(currentProductContext.salePrice); console.log(`[WooCommerce - ${productNameFromContext}] Sale price: ${currentProductContext.salePrice}`); }
+    if (currentProductContext.salePrice && parseFloat(currentProductContext.salePrice) > 0) { wooProductData.sale_price = String(currentProductContext.salePrice); console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Sale price: ${currentProductContext.salePrice}`); }
 
-    console.log(`[WooCommerce - ${productNameFromContext}] Final wooProductData before POST (summary): Name: ${wooProductData.name}, SKU: ${wooProductData.sku}, Images Count: ${wooProductData.images?.length}`);
+    console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Final wooProductData before POST (summary): Name: ${wooProductData.name}, SKU: ${wooProductData.sku}, Images Count: ${wooProductData.images?.length}`);
 
     let finalWooProductId: number | string | null = null;
     let finalErrorMessage: string | null = null;
@@ -441,30 +450,33 @@ async function createWooCommerceProductForGroup(
     const attemptProductCreation = async (productPayload: any, isRetry: boolean): Promise<{id: number | string | null, skuUsed: string | null, errorMsg?: string}> => {
         let currentSkuAttempt = productPayload.sku;
         if (!wooApi) {
-          console.error(`[WooCommerce - ${productNameFromContext}] CRITICAL: wooApi not initialized. Cannot POST product.`);
+          console.error(`[WooCommerce CreateProduct - ${productNameFromContext}] CRITICAL: wooApi not initialized. Cannot POST product.`);
           return {id: null, skuUsed: currentSkuAttempt, errorMsg: "WooCommerce API client not initialized."};
         }
         try {
-            console.log(`[WooCommerce - ${productNameFromContext}] POSTing product. SKU: ${currentSkuAttempt}, Retry: ${isRetry}`);
-            const response = await wooApi.post("products", productPayload);
-            console.log(`[WooCommerce - ${productNameFromContext}] Product POSTED. SKU: ${currentSkuAttempt}, WC ID: ${response.data.id}`);
+            console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] POSTing product. SKU: ${currentSkuAttempt}, Retry: ${isRetry}. Timeout: 120s`);
+            const wcPostStartTime = Date.now();
+            const response = await wooApi.post("products", productPayload, { timeout: 120000 }); // Increased timeout
+            const wcPostEndTime = Date.now();
+            console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Product POSTED. SKU: ${currentSkuAttempt}, WC ID: ${response.data.id}. Time: ${wcPostEndTime - wcPostStartTime}ms`);
             return {id: response.data.id, skuUsed: currentSkuAttempt};
         } catch (error: any) {
+            const wcPostEndTime = Date.now();
             const wooErrorMessage = error.response?.data?.message || error.message || "Unknown WC API error";
             const wooErrorCode = error.response?.data?.code || "";
-            console.error(`[WooCommerce - ${productNameFromContext}] Error (Attempt ${isRetry ? '2' : '1'}) SKU ${currentSkuAttempt}: ${wooErrorMessage} (Code: ${wooErrorCode}). WC Response (data):`, error.response?.data ? String(error.response.data).substring(0, 300) + '...' : 'N/A');
+            console.error(`[WooCommerce CreateProduct - ${productNameFromContext}] Error (Attempt ${isRetry ? '2' : '1'}) SKU ${currentSkuAttempt}: ${wooErrorMessage} (Code: ${wooErrorCode}). Time: ${wcPostEndTime - productCreationStartTime}ms. WC Response (data, first 200 chars):`, error.response?.data ? String(error.response.data).substring(0, 200) + '...' : 'N/A');
             const isSkuError = (wooErrorMessage.toLowerCase().includes("sku") && (wooErrorMessage.toLowerCase().includes("duplicate") || wooErrorMessage.toLowerCase().includes("ya existe") || wooErrorMessage.toLowerCase().includes("no válido") || wooErrorMessage.toLowerCase().includes("invalid"))) || wooErrorCode === 'product_invalid_sku' || (error.response?.data?.data?.params?.sku);
             if (isSkuError && !isRetry) {
                 const newSku = `${cleanTextForFilename(productPayload.name || `fallback-sku`).substring(0,15)}-R${Date.now().toString().slice(-5)}`;
-                console.warn(`[WooCommerce - ${productNameFromContext}] SKU ${currentSkuAttempt} invalid/duplicate. Retrying with SKU: ${newSku}`);
+                console.warn(`[WooCommerce CreateProduct - ${productNameFromContext}] SKU ${currentSkuAttempt} invalid/duplicate. Retrying with SKU: ${newSku}`);
                 const retryResult = await attemptProductCreation({ ...productPayload, sku: newSku }, true);
                 if (retryResult.id && adminDb) {
                     const batchUpdateSku = adminDb.batch();
                     productEntries.forEach(entry => {
                         batchUpdateSku.update(adminDb.collection('processing_status').doc(entry.id), { 'productContext.sku': newSku, 'updatedAt': admin.firestore.FieldValue.serverTimestamp() });
                     });
-                    await batchUpdateSku.commit().catch(e => console.error(`[WooCommerce - ${productNameFromContext}] Firestore SKU update to ${newSku} FAILED:`, e));
-                    console.log(`[WooCommerce - ${productNameFromContext}] Firestore SKUs updated to ${newSku}.`);
+                    await batchUpdateSku.commit().catch(e => console.error(`[WooCommerce CreateProduct - ${productNameFromContext}] Firestore SKU update to ${newSku} FAILED:`, e));
+                    console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Firestore SKUs updated to ${newSku}.`);
                 }
                 return retryResult;
             }
@@ -479,16 +491,20 @@ async function createWooCommerceProductForGroup(
 
     const entryIdsForThisProduct = productEntries.map(e => e.id);
     if (finalWooProductId) {
-        console.log(`[WooCommerce - ${productNameFromContext}] Product creation SUCCESS. WC ID: ${finalWooProductId}, SKU: ${finalSkuUsed}`);
+        console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Product creation SUCCESS. WC ID: ${finalWooProductId}, SKU: ${finalSkuUsed}`);
         await updateSpecificFirestoreEntries(entryIdsForThisProduct, 'completed_woocommerce_integration', { productAssociationId: String(finalWooProductId), progress: 100, lastMessage: `Producto creado con ID: ${finalWooProductId}. SKU: ${finalSkuUsed}` });
         await logSeoHistory({ batchId, originalImageName: primaryEntry.imageName, productName: currentProductContext.name, productId: finalWooProductId, seoName: generatedContent?.seoFilenameBase, shortDescription: finalShortDescription, longDescription: finalLongDescription, seoMetadata: generatedContent?.seoMetadata, tags: generatedContent?.tags, attributes: generatedContent?.attributes, category: primaryEntry.assignedCategorySlug || currentProductContext.category });
+        const productCreationEndTime = Date.now();
+        console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] END - Success. Total time: ${productCreationEndTime - productCreationStartTime}ms`);
         return { name: productNameFromContext, success: true, id: finalWooProductId };
     } else {
-        console.error(`[WooCommerce - ${productNameFromContext}] Product creation FAILED. SKU Attempted: ${finalSkuUsed}. Error: ${finalErrorMessage}`);
+        console.error(`[WooCommerce CreateProduct - ${productNameFromContext}] Product creation FAILED. SKU Attempted: ${finalSkuUsed}. Error: ${finalErrorMessage}`);
         await updateSpecificFirestoreEntries(entryIdsForThisProduct, 'error_woocommerce_integration', { errorMessage: `Error WooCommerce: ${(finalErrorMessage || "Error desconocido").substring(0,250)}`, progress: 100 });
         if (adminDb && userId) {
             await adminDb.collection(APP_NOTIFICATIONS_COLLECTION).add({ userId, title: `Error al crear producto "${productNameFromContext}"`, description: `SKU: ${finalSkuUsed || 'N/A'}. Error: ${(finalErrorMessage || "Error desconocido.").substring(0, 150)}`, type: 'error', timestamp: admin.firestore.FieldValue.serverTimestamp() as any, isRead: false, linkTo: `/batch?batchId=${batchId}` } as Omit<AppNotification, 'id'>);
         }
+        const productCreationEndTime = Date.now();
+        console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] END - Failure. Total time: ${productCreationEndTime - productCreationStartTime}ms`);
         return { name: productNameFromContext, success: false, error: finalErrorMessage || "Unknown WooCommerce error" };
     }
 }
@@ -520,6 +536,7 @@ export async function POST(request: NextRequest) {
       console.error("[API /process-photos] CRITICAL: WooCommerce API client (wooApi) not initialized. Aborting.");
       return NextResponse.json({ error: 'Server configuration error: WooCommerce API not available.' }, { status: 500 });
     }
+    console.log(`[API /process-photos] Batch ${body.batchId}: Firebase Admin SDK and WooCommerce API client seem initialized.`);
 
 
     const { batchId } = body;
@@ -532,7 +549,7 @@ export async function POST(request: NextRequest) {
     console.log(`[API /process-photos] Batch ${batchId}: Processing initiated.`);
 
     console.log(`[API /process-photos] Batch ${batchId}: Attempting to load shared resources (categories, templates, rules)...`);
-    await fetchWooCommerceCategories(); // Ensure categories are loaded/refreshed
+    await fetchWooCommerceCategories(); 
     const allTemplates = await getTemplates();
     const allAutomationRules = await getAutomationRules();
     console.log(`[API /process-photos] Batch ${batchId}: Shared resources loaded. Categories: ${allWooCategoriesCache?.length || 0}, Templates: ${allTemplates.length}, Rules: ${allAutomationRules.length}`);
@@ -556,6 +573,7 @@ export async function POST(request: NextRequest) {
       const userIdForThisPhoto = userIdFromRequest || photoData.userId;
 
       console.log(`[ImgProc - ${photoData.imageName}] START individual processing. Doc ID: ${photoData.id}, Batch: ${batchId}. Product Context Name: ${photoData.productContext?.name || 'N/A'}`);
+      const imgProcStartTime = Date.now();
 
       try {
         await photoDocRef.update({ status: 'processing_image_started', progress: 5, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
@@ -573,7 +591,7 @@ export async function POST(request: NextRequest) {
           imageBuffer = await fs.readFile(localImageAbsolutePath);
         } catch (readError: any) {
            console.error(`[ImgProc - ${photoData.imageName}] Error reading local file ${localImageAbsolutePath}:`, readError.message);
-           await photoDocRef.update({ status: 'error_processing_image', errorMessage: `Failed to read local image file: ${readError.message}`, progress: 5, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+           await photoDocRef.update({ status: 'error_processing_image', errorMessage: `Failed to read local image file: ${readError.message.substring(0,200)}`, progress: 5, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
            throw readError; // Re-throw to be caught by outer catch
         }
         console.log(`[ImgProc - ${photoData.imageName}] Image buffer loaded. Size: ${imageBuffer.length} bytes.`);
@@ -585,11 +603,12 @@ export async function POST(request: NextRequest) {
         await photoDocRef.update({ status: 'processing_image_name_parsed', progress: 15, parsedNameData, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
         console.log(`[ImgProc - ${photoData.imageName}] Name parsed. Prod='${parsedNameData.extractedProductName}', Attrs='${parsedNameData.potentialAttributes.join(',')}'`);
 
+        console.log(`[ImgProc - ${photoData.imageName}] classifyImage START (stubbed)`);
         const visualTags = (await classifyImage(imageBuffer).catch(e => {
-            console.warn(`[ImgProc - ${photoData.imageName}] MobileNet classification failed:`, e); return [];
+            console.warn(`[ImgProc - ${photoData.imageName}] MobileNet classification (stubbed) failed/returned empty:`, e); return [];
         })).slice(0, 5).map(item => item.className.split(',')[0].trim());
         await photoDocRef.update({ status: 'processing_image_classified', progress: 25, visualTags, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-        console.log(`[ImgProc - ${photoData.imageName}] Visual tags: ${visualTags.join(', ')}`);
+        console.log(`[ImgProc - ${photoData.imageName}] Visual tags (stubbed): ${visualTags.join(', ')}`);
 
         const productCategoriesForMiniLM = await fetchWooCommerceCategories();
         const miniLMInput: MiniLMInput = {
@@ -599,10 +618,11 @@ export async function POST(request: NextRequest) {
           existingKeywords: photoData.productContext?.keywords,
           existingAttributes: photoData.productContext?.attributes,
         };
-        console.log(`[ImgProc - ${photoData.imageName}] Input for MiniLM. ProductName: ${miniLMInput.productName}, Category: ${miniLMInput.category}`);
+        console.log(`[ImgProc - ${photoData.imageName}] generateContentWithMiniLM START. ProductName: ${miniLMInput.productName}, Category: ${miniLMInput.category}`);
         const generatedContent = await generateContentWithMiniLM(miniLMInput);
+        console.log(`[ImgProc - ${photoData.imageName}] generateContentWithMiniLM END. SEO Base='${generatedContent.seoFilenameBase}'`);
         await photoDocRef.update({ status: 'processing_image_content_generated', progress: 45, generatedContent, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-        console.log(`[ImgProc - ${photoData.imageName}] MiniLM content generated. SEO Base='${generatedContent.seoFilenameBase}'`);
+        
 
         const processedImageDir = path.join(process.cwd(), 'public', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId);
         await fs.mkdir(processedImageDir, { recursive: true });
@@ -610,15 +630,16 @@ export async function POST(request: NextRequest) {
         const processedImageAbsolutePath = path.join(processedImageDir, seoFilenameWithExt);
         const processedImageRelativePath = path.join('/', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId, seoFilenameWithExt).replace(/\\\\/g, '/');
 
+        console.log(`[ImgProc - ${photoData.imageName}] Sharp image optimization START: To ${processedImageAbsolutePath}`);
         await sharp(imageBuffer).webp({ quality: 80 }).resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true }).toFile(processedImageAbsolutePath);
+        console.log(`[ImgProc - ${photoData.imageName}] Sharp image optimization END.`);
         const updateDataForOptimized: Partial<ProcessingStatusEntry> = {
           status: 'processing_image_optimized', progress: 65, seoName: seoFilenameWithExt,
           processedImageStoragePath: processedImageRelativePath, processedImageDownloadUrl: processedImageRelativePath,
           seoMetadata: generatedContent.seoMetadata, updatedAt: admin.firestore.FieldValue.serverTimestamp() as any,
         };
         await photoDocRef.update(updateDataForOptimized);
-        console.log(`[ImgProc - ${photoData.imageName}] Image optimized: ${processedImageRelativePath}`);
-
+        
         const ruleApplicationResult = applyAutomationRules(parsedNameData, visualTags, photoData.productContext, allAutomationRules);
         const finalTags = Array.from(new Set([...(generatedContent.tags || []), ...ruleApplicationResult.assignedTags]));
         const finalCategorySlug = ruleApplicationResult.assignedCategorySlug || photoData.productContext?.category;
@@ -628,14 +649,15 @@ export async function POST(request: NextRequest) {
           assignedTags: finalTags, updatedAt: admin.firestore.FieldValue.serverTimestamp() as any,
         };
         if (generatedContent.attributes && generatedContent.attributes.length > 0) {
-          const currentProductContext = photoData.productContext || {} as WizardProductContext; // Ensure defined
+          const currentProductContext = photoData.productContext || {} as WizardProductContext; 
           updateDataForRuleApp.productContext = { ...currentProductContext, attributes: generatedContent.attributes } as WizardProductContext;
         }
         await photoDocRef.update(updateDataForRuleApp);
         console.log(`[ImgProc - ${photoData.imageName}] Rules applied. Cat: ${finalCategorySlug}, Tags: ${finalTags.join(', ')}`);
 
-        console.log(`[ImgProc - ${photoData.imageName}] Uploading processed image ${processedImageAbsolutePath} to WC Media...`);
+        console.log(`[ImgProc - ${photoData.imageName}] uploadImageToWooCommerceMedia START for ${processedImageAbsolutePath}`);
         const wcMediaUploadResult = await uploadImageToWooCommerceMedia(processedImageAbsolutePath, seoFilenameWithExt, miniLMInput.productName);
+        console.log(`[ImgProc - ${photoData.imageName}] uploadImageToWooCommerceMedia END. Result ID: ${wcMediaUploadResult?.id}`);
         if (wcMediaUploadResult && wcMediaUploadResult.id) {
           const updateDataForWCMedia: Partial<ProcessingStatusEntry> = {
               status: 'completed_image_pending_woocommerce', progress: 100, wooCommerceMediaId: wcMediaUploadResult.id,
@@ -645,15 +667,16 @@ export async function POST(request: NextRequest) {
           if(wcMediaUploadResult.alt_text) updateDataForWCMedia.seoMetadata = { ...currentSeoMetadata, alt: wcMediaUploadResult.alt_text };
           else if (!currentSeoMetadata.alt && miniLMInput.productName) updateDataForWCMedia.seoMetadata = { ...currentSeoMetadata, alt: `Image of ${miniLMInput.productName}` };
           await photoDocRef.update(updateDataForWCMedia);
-          console.log(`[ImgProc - ${photoData.imageName}] Uploaded to WC Media. ID: ${wcMediaUploadResult.id}`);
         } else {
           console.error(`[ImgProc - ${photoData.imageName}] FAILED to upload to WC Media.`);
           await photoDocRef.update({ status: 'error_processing_image', errorMessage: `Failed to upload ${seoFilenameWithExt} to WC Media.`, progress: 85, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
           throw new Error(`Failed to upload processed image ${seoFilenameWithExt} to WooCommerce Media.`);
         }
-        console.log(`[ImgProc - ${photoData.imageName}] END individual image processing. Status: completed_image_pending_woocommerce.`);
+        const imgProcEndTime = Date.now();
+        console.log(`[ImgProc - ${photoData.imageName}] END individual image processing. Status: completed_image_pending_woocommerce. Total time: ${imgProcEndTime - imgProcStartTime}ms`);
       } catch (photoProcessingError: any) {
-        console.error(`[ImgProc - ${photoData.imageName}] ERROR during individual photo processing steps. Doc ID: ${photoData.id}. Error: ${photoProcessingError.message}`);
+        const imgProcEndTime = Date.now();
+        console.error(`[ImgProc - ${photoData.imageName}] ERROR during individual photo processing steps after ${imgProcEndTime - imgProcStartTime}ms. Doc ID: ${photoData.id}. Error: ${photoProcessingError.message}`);
         const currentStatusSnapshot = await photoDocRef.get(); 
         const currentStatus = currentStatusSnapshot.data()?.status;
         if (currentStatus !== 'error_processing_image' && currentStatus !== 'error_woocommerce_integration') { 
@@ -668,6 +691,8 @@ export async function POST(request: NextRequest) {
         console.log(`[ImgProc - ${photoData.imageName}] FINALLY block: Triggering next processing for batch ${batchId}.`);
         await triggerNextPhotoProcessing(batchId, request.url, userIdForThisPhoto, `After processing ${photoData.imageName}`);
       }
+      const requestEndTime = Date.now();
+      console.log(`[API /process-photos] END - Processed single image ${photoData.imageName}. Total request time: ${requestEndTime - requestStartTime}ms.`);
       return NextResponse.json({ message: `Processed ${photoData.imageName}. Triggered next.`, batchId: batchId, processedPhotoId: photoData.id });
 
     } else {
@@ -677,12 +702,11 @@ export async function POST(request: NextRequest) {
       const entriesReadyForWooCommerceSnapshot = await adminDb.collection('processing_status')
                                                       .where('batchId', '==', batchId)
                                                       .where('status', '==', 'completed_image_pending_woocommerce')
-                                                      // .where('productContext.name', '!=', null) // This can be problematic if productContext is not guaranteed
                                                       .get();
 
       const entriesReadyForWooCommerce = entriesReadyForWooCommerceSnapshot.docs
                                             .map(doc => ({id: doc.id, ...doc.data() } as ProcessingStatusEntry))
-                                            .filter(entry => entry.productContext && entry.productContext.name); // Filter here instead
+                                            .filter(entry => entry.productContext && entry.productContext.name); 
 
 
       const userIdForBatchOverall = userIdFromRequest || entriesReadyForWooCommerce[0]?.userId || 'batch_processing_user';
@@ -692,8 +716,8 @@ export async function POST(request: NextRequest) {
       if (entriesReadyForWooCommerce.length > 0) {
         const productsMap: Record<string, ProcessingStatusEntry[]> = {};
         entriesReadyForWooCommerce.forEach(entry => {
-            const productNameKey = entry.productContext?.name; // Safe navigation
-            if (!productNameKey) { // Should have been filtered above, but double check
+            const productNameKey = entry.productContext?.name; 
+            if (!productNameKey) { 
                 console.warn(`[API /process-photos] Batch ${batchId}: Entry ${entry.id} (Image: ${entry.imageName}) missing productContext.name. Marking error.`);
                 updateSpecificFirestoreEntries([entry.id], 'error_woocommerce_integration', { errorMessage: "Contexto de nombre de producto faltante."});
                 return;
@@ -703,16 +727,16 @@ export async function POST(request: NextRequest) {
         });
 
         const numProductsToCreate = Object.keys(productsMap).length;
-        console.log(`[API /process-photos] Batch ${batchId}: Grouped into ${numProductsToCreate} distinct products.`);
+        console.log(`[API /process-photos] Batch ${batchId}: Grouped into ${numProductsToCreate} distinct products for WC creation.`);
         const productCreationResults: Array<{name: string, success: boolean, id?: number | string, error?: string }> = [];
 
         if (numProductsToCreate > 0) {
           for (const productNameKey in productsMap) {
             const productEntries = productsMap[productNameKey];
-            console.log(`[WooCommerce Creation] Batch ${batchId}: START group "${productNameKey}" (${productEntries.length} images).`);
+            console.log(`[API /process-photos] Batch ${batchId}: createWooCommerceProductForGroup START for product group "${productNameKey}" (${productEntries.length} images).`);
             const result = await createWooCommerceProductForGroup(productNameKey, productEntries, batchId, userIdForBatchOverall, allTemplates, allAutomationRules);
+            console.log(`[API /process-photos] Batch ${batchId}: createWooCommerceProductForGroup END for product group "${productNameKey}". Success: ${result.success}`);
             productCreationResults.push(result);
-            console.log(`[WooCommerce Creation] Batch ${batchId}: END group "${productNameKey}". Success: ${result.success}`);
             if (result.success) {
                 const pathsToDelete = productEntries.flatMap(e => [e.originalDownloadUrl, e.processedImageStoragePath]).filter(p => !!p) as string[];
                 await cleanupTempFiles(pathsToDelete);
@@ -733,19 +757,27 @@ export async function POST(request: NextRequest) {
               const processedBatchDir = path.join(process.cwd(), 'public', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId);
               try { await fs.rm(rawBatchDir, { recursive: true, force: true }); console.log(`[Cleanup] Deleted raw batch dir: ${rawBatchDir}`);} catch (e: any) {console.warn(`[Cleanup] Could not delete raw dir ${rawBatchDir}: ${e.message}`)}
               try { await fs.rm(processedBatchDir, { recursive: true, force: true }); console.log(`[Cleanup] Deleted processed batch dir: ${processedBatchDir}`);} catch (e: any) {console.warn(`[Cleanup] Could not delete processed dir ${processedBatchDir}: ${e.message}`)}
+              const requestEndTime = Date.now();
+              console.log(`[API /process-photos] END - Batch ${batchId} WC product creation complete & batch terminal. Total request time: ${requestEndTime - requestStartTime}ms.`);
               return NextResponse.json({ message: `Batch ${batchId} WC product creation complete & batch terminal.`, results: productCreationResults });
           } else {
-              console.log(`[API /process-photos] Batch ${batchId}: Product creation cycle done, but batch NOT fully terminal. Possibly new images added or errors fixed and re-queued elsewhere.`);
+              const requestEndTime = Date.now();
+              console.log(`[API /process-photos] END - Batch ${batchId} WC product creation cycle done, but batch NOT fully terminal. Total request time: ${requestEndTime - requestStartTime}ms.`);
               return NextResponse.json({ message: `Batch ${batchId} WC product creation cycle done. Batch not terminal.`, results: productCreationResults });
           }
         } else {
-             console.log(`[API /process-photos] Batch ${batchId}: No valid product groups after filtering.`);
+             console.log(`[API /process-photos] Batch ${batchId}: No valid product groups after filtering for WC creation.`);
+             const requestEndTime = Date.now();
+             console.log(`[API /process-photos] END - Batch ${batchId}: No valid product groups for WC. Total request time: ${requestEndTime - requestStartTime}ms.`);
              return NextResponse.json({ message: `Batch ${batchId}: No valid product groups. No products created.`, status: 'batch_completed_no_valid_groups' });
         }
       } else {
+        // No 'uploaded' and no 'completed_image_pending_woocommerce'
         const allBatchEntriesSnapshot = await adminDb.collection('processing_status').where('batchId', '==', batchId).get();
         if (allBatchEntriesSnapshot.empty) {
              console.log(`[API /process-photos] Batch ${batchId}: Is empty or fully processed/removed.`);
+             const requestEndTime = Date.now();
+             console.log(`[API /process-photos] END - Batch ${batchId}: Empty or fully processed. Total request time: ${requestEndTime - requestStartTime}ms.`);
              return NextResponse.json({ message: `Batch ${batchId} is empty or fully processed. No action.` });
         }
         const allTerminal = allBatchEntriesSnapshot.docs.every(doc => {
@@ -755,9 +787,13 @@ export async function POST(request: NextRequest) {
 
         if (allTerminal) {
             console.log(`[API /process-photos] Batch ${batchId}: FINAL CHECK - All entries terminal. Processing complete.`);
+            const requestEndTime = Date.now();
+            console.log(`[API /process-photos] END - Batch ${batchId}: Fully terminal. Total request time: ${requestEndTime - requestStartTime}ms.`);
              return NextResponse.json({ message: `Batch ${batchId} processing fully terminal.`, status: 'batch_already_terminal' });
         }
         console.log(`[API /process-photos] Batch ${batchId}: No 'uploaded' or 'completed_image_pending_woocommerce' entries, AND not all entries are terminal. Batch stalled or waiting.`);
+        const requestEndTime = Date.now();
+        console.log(`[API /process-photos] END - Batch ${batchId}: Stalled or waiting. Total request time: ${requestEndTime - requestStartTime}ms.`);
         return NextResponse.json({ message: `Batch ${batchId} has no actionable entries, but not fully terminal. Waiting.`, status: 'batch_stalled_or_waiting' });
       }
     }
