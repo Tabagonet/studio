@@ -76,9 +76,8 @@ async function uploadImageToWooCommerceMedia(
     console.warn(`[WC Media Upload - ${originalImageName}] CRITICAL SECURITY WARNING: WOOCOMMERCE_STORE_URL ('${wooCommerceStoreUrl}') is using HTTP. API keys and data are sent insecurely. Please update to HTTPS if your site supports it. This might also be causing permission issues.`);
   }
 
-  // Ensure the base URL does not end with a slash for consistent path joining
   const baseUrl = wooCommerceStoreUrl.endsWith('/') ? wooCommerceStoreUrl.slice(0, -1) : wooCommerceStoreUrl;
-  const targetUrl = `${baseUrl}/wp-json/wp/v2/media`; // Standard WordPress media endpoint
+  const targetUrl = `${baseUrl}/wp-json/wp/v2/media`;
 
   try {
     console.log(`[WC Media Upload - ${originalImageName}] Reading file buffer from: ${localImagePathAbsolute}`);
@@ -96,7 +95,7 @@ async function uploadImageToWooCommerceMedia(
     
     const titleForUpload = productNameForAlt || originalImageName.split('.')[0].replace(/[-_]/g, ' ');
     form.append('title', titleForUpload);
-    form.append('status', 'publish'); // Explicitly set status
+    form.append('status', 'publish');
     console.log(`[WC Media Upload - ${originalImageName}] FormData prepared. Appending 'file' (name: ${originalImageName}), 'title' (value: ${titleForUpload}), 'status' (value: 'publish')`);
     
     console.log(`[WC Media Upload - ${originalImageName}] Attempting to POST to: ${targetUrl} using Basic Auth.`);
@@ -104,34 +103,36 @@ async function uploadImageToWooCommerceMedia(
     const authHeader = `Basic ${Buffer.from(`${wooCommerceApiKey}:${wooCommerceApiSecret}`).toString('base64')}`;
     console.log(`[WC Media Upload - ${originalImageName}] Auth Header Prefix: Basic [REDACTED]`);
     
-    const axiosConfig = {
-      headers: {
-        ...form.getHeaders(), 
-        'Authorization': authHeader, // Explicit Basic Auth header
-      },
-      timeout: 60000, // 60 seconds timeout
-    };
-    
     console.log(`[WC Media Upload - ${originalImageName}] FormData entries being sent:`);
     // @ts-ignore
-    for (const pair of form._streams) { // form-data internal structure access
+    for (const pair of form._streams) { 
         if (typeof pair === 'string' && pair.includes('Content-Disposition: form-data; name="file"')) {
             console.log(`  - File part: name='file', filename='${originalImageName}', contentType='${contentType}', size=${fileBuffer.length}`);
         } else if (typeof pair === 'string' && pair.includes('Content-Disposition: form-data; name="title"')) {
-            console.log(`  - Field part: name='title', value='${titleForUpload}'`);
+            const valueMatch = pair.match(/Content-Disposition: form-data; name="title"\r\n\r\n([\s\S]*?)\r\n/);
+            console.log(`  - Field part: name='title', value='${valueMatch ? valueMatch[1] : 'N/A'}'`);
         } else if (typeof pair === 'string' && pair.includes('Content-Disposition: form-data; name="status"')) {
-            console.log(`  - Field part: name='status', value='publish'`);
+            const valueMatch = pair.match(/Content-Disposition: form-data; name="status"\r\n\r\n([\s\S]*?)\r\n/);
+            console.log(`  - Field part: name='status', value='${valueMatch ? valueMatch[1] : 'N/A'}'`);
         }
     }
+    
+    const axiosConfig = {
+      headers: {
+        ...form.getHeaders(), 
+        'Authorization': authHeader, // Using explicit Basic Auth header
+        'User-Agent': 'WooAutomate App / NextJS Server' // Added User-Agent
+      },
+      timeout: 60000, 
+    };
 
     console.log(`[WC Media Upload - ${originalImageName}] Axios config for POST (auth and other headers redacted for brevity):`, JSON.stringify({
       timeout: axiosConfig.timeout,
       headers: { 
-        ...axiosConfig.headers, // Spread the actual headers
-        Authorization: "Basic [REDACTED]" // Keep Authorization redacted for log
+        ...axiosConfig.headers, 
+        Authorization: "Basic [REDACTED]" 
       }
     }, null, 2));
-
 
     const uploadStartTime = Date.now();
     const response = await axios.post(targetUrl, form, axiosConfig);
@@ -159,11 +160,10 @@ async function uploadImageToWooCommerceMedia(
       return { error: responseData.message || responseData.error || "Failed to upload image to WooCommerce via Axios: Invalid response data or status.", details: responseData };
     }
   } catch (error: any) {
+    console.error(`[WC Media Upload - ${originalImageName}] Full exception during upload with Axios:`, error.stack || error.message || String(error));
     let wcErrorMessage = `Unknown error during media upload with Axios for ${originalImageName}`;
     let wcErrorDetails: any = null;
     
-    console.error(`[WC Media Upload - ${originalImageName}] Full exception during upload with Axios:`, error.stack || error.message || String(error));
-
     if (axios.isAxiosError(error) && error.response) {
       console.error(`[WC Media Upload - ${originalImageName}] Axios error during upload. Message: ${error.message}`);
       console.error(`[WC Media Upload - ${originalImageName}] Axios error response status: ${error.response.status}`);
@@ -207,7 +207,7 @@ function applyTemplate(templateContent: string, data: Record<string, string | nu
     } else if (typeof value === 'boolean') {
       conditionMet = value;
     } else { 
-      conditionMet = false; // Handles null, undefined, and other types as false for the condition
+      conditionMet = false; 
     }
     
     return conditionMet ? innerContent.trim() : '';
@@ -243,7 +243,7 @@ async function getAutomationRules(): Promise<AutomationRule[]> {
 
 let allWooCategoriesCache: WooCommerceCategory[] = [];
 let lastCategoryFetchAttempt = 0;
-const CATEGORY_FETCH_COOLDOWN = 5 * 60 * 1000; // 5 minutes
+const CATEGORY_FETCH_COOLDOWN = 5 * 60 * 1000; 
 
 async function fetchWooCommerceCategories(forceRefresh: boolean = false): Promise<WooCommerceCategory[]> {
     const now = Date.now();
@@ -672,16 +672,18 @@ export async function POST(request: NextRequest) {
     console.log(`\n\n[API /process-photos] START - POST request received at ${new Date(requestStartTime).toISOString()}`);
     
     try {
-        originalRequestUrlString = request.url.toString(); 
+        const tempUrl = new URL(request.url); // Attempt to parse to check validity before storing
+        originalRequestUrlString = tempUrl.toString();
         console.log(`[API /process-photos] Original request.url: ${originalRequestUrlString}`);
         
         body = await request.clone().json(); 
         console.log(`[API /process-photos] Request body parsed: batchId='${body.batchId}', userId='${body.userId}'`);
     } catch (jsonError: any) {
-        console.error("[API /process-photos] ERROR: Failed to parse request body as JSON.", jsonError.message);
-        const rawBody = await request.text().catch(() => "Could not read raw body.");
-        console.error("[API /process-photos] Raw request body (first 200 chars):", rawBody.substring(0,200));
-        return NextResponse.json({ error: 'Invalid request body: Must be JSON.', details: jsonError.message }, { status: 400 });
+        console.error("[API /process-photos] ERROR: Failed to parse request body as JSON or invalid request URL.", jsonError.message);
+        const rawBodyText = await request.text().catch(() => "Could not read raw body.");
+        console.error("[API /process-photos] Raw request body (first 200 chars):", rawBodyText.substring(0,200));
+        console.error("[API /process-photos] Request URL that might be problematic:", request.url); // Log the URL that new URL() might have failed on
+        return NextResponse.json({ error: 'Invalid request body (must be JSON) or invalid request URL.', details: jsonError.message }, { status: 400 });
     }
 
     if (!adminDb || !adminAuth) {
@@ -1073,6 +1075,7 @@ export async function POST(request: NextRequest) {
     
 
     
+
 
 
 
