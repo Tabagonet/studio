@@ -14,15 +14,15 @@ export interface NavItem {
 export interface ProductPhoto {
   id: string;
   file: File;
-  previewUrl: string; 
+  previewUrl: string;
   name: string;
   isPrimary?: boolean;
   seoAlt?: string;
   seoTitle?: string;
   seoDescription?: string;
   seoCaption?: string;
-  localPath?: string; 
-  externalUrl?: string; 
+  localPath?: string;
+  externalUrl?: string;
 }
 
 export interface ProductAttribute {
@@ -38,7 +38,7 @@ export interface ProductData {
   productType: ProductType;
   regularPrice: string;
   salePrice?: string;
-  category: string; 
+  category: string;
   keywords: string;
   shortDescription: string;
   longDescription: string;
@@ -55,7 +55,7 @@ export interface ProductTemplate {
   type: TemplateType;
   content: string;
   scope: TemplateScope;
-  categoryValue?: string; 
+  categoryValue?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -72,8 +72,8 @@ export interface AutomationRule {
   id: string;
   name: string;
   keyword: string;
-  categoryToAssign?: string; 
-  tagsToAssign?: string; 
+  categoryToAssign?: string;
+  tagsToAssign?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -89,19 +89,19 @@ export interface AutomationRuleFormValues {
 export interface ApiKeys {
   wooCommerceKey?: string;
   wooCommerceSecret?: string;
-  firebaseConfig?: string; 
+  firebaseConfig?: string;
   vercelEndpoint?: string;
 }
 
 export interface AppNotification {
   id: string;
-  userId: string; 
+  userId: string;
   title: string;
   description: string;
   type: 'success' | 'error' | 'info' | 'warning';
   timestamp: Timestamp;
   isRead: boolean;
-  linkTo?: string; 
+  linkTo?: string;
 }
 
 export type AttributeSuggestion = string;
@@ -114,54 +114,55 @@ export interface WizardProductContext {
   productType: ProductType;
   regularPrice: string;
   salePrice?: string;
-  category: string; 
+  category: string;
   keywords: string;
   attributes: ProductAttribute[];
-  isPrimary: boolean; 
+  isPrimary: boolean;
 }
 
 
 export interface ProcessingStatusEntry {
-  assignedCategorySlug: string | undefined | null; 
-  id: string; 
+  assignedCategorySlug: string | undefined | null;
+  id: string;
   userId: string;
   batchId: string;
-  imageName: string; 
-  originalStoragePath: string; 
-  originalDownloadUrl: string; 
-  status: "uploaded" | 
-          "processing_image_started" | 
-          "processing_image_name_parsed" | 
-          "processing_image_classified" | 
-          "processing_image_content_generated" | 
-          "processing_image_downloaded" | 
-          "processing_image_validated" | 
-          "processing_image_optimized" | 
-          "processing_image_seo_named" | 
+  imageName: string;
+  originalStoragePath: string;
+  originalDownloadUrl: string;
+  status: "uploaded" |
+          "processing_image_started" |
+          "processing_image_name_parsed" |
+          "processing_image_classified" |
+          "processing_image_content_generated" |
+          "processing_image_downloaded" |
+          "processing_image_validated" |
+          "processing_image_optimized" |
+          "processing_image_seo_named" |
           "processing_image_metadata_generated" |
           "processing_image_rules_applied" |
-          "processing_image_reuploaded" | 
-          "completed_image_pending_woocommerce" | 
+          "processing_image_reuploaded" |
+          "completed_image_pending_woocommerce" |
           "error_processing_image" |
-          "completed_woocommerce_integration" | 
-          "error_woocommerce_integration";    
-  uploadedAt: Timestamp; 
-  updatedAt?: Timestamp; 
+          "completed_woocommerce_integration" |
+          "error_woocommerce_integration";
+  uploadedAt: Timestamp;
+  updatedAt?: Timestamp;
   progress: number;
-  seoName?: string; 
-  processedImageStoragePath?: string; 
-  processedImageDownloadUrl?: string; 
-  wooCommerceMediaId?: number; 
-  resolutions?: Record<string, string>; 
-  seoMetadata?: { alt?: string; title?: string, description?: string, caption?: string }; 
+  seoName?: string;
+  processedImageStoragePath?: string;
+  processedImageDownloadUrl?: string;
+  wooCommerceMediaId?: number;
+  resolutions?: Record<string, string>;
+  seoMetadata?: { alt?: string; title?: string, description?: string, caption?: string };
   errorMessage?: string;
-  productAssociationId?: string; 
-  assignedCategory?: string; 
+  productAssociationId?: string;
+  assignedCategory?: string;
   assignedTags?: string[];
-  productContext?: WizardProductContext; 
-  parsedNameData?: ParsedNameData; 
-  visualTags?: string[]; 
-  generatedContent?: GeneratedProductContent; 
+  productContext?: WizardProductContext;
+  parsedNameData?: ParsedNameData;
+  visualTags?: string[];
+  generatedContent?: GeneratedProductContent;
+  lastMessage?: string; // Added this field
 }
 
 export interface WooCommerceCategory {
@@ -184,39 +185,39 @@ export interface GenerateProductDescriptionOutput {
 
 export interface ParsedNameData {
   extractedProductName: string;
-  potentialAttributes: string[]; 
+  potentialAttributes: string[];
   normalizedProductName: string;
 }
 
 export interface MiniLMInput {
-  productName: string; 
-  visualTags: string[]; 
+  productName: string;
+  visualTags: string[];
   category?: string;
   existingKeywords?: string;
   existingAttributes?: ProductAttribute[];
 }
 
 export interface GeneratedProductContent {
-  seoFilenameBase: string; 
+  seoFilenameBase: string;
   shortDescription: string;
   longDescription: string;
   seoMetadata: {
     alt: string;
     title: string;
-    description?: string; 
-    caption?: string; 
+    description?: string;
+    caption?: string;
   };
-  attributes: ProductAttribute[]; 
-  tags: string[]; 
+  attributes: ProductAttribute[];
+  tags: string[];
 }
 
 export interface SeoHistoryEntry {
-  id?: string; 
+  id?: string;
   batchId: string;
   originalImageName: string;
-  productId?: string | number; 
-  productName: string; 
-  seoName?: string; 
+  productId?: string | number;
+  productName: string;
+  seoName?: string;
   shortDescription?: string;
   longDescription?: string;
   seoMetadata?: GeneratedProductContent['seoMetadata'];
@@ -226,12 +227,12 @@ export interface SeoHistoryEntry {
   processedAt: Timestamp;
 }
 
-export type AiPromptKey = 
-  | 'seoFilenameBase' 
-  | 'shortDescription' 
-  | 'longDescription' 
-  | 'seoAltText' 
-  | 'seoTitle' 
+export type AiPromptKey =
+  | 'seoFilenameBase'
+  | 'shortDescription'
+  | 'longDescription'
+  | 'seoAltText'
+  | 'seoTitle'
   | 'metaDescription'
   | 'suggestAttributes' // Placeholder for future, more complex attribute generation
   | 'suggestTags';      // Placeholder for future, more complex tag generation

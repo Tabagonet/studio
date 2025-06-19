@@ -54,7 +54,7 @@ async function generateContentWithMiniLM(
 
 async function uploadImageToWooCommerceMedia(
   localImagePathAbsolute: string,
-  originalImageName: string, 
+  originalImageName: string,
   productNameForAlt?: string
 ): Promise<{ id: number; source_url: string; name: string; alt_text: string; error?: string, details?: any } | { error: string, details?: any }> {
   const wooCommerceStoreUrl = process.env.WOOCOMMERCE_STORE_URL;
@@ -71,7 +71,7 @@ async function uploadImageToWooCommerceMedia(
   try {
     const fileBuffer = await fs.readFile(localImagePathAbsolute);
     const form = new FormDataLib();
-    form.append('file', fileBuffer, originalImageName);
+    form.append('file', fileBuffer, originalImageName); // Use originalImageName for the file upload
     form.append('title', (productNameForAlt || originalImageName.split('.')[0]).substring(0, 100));
     form.append('alt_text', `Image of ${productNameForAlt || originalImageName.split('.')[0]}`);
 
@@ -91,7 +91,7 @@ async function uploadImageToWooCommerceMedia(
         headers: {
           ...form.getHeaders(),
         },
-        timeout: 120000, 
+        timeout: 120000,
       }
     );
     const uploadEndTime = Date.now();
@@ -156,7 +156,15 @@ function applyTemplate(templateContent: string, data: Record<string, string | nu
     if (variableName.toLowerCase().includes('price')) {
         return (value !== undefined && value !== null && String(value).trim() !== '' && parseFloat(String(value)) > 0) ? innerContent.trim() : '';
     }
-    return (value && String(value).trim() !== '' && value !== 0 && value !== false) ? innerContent.trim() : '';
+    // General case for {{#if variable}}
+    if (typeof value === 'number') {
+        return value !== 0 ? innerContent.trim() : '';
+    }
+    if (typeof value === 'string') {
+        return value.trim() !== '' ? innerContent.trim() : '';
+    }
+    // Handles booleans (true renders, false doesn't), undefined, null (don't render)
+    return value ? innerContent.trim() : '';
   });
 
   for (const key in data) {
@@ -187,17 +195,20 @@ async function getAutomationRules(): Promise<AutomationRule[]> {
   return rulesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AutomationRule));
 }
 
-let allWooCategoriesCache: WooCommerceCategory[] | null = null;
+let allWooCategoriesCache: WooCommerceCategory[] = [];
 let lastCategoryFetchAttempt = 0;
-const CATEGORY_FETCH_COOLDOWN = 5 * 60 * 1000;
+const CATEGORY_FETCH_COOLDOWN = 5 * 60 * 1000; // 5 minutes
 
 async function fetchWooCommerceCategories(forceRefresh: boolean = false): Promise<WooCommerceCategory[]> {
     const now = Date.now();
-    if (!forceRefresh && allWooCategoriesCache && allWooCategoriesCache.length > 0 && (now - lastCategoryFetchAttempt < CATEGORY_FETCH_COOLDOWN)) {
+    if (!forceRefresh && allWooCategoriesCache.length > 0 && (now - lastCategoryFetchAttempt < CATEGORY_FETCH_COOLDOWN)) {
         console.log("[WooCommerce Categories] Using cached categories.");
         return allWooCategoriesCache;
     }
-    if (!wooApi) { console.warn("[WooCommerce Categories] API client not initialized. Cannot fetch."); return allWooCategoriesCache || []; }
+    if (!wooApi) {
+      console.warn("[WooCommerce Categories] API client not initialized. Cannot fetch.");
+      return allWooCategoriesCache; // Return current cache (might be empty)
+    }
 
     console.log(`[WooCommerce Categories] Attempting to fetch categories from WooCommerce (Force refresh: ${forceRefresh}).`);
     lastCategoryFetchAttempt = now;
@@ -209,10 +220,10 @@ async function fetchWooCommerceCategories(forceRefresh: boolean = false): Promis
             return allWooCategoriesCache;
         }
         console.warn("[WooCommerce Categories] Failed to fetch categories, response not OK or not an array. Status:", response.status, "Data (first 100 chars):", response.data ? String(response.data).substring(0,100) + '...' : 'N/A');
-        return allWooCategoriesCache || [];
+        return allWooCategoriesCache; // Return current cache on failure
     } catch (error: any) {
         console.error("[WooCommerce Categories] Error fetching:", error.message || error);
-        return allWooCategoriesCache || [];
+        return allWooCategoriesCache; // Return current cache on error
     }
 }
 
@@ -457,7 +468,7 @@ async function createWooCommerceProductForGroup(
     for (const entry of productEntries) {
         if (entry.wooCommerceMediaId) {
             const altText = entry.generatedContent?.seoMetadata?.alt || entry.seoMetadata?.alt || currentProductContext.name;
-            const imageName = entry.seoName || entry.imageName; 
+            const imageName = entry.seoName || entry.imageName;
             wooImagesPayload.push({ id: entry.wooCommerceMediaId, alt: altText, name: imageName, position: entry.productContext?.isPrimary ? 0 : (wooImagesPayload.length) });
              console.log(`[WooCommerce CreateProduct - ${productNameFromContext}] Added image to payload: Media ID ${entry.wooCommerceMediaId}, Alt: ${altText.substring(0,20)}...`);
         } else { console.warn(`[WooCommerce CreateProduct - ${productNameFromContext}] Entry ${entry.id} (Image: ${entry.imageName}) missing wooCommerceMediaId.`); }
@@ -711,8 +722,6 @@ export async function POST(request: NextRequest) {
         // ---- SHARP PROCESSING TEMPORARILY DISABLED ----
         console.warn(`[ImgProc - ${photoData.imageName}] SHARP image processing is TEMPORARILY DISABLED. Using original image for 'processed' paths.`);
         const fileExt = path.extname(photoData.imageName) || '.jpg';
-        // For this test, let's use the original name directly to ensure WC compatibility
-        // Use original image name for "processing"
         const filenameForProcessing = generatedContent.seoFilenameBase && !generatedContent.seoFilenameBase.includes('placeholder')
             ? `${generatedContent.seoFilenameBase}${fileExt}`
             : photoData.imageName;
@@ -720,25 +729,20 @@ export async function POST(request: NextRequest) {
 
         const processedImageDir = path.join(process.cwd(), 'public', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId);
         await fs.mkdir(processedImageDir, { recursive: true });
-        // Store with SEO name (or original if SEO name is placeholder) in processed dir
-        const processedImageAbsolutePath = path.join(processedImageDir, filenameForProcessing); 
+        const processedImageAbsolutePath = path.join(processedImageDir, filenameForProcessing);
 
         try {
             await fs.copyFile(localImageAbsolutePath, processedImageAbsolutePath);
             console.log(`[ImgProc - ${photoData.imageName}] SHARP SKIPPED. Copied original to processed path: ${processedImageAbsolutePath} (using filename: ${filenameForProcessing})`);
         } catch (copyError: any) {
             console.error(`[ImgProc - ${photoData.imageName}] SHARP SKIPPED. Error copying original to processed path: ${copyError.message}. Using original path directly and original name.`);
-            // Fallback to original if copy fails - THIS IS A DEGRADED STATE
-            // await fs.copyFile(localImageAbsolutePath, path.join(processedImageDir, photoData.imageName));
-            // filenameForProcessing = photoData.imageName; // Ensure filenameForProcessing reflects what was actually usable
-            // processedImageAbsolutePath = path.join(processedImageDir, photoData.imageName);
         }
 
         const processedImageRelativePath = path.join('/', LOCAL_UPLOAD_PROCESSED_DIR_RELATIVE, batchId, filenameForProcessing).replace(/\\\\/g, '/');
         // ---- END SHARP DISABLED ----
 
         const updateDataForOptimized: Partial<ProcessingStatusEntry> = {
-          status: 'processing_image_optimized', progress: 65, seoName: filenameForProcessing, 
+          status: 'processing_image_optimized', progress: 65, seoName: filenameForProcessing,
           processedImageStoragePath: processedImageRelativePath, processedImageDownloadUrl: processedImageRelativePath,
           seoMetadata: generatedContent.seoMetadata, updatedAt: admin.firestore.FieldValue.serverTimestamp() as any,
         };
@@ -762,9 +766,9 @@ export async function POST(request: NextRequest) {
         console.log(`[ImgProc - ${photoData.imageName}] uploadImageToWooCommerceMedia START for ${processedImageAbsolutePath} (original name: ${photoData.imageName})`);
         const wcUploadStartTime = Date.now();
         const wcMediaUploadResult = await uploadImageToWooCommerceMedia(
-            processedImageAbsolutePath, // Path to the (potentially renamed) file in the 'processed' directory
-            photoData.imageName,      // Original name of the file uploaded by user, for context
-            miniLMInput.productName   // Product name for alt text generation context
+            processedImageAbsolutePath,
+            photoData.imageName, // Pass the original filename here
+            miniLMInput.productName
         );
         const wcUploadEndTime = Date.now();
         console.log(`[ImgProc - ${photoData.imageName}] uploadImageToWooCommerceMedia END. Time: ${wcUploadEndTime - wcUploadStartTime}ms.`);
@@ -783,7 +787,7 @@ export async function POST(request: NextRequest) {
         } else {
           const uploadErrorMsg = wcMediaUploadResult?.error || `Unknown error uploading ${filenameForProcessing} to WC Media.`;
           const uploadErrorDetails = wcMediaUploadResult?.details ? JSON.stringify(wcMediaUploadResult.details) : "No additional details.";
-          console.error(`[ImgProc - ${photoData.imageName}] FAILED to upload ${filenameForProcessing} to WC Media. Error: ${uploadErrorMsg}`, "Details:", uploadErrorDetails);
+          console.error(`[ImgProc - ${photoData.imageName}] FAILED to upload to WC Media. Error: ${uploadErrorMsg}`, "Details:", uploadErrorDetails);
           await photoDocRef.update({ status: 'error_processing_image', errorMessage: `${uploadErrorMsg.substring(0,100)} Details: ${uploadErrorDetails.substring(0,150)}`, progress: 85, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
           throw new Error(uploadErrorMsg);
         }
@@ -960,5 +964,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-    
-    
