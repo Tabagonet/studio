@@ -17,49 +17,8 @@ const slugify = (text: string) => {
         .replace(/-+$/, '');            // Trim - from end of text
 };
 
-// Helper function to update image metadata in WordPress after creation
-async function updateImageMetadata(createdProduct: any, productData: ProductData) {
-    const wooUrl = process.env.WOOCOMMERCE_STORE_URL;
-    const consumerKey = process.env.WOOCOMMERCE_API_KEY;
-    const consumerSecret = process.env.WOOCOMMERCE_API_SECRET;
-
-    if (!wooUrl || !consumerKey || !consumerSecret) {
-        console.warn('[WooAutomate] Cannot update image metadata: WooCommerce credentials not fully configured.');
-        return;
-    }
-
-    for (const image of createdProduct.images) {
-        try {
-            const metadataPayload: { title?: string; alt_text?: string; caption?: string; description?: string } = {};
-
-            if (productData.name) {
-              metadataPayload.title = productData.name;
-              metadataPayload.alt_text = productData.name;
-            }
-            if (productData.shortDescription) {
-              metadataPayload.caption = productData.shortDescription;
-            }
-            if (productData.longDescription) {
-              metadataPayload.description = productData.longDescription;
-            }
-            
-            if (Object.keys(metadataPayload).length === 0) continue;
-
-            const mediaUpdateUrl = `${wooUrl}/wp-json/wp/v2/media/${image.id}`;
-            
-            await axios.post(mediaUpdateUrl, metadataPayload, {
-                auth: { username: consumerKey, password: consumerSecret },
-                headers: { 'Content-Type': 'application/json' }
-            });
-            console.log(`[WooAutomate] Successfully updated metadata for image ID: ${image.id}`);
-        } catch (metaError: any) {
-            console.warn(`[WooAutomate] Warning: Could not update metadata for image ID: ${image.id}. Error:`, metaError.message);
-        }
-    }
-}
-
 // Helper to format data for WooCommerce API
-const formatProductForWooCommerce = (data: ProductData, imageUrls: { src: string }[]) => {
+const formatProductForWooCommerce = (data: ProductData, imageObjects: { id: number, position: number }[]) => {
   const wooAttributes = data.attributes
     .filter(attr => attr.name && attr.value)
     .map(attr => ({
@@ -70,7 +29,6 @@ const formatProductForWooCommerce = (data: ProductData, imageUrls: { src: string
     }));
   
   const wooTags = data.keywords ? data.keywords.split(',').map(k => ({ name: k.trim() })).filter(k => k.name) : [];
-  const wooImages = imageUrls.map((img, index) => ({ src: img.src, position: index }));
 
   return {
     name: data.name,
@@ -81,25 +39,11 @@ const formatProductForWooCommerce = (data: ProductData, imageUrls: { src: string
     description: data.longDescription,
     short_description: data.shortDescription,
     categories: data.category ? [{ id: data.category.id }] : [],
-    images: wooImages,
+    images: imageObjects, // Use the array of {id, position} objects
     attributes: wooAttributes,
     tags: wooTags,
   };
 };
-
-// Fire-and-forget helper to delete images from the external host
-function deleteImagesFromExternalHost(urls: { src: string }[]) {
-    if (urls.length === 0) return;
-    const QUEFOTO_DELETE_API_URL = 'https://quefoto.es/api/delete';
-
-    console.log(`[WooAutomate] Starting background deletion of ${urls.length} images from quefoto.es.`);
-    
-    for (const url of urls) {
-        axios.post(QUEFOTO_DELETE_API_URL, { imageUrl: url.src })
-            .then(() => console.log(`[WooAutomate] Successfully requested deletion for: ${url.src}`))
-            .catch(error => console.warn(`[WooAutomate] Failed to request deletion for ${url.src}:`, error.message));
-    }
-}
 
 
 export async function POST(request: NextRequest) {
@@ -116,20 +60,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Invalid or expired authentication token.' }, { status: 401 });
   }
 
-  // 2. Validate WooCommerce API client
+  // 2. Validate WooCommerce API client and credentials
   if (!wooApi) {
     return NextResponse.json({ success: false, error: 'WooCommerce API client is not configured on the server.' }, { status: 503 });
   }
+  const wooUrl = process.env.WOOCOMMERCE_STORE_URL;
+  const consumerKey = process.env.WOOCOMMERCE_API_KEY;
+  const consumerSecret = process.env.WOOCOMMERCE_API_SECRET;
+
+  if (!wooUrl || !consumerKey || !consumerSecret) {
+    return NextResponse.json({ success: false, error: 'WooCommerce API credentials are not fully configured on the server.' }, { status: 503 });
+  }
 
   const productData: ProductData = await request.json();
-  const uploadedImageUrls: { src: string }[] = [];
-  const QUEFOTO_UPLOAD_API_URL = 'https://quefoto.es/api/upload';
-
-  // 3. Process and upload images to external host
+  const uploadedImageObjects: { id: number, position: number }[] = [];
+  
+  // 3. Process and upload images directly to WordPress
   if (productData.photos && productData.photos.length > 0) {
     const sortedPhotos = [...productData.photos].sort((a, b) => (a.isPrimary ? -1 : b.isPrimary ? 1 : 0));
 
-    for (const photo of sortedPhotos) {
+    for (const [index, photo] of sortedPhotos.entries()) {
       if (!photo.dataUri) continue;
 
       try {
@@ -138,7 +88,6 @@ export async function POST(request: NextRequest) {
 
         const imageBuffer = Buffer.from(base64EncodedImageString, 'base64');
         
-        // --- Image processing with sharp is temporarily removed to diagnose 404 error ---
         const mimeType = photo.dataUri.split(';')[0].split(':')[1] || 'image/jpeg';
         const extension = mimeType.split('/')[1] || 'jpg';
         
@@ -146,20 +95,34 @@ export async function POST(request: NextRequest) {
         
         const formData = new FormData();
         formData.append('file', imageBuffer, { filename: seoFilename, contentType: mimeType });
+        
+        // Append metadata directly to the upload
+        formData.append('title', productData.name || 'Product Image');
+        formData.append('alt_text', productData.name || 'Product Image');
+        if (productData.shortDescription) formData.append('caption', productData.shortDescription);
+        if (productData.longDescription) formData.append('description', productData.longDescription);
 
-        const uploadResponse = await axios.post(QUEFOTO_UPLOAD_API_URL, formData, {
-            headers: { ...formData.getHeaders() },
+        const mediaUploadUrl = `${wooUrl}/wp-json/wp/v2/media`;
+
+        const uploadResponse = await axios.post(mediaUploadUrl, formData, {
+            headers: {
+              ...formData.getHeaders(),
+              // Use Basic Auth for the WordPress Media API endpoint
+              'Authorization': `Basic ${Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64')}`
+            },
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity,
         });
 
-        if (uploadResponse.data && uploadResponse.data.url) {
-            uploadedImageUrls.push({ src: uploadResponse.data.url });
+        if (uploadResponse.data && uploadResponse.data.id) {
+            uploadedImageObjects.push({ id: uploadResponse.data.id, position: index });
         } else {
-            throw new Error(`Image upload to '${QUEFOTO_UPLOAD_API_URL}' succeeded but returned no URL.`);
+            throw new Error('Image upload to WordPress media library succeeded but returned no ID.');
         }
 
       } catch (imageError: any) {
-        console.error(`Error processing and uploading image ${photo.name}:`, imageError.response?.data || imageError.message);
-        const userFriendlyError = `Error al procesar la imagen '${photo.name}'. Razón: ${imageError.message}`;
+        console.error(`Error processing and uploading image ${photo.name} to WordPress:`, imageError.response?.data || imageError.message);
+        const userFriendlyError = `Error al procesar la imagen '${photo.name}'. Razón: ${imageError.response?.data?.message || imageError.message}`;
         return NextResponse.json({ success: false, error: userFriendlyError }, { status: 500 });
       }
     }
@@ -167,19 +130,11 @@ export async function POST(request: NextRequest) {
   
   // 4. Send data to WooCommerce
   try {
-    const formattedProduct = formatProductForWooCommerce(productData, uploadedImageUrls);
+    const formattedProduct = formatProductForWooCommerce(productData, uploadedImageObjects);
     const response = await wooApi.post('products', formattedProduct);
 
     if (response.status >= 200 && response.status < 300) {
-      const createdProduct = response.data;
-      
-      // Update image metadata in WordPress (don't wait for it)
-      updateImageMetadata(createdProduct, productData);
-      
-      // Fire-and-forget deletion from external host
-      deleteImagesFromExternalHost(uploadedImageUrls);
-      
-      return NextResponse.json({ success: true, data: createdProduct }, { status: response.status });
+      return NextResponse.json({ success: true, data: response.data }, { status: response.status });
     } else {
       return NextResponse.json({ success: false, error: 'Received a non-successful status from WooCommerce.', details: response.data }, { status: response.status });
     }
