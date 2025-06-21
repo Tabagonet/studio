@@ -1,6 +1,4 @@
 
-'use server';
-
 import { z } from 'zod';
 
 // This file now only defines the types for the AI flow.
