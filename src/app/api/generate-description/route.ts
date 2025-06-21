@@ -1,11 +1,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import type { GenkitError } from '@genkit-ai/core';
 
 // --- Type Imports Only ---
 // We only import the Zod schemas and TypeScript types here.
-// The actual AI logic will be dynamically imported inside the POST handler.
+// This is safe and does not cause module conflicts.
 import {
   GenerateProductDescriptionInputSchema,
   GenerateProductDescriptionOutputSchema,
@@ -25,7 +24,7 @@ export async function POST(req: NextRequest) {
         error: 'Error de Configuración del Servidor',
         message: 'La clave API de Google AI no está configurada en el servidor. Contacta al administrador.'
       },
-      { status: 503 } // Service Unavailable
+      { status: 503 }
     );
   }
 
@@ -47,23 +46,33 @@ export async function POST(req: NextRequest) {
 
   // 3. Process the request by dynamically importing and calling the AI flow.
   try {
-    console.log('/api/generate-description: Parsing request body...');
     const body: GenerateProductDescriptionInput = await req.json();
     console.log('/api/generate-description: Request body parsed successfully:', body);
 
-    // --- DYNAMIC IMPORT & SELF-CONTAINED AI LOGIC ---
+    // --- DYNAMIC NAMESPACE IMPORT & SELF-CONTAINED AI LOGIC ---
+    // This is the robust way to import in environments with module resolution issues.
     console.log('/api/generate-description: Dynamically importing Genkit and Google AI plugin...');
-    const { genkit } = await import('@genkit-ai/core');
-    const { googleAI } = await import('@genkit-ai/googleai');
-    console.log('/api/generate-description: Dynamic imports successful.');
+    const genkitCore = await import('@genkit-ai/core');
+    const googleAIPlugin = await import('@genkit-ai/googleai');
+    
+    // Extract functions from the imported modules
+    const genkit = genkitCore.genkit;
+    const googleAI = googleAIPlugin.googleAI;
 
-    // Check if `genkit` is actually a function before calling it.
+    // Verbose check to ensure the functions were loaded correctly.
     if (typeof genkit !== 'function') {
       const errorMsg = `CRITICAL: The imported 'genkit' is not a function. Type is: ${typeof genkit}`;
       console.error(errorMsg);
-      // Throw a specific error that will be caught and returned as JSON
+      console.error('Full genkitCore import content:', genkitCore);
       throw new Error(errorMsg);
     }
+     if (typeof googleAI !== 'function') {
+      const errorMsg = `CRITICAL: The imported 'googleAI' is not a function. Type is: ${typeof googleAI}`;
+      console.error(errorMsg);
+      console.error('Full googleAIPlugin import content:', googleAIPlugin);
+      throw new Error(errorMsg);
+    }
+    console.log('/api/generate-description: Dynamic imports successful and functions verified.');
     
     console.log('/api/generate-description: Initializing Genkit instance...');
     const ai = genkit({
@@ -74,7 +83,7 @@ export async function POST(req: NextRequest) {
 
     console.log('/api/generate-description: Defining prompt...');
     const productDescriptionPrompt = ai.definePrompt({
-      name: 'productDescriptionPrompt_api_dynamic', // Use a unique name
+      name: 'productDescriptionPrompt_api_v3', // Unique name
       input: { schema: GenerateProductDescriptionInputSchema },
       output: { schema: GenerateProductDescriptionOutputSchema },
       prompt: `
@@ -117,16 +126,8 @@ export async function POST(req: NextRequest) {
     console.error('Error Name:', error.name);
     console.error('Error Message:', error.message);
     console.error('Error Stack:', error.stack);
-    
-    // Check if it's a GenkitError for more details
-    if ('isGenkitError' in error && error.isGenkitError) {
-      const genkitError = error as GenkitError;
-      console.error('Genkit Error Root Cause:', genkitError.cause);
-      console.error('Genkit Error Details:', genkitError.details);
-    }
-    
-    // Ensure a JSON response is always sent, even on failure.
-    const errorMessage = error.cause?.message || error.message || 'Ocurrió un error desconocido al generar la descripción.';
+        
+    const errorMessage = error.message || 'Ocurrió un error desconocido al generar la descripción.';
     return NextResponse.json(
       {
         error: 'Error Interno del Servidor',
