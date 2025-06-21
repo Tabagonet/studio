@@ -30,6 +30,10 @@ const formatProductForWooCommerce = (data: ProductData) => {
       // This is crucial for variable products.
       variation: data.productType === 'variable'
     }));
+  
+  const wooTags = data.keywords 
+    ? data.keywords.split(',').map(k => ({ name: k.trim() })).filter(k => k.name) 
+    : [];
 
   const wooProduct = {
     name: data.name,
@@ -39,11 +43,10 @@ const formatProductForWooCommerce = (data: ProductData) => {
     sale_price: data.salePrice || undefined,
     description: data.longDescription,
     short_description: data.shortDescription,
-    categories: data.category ? [{ slug: data.category }] : [],
+    categories: data.category ? [{ id: data.category.id }] : [],
     images: wooImages,
     attributes: wooAttributes,
-    // You could also add tags from keywords here
-    // tags: data.keywords.split(',').map(k => ({ name: k.trim() })),
+    tags: wooTags,
   };
 
   return wooProduct;

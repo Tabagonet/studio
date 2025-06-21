@@ -1,6 +1,6 @@
 
 import { Home, Wand2, FileText, Cog, Bell, Settings, Layers, Brain } from 'lucide-react';
-import type { NavItem, ProductType } from '@/lib/types';
+import type { NavItem, ProductType, ProductData } from '@/lib/types';
 
 export const APP_NAME = "WooAutomate";
 
@@ -63,13 +63,13 @@ export const PRODUCT_TYPES: { value: ProductType; label: string }[] = [
   { value: 'grouped', label: 'Producto Agrupado' },
 ];
 
-export const INITIAL_PRODUCT_DATA = {
+export const INITIAL_PRODUCT_DATA: ProductData = {
   sku: "",
   name: "",
-  productType: 'simple' as ProductType,
+  productType: 'simple',
   regularPrice: "",
   salePrice: "",
-  category: "",
+  category: null,
   keywords: "",
   shortDescription: "",
   longDescription: "",

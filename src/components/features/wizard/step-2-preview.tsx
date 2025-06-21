@@ -66,7 +66,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                 <h4 className="font-semibold text-lg">Detalles</h4>
                 <ul className="list-disc list-inside text-muted-foreground">
                   <li>Tipo: <Badge variant="outline">{productType}</Badge></li>
-                  <li>Categoría: <Badge variant="outline">{category || 'No especificada'}</Badge></li>
+                  <li>Categoría: <Badge variant="outline">{category?.name || 'No especificada'}</Badge></li>
                 </ul>
               </div>
             </div>
@@ -94,7 +94,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
             
             {keywords && (
               <div>
-                <h4 className="font-semibold text-lg">Palabras Clave</h4>
+                <h4 className="font-semibold text-lg">Palabras Clave/Etiquetas</h4>
                 <div className="flex flex-wrap gap-2">
                   {keywords.split(',').map(k => k.trim()).filter(k => k).map((keyword, index) => (
                     <Badge key={index} variant="secondary">{keyword}</Badge>

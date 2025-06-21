@@ -151,6 +151,12 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
   const handleSelectChange = (name: string, value: string | ProductType) => {
     updateProductData({ [name]: value });
   };
+  
+  const handleCategoryChange = (value: string) => {
+    const categoryId = value ? parseInt(value, 10) : null;
+    const selectedCategory = wooCategories.find(c => c.id === categoryId) || null;
+    updateProductData({ category: selectedCategory });
+  };
 
   const handlePhotosChange = (photos: ProductPhoto[]) => {
     updateProductData({ photos });
@@ -284,7 +290,7 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
 
           <div>
             <Label htmlFor="category">Categoría</Label>
-            <Select name="category" value={productData.category} onValueChange={(value) => handleSelectChange('category', value)}>
+            <Select name="category" value={productData.category?.id.toString() ?? ''} onValueChange={handleCategoryChange}>
               <SelectTrigger id="category" disabled={isLoadingCategories}>
                 {isLoadingCategories ? (
                   <div className="flex items-center">
@@ -298,7 +304,7 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
               <SelectContent>
                 {!isLoadingCategories && wooCategories.length === 0 && <SelectItem value="no-cat" disabled>No hay categorías disponibles</SelectItem>}
                 {wooCategories.map(cat => (
-                  <SelectItem key={cat.id} value={cat.slug}>{cat.name}</SelectItem>
+                  <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

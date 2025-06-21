@@ -44,7 +44,7 @@ export interface ProductData {
   productType: ProductType;
   regularPrice: string;
   salePrice: string;
-  category: string; // Store category slug
+  category: WooCommerceCategory | null; // Store category object
   keywords: string;
   shortDescription: string;
   longDescription: string;
