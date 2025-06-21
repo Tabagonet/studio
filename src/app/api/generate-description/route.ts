@@ -25,11 +25,11 @@ const jsonSchema = {
     properties: {
         shortDescription: {
             type: 'string',
-            description: "A brief, catchy, and SEO-friendly summary. It MUST start with the product name in bold using HTML 'strong' tags (e.g., '<strong>Cactus</strong>...')."
+            description: "A brief, catchy, and SEO-friendly summary. It MUST start with the product name in bold using Markdown (e.g., '**Cactus**...')."
         },
         longDescription: {
             type: 'string',
-            description: "A detailed description using HTML 'strong' tags for labels and 'em' tags for values. Use newline characters for line breaks."
+            description: "A detailed description using Markdown for bold labels and italic values."
         },
         keywords: {
             type: 'string',
@@ -107,28 +107,31 @@ export async function POST(req: NextRequest) {
 
         **Instructions:**
 
-        1.  **shortDescription:** Write a concise and engaging summary in ${language}. It is critically important that the summary begins with the product name, "${productName}", wrapped in HTML 'strong' tags. For example: "<strong>${productName}</strong> is a striking succulent...". Do not forget the HTML tags. Highlight 2-3 key benefits.
+        1.  **shortDescription:** Write a concise and engaging summary in ${language}. It is critically important that the summary begins with the product name, "${productName}", in bold using Markdown. For example: "**${productName}** is a striking succulent...".
 
-        2.  **longDescription:** Write a detailed and persuasive product description in the requested language (${language}). It MUST follow this exact structure. For each item, wrap the label in HTML 'strong' tags (e.g., <strong>Botanical Name:</strong>) and wrap the value in HTML 'em' tags (e.g., <em>Agave avellanidens</em>). Use newline characters (\\n) for line breaks.
-            <strong>Botanical Name:</strong> <em>[Scientific name of the plant]</em>
-            <strong>Common Names:</strong> <em>[List of common names, comma separated]</em>
-            <strong>Mature Size:</strong> <em>[Typical height and spread]</em>
-            <strong>Light Requirements:</strong> <em>[e.g., Full sun]</em>
-            <strong>Soil Requirements:</strong> <em>[e.g., Well-drained]</em>
-            <strong>Water Needs:</strong> <em>[e.g., Low]</em>
-            <strong>Foliage:</strong> <em>[Description of leaves]</em>
-            <strong>Flowers:</strong> <em>[Description of flowers]</em>
-            <strong>Growth Rate:</strong> <em>[e.g., Moderate]</em>\\n
-            <strong>Uses:</strong>\\n
-            - <strong>Architectural Plant:</strong> <em>[Brief explanation of this use]</em>\\n
-            - <strong>Xeriscaping:</strong> <em>[Brief explanation of this use]</em>\\n
-            - <strong>Ecological Landscaping:</strong> <em>[Brief explanation of this use]</em>\\n\\n
-            <strong>Benefits:</strong>\\n
-            - <strong>Extreme Drought Tolerance:</strong> <em>[Brief explanation of this benefit]</em>\\n
-            - <strong>Low Maintenance:</strong> <em>[Brief explanation of this benefit]</em>\\n
-            - <strong>Visual Interest:</strong> <em>[Brief explanation of this benefit]</em>\\n
-            - <strong>Habitat Support:</strong> <em>[Brief explanation of this benefit]</em>\\n\\n
-            <em>[Final summary paragraph.]</em>
+        2.  **longDescription:** Write a detailed and persuasive product description in the requested language (${language}). It MUST follow this exact structure. For each item, make the label bold and the value italic using Markdown.
+            **Botanical Name:** *[Scientific name of the plant]*
+            **Common Names:** *[List of common names, comma separated]*
+            **Mature Size:** *[Typical height and spread]*
+            **Light Requirements:** *[e.g., Full sun]*
+            **Soil Requirements:** *[e.g., Well-drained]*
+            **Water Needs:** *[e.g., Low]*
+            **Foliage:** *[Description of leaves]*
+            **Flowers:** *[Description of flowers]*
+            **Growth Rate:** *[e.g., Moderate]*
+
+            **Uses:**
+            - **Architectural Plant:** *[Brief explanation of this use]*
+            - **Xeriscaping:** *[Brief explanation of this use]*
+            - **Ecological Landscaping:** *[Brief explanation of this use]*
+
+            **Benefits:**
+            - **Extreme Drought Tolerance:** *[Brief explanation of this benefit]*
+            - **Low Maintenance:** *[Brief explanation of this benefit]*
+            - **Visual Interest:** *[Brief explanation of this benefit]*
+            - **Habitat Support:** *[Brief explanation of this benefit]*
+
+            *[Final summary paragraph.]*
 
         3.  **keywords:** Generate a comma-separated list of 5 to 10 highly relevant SEO keywords/tags. These keywords MUST be in English and use PascalCase or camelCase format.
             *Example:* DroughtTolerant,SucculentGarden,Xeriscaping,LowWaterUse,ArchitecturalPlant,BajaCaliforniaNative

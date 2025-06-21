@@ -122,15 +122,7 @@ export async function POST(request: NextRequest) {
 
       } catch (imageError: any) {
         console.error(`Error processing and uploading image ${photo.name} to WordPress:`, imageError.response?.data || imageError.message);
-        
         const wpError = imageError.response?.data;
-        // Check for the specific WordPress permission error for creating posts/media
-        if (wpError && (wpError.code === 'rest_cannot_create' || wpError.code === 'rest_forbidden')) {
-            const permissionError = `Error de permisos en WordPress: El usuario de tus claves API no tiene permiso para subir imágenes. Solución: En tu panel de WordPress, ve a Usuarios, edita el usuario asociado a tus claves API y asegúrate de que tiene un rol de 'Administrador' o 'Editor'.`;
-            // Return a 403 Forbidden status, which is more accurate
-            return NextResponse.json({ success: false, error: permissionError }, { status: 403 });
-        }
-        
         const userFriendlyError = `Error al procesar la imagen '${photo.name}'. Razón: ${wpError?.message || imageError.message}`;
         return NextResponse.json({ success: false, error: userFriendlyError }, { status: imageError.response?.status || 500 });
       }
