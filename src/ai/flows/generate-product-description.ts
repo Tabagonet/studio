@@ -11,8 +11,9 @@
  * - GenerateProductDescriptionOutputSchema - The Zod schema for the output.
  */
 
-import { genkit } from '@genkit-ai/core';
-import { googleAI } from '@genkit-ai/googleai';
+// Use namespace imports to avoid module resolution issues with the Next.js compiler.
+import * as genkitCore from '@genkit-ai/core';
+import * as googleAIPlugin from '@genkit-ai/googleai';
 import { z } from 'zod';
 
 // --- Zod Schemas ---
@@ -41,10 +42,10 @@ declare global {
 const getGenkitInstance = () => {
   if (!global.__genkit_ai_instance) {
     console.log('Initializing new Genkit instance...');
-    global.__genkit_ai_instance = genkit({
-      plugins: [googleAI()],
+    // Use the namespace import and remove deprecated options
+    global.__genkit_ai_instance = genkitCore.genkit({
+      plugins: [googleAIPlugin.googleAI()],
       enableTelemetry: false,
-      logLevel: 'silent',
     });
   }
   return global.__genkit_ai_instance;
@@ -54,7 +55,7 @@ const ai = getGenkitInstance();
 
 // Define the prompt at the top level of the module.
 const productDescriptionPrompt = ai.definePrompt({
-  name: 'productDescriptionPrompt_v5_singleton',
+  name: 'productDescriptionPrompt_v6_singleton', // v6 to avoid cache issues
   input: { schema: GenerateProductDescriptionInputSchema },
   output: { schema: GenerateProductDescriptionOutputSchema },
   prompt: `
@@ -82,7 +83,7 @@ const productDescriptionPrompt = ai.definePrompt({
 // Define the flow at the top level of the module.
 const generateProductDescriptionFlow = ai.defineFlow(
   {
-    name: 'generateProductDescriptionFlowSingleton',
+    name: 'generateProductDescriptionFlowSingleton_v2',
     inputSchema: GenerateProductDescriptionInputSchema,
     outputSchema: GenerateProductDescriptionOutputSchema,
   },
