@@ -112,58 +112,61 @@ export async function POST(req: NextRequest) {
 
     // 5. Construct the prompt
     const prompt = `
-        You are an expert botanist, e-commerce copywriter, and SEO specialist.
-        Your task is to generate compelling and optimized product descriptions, keywords, and **image metadata** for a plant product for a WooCommerce store.
+        You are an expert botanist, e-commerce copywriter, and SEO specialist with access to a vast database of botanical information.
+        Your primary task is to receive a plant name and generate a complete, accurate, and compelling product listing for a WooCommerce store. You must research the plant to find all the necessary details.
         The response must be a valid JSON object that adheres to the provided schema. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
 
         JSON Schema:
         ${JSON.stringify(jsonSchema)}
 
-        **Product Information:**
-        - **Name:** ${productName}
-        - **Type:** ${productType}
+        **Input Information:**
+        - **Plant Name:** ${productName}
         - **Language for output:** ${language}
-        ${keywords ? `- **Existing Keywords (use as inspiration):** ${keywords}` : ''}
+        - **Product Type:** ${productType}
+        ${keywords ? `- **User-provided Keywords (use for inspiration):** ${keywords}` : ''}
 
         **Instructions:**
 
-        1.  **shortDescription:** Write a concise and engaging summary in ${language}. It is critically important that the product name, "${productName}", is wrapped in <strong> HTML tags. For example: "<strong>${productName}</strong> is a striking succulent...".
+        1.  **Research:** Based on the provided **Plant Name** ("${productName}"), use your botanical knowledge to find all the required information for the fields below (Botanical Name, Common Names, Mature Size, etc.). If the name is ambiguous, use the most common or commercially relevant plant.
 
-        2.  **longDescription:** Write a detailed and persuasive product description in the requested language (${language}). It MUST follow this exact structure. For each item, make the label bold using <strong> HTML tags and the value italic using <em> HTML tags.
-            <strong>Botanical Name:</strong> <em>[Scientific name of the plant]</em><br>
-            <strong>Common Names:</strong> <em>[List of common names, comma separated]</em><br>
-            <strong>Mature Size:</strong> <em>[Typical height and spread]</em><br>
-            <strong>Light Requirements:</strong> <em>[e.g., Full sun]</em><br>
-            <strong>Soil Requirements:</strong> <em>[e.g., Well-drained]</em><br>
-            <strong>Water Needs:</strong> <em>[e.g., Low]</em><br>
-            <strong>Foliage:</strong> <em>[Description of leaves]</em><br>
-            <strong>Flowers:</strong> <em>[Description of flowers]</em><br>
-            <strong>Growth Rate:</strong> <em>[e.g., Moderate]</em><br>
-            <br>
-            <strong>Uses:</strong><br>
-            - <strong>Architectural Plant:</strong> <em>[Brief explanation of this use]</em><br>
-            - <strong>Xeriscaping:</strong> <em>[Brief explanation of this use]</em><br>
-            - <strong>Ecological Landscaping:</strong> <em>[Brief explanation of this use]</em><br>
-            <br>
-            <strong>Benefits:</strong><br>
-            - <strong>Extreme Drought Tolerance:</strong> <em>[Brief explanation of this benefit]</em><br>
-            - <strong>Low Maintenance:</strong> <em>[Brief explanation of this benefit]</em><br>
-            - <strong>Visual Interest:</strong> <em>[Brief explanation of this benefit]</em><br>
-            - <strong>Habitat Support:</strong> <em>[Brief explanation of this benefit]</em><br>
-            <br>
-            <em>[Final summary paragraph.]</em>
+        2.  **Generate Content:** Populate the JSON object according to the following specifications:
 
-        3.  **keywords:** Generate a comma-separated list of 5 to 10 highly relevant SEO keywords/tags. These keywords MUST be in English and use PascalCase or camelCase format.
-            *Example:* DroughtTolerant,SucculentGarden,Xeriscaping,LowWaterUse,ArchitecturalPlant,BajaCaliforniaNative
-        
-        4. **Image Metadata:** Based on the product, generate the following metadata.
-            - **imageTitle:** A concise, SEO-friendly title for the product image.
-            - **imageAltText:** A descriptive alt text for SEO, describing the image for visually impaired users.
-            - **imageCaption:** An engaging caption for the image. You can base this on the short description.
-            - **imageDescription:** A detailed description for the image media library entry. Can be based on the long description.
+            a.  **shortDescription:** Write a concise and engaging summary in ${language}. The product name, "${productName}", MUST be wrapped in <strong> HTML tags.
+
+            b.  **longDescription:** Write a detailed description in ${language}. It MUST follow this structure. For each item, **you must find the correct information** and format it with the label in bold (<strong>) and the value in italic (<em>).
+                <strong>Botanical Name:</strong> <em>[Find and insert the scientific name]</em><br>
+                <strong>Common Names:</strong> <em>[Find and list common names]</em><br>
+                <strong>Mature Size:</strong> <em>[Find and insert typical height and spread]</em><br>
+                <strong>Light Requirements:</strong> <em>[Find and insert light needs]</em><br>
+                <strong>Soil Requirements:</strong> <em>[Find and insert soil needs]</em><br>
+                <strong>Water Needs:</strong> <em>[Find and insert water needs]</em><br>
+                <strong>Foliage:</strong> <em>[Find and describe the foliage]</em><br>
+                <strong>Flowers:</strong> <em>[Find and describe the flowers]</em><br>
+                <strong>Growth Rate:</strong> <em>[Find and insert the growth rate]</em><br>
+                <br>
+                <strong>Uses:</strong><br>
+                - <strong>Architectural Plant:</strong> <em>[Find and explain this use]</em><br>
+                - <strong>Xeriscaping:</strong> <em>[Find and explain this use]</em><br>
+                - <strong>Ecological Landscaping:</strong> <em>[Find and explain this use]</em><br>
+                <br>
+                <strong>Benefits:</strong><br>
+                - <strong>Extreme Drought Tolerance:</strong> <em>[Find and explain this benefit]</em><br>
+                - <strong>Low Maintenance:</strong> <em>[Find and explain this benefit]</em><br>
+                - <strong>Visual Interest:</strong> <em>[Find and explain this benefit]</em><br>
+                - <strong>Habitat Support:</strong> <em>[Find and explain this benefit]</em><br>
+                <br>
+                <em>[Write a final summary paragraph.]</em>
+
+            c.  **keywords:** Generate a comma-separated list of 5-10 relevant SEO keywords in English (PascalCase or camelCase).
+
+            d. **Image Metadata:** Generate metadata based on the researched plant information.
+                - **imageTitle:** A concise, SEO-friendly title.
+                - **imageAltText:** A descriptive alt text for accessibility.
+                - **imageCaption:** An engaging caption.
+                - **imageDescription:** A detailed description for the media library.
 
 
-        Generate the JSON object based on the provided information.
+        Generate the complete JSON object based on your research of "${productName}".
     `;
     console.log('/api/generate-description: Prompt constructed. Calling generateContent...');
 
