@@ -263,20 +263,27 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
           })
       });
 
+      // Handle non-OK responses robustly
       if (!response.ok) {
-        let errorDetails = `Error del servidor (${response.status}): ${response.statusText}`;
+        let errorDetails;
+        // Read the body ONCE as text, as it might be an HTML error page or a JSON error object.
+        const errorText = await response.text(); 
+        
         try {
-            const errorResult = await response.json();
-            // Use the more specific 'message' from the API error structure, then fallback to 'error'
-            errorDetails = errorResult.message || errorResult.error || JSON.stringify(errorResult);
+          // Try to parse the text as a JSON object
+          const errorJson = JSON.parse(errorText);
+          errorDetails = errorJson.message || errorJson.error || JSON.stringify(errorJson);
         } catch (e) {
-            const responseText = await response.text();
-            console.error("The API response was not valid JSON. Full response body:", responseText);
-            errorDetails = `No se pudo leer la respuesta del error del servidor (código: ${response.status}). Revisa la consola del navegador para más detalles.`;
+          // If parsing fails, it's not JSON. The raw text is the best we have.
+          console.error("The API response was not valid JSON. Full response body:", errorText);
+          errorDetails = `El servidor devolvió un error inesperado (código: ${response.status}). Revisa la consola del navegador para más detalles.`;
         }
+        
+        // Throw an error with the detailed message, to be caught by the outer catch block.
         throw new Error(errorDetails);
       }
       
+      // If we reach here, response was OK. We can safely parse the JSON.
       const result = await response.json();
 
       updateProductData({
@@ -291,8 +298,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     } catch (error: any) {
       console.error('Error generando descripciones:', error);
       toast({
-        title: 'Error de IA',
-        description: `La IA ha devuelto un error. Detalle: ${error.message}`,
+        title: 'Error al Generar Descripción',
+        description: error.message, // This will now be the detailed message
         variant: 'destructive',
       });
     } finally {
