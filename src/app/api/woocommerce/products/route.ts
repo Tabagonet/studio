@@ -3,6 +3,60 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { wooApi } from '@/lib/woocommerce';
 import type { ProductData, ProductPhoto } from '@/lib/types';
+import axios from 'axios';
+
+// Helper function to update image metadata after creation
+async function updateImageMetadata(createdProduct: any, productData: ProductData) {
+    const wooUrl = process.env.WOOCOMMERCE_STORE_URL;
+    const consumerKey = process.env.WOOCOMMERCE_API_KEY;
+    const consumerSecret = process.env.WOOCOMMERCE_API_SECRET;
+
+    if (!wooUrl || !consumerKey || !consumerSecret) {
+        console.warn('[WooAutomate] Cannot update image metadata: WooCommerce credentials are not fully configured.');
+        return;
+    }
+
+    for (const image of createdProduct.images) {
+        try {
+            const metadataPayload: { caption?: string, description?: string } = {};
+
+            if (productData.shortDescription) {
+              metadataPayload.caption = productData.shortDescription;
+            }
+            if (productData.longDescription) {
+              metadataPayload.description = productData.longDescription;
+            }
+            
+            // Only make the call if there is data to update
+            if (Object.keys(metadataPayload).length === 0) {
+                continue;
+            }
+
+            const mediaUpdateUrl = `${wooUrl}/wp-json/wp/v2/media/${image.id}`;
+            
+            await axios.post(mediaUpdateUrl, metadataPayload, {
+                params: {
+                    consumer_key: consumerKey,
+                    consumer_secret: consumerSecret,
+                },
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            console.log(`[WooAutomate] Successfully updated caption/description for image ID: ${image.id}`);
+
+        } catch (metaError: any) {
+            console.warn(`[WooAutomate] Warning: Could not update metadata for image ID: ${image.id}.`);
+            if (metaError.response) {
+                console.warn(`[WooAutomate] Metadata Error (${metaError.response.status}):`, metaError.response.data);
+            } else {
+                console.warn('[WooAutomate] Metadata Error:', metaError.message);
+            }
+        }
+    }
+}
+
 
 // Helper function to format data for WooCommerce API
 const formatProductForWooCommerce = (data: ProductData) => {
@@ -11,11 +65,13 @@ const formatProductForWooCommerce = (data: ProductData) => {
 
   const wooImages = [];
   if (primaryPhoto?.url) {
-    wooImages.push({ src: primaryPhoto.url, position: 0, alt: data.name });
+    // Set name for title, and alt for alt text.
+    wooImages.push({ src: primaryPhoto.url, position: 0, name: data.name, alt: data.name });
   }
   galleryPhotos.forEach((photo, index) => {
     if (photo.url) {
-      wooImages.push({ src: photo.url, position: index + 1, alt: data.name });
+      // Set name for title, and alt for alt text.
+      wooImages.push({ src: photo.url, position: index + 1, name: data.name, alt: data.name });
     }
   });
 
@@ -82,7 +138,16 @@ export async function POST(request: NextRequest) {
 
     // 5. Handle WooCommerce response
     if (response.status >= 200 && response.status < 300) {
-      return NextResponse.json({ success: true, data: response.data }, { status: response.status });
+      const createdProduct = response.data;
+
+      // Asynchronously update image caption and description metadata.
+      // This is "fire and forget" so we don't delay the main response.
+      if (createdProduct.images && createdProduct.images.length > 0) {
+          console.log(`[WooAutomate] Product ${createdProduct.id} created. Updating metadata for ${createdProduct.images.length} images.`);
+          updateImageMetadata(createdProduct, productData);
+      }
+
+      return NextResponse.json({ success: true, data: createdProduct }, { status: response.status });
     } else {
       // This case might not be hit if wooApi throws on non-2xx statuses, but it's good practice
       return NextResponse.json({ success: false, error: 'Received a non-successful status from WooCommerce.', details: response.data }, { status: response.status });

@@ -36,7 +36,7 @@ export const NAV_ITEMS: NavItem[] = [
     title: 'Gestión de Prompts IA',
     href: '/prompts',
     icon: Brain,
-    disabled: true,
+    disabled: false,
   },
   {
     title: 'Notificaciones',
