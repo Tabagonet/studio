@@ -4,34 +4,36 @@
 /**
  * @fileOverview This file defines a Genkit flow for generating product descriptions.
  *
- * - generateProductDescription: An exported function to trigger the description generation.
- * - GenerateProductDescriptionInputSchema: The Zod schema for the input data.
- * - GenerateProductDescriptionOutputSchema: The Zod schema for the AI's output.
+ * It exports:
+ * - generateProductDescription: An async function to be used as a Server Action.
+ * - GenerateProductDescriptionInput: The TypeScript type for the input.
+ * - GenerateProductDescriptionOutput: The TypeScript type for the output.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import type { ProductType } from '@/lib/types';
 
-// Define the schema for the data we'll provide to the AI
-export const GenerateProductDescriptionInputSchema = z.object({
+// --- Zod Schemas (Internal to this file) ---
+
+const GenerateProductDescriptionInputSchema = z.object({
   productName: z.string().describe('The name of the product.'),
   productType: z.string().describe('The type of product (e.g., simple, variable).'),
   keywords: z.string().describe('A comma-separated list of keywords related to the product.'),
 });
 
-// Define the schema for the data we expect the AI to return
-export const GenerateProductDescriptionOutputSchema = z.object({
+const GenerateProductDescriptionOutputSchema = z.object({
   shortDescription: z.string().describe('A brief, catchy, and SEO-friendly summary of the product (1-2 sentences).'),
   longDescription: z.string().describe('A detailed, persuasive, and comprehensive description of the product, including its features, benefits, and uses. Format it with paragraphs for readability.'),
 });
 
-// Define types based on our Zod schemas
+// --- Exported TypeScript Types ---
+
 export type GenerateProductDescriptionInput = z.infer<typeof GenerateProductDescriptionInputSchema>;
 export type GenerateProductDescriptionOutput = z.infer<typeof GenerateProductDescriptionOutputSchema>;
 
 
-// Define the AI prompt using Handlebars templating
+// --- Genkit Prompt Definition (Internal) ---
+
 const productDescriptionPrompt = ai.definePrompt({
   name: 'productDescriptionPrompt',
   input: { schema: GenerateProductDescriptionInputSchema },
@@ -59,7 +61,8 @@ const productDescriptionPrompt = ai.definePrompt({
 });
 
 
-// Define the Genkit flow
+// --- Genkit Flow Definition (Internal) ---
+
 const generateProductDescriptionFlow = ai.defineFlow(
   {
     name: 'generateProductDescriptionFlow',
@@ -80,7 +83,14 @@ const generateProductDescriptionFlow = ai.defineFlow(
 );
 
 
-// Export a simple async function to be used as a Server Action in our components
+// --- Exported Server Action ---
+
+/**
+ * Generates product descriptions using an AI model.
+ * This function is a wrapper around the Genkit flow and is safe to be used as a Server Action.
+ * @param input - The product data to generate descriptions for.
+ * @returns A promise that resolves to the generated short and long descriptions.
+ */
 export async function generateProductDescription(input: GenerateProductDescriptionInput): Promise<GenerateProductDescriptionOutput> {
   return generateProductDescriptionFlow(input);
 }
