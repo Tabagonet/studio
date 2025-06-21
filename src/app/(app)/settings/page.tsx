@@ -1,11 +1,99 @@
 
+"use client";
+
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { KeyRound, DatabaseZap, Save, Download, Upload, Info, Globe, BrainCircuit } from "lucide-react";
+import { KeyRound, DatabaseZap, Download, Upload, Info, Globe, BrainCircuit, Loader2 } from "lucide-react";
+import { auth } from '@/lib/firebase';
+import { useToast } from '@/hooks/use-toast';
+
+
+type ServerConfigStatus = {
+  googleAiApiKey: boolean;
+  wooCommerceStoreUrl: boolean;
+  wooCommerceApiKey: boolean;
+  wooCommerceApiSecret: boolean;
+  firebaseAdminSdk: boolean;
+};
+
+const StatusBadge = ({ status, loading, configuredText = "Configurada", missingText = "Falta" }: { status?: boolean, loading: boolean, configuredText?: string, missingText?: string }) => {
+  if (loading) {
+    return (
+      <span className="flex items-center px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700">
+        <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Verificando...
+      </span>
+    );
+  }
+  
+  if (status === undefined) { 
+      return (
+           <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-700">
+            Error al verificar
+          </span>
+      )
+  }
+
+  return (
+    <span className={`px-2 py-1 text-xs rounded-full ${status ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+      {status ? configuredText : missingText}
+    </span>
+  );
+};
+
 
 export default function SettingsPage() {
+  const [serverConfig, setServerConfig] = useState<ServerConfigStatus | null>(null);
+  const [isLoadingConfig, setIsLoadingConfig] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchConfigStatus = async () => {
+      // Wait for auth to be initialized
+      const unsubscribe = auth.onAuthStateChanged(async (user) => {
+        unsubscribe(); // Unsubscribe after the first auth state check to prevent multiple calls
+        if (user) {
+          try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/check-config', {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!response.ok) {
+              let errorMsg = `Error del servidor: ${response.status}`;
+              try {
+                  const errorData = await response.json();
+                  errorMsg = errorData.error || errorMsg;
+              } catch (e) {
+                  // Ignore if response is not json
+              }
+              throw new Error(errorMsg);
+            }
+            
+            const data: ServerConfigStatus = await response.json();
+            setServerConfig(data);
+          } catch (error: any) {
+            toast({
+              title: "Error al verificar configuración del servidor",
+              description: error.message,
+              variant: "destructive"
+            });
+            setServerConfig(null); 
+          } finally {
+            setIsLoadingConfig(false);
+          }
+        } else {
+            // No user logged in, can't check server config
+            setIsLoadingConfig(false);
+        }
+      });
+    };
+
+    fetchConfigStatus();
+  }, [toast]);
+
   // Client-side accessible Firebase config check
   const isFirebaseClientConfigured = !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID &&
                                      !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY &&
@@ -31,50 +119,46 @@ export default function SettingsPage() {
             <CardTitle>Estado de Configuración de API y Servicios</CardTitle>
           </div>
           <CardDescription>
-            Las claves API, URLs de tienda y configuraciones de servicios críticos se gestionan mediante variables de entorno por seguridad.
-            Aquí puedes verificar si las variables públicas están accesibles y obtener guías para las variables de servidor.
+            Estado de las claves API y servicios. Las configuraciones del servidor se verifican en tiempo real.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* CLIENT-SIDE CHECK */}
           <div className="flex items-center justify-between p-3 border rounded-md">
             <Label htmlFor="firebaseClientStatus" className="flex items-center">
               <Image src="https://www.gstatic.com/mobilesdk/160503_mobilesdk/logo/2x/firebase_28.png" alt="Firebase" width={16} height={16} className="mr-2" />
               Configuración Firebase (Cliente)
             </Label>
-             <span id="firebaseClientStatus" className={`px-2 py-1 text-xs rounded-full ${isFirebaseClientConfigured ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-              {isFirebaseClientConfigured ? "Detectada" : "No Detectada"}
+             <span id="firebaseClientStatus" className={`px-2 py-1 text-xs rounded-full ${isFirebaseClientConfigured ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              {isFirebaseClientConfigured ? "Detectada" : "Falta"}
             </span>
           </div>
-          <div className="flex items-center justify-between p-3 border rounded-md bg-muted/30">
-            <Label htmlFor="firebaseAdminStatus" className="flex items-center">
+
+          {/* SERVER-SIDE CHECKS */}
+          <div title={firebaseAdminHint} className="flex items-center justify-between p-3 border rounded-md bg-muted/30 cursor-help">
+            <Label htmlFor="firebaseAdminStatus" className="flex items-center cursor-help">
               <Image src="https://www.gstatic.com/mobilesdk/160503_mobilesdk/logo/2x/firebase_28.png" alt="Firebase" width={16} height={16} className="mr-2" />
               Configuración Firebase (Admin SDK)
             </Label>
-            <span id="firebaseAdminStatus" title={firebaseAdminHint} className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 cursor-help">
-              Verificar en Variables de Entorno
-            </span>
-          </div>
-          <div className="flex items-center justify-between p-3 border rounded-md bg-muted/30">
-            <Label htmlFor="wooCommerceStoreUrlStatus" className="flex items-center"><Globe className="h-4 w-4 mr-2 text-purple-600" />URL Tienda WooCommerce</Label>
-            <span id="wooCommerceStoreUrlStatus" title={wooCommerceStoreUrlHint} className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 cursor-help">
-              Verificar en Variables de Entorno
-            </span>
-          </div>
-          <div className="flex items-center justify-between p-3 border rounded-md bg-muted/30">
-            <Label htmlFor="wooCommerceApiStatus" className="flex items-center"><KeyRound className="h-4 w-4 mr-2 text-purple-600" />Claves API WooCommerce</Label>
-            <span id="wooCommerceApiStatus" title={wooCommerceApiKeysHint} className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 cursor-help">
-              Verificar en Variables de Entorno
-            </span>
+            <StatusBadge status={serverConfig?.firebaseAdminSdk} loading={isLoadingConfig} />
           </div>
           
-          <div className="flex items-center justify-between p-3 border rounded-md bg-muted/30">
-            <Label htmlFor="googleAiStatus" className="flex items-center">
+          <div title={wooCommerceStoreUrlHint} className="flex items-center justify-between p-3 border rounded-md bg-muted/30 cursor-help">
+            <Label htmlFor="wooCommerceStoreUrlStatus" className="flex items-center cursor-help"><Globe className="h-4 w-4 mr-2 text-purple-600" />URL Tienda WooCommerce</Label>
+             <StatusBadge status={serverConfig?.wooCommerceStoreUrl} loading={isLoadingConfig} />
+          </div>
+          
+          <div title={wooCommerceApiKeysHint} className="flex items-center justify-between p-3 border rounded-md bg-muted/30 cursor-help">
+            <Label htmlFor="wooCommerceApiStatus" className="flex items-center cursor-help"><KeyRound className="h-4 w-4 mr-2 text-purple-600" />Claves API WooCommerce</Label>
+            <StatusBadge status={serverConfig ? serverConfig.wooCommerceApiKey && serverConfig.wooCommerceApiSecret : undefined} loading={isLoadingConfig} missingText="Faltan Claves" />
+          </div>
+          
+          <div title={googleAiApiKeyHint} className="flex items-center justify-between p-3 border rounded-md bg-muted/30 cursor-help">
+            <Label htmlFor="googleAiStatus" className="flex items-center cursor-help">
               <BrainCircuit className="h-4 w-4 mr-2 text-blue-500" />
               Clave API de Google AI
             </Label>
-            <span id="googleAiStatus" title={googleAiApiKeyHint} className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 cursor-help">
-              Verificar en Variables de Entorno
-            </span>
+             <StatusBadge status={serverConfig?.googleAiApiKey} loading={isLoadingConfig} />
           </div>
           
            <div className="mt-2 p-3 bg-accent/50 rounded-md flex items-start space-x-2">
