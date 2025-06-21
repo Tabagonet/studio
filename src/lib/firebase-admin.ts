@@ -4,6 +4,7 @@ import * as admin from 'firebase-admin';
 
 let adminDb: admin.firestore.Firestore | null = null;
 let adminAuth: admin.auth.Auth | null = null;
+let adminStorage: admin.storage.Storage | null = null;
 
 console.log("Firebase Admin SDK: Module loaded.");
 
@@ -70,6 +71,7 @@ if (!admin.apps.length) {
 
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
+        storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
       });
       console.log("Firebase Admin SDK: admin.initializeApp() called successfully.");
     } catch (error) {
@@ -95,6 +97,7 @@ if (admin.apps.length > 0) {
   try {
     adminDb = admin.firestore();
     adminAuth = admin.auth();
+    adminStorage = admin.storage();
     if (!adminDb) {
       console.error("Firebase Admin SDK: admin.firestore() returned null/undefined even though an app exists.");
     } else {
@@ -105,16 +108,22 @@ if (admin.apps.length > 0) {
     } else {
       console.log("Firebase Admin SDK: Auth instance obtained.");
     }
+     if (!adminStorage) {
+      console.error("Firebase Admin SDK: admin.storage() returned null/undefined even though an app exists.");
+    } else {
+      console.log("Firebase Admin SDK: Storage instance obtained.");
+    }
   } catch (error) {
-    console.error("Firebase Admin SDK: ERROR getting Firestore/Auth instance after app initialization:", error);
+    console.error("Firebase Admin SDK: ERROR getting Firestore/Auth/Storage instance after app initialization:", error);
     adminDb = null;
     adminAuth = null;
+    adminStorage = null;
   }
 } else {
-    console.warn("Firebase Admin SDK: CRITICAL - No Firebase app initialized after all attempts. Firestore and Auth will NOT be available.");
+    console.warn("Firebase Admin SDK: CRITICAL - No Firebase app initialized after all attempts. Firestore, Auth and Storage will NOT be available.");
     adminDb = null;
     adminAuth = null;
+    adminStorage = null;
 }
 
-export { adminDb, adminAuth, admin };
-
+export { adminDb, adminAuth, adminStorage, admin };

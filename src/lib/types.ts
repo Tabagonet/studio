@@ -1,5 +1,4 @@
 import type { LucideIcon } from 'lucide-react';
-import type { Timestamp } from 'firebase/firestore';
 
 // Core navigation type, kept for UI layout
 export interface NavItem {
@@ -11,14 +10,14 @@ export interface NavItem {
   external?: boolean;
 }
 
-// Minimal types to support Firebase auth and basic UI components
 export interface ProductPhoto {
-  id: string;
-  file: File;
-  previewUrl: string;
-  name: string;
+  id: string; // Unique ID for the photo (e.g., uuid)
+  file?: File; // The actual file object, present only on client-side before upload
+  previewUrl: string; // Used for client-side preview (object URL)
+  storagePath?: string; // Path in Firebase Storage after upload
+  url?: string; // Public URL from Firebase Storage
+  name: string; // filename
   isPrimary?: boolean;
-  localPath?: string;
 }
 
 export interface ProductAttribute {
@@ -34,5 +33,22 @@ export interface WooCommerceCategory {
     slug: string;
 }
 
-// Other complex types have been removed for the project reset.
-// They will be re-introduced as features are rebuilt.
+export interface ProductData {
+  sku: string;
+  name: string;
+  productType: ProductType;
+  regularPrice: string;
+  salePrice: string;
+  category: string; // Store category slug
+  keywords: string;
+  shortDescription: string;
+  longDescription: string;
+  attributes: ProductAttribute[];
+  photos: ProductPhoto[];
+}
+
+export interface ParsedNameData {
+  extractedProductName: string;
+  potentialAttributes: string[];
+  normalizedProductName: string;
+}
