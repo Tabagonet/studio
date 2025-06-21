@@ -1,10 +1,10 @@
 
 'use server'; // Mark this module as server-only
 
-import { WordTokenizer, PorterStemmer, SentimentAnalyzer, PorterStemmerEs, BayesClassifier } from 'natural';
+// import { WordTokenizer, PorterStemmer, SentimentAnalyzer, PorterStemmerEs, BayesClassifier } from 'natural';
 
 // --- NLP Utilities using 'natural' library ---
-
+/*
 export function tokenizeText(text: string): string[] {
   if (!text || typeof text !== 'string') return [];
   const tokenizer = new WordTokenizer();
@@ -62,3 +62,4 @@ export function getExampleClassifier(): BayesClassifier {
     }
     return classifier;
 }
+*/
