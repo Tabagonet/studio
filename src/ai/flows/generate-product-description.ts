@@ -6,20 +6,17 @@
  * It is self-contained and initializes its own Genkit instance to avoid module resolution issues.
  *
  * It exports:
- * - generateProductDescription: An async function to be used as a Server Action.
+ * - generateProductDescription: An async function to be used by an API route.
  * - GenerateProductDescriptionInput: The TypeScript type for the input.
  * - GenerateProductDescriptionOutput: The TypeScript type for the output.
  */
 
-// Use namespace import as a last resort to solve potential bundling issues with Next.js
 import * as genkitCore from '@genkit-ai/core';
 import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'zod';
 
 // --- Genkit Initialization (Self-contained) ---
-// We initialize Genkit here to prevent Next.js module resolution issues
-// that occur when importing a shared instance into a Server Action file.
-const ai = genkitCore.genkit({ // Use the function from the namespace
+const ai = genkitCore.genkit({
   plugins: [googleAI()],
 });
 
@@ -93,11 +90,11 @@ const generateProductDescriptionFlow = ai.defineFlow(
 );
 
 
-// --- Exported Server Action ---
+// --- Exported Function for API Route ---
 
 /**
  * Generates product descriptions using an AI model.
- * This function is a wrapper around the Genkit flow and is safe to be used as a Server Action.
+ * This function is a wrapper around the Genkit flow.
  * @param input - The product data to generate descriptions for.
  * @returns A promise that resolves to the generated short and long descriptions.
  */

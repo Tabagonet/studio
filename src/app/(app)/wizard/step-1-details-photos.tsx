@@ -16,7 +16,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
-import { generateProductDescription } from '@/ai/flows/generate-product-description';
+// We no longer import the flow directly
+// import { generateProductDescription } from '@/ai/flows/generate-product-description';
 
 
 interface Step1DetailsPhotosProps {
@@ -205,6 +206,12 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
       });
       return;
     }
+    
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: 'Error de autenticación', description: 'Por favor, inicia sesión de nuevo para usar la IA.', variant: 'destructive' });
+        return;
+    }
 
     setIsGenerating(true);
     toast({
@@ -213,11 +220,26 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     });
 
     try {
-      const result = await generateProductDescription({
-        productName: productData.name,
-        productType: productData.productType,
-        keywords: productData.keywords,
+      const token = await user.getIdToken();
+      const response = await fetch('/api/generate-description', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            productName: productData.name,
+            productType: productData.productType,
+            keywords: productData.keywords,
+          })
       });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        // If the server responded with an error, throw it to be caught by the catch block
+        throw new Error(result.error || `Error del servidor: ${response.status}`);
+      }
 
       updateProductData({
         shortDescription: result.shortDescription,
@@ -228,12 +250,11 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         title: '¡Descripciones Generadas!',
         description: 'Las descripciones corta y larga han sido actualizadas.',
       });
-    } catch (error) {
-      console.error('Error generating descriptions:', error);
-      const errorMessage = error instanceof Error ? error.message : 'No se pudo generar la descripción.';
+    } catch (error: any) {
+      console.error('Error generando descripciones:', error);
       toast({
         title: 'Error de IA',
-        description: `La IA ha devuelto un error. Detalle: ${errorMessage}`,
+        description: `La IA ha devuelto un error. Detalle: ${error.message}`,
         variant: 'destructive',
       });
     } finally {
