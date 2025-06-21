@@ -11,17 +11,17 @@
  * - GenerateProductDescriptionOutput: The TypeScript type for the output.
  */
 
-import { genkit } from '@genkit-ai/core';
+// Use namespace import as a last resort to solve potential bundling issues with Next.js
+import * as genkitCore from '@genkit-ai/core';
 import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'zod';
 
 // --- Genkit Initialization (Self-contained) ---
 // We initialize Genkit here to prevent Next.js module resolution issues
 // that occur when importing a shared instance into a Server Action file.
-const ai = genkit({
+const ai = genkitCore.genkit({ // Use the function from the namespace
   plugins: [googleAI()],
 });
-
 
 // --- Zod Schemas (Internal to this file) ---
 
