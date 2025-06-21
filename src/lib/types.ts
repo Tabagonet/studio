@@ -1,3 +1,4 @@
+
 import type { LucideIcon } from 'lucide-react';
 
 // Core navigation type, kept for UI layout
@@ -10,13 +11,18 @@ export interface NavItem {
   external?: boolean;
 }
 
+export type UploadStatus = 'pending' | 'uploading' | 'completed' | 'error';
+
 export interface ProductPhoto {
   id: string; // Unique ID for the photo (e.g., uuid)
   file?: File; // The actual file object, present only on client-side before upload
   previewUrl: string; // Used for client-side preview (object URL)
-  url?: string; // Public URL from custom host
+  url?: string; // Public URL from custom host, available after upload
   name: string; // filename
   isPrimary?: boolean;
+  status: UploadStatus;
+  progress: number; // 0-100
+  error?: string; // Error message if upload fails
 }
 
 export interface ProductAttribute {

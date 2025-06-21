@@ -18,9 +18,10 @@ import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
 interface Step1DetailsPhotosProps {
   productData: ProductData;
   updateProductData: (data: Partial<ProductData>) => void;
+  isProcessing?: boolean; // Accept isProcessing prop
 }
 
-export function Step1DetailsPhotos({ productData, updateProductData }: Step1DetailsPhotosProps) {
+export function Step1DetailsPhotos({ productData, updateProductData, isProcessing = false }: Step1DetailsPhotosProps) {
   const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
   const { toast } = useToast();
@@ -59,23 +60,15 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
   };
 
   const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
-    // Only attempt to set the name if the product name is currently empty
-    // and we are receiving a new list of photos that is not empty.
     if (!productData.name && newPhotos && newPhotos.length > 0) {
-      // Find the first photo in the new list that still has a file object.
-      // This means it's a freshly added file.
-      // The `p &&` check adds robustness against sparse arrays.
       const firstNewFile = newPhotos.find(p => p && p.file);
       
       if (firstNewFile) {
         const { extractedProductName } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
-        // Update both photos and name in a single state update to avoid race conditions.
         updateProductData({ photos: newPhotos, name: extractedProductName });
-        return; // Exit after updating
+        return;
       }
     }
-    
-    // If no name was updated, or if the product name was already set, just update the photos array.
     updateProductData({ photos: newPhotos });
   };
   
@@ -98,25 +91,31 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
     <div className="space-y-8">
       <Card>
         <CardHeader>
+          <CardTitle>Paso 1: Detalles y Fotos</CardTitle>
+          <CardDescription>Completa la información básica y añade las imágenes de tu producto.</CardDescription>
+        </CardHeader>
+      </Card>
+      
+      <Card>
+        <CardHeader>
           <CardTitle>Información del Producto</CardTitle>
-          <CardDescription>Completa los detalles básicos de tu producto.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <Label htmlFor="name">Nombre del Producto</Label>
-              <Input id="name" name="name" value={productData.name} onChange={handleInputChange} placeholder="Ej: Camiseta de Algodón" />
+              <Input id="name" name="name" value={productData.name} onChange={handleInputChange} placeholder="Ej: Camiseta de Algodón" disabled={isProcessing} />
               <p className="text-xs text-muted-foreground mt-1">Se autocompleta desde el nombre de la imagen.</p>
             </div>
             <div>
               <Label htmlFor="sku">SKU</Label>
-              <Input id="sku" name="sku" value={productData.sku} onChange={handleInputChange} placeholder="Ej: CAM-ALG-AZ-M" />
+              <Input id="sku" name="sku" value={productData.sku} onChange={handleInputChange} placeholder="Ej: CAM-ALG-AZ-M" disabled={isProcessing} />
             </div>
           </div>
 
           <div>
             <Label htmlFor="productType">Tipo de Producto</Label>
-            <Select name="productType" value={productData.productType} onValueChange={(value) => handleSelectChange('productType', value as ProductType)}>
+            <Select name="productType" value={productData.productType} onValueChange={(value) => handleSelectChange('productType', value as ProductType)} disabled={isProcessing}>
               <SelectTrigger id="productType">
                 <SelectValue placeholder="Selecciona un tipo de producto" />
               </SelectTrigger>
@@ -131,18 +130,18 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <Label htmlFor="regularPrice">Precio Regular (€)</Label>
-              <Input id="regularPrice" name="regularPrice" type="number" value={productData.regularPrice} onChange={handleInputChange} placeholder="Ej: 29.99" />
+              <Input id="regularPrice" name="regularPrice" type="number" value={productData.regularPrice} onChange={handleInputChange} placeholder="Ej: 29.99" disabled={isProcessing} />
             </div>
             <div>
               <Label htmlFor="salePrice">Precio de Oferta (€) (Opcional)</Label>
-              <Input id="salePrice" name="salePrice" type="number" value={productData.salePrice} onChange={handleInputChange} placeholder="Ej: 19.99" />
+              <Input id="salePrice" name="salePrice" type="number" value={productData.salePrice} onChange={handleInputChange} placeholder="Ej: 19.99" disabled={isProcessing} />
             </div>
           </div>
 
           <div>
             <Label htmlFor="category">Categoría</Label>
-            <Select name="category" value={productData.category} onValueChange={(value) => handleSelectChange('category', value)}>
-              <SelectTrigger id="category" disabled={isLoadingCategories}>
+            <Select name="category" value={productData.category} onValueChange={(value) => handleSelectChange('category', value)} disabled={isProcessing || isLoadingCategories}>
+              <SelectTrigger id="category">
                 {isLoadingCategories ? (
                   <div className="flex items-center">
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -167,12 +166,12 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
       <Card>
         <CardHeader>
           <CardTitle>Descripciones y Palabras Clave</CardTitle>
-          <CardDescription>Esta información es clave para el SEO y para informar a tus clientes. Más adelante, la IA podrá generar esto por ti.</CardDescription>
+          <CardDescription>Esta información es clave para el SEO y para informar a tus clientes.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
            <div>
             <Label htmlFor="keywords">Palabras Clave (separadas por comas)</Label>
-            <Input id="keywords" name="keywords" value={productData.keywords} onChange={handleInputChange} placeholder="Ej: camiseta, algodón, verano, casual" />
+            <Input id="keywords" name="keywords" value={productData.keywords} onChange={handleInputChange} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing} />
             <p className="text-xs text-muted-foreground mt-1">Ayudan a la IA y al SEO de tu producto.</p>
           </div>
 
@@ -183,8 +182,9 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
                 name="shortDescription"
                 value={productData.shortDescription}
                 onChange={handleInputChange}
-                placeholder="Un resumen atractivo y conciso de tu producto que aparecerá en las listas de productos."
+                placeholder="Un resumen atractivo y conciso de tu producto."
                 rows={3}
+                disabled={isProcessing}
               />
           </div>
         
@@ -195,8 +195,9 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
                 name="longDescription"
                 value={productData.longDescription}
                 onChange={handleInputChange}
-                placeholder="Describe tu producto en detalle. Habla de sus características, materiales, usos, etc. Este es el contenido principal de la página del producto."
+                placeholder="Describe tu producto en detalle: características, materiales, usos, etc."
                 rows={6}
+                disabled={isProcessing}
               />
           </div>
         </CardContent>
@@ -217,6 +218,7 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
                   value={attr.name} 
                   onChange={(e) => handleAttributeChange(index, 'name', e.target.value)}
                   placeholder="Ej: Color" 
+                  disabled={isProcessing}
                 />
               </div>
               <div className="flex-1">
@@ -226,14 +228,15 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
                   value={attr.value} 
                   onChange={(e) => handleAttributeChange(index, 'value', e.target.value)}
                   placeholder="Ej: Azul | Rojo | Verde" 
+                  disabled={isProcessing}
                 />
               </div>
-              <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo">
+              <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" disabled={isProcessing}>
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             </div>
           ))}
-          <Button type="button" variant="outline" onClick={addAttribute} className="mt-2">
+          <Button type="button" variant="outline" onClick={addAttribute} className="mt-2" disabled={isProcessing}>
             <PlusCircle className="mr-2 h-4 w-4" /> Añadir Atributo
           </Button>
         </CardContent>
@@ -245,7 +248,7 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
           <CardDescription>Sube las imágenes para tu producto. La primera imagen se usará como principal.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} />
+          <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} isProcessing={isProcessing} />
         </CardContent>
       </Card>
     </div>
