@@ -18,12 +18,18 @@ async function updateImageMetadata(createdProduct: any, productData: ProductData
 
     for (const image of createdProduct.images) {
         try {
-            const metadataPayload: { caption?: string, description?: string } = {};
+            const metadataPayload: { title?: string; alt_text?: string; caption?: string, description?: string } = {};
 
+            if (productData.name) {
+              metadataPayload.title = productData.name;
+              metadataPayload.alt_text = productData.name; // Alt text is crucial for SEO
+            }
             if (productData.shortDescription) {
+              // The caption is often displayed under the image.
               metadataPayload.caption = productData.shortDescription;
             }
             if (productData.longDescription) {
+              // The description is for the media library.
               metadataPayload.description = productData.longDescription;
             }
             
@@ -34,17 +40,18 @@ async function updateImageMetadata(createdProduct: any, productData: ProductData
 
             const mediaUpdateUrl = `${wooUrl}/wp-json/wp/v2/media/${image.id}`;
             
+            // WordPress REST API uses POST for updates on the media endpoint
             await axios.post(mediaUpdateUrl, metadataPayload, {
-                params: {
-                    consumer_key: consumerKey,
-                    consumer_secret: consumerSecret,
+                auth: {
+                  username: consumerKey,
+                  password: consumerSecret,
                 },
                 headers: {
                     'Content-Type': 'application/json'
                 }
             });
 
-            console.log(`[WooAutomate] Successfully updated caption/description for image ID: ${image.id}`);
+            console.log(`[WooAutomate] Successfully updated metadata for image ID: ${image.id}`);
 
         } catch (metaError: any) {
             console.warn(`[WooAutomate] Warning: Could not update metadata for image ID: ${image.id}.`);

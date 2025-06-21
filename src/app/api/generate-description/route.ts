@@ -25,15 +25,15 @@ const jsonSchema = {
     properties: {
         shortDescription: {
             type: 'string',
-            description: 'A brief, catchy, and SEO-friendly summary of the product (1-2 sentences).'
+            description: "A brief, catchy, and SEO-friendly summary. It MUST start with the product name in bold using HTML 'strong' tags."
         },
         longDescription: {
             type: 'string',
-            description: 'A detailed, persuasive, and comprehensive description of the product, following a specific structure for plants. Use newline characters for line breaks.'
+            description: "A detailed description using HTML 'strong' tags for labels and 'em' tags for values. Use newline characters for line breaks."
         },
         keywords: {
             type: 'string',
-            description: 'A comma-separated list of 5 to 10 relevant SEO keywords for the product, in English and in PascalCase or camelCase format (e.g. DroughtTolerant,SucculentGarden).'
+            description: 'A comma-separated list of 5 to 10 relevant SEO keywords in English and in PascalCase or camelCase format (e.g. DroughtTolerant,SucculentGarden).'
         }
     },
     required: ['shortDescription', 'longDescription', 'keywords']
@@ -107,32 +107,28 @@ export async function POST(req: NextRequest) {
 
         **Instructions:**
 
-        1.  **shortDescription:** Write a concise and engaging summary in the requested language (${language}). It should immediately grab the customer's attention, be perfect for search result snippets, and highlight 2-3 key benefits (e.g., drought-tolerant, architectural form).
-            *Example for Agave avellanidens:* "Agave avellanidens is a striking, drought-tolerant succulent native to Baja California. With its broad blue-green leaves and bold rosette form, it’s perfect for xeriscaping and modern dry-climate gardens. Low-maintenance and pollinator-friendly, it adds structure and resilience to any landscape."
+        1.  **shortDescription:** Write a concise and engaging summary in the requested language (${language}). It MUST start with the product name in bold using HTML 'strong' tags (e.g., "<strong>${productName}</strong> is a..."). Highlight 2-3 key benefits.
 
-        2.  **longDescription:** Write a detailed and persuasive product description in the requested language (${language}). It MUST follow this exact structure, using markdown for headings and bullet points. Make sure to use double asterisks (**) to bold all the labels (e.g., **Botanical Name:**). Use newline characters (\\n) for line breaks.
-            **Botanical Name:** [Scientific name of the plant]
-            **Common Names:** [List of common names, comma separated]
-            **Mature Size:** [Typical height and spread, e.g., 3–5 feet (1–1.5 meters) in height, 4–6 feet (1.2–1.8 meters) in spread]
-            **Light Requirements:** [e.g., Full sun, Partial shade]
-            **Soil Requirements:** [e.g., Well-drained soils; thrives in sandy or rocky terrain]
-            **Water Needs:** [e.g., Low; highly drought-tolerant once established]
-            **Foliage:** [Description of leaves, e.g., Broad, thick, blue-green leaves with smooth surfaces and terminal spines]
-            **Flowers:** [Description of flowers, e.g., Tall, branched flower stalk with greenish-yellow blooms, appearing once near the end of the plant’s life cycle]
-            **Growth Rate:** [e.g., Slow, Moderate, Fast]
-
-            **Uses:**
-            - **Architectural Plant:** [Brief explanation of this use]
-            - **Xeriscaping:** [Brief explanation of this use]
-            - **Ecological Landscaping:** [Brief explanation of this use]
-
-            **Benefits:**
-            - **Extreme Drought Tolerance:** [Brief explanation of this benefit]
-            - **Low Maintenance:** [Brief explanation of this benefit]
-            - **Visual Interest:** [Brief explanation of this benefit]
-            - **Habitat Support:** [Brief explanation of this benefit]
-
-            [Final summary paragraph concluding the description.]
+        2.  **longDescription:** Write a detailed and persuasive product description in the requested language (${language}). It MUST follow this exact structure. For each item, wrap the label in HTML 'strong' tags (e.g., <strong>Botanical Name:</strong>) and wrap the value in HTML 'em' tags (e.g., <em>Agave avellanidens</em>). Use newline characters (\\n) for line breaks.
+            <strong>Botanical Name:</strong> <em>[Scientific name of the plant]</em>
+            <strong>Common Names:</strong> <em>[List of common names, comma separated]</em>
+            <strong>Mature Size:</strong> <em>[Typical height and spread]</em>
+            <strong>Light Requirements:</strong> <em>[e.g., Full sun]</em>
+            <strong>Soil Requirements:</strong> <em>[e.g., Well-drained]</em>
+            <strong>Water Needs:</strong> <em>[e.g., Low]</em>
+            <strong>Foliage:</strong> <em>[Description of leaves]</em>
+            <strong>Flowers:</strong> <em>[Description of flowers]</em>
+            <strong>Growth Rate:</strong> <em>[e.g., Moderate]</em>\\n
+            <strong>Uses:</strong>\\n
+            - <strong>Architectural Plant:</strong> <em>[Brief explanation of this use]</em>\\n
+            - <strong>Xeriscaping:</strong> <em>[Brief explanation of this use]</em>\\n
+            - <strong>Ecological Landscaping:</strong> <em>[Brief explanation of this use]</em>\\n\\n
+            <strong>Benefits:</strong>\\n
+            - <strong>Extreme Drought Tolerance:</strong> <em>[Brief explanation of this benefit]</em>\\n
+            - <strong>Low Maintenance:</strong> <em>[Brief explanation of this benefit]</em>\\n
+            - <strong>Visual Interest:</strong> <em>[Brief explanation of this benefit]</em>\\n
+            - <strong>Habitat Support:</strong> <em>[Brief explanation of this benefit]</em>\\n\\n
+            <em>[Final summary paragraph.]</em>
 
         3.  **keywords:** Generate a comma-separated list of 5 to 10 highly relevant SEO keywords/tags. These keywords MUST be in English and use PascalCase or camelCase format.
             *Example:* DroughtTolerant,SucculentGarden,Xeriscaping,LowWaterUse,ArchitecturalPlant,BajaCaliforniaNative

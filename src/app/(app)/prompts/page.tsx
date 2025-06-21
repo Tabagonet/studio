@@ -21,32 +21,31 @@ The response must be a valid JSON object.
 - **Existing Keywords (use as inspiration):** {{keywords}}
 
 **Instructions:**
-1.  **shortDescription:** Write a concise and engaging summary in {{language}}. Highlight 2-3 key benefits.
-    *Example for Agave avellanidens:* "Agave avellanidens is a striking, drought-tolerant succulent native to Baja California. With its broad blue-green leaves and bold rosette form, it’s perfect for xeriscaping and modern dry-climate gardens. Low-maintenance and pollinator-friendly, it adds structure and resilience to any landscape."
+1.  **shortDescription:** Write a concise and engaging summary in {{language}}. It MUST start with the product name in bold using HTML 'strong' tags (e.g., "<strong>Agave avellanidens</strong> is a..."). Highlight 2-3 key benefits.
 
-2.  **longDescription:** Write a detailed description in {{language}}. It MUST follow this structure, using markdown for headings and bullet points. Make sure to use double asterisks (**) to bold all the labels (e.g., **Botanical Name:**). Use newline characters for line breaks.
-    **Botanical Name:** [Scientific name of the plant]
-    **Common Names:** [List of common names, comma separated]
-    **Mature Size:** [Typical height and spread]
-    **Light Requirements:** [e.g., Full sun]
-    **Soil Requirements:** [e.g., Well-drained]
-    **Water Needs:** [e.g., Low]
-    **Foliage:** [Description of leaves]
-    **Flowers:** [Description of flowers]
-    **Growth Rate:** [e.g., Moderate]
+2.  **longDescription:** Write a detailed description in {{language}}. It MUST follow this structure, using HTML 'strong' tags for all labels and 'em' tags for all values. Use newline characters for line breaks.
+    <strong>Botanical Name:</strong> <em>[Scientific name of the plant]</em>
+    <strong>Common Names:</strong> <em>[List of common names, comma separated]</em>
+    <strong>Mature Size:</strong> <em>[Typical height and spread]</em>
+    <strong>Light Requirements:</strong> <em>[e.g., Full sun]</em>
+    <strong>Soil Requirements:</strong> <em>[e.g., Well-drained]</em>
+    <strong>Water Needs:</strong> <em>[e.g., Low]</em>
+    <strong>Foliage:</strong> <em>[Description of leaves]</em>
+    <strong>Flowers:</strong> <em>[Description of flowers]</em>
+    <strong>Growth Rate:</strong> <em>[e.g., Moderate]</em>
 
-    **Uses:**
-    - **Architectural Plant:** [Brief explanation of this use]
-    - **Xeriscaping:** [Brief explanation of this use]
-    - **Ecological Landscaping:** [Brief explanation of this use]
+    <strong>Uses:</strong>
+    - <strong>Architectural Plant:</strong> <em>[Brief explanation of this use]</em>
+    - <strong>Xeriscaping:</strong> <em>[Brief explanation of this use]</em>
+    - <strong>Ecological Landscaping:</strong> <em>[Brief explanation of this use]</em>
 
-    **Benefits:**
-    - **Extreme Drought Tolerance:** [Brief explanation of this benefit]
-    - **Low Maintenance:** [Brief explanation of this benefit]
-    - **Visual Interest:** [Brief explanation of this benefit]
-    - **Habitat Support:** [Brief explanation of this benefit]
+    <strong>Benefits:</strong>
+    - <strong>Extreme Drought Tolerance:</strong> <em>[Brief explanation of this benefit]</em>
+    - <strong>Low Maintenance:</strong> <em>[Brief explanation of this benefit]</em>
+    - <strong>Visual Interest:</strong> <em>[Brief explanation of this benefit]</em>
+    - <strong>Habitat Support:</strong> <em>[Brief explanation of this benefit]</em>
 
-    [Final summary paragraph.]
+    <em>[Final summary paragraph.]</em>
 
 3.  **keywords:** Generate a comma-separated list of 5-10 SEO keywords/tags in English, using PascalCase or camelCase.
     *Example:* DroughtTolerant,SucculentGarden,Xeriscaping,LowWaterUse,ArchitecturalPlant,BajaCaliforniaNative
