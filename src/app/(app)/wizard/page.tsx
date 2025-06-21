@@ -1,18 +1,23 @@
-import { ProductWizard } from "@/components/features/wizard/product-wizard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Wand2 } from "lucide-react";
 
 export default function WizardPage() {
   return (
     <div className="container mx-auto py-8">
-      <Card className="max-w-4xl mx-auto shadow-2xl rounded-xl">
-        <CardHeader className="bg-muted/30 p-6 rounded-t-xl">
-          <CardTitle className="text-2xl font-bold tracking-tight text-foreground font-headline">Asistente de Creación de Productos</CardTitle>
-          <CardDescription className="text-md">
-            Sigue los pasos para crear nuevos productos en tu tienda WooCommerce de forma automatizada.
-          </CardDescription>
+      <Card>
+        <CardHeader>
+            <div className="flex items-center space-x-3">
+                <Wand2 className="h-8 w-8 text-primary" />
+                <div>
+                    <CardTitle>Asistente de Creación de Productos</CardTitle>
+                    <CardDescription>Esta funcionalidad será reconstruida.</CardDescription>
+                </div>
+            </div>
         </CardHeader>
-        <CardContent className="p-6 md:p-8">
-          <ProductWizard />
+        <CardContent>
+            <div className="min-h-[200px] flex items-center justify-center text-center text-muted-foreground">
+                <p>El asistente paso a paso para crear productos se implementará aquí de nuevo.</p>
+            </div>
         </CardContent>
       </Card>
     </div>

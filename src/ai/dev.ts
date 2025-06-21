@@ -1,7 +1,1 @@
-
-import { config } from 'dotenv';
-config();
-
-import '@/ai/flows/suggest-product-attributes.ts';
-import '@/ai/flows/generate-product-description.ts';
-
+// This file is intentionally left blank after project reset.
