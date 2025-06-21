@@ -14,8 +14,7 @@ export interface ProductPhoto {
   id: string; // Unique ID for the photo (e.g., uuid)
   file?: File; // The actual file object, present only on client-side before upload
   previewUrl: string; // Used for client-side preview (object URL)
-  storagePath?: string; // Path in Firebase Storage after upload
-  url?: string; // Public URL from Firebase Storage
+  url?: string; // Public URL from custom host
   name: string; // filename
   isPrimary?: boolean;
 }

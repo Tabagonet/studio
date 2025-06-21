@@ -1,48 +1,99 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminStorage } from "@/lib/firebase-admin";
-import { v4 as uuidv4 } from 'uuid';
-
-const BUCKET_NAME = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+import { adminAuth } from "@/lib/firebase-admin";
+import axios from "axios";
+import FormDataLib from "form-data";
 
 export async function POST(req: NextRequest) {
-  if (!adminStorage) {
-    return NextResponse.json({ success: false, error: "Firebase Admin Storage not initialized." }, { status: 503 });
-  }
-  if (!BUCKET_NAME) {
-    return NextResponse.json({ success: false, error: "Firebase Storage bucket name not configured." }, { status: 503 });
+  const token = req.headers.get("Authorization")?.split("Bearer ")[1];
+  if (!token) {
+    return NextResponse.json({ success: false, error: "No se proporcionó token" }, { status: 401 });
   }
 
   try {
-    const formData = await req.formData();
-    const file = formData.get("file") as File | null;
+    if (adminAuth) {
+        await adminAuth.verifyIdToken(token);
+    } else {
+        throw new Error("Firebase Admin Auth no está inicializado.");
+    }
+    // console.log("Token verificado correctamente en /api/upload-image");
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Error verificando token en /api/upload-image:", error);
+    return NextResponse.json({ success: false, error: `Token inválido: ${errorMessage}` }, { status: 401 });
+  }
 
-    if (!file) {
-      return NextResponse.json({ success: false, error: "No file provided." }, { status: 400 });
+  try {
+    const requestFormData = await req.formData();
+    const imagen = requestFormData.get("imagen");
+
+    if (!imagen || !(imagen instanceof File)) {
+      return NextResponse.json({ success: false, error: "No se proporcionó ninguna imagen válida" }, { status: 400 });
     }
 
-    const fileBuffer = Buffer.from(await file.arrayBuffer());
-    const fileExtension = file.name.split('.').pop();
-    const uniqueFilename = `${uuidv4()}.${fileExtension}`;
-    const filePath = `product-images/${uniqueFilename}`;
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
+    if (!allowedTypes.includes(imagen.type)) {
+      return NextResponse.json(
+        { success: false, error: "Formato de imagen no permitido. Usa JPEG, PNG, GIF o WebP." },
+        { status: 400 }
+      );
+    }
 
-    const bucket = adminStorage.bucket(BUCKET_NAME);
-    const fileUpload = bucket.file(filePath);
+    const imageBuffer = Buffer.from(await imagen.arrayBuffer());
+    
+    // console.log(`[API /api/upload-image] Enviando a quefoto.es/cargafotos.php con filename: ${imagen.name}, contentType: ${imagen.type}, size: ${imageBuffer.length} bytes`);
 
-    await fileUpload.save(fileBuffer, {
-      metadata: {
-        contentType: file.type,
-      },
+    const uploadFormData = new FormDataLib();
+    uploadFormData.append("imagen", imageBuffer, {
+        filename: imagen.name,
+        contentType: imagen.type,
     });
 
-    // Get signed URL which is a more secure way than making files public
-    const [publicUrl] = await fileUpload.getSignedUrl({
-        action: 'read',
-        expires: '03-09-2491' // A long time in the future
-    });
 
-    return NextResponse.json({ success: true, url: publicUrl, storagePath: filePath });
+    let response;
+    try {
+      response = await axios.post("https://quefoto.es/cargafotos.php", uploadFormData, {
+        headers: {
+          ...uploadFormData.getHeaders(),
+        },
+        timeout: 30000, 
+      });
+    } catch (axiosError) {
+      console.error("Error en la solicitud a quefoto.es/cargafotos.php:", axiosError);
+      const errorMessage = axiosError instanceof Error ? axiosError.message : String(axiosError);
+      if (axios.isAxiosError(axiosError) && axiosError.response) {
+        console.error("Axios error response data:", axiosError.response.data);
+        console.error("Axios error response status:", axiosError.response.status);
+      }
+      return NextResponse.json(
+        { success: false, error: `Error al conectar con el servidor de imágenes: ${errorMessage}` },
+        { status: 500 }
+      );
+    }
+
+    const data = response.data;
+    // console.log("Respuesta de quefoto.es/cargafotos.php:", data);
+
+    if (typeof data !== "object" || data === null) {
+      console.error("Respuesta inválida de quefoto.es/cargafotos.php: no es un objeto JSON", data);
+      throw new Error("Respuesta inválida del servidor de imágenes: formato incorrecto.");
+    }
+    if (!data.hasOwnProperty("success")) {
+       console.error("Respuesta inválida de quefoto.es/cargafotos.php: falta el campo 'success'", data);
+      throw new Error("Respuesta inválida del servidor de imágenes: falta el campo 'success'.");
+    }
+    if (data.success && !data.url) {
+      console.error("Respuesta inválida de quefoto.es/cargafotos.php: falta 'url' en respuesta exitosa", data);
+      throw new Error("Respuesta inválida del servidor de imágenes: falta 'url' en respuesta exitosa.");
+    }
+    if (!data.success) {
+      console.error("Error de quefoto.es/cargafotos.php:", data.error || "Error desconocido");
+      throw new Error(data.error || "Error al subir la imagen al servidor externo.");
+    }
+
+    return NextResponse.json({ success: true, url: data.url, filename_saved_on_server: data.filename_saved });
   } catch (error) {
-    console.error("Error uploading image to Firebase Storage:", error);
-    return NextResponse.json({ success: false, error: "Failed to upload image." }, { status: 500 });
+    console.error("Error al procesar la imagen en /api/upload-image:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
   }
 }

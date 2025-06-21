@@ -31,10 +31,12 @@
     "@radix-ui/react-toast": "^1.2.6",
     "@radix-ui/react-tooltip": "^1.1.8",
     "@woocommerce/woocommerce-rest-api": "^1.0.1",
+    "axios": "^1.7.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "firebase": "^11.9.1",
     "firebase-admin": "^12.3.0",
+    "form-data": "^4.0.0",
     "lucide-react": "^0.475.0",
     "next": "14.2.4",
     "react": "^18.3.1",
@@ -45,6 +47,7 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
+    "@types/form-data": "^2.5.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",

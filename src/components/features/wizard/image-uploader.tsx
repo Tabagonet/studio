@@ -1,16 +1,15 @@
-
 "use client";
 
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { v4 as uuidv4 } from 'uuid';
 import Image from 'next/image';
-import { UploadCloud, X, Loader2, Star, GripVertical } from 'lucide-react';
+import { UploadCloud, X, Loader2, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import type { ProductPhoto } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { auth } from '@/lib/firebase'; // Import Firebase auth
 
 interface ImageUploaderProps {
   photos: ProductPhoto[];
@@ -19,7 +18,6 @@ interface ImageUploaderProps {
 
 export function ImageUploader({ photos, onPhotosChange }: ImageUploaderProps) {
   const { toast } = useToast();
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newPhotos: ProductPhoto[] = acceptedFiles.map(file => ({
@@ -27,39 +25,50 @@ export function ImageUploader({ photos, onPhotosChange }: ImageUploaderProps) {
       file: file,
       name: file.name,
       previewUrl: URL.createObjectURL(file),
-      isPrimary: photos.length === 0, // Mark first one as primary
+      isPrimary: false,
     }));
 
-    const updatedPhotos = [...photos, ...newPhotos];
-    onPhotosChange(updatedPhotos);
+    const combinedPhotos = [...photos, ...newPhotos];
+    if (combinedPhotos.filter(p => p.isPrimary).length === 0 && combinedPhotos.length > 0) {
+        combinedPhotos[0].isPrimary = true;
+    }
+
+    onPhotosChange(combinedPhotos);
     
-    // Automatically upload new photos
     newPhotos.forEach(photo => handleUpload(photo));
-  }, [photos, onPhotosChange]);
+  }, [photos, onPhotosChange, toast]);
 
   const handleUpload = async (photoToUpload: ProductPhoto) => {
     if (!photoToUpload.file) return;
 
+    const user = auth.currentUser;
+    if (!user) {
+      toast({ title: "Error de Autenticación", description: "Debes iniciar sesión para subir imágenes.", variant: "destructive" });
+      onPhotosChange(prevPhotos => prevPhotos.filter(p => p.id !== photoToUpload.id));
+      return;
+    }
+
+    const token = await user.getIdToken();
     const formData = new FormData();
-    formData.append('file', photoToUpload.file);
+    formData.append('imagen', photoToUpload.file);
 
     try {
       const response = await fetch('/api/upload-image', {
         method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
         body: formData,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Upload failed');
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'La subida ha fallado');
       }
 
-      const { url, storagePath } = await response.json();
-
-      onPhotosChange(
-        photos.map(p => 
-          p.id === photoToUpload.id 
-            ? { ...p, url, storagePath, file: undefined } // Remove file object after upload
+      onPhotosChange(prevPhotos =>
+        prevPhotos.map(p =>
+          p.id === photoToUpload.id
+            ? { ...p, url: result.url, file: undefined }
             : p
         )
       );
@@ -70,35 +79,52 @@ export function ImageUploader({ photos, onPhotosChange }: ImageUploaderProps) {
       console.error('Upload error:', error);
       toast({
         title: "Error de Subida",
-        description: `No se pudo subir ${photoToUpload.name}.`,
+        description: `No se pudo subir ${photoToUpload.name}. ${(error as Error).message}`,
         variant: "destructive",
       });
-      // Remove failed upload from the list
-      onPhotosChange(photos.filter(p => p.id !== photoToUpload.id));
+      onPhotosChange(prevPhotos => prevPhotos.filter(p => p.id !== photoToUpload.id));
     }
   };
 
   const handleDelete = async (photoToDelete: ProductPhoto) => {
-    // Optimistically remove from UI
-    const updatedPhotos = photos.filter(p => p.id !== photoToDelete.id);
-    onPhotosChange(updatedPhotos);
+    const remainingPhotos = photos.filter(p => p.id !== photoToDelete.id);
+    
+    if (photoToDelete.isPrimary && remainingPhotos.length > 0) {
+        remainingPhotos[0].isPrimary = true;
+    }
+    onPhotosChange(remainingPhotos);
 
     toast({ title: "Imagen Eliminada", description: `${photoToDelete.name} ha sido eliminada.` });
 
-    if (photoToDelete.storagePath) {
+    if (photoToDelete.url) {
+      const user = auth.currentUser;
+      if (!user) {
+        toast({ title: "Error de Autenticación", description: "Sesión expirada. No se pudo eliminar del servidor.", variant: "destructive" });
+        return;
+      }
+      const token = await user.getIdToken();
+
       try {
-        await fetch('/api/delete-image', {
+        const response = await fetch('/api/delete-image', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ storagePath: photoToDelete.storagePath }),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+           },
+          body: JSON.stringify({ imageUrl: photoToDelete.url }),
         });
+
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+            throw new Error(result.error || "No se pudo eliminar la imagen del servidor.");
+        }
+
       } catch (error) {
         console.error('Error deleting from storage:', error);
-        // Optionally add it back to the list if server deletion fails
-        // onPhotosChange(photos);
+        onPhotosChange(photos); 
         toast({
           title: "Error en el Servidor",
-          description: `No se pudo eliminar la imagen del almacenamiento.`,
+          description: `No se pudo eliminar la imagen del almacenamiento. ${(error as Error).message}`,
           variant: "destructive",
         });
       }
@@ -110,7 +136,6 @@ export function ImageUploader({ photos, onPhotosChange }: ImageUploaderProps) {
         ...p,
         isPrimary: p.id === id
     }));
-    // Ensure the primary photo is first in the array
     const primaryPhoto = updatedPhotos.find(p => p.isPrimary);
     const otherPhotos = updatedPhotos.filter(p => !p.isPrimary);
     onPhotosChange(primaryPhoto ? [primaryPhoto, ...otherPhotos] : otherPhotos);
@@ -118,7 +143,7 @@ export function ImageUploader({ photos, onPhotosChange }: ImageUploaderProps) {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'image/*': ['.jpeg', '.jpg', '.png', '.webp'] },
+    accept: { 'image/*': ['.jpeg', '.jpg', '.png', '.webp', '.gif'] },
   });
 
   return (
@@ -135,23 +160,22 @@ export function ImageUploader({ photos, onPhotosChange }: ImageUploaderProps) {
         <p className="mt-4 text-lg font-semibold">
           {isDragActive ? 'Suelta las imágenes aquí' : 'Arrastra y suelta imágenes, o haz clic para seleccionar'}
         </p>
-        <p className="text-sm text-muted-foreground">Recomendado: Imágenes de hasta 5MB</p>
+        <p className="text-sm text-muted-foreground">Admitidos: JPG, PNG, GIF, WEBP</p>
       </div>
 
       {photos.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {photos.map((photo, index) => (
+          {photos.map((photo) => (
             <div key={photo.id} className="relative group border rounded-lg overflow-hidden shadow-sm">
               <Image
-                src={photo.previewUrl}
+                src={photo.url || photo.previewUrl}
                 alt={`Vista previa de ${photo.name}`}
                 width={200}
                 height={200}
                 className="w-full h-40 object-cover"
-                onLoad={() => URL.revokeObjectURL(photo.previewUrl)} // Clean up object URL
+                onLoad={() => { if (photo.previewUrl.startsWith('blob:')) URL.revokeObjectURL(photo.previewUrl)}}
               />
 
-              {/* Overlay with actions */}
               <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                 <Button variant="ghost" size="icon" onClick={() => setAsPrimary(photo.id)} title="Marcar como principal">
                   <Star className={cn("h-5 w-5 text-white", photo.isPrimary && "fill-yellow-400 text-yellow-400")}/>
@@ -161,14 +185,12 @@ export function ImageUploader({ photos, onPhotosChange }: ImageUploaderProps) {
                 </Button>
               </div>
 
-               {/* Primary indicator */}
                {photo.isPrimary && (
                  <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-xs font-bold px-2 py-1 rounded">
                     PRINCIPAL
                  </div>
                )}
 
-              {/* Loading indicator */}
               {photo.file && (
                 <div className="absolute bottom-0 left-0 right-0 p-2 bg-background/80">
                   <div className="flex items-center gap-2">
