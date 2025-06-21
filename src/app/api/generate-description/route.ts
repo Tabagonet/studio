@@ -4,6 +4,18 @@ import { adminAuth } from '@/lib/firebase-admin';
 import { generateProductDescription, type GenerateProductDescriptionInput } from '@/ai/flows/generate-product-description';
 
 export async function POST(req: NextRequest) {
+  // Check for API Key first, to provide a better error message.
+  if (!process.env.GOOGLE_API_KEY) {
+    console.error('Google AI API Key (GOOGLE_API_KEY) is not configured in the environment.');
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: 'La clave API de Google AI no está configurada en el servidor. Por favor, añádela al archivo .env y reinicia la aplicación. Puedes obtener una clave en Google AI Studio.' 
+      }, 
+      { status: 503 } // Service Unavailable
+    );
+  }
+
   // 1. Authenticate the user
   const token = req.headers.get('Authorization')?.split('Bearer ')[1];
   if (!token) {
