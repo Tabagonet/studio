@@ -16,7 +16,6 @@ import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'zod';
 
 // --- Zod Schemas ---
-// Exporting the schema allows the API route to validate the input before calling the flow.
 export const GenerateProductDescriptionInputSchema = z.object({
   productName: z.string().describe('The name of the product.'),
   productType: z.string().describe('The type of product (e.g., simple, variable).'),
@@ -33,19 +32,29 @@ export type GenerateProductDescriptionOutput = z.infer<typeof GenerateProductDes
 
 // --- Genkit Initialization and Flow ---
 
-// Initialize Genkit within this server action module. This is safe and isolated.
-const ai = genkit({
-  plugins: [
-    googleAI(),
-  ],
-  // Disabling telemetry and logging for cleaner execution in this context.
-  enableTelemetry: false,
-  logLevel: 'silent',
-});
+// This pattern prevents Next.js from re-initializing Genkit on every hot-reload in development.
+// It stores the instance in a global variable, which persists across reloads.
+declare global {
+  var __genkit_ai_instance: any;
+}
+
+const getGenkitInstance = () => {
+  if (!global.__genkit_ai_instance) {
+    console.log('Initializing new Genkit instance...');
+    global.__genkit_ai_instance = genkit({
+      plugins: [googleAI()],
+      enableTelemetry: false,
+      logLevel: 'silent',
+    });
+  }
+  return global.__genkit_ai_instance;
+};
+
+const ai = getGenkitInstance();
 
 // Define the prompt at the top level of the module.
 const productDescriptionPrompt = ai.definePrompt({
-  name: 'productDescriptionPrompt_v4_server_action',
+  name: 'productDescriptionPrompt_v5_singleton',
   input: { schema: GenerateProductDescriptionInputSchema },
   output: { schema: GenerateProductDescriptionOutputSchema },
   prompt: `
@@ -73,7 +82,7 @@ const productDescriptionPrompt = ai.definePrompt({
 // Define the flow at the top level of the module.
 const generateProductDescriptionFlow = ai.defineFlow(
   {
-    name: 'generateProductDescriptionFlow',
+    name: 'generateProductDescriptionFlowSingleton',
     inputSchema: GenerateProductDescriptionInputSchema,
     outputSchema: GenerateProductDescriptionOutputSchema,
   },
@@ -93,6 +102,5 @@ const generateProductDescriptionFlow = ai.defineFlow(
  * @returns A promise that resolves to the generated descriptions.
  */
 export async function generateProductDescription(input: GenerateProductDescriptionInput): Promise<GenerateProductDescriptionOutput> {
-  // Execute the defined Genkit flow.
   return generateProductDescriptionFlow(input);
 }
