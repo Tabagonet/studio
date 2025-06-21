@@ -243,7 +243,7 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
         <CardHeader>
           <CardTitle>Imágenes del Producto</CardTitle>
           <CardDescription>Sube las imágenes para tu producto. La primera imagen se usará como principal.</CardDescription>
-        </S_CardHeader>
+        </CardHeader>
         <CardContent>
           <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} />
         </CardContent>

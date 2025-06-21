@@ -229,5 +229,3 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
     </div>
   );
 }
-
-    
