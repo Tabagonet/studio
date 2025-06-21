@@ -233,12 +233,15 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
       });
 
       if (!response.ok) {
-        let errorDetails = `El servidor respondió con el estado ${response.status}.`;
+        // If response is not OK, try to parse error JSON, but handle failures.
+        let errorDetails = `Error del servidor (${response.status}): ${response.statusText}`;
         try {
             const errorResult = await response.json();
             errorDetails = errorResult.error || JSON.stringify(errorResult);
         } catch (e) {
-            errorDetails = `Error del servidor (${response.status}): ${response.statusText || 'No se pudo leer la respuesta del error.'}.`;
+            // The response was not JSON, so it's likely an HTML error page.
+            console.error("The API response was not valid JSON. Full response body:", await response.text());
+            errorDetails = `No se pudo leer la respuesta del error del servidor (código: ${response.status}). Revisa la consola del navegador para más detalles.`;
         }
         throw new Error(errorDetails);
       }
