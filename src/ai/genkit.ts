@@ -1,7 +1,4 @@
+// This file is intentionally left blank after project reset.
+// AI functionality has been co-located with the API route that uses it
+// to resolve persistent build and module resolution issues.
 'use server';
-
-/**
- * @fileOverview Centralized Genkit initialization.
- * This file is intentionally left blank to avoid module resolution issues.
- * Initialization is now co-located with the flow that uses it.
- */
