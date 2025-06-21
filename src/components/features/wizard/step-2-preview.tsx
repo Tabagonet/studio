@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ProductData } from "@/lib/types";
 import Image from 'next/image';
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 interface Step2PreviewProps {
   productData: ProductData;
@@ -36,7 +37,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
               {primaryPhoto ? (
                 <Image 
                   src={primaryPhoto.previewUrl} 
-                  alt={name} 
+                  alt={name || 'Vista previa del producto'} 
                   width={300} 
                   height={300} 
                   className="rounded-lg object-cover w-full aspect-square"
