@@ -285,11 +285,15 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         shortDescription: result.shortDescription || '',
         longDescription: result.longDescription || '',
         keywords: result.keywords || productData.keywords, // Update keywords, fallback to existing
+        imageTitle: result.imageTitle || '',
+        imageAltText: result.imageAltText || '',
+        imageCaption: result.imageCaption || '',
+        imageDescription: result.imageDescription || '',
       });
 
       toast({
         title: '¡Contenido Generado por IA!',
-        description: 'Las descripciones y palabras clave han sido actualizadas.',
+        description: 'Las descripciones y metadatos de imágenes han sido actualizados.',
       });
     } catch (error: any) {
       console.error('Error generando descripciones:', error);

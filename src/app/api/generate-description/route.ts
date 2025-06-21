@@ -17,6 +17,10 @@ const GenerateProductDescriptionOutputSchema = z.object({
   shortDescription: z.string().describe('A brief, catchy, and SEO-friendly summary of the product (1-2 sentences). Must use HTML for formatting.'),
   longDescription: z.string().describe('A detailed, persuasive, and comprehensive description of the product, following a specific structure for plants. Must use HTML for formatting.'),
   keywords: z.string().describe('A comma-separated list of 5 to 10 relevant SEO keywords/tags for the product, in English, using PascalCase or camelCase format.'),
+  imageTitle: z.string().describe('A concise, SEO-friendly title for the product images. Example: "Drought-Tolerant Agave Avellanidens Plant".'),
+  imageAltText: z.string().describe('A descriptive alt text for SEO, describing the image for visually impaired users. Example: "A large Agave Avellanidens succulent with blue-green leaves in a sunny, rocky garden."'),
+  imageCaption: z.string().describe('An engaging caption for the image, suitable for the media library. This can be based on the short description.'),
+  imageDescription: z.string().describe('A detailed description for the image media library entry. This can be a more detailed version of the alt text or based on the long description.'),
 });
 
 // Create a JSON representation of the schema for the model prompt
@@ -34,9 +38,25 @@ const jsonSchema = {
         keywords: {
             type: 'string',
             description: 'A comma-separated list of 5 to 10 relevant SEO keywords in English and in PascalCase or camelCase format (e.g. DroughtTolerant,SucculentGarden).'
+        },
+        imageTitle: {
+            type: 'string',
+            description: 'A concise, SEO-friendly title for the product images. Example: "Drought-Tolerant Agave Avellanidens Plant".'
+        },
+        imageAltText: {
+            type: 'string',
+            description: 'A descriptive alt text for SEO, describing the image for visually impaired users. Example: "A large Agave Avellanidens succulent with blue-green leaves in a sunny, rocky garden."'
+        },
+        imageCaption: {
+            type: 'string',
+            description: 'An engaging caption for the image, suitable for the media library. This can be based on the short description.'
+        },
+        imageDescription: {
+            type: 'string',
+            description: 'A detailed description for the image media library entry. This can be a more detailed version of the alt text or based on the long description.'
         }
     },
-    required: ['shortDescription', 'longDescription', 'keywords']
+    required: ['shortDescription', 'longDescription', 'keywords', 'imageTitle', 'imageAltText', 'imageCaption', 'imageDescription']
 };
 
 
@@ -93,7 +113,7 @@ export async function POST(req: NextRequest) {
     // 5. Construct the prompt
     const prompt = `
         You are an expert botanist, e-commerce copywriter, and SEO specialist.
-        Your task is to generate compelling and optimized product descriptions and keywords for a plant product for a WooCommerce store.
+        Your task is to generate compelling and optimized product descriptions, keywords, and **image metadata** for a plant product for a WooCommerce store.
         The response must be a valid JSON object that adheres to the provided schema. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
 
         JSON Schema:
@@ -135,6 +155,13 @@ export async function POST(req: NextRequest) {
 
         3.  **keywords:** Generate a comma-separated list of 5 to 10 highly relevant SEO keywords/tags. These keywords MUST be in English and use PascalCase or camelCase format.
             *Example:* DroughtTolerant,SucculentGarden,Xeriscaping,LowWaterUse,ArchitecturalPlant,BajaCaliforniaNative
+        
+        4. **Image Metadata:** Based on the product, generate the following metadata.
+            - **imageTitle:** A concise, SEO-friendly title for the product image.
+            - **imageAltText:** A descriptive alt text for SEO, describing the image for visually impaired users.
+            - **imageCaption:** An engaging caption for the image. You can base this on the short description.
+            - **imageDescription:** A detailed description for the image media library entry. Can be based on the long description.
+
 
         Generate the JSON object based on the provided information.
     `;

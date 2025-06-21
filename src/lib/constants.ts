@@ -76,4 +76,8 @@ export const INITIAL_PRODUCT_DATA: ProductData = {
   attributes: [{ name: "", value: "" }],
   photos: [],
   language: 'Spanish',
+  imageTitle: '',
+  imageAltText: '',
+  imageCaption: '',
+  imageDescription: '',
 };

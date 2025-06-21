@@ -53,6 +53,11 @@ export interface ProductData {
   attributes: ProductAttribute[];
   photos: ProductPhoto[];
   language: 'Spanish' | 'English';
+  // AI-generated image metadata
+  imageTitle?: string;
+  imageAltText?: string;
+  imageCaption?: string;
+  imageDescription?: string;
 }
 
 export interface ParsedNameData {
