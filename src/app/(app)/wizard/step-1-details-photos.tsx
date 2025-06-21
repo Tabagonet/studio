@@ -11,9 +11,11 @@ import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { AiAttributeSuggester } from '@/components/features/wizard/ai-attribute-suggester';
 import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory } from '@/lib/types';
 import { PRODUCT_TYPES } from '@/lib/constants';
-import { PlusCircle, Trash2, Loader2 } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { auth } from '@/lib/firebase';
+import { cn } from '@/lib/utils';
 
 interface Step1DetailsPhotosProps {
   productData: ProductData;
@@ -21,10 +23,93 @@ interface Step1DetailsPhotosProps {
   isProcessing: boolean;
 }
 
+type ValidationStatus = 'idle' | 'checking' | 'valid' | 'invalid';
+interface ValidationState {
+  status: ValidationStatus;
+  message: string;
+}
+
 export function Step1DetailsPhotos({ productData, updateProductData }: Step1DetailsPhotosProps) {
   const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
   const { toast } = useToast();
+
+  const [skuValidation, setSkuValidation] = useState<ValidationState>({ status: 'idle', message: '' });
+  const [nameValidation, setNameValidation] = useState<ValidationState>({ status: 'idle', message: '' });
+
+
+  // --- Validation Logic ---
+  const checkExistence = async (type: 'sku' | 'name', value: string) => {
+    if (!value.trim()) {
+      return { exists: false };
+    }
+    const user = auth.currentUser;
+    if (!user) {
+      // Cannot check if not logged in, but don't show an error
+      return { exists: false };
+    }
+    const token = await user.getIdToken();
+    const response = await fetch(`/api/woocommerce/products/check?${type}=${encodeURIComponent(value)}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+    return response.json();
+  };
+
+  useEffect(() => {
+    const skuValue = productData.sku;
+    if (!skuValue) {
+      setSkuValidation({ status: 'idle', message: '' });
+      return;
+    }
+
+    setSkuValidation({ status: 'checking', message: '' });
+    const handler = setTimeout(async () => {
+      try {
+        const data = await checkExistence('sku', skuValue);
+        if (data.exists) {
+          setSkuValidation({ status: 'invalid', message: data.message });
+        } else {
+          setSkuValidation({ status: 'valid', message: 'SKU disponible' });
+        }
+      } catch (error) {
+        console.error("SKU check failed:", error);
+        setSkuValidation({ status: 'idle', message: 'Error al verificar SKU' });
+      }
+    }, 800); // Debounce delay
+
+    return () => clearTimeout(handler);
+  }, [productData.sku]);
+  
+  useEffect(() => {
+    const nameValue = productData.name;
+    if (!nameValue) {
+      setNameValidation({ status: 'idle', message: '' });
+      return;
+    }
+
+    setNameValidation({ status: 'checking', message: '' });
+    const handler = setTimeout(async () => {
+      try {
+        const data = await checkExistence('name', nameValue);
+        if (data.exists) {
+          setNameValidation({ status: 'invalid', message: data.message });
+        } else {
+          setNameValidation({ status: 'valid', message: 'Nombre disponible' });
+        }
+      } catch (error) {
+        console.error("Name check failed:", error);
+        setNameValidation({ status: 'idle', message: 'Error al verificar el nombre' });
+      }
+    }, 800); // Debounce delay
+
+    return () => clearTimeout(handler);
+  }, [productData.name]);
+
+  // --- End Validation Logic ---
+
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -70,9 +155,14 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
   const handlePhotosChange = (photos: ProductPhoto[]) => {
     updateProductData({ photos });
     if (!productData.name && photos.length > 0) {
-      const firstPhotoName = photos[0].name;
-      const potentialName = firstPhotoName.replace(/-\d+\.\w+$/, '').replace(/-/g, ' ');
-      updateProductData({ name: potentialName });
+      // Find the first photo that was just added (has a `file` object)
+      // The `p &&` check adds robustness against sparse arrays.
+      const firstNewFile = photos.find(p => p && p.file);
+      
+      if (firstNewFile) {
+        const potentialName = firstNewFile.name.replace(/-\d+\.\w+$/, '').replace(/[_-]/g, ' ');
+        updateProductData({ name: potentialName });
+      }
     }
   };
 
@@ -108,12 +198,57 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <Label htmlFor="name">Nombre del Producto</Label>
-              <Input id="name" name="name" value={productData.name} onChange={handleInputChange} placeholder="Ej: Camiseta de Algodón" />
+              <div className="relative">
+                <Input
+                  id="name"
+                  name="name"
+                  value={productData.name}
+                  onChange={handleInputChange}
+                  placeholder="Ej: Camiseta de Algodón"
+                  className={cn(
+                    nameValidation.status === 'invalid' && 'border-destructive focus-visible:ring-destructive',
+                    nameValidation.status === 'valid' && 'border-green-500 focus-visible:ring-green-500'
+                  )}
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  {nameValidation.status === 'checking' && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                  {nameValidation.status === 'valid' && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+                  {nameValidation.status === 'invalid' && <XCircle className="h-4 w-4 text-destructive" />}
+                </div>
+              </div>
+              {nameValidation.message && (
+                <p className={`text-xs mt-1 ${nameValidation.status === 'invalid' ? 'text-destructive' : 'text-green-600'}`}>
+                  {nameValidation.message}
+                </p>
+              )}
               <p className="text-xs text-muted-foreground mt-1">Se puede autocompletar desde el nombre de la primera imagen.</p>
             </div>
+
             <div>
               <Label htmlFor="sku">SKU</Label>
-              <Input id="sku" name="sku" value={productData.sku} onChange={handleInputChange} placeholder="Ej: CAM-ALG-AZ-M" />
+               <div className="relative">
+                <Input
+                  id="sku"
+                  name="sku"
+                  value={productData.sku}
+                  onChange={handleInputChange}
+                  placeholder="Ej: CAM-ALG-AZ-M"
+                  className={cn(
+                    skuValidation.status === 'invalid' && 'border-destructive focus-visible:ring-destructive',
+                    skuValidation.status === 'valid' && 'border-green-500 focus-visible:ring-green-500'
+                  )}
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  {skuValidation.status === 'checking' && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                  {skuValidation.status === 'valid' && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+                  {skuValidation.status === 'invalid' && <XCircle className="h-4 w-4 text-destructive" />}
+                </div>
+              </div>
+              {skuValidation.message && (
+                <p className={`text-xs mt-1 ${skuValidation.status === 'invalid' ? 'text-destructive' : 'text-green-600'}`}>
+                  {skuValidation.message}
+                </p>
+              )}
             </div>
           </div>
 
@@ -230,5 +365,3 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
     </div>
   );
 }
-
-    
