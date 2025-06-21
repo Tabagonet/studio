@@ -125,9 +125,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(descriptions);
 
   } catch (error: any) {
-    console.error('Error in /api/generate-description route:', error);
-    const errorMessage = error.message || 'Ocurrió un error desconocido al generar la descripción.';
-    // Provide a more structured error response
-    return NextResponse.json({ error: 'Error de IA', message: errorMessage, stack: error.stack }, { status: 500 });
+    console.error('--- FULL ERROR in /api/generate-description ---');
+    // Log the full object for better server-side debugging
+    console.error(error);
+    console.error('--- END OF FULL ERROR ---');
+
+    let errorMessage = 'Ocurrió un error desconocido al generar la descripción.';
+    
+    // Try to extract a more specific error message from nested error objects, which are common in API clients
+    if (error.cause?.root?.message) {
+      errorMessage = `La API de IA devolvió un error: ${error.cause.root.message}`;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+
+    return NextResponse.json(
+      {
+        error: 'Error al comunicarse con la IA',
+        message: errorMessage,
+        // Only include stack trace in development for security reasons
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      },
+      { status: 500 }
+    );
   }
 }
