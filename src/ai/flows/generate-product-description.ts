@@ -7,7 +7,7 @@ import { z } from 'zod';
 // The actual implementation has been moved to the API route to prevent build issues.
 
 // Define the input schema for the flow.
-const GenerateProductDescriptionInputSchema = z.object({
+export const GenerateProductDescriptionInputSchema = z.object({
   productName: z.string().describe('The name of the product.'),
   productType: z.string().describe('The type of product (e.g., simple, variable).'),
   keywords: z.string().optional().describe('A comma-separated list of keywords related to the product.'),
@@ -17,11 +17,11 @@ export type GenerateProductDescriptionInput = z.infer<typeof GenerateProductDesc
 
 
 // Define the output schema for the flow. This ensures the AI returns data in a structured format.
-const GenerateProductDescriptionOutputSchema = z.object({
+export const GenerateProductDescriptionOutputSchema = z.object({
   shortDescription: z.string().describe('A brief, catchy, and SEO-friendly summary of the product (1-2 sentences).'),
   longDescription: z.string().describe('A detailed, persuasive, and comprehensive description of the product, including its features, benefits, and uses. Format it with paragraphs for readability.'),
 });
-// Export the type for use in other parts of the application.
+// Export the type for use in other parts of theapplication.
 export type GenerateProductDescriptionOutput = z.infer<typeof GenerateProductDescriptionOutputSchema>;
 
 

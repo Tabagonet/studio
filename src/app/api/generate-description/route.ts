@@ -2,12 +2,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 
-// --- Genkit and AI Imports ---
-// All AI-related logic is now self-contained in this file to prevent Next.js build/HMR conflicts.
-import { genkit, type GenkitError } from '@genkit-ai/core';
-import { googleAI } from '@genkit-ai/googleai';
-import { z } from 'zod';
-import type { GenerateProductDescriptionInput, GenerateProductDescriptionOutput } from '@/ai/flows/generate-product-description';
+// --- Type Imports Only ---
+// We only import the Zod schemas and TypeScript types here.
+// The actual AI logic will be dynamically imported inside the POST handler.
+import {
+  GenerateProductDescriptionInputSchema,
+  GenerateProductDescriptionOutputSchema,
+  type GenerateProductDescriptionInput,
+} from '@/ai/flows/generate-product-description';
 
 
 export async function POST(req: NextRequest) {
@@ -18,10 +20,10 @@ export async function POST(req: NextRequest) {
     const errorMsg = 'CRITICAL: GOOGLE_API_KEY environment variable is not set.';
     console.error(`/api/generate-description: ${errorMsg}`);
     return NextResponse.json(
-      { 
+      {
         error: 'Error de Configuración del Servidor',
-        message: 'La clave API de Google AI no está configurada en el servidor. Contacta al administrador.' 
-      }, 
+        message: 'La clave API de Google AI no está configurada en el servidor. Contacta al administrador.'
+      },
       { status: 503 } // Service Unavailable
     );
   }
@@ -42,45 +44,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Token de autenticación inválido o expirado.', message: 'Tu sesión ha expirado. Por favor, inicia sesión de nuevo.' }, { status: 401 });
   }
 
-  // 3. Process the request by initializing and calling the AI flow.
+  // 3. Process the request by dynamically importing and calling the AI flow.
   try {
     console.log('/api/generate-description: Parsing request body...');
     const body: GenerateProductDescriptionInput = await req.json();
     console.log('/api/generate-description: Request body parsed successfully:', body);
 
-    // --- SELF-CONTAINED AI LOGIC ---
-    console.log('/api/generate-description: Initializing Genkit instance...');
-    
+    // --- DYNAMIC IMPORT & SELF-CONTAINED AI LOGIC ---
+    console.log('/api/generate-description: Dynamically importing Genkit and Google AI plugin...');
+    const { genkit, type GenkitError } = await import('@genkit-ai/core');
+    const { googleAI } = await import('@genkit-ai/googleai');
+    console.log('/api/generate-description: Dynamic imports successful.');
+
     // Check if `genkit` is actually a function before calling it.
     if (typeof genkit !== 'function') {
       const errorMsg = `CRITICAL: The imported 'genkit' is not a function. Type is: ${typeof genkit}`;
       console.error(errorMsg);
+      // Throw a specific error that will be caught and returned as JSON
       throw new Error(errorMsg);
     }
-
+    
+    console.log('/api/generate-description: Initializing Genkit instance...');
     const ai = genkit({
       plugins: [googleAI()],
       enableTelemetry: false,
     });
     console.log('/api/generate-description: Genkit instance initialized.');
 
-    // Define Schemas (re-defined here for isolation)
-    const LocalInputSchema = z.object({
-      productName: z.string().describe('The name of the product.'),
-      productType: z.string().describe('The type of product (e.g., simple, variable).'),
-      keywords: z.string().optional().describe('A comma-separated list of keywords related to the product.'),
-    });
-
-    const LocalOutputSchema = z.object({
-      shortDescription: z.string().describe('A brief, catchy, and SEO-friendly summary of the product (1-2 sentences).'),
-      longDescription: z.string().describe('A detailed, persuasive, and comprehensive description of the product, including its features, benefits, and uses. Format it with paragraphs for readability.'),
-    });
-    
     console.log('/api/generate-description: Defining prompt...');
     const productDescriptionPrompt = ai.definePrompt({
-      name: 'productDescriptionPrompt_api', // Use a unique name
-      input: { schema: LocalInputSchema },
-      output: { schema: LocalOutputSchema },
+      name: 'productDescriptionPrompt_api_dynamic', // Use a unique name
+      input: { schema: GenerateProductDescriptionInputSchema },
+      output: { schema: GenerateProductDescriptionOutputSchema },
       prompt: `
         You are an expert e-commerce copywriter and SEO specialist.
         Your task is to generate compelling and optimized product descriptions for a WooCommerce store.
