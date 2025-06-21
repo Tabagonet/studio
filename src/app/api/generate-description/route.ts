@@ -25,7 +25,7 @@ const jsonSchema = {
     properties: {
         shortDescription: {
             type: 'string',
-            description: "A brief, catchy, and SEO-friendly summary. It MUST start with the product name in bold using HTML 'strong' tags."
+            description: "A brief, catchy, and SEO-friendly summary. It MUST start with the product name in bold using HTML 'strong' tags (e.g., '<strong>Cactus</strong>...')."
         },
         longDescription: {
             type: 'string',
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
 
         **Instructions:**
 
-        1.  **shortDescription:** Write a concise and engaging summary in the requested language (${language}). It MUST start with the product name in bold using HTML 'strong' tags (e.g., "<strong>${productName}</strong> is a..."). Highlight 2-3 key benefits.
+        1.  **shortDescription:** Write a concise and engaging summary in ${language}. It is critically important that the summary begins with the product name, "${productName}", wrapped in HTML 'strong' tags. For example: "<strong>${productName}</strong> is a striking succulent...". Do not forget the HTML tags. Highlight 2-3 key benefits.
 
         2.  **longDescription:** Write a detailed and persuasive product description in the requested language (${language}). It MUST follow this exact structure. For each item, wrap the label in HTML 'strong' tags (e.g., <strong>Botanical Name:</strong>) and wrap the value in HTML 'em' tags (e.g., <em>Agave avellanidens</em>). Use newline characters (\\n) for line breaks.
             <strong>Botanical Name:</strong> <em>[Scientific name of the plant]</em>

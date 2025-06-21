@@ -51,7 +51,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
             <div className="md:col-span-2 space-y-4">
               <div>
                 <h4 className="font-semibold text-lg">Descripción Corta</h4>
-                <p className="text-muted-foreground">{shortDescription || "No especificada."}</p>
+                <div className="text-muted-foreground" dangerouslySetInnerHTML={{ __html: shortDescription || "<em>No especificada.</em>" }} />
               </div>
               <div>
                 <h4 className="font-semibold text-lg">Precios</h4>
@@ -75,7 +75,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
           <div className="space-y-4">
             <div>
               <h4 className="font-semibold text-lg">Descripción Larga</h4>
-              <p className="text-muted-foreground whitespace-pre-wrap">{longDescription || "No especificada."}</p>
+              <div className="text-muted-foreground whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: longDescription || "<em>No especificada.</em>" }} />
             </div>
             
             {attributes && attributes.length > 0 && attributes[0].name && (

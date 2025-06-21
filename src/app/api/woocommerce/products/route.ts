@@ -5,6 +5,45 @@ import { wooApi } from '@/lib/woocommerce';
 import type { ProductData, ProductPhoto } from '@/lib/types';
 import axios from 'axios';
 
+// Helper function to delete image from the external server
+async function deleteImageFromQueFoto(imageUrl: string) {
+  if (!imageUrl || !imageUrl.includes('quefoto.es')) {
+    console.log(`[WooAutomate] Skipping deletion for non-quefoto or empty URL: ${imageUrl}`);
+    return;
+  }
+
+  try {
+    const fileName = imageUrl.split('/').pop();
+    if (!fileName) {
+      console.warn(`[WooAutomate] Could not extract filename from URL: ${imageUrl}`);
+      return;
+    }
+
+    const response = await axios.post(
+      "https://quefoto.es/delete.php",
+      { fileName: fileName },
+      { 
+        headers: { "Content-Type": "application/json" },
+        timeout: 10000 // 10 second timeout
+      }
+    );
+
+    if (response.data?.success) {
+      console.log(`[WooAutomate] Successfully deleted image ${fileName} from quefoto.es`);
+    } else {
+      console.warn(`[WooAutomate] Failed to delete image ${fileName} from quefoto.es. Reason: ${response.data?.error || 'Unknown'}`);
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (axios.isAxiosError(error) && error.response) {
+      console.error(`[WooAutomate] Axios error calling delete script for ${imageUrl}: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
+    } else {
+      console.error(`[WooAutomate] Error calling delete script for ${imageUrl}:`, errorMessage);
+    }
+  }
+}
+
+
 // Helper function to update image metadata after creation
 async function updateImageMetadata(createdProduct: any, productData: ProductData) {
     const wooUrl = process.env.WOOCOMMERCE_STORE_URL;
@@ -135,9 +174,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'WooCommerce API client is not configured on the server.' }, { status: 503 });
   }
 
+  const productData: ProductData = await request.json();
+
   try {
     // 3. Get and format product data
-    const productData: ProductData = await request.json();
     const formattedProduct = formatProductForWooCommerce(productData);
 
     // 4. Send data to WooCommerce
@@ -152,6 +192,14 @@ export async function POST(request: NextRequest) {
       if (createdProduct.images && createdProduct.images.length > 0) {
           console.log(`[WooAutomate] Product ${createdProduct.id} created. Updating metadata for ${createdProduct.images.length} images.`);
           updateImageMetadata(createdProduct, productData);
+      }
+      
+      // "Fire and forget" deletion of images from the external server
+      if (productData.photos && productData.photos.length > 0) {
+        console.log(`[WooAutomate] Triggering background deletion of ${productData.photos.length} source images from quefoto.es.`);
+        // We don't await this so the client gets a fast response.
+        Promise.all(productData.photos.map(photo => deleteImageFromQueFoto(photo.url || '')))
+          .catch(err => console.error('[WooAutomate] An error occurred during the background image deletion process:', err));
       }
 
       return NextResponse.json({ success: true, data: createdProduct }, { status: response.status });
