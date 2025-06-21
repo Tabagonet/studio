@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
+import type { GenkitError } from '@genkit-ai/core';
 
 // --- Type Imports Only ---
 // We only import the Zod schemas and TypeScript types here.
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
 
     // --- DYNAMIC IMPORT & SELF-CONTAINED AI LOGIC ---
     console.log('/api/generate-description: Dynamically importing Genkit and Google AI plugin...');
-    const { genkit, type GenkitError } = await import('@genkit-ai/core');
+    const { genkit } = await import('@genkit-ai/core');
     const { googleAI } = await import('@genkit-ai/googleai');
     console.log('/api/generate-description: Dynamic imports successful.');
 
