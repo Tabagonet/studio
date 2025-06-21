@@ -232,18 +232,15 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
           })
       });
 
-      // Robust error handling: check if response is ok before parsing JSON
       if (!response.ok) {
-        let errorMessage = `Error del servidor: ${response.status}`;
+        let errorDetails = `El servidor respondió con el estado ${response.status}.`;
         try {
-          // Attempt to get more specific error from JSON response
-          const errorResult = await response.json();
-          errorMessage = errorResult.error || JSON.stringify(errorResult);
+            const errorResult = await response.json();
+            errorDetails = errorResult.error || JSON.stringify(errorResult);
         } catch (e) {
-          // Response was not JSON, stick with the status code message
-          console.error("Could not parse error response as JSON.");
+            errorDetails = `Error del servidor (${response.status}): ${response.statusText || 'No se pudo leer la respuesta del error.'}.`;
         }
-        throw new Error(errorMessage);
+        throw new Error(errorDetails);
       }
       
       const result = await response.json();
