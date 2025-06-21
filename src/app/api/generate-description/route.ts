@@ -3,13 +3,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import * as genkitCore from '@genkit-ai/core';
 import * as googleAIPlugin from '@genkit-ai/googleai';
+import { z } from 'zod'; // Correctly import Zod from its own package
 
 // Declare a global variable to hold the AI instance for robust singleton pattern in Next.js
 declare global {
   var genkitAiInstance: any;
 }
-
-const { z } = genkitCore;
 
 // --- Zod Schemas ---
 const GenerateProductDescriptionInputSchema = z.object({
@@ -48,7 +47,7 @@ async function runGenerateDescriptionFlow(input: z.infer<typeof GenerateProductD
   const ai = getAi();
 
   const productDescriptionPrompt = ai.definePrompt({
-    name: 'productDescriptionPrompt_v3', // new name to avoid potential cache conflicts
+    name: 'productDescriptionPrompt_v3',
     input: { schema: GenerateProductDescriptionInputSchema },
     output: { schema: GenerateProductDescriptionOutputSchema },
     prompt: `
@@ -89,7 +88,8 @@ export async function POST(req: NextRequest) {
     console.error('CRITICAL: GOOGLE_API_KEY environment variable is not set.');
     return NextResponse.json(
       { 
-        error: 'La clave API de Google AI no está configurada en el servidor. Contacta al administrador.' 
+        error: 'Error de Configuración',
+        message: 'La clave API de Google AI no está configurada en el servidor. Contacta al administrador.' 
       }, 
       { status: 503 } // Service Unavailable
     );
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
   // 2. Authenticate the user
   const token = req.headers.get('Authorization')?.split('Bearer ')[1];
   if (!token) {
-    return NextResponse.json({ error: 'No se proporcionó token de autenticación.' }, { status: 401 });
+    return NextResponse.json({ error: 'No se proporcionó token de autenticación.', message: 'Por favor, inicia sesión de nuevo.' }, { status: 401 });
   }
 
   try {
@@ -106,17 +106,17 @@ export async function POST(req: NextRequest) {
     await adminAuth.verifyIdToken(token);
   } catch (error) {
     console.error("Error al verificar el token de Firebase:", error);
-    return NextResponse.json({ error: 'Token de autenticación inválido o expirado.' }, { status: 401 });
+    return NextResponse.json({ error: 'Token de autenticación inválido o expirado.', message: 'Tu sesión ha expirado. Por favor, inicia sesión de nuevo.' }, { status: 401 });
   }
 
   // 3. Process the request
   try {
     const body = await req.json();
 
-    // Validate input against the local Zod schema
+    // Validate input against the Zod schema
     const validatedBody = GenerateProductDescriptionInputSchema.safeParse(body);
     if (!validatedBody.success) {
-      return NextResponse.json({ error: 'Cuerpo de la petición inválido.', details: validatedBody.error.format() }, { status: 400 });
+      return NextResponse.json({ error: 'Cuerpo de la petición inválido.', message: 'Los datos enviados a la API no tienen el formato correcto.', details: validatedBody.error.format() }, { status: 400 });
     }
 
     // Call the self-contained Genkit flow
@@ -126,15 +126,14 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error('--- FULL ERROR in /api/generate-description ---');
-    // Log the full object for better server-side debugging
     console.error(error);
     console.error('--- END OF FULL ERROR ---');
 
     let errorMessage = 'Ocurrió un error desconocido al generar la descripción.';
     
-    // Try to extract a more specific error message from nested error objects, which are common in API clients
+    // Try to extract a more specific error message from nested error objects
     if (error.cause?.root?.message) {
-      errorMessage = `La API de IA devolvió un error: ${error.cause.root.message}`;
+      errorMessage = error.cause.root.message;
     } else if (error.message) {
       errorMessage = error.message;
     }
@@ -143,7 +142,6 @@ export async function POST(req: NextRequest) {
       {
         error: 'Error al comunicarse con la IA',
         message: errorMessage,
-        // Only include stack trace in development for security reasons
         stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
       },
       { status: 500 }

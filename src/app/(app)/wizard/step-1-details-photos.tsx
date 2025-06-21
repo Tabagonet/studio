@@ -267,7 +267,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         let errorDetails = `Error del servidor (${response.status}): ${response.statusText}`;
         try {
             const errorResult = await response.json();
-            errorDetails = errorResult.error || JSON.stringify(errorResult);
+            // Use the more specific 'message' from the API error structure, then fallback to 'error'
+            errorDetails = errorResult.message || errorResult.error || JSON.stringify(errorResult);
         } catch (e) {
             const responseText = await response.text();
             console.error("The API response was not valid JSON. Full response body:", responseText);
