@@ -20,7 +20,6 @@ interface ImageUploaderProps {
 export function ImageUploader({ photos: photosProp, onPhotosChange }: ImageUploaderProps) {
   const { toast } = useToast();
 
-  // Guarantees `photos` is an array and memoizes it for stability in callbacks.
   const photos = useMemo(() => (Array.isArray(photosProp) ? photosProp : []), [photosProp]);
 
   const handleUpload = useCallback(async (photoToUpload: ProductPhoto) => {
@@ -29,7 +28,8 @@ export function ImageUploader({ photos: photosProp, onPhotosChange }: ImageUploa
     const user = auth.currentUser;
     if (!user) {
       toast({ title: "Error de Autenticación", description: "Debes iniciar sesión para subir imágenes.", variant: "destructive" });
-      onPhotosChange(prevPhotos => (Array.isArray(prevPhotos) ? prevPhotos : []).filter(p => p.id !== photoToUpload.id));
+      const photosWithoutFailed = photos.filter(p => p.id !== photoToUpload.id);
+      onPhotosChange(photosWithoutFailed);
       return;
     }
 
@@ -49,14 +49,13 @@ export function ImageUploader({ photos: photosProp, onPhotosChange }: ImageUploa
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'La subida ha fallado');
       }
-
-      onPhotosChange(prevPhotos =>
-        (Array.isArray(prevPhotos) ? prevPhotos : []).map(p =>
-          p.id === photoToUpload.id
-            ? { ...p, url: result.url, file: undefined }
-            : p
-        )
+      
+      const updatedPhotosWithUrl = photos.map(p =>
+        p.id === photoToUpload.id
+          ? { ...p, url: result.url, file: undefined }
+          : p
       );
+      onPhotosChange(updatedPhotosWithUrl);
 
       toast({ title: "Imagen Subida", description: `${photoToUpload.name} se ha subido correctamente.` });
 
@@ -67,9 +66,10 @@ export function ImageUploader({ photos: photosProp, onPhotosChange }: ImageUploa
         description: `No se pudo subir ${photoToUpload.name}. ${(error as Error).message}`,
         variant: "destructive",
       });
-      onPhotosChange(prevPhotos => (Array.isArray(prevPhotos) ? prevPhotos : []).filter(p => p.id !== photoToUpload.id));
+      const photosWithoutFailed = photos.filter(p => p.id !== photoToUpload.id);
+      onPhotosChange(photosWithoutFailed);
     }
-  }, [onPhotosChange, toast]);
+  }, [onPhotosChange, toast, photos]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newPhotos: ProductPhoto[] = acceptedFiles.map(file => ({
@@ -177,7 +177,7 @@ export function ImageUploader({ photos: photosProp, onPhotosChange }: ImageUploa
                 width={200}
                 height={200}
                 className="w-full h-40 object-cover"
-                onLoad={() => { if (photo.previewUrl.startsWith('blob:')) URL.revokeObjectURL(photo.previewUrl)}}
+                onLoad={() => { if (photo.previewUrl && photo.previewUrl.startsWith('blob:')) URL.revokeObjectURL(photo.previewUrl)}}
               />
 
               <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
