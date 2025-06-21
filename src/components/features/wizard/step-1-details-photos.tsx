@@ -58,12 +58,25 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
     updateProductData({ [name]: value });
   };
 
-  const handlePhotosChange = (photos: ProductPhoto[]) => {
-    updateProductData({ photos });
-    if (!productData.name && photos.length > 0 && photos[0].file) {
-      const { extractedProductName } = extractProductNameAndAttributesFromFilename(photos[0].file.name);
-      updateProductData({ name: extractedProductName });
+  const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
+    // Only attempt to set the name if the product name is currently empty
+    // and we are receiving a new list of photos that is not empty.
+    if (!productData.name && newPhotos && newPhotos.length > 0) {
+      // Find the first photo in the new list that still has a file object.
+      // This means it's a freshly added file.
+      // The `p &&` check adds robustness against sparse arrays.
+      const firstNewFile = newPhotos.find(p => p && p.file);
+      
+      if (firstNewFile) {
+        const { extractedProductName } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
+        // Update both photos and name in a single state update to avoid race conditions.
+        updateProductData({ photos: newPhotos, name: extractedProductName });
+        return; // Exit after updating
+      }
     }
+    
+    // If no name was updated, or if the product name was already set, just update the photos array.
+    updateProductData({ photos: newPhotos });
   };
   
   const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string) => {
@@ -230,7 +243,7 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
         <CardHeader>
           <CardTitle>Imágenes del Producto</CardTitle>
           <CardDescription>Sube las imágenes para tu producto. La primera imagen se usará como principal.</CardDescription>
-        </CardHeader>
+        </S_CardHeader>
         <CardContent>
           <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} />
         </CardContent>
