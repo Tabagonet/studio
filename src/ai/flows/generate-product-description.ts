@@ -3,6 +3,7 @@
 
 /**
  * @fileOverview This file defines a Genkit flow for generating product descriptions.
+ * It is self-contained and initializes its own Genkit instance to avoid module resolution issues.
  *
  * It exports:
  * - generateProductDescription: An async function to be used as a Server Action.
@@ -10,8 +11,17 @@
  * - GenerateProductDescriptionOutput: The TypeScript type for the output.
  */
 
-import { ai } from '@/ai/genkit';
+import { genkit } from '@genkit-ai/core';
+import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'zod';
+
+// --- Genkit Initialization (Self-contained) ---
+// We initialize Genkit here to prevent Next.js module resolution issues
+// that occur when importing a shared instance into a Server Action file.
+const ai = genkit({
+  plugins: [googleAI()],
+});
+
 
 // --- Zod Schemas (Internal to this file) ---
 
