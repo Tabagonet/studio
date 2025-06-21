@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { KeyRound, DatabaseZap, Save, Download, Upload, Info, Globe } from "lucide-react";
+import { KeyRound, DatabaseZap, Save, Download, Upload, Info, Globe, BrainCircuit } from "lucide-react";
 
 export default function SettingsPage() {
   // Client-side accessible Firebase config check
@@ -14,6 +14,7 @@ export default function SettingsPage() {
   const firebaseAdminHint = "Se configura en .env (FIREBASE_SERVICE_ACCOUNT_JSON). Ver Firebase Console > Configuración del proyecto > Cuentas de servicio > Generar nueva clave privada. Pegar el contenido COMPLETO del archivo JSON como una ÚNICA LÍNEA.";
   const wooCommerceStoreUrlHint = "Configurada en .env (WOOCOMMERCE_STORE_URL)";
   const wooCommerceApiKeysHint = "Configuradas en .env (WOOCOMMERCE_API_KEY y WOOCOMMERCE_API_SECRET)";
+  const googleAiApiKeyHint = "Configurada en .env (GOOGLE_API_KEY). Obtén una clave gratis desde Google AI Studio.";
 
 
   return (
@@ -66,6 +67,16 @@ export default function SettingsPage() {
             </span>
           </div>
           
+          <div className="flex items-center justify-between p-3 border rounded-md bg-muted/30">
+            <Label htmlFor="googleAiStatus" className="flex items-center">
+              <BrainCircuit className="h-4 w-4 mr-2 text-blue-500" />
+              Clave API de Google AI
+            </Label>
+            <span id="googleAiStatus" title={googleAiApiKeyHint} className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 cursor-help">
+              Verificar en Variables de Entorno
+            </span>
+          </div>
+          
            <div className="mt-2 p-3 bg-accent/50 rounded-md flex items-start space-x-2">
             <Info className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
             <div>
@@ -79,6 +90,8 @@ export default function SettingsPage() {
                 - <code className="font-code text-xs">FIREBASE_SERVICE_ACCOUNT_JSON</code>: Contenido del JSON de la cuenta de servicio de Firebase (solo para el servidor). Pega el contenido del archivo JSON como una **sola línea**.
                 <br />
                 - <code className="font-code text-xs">WOOCOMMERCE_...</code>: Variables para la API de WooCommerce (solo para el servidor).
+                <br />
+                - <code className="font-code text-xs">GOOGLE_API_KEY</code>: Clave para la API de Google AI (Gemini). Se configura en el servidor y la puedes obtener gratis en Google AI Studio.
               </p>
             </div>
           </div>
