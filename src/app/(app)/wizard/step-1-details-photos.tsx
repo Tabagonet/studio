@@ -181,7 +181,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     updateProductData({ [e.target.name]: e.target.value });
   };
 
-  const handleSelectChange = (name: string, value: string | ProductType) => {
+  const handleSelectChange = (name: string, value: string) => {
     updateProductData({ [name]: value });
   };
   
@@ -260,6 +260,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             productName: productData.name,
             productType: productData.productType,
             keywords: productData.keywords,
+            language: productData.language,
           })
       });
 
@@ -465,6 +466,24 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
+           <div>
+              <Label htmlFor="language">Idioma del Contenido</Label>
+              <Select
+                  name="language"
+                  value={productData.language}
+                  onValueChange={(value) => handleSelectChange('language', value)}
+                  disabled={isProcessing}
+              >
+                  <SelectTrigger id="language" className="mt-1">
+                      <SelectValue placeholder="Selecciona un idioma" />
+                  </SelectTrigger>
+                  <SelectContent>
+                      <SelectItem value="Spanish">Español</SelectItem>
+                      <SelectItem value="English">Inglés</SelectItem>
+                  </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">Elige el idioma para el contenido generado por IA.</p>
+          </div>
            <div>
             <Label htmlFor="keywords">Palabras Clave (separadas por comas)</Label>
             <Input id="keywords" name="keywords" value={productData.keywords} onChange={handleInputChange} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing} />

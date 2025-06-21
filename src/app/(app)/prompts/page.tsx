@@ -10,24 +10,43 @@ import { Brain, Info, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-const DEFAULT_PROMPT_TEMPLATE = `You are an expert e-commerce copywriter and SEO specialist.
-Your task is to generate compelling and optimized product descriptions and keywords for a WooCommerce store.
+const DEFAULT_PROMPT_TEMPLATE = `You are an expert botanist, e-commerce copywriter, and SEO specialist.
+Your task is to generate compelling and optimized product descriptions and keywords for a plant product for a WooCommerce store.
 The response must be a valid JSON object.
 
 **Product Information:**
 - **Name:** {{productName}}
 - **Type:** {{productType}}
+- **Language for output:** {{language}}
 - **Existing Keywords (use as inspiration):** {{keywords}}
 
 **Instructions:**
-1.  **shortDescription:** Write a concise and engaging summary in Spanish. This should immediately grab the customer's attention and is crucial for search result snippets.
-2.  **longDescription:** Write a detailed and persuasive description in Spanish.
-    - Start with an enticing opening.
-    - Elaborate on the features and, more importantly, the benefits for the customer.
-    - Use the provided keywords naturally throughout the text to improve SEO.
-    - Structure the description with clear paragraphs. Avoid long walls of text.
-    - Maintain a professional but approachable tone.
-3.  **keywords:** Generate a comma-separated list of 5 to 10 highly relevant SEO keywords in Spanish. These should be specific and useful for finding the product.
+1.  **shortDescription:** Write a concise and engaging summary in {{language}}. Highlight 2-3 key benefits.
+    *Example for Agave avellanidens:* "Agave avellanidens is a striking, drought-tolerant succulent native to Baja California. With its broad blue-green leaves and bold rosette form, it’s perfect for xeriscaping and modern dry-climate gardens. Low-maintenance and pollinator-friendly, it adds structure and resilience to any landscape."
+
+2.  **longDescription:** Write a detailed description in {{language}}. It MUST follow this structure, using markdown for headings and bullet points. Use newline characters for line breaks.
+    **Botanical Name:** [Scientific name of the plant]
+    **Common Names:** [List of common names, comma separated]
+    **Mature Size:** [Typical height and spread]
+    **Light Requirements:** [e.g., Full sun]
+    **Soil Requirements:** [e.g., Well-drained]
+    **Water Needs:** [e.g., Low]
+    **Foliage:** [Description of leaves]
+    **Flowers:** [Description of flowers]
+    **Growth Rate:** [e.g., Moderate]
+
+    **Uses:**
+    - Architectural Plant: [Brief explanation]
+    - Xeriscaping: [Brief explanation]
+
+    **Benefits:**
+    - Extreme Drought Tolerance: [Brief explanation]
+    - Low Maintenance: [Brief explanation]
+
+    [Final summary paragraph.]
+
+3.  **keywords:** Generate a comma-separated list of 5-10 SEO keywords/tags in English, using PascalCase or camelCase.
+    *Example:* DroughtTolerant,SucculentGarden,Xeriscaping,LowWaterUse
 
 Generate the JSON object based on the provided information.
 `;
@@ -63,7 +82,7 @@ export default function PromptsPage() {
             <AlertTitle>¿Cómo funciona esto?</AlertTitle>
             <AlertDescription>
                 <p>Aquí puedes editar la plantilla de "prompt" que se envía al modelo de IA (Gemini) para generar el contenido de tus productos. Puedes ajustar el tono, el estilo y las instrucciones para que se adapten mejor a tu marca.</p>
-                <p className="mt-2">Utiliza placeholders como <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{{productName}}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{{productType}}</code> y <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{{keywords}}</code>. El sistema los reemplazará con los datos del producto correspondiente en cada solicitud.</p>
+                <p className="mt-2">Utiliza placeholders como <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{{productName}}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{{productType}}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{{keywords}}</code>, y <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{{language}}</code>. El sistema los reemplazará con los datos del producto correspondiente en cada solicitud.</p>
                 <p className="mt-2 font-semibold">Nota: La estructura de salida JSON no es editable desde aquí para garantizar la compatibilidad.</p>
             </AlertDescription>
         </Alert>

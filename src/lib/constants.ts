@@ -75,4 +75,5 @@ export const INITIAL_PRODUCT_DATA: ProductData = {
   longDescription: "",
   attributes: [{ name: "", value: "" }],
   photos: [],
+  language: 'Spanish',
 };

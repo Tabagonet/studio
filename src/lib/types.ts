@@ -50,6 +50,7 @@ export interface ProductData {
   longDescription: string;
   attributes: ProductAttribute[];
   photos: ProductPhoto[];
+  language: 'Spanish' | 'English';
 }
 
 export interface ParsedNameData {
