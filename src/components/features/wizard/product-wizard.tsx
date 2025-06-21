@@ -1,10 +1,11 @@
 
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Step1DetailsPhotos } from './step-1-details-photos';
 import { Step2Preview } from './step-2-preview'; 
 import { Step3Confirm } from './step-3-confirm';
+import { Step4Processing } from './step-4-processing';
 import type { ProductData, ProductPhoto } from '@/lib/types';
 import { INITIAL_PRODUCT_DATA } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,15 @@ export function ProductWizard() {
   const [productData, setProductData] = useState<ProductData>(INITIAL_PRODUCT_DATA);
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    // This effect triggers the processing when the user reaches step 4
+    if (currentStep === 4 && !isProcessing) {
+      handleCreateProduct();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
+
 
   const updateProductData = (data: Partial<ProductData>) => {
     setProductData(prev => ({ ...prev, ...data }));
@@ -31,7 +41,6 @@ export function ProductWizard() {
 
   const handleCreateProduct = async () => {
     setIsProcessing(true);
-    toast({ title: "Iniciando proceso...", description: "Subiendo imágenes al servidor." });
 
     const user = auth.currentUser;
     if (!user) {
@@ -44,15 +53,15 @@ export function ProductWizard() {
     const photosToUpload = productData.photos.filter(p => p.status === 'pending');
 
     const uploadPromises = photosToUpload.map(photo => {
-      if (!photo.file) return Promise.resolve(); // Should not happen
+      if (!photo.file) return Promise.resolve(); 
 
-      updatePhotoState(photo.id, { status: 'uploading', progress: 5 }); // Start upload status
+      updatePhotoState(photo.id, { status: 'uploading', progress: 5 });
 
       const formData = new FormData();
       formData.append('imagen', photo.file);
       
-      // Simulate progress for now, as fetch doesn't support it directly.
-      // A real implementation would use XHR or a library like axios.
+      // Axios or a library with progress events would be better here.
+      // We simulate progress.
       updatePhotoState(photo.id, { progress: 30 });
 
       return fetch('/api/upload-image', {
@@ -72,8 +81,6 @@ export function ProductWizard() {
       .catch(error => {
         const errorMessage = (error as Error).message;
         updatePhotoState(photo.id, { status: 'error', error: errorMessage, progress: 0 });
-        console.error(`Error subiendo ${photo.name}:`, error);
-        // We throw it again so Promise.allSettled can catch it
         throw new Error(`Fallo al subir ${photo.name}: ${errorMessage}`);
       });
     });
@@ -88,79 +95,89 @@ export function ProductWizard() {
         description: `${failedUploads.length} imágen(es) no se pudieron subir. Por favor, revisa los errores e inténtalo de nuevo.`,
         variant: "destructive",
       });
-      setIsProcessing(false);
+      setIsProcessing(false); // Stop processing on failure
       return;
     }
     
+    // All images uploaded, now create the product
     toast({
       title: "Imágenes Subidas Correctamente",
       description: "Todas las imágenes están en el servidor. Próximo paso: crear producto en WooCommerce.",
     });
 
-    // TODO: Add logic to create the product in WooCommerce here
+    // TODO: Implement this part
     console.log("Datos del producto listos para enviar a WooCommerce:", productData);
     
-    // Simulate final step
+    // Simulate final step after a delay
     setTimeout(() => {
-        setIsProcessing(false);
-        toast({ title: "Proceso (simulado) finalizado!", description: "El producto se ha creado en WooCommerce."});
+        setIsProcessing(false); // This will indicate the full process is "finished" for now
+        toast({ title: "Proceso finalizado (simulación)", description: "Creación en WooCommerce por implementar."});
     }, 2000);
   };
 
 
   const nextStep = () => {
-    setCurrentStep(prev => prev + 1);
-    window.scrollTo(0, 0);
+    if (currentStep < 4) {
+      setCurrentStep(prev => prev + 1);
+      window.scrollTo(0, 0);
+    }
   };
   
   const prevStep = () => {
-    setCurrentStep(prev => prev - 1);
-    window.scrollTo(0, 0);
+    if (currentStep > 1) {
+      setCurrentStep(prev => prev - 1);
+      window.scrollTo(0, 0);
+    }
   };
 
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} />;
+        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} />;
       case 2:
         return <Step2Preview productData={productData} />;
       case 3:
         return <Step3Confirm productData={productData} />;
+      case 4:
+        return <Step4Processing productData={productData} isProcessing={isProcessing} />;
       default:
-        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} />;
+        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} />;
     }
   };
 
   return (
     <div className="space-y-8">
       {renderStep()}
-      <div className="flex justify-between mt-8">
-        <Button onClick={prevStep} disabled={currentStep === 1 || isProcessing}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Anterior
-        </Button>
+      
+      {currentStep < 4 && (
+        <div className="flex justify-between mt-8">
+            <Button onClick={prevStep} disabled={currentStep === 1 || isProcessing}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Anterior
+            </Button>
 
-        {currentStep < 3 && (
-          <Button onClick={nextStep} disabled={isProcessing}>
-            Siguiente
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        )}
-        
-        {currentStep === 3 && (
-          <Button onClick={handleCreateProduct} disabled={isProcessing}>
-            {isProcessing ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Rocket className="mr-2 h-4 w-4" />
+            {currentStep < 3 && (
+            <Button onClick={nextStep} disabled={isProcessing}>
+                Siguiente
+                <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
             )}
-            {isProcessing ? 'Procesando...' : 'Crear Producto'}
-          </Button>
-        )}
-      </div>
+            
+            {currentStep === 3 && (
+            <Button onClick={() => setCurrentStep(4)} disabled={isProcessing}>
+                <Rocket className="mr-2 h-4 w-4" />
+                Crear Producto
+            </Button>
+            )}
+        </div>
+      )}
+
+      {/* Debug view can be enabled/disabled as needed */}
+      {/* 
        <pre className="mt-4 p-4 bg-muted rounded-md text-xs overflow-x-auto">
         <code>{JSON.stringify(productData, null, 2)}</code>
        </pre>
+      */}
     </div>
   );
 }
