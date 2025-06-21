@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
         1.  **shortDescription:** Write a concise and engaging summary in the requested language (${language}). It should immediately grab the customer's attention, be perfect for search result snippets, and highlight 2-3 key benefits (e.g., drought-tolerant, architectural form).
             *Example for Agave avellanidens:* "Agave avellanidens is a striking, drought-tolerant succulent native to Baja California. With its broad blue-green leaves and bold rosette form, it’s perfect for xeriscaping and modern dry-climate gardens. Low-maintenance and pollinator-friendly, it adds structure and resilience to any landscape."
 
-        2.  **longDescription:** Write a detailed and persuasive product description in the requested language (${language}). It MUST follow this exact structure, using markdown for headings and bullet points. Use newline characters (\\n) for line breaks.
+        2.  **longDescription:** Write a detailed and persuasive product description in the requested language (${language}). It MUST follow this exact structure, using markdown for headings and bullet points. Make sure to use double asterisks (**) to bold all the labels (e.g., **Botanical Name:**). Use newline characters (\\n) for line breaks.
             **Botanical Name:** [Scientific name of the plant]
             **Common Names:** [List of common names, comma separated]
             **Mature Size:** [Typical height and spread, e.g., 3–5 feet (1–1.5 meters) in height, 4–6 feet (1.2–1.8 meters) in spread]
@@ -122,15 +122,15 @@ export async function POST(req: NextRequest) {
             **Growth Rate:** [e.g., Slow, Moderate, Fast]
 
             **Uses:**
-            - Architectural Plant: [Brief explanation of this use]
-            - Xeriscaping: [Brief explanation of this use]
-            - Ecological Landscaping: [Brief explanation of this use]
+            - **Architectural Plant:** [Brief explanation of this use]
+            - **Xeriscaping:** [Brief explanation of this use]
+            - **Ecological Landscaping:** [Brief explanation of this use]
 
             **Benefits:**
-            - Extreme Drought Tolerance: [Brief explanation of this benefit]
-            - Low Maintenance: [Brief explanation of this benefit]
-            - Visual Interest: [Brief explanation of this benefit]
-            - Habitat Support: [Brief explanation of this benefit]
+            - **Extreme Drought Tolerance:** [Brief explanation of this benefit]
+            - **Low Maintenance:** [Brief explanation of this benefit]
+            - **Visual Interest:** [Brief explanation of this benefit]
+            - **Habitat Support:** [Brief explanation of this benefit]
 
             [Final summary paragraph concluding the description.]
 
