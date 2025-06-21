@@ -3,21 +3,27 @@
 
 /**
  * @fileOverview This file defines a Genkit flow for generating product descriptions.
- * It is self-contained and uses a lazy-initialized Genkit instance to avoid
- * module-level initialization issues with Next.js server components.
+ * It uses a direct, module-level initialization of Genkit, which is the standard
+ * and most stable approach when called from a server-side context like an API route.
  *
  * It exports:
- * - generateProductDescription: An async function to be used by an API route.
+ * - generateProductDescription: An async function to be used by the API route.
  * - GenerateProductDescriptionInput: The TypeScript type for the input.
  * - GenerateProductDescriptionOutput: The TypeScript type for the output.
  */
 
-import * as genkitCore from '@genkit-ai/core';
+import { genkit } from '@genkit-ai/core';
 import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'zod';
 
-// --- Zod Schemas (Defined once) ---
+// --- Direct Initialization (Module Level) ---
+// This is the standard and most robust way to initialize Genkit.
+const ai = genkit({
+    plugins: [googleAI()],
+});
 
+
+// --- Zod Schemas ---
 const GenerateProductDescriptionInputSchema = z.object({
   productName: z.string().describe('The name of the product.'),
   productType: z.string().describe('The type of product (e.g., simple, variable).'),
@@ -30,73 +36,59 @@ const GenerateProductDescriptionOutputSchema = z.object({
 });
 
 // --- Exported TypeScript Types ---
-
 export type GenerateProductDescriptionInput = z.infer<typeof GenerateProductDescriptionInputSchema>;
 export type GenerateProductDescriptionOutput = z.infer<typeof GenerateProductDescriptionOutputSchema>;
 
-// --- Lazy-Initialized Genkit Flow ---
 
-let generateProductDescriptionFlow: any;
+// --- Genkit Prompt and Flow Definition ---
 
-function initializeFlow() {
-    // Only initialize once
-    if (generateProductDescriptionFlow) {
-        return;
+const productDescriptionPrompt = ai.definePrompt({
+  name: 'productDescriptionPrompt',
+  input: { schema: GenerateProductDescriptionInputSchema },
+  output: { schema: GenerateProductDescriptionOutputSchema },
+  prompt: `
+    You are an expert e-commerce copywriter and SEO specialist.
+    Your task is to generate compelling and optimized product descriptions for a WooCommerce store.
+
+    **Product Information:**
+    - **Name:** {{{productName}}}
+    - **Type:** {{{productType}}}
+    - **Keywords:** {{{keywords}}}
+
+    **Instructions:**
+    1.  **Short Description:** Write a concise and engaging summary. This should immediately grab the customer's attention and is crucial for search result snippets.
+    2.  **Long Description:** Write a detailed and persuasive description.
+        - Start with an enticing opening.
+        - Elaborate on the features and, more importantly, the benefits for the customer.
+        - Use the provided keywords naturally throughout the text to improve SEO.
+        - Structure the description with clear paragraphs. Avoid long walls of text.
+        - Maintain a professional but approachable tone.
+
+    Generate the descriptions based on the provided information.
+  `,
+});
+
+const generateProductDescriptionFlow = ai.defineFlow(
+  {
+    name: 'generateProductDescriptionFlow',
+    inputSchema: GenerateProductDescriptionInputSchema,
+    outputSchema: GenerateProductDescriptionOutputSchema,
+  },
+  async (input) => {
+    const { output } = await productDescriptionPrompt(input);
+    if (!output) {
+      throw new Error('AI failed to generate a description.');
     }
-
-    const ai = genkitCore.genkit({
-        plugins: [googleAI()],
-    });
-
-    const productDescriptionPrompt = ai.definePrompt({
-      name: 'productDescriptionPrompt',
-      input: { schema: GenerateProductDescriptionInputSchema },
-      output: { schema: GenerateProductDescriptionOutputSchema },
-      prompt: `
-        You are an expert e-commerce copywriter and SEO specialist.
-        Your task is to generate compelling and optimized product descriptions for a WooCommerce store.
-
-        **Product Information:**
-        - **Name:** {{{productName}}}
-        - **Type:** {{{productType}}}
-        - **Keywords:** {{{keywords}}}
-
-        **Instructions:**
-        1.  **Short Description:** Write a concise and engaging summary. This should immediately grab the customer's attention and is crucial for search result snippets.
-        2.  **Long Description:** Write a detailed and persuasive description.
-            - Start with an enticing opening.
-            - Elaborate on the features and, more importantly, the benefits for the customer.
-            - Use the provided keywords naturally throughout the text to improve SEO.
-            - Structure the description with clear paragraphs. Avoid long walls of text.
-            - Maintain a professional but approachable tone.
-
-        Generate the descriptions based on the provided information.
-      `,
-    });
-
-    generateProductDescriptionFlow = ai.defineFlow(
-      {
-        name: 'generateProductDescriptionFlow',
-        inputSchema: GenerateProductDescriptionInputSchema,
-        outputSchema: GenerateProductDescriptionOutputSchema,
-      },
-      async (input) => {
-        const { output } = await productDescriptionPrompt(input);
-        if (!output) {
-          throw new Error('AI failed to generate a description.');
-        }
-        return output;
-      }
-    );
-}
+    return output;
+  }
+);
 
 /**
- * Generates product descriptions using an AI model.
- * This function is a wrapper around a lazily-initialized Genkit flow.
+ * The main exported function that wraps the Genkit flow.
+ * This is called by the API route.
  * @param input - The product data to generate descriptions for.
  * @returns A promise that resolves to the generated short and long descriptions.
  */
 export async function generateProductDescription(input: GenerateProductDescriptionInput): Promise<GenerateProductDescriptionOutput> {
-  initializeFlow(); // This will initialize the flow on the first call.
   return generateProductDescriptionFlow(input);
 }
