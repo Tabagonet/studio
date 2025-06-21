@@ -7,8 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
-import { ImageUploader } from './image-uploader';
-import { AiAttributeSuggester } from './ai-attribute-suggester';
+import { ImageUploader } from '@/components/features/wizard/image-uploader';
+import { AiAttributeSuggester } from '@/components/features/wizard/ai-attribute-suggester';
 import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory } from '@/lib/types';
 import { PRODUCT_TYPES } from '@/lib/constants';
 import { PlusCircle, Trash2, Loader2 } from 'lucide-react';
@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 interface Step1DetailsPhotosProps {
   productData: ProductData;
   updateProductData: (data: Partial<ProductData>) => void;
+  isProcessing: boolean;
 }
 
 export function Step1DetailsPhotos({ productData, updateProductData }: Step1DetailsPhotosProps) {
@@ -223,9 +224,11 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
           <CardDescription>Sube las imágenes para tu producto. La primera imagen se usará como principal por defecto.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} />
+          <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} isProcessing={false} />
         </CardContent>
       </Card>
     </div>
   );
 }
+
+    
