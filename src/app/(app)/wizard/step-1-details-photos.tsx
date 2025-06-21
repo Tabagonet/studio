@@ -14,8 +14,10 @@ import { PRODUCT_TYPES } from '@/lib/constants';
 import { PlusCircle, Trash2, Loader2, CheckCircle2, XCircle, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { auth } from '@/lib/firebase';
+import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 interface Step1DetailsPhotosProps {
@@ -38,6 +40,35 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   const [skuValidation, setSkuValidation] = React.useState<ValidationState>({ status: 'idle', message: '' });
   const [nameValidation, setNameValidation] = React.useState<ValidationState>({ status: 'idle', message: '' });
   const [isGenerating, setIsGenerating] = React.useState(false);
+  const [isAiConfigured, setIsAiConfigured] = React.useState<boolean | null>(null);
+
+
+  // --- AI Config Check ---
+  React.useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          const response = await fetch('/api/check-config', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (response.ok) {
+            const configStatus = await response.json();
+            setIsAiConfigured(configStatus.googleAiApiKey);
+          } else {
+            setIsAiConfigured(false);
+          }
+        } catch (error) {
+          console.error("Error checking AI configuration:", error);
+          setIsAiConfigured(false);
+        }
+      } else {
+        // No user logged in, AI is not available
+        setIsAiConfigured(false);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
 
   // --- Validation Logic ---
@@ -233,14 +264,13 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
       });
 
       if (!response.ok) {
-        // If response is not OK, try to parse error JSON, but handle failures.
         let errorDetails = `Error del servidor (${response.status}): ${response.statusText}`;
         try {
             const errorResult = await response.json();
             errorDetails = errorResult.error || JSON.stringify(errorResult);
         } catch (e) {
-            // The response was not JSON, so it's likely an HTML error page.
-            console.error("The API response was not valid JSON. Full response body:", await response.text());
+            const responseText = await response.text();
+            console.error("The API response was not valid JSON. Full response body:", responseText);
             errorDetails = `No se pudo leer la respuesta del error del servidor (código: ${response.status}). Revisa la consola del navegador para más detalles.`;
         }
         throw new Error(errorDetails);
@@ -269,8 +299,21 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     }
   };
 
+  const isAiButtonDisabled = isGenerating || !productData.name || isProcessing || isAiConfigured !== true;
+
+  const getAiButtonContent = () => {
+    if (isAiConfigured === null) {
+      return <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verificando IA...</>;
+    }
+    if (isGenerating) {
+      return <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generando...</>;
+    }
+    return <><Sparkles className="mr-2 h-4 w-4" /> Generar con IA</>;
+  };
+
 
   return (
+    <TooltipProvider>
     <div className="space-y-8">
       <Card>
         <CardHeader>
@@ -397,10 +440,25 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                 <CardTitle>Descripciones y Palabras Clave</CardTitle>
                 <CardDescription>Esta información es clave para el SEO y para informar a tus clientes.</CardDescription>
               </div>
-              <Button onClick={handleGenerateDescriptions} disabled={isGenerating || !productData.name || isProcessing} size="sm">
-                {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                Generar con IA
-              </Button>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <div className="inline-block"> {/* Wrapper div for tooltip on disabled button */}
+                            <Button
+                                onClick={handleGenerateDescriptions}
+                                disabled={isAiButtonDisabled}
+                                size="sm"
+                            >
+                                {getAiButtonContent()}
+                            </Button>
+                        </div>
+                    </TooltipTrigger>
+                    {isAiConfigured === false && (
+                        <TooltipContent>
+                            <p>La clave API de Google AI no está configurada.</p>
+                            <p>Ve a <Link href="/settings" className="underline font-semibold">Configuración</Link> para añadirla.</p>
+                        </TooltipContent>
+                    )}
+                </Tooltip>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -488,5 +546,6 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         </CardContent>
       </Card>
     </div>
+    </TooltipProvider>
   );
 }
