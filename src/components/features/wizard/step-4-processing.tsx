@@ -4,27 +4,60 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { ProductData } from "@/lib/types";
-import { CheckCircle, Circle, Loader2, Server, UploadCloud, XCircle } from "lucide-react";
+import { ProductData, WizardProcessingState } from "@/lib/types";
+import { CheckCircle, Circle, Loader2, XCircle } from "lucide-react";
 import Image from 'next/image';
 
 interface Step4ProcessingProps {
   productData: ProductData;
-  isProcessing: boolean;
+  processingState: WizardProcessingState;
+  progress: {
+    images: number;
+    product: number;
+  };
 }
 
-export function Step4Processing({ productData, isProcessing }: Step4ProcessingProps) {
-    const totalPhotos = productData.photos.length;
-    const uploadedPhotos = productData.photos.filter(p => p.status === 'completed').length;
-    const isUploading = productData.photos.some(p => p.status === 'uploading');
-    const allUploadsDone = totalPhotos > 0 && uploadedPhotos === totalPhotos;
-
-    const getStatusIcon = (status: 'pending' | 'in-progress' | 'success' | 'error' | boolean) => {
-        if (status === 'success' || status === true) return <CheckCircle className="h-5 w-5 text-green-500" />;
+export function Step4Processing({ productData, processingState, progress }: Step4ProcessingProps) {
+    
+    const getStatusIcon = (status: WizardProcessingState, task: 'images' | 'product') => {
+      if (task === 'images') {
+        if (status === 'uploading') return <Loader2 className="h-5 w-5 animate-spin text-primary" />;
+        if (status === 'error' && progress.images < 100) return <XCircle className="h-5 w-5 text-destructive" />;
+        if (status === 'creating' || status === 'finished') return <CheckCircle className="h-5 w-5 text-green-500" />;
+      }
+      if (task === 'product') {
+        if (status === 'creating') return <Loader2 className="h-5 w-5 animate-spin text-primary" />;
+        if (status === 'finished') return <CheckCircle className="h-5 w-5 text-green-500" />;
         if (status === 'error') return <XCircle className="h-5 w-5 text-destructive" />;
-        if (status === 'in-progress') return <Loader2 className="h-5 w-5 animate-spin text-primary" />;
-        return <Circle className="h-5 w-5 text-muted-foreground" />;
+      }
+      return <Circle className="h-5 w-5 text-muted-foreground" />;
     };
+
+    const getTaskDescription = (status: WizardProcessingState, task: 'images' | 'product') => {
+      if (task === 'images') {
+        if (status === 'uploading') return `Subiendo ${productData.photos.length} imágenes... (${progress.images}%)`;
+        if (status === 'error' && progress.images < 100) return "Error durante la subida.";
+        if (status === 'creating' || status === 'finished') return `Se subieron ${productData.photos.length} imágenes con éxito.`;
+        return 'Esperando para iniciar la subida.';
+      }
+      if (task === 'product') {
+        if (status === 'creating') return 'Enviando datos a WooCommerce...';
+        if (status === 'finished') return 'Producto creado con éxito.';
+        if (status === 'error') return 'Error al crear el producto.';
+        return 'Esperando a que finalice la subida de imágenes.';
+      }
+    };
+    
+    const getOverallDescription = () => {
+        switch(processingState) {
+            case 'uploading': return 'Estamos subiendo las imágenes a tu servidor...';
+            case 'creating': return 'Las imágenes están listas. Creando el producto en WooCommerce.';
+            case 'finished': return '¡Proceso completado con éxito!';
+            case 'error': return 'Ocurrió un error. Revisa los detalles e inténtalo de nuevo.';
+            default: return 'Iniciando proceso de creación.';
+        }
+    }
+
 
     return (
         <div className="space-y-8">
@@ -32,7 +65,7 @@ export function Step4Processing({ productData, isProcessing }: Step4ProcessingPr
                 <CardHeader>
                 <CardTitle>Paso 4: Procesando Producto</CardTitle>
                 <CardDescription>
-                    {isProcessing ? "Estamos subiendo las imágenes y preparando todo para crear tu producto." : "Proceso finalizado."}
+                   {getOverallDescription()}
                 </CardDescription>
                 </CardHeader>
             </Card>
@@ -41,23 +74,21 @@ export function Step4Processing({ productData, isProcessing }: Step4ProcessingPr
                 <CardHeader>
                     <CardTitle>Registro del Proceso</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="flex items-center space-x-3 p-3 rounded-md bg-muted/50">
-                        {getStatusIcon(isUploading ? 'in-progress' : allUploadsDone)}
-                        <div>
+                <CardContent className="space-y-6">
+                    <div className="flex items-center space-x-3">
+                        {getStatusIcon(processingState, 'images')}
+                        <div className="flex-1">
                             <p className="font-medium">Paso 1: Subida de Imágenes</p>
-                            <p className="text-sm text-muted-foreground">
-                                {isUploading ? `Subiendo ${totalPhotos} imágenes...` : allUploadsDone ? `Se subieron ${totalPhotos} imágenes con éxito.` : 'Esperando para iniciar la subida.'}
-                            </p>
+                             <p className="text-sm text-muted-foreground">{getTaskDescription(processingState, 'images')}</p>
+                            {(processingState === 'uploading') && <Progress value={progress.images} className="mt-1 h-2" />}
                         </div>
                     </div>
-                    <div className="flex items-center space-x-3 p-3 rounded-md bg-muted/50">
-                        {getStatusIcon(allUploadsDone ? (isProcessing ? 'in-progress' : 'success') : 'pending')}
-                        <div>
+                    <div className="flex items-center space-x-3">
+                        {getStatusIcon(processingState, 'product')}
+                        <div className="flex-1">
                             <p className="font-medium">Paso 2: Creación en WooCommerce</p>
-                            <p className="text-sm text-muted-foreground">
-                                {allUploadsDone ? (isProcessing ? 'Enviando datos a WooCommerce...' : 'Producto creado con éxito.') : 'Esperando a que finalice la subida de imágenes.'}
-                            </p>
+                             <p className="text-sm text-muted-foreground">{getTaskDescription(processingState, 'product')}</p>
+                             {(processingState === 'creating' || processingState === 'finished') && <Progress value={progress.product} className="mt-1 h-2" />}
                         </div>
                     </div>
                 </CardContent>
@@ -65,7 +96,7 @@ export function Step4Processing({ productData, isProcessing }: Step4ProcessingPr
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Progreso de las Imágenes ({uploadedPhotos}/{totalPhotos})</CardTitle>
+                    <CardTitle>Detalle de las Imágenes</CardTitle>
                 </CardHeader>
                 <CardContent>
                     {productData.photos.length > 0 ? (
@@ -99,18 +130,6 @@ export function Step4Processing({ productData, isProcessing }: Step4ProcessingPr
                     )}
                 </CardContent>
             </Card>
-
-             {!isProcessing && allUploadsDone && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Siguientes Pasos</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex flex-wrap gap-4">
-                        <Button onClick={() => window.location.reload()}>Crear otro producto</Button>
-                        <Button variant="outline" disabled>Ver producto en WooCommerce (próximamente)</Button>
-                    </CardContent>
-                </Card>
-            )}
         </div>
     );
 }

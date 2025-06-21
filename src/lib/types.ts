@@ -57,3 +57,5 @@ export interface ParsedNameData {
   potentialAttributes: string[];
   normalizedProductName: string;
 }
+
+export type WizardProcessingState = 'idle' | 'uploading' | 'creating' | 'finished' | 'error';
