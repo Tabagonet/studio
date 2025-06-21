@@ -209,7 +209,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     setIsGenerating(true);
     toast({
       title: 'Generando Descripciones con IA...',
-      description: 'Esto puede tardar unos segundos.',
+      description: 'Esto puede tardar unos segundos. Contactando con el modelo Gemini...',
     });
 
     try {
@@ -230,9 +230,10 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
       });
     } catch (error) {
       console.error('Error generating descriptions:', error);
+      const errorMessage = error instanceof Error ? error.message : 'No se pudo generar la descripción.';
       toast({
         title: 'Error de IA',
-        description: 'No se pudieron generar las descripciones. Inténtalo de nuevo.',
+        description: `La IA ha devuelto un error. Detalle: ${errorMessage}`,
         variant: 'destructive',
       });
     } finally {
