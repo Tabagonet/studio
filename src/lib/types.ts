@@ -17,12 +17,13 @@ export interface ProductPhoto {
   id: string; // Unique ID for the photo (e.g., uuid)
   file?: File; // The actual file object, present only on client-side before upload
   previewUrl: string; // Used for client-side preview (object URL)
-  url?: string; // Public URL from custom host, available after upload
+  url?: string; // Public URL from host, available after upload
   name: string; // filename
   isPrimary?: boolean;
   status: UploadStatus;
   progress: number; // 0-100
   error?: string; // Error message if upload fails
+  dataUri?: string; // Used to transport file to serverless API
 }
 
 export interface ProductAttribute {
@@ -59,4 +60,4 @@ export interface ParsedNameData {
   normalizedProductName: string;
 }
 
-export type WizardProcessingState = 'idle' | 'uploading' | 'creating' | 'finished' | 'error';
+export type WizardProcessingState = 'idle' | 'processing' | 'finished' | 'error';

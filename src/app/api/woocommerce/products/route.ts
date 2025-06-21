@@ -1,47 +1,11 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth } from '@/lib/firebase-admin';
+import { adminAuth, adminStorage } from '@/lib/firebase-admin';
 import { wooApi } from '@/lib/woocommerce';
-import type { ProductData, ProductPhoto } from '@/lib/types';
+import type { ProductData } from '@/lib/types';
 import axios from 'axios';
-
-// Helper function to delete image from the external server
-async function deleteImageFromQueFoto(imageUrl: string) {
-  if (!imageUrl || !imageUrl.includes('quefoto.es')) {
-    console.log(`[WooAutomate] Skipping deletion for non-quefoto or empty URL: ${imageUrl}`);
-    return;
-  }
-
-  try {
-    const fileName = imageUrl.split('/').pop();
-    if (!fileName) {
-      console.warn(`[WooAutomate] Could not extract filename from URL: ${imageUrl}`);
-      return;
-    }
-
-    const response = await axios.post(
-      "https://quefoto.es/delete.php",
-      { fileName: fileName },
-      { 
-        headers: { "Content-Type": "application/json" },
-        timeout: 10000 // 10 second timeout
-      }
-    );
-
-    if (response.data?.success) {
-      console.log(`[WooAutomate] Successfully deleted image ${fileName} from quefoto.es`);
-    } else {
-      console.warn(`[WooAutomate] Failed to delete image ${fileName} from quefoto.es. Reason: ${response.data?.error || 'Unknown'}`);
-    }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    if (axios.isAxiosError(error) && error.response) {
-      console.error(`[WooAutomate] Axios error calling delete script for ${imageUrl}: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
-    } else {
-      console.error(`[WooAutomate] Error calling delete script for ${imageUrl}:`, errorMessage);
-    }
-  }
-}
+import sharp from 'sharp';
+import { v4 as uuidv4 } from 'uuid';
 
 
 // Helper function to update image metadata after creation
@@ -72,22 +36,18 @@ async function updateImageMetadata(createdProduct: any, productData: ProductData
               metadataPayload.description = productData.longDescription;
             }
             
-            // Only make the call if there is data to update
             if (Object.keys(metadataPayload).length === 0) {
                 continue;
             }
 
             const mediaUpdateUrl = `${wooUrl}/wp-json/wp/v2/media/${image.id}`;
             
-            // WordPress REST API uses POST for updates on the media endpoint
             await axios.post(mediaUpdateUrl, metadataPayload, {
                 auth: {
                   username: consumerKey,
                   password: consumerSecret,
                 },
-                headers: {
-                    'Content-Type': 'application/json'
-                }
+                headers: { 'Content-Type': 'application/json' }
             });
 
             console.log(`[WooAutomate] Successfully updated metadata for image ID: ${image.id}`);
@@ -103,33 +63,24 @@ async function updateImageMetadata(createdProduct: any, productData: ProductData
     }
 }
 
+// Helper to create a URL-friendly slug
+const slugify = (text: string) => {
+    return text.toString().toLowerCase()
+        .replace(/\s+/g, '-')           // Replace spaces with -
+        .replace(/[^\w-]+/g, '')       // Remove all non-word chars
+        .replace(/--+/g, '-')         // Replace multiple - with single -
+        .replace(/^-+/, '')             // Trim - from start of text
+        .replace(/-+$/, '');            // Trim - from end of text
+};
 
 // Helper function to format data for WooCommerce API
-const formatProductForWooCommerce = (data: ProductData) => {
-  const primaryPhoto = data.photos.find(p => p.isPrimary) || data.photos[0];
-  const galleryPhotos = data.photos.filter(p => p.id !== primaryPhoto?.id);
-
-  const wooImages = [];
-  if (primaryPhoto?.url) {
-    // Set name for title, and alt for alt text.
-    wooImages.push({ src: primaryPhoto.url, position: 0, name: data.name, alt: data.name });
-  }
-  galleryPhotos.forEach((photo, index) => {
-    if (photo.url) {
-      // Set name for title, and alt for alt text.
-      wooImages.push({ src: photo.url, position: index + 1, name: data.name, alt: data.name });
-    }
-  });
-
+const formatProductForWooCommerce = (data: ProductData, processedImageUrls: { src: string }[]) => {
   const wooAttributes = data.attributes
-    .filter(attr => attr.name && attr.value) // Ensure attribute has name and value
+    .filter(attr => attr.name && attr.value)
     .map(attr => ({
       name: attr.name,
-      // For variable products, options should be an array of strings.
-      // For simple products, it's a single string in the `options` array.
       options: data.productType === 'variable' ? attr.value.split('|').map(s => s.trim()) : [attr.value],
       visible: true,
-      // This is crucial for variable products.
       variation: data.productType === 'variable'
     }));
   
@@ -137,9 +88,16 @@ const formatProductForWooCommerce = (data: ProductData) => {
     ? data.keywords.split(',').map(k => ({ name: k.trim() })).filter(k => k.name) 
     : [];
 
+  const wooImages = processedImageUrls.map((img, index) => ({
+      src: img.src,
+      position: index,
+      name: data.name,
+      alt: data.name,
+  }));
+
   const wooProduct = {
     name: data.name,
-    sku: data.sku || undefined, // Send undefined if empty to let WC handle it
+    sku: data.sku || undefined,
     type: data.productType,
     regular_price: data.regularPrice,
     sale_price: data.salePrice || undefined,
@@ -153,6 +111,7 @@ const formatProductForWooCommerce = (data: ProductData) => {
 
   return wooProduct;
 };
+
 
 export async function POST(request: NextRequest) {
   // 1. Authenticate the user
@@ -169,47 +128,78 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Invalid or expired authentication token.' }, { status: 401 });
   }
 
-  // 2. Validate WooCommerce API client
+  // 2. Validate WooCommerce & Firebase Admin clients
   if (!wooApi) {
     return NextResponse.json({ success: false, error: 'WooCommerce API client is not configured on the server.' }, { status: 503 });
   }
+  if (!adminStorage) {
+    return NextResponse.json({ success: false, error: 'Firebase Storage Admin client is not configured on the server.' }, { status: 503 });
+  }
 
   const productData: ProductData = await request.json();
+  const processedImageUrls: { src: string }[] = [];
 
+  // 3. Process and upload images to Firebase Storage
+  if (productData.photos && productData.photos.length > 0) {
+    const bucket = adminStorage.bucket();
+
+    // Sort photos to ensure primary is first
+    const sortedPhotos = [...productData.photos].sort((a, b) => (a.isPrimary ? -1 : b.isPrimary ? 1 : 0));
+
+    for (const photo of sortedPhotos) {
+      if (!photo.dataUri) continue;
+
+      try {
+        const base64EncodedImageString = photo.dataUri.split(',')[1];
+        if (!base64EncodedImageString) throw new Error('Invalid data URI');
+
+        const imageBuffer = Buffer.from(base64EncodedImageString, 'base64');
+        
+        const processedBuffer = await sharp(imageBuffer)
+            .resize(1000, 1000, { fit: 'cover' })
+            .webp({ quality: 85 })
+            .toBuffer();
+
+        const seoFilename = `${slugify(productData.name || 'product')}-${uuidv4()}.webp`;
+        const filePath = `product-images/${seoFilename}`;
+        const file = bucket.file(filePath);
+
+        await file.save(processedBuffer, {
+            metadata: { contentType: 'image/webp' },
+            public: true,
+        });
+        
+        const publicUrl = file.publicUrl();
+        processedImageUrls.push({ src: publicUrl });
+
+      } catch (imageError: any) {
+        console.error(`Error processing image ${photo.name}:`, imageError);
+        return NextResponse.json({ success: false, error: `Failed to process image: ${photo.name}. Reason: ${imageError.message}` }, { status: 500 });
+      }
+    }
+  }
+  
+  // 4. Send data to WooCommerce
   try {
-    // 3. Get and format product data
-    const formattedProduct = formatProductForWooCommerce(productData);
+    const formattedProduct = formatProductForWooCommerce(productData, processedImageUrls);
 
-    // 4. Send data to WooCommerce
     const response = await wooApi.post('products', formattedProduct);
 
-    // 5. Handle WooCommerce response
     if (response.status >= 200 && response.status < 300) {
       const createdProduct = response.data;
 
       // Asynchronously update image caption and description metadata.
-      // This is "fire and forget" so we don't delay the main response.
       if (createdProduct.images && createdProduct.images.length > 0) {
           console.log(`[WooAutomate] Product ${createdProduct.id} created. Updating metadata for ${createdProduct.images.length} images.`);
           updateImageMetadata(createdProduct, productData);
       }
       
-      // "Fire and forget" deletion of images from the external server
-      if (productData.photos && productData.photos.length > 0) {
-        console.log(`[WooAutomate] Triggering background deletion of ${productData.photos.length} source images from quefoto.es.`);
-        // We don't await this so the client gets a fast response.
-        Promise.all(productData.photos.map(photo => deleteImageFromQueFoto(photo.url || '')))
-          .catch(err => console.error('[WooAutomate] An error occurred during the background image deletion process:', err));
-      }
-
       return NextResponse.json({ success: true, data: createdProduct }, { status: response.status });
     } else {
-      // This case might not be hit if wooApi throws on non-2xx statuses, but it's good practice
       return NextResponse.json({ success: false, error: 'Received a non-successful status from WooCommerce.', details: response.data }, { status: response.status });
     }
 
   } catch (error: any) {
-    // 6. Handle any errors during the process
     console.error('Error creating product in WooCommerce:', error.response?.data || error.message);
     const errorMessage = error.response?.data?.message || 'An unknown error occurred while creating the product.';
     const errorStatus = error.response?.status || 500;
