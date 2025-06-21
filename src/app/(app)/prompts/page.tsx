@@ -1,14 +1,15 @@
 
 "use client";
 
-import { useState }from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Brain, Info, Save } from "lucide-react";
+import { Brain, Info, Save, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { auth, onAuthStateChanged } from "@/lib/firebase";
 
 const DEFAULT_PROMPT_TEMPLATE = `You are an expert botanist, e-commerce copywriter, and SEO specialist with access to a vast database of botanical information.
 Your primary task is to receive a plant name and generate a complete, accurate, and compelling product listing for a WooCommerce store. You must research the plant to find all the necessary details.
@@ -60,14 +61,93 @@ Generate the complete JSON object based on your research of "{{productName}}".
 
 
 export default function PromptsPage() {
-    const [prompt, setPrompt] = useState(DEFAULT_PROMPT_TEMPLATE);
+    const [prompt, setPrompt] = useState("");
+    const [isSaving, setIsSaving] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
 
-    const handleSave = () => {
-        toast({
-            title: "Función en desarrollo",
-            description: "La capacidad de guardar y utilizar prompts personalizados se implementará próximamente.",
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                try {
+                    const token = await user.getIdToken();
+                    const response = await fetch('/api/user-settings/prompt', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.prompt) {
+                            setPrompt(data.prompt);
+                        } else {
+                            setPrompt(DEFAULT_PROMPT_TEMPLATE);
+                        }
+                    } else {
+                        // Handle non-ok responses, e.g., if API returns error
+                        setPrompt(DEFAULT_PROMPT_TEMPLATE);
+                    }
+                } catch (error) {
+                    console.error("Error fetching custom prompt:", error);
+                    toast({
+                        title: "Error al cargar plantilla",
+                        description: "No se pudo cargar tu plantilla personalizada. Se usará la plantilla por defecto.",
+                        variant: "destructive"
+                    });
+                     setPrompt(DEFAULT_PROMPT_TEMPLATE);
+                } finally {
+                    setIsLoading(false);
+                }
+            } else {
+                setIsLoading(false);
+                 setPrompt(DEFAULT_PROMPT_TEMPLATE); // Show default if not logged in
+            }
         });
+
+        return () => unsubscribe();
+    }, [toast]);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        const user = auth.currentUser;
+        if (!user) {
+            toast({
+                title: "Error de autenticación",
+                description: "Debes iniciar sesión para guardar.",
+                variant: "destructive"
+            });
+            setIsSaving(false);
+            return;
+        }
+
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/user-settings/prompt', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ prompt })
+            });
+
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.error || 'Error al guardar la plantilla');
+            }
+
+            toast({
+                title: "Plantilla Guardada",
+                description: "Tu plantilla de prompt ha sido actualizada.",
+            });
+        } catch (error: any) {
+            toast({
+                title: "Error al Guardar",
+                description: error.message,
+                variant: "destructive",
+            });
+        } finally {
+            setIsSaving(false);
+        }
     }
 
   return (
@@ -88,8 +168,8 @@ export default function PromptsPage() {
             <Info className="h-4 w-4" />
             <AlertTitle>¿Cómo funciona esto?</AlertTitle>
             <AlertDescription>
-                <p>Aquí puedes editar la plantilla de "prompt" que se envía al modelo de IA (Gemini) para generar el contenido de tus productos. Puedes ajustar el tono, el estilo y las instrucciones para que se adapten mejor a tu marca.</p>
-                <p className="mt-2">Utiliza placeholders como <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{productName}}`}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{productType}}`}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{keywords}}`}</code>, y <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{language}}`}</code>. El sistema los reemplazará con los datos del producto correspondiente en cada solicitud.</p>
+                <p>{`Aquí puedes editar la plantilla de "prompt" que se envía al modelo de IA (Gemini) para generar el contenido de tus productos. Puedes ajustar el tono, el estilo y las instrucciones para que se adapten mejor a tu marca.`}</p>
+                <p className="mt-2">{`Utiliza placeholders como`} <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{productName}}`}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{productType}}`}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{keywords}}`}</code>, y <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{language}}`}</code>. {`El sistema los reemplazará con los datos del producto correspondiente en cada solicitud.`}</p>
                 <p className="mt-2 font-semibold">Nota: La estructura de salida JSON no es editable desde aquí para garantizar la compatibilidad.</p>
             </AlertDescription>
         </Alert>
@@ -101,18 +181,29 @@ export default function PromptsPage() {
             <CardContent className="space-y-4">
                 <div>
                     <Label htmlFor="prompt-template" className="text-base">Prompt para generar descripciones y palabras clave</Label>
-                    <Textarea 
-                        id="prompt-template"
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        className="mt-2 font-code min-h-[400px] text-sm"
-                        placeholder="Introduce tu prompt de IA aquí..."
-                    />
+                     {isLoading ? (
+                        <div className="mt-2 flex h-[400px] w-full items-center justify-center rounded-md border border-dashed">
+                             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                             <p className="ml-2 text-muted-foreground">Cargando plantilla...</p>
+                        </div>
+                    ) : (
+                        <Textarea 
+                            id="prompt-template"
+                            value={prompt}
+                            onChange={(e) => setPrompt(e.target.value)}
+                            className="mt-2 font-code min-h-[400px] text-sm"
+                            placeholder="Introduce tu prompt de IA aquí..."
+                        />
+                    )}
                 </div>
                 <div className="flex justify-end">
-                    <Button onClick={handleSave} disabled>
-                        <Save className="mr-2 h-4 w-4" />
-                        Guardar Plantilla
+                    <Button onClick={handleSave} disabled={isSaving || isLoading}>
+                        {isSaving ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                            <Save className="mr-2 h-4 w-4" />
+                        )}
+                        {isSaving ? "Guardando..." : "Guardar Plantilla"}
                     </Button>
                 </div>
             </CardContent>
