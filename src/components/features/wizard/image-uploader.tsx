@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { v4 as uuidv4 } from 'uuid';
 import Image from 'next/image';
@@ -9,42 +10,26 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import type { ProductPhoto } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { auth } from '@/lib/firebase'; // Import Firebase auth
+import { auth } from '@/lib/firebase';
 
 interface ImageUploaderProps {
   photos: ProductPhoto[];
   onPhotosChange: (photos: ProductPhoto[]) => void;
 }
 
-export function ImageUploader({ photos, onPhotosChange }: ImageUploaderProps) {
+export function ImageUploader({ photos: photosProp, onPhotosChange }: ImageUploaderProps) {
   const { toast } = useToast();
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    const newPhotos: ProductPhoto[] = acceptedFiles.map(file => ({
-      id: uuidv4(),
-      file: file,
-      name: file.name,
-      previewUrl: URL.createObjectURL(file),
-      isPrimary: false,
-    }));
+  // Guarantees `photos` is an array and memoizes it for stability in callbacks.
+  const photos = useMemo(() => (Array.isArray(photosProp) ? photosProp : []), [photosProp]);
 
-    const combinedPhotos = [...photos, ...newPhotos];
-    if (combinedPhotos.filter(p => p.isPrimary).length === 0 && combinedPhotos.length > 0) {
-        combinedPhotos[0].isPrimary = true;
-    }
-
-    onPhotosChange(combinedPhotos);
-    
-    newPhotos.forEach(photo => handleUpload(photo));
-  }, [photos, onPhotosChange, toast]);
-
-  const handleUpload = async (photoToUpload: ProductPhoto) => {
+  const handleUpload = useCallback(async (photoToUpload: ProductPhoto) => {
     if (!photoToUpload.file) return;
 
     const user = auth.currentUser;
     if (!user) {
       toast({ title: "Error de Autenticación", description: "Debes iniciar sesión para subir imágenes.", variant: "destructive" });
-      onPhotosChange(prevPhotos => prevPhotos.filter(p => p.id !== photoToUpload.id));
+      onPhotosChange(prevPhotos => (Array.isArray(prevPhotos) ? prevPhotos : []).filter(p => p.id !== photoToUpload.id));
       return;
     }
 
@@ -66,7 +51,7 @@ export function ImageUploader({ photos, onPhotosChange }: ImageUploaderProps) {
       }
 
       onPhotosChange(prevPhotos =>
-        prevPhotos.map(p =>
+        (Array.isArray(prevPhotos) ? prevPhotos : []).map(p =>
           p.id === photoToUpload.id
             ? { ...p, url: result.url, file: undefined }
             : p
@@ -82,11 +67,30 @@ export function ImageUploader({ photos, onPhotosChange }: ImageUploaderProps) {
         description: `No se pudo subir ${photoToUpload.name}. ${(error as Error).message}`,
         variant: "destructive",
       });
-      onPhotosChange(prevPhotos => prevPhotos.filter(p => p.id !== photoToUpload.id));
+      onPhotosChange(prevPhotos => (Array.isArray(prevPhotos) ? prevPhotos : []).filter(p => p.id !== photoToUpload.id));
     }
-  };
+  }, [onPhotosChange, toast]);
 
-  const handleDelete = async (photoToDelete: ProductPhoto) => {
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    const newPhotos: ProductPhoto[] = acceptedFiles.map(file => ({
+      id: uuidv4(),
+      file: file,
+      name: file.name,
+      previewUrl: URL.createObjectURL(file),
+      isPrimary: false,
+    }));
+
+    const combinedPhotos = [...photos, ...newPhotos];
+    if (combinedPhotos.filter(p => p.isPrimary).length === 0 && combinedPhotos.length > 0) {
+        combinedPhotos[0].isPrimary = true;
+    }
+
+    onPhotosChange(combinedPhotos);
+    
+    newPhotos.forEach(photo => handleUpload(photo));
+  }, [photos, onPhotosChange, handleUpload]);
+
+  const handleDelete = useCallback(async (photoToDelete: ProductPhoto) => {
     const remainingPhotos = photos.filter(p => p.id !== photoToDelete.id);
     
     if (photoToDelete.isPrimary && remainingPhotos.length > 0) {
@@ -129,9 +133,9 @@ export function ImageUploader({ photos, onPhotosChange }: ImageUploaderProps) {
         });
       }
     }
-  };
+  }, [photos, onPhotosChange, toast]);
   
-  const setAsPrimary = (id: string) => {
+  const setAsPrimary = useCallback((id: string) => {
     const updatedPhotos = photos.map(p => ({
         ...p,
         isPrimary: p.id === id
@@ -139,7 +143,7 @@ export function ImageUploader({ photos, onPhotosChange }: ImageUploaderProps) {
     const primaryPhoto = updatedPhotos.find(p => p.isPrimary);
     const otherPhotos = updatedPhotos.filter(p => !p.isPrimary);
     onPhotosChange(primaryPhoto ? [primaryPhoto, ...otherPhotos] : otherPhotos);
-  };
+  }, [photos, onPhotosChange]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
