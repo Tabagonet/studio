@@ -174,6 +174,13 @@ export async function POST(request: NextRequest) {
 
       } catch (imageError: any) {
         console.error(`Error processing image ${photo.name}:`, imageError);
+
+        if (imageError.code === 404 || (imageError.message && imageError.message.toLowerCase().includes('bucket does not exist'))) {
+          const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+          const userFriendlyError = `Error de Configuración: El bucket de Firebase Storage ('${bucketName || 'No configurado'}') no existe. \n\n**Solución:**\n1. Ve a tu Consola de Firebase.\n2. Ve a la sección "Storage".\n3. Haz clic en "Comenzar" para crear el bucket por defecto.\n4. Asegúrate de que la variable de entorno NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET coincide con el nombre del bucket.`;
+          return NextResponse.json({ success: false, error: userFriendlyError }, { status: 500 });
+        }
+        
         return NextResponse.json({ success: false, error: `Failed to process image: ${photo.name}. Reason: ${imageError.message}` }, { status: 500 });
       }
     }
