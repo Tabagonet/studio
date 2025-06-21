@@ -1,5 +1,15 @@
 
 'use server';
-// This file is intentionally left blank.
-// Genkit initialization has been moved into the specific server action that uses it
-// to prevent Next.js module resolution issues.
+
+/**
+ * @fileOverview Centralized Genkit initialization.
+ * This file configures and exports a single `ai` instance for use across the application.
+ */
+
+import { genkit } from '@genkit-ai/core';
+import { googleAI } from '@genkit-ai/googleai';
+
+export const ai = genkit({
+  plugins: [googleAI()],
+  enableTelemetry: false,
+});

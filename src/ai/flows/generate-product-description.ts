@@ -11,9 +11,7 @@
  * - GenerateProductDescriptionOutputSchema - The Zod schema for the output.
  */
 
-// Use namespace imports to avoid module resolution issues with the Next.js compiler.
-import * as genkitCore from '@genkit-ai/core';
-import * as googleAIPlugin from '@genkit-ai/googleai';
+import { ai } from '@/ai/genkit'; // Import the central AI instance
 import { z } from 'zod';
 
 // --- Zod Schemas ---
@@ -31,31 +29,11 @@ export const GenerateProductDescriptionOutputSchema = z.object({
 export type GenerateProductDescriptionOutput = z.infer<typeof GenerateProductDescriptionOutputSchema>;
 
 
-// --- Genkit Initialization and Flow ---
-
-// This pattern prevents Next.js from re-initializing Genkit on every hot-reload in development.
-// It stores the instance in a global variable, which persists across reloads.
-declare global {
-  var __genkit_ai_instance: any;
-}
-
-const getGenkitInstance = () => {
-  if (!global.__genkit_ai_instance) {
-    console.log('Initializing new Genkit instance...');
-    // Use the namespace import and remove deprecated options
-    global.__genkit_ai_instance = genkitCore.genkit({
-      plugins: [googleAIPlugin.googleAI()],
-      enableTelemetry: false,
-    });
-  }
-  return global.__genkit_ai_instance;
-};
-
-const ai = getGenkitInstance();
+// --- Genkit Flow ---
 
 // Define the prompt at the top level of the module.
 const productDescriptionPrompt = ai.definePrompt({
-  name: 'productDescriptionPrompt_v6_singleton', // v6 to avoid cache issues
+  name: 'productDescriptionPrompt_v7_centralized', // v7 to avoid cache issues
   input: { schema: GenerateProductDescriptionInputSchema },
   output: { schema: GenerateProductDescriptionOutputSchema },
   prompt: `
@@ -83,7 +61,7 @@ const productDescriptionPrompt = ai.definePrompt({
 // Define the flow at the top level of the module.
 const generateProductDescriptionFlow = ai.defineFlow(
   {
-    name: 'generateProductDescriptionFlowSingleton_v2',
+    name: 'generateProductDescriptionFlowSingleton_v3',
     inputSchema: GenerateProductDescriptionInputSchema,
     outputSchema: GenerateProductDescriptionOutputSchema,
   },
