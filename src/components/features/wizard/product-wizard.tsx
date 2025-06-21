@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Step1DetailsPhotos } from './step-1-details-photos';
+import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
 import { Step2Preview } from './step-2-preview'; 
 import { Step3Confirm } from './step-3-confirm';
 import { Step4Processing } from './step-4-processing';
@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { ArrowLeft, ArrowRight, Rocket } from 'lucide-react';
 import axios from 'axios';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export function ProductWizard() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -31,7 +32,6 @@ export function ProductWizard() {
     setProductData(prevData => {
       const newPhotos = prevData.photos.map(p => p.id === photoId ? { ...p, ...updates } : p);
       
-      // Calculate overall image upload progress
       const totalProgress = newPhotos.reduce((acc, p) => acc + (p.progress || 0), 0);
       const averageProgress = newPhotos.length > 0 ? totalProgress / newPhotos.length : 0;
       setProgress(prevProgress => ({ ...prevProgress, images: Math.round(averageProgress) }));
@@ -48,12 +48,10 @@ export function ProductWizard() {
         return;
     }
     
-    // START PROCESSING
     setProcessingState('uploading');
     const token = await user.getIdToken();
 
-    // STEP 1: UPLOAD IMAGES
-    const photosToUpload = productData.photos.filter(p => p.status === 'pending');
+    const photosToUpload = productData.photos.filter(p => p.file && p.status !== 'completed');
     const uploadPromises = photosToUpload.map(photo => {
       if (!photo.file) return Promise.resolve(null);
       const formData = new FormData();
@@ -69,11 +67,10 @@ export function ProductWizard() {
           const result = response.data;
           if (!result.success) throw new Error(result.error || 'La subida ha fallado');
           updatePhotoState(photo.id, { status: 'completed', progress: 100, url: result.url });
-          return result;
+          return { ...photo, url: result.url };
       }).catch(error => {
           const errorMessage = error.response?.data?.error || error.message || 'Error desconocido';
           updatePhotoState(photo.id, { status: 'error', error: errorMessage, progress: 0 });
-          // Make the promise reject to be caught by allSettled
           return Promise.reject(new Error(`Fallo al subir ${photo.name}: ${errorMessage}`));
       });
     });
@@ -91,31 +88,22 @@ export function ProductWizard() {
       return;
     }
 
-    // After all uploads are done, update the product data with the final URLs.
-    // This is a bit tricky because state updates are async. We'll construct the final data here.
-    const finalPhotosWithUrls = productData.photos.map(p => {
-        const result = uploadResults.find(res => res.status === 'fulfilled' && res.value?.originalName === p.name);
-        if (result && result.status === 'fulfilled' && result.value) {
-            return { ...p, url: result.value.url };
-        }
-        return p;
-    });
+    const successfullyUploadedPhotos = uploadResults
+      .filter((r): r is PromiseFulfilledResult<ProductPhoto> => r.status === 'fulfilled' && r.value !== null)
+      .map(r => r.value);
     
-    // STEP 2: CREATE PRODUCT IN WOOCOMMERCE
+    const finalPhotosWithUrls = productData.photos.map(p => {
+        const uploadedVersion = successfullyUploadedPhotos.find(up => up.id === p.id);
+        return uploadedVersion || p;
+    });
+
     setProcessingState('creating');
-    setProgress(prev => ({ ...prev, product: 50 })); // Indicate processing start
+    setProgress(prev => ({ ...prev, product: 50 }));
 
     try {
         const finalProductData = {
           ...productData,
-          // Re-map photos to ensure all URLs are correctly passed
-          photos: productData.photos.map(p => {
-            const correspondingResult = uploadResults.find(res => res.status === 'fulfilled' && res.value && (res.value as any).originalFilename === p.file?.name);
-            if (correspondingResult && correspondingResult.status === 'fulfilled' && correspondingResult.value) {
-              return { ...p, url: (correspondingResult.value as any).url };
-            }
-            return p;
-          })
+          photos: finalPhotosWithUrls,
         };
         
         const response = await axios.post('/api/woocommerce/products', finalProductData, {
@@ -140,6 +128,7 @@ export function ProductWizard() {
             variant: "destructive",
         });
         setProcessingState('error');
+        console.error("Full error object when creating product:", error.response?.data || error);
     }
 
   }, [productData, toast, updatePhotoState]);
@@ -192,22 +181,20 @@ export function ProductWizard() {
     <div className="space-y-8">
       {renderStep()}
       
-      {currentStep < 4 && (
+      {currentStep < 4 && !isProcessing && (
         <div className="flex justify-between mt-8">
-            <Button onClick={prevStep} disabled={currentStep === 1 || isProcessing}>
+            <Button onClick={prevStep} disabled={currentStep === 1}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Anterior
             </Button>
 
-            {currentStep < 3 && (
-            <Button onClick={nextStep} disabled={isProcessing}>
+            {currentStep < 3 ? (
+            <Button onClick={nextStep}>
                 Siguiente
                 <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
-            )}
-            
-            {currentStep === 3 && (
-            <Button onClick={() => setCurrentStep(4)} disabled={isProcessing}>
+            ) : (
+            <Button onClick={() => setCurrentStep(4)}>
                 <Rocket className="mr-2 h-4 w-4" />
                 Crear Producto
             </Button>
@@ -215,23 +202,22 @@ export function ProductWizard() {
         </div>
       )}
 
-      {processingState === 'finished' && (
+      {(processingState === 'finished' || processingState === 'error') && (
          <Card>
             <CardHeader>
-                <CardTitle>Siguientes Pasos</CardTitle>
+                <CardTitle>{processingState === 'finished' ? 'Proceso Completado' : 'Proceso Interrumpido'}</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-4">
                 <Button onClick={startOver}>Crear otro producto</Button>
                 {/* This could link to the created product in WooCommerce admin */}
-                <Button variant="outline" disabled>Ver producto en WooCommerce (próximamente)</Button>
+                {processingState === 'finished' && <Button variant="outline" disabled>Ver producto en WooCommerce (próximamente)</Button>}
             </CardContent>
         </Card>
       )}
 
-      {/* <pre className="mt-4 p-4 bg-muted rounded-md text-xs overflow-x-auto">
+      {/* <div className="mt-4 p-4 bg-muted rounded-md text-xs overflow-x-auto">
         <code>{JSON.stringify({productData, processingState, progress}, null, 2)}</code>
-      </pre> */}
+      </div> */}
     </div>
   );
 }
-
