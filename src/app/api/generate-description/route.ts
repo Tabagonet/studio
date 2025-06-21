@@ -2,9 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 
-// --- Type Imports Only ---
-// We only import the Zod schemas and TypeScript types here.
-// This is safe and does not cause module conflicts.
+// --- Type and Schema Imports Only ---
 import {
   GenerateProductDescriptionInputSchema,
   GenerateProductDescriptionOutputSchema,
@@ -49,27 +47,30 @@ export async function POST(req: NextRequest) {
     const body: GenerateProductDescriptionInput = await req.json();
     console.log('/api/generate-description: Request body parsed successfully:', body);
 
-    // --- DYNAMIC NAMESPACE IMPORT & SELF-CONTAINED AI LOGIC ---
-    // This is the robust way to import in environments with module resolution issues.
+    // --- DYNAMIC IMPORT & SELF-CONTAINED AI LOGIC ---
     console.log('/api/generate-description: Dynamically importing Genkit and Google AI plugin...');
-    const genkitCore = await import('@genkit-ai/core');
-    const googleAIPlugin = await import('@genkit-ai/googleai');
     
-    // Extract functions from the imported modules
-    const genkit = genkitCore.genkit;
-    const googleAI = googleAIPlugin.googleAI;
+    // NEW STRATEGY: Import the entire module to inspect its structure and handle interop issues.
+    const genkitCoreModule = await import('@genkit-ai/core');
+    const googleAIPluginModule = await import('@genkit-ai/googleai');
+    
+    // Log the entire imported module to see its structure for debugging.
+    console.log('/api/generate-description: genkitCoreModule content:', JSON.stringify(genkitCoreModule));
+    console.log('/api/generate-description: googleAIPluginModule content:', JSON.stringify(googleAIPluginModule));
+
+    // Attempt to get the functions. The key might be 'genkit' or 'default' due to CJS/ESM interop.
+    const genkit = genkitCoreModule.genkit || genkitCoreModule.default;
+    const googleAI = googleAIPluginModule.googleAI || googleAIPluginModule.default;
 
     // Verbose check to ensure the functions were loaded correctly.
     if (typeof genkit !== 'function') {
       const errorMsg = `CRITICAL: The imported 'genkit' is not a function. Type is: ${typeof genkit}`;
       console.error(errorMsg);
-      console.error('Full genkitCore import content:', genkitCore);
       throw new Error(errorMsg);
     }
      if (typeof googleAI !== 'function') {
       const errorMsg = `CRITICAL: The imported 'googleAI' is not a function. Type is: ${typeof googleAI}`;
       console.error(errorMsg);
-      console.error('Full googleAIPlugin import content:', googleAIPlugin);
       throw new Error(errorMsg);
     }
     console.log('/api/generate-description: Dynamic imports successful and functions verified.');
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
 
     console.log('/api/generate-description: Defining prompt...');
     const productDescriptionPrompt = ai.definePrompt({
-      name: 'productDescriptionPrompt_api_v3', // Unique name
+      name: 'productDescriptionPrompt_api_v5', // Unique name
       input: { schema: GenerateProductDescriptionInputSchema },
       output: { schema: GenerateProductDescriptionOutputSchema },
       prompt: `
