@@ -15,20 +15,11 @@ import { ArrowLeft, ArrowRight, Rocket } from 'lucide-react';
 import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-const fileToDataUri = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-};
-
 export function ProductWizard() {
   const [currentStep, setCurrentStep] = useState(1);
   const [productData, setProductData] = useState<ProductData>(INITIAL_PRODUCT_DATA);
   const [processingState, setProcessingState] = useState<WizardProcessingState>('idle');
-  const [progress, setProgress] = useState({ images: 0, product: 0 }); // Progress kept for UI
+  const [progress, setProgress] = useState({ images: 0, product: 0 });
   const { toast } = useToast();
 
   const isProcessing = processingState === 'processing';
@@ -46,28 +37,46 @@ export function ProductWizard() {
     }
     
     setProcessingState('processing');
-    setProgress({ images: 5, product: 0 }); // Start progress
+    setProgress({ images: 0, product: 0 });
 
     try {
         const token = await user.getIdToken();
 
-        // Convert files to Data URIs for API transfer
-        const photosWithDataUri = await Promise.all(
-            productData.photos
-                .filter(p => p.file)
-                .map(async (photo) => ({
-                    ...photo,
-                    dataUri: await fileToDataUri(photo.file!),
-                    file: undefined, // Remove File object before serialization
-                }))
-        );
+        // Step 1: Upload images to the temporary server (quefoto.es)
+        const photosToUpload = productData.photos.filter(p => p.file);
+        const uploadedPhotosInfo: { id: string; uploadedUrl: string; uploadedFilename: string }[] = [];
 
-        setProgress({ images: 25, product: 0 }); // Files read
+        if (photosToUpload.length > 0) {
+          for (const [index, photo] of photosToUpload.entries()) {
+              const formData = new FormData();
+              formData.append('imagen', photo.file!);
+              
+              const uploadResponse = await axios.post('/api/upload-image', formData, {
+                  headers: { 'Authorization': `Bearer ${token}` }
+              });
 
-        // Re-integrate photos with Data URIs back into the main photo list
+              if (!uploadResponse.data.success) {
+                  throw new Error(`Error subiendo ${photo.name}: ${uploadResponse.data.error}`);
+              }
+              
+              uploadedPhotosInfo.push({
+                  id: photo.id,
+                  uploadedUrl: uploadResponse.data.url,
+                  uploadedFilename: uploadResponse.data.filename_saved_on_server,
+              });
+              
+              setProgress(prev => ({ ...prev, images: Math.round(((index + 1) / photosToUpload.length) * 100) }));
+          }
+        }
+        setProgress({ images: 100, product: 10 });
+
+        // Update productData with the new uploaded URLs before sending to final API
         const finalPhotosForApi = productData.photos.map(p => {
-            const photoWithData = photosWithDataUri.find(pwd => pwd.id === p.id);
-            return photoWithData || { ...p, file: undefined };
+            const uploadedInfo = uploadedPhotosInfo.find(info => info.id === p.id);
+            if (uploadedInfo) {
+              return { ...p, file: undefined, uploadedUrl: uploadedInfo.uploadedUrl, uploadedFilename: uploadedInfo.uploadedFilename };
+            }
+            return { ...p, file: undefined };
         });
 
         const finalProductData = {
@@ -75,23 +84,35 @@ export function ProductWizard() {
           photos: finalPhotosForApi,
         };
         
-        setProgress({ images: 50, product: 0 }); // Data prepared for API
-
-        const response = await axios.post('/api/woocommerce/products', finalProductData, {
+        // Step 2: Create product in WooCommerce, which will fetch images from the temp URL
+        const createResponse = await axios.post('/api/woocommerce/products', finalProductData, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
-        setProgress({ images: 100, product: 50 }); // API responded
+        setProgress(prev => ({ ...prev, product: 80 }));
 
-        if (response.data.success) {
+        if (createResponse.data.success) {
             toast({
               title: "¡Producto Creado!",
-              description: `"${response.data.data.name}" se ha creado en WooCommerce.`,
+              description: `"${createResponse.data.data.name}" se ha creado en WooCommerce.`,
             });
+            
+            // Step 3 (Fire and Forget): Delete images from temp server
+             for (const photo of finalPhotosForApi) {
+                if (photo.uploadedFilename) {
+                    axios.post('/api/delete-image', { filename: photo.uploadedFilename }, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    }).catch(err => {
+                        // Log cleanup error but don't fail the whole process
+                        console.warn(`Error en la limpieza de la imagen temporal ${photo.uploadedFilename}:`, err);
+                    });
+                }
+            }
+
             setProgress({ images: 100, product: 100 });
             setProcessingState('finished');
         } else {
-            throw new Error(response.data.error || 'Error desconocido al crear el producto.');
+            throw new Error(createResponse.data.error || 'Error desconocido al crear el producto.');
         }
 
     } catch (error: any) {

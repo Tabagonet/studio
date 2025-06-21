@@ -17,13 +17,14 @@ export interface ProductPhoto {
   id: string; // Unique ID for the photo (e.g., uuid)
   file?: File; // The actual file object, present only on client-side before upload
   previewUrl: string; // Used for client-side preview (object URL)
-  url?: string; // Public URL from host, available after upload
   name: string; // filename
   isPrimary?: boolean;
   status: UploadStatus;
   progress: number; // 0-100
   error?: string; // Error message if upload fails
-  dataUri?: string; // Used to transport file to serverless API
+  // Fields for the new upload flow
+  uploadedUrl?: string; // The URL from the temporary host (quefoto.es)
+  uploadedFilename?: string; // The filename on the temporary host
 }
 
 export interface ProductAttribute {

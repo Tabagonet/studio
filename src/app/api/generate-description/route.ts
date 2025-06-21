@@ -14,8 +14,8 @@ const GenerateProductDescriptionInputSchema = z.object({
 
 // Define output schema for creating the JSON prompt and for parsing
 const GenerateProductDescriptionOutputSchema = z.object({
-  shortDescription: z.string().describe('A brief, catchy, and SEO-friendly summary of the product (1-2 sentences).'),
-  longDescription: z.string().describe('A detailed, persuasive, and comprehensive description of the product, following a specific structure for plants.'),
+  shortDescription: z.string().describe('A brief, catchy, and SEO-friendly summary of the product (1-2 sentences). Must use HTML for formatting.'),
+  longDescription: z.string().describe('A detailed, persuasive, and comprehensive description of the product, following a specific structure for plants. Must use HTML for formatting.'),
   keywords: z.string().describe('A comma-separated list of 5 to 10 relevant SEO keywords/tags for the product, in English, using PascalCase or camelCase format.'),
 });
 
@@ -25,11 +25,11 @@ const jsonSchema = {
     properties: {
         shortDescription: {
             type: 'string',
-            description: "A brief, catchy, and SEO-friendly summary. It MUST start with the product name in bold using Markdown (e.g., '**Cactus**...')."
+            description: "A brief, catchy, and SEO-friendly summary. The product name MUST be wrapped in <strong> HTML tags (e.g., '<strong>Cactus</strong>...')."
         },
         longDescription: {
             type: 'string',
-            description: "A detailed description using Markdown for bold labels and italic values."
+            description: "A detailed description using HTML for formatting. Labels must be bold (<strong>) and values must be italic (<em>)."
         },
         keywords: {
             type: 'string',
@@ -107,31 +107,31 @@ export async function POST(req: NextRequest) {
 
         **Instructions:**
 
-        1.  **shortDescription:** Write a concise and engaging summary in ${language}. It is critically important that the summary begins with the product name, "${productName}", in bold using Markdown. For example: "**${productName}** is a striking succulent...".
+        1.  **shortDescription:** Write a concise and engaging summary in ${language}. It is critically important that the product name, "${productName}", is wrapped in <strong> HTML tags. For example: "<strong>${productName}</strong> is a striking succulent...".
 
-        2.  **longDescription:** Write a detailed and persuasive product description in the requested language (${language}). It MUST follow this exact structure. For each item, make the label bold and the value italic using Markdown.
-            **Botanical Name:** *[Scientific name of the plant]*
-            **Common Names:** *[List of common names, comma separated]*
-            **Mature Size:** *[Typical height and spread]*
-            **Light Requirements:** *[e.g., Full sun]*
-            **Soil Requirements:** *[e.g., Well-drained]*
-            **Water Needs:** *[e.g., Low]*
-            **Foliage:** *[Description of leaves]*
-            **Flowers:** *[Description of flowers]*
-            **Growth Rate:** *[e.g., Moderate]*
-
-            **Uses:**
-            - **Architectural Plant:** *[Brief explanation of this use]*
-            - **Xeriscaping:** *[Brief explanation of this use]*
-            - **Ecological Landscaping:** *[Brief explanation of this use]*
-
-            **Benefits:**
-            - **Extreme Drought Tolerance:** *[Brief explanation of this benefit]*
-            - **Low Maintenance:** *[Brief explanation of this benefit]*
-            - **Visual Interest:** *[Brief explanation of this benefit]*
-            - **Habitat Support:** *[Brief explanation of this benefit]*
-
-            *[Final summary paragraph.]*
+        2.  **longDescription:** Write a detailed and persuasive product description in the requested language (${language}). It MUST follow this exact structure. For each item, make the label bold using <strong> HTML tags and the value italic using <em> HTML tags.
+            <strong>Botanical Name:</strong> <em>[Scientific name of the plant]</em><br>
+            <strong>Common Names:</strong> <em>[List of common names, comma separated]</em><br>
+            <strong>Mature Size:</strong> <em>[Typical height and spread]</em><br>
+            <strong>Light Requirements:</strong> <em>[e.g., Full sun]</em><br>
+            <strong>Soil Requirements:</strong> <em>[e.g., Well-drained]</em><br>
+            <strong>Water Needs:</strong> <em>[e.g., Low]</em><br>
+            <strong>Foliage:</strong> <em>[Description of leaves]</em><br>
+            <strong>Flowers:</strong> <em>[Description of flowers]</em><br>
+            <strong>Growth Rate:</strong> <em>[e.g., Moderate]</em><br>
+            <br>
+            <strong>Uses:</strong><br>
+            - <strong>Architectural Plant:</strong> <em>[Brief explanation of this use]</em><br>
+            - <strong>Xeriscaping:</strong> <em>[Brief explanation of this use]</em><br>
+            - <strong>Ecological Landscaping:</strong> <em>[Brief explanation of this use]</em><br>
+            <br>
+            <strong>Benefits:</strong><br>
+            - <strong>Extreme Drought Tolerance:</strong> <em>[Brief explanation of this benefit]</em><br>
+            - <strong>Low Maintenance:</strong> <em>[Brief explanation of this benefit]</em><br>
+            - <strong>Visual Interest:</strong> <em>[Brief explanation of this benefit]</em><br>
+            - <strong>Habitat Support:</strong> <em>[Brief explanation of this benefit]</em><br>
+            <br>
+            <em>[Final summary paragraph.]</em>
 
         3.  **keywords:** Generate a comma-separated list of 5 to 10 highly relevant SEO keywords/tags. These keywords MUST be in English and use PascalCase or camelCase format.
             *Example:* DroughtTolerant,SucculentGarden,Xeriscaping,LowWaterUse,ArchitecturalPlant,BajaCaliforniaNative

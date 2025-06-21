@@ -12,7 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const DEFAULT_PROMPT_TEMPLATE = `You are an expert botanist, e-commerce copywriter, and SEO specialist.
 Your task is to generate compelling and optimized product descriptions and keywords for a plant product for a WooCommerce store.
-The response must be a valid JSON object.
+The response must be a valid JSON object. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
 
 **Product Information:**
 - **Name:** {{productName}}
@@ -21,31 +21,31 @@ The response must be a valid JSON object.
 - **Existing Keywords (use as inspiration):** {{keywords}}
 
 **Instructions:**
-1.  **shortDescription:** Write a concise and engaging summary in {{language}}. It MUST start with the product name in bold using Markdown (e.g., "**Agave avellanidens** is a..."). Highlight 2-3 key benefits.
+1.  **shortDescription:** Write a concise and engaging summary in {{language}}. The product name, "{{productName}}", MUST be wrapped in <strong> HTML tags (e.g., "<strong>Agave avellanidens</strong> is a..."). Highlight 2-3 key benefits.
 
-2.  **longDescription:** Write a detailed description in {{language}}. It MUST follow this structure, using Markdown for all labels and values.
-    **Botanical Name:** *[Scientific name of the plant]*
-    **Common Names:** *[List of common names, comma separated]*
-    **Mature Size:** *[Typical height and spread]*
-    **Light Requirements:** *[e.g., Full sun]*
-    **Soil Requirements:** *[e.g., Well-drained]*
-    **Water Needs:** *[e.g., Low]*
-    **Foliage:** *[Description of leaves]*
-    **Flowers:** *[Description of flowers]*
-    **Growth Rate:** *[e.g., Moderate]*
+2.  **longDescription:** Write a detailed description in {{language}}. It MUST follow this structure. For each item, make the label bold using <strong> HTML tags and the value italic using <em> HTML tags.
+    <strong>Botanical Name:</strong> <em>[Scientific name of the plant]</em>
+    <strong>Common Names:</strong> <em>[List of common names, comma separated]</em>
+    <strong>Mature Size:</strong> <em>[Typical height and spread]</em>
+    <strong>Light Requirements:</strong> <em>[e.g., Full sun]</em>
+    <strong>Soil Requirements:</strong> <em>[e.g., Well-drained]</em>
+    <strong>Water Needs:</strong> <em>[e.g., Low]</em>
+    <strong>Foliage:</strong> <em>[Description of leaves]</em>
+    <strong>Flowers:</strong> <em>[Description of flowers]</em>
+    <strong>Growth Rate:</strong> <em>[e.g., Moderate]</em>
 
-    **Uses:**
-    - **Architectural Plant:** *[Brief explanation of this use]*
-    - **Xeriscaping:** *[Brief explanation of this use]*
-    - **Ecological Landscaping:** *[Brief explanation of this use]*
+    <strong>Uses:</strong>
+    - <strong>Architectural Plant:</strong> <em>[Brief explanation of this use]</em>
+    - <strong>Xeriscaping:</strong> <em>[Brief explanation of this use]</em>
+    - <strong>Ecological Landscaping:</strong> <em>[Brief explanation of this use]</em>
 
-    **Benefits:**
-    - **Extreme Drought Tolerance:** *[Brief explanation of this benefit]*
-    - **Low Maintenance:** *[Brief explanation of this benefit]*
-    - **Visual Interest:** *[Brief explanation of this benefit]*
-    - **Habitat Support:** *[Brief explanation of this benefit]*
+    <strong>Benefits:</strong>
+    - <strong>Extreme Drought Tolerance:</strong> <em>[Brief explanation of this benefit]</em>
+    - <strong>Low Maintenance:</strong> <em>[Brief explanation of this benefit]</em>
+    - <strong>Visual Interest:</strong> <em>[Brief explanation of this benefit]</em>
+    - <strong>Habitat Support:</strong> <em>[Brief explanation of this benefit]</em>
 
-    *[Final summary paragraph.]*
+    <em>[Final summary paragraph.]</em>
 
 3.  **keywords:** Generate a comma-separated list of 5-10 SEO keywords/tags in English, using PascalCase or camelCase.
     *Example:* DroughtTolerant,SucculentGarden,Xeriscaping,LowWaterUse,ArchitecturalPlant,BajaCaliforniaNative

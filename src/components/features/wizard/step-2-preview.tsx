@@ -51,7 +51,10 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
             <div className="md:col-span-2 space-y-4">
               <div>
                 <h4 className="font-semibold text-lg">Descripción Corta</h4>
-                <p className="text-muted-foreground">{shortDescription || "No especificada."}</p>
+                <div
+                  className="text-muted-foreground prose prose-sm max-w-none"
+                  dangerouslySetInnerHTML={{ __html: shortDescription || "No especificada." }}
+                />
               </div>
               <div>
                 <h4 className="font-semibold text-lg">Precios</h4>
@@ -75,15 +78,18 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
           <div className="space-y-4">
             <div>
               <h4 className="font-semibold text-lg">Descripción Larga</h4>
-              <p className="text-muted-foreground whitespace-pre-wrap">{longDescription || "No especificada."}</p>
+              <div 
+                className="text-muted-foreground whitespace-pre-wrap prose prose-sm max-w-none [&_strong]:text-foreground [&_em]:text-foreground"
+                dangerouslySetInnerHTML={{ __html: longDescription || "No especificada." }}
+              />
             </div>
             
-            {attributes && attributes.length > 0 && attributes[0].name && (
+            {attributes && attributes.length > 0 && attributes.some(attr => attr.name) && (
                 <div>
                     <h4 className="font-semibold text-lg">Atributos</h4>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                        {attributes.map((attr, index) => (
-                           attr.name && <div key={index} className="p-2 border rounded-md">
+                        {attributes.filter(attr => attr.name).map((attr, index) => (
+                           <div key={index} className="p-2 border rounded-md">
                                 <p className="font-medium text-sm">{attr.name}</p>
                                 <p className="text-xs text-muted-foreground">{attr.value}</p>
                             </div>

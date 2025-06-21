@@ -10,12 +10,15 @@ import FormData from 'form-data';
 // Helper to create a URL-friendly slug
 const slugify = (text: string) => {
     return text.toString().toLowerCase()
-        .replace(/\s+/g, '-')           // Replace spaces with -
-        .replace(/[^\w-]+/g, '')       // Remove all non-word chars
-        .replace(/--+/g, '-')         // Replace multiple - with single -
-        .replace(/^-+/, '')             // Trim - from start of text
-        .replace(/-+$/, '');            // Trim - from end of text
+        .replace(/\s+/g, '-')
+        .replace(/[^\w-]+/g, '')
+        .replace(/--+/g, '-')
+        .replace(/^-+/, '')
+        .replace(/-+$/, '');
 };
+
+// Helper to remove HTML tags for plain text contexts
+const stripHtml = (html: string) => html.replace(/<[^>]*>?/gm, '');
 
 // Helper to format data for WooCommerce API
 const formatProductForWooCommerce = (data: ProductData, imageObjects: { id: number, position: number }[]) => {
@@ -39,12 +42,11 @@ const formatProductForWooCommerce = (data: ProductData, imageObjects: { id: numb
     description: data.longDescription,
     short_description: data.shortDescription,
     categories: data.category ? [{ id: data.category.id }] : [],
-    images: imageObjects, // Use the array of {id, position} objects
+    images: imageObjects,
     attributes: wooAttributes,
     tags: wooTags,
   };
 };
-
 
 export async function POST(request: NextRequest) {
   // 1. Authenticate the user
@@ -75,39 +77,36 @@ export async function POST(request: NextRequest) {
   const productData: ProductData = await request.json();
   const uploadedImageObjects: { id: number, position: number }[] = [];
   
-  // 3. Process and upload images directly to WordPress
+  // 3. Process URLs from quefoto.es: download image, then upload to WordPress media library
   if (productData.photos && productData.photos.length > 0) {
     const sortedPhotos = [...productData.photos].sort((a, b) => (a.isPrimary ? -1 : b.isPrimary ? 1 : 0));
 
     for (const [index, photo] of sortedPhotos.entries()) {
-      if (!photo.dataUri) continue;
+      if (!photo.uploadedUrl) continue;
 
       try {
-        const base64EncodedImageString = photo.dataUri.split(',')[1];
-        if (!base64EncodedImageString) throw new Error('Invalid data URI provided.');
-
-        const imageBuffer = Buffer.from(base64EncodedImageString, 'base64');
+        // Download image from the temporary URL
+        const imageResponse = await axios.get(photo.uploadedUrl, { responseType: 'arraybuffer' });
+        const imageBuffer = Buffer.from(imageResponse.data, 'binary');
         
-        const mimeType = photo.dataUri.split(';')[0].split(':')[1] || 'image/jpeg';
+        const mimeType = imageResponse.headers['content-type'] || 'image/jpeg';
         const extension = mimeType.split('/')[1] || 'jpg';
-        
         const seoFilename = `${slugify(productData.name || 'product')}-${uuidv4()}.${extension}`;
         
         const formData = new FormData();
         formData.append('file', imageBuffer, { filename: seoFilename, contentType: mimeType });
         
-        // Append metadata directly to the upload
+        // Append metadata directly to the WordPress media upload
         formData.append('title', productData.name || 'Product Image');
         formData.append('alt_text', productData.name || 'Product Image');
-        if (productData.shortDescription) formData.append('caption', productData.shortDescription);
-        if (productData.longDescription) formData.append('description', productData.longDescription);
+        if (productData.shortDescription) formData.append('caption', stripHtml(productData.shortDescription));
+        if (productData.longDescription) formData.append('description', stripHtml(productData.longDescription));
 
         const mediaUploadUrl = `${wooUrl}/wp-json/wp/v2/media`;
 
         const uploadResponse = await axios.post(mediaUploadUrl, formData, {
             headers: {
               ...formData.getHeaders(),
-              // Use Basic Auth for the WordPress Media API endpoint
               'Authorization': `Basic ${Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64')}`
             },
             maxContentLength: Infinity,
@@ -121,7 +120,7 @@ export async function POST(request: NextRequest) {
         }
 
       } catch (imageError: any) {
-        console.error(`Error processing and uploading image ${photo.name} to WordPress:`, imageError.response?.data || imageError.message);
+        console.error(`Error processing URL ${photo.uploadedUrl}:`, imageError.response?.data || imageError.message);
         const wpError = imageError.response?.data;
         const userFriendlyError = `Error al procesar la imagen '${photo.name}'. Razón: ${wpError?.message || imageError.message}`;
         return NextResponse.json({ success: false, error: userFriendlyError }, { status: imageError.response?.status || 500 });
@@ -135,6 +134,17 @@ export async function POST(request: NextRequest) {
     const response = await wooApi.post('products', formattedProduct);
 
     if (response.status >= 200 && response.status < 300) {
+      // 5. Fire-and-forget deletion of temp images from quefoto.es AFTER successful creation
+      for (const photo of productData.photos) {
+        if (photo.uploadedFilename) {
+          axios.post("https://quefoto.es/borrarfoto.php", new URLSearchParams({ filename: photo.uploadedFilename }), {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            timeout: 15000,
+          }).catch(deleteError => {
+            console.warn(`Failed to delete temporary image ${photo.uploadedFilename} from quefoto.es. Manual cleanup may be required.`, deleteError);
+          });
+        }
+      }
       return NextResponse.json({ success: true, data: response.data }, { status: response.status });
     } else {
       return NextResponse.json({ success: false, error: 'Received a non-successful status from WooCommerce.', details: response.data }, { status: response.status });
