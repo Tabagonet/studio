@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Step1DetailsPhotos } from './step-1-details-photos';
 import { Step2Preview } from './step-2-preview'; 
 import { Step3Confirm } from './step-3-confirm';
@@ -11,7 +11,8 @@ import { INITIAL_PRODUCT_DATA } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
-import { ArrowLeft, ArrowRight, Loader2, Rocket } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Rocket } from 'lucide-react';
+import axios from 'axios';
 
 export function ProductWizard() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -19,27 +20,18 @@ export function ProductWizard() {
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    // This effect triggers the processing when the user reaches step 4
-    if (currentStep === 4 && !isProcessing) {
-      handleCreateProduct();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStep]);
-
-
-  const updateProductData = (data: Partial<ProductData>) => {
+  const updateProductData = useCallback((data: Partial<ProductData>) => {
     setProductData(prev => ({ ...prev, ...data }));
-  };
+  }, []);
 
-  const updatePhotoState = (photoId: string, updates: Partial<ProductPhoto>) => {
+  const updatePhotoState = useCallback((photoId: string, updates: Partial<ProductPhoto>) => {
     setProductData(prev => ({
       ...prev,
       photos: prev.photos.map(p => p.id === photoId ? { ...p, ...updates } : p),
     }));
-  }
+  }, []);
 
-  const handleCreateProduct = async () => {
+  const handleCreateProduct = useCallback(async () => {
     setIsProcessing(true);
 
     const user = auth.currentUser;
@@ -53,36 +45,36 @@ export function ProductWizard() {
     const photosToUpload = productData.photos.filter(p => p.status === 'pending');
 
     const uploadPromises = photosToUpload.map(photo => {
-      if (!photo.file) return Promise.resolve(); 
-
-      updatePhotoState(photo.id, { status: 'uploading', progress: 5 });
+      if (!photo.file) return Promise.resolve();
 
       const formData = new FormData();
       formData.append('imagen', photo.file);
-      
-      // Axios or a library with progress events would be better here.
-      // We simulate progress.
-      updatePhotoState(photo.id, { progress: 30 });
 
-      return fetch('/api/upload-image', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData,
-      })
-      .then(async response => {
-        updatePhotoState(photo.id, { progress: 70 });
-        const result = await response.json();
-        if (!response.ok || !result.success) {
-          throw new Error(result.error || 'La subida ha fallado');
-        }
-        updatePhotoState(photo.id, { status: 'completed', progress: 100, url: result.url });
-        return result;
-      })
-      .catch(error => {
-        const errorMessage = (error as Error).message;
-        updatePhotoState(photo.id, { status: 'error', error: errorMessage, progress: 0 });
-        throw new Error(`Fallo al subir ${photo.name}: ${errorMessage}`);
-      });
+      const config = {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: (progressEvent: any) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || photo.file?.size));
+          updatePhotoState(photo.id, { status: 'uploading', progress: percentCompleted });
+        },
+      };
+
+      return axios.post('/api/upload-image', formData, config)
+        .then(response => {
+          const result = response.data;
+          if (!result.success) {
+            throw new Error(result.error || 'La subida ha fallado');
+          }
+          updatePhotoState(photo.id, { status: 'completed', progress: 100, url: result.url });
+          return result;
+        })
+        .catch(error => {
+          const errorMessage = error.response?.data?.error || error.message || 'Error desconocido';
+          updatePhotoState(photo.id, { status: 'error', error: errorMessage, progress: 0 });
+          throw new Error(`Fallo al subir ${photo.name}: ${errorMessage}`);
+        });
     });
 
     const results = await Promise.allSettled(uploadPromises);
@@ -113,8 +105,16 @@ export function ProductWizard() {
         setIsProcessing(false); // This will indicate the full process is "finished" for now
         toast({ title: "Proceso finalizado (simulación)", description: "Creación en WooCommerce por implementar."});
     }, 2000);
-  };
+  }, [productData, toast, updatePhotoState]);
 
+
+  useEffect(() => {
+    // This effect triggers the processing when the user reaches step 4
+    if (currentStep === 4 && !isProcessing) {
+      handleCreateProduct();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep, isProcessing, handleCreateProduct]);
 
   const nextStep = () => {
     if (currentStep < 4) {
@@ -133,7 +133,7 @@ export function ProductWizard() {
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} />;
+        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} />;
       case 2:
         return <Step2Preview productData={productData} />;
       case 3:
@@ -141,7 +141,7 @@ export function ProductWizard() {
       case 4:
         return <Step4Processing productData={productData} isProcessing={isProcessing} />;
       default:
-        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} />;
+        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} />;
     }
   };
 
@@ -172,12 +172,9 @@ export function ProductWizard() {
         </div>
       )}
 
-      {/* Debug view can be enabled/disabled as needed */}
-      {/* 
        <pre className="mt-4 p-4 bg-muted rounded-md text-xs overflow-x-auto">
         <code>{JSON.stringify(productData, null, 2)}</code>
        </pre>
-      */}
     </div>
   );
 }
