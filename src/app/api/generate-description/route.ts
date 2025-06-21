@@ -1,11 +1,17 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { genkit, z } from '@genkit-ai/core';
-import { googleAI } from '@genkit-ai/googleai';
+import * as genkitCore from '@genkit-ai/core';
+import * as googleAIPlugin from '@genkit-ai/googleai';
+
+// Declare a global variable to hold the AI instance for robust singleton pattern in Next.js
+declare global {
+  var genkitAiInstance: any;
+}
+
+const { z } = genkitCore;
 
 // --- Zod Schemas ---
-// Note: These are defined locally and are not exported.
 const GenerateProductDescriptionInputSchema = z.object({
   productName: z.string().describe('The name of the product.'),
   productType: z.string().describe('The type of product (e.g., simple, variable).'),
@@ -17,29 +23,32 @@ const GenerateProductDescriptionOutputSchema = z.object({
   longDescription: z.string().describe('A detailed, persuasive, and comprehensive description of the product, including its features, benefits, and uses. Format it with paragraphs for readability.'),
 });
 
-// --- Genkit Initialization and Flow (Self-contained) ---
+// --- Genkit Initialization and Flow (Self-contained & Robust) ---
 
-// Use a singleton pattern to ensure Genkit is only initialized once per server instance.
-let ai: any;
+// Use a singleton pattern compatible with Next.js hot-reloading and serverless environments.
 function getAi() {
-  if (!ai) {
-    console.log("Initializing Genkit for the first time in this instance...");
-    ai = genkit({
-      plugins: [
-        googleAI({
-          // The API key is passed automatically from the GOOGLE_API_KEY environment variable.
-        }),
-      ],
-    });
+  if (globalThis.genkitAiInstance) {
+    return globalThis.genkitAiInstance;
   }
-  return ai;
+
+  console.log("Initializing Genkit for the first time in this instance...");
+  
+  globalThis.genkitAiInstance = genkitCore.genkit({
+    plugins: [
+      googleAIPlugin.googleAI({
+        // The API key is passed automatically from the GOOGLE_API_KEY environment variable.
+      }),
+    ],
+  });
+
+  return globalThis.genkitAiInstance;
 }
 
 async function runGenerateDescriptionFlow(input: z.infer<typeof GenerateProductDescriptionInputSchema>): Promise<z.infer<typeof GenerateProductDescriptionOutputSchema>> {
   const ai = getAi();
 
   const productDescriptionPrompt = ai.definePrompt({
-    name: 'productDescriptionPrompt_v2', // new name to avoid potential cache conflicts
+    name: 'productDescriptionPrompt_v3', // new name to avoid potential cache conflicts
     input: { schema: GenerateProductDescriptionInputSchema },
     output: { schema: GenerateProductDescriptionOutputSchema },
     prompt: `
@@ -118,6 +127,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Error in /api/generate-description route:', error);
     const errorMessage = error.message || 'Ocurrió un error desconocido al generar la descripción.';
-    return NextResponse.json({ error: `Error de IA: ${errorMessage}` }, { status: 500 });
+    // Provide a more structured error response
+    return NextResponse.json({ error: 'Error de IA', message: errorMessage, stack: error.stack }, { status: 500 });
   }
 }
