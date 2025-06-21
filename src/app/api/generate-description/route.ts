@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 
 // --- Genkit and AI Imports ---
-// All AI-related imports are now self-contained in this file.
-import { genkit } from '@genkit-ai/core';
+// All AI-related logic is now self-contained in this file to prevent Next.js build/HMR conflicts.
+import { genkit, type GenkitError } from '@genkit-ai/core';
 import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'zod';
 import type { GenerateProductDescriptionInput, GenerateProductDescriptionOutput } from '@/ai/flows/generate-product-description';
@@ -50,6 +50,14 @@ export async function POST(req: NextRequest) {
 
     // --- SELF-CONTAINED AI LOGIC ---
     console.log('/api/generate-description: Initializing Genkit instance...');
+    
+    // Check if `genkit` is actually a function before calling it.
+    if (typeof genkit !== 'function') {
+      const errorMsg = `CRITICAL: The imported 'genkit' is not a function. Type is: ${typeof genkit}`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+
     const ai = genkit({
       plugins: [googleAI()],
       enableTelemetry: false,
@@ -81,7 +89,9 @@ export async function POST(req: NextRequest) {
         **Product Information:**
         - **Name:** {{{productName}}}
         - **Type:** {{{productType}}}
+        {{#if keywords}}
         - **Keywords:** {{{keywords}}}
+        {{/if}}
 
         **Instructions:**
         1.  **Short Description:** Write a concise and engaging summary in Spanish. This should immediately grab the customer's attention and is crucial for search result snippets.
@@ -107,18 +117,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(output);
 
   } catch (error: any) {
-    // This is the most important log. It will capture the error before Next.js hides it.
     console.error('--- CRITICAL ERROR in /api/generate-description POST handler ---');
     console.error('Error Name:', error.name);
     console.error('Error Message:', error.message);
     console.error('Error Stack:', error.stack);
-    if (error.cause) {
-        console.error('Error Cause:', error.cause);
+    
+    // Check if it's a GenkitError for more details
+    if ('isGenkitError' in error && error.isGenkitError) {
+      const genkitError = error as GenkitError;
+      console.error('Genkit Error Root Cause:', genkitError.cause);
+      console.error('Genkit Error Details:', genkitError.details);
     }
-    console.error('--- END OF CRITICAL ERROR ---');
     
     // Ensure a JSON response is always sent, even on failure.
-    const errorMessage = error.cause?.root?.message || error.message || 'Ocurrió un error desconocido al generar la descripción.';
+    const errorMessage = error.cause?.message || error.message || 'Ocurrió un error desconocido al generar la descripción.';
     return NextResponse.json(
       {
         error: 'Error Interno del Servidor',
