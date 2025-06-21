@@ -3,8 +3,7 @@
 
 /**
  * @fileOverview This file defines a Genkit flow for generating product descriptions.
- * It uses a direct, module-level initialization of Genkit, which is the standard
- * and most stable approach when called from a server-side context like an API route.
+ * It imports a centrally initialized Genkit `ai` object.
  *
  * It exports:
  * - generateProductDescription: An async function to be used by the API route.
@@ -12,16 +11,8 @@
  * - GenerateProductDescriptionOutput: The TypeScript type for the output.
  */
 
-import { genkit } from '@genkit-ai/core';
-import { googleAI } from '@genkit-ai/googleai';
+import { ai } from '@/ai/genkit'; // Import the central ai instance
 import { z } from 'zod';
-
-// --- Direct Initialization (Module Level) ---
-// This is the standard and most robust way to initialize Genkit.
-const ai = genkit({
-    plugins: [googleAI()],
-});
-
 
 // --- Zod Schemas ---
 const GenerateProductDescriptionInputSchema = z.object({

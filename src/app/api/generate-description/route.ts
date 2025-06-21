@@ -4,13 +4,13 @@ import { adminAuth } from '@/lib/firebase-admin';
 import { generateProductDescription, type GenerateProductDescriptionInput } from '@/ai/flows/generate-product-description';
 
 export async function POST(req: NextRequest) {
-  // Check for API Key first, to provide a better error message.
+  // Check for API Key first, to provide a better error message if the server is misconfigured.
   if (!process.env.GOOGLE_API_KEY) {
-    console.error('Google AI API Key (GOOGLE_API_KEY) is not configured in the environment.');
+    console.error('CRITICAL: GOOGLE_API_KEY environment variable is not set.');
     return NextResponse.json(
       { 
         success: false, 
-        error: 'La clave API de Google AI no está configurada en el servidor. Por favor, añádela al archivo .env y reinicia la aplicación. Puedes obtener una clave en Google AI Studio.' 
+        error: 'La clave API de Google AI no está configurada en el servidor. Contacta al administrador.' 
       }, 
       { status: 503 } // Service Unavailable
     );
@@ -44,6 +44,9 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error('Error al llamar al flujo de Genkit para generar descripción:', error);
+    // Log the full error for better debugging on the server
+    console.error('Genkit Flow Error Details:', error.stack || error.toString());
+
     const errorMessage = error.message || 'Ocurrió un error desconocido al generar la descripción.';
     return NextResponse.json({ success: false, error: `Error de IA: ${errorMessage}` }, { status: 500 });
   }
