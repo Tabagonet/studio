@@ -10,6 +10,7 @@ interface Step3ConfirmProps {
 
 export function Step3Confirm({ productData }: Step3ConfirmProps) {
   const photosToUploadCount = productData.photos.filter(p => p.status === 'pending').length;
+  const validAttributesCount = productData.attributes.filter(a => a.name && a.name.trim() !== '').length;
 
   return (
     <div className="space-y-8">
@@ -48,7 +49,7 @@ export function Step3Confirm({ productData }: Step3ConfirmProps) {
             <p><span className="font-semibold">SKU:</span> {productData.sku || "N/A"}</p>
             <p><span className="font-semibold">Precio Regular:</span> {productData.regularPrice ? `${productData.regularPrice}€` : "N/A"}</p>
             <p><span className="font-semibold">Categoría:</span> {productData.category || "N/A"}</p>
-            <p><span className="font-semibold">Atributos:</span> {productData.attributes.filter(a => a.name).length}</p>
+            <p><span className="font-semibold">Atributos:</span> {validAttributesCount}</p>
             <p><span className="font-semibold">Imágenes:</span> {productData.photos.length}</p>
         </CardContent>
       </Card>

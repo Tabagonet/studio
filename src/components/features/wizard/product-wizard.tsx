@@ -108,19 +108,26 @@ export function ProductWizard() {
   };
 
 
-  const nextStep = () => setCurrentStep(prev => prev + 1);
-  const prevStep = () => setCurrentStep(prev => prev - 1);
+  const nextStep = () => {
+    setCurrentStep(prev => prev + 1);
+    window.scrollTo(0, 0);
+  };
+  
+  const prevStep = () => {
+    setCurrentStep(prev => prev - 1);
+    window.scrollTo(0, 0);
+  };
 
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} />;
+        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} />;
       case 2:
         return <Step2Preview productData={productData} />;
       case 3:
         return <Step3Confirm productData={productData} />;
       default:
-        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} />;
+        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} />;
     }
   };
 
@@ -151,7 +158,7 @@ export function ProductWizard() {
           </Button>
         )}
       </div>
-       <pre className="mt-4 p-4 bg-muted rounded-md text-xs overflow-auto">
+       <pre className="mt-4 p-4 bg-muted rounded-md text-xs overflow-x-auto">
         <code>{JSON.stringify(productData, null, 2)}</code>
        </pre>
     </div>
