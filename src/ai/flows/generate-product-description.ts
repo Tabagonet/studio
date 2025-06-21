@@ -11,8 +11,15 @@
  * - GenerateProductDescriptionOutputSchema - The Zod schema for the output.
  */
 
-import { ai } from '@/ai/genkit'; // Import the central AI instance
+import { genkit } from '@genkit-ai/core';
+import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'zod';
+
+// This self-contained instance avoids Next.js module resolution issues.
+const ai = genkit({
+  plugins: [googleAI()],
+  enableTelemetry: false,
+});
 
 // --- Zod Schemas ---
 export const GenerateProductDescriptionInputSchema = z.object({
@@ -33,7 +40,7 @@ export type GenerateProductDescriptionOutput = z.infer<typeof GenerateProductDes
 
 // Define the prompt at the top level of the module.
 const productDescriptionPrompt = ai.definePrompt({
-  name: 'productDescriptionPrompt_v7_centralized', // v7 to avoid cache issues
+  name: 'productDescriptionPrompt_v9_self_contained', // v9 to avoid cache issues
   input: { schema: GenerateProductDescriptionInputSchema },
   output: { schema: GenerateProductDescriptionOutputSchema },
   prompt: `
@@ -61,7 +68,7 @@ const productDescriptionPrompt = ai.definePrompt({
 // Define the flow at the top level of the module.
 const generateProductDescriptionFlow = ai.defineFlow(
   {
-    name: 'generateProductDescriptionFlowSingleton_v3',
+    name: 'generateProductDescriptionFlowSingleton_v5',
     inputSchema: GenerateProductDescriptionInputSchema,
     outputSchema: GenerateProductDescriptionOutputSchema,
   },

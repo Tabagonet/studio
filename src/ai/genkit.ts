@@ -1,15 +1,7 @@
-
 'use server';
 
 /**
  * @fileOverview Centralized Genkit initialization.
- * This file configures and exports a single `ai` instance for use across the application.
+ * This file is intentionally left blank to avoid module resolution issues.
+ * Initialization is now co-located with the flow that uses it.
  */
-
-import { genkit } from '@genkit-ai/core';
-import { googleAI } from '@genkit-ai/googleai';
-
-export const ai = genkit({
-  plugins: [googleAI()],
-  enableTelemetry: false,
-});
