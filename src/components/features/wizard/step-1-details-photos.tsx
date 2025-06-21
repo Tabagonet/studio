@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
 import { ImageUploader } from './image-uploader';
@@ -49,7 +50,7 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
     fetchCategories();
   }, [toast]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     updateProductData({ [e.target.name]: e.target.value });
   };
 
@@ -146,6 +147,44 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
               </SelectContent>
             </Select>
             {isLoadingCategories && <p className="text-xs text-muted-foreground mt-1">Cargando categorías desde WooCommerce...</p>}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Descripciones y Palabras Clave</CardTitle>
+          <CardDescription>Esta información es clave para el SEO y para informar a tus clientes. Más adelante, la IA podrá generar esto por ti.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+           <div>
+            <Label htmlFor="keywords">Palabras Clave (separadas por comas)</Label>
+            <Input id="keywords" name="keywords" value={productData.keywords} onChange={handleInputChange} placeholder="Ej: camiseta, algodón, verano, casual" />
+            <p className="text-xs text-muted-foreground mt-1">Ayudan a la IA y al SEO de tu producto.</p>
+          </div>
+
+          <div>
+              <Label htmlFor="shortDescription">Descripción Corta</Label>
+              <Textarea
+                id="shortDescription"
+                name="shortDescription"
+                value={productData.shortDescription}
+                onChange={handleInputChange}
+                placeholder="Un resumen atractivo y conciso de tu producto que aparecerá en las listas de productos."
+                rows={3}
+              />
+          </div>
+        
+          <div>
+              <Label htmlFor="longDescription">Descripción Larga</Label>
+              <Textarea
+                id="longDescription"
+                name="longDescription"
+                value={productData.longDescription}
+                onChange={handleInputChange}
+                placeholder="Describe tu producto en detalle. Habla de sus características, materiales, usos, etc. Este es el contenido principal de la página del producto."
+                rows={6}
+              />
           </div>
         </CardContent>
       </Card>
