@@ -4,7 +4,6 @@ import { adminAuth } from '@/lib/firebase-admin';
 import { wooApi } from '@/lib/woocommerce';
 import type { ProductData } from '@/lib/types';
 import axios from 'axios';
-import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
 import FormData from 'form-data';
 
@@ -91,11 +90,10 @@ const formatProductForWooCommerce = (data: ProductData, imageUrls: { src: string
 // Fire-and-forget helper to delete images from the external host
 function deleteImagesFromExternalHost(urls: { src: string }[]) {
     if (urls.length === 0) return;
-    const QUEFOTO_DELETE_API_URL = 'https://quefoto.es/api/delete'; // Assumed delete endpoint
+    const QUEFOTO_DELETE_API_URL = 'https://quefoto.es/api/delete';
 
     console.log(`[WooAutomate] Starting background deletion of ${urls.length} images from quefoto.es.`);
     
-    // We don't await this loop, letting it run in the background.
     for (const url of urls) {
         axios.post(QUEFOTO_DELETE_API_URL, { imageUrl: url.src })
             .then(() => console.log(`[WooAutomate] Successfully requested deletion for: ${url.src}`))
@@ -140,15 +138,14 @@ export async function POST(request: NextRequest) {
 
         const imageBuffer = Buffer.from(base64EncodedImageString, 'base64');
         
-        const processedBuffer = await sharp(imageBuffer)
-            .resize(1000, 1000, { fit: 'cover' })
-            .webp({ quality: 85 })
-            .toBuffer();
-
-        const seoFilename = `${slugify(productData.name || 'product')}-${uuidv4()}.webp`;
+        // --- Image processing with sharp is temporarily removed to diagnose 404 error ---
+        const mimeType = photo.dataUri.split(';')[0].split(':')[1] || 'image/jpeg';
+        const extension = mimeType.split('/')[1] || 'jpg';
+        
+        const seoFilename = `${slugify(productData.name || 'product')}-${uuidv4()}.${extension}`;
         
         const formData = new FormData();
-        formData.append('file', processedBuffer, { filename: seoFilename, contentType: 'image/webp' });
+        formData.append('file', imageBuffer, { filename: seoFilename, contentType: mimeType });
 
         const uploadResponse = await axios.post(QUEFOTO_UPLOAD_API_URL, formData, {
             headers: { ...formData.getHeaders() },
