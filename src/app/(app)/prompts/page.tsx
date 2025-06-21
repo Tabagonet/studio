@@ -89,7 +89,7 @@ export default function PromptsPage() {
             <AlertTitle>¿Cómo funciona esto?</AlertTitle>
             <AlertDescription>
                 <p>Aquí puedes editar la plantilla de "prompt" que se envía al modelo de IA (Gemini) para generar el contenido de tus productos. Puedes ajustar el tono, el estilo y las instrucciones para que se adapten mejor a tu marca.</p>
-                <p className="mt-2">Utiliza placeholders como <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{{productName}}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{{productType}}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{{keywords}}</code>, y <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{{language}}</code>. El sistema los reemplazará con los datos del producto correspondiente en cada solicitud.</p>
+                <p className="mt-2">Utiliza placeholders como <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{productName}}`}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{productType}}`}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{keywords}}`}</code>, y <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{language}}`}</code>. El sistema los reemplazará con los datos del producto correspondiente en cada solicitud.</p>
                 <p className="mt-2 font-semibold">Nota: La estructura de salida JSON no es editable desde aquí para garantizar la compatibilidad.</p>
             </AlertDescription>
         </Alert>
