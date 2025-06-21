@@ -3,7 +3,8 @@
 
 /**
  * @fileOverview This file defines a Genkit flow for generating product descriptions.
- * It is self-contained and initializes its own Genkit instance to avoid module resolution issues.
+ * It is self-contained and uses a lazy-initialized Genkit instance to avoid
+ * module-level initialization issues with Next.js server components.
  *
  * It exports:
  * - generateProductDescription: An async function to be used by an API route.
@@ -15,12 +16,7 @@ import * as genkitCore from '@genkit-ai/core';
 import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'zod';
 
-// --- Genkit Initialization (Self-contained) ---
-const ai = genkitCore.genkit({
-  plugins: [googleAI()],
-});
-
-// --- Zod Schemas (Internal to this file) ---
+// --- Zod Schemas (Defined once) ---
 
 const GenerateProductDescriptionInputSchema = z.object({
   productName: z.string().describe('The name of the product.'),
@@ -38,66 +34,69 @@ const GenerateProductDescriptionOutputSchema = z.object({
 export type GenerateProductDescriptionInput = z.infer<typeof GenerateProductDescriptionInputSchema>;
 export type GenerateProductDescriptionOutput = z.infer<typeof GenerateProductDescriptionOutputSchema>;
 
+// --- Lazy-Initialized Genkit Flow ---
 
-// --- Genkit Prompt Definition (Internal) ---
+let generateProductDescriptionFlow: any;
 
-const productDescriptionPrompt = ai.definePrompt({
-  name: 'productDescriptionPrompt',
-  input: { schema: GenerateProductDescriptionInputSchema },
-  output: { schema: GenerateProductDescriptionOutputSchema },
-  prompt: `
-    You are an expert e-commerce copywriter and SEO specialist.
-    Your task is to generate compelling and optimized product descriptions for a WooCommerce store.
-
-    **Product Information:**
-    - **Name:** {{{productName}}}
-    - **Type:** {{{productType}}}
-    - **Keywords:** {{{keywords}}}
-
-    **Instructions:**
-    1.  **Short Description:** Write a concise and engaging summary. This should immediately grab the customer's attention and is crucial for search result snippets.
-    2.  **Long Description:** Write a detailed and persuasive description.
-        - Start with an enticing opening.
-        - Elaborate on the features and, more importantly, the benefits for the customer.
-        - Use the provided keywords naturally throughout the text to improve SEO.
-        - Structure the description with clear paragraphs. Avoid long walls of text.
-        - Maintain a professional but approachable tone.
-
-    Generate the descriptions based on the provided information.
-  `,
-});
-
-
-// --- Genkit Flow Definition (Internal) ---
-
-const generateProductDescriptionFlow = ai.defineFlow(
-  {
-    name: 'generateProductDescriptionFlow',
-    inputSchema: GenerateProductDescriptionInputSchema,
-    outputSchema: GenerateProductDescriptionOutputSchema,
-  },
-  async (input) => {
-    // Call the prompt with the validated input
-    const { output } = await productDescriptionPrompt(input);
-    
-    // Ensure output is not null before returning
-    if (!output) {
-      throw new Error('AI failed to generate a description.');
+function initializeFlow() {
+    // Only initialize once
+    if (generateProductDescriptionFlow) {
+        return;
     }
-    
-    return output;
-  }
-);
 
+    const ai = genkitCore.genkit({
+        plugins: [googleAI()],
+    });
 
-// --- Exported Function for API Route ---
+    const productDescriptionPrompt = ai.definePrompt({
+      name: 'productDescriptionPrompt',
+      input: { schema: GenerateProductDescriptionInputSchema },
+      output: { schema: GenerateProductDescriptionOutputSchema },
+      prompt: `
+        You are an expert e-commerce copywriter and SEO specialist.
+        Your task is to generate compelling and optimized product descriptions for a WooCommerce store.
+
+        **Product Information:**
+        - **Name:** {{{productName}}}
+        - **Type:** {{{productType}}}
+        - **Keywords:** {{{keywords}}}
+
+        **Instructions:**
+        1.  **Short Description:** Write a concise and engaging summary. This should immediately grab the customer's attention and is crucial for search result snippets.
+        2.  **Long Description:** Write a detailed and persuasive description.
+            - Start with an enticing opening.
+            - Elaborate on the features and, more importantly, the benefits for the customer.
+            - Use the provided keywords naturally throughout the text to improve SEO.
+            - Structure the description with clear paragraphs. Avoid long walls of text.
+            - Maintain a professional but approachable tone.
+
+        Generate the descriptions based on the provided information.
+      `,
+    });
+
+    generateProductDescriptionFlow = ai.defineFlow(
+      {
+        name: 'generateProductDescriptionFlow',
+        inputSchema: GenerateProductDescriptionInputSchema,
+        outputSchema: GenerateProductDescriptionOutputSchema,
+      },
+      async (input) => {
+        const { output } = await productDescriptionPrompt(input);
+        if (!output) {
+          throw new Error('AI failed to generate a description.');
+        }
+        return output;
+      }
+    );
+}
 
 /**
  * Generates product descriptions using an AI model.
- * This function is a wrapper around the Genkit flow.
+ * This function is a wrapper around a lazily-initialized Genkit flow.
  * @param input - The product data to generate descriptions for.
  * @returns A promise that resolves to the generated short and long descriptions.
  */
 export async function generateProductDescription(input: GenerateProductDescriptionInput): Promise<GenerateProductDescriptionOutput> {
+  initializeFlow(); // This will initialize the flow on the first call.
   return generateProductDescriptionFlow(input);
 }

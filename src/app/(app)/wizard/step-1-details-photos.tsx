@@ -16,8 +16,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
-// We no longer import the flow directly
-// import { generateProductDescription } from '@/ai/flows/generate-product-description';
 
 
 interface Step1DetailsPhotosProps {
@@ -234,12 +232,21 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
           })
       });
 
-      const result = await response.json();
-
+      // Robust error handling: check if response is ok before parsing JSON
       if (!response.ok) {
-        // If the server responded with an error, throw it to be caught by the catch block
-        throw new Error(result.error || `Error del servidor: ${response.status}`);
+        let errorMessage = `Error del servidor: ${response.status}`;
+        try {
+          // Attempt to get more specific error from JSON response
+          const errorResult = await response.json();
+          errorMessage = errorResult.error || JSON.stringify(errorResult);
+        } catch (e) {
+          // Response was not JSON, stick with the status code message
+          console.error("Could not parse error response as JSON.");
+        }
+        throw new Error(errorMessage);
       }
+      
+      const result = await response.json();
 
       updateProductData({
         shortDescription: result.shortDescription,
