@@ -10,7 +10,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'zod';
+import { z } from 'genkit';
 import type { ProductType } from '@/lib/types';
 
 // Define the schema for the data we'll provide to the AI
