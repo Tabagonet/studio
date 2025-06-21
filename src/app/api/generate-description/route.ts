@@ -1,4 +1,3 @@
-
 // src/app/api/generate-description/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
