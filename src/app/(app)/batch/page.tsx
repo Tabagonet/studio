@@ -12,8 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { db, auth } from '@/lib/firebase'; 
 import { getIdToken } from 'firebase/auth';
-import { doc, serverTimestamp, collection, writeBatch, query, where, onSnapshot } from 'firebase/firestore';
-import type { Unsubscribe, Timestamp } from 'firebase/firestore';
+import { doc, serverTimestamp, collection, writeBatch, query, where, onSnapshot, type Unsubscribe, type Timestamp } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
 
