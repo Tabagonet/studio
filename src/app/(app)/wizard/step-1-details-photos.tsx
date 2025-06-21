@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, 'react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,7 +11,7 @@ import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { AiAttributeSuggester } from '@/components/features/wizard/ai-attribute-suggester';
 import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory } from '@/lib/types';
 import { PRODUCT_TYPES } from '@/lib/constants';
-import { PlusCircle, Trash2, Loader2, CheckCircle2, XCircle, Wand2, Sparkles } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, CheckCircle2, XCircle, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
@@ -31,13 +31,13 @@ interface ValidationState {
 }
 
 export function Step1DetailsPhotos({ productData, updateProductData, isProcessing }: Step1DetailsPhotosProps) {
-  const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
-  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+  const [wooCategories, setWooCategories] = React.useState<WooCommerceCategory[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = React.useState(false);
   const { toast } = useToast();
 
-  const [skuValidation, setSkuValidation] = useState<ValidationState>({ status: 'idle', message: '' });
-  const [nameValidation, setNameValidation] = useState<ValidationState>({ status: 'idle', message: '' });
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [skuValidation, setSkuValidation] = React.useState<ValidationState>({ status: 'idle', message: '' });
+  const [nameValidation, setNameValidation] = React.useState<ValidationState>({ status: 'idle', message: '' });
+  const [isGenerating, setIsGenerating] = React.useState(false);
 
 
   // --- Validation Logic ---
@@ -60,7 +60,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     return response.json();
   };
 
-  useEffect(() => {
+  React.useEffect(() => {
     const skuValue = productData.sku;
     if (!skuValue) {
       setSkuValidation({ status: 'idle', message: '' });
@@ -85,7 +85,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     return () => clearTimeout(handler);
   }, [productData.sku]);
   
-  useEffect(() => {
+  React.useEffect(() => {
     const nameValue = productData.name;
     if (!nameValue) {
       setNameValidation({ status: 'idle', message: '' });
@@ -113,7 +113,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   // --- End Validation Logic ---
 
 
-  useEffect(() => {
+  React.useEffect(() => {
     const fetchCategories = async () => {
       setIsLoadingCategories(true);
       try {
@@ -249,8 +249,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
       const result = await response.json();
 
       updateProductData({
-        shortDescription: result.shortDescription,
-        longDescription: result.longDescription,
+        shortDescription: result.shortDescription || '',
+        longDescription: result.longDescription || '',
       });
 
       toast({
@@ -397,7 +397,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                 <CardTitle>Descripciones y Palabras Clave</CardTitle>
                 <CardDescription>Esta información es clave para el SEO y para informar a tus clientes.</CardDescription>
               </div>
-              <Button onClick={handleGenerateDescriptions} disabled={isGenerating || !productData.name} size="sm">
+              <Button onClick={handleGenerateDescriptions} disabled={isGenerating || !productData.name || isProcessing} size="sm">
                 {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                 Generar con IA
               </Button>
@@ -414,7 +414,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
               <Textarea
                 id="shortDescription"
                 name="shortDescription"
-                value={productData.shortDescription}
+                value={productData.shortDescription || ''}
                 onChange={handleInputChange}
                 placeholder="Un resumen atractivo y conciso de tu producto."
                 rows={3}
@@ -427,7 +427,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
               <Textarea
                 id="longDescription"
                 name="longDescription"
-                value={productData.longDescription}
+                value={productData.longDescription || ''}
                 onChange={handleInputChange}
                 placeholder="Describe tu producto en detalle: características, materiales, usos, etc."
                 rows={6}
@@ -490,3 +490,4 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     </div>
   );
 }
+
