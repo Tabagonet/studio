@@ -102,41 +102,15 @@ async function uploadImageToWooCommerceMedia(
     const encodedCredentials = Buffer.from(`${wooCommerceApiKey}:${wooCommerceApiSecret}`).toString('base64');
     console.log(`[WC Media Upload - ${originalImageName}] Auth Header Prefix: Basic [REDACTED]`);
 
-    // Log FormData entries
-    console.log(`[WC Media Upload - ${originalImageName}] FormData entries being sent:`);
-    for (const pair of (form as any)._streams) { // Access internal streams for logging
-        if (typeof pair === 'string' && pair.includes('Content-Disposition: form-data; name="')) {
-            const matchName = pair.match(/name="([^"]+)"/);
-            const name = matchName ? matchName[1] : 'unknown_field';
-            if (pair.includes('filename=')) {
-                 const matchFilename = pair.match(/filename="([^"]+)"/);
-                 const filename = matchFilename ? matchFilename[1] : 'unknown_file';
-                 const matchContentType = pair.match(/Content-Type: ([^\r\n]+)/);
-                 const fieldContentType = matchContentType ? matchContentType[1] : 'unknown_type';
-                 console.log(`  - File part: name='${name}', filename='${filename}', contentType='${fieldContentType}', size=${fileBuffer.length}`);
-            } else {
-                // For simple fields, the value is typically in the next string element or after \r\n\r\n
-                // This is a simplified log, actual value might be harder to extract reliably from _streams
-                const valueMatch = pair.split('\r\n\r\n');
-                console.log(`  - Field part: name='${name}', value='${valueMatch[1] ? valueMatch[1].split('\r\n--')[0] : 'logged_value_complex'}'`);
-            }
-        }
-    }
-
-
     const axiosConfig = {
       timeout: 60000,
       headers: {
-        ...form.getHeaders(), // Includes 'Content-Type': 'multipart/form-data; boundary=...'
+        ...form.getHeaders(),
         'Authorization': `Basic ${encodedCredentials}`
       },
-      // The `auth` object in axios is for basic auth, but we're setting the header manually.
-      // To avoid potential conflicts if axios tries to double-apply auth, ensure only one method is primary.
-      // Manual header is explicit.
     };
     
     console.log(`[WC Media Upload - ${originalImageName}] Axios config for POST (auth and other headers redacted for brevity):`, JSON.stringify({ timeout: axiosConfig.timeout, headers: { "content-type": axiosConfig.headers['content-type'], "Authorization": "Basic [REDACTED]" } }, null, 2));
-
 
     const response = await axios.post(targetUrl, form, axiosConfig);
     
@@ -1082,6 +1056,7 @@ export async function POST(request: NextRequest) {
     
 
     
+
 
 
 
