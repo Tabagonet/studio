@@ -15,6 +15,7 @@ const GenerateProductDescriptionInputSchema = z.object({
 const GenerateProductDescriptionOutputSchema = z.object({
   shortDescription: z.string().describe('A brief, catchy, and SEO-friendly summary of the product (1-2 sentences), in Spanish.'),
   longDescription: z.string().describe('A detailed, persuasive, and comprehensive description of the product, including its features, benefits, and uses. Format it with paragraphs for readability, in Spanish.'),
+  keywords: z.string().describe('A comma-separated list of 5 to 10 relevant SEO keywords for the product, in Spanish.'),
 });
 
 // Create a JSON representation of the schema for the model prompt
@@ -28,9 +29,13 @@ const jsonSchema = {
         longDescription: {
             type: 'string',
             description: 'A detailed, persuasive, and comprehensive description of the product, including its features, benefits, and uses. Format it with paragraphs for readability, in Spanish.'
+        },
+        keywords: {
+            type: 'string',
+            description: 'A comma-separated list of 5 to 10 relevant SEO keywords for the product, in Spanish.'
         }
     },
-    required: ['shortDescription', 'longDescription']
+    required: ['shortDescription', 'longDescription', 'keywords']
 };
 
 
@@ -87,7 +92,7 @@ export async function POST(req: NextRequest) {
     // 5. Construct the prompt
     const prompt = `
         You are an expert e-commerce copywriter and SEO specialist.
-        Your task is to generate compelling and optimized product descriptions for a WooCommerce store.
+        Your task is to generate compelling and optimized product descriptions and keywords for a WooCommerce store.
         The response must be a valid JSON object that adheres to the following schema. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
 
         JSON Schema:
@@ -96,7 +101,7 @@ export async function POST(req: NextRequest) {
         **Product Information:**
         - **Name:** ${productName}
         - **Type:** ${productType}
-        ${keywords ? `- **Keywords:** ${keywords}` : ''}
+        ${keywords ? `- **Existing Keywords (use as inspiration):** ${keywords}` : ''}
 
         **Instructions:**
         1.  **shortDescription:** Write a concise and engaging summary in Spanish. This should immediately grab the customer's attention and is crucial for search result snippets.
@@ -106,6 +111,7 @@ export async function POST(req: NextRequest) {
             - Use the provided keywords naturally throughout the text to improve SEO.
             - Structure the description with clear paragraphs. Avoid long walls of text.
             - Maintain a professional but approachable tone.
+        3.  **keywords:** Generate a comma-separated list of 5 to 10 highly relevant SEO keywords in Spanish. These should be specific and useful for finding the product.
 
         Generate the JSON object based on the provided information.
     `;

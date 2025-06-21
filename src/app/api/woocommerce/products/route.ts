@@ -11,11 +11,11 @@ const formatProductForWooCommerce = (data: ProductData) => {
 
   const wooImages = [];
   if (primaryPhoto?.url) {
-    wooImages.push({ src: primaryPhoto.url, position: 0 });
+    wooImages.push({ src: primaryPhoto.url, position: 0, alt: data.name });
   }
   galleryPhotos.forEach((photo, index) => {
     if (photo.url) {
-      wooImages.push({ src: photo.url, position: index + 1 });
+      wooImages.push({ src: photo.url, position: index + 1, alt: data.name });
     }
   });
 

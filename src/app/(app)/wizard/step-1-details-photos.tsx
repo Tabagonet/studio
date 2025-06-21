@@ -244,7 +244,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
     setIsGenerating(true);
     toast({
-      title: 'Generando Descripciones con IA...',
+      title: 'Generando Contenido con IA...',
       description: 'Esto puede tardar unos segundos. Contactando con el modelo Gemini...',
     });
 
@@ -263,43 +263,38 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
           })
       });
 
-      // Handle non-OK responses robustly
       if (!response.ok) {
         let errorDetails;
-        // Read the body ONCE as text, as it might be an HTML error page or a JSON error object.
         const errorText = await response.text(); 
         
         try {
-          // Try to parse the text as a JSON object
           const errorJson = JSON.parse(errorText);
           errorDetails = errorJson.message || errorJson.error || JSON.stringify(errorJson);
         } catch (e) {
-          // If parsing fails, it's not JSON. The raw text is the best we have.
           console.error("The API response was not valid JSON. Full response body:", errorText);
           errorDetails = `El servidor devolvió un error inesperado (código: ${response.status}). Revisa la consola del navegador para más detalles.`;
         }
         
-        // Throw an error with the detailed message, to be caught by the outer catch block.
         throw new Error(errorDetails);
       }
       
-      // If we reach here, response was OK. We can safely parse the JSON.
       const result = await response.json();
 
       updateProductData({
         shortDescription: result.shortDescription || '',
         longDescription: result.longDescription || '',
+        keywords: result.keywords || productData.keywords, // Update keywords, fallback to existing
       });
 
       toast({
-        title: '¡Descripciones Generadas!',
-        description: 'Las descripciones corta y larga han sido actualizadas.',
+        title: '¡Contenido Generado por IA!',
+        description: 'Las descripciones y palabras clave han sido actualizadas.',
       });
     } catch (error: any) {
       console.error('Error generando descripciones:', error);
       toast({
-        title: 'Error al Generar Descripción',
-        description: error.message, // This will now be the detailed message
+        title: 'Error al Generar Contenido',
+        description: error.message,
         variant: 'destructive',
       });
     } finally {
