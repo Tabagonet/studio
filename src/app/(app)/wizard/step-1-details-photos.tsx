@@ -11,11 +11,13 @@ import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { AiAttributeSuggester } from '@/components/features/wizard/ai-attribute-suggester';
 import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory } from '@/lib/types';
 import { PRODUCT_TYPES } from '@/lib/constants';
-import { PlusCircle, Trash2, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, CheckCircle2, XCircle, Wand2, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
+import { generateProductDescription } from '@/ai/flows/generate-product-description';
+
 
 interface Step1DetailsPhotosProps {
   productData: ProductData;
@@ -29,13 +31,14 @@ interface ValidationState {
   message: string;
 }
 
-export function Step1DetailsPhotos({ productData, updateProductData }: Step1DetailsPhotosProps) {
+export function Step1DetailsPhotos({ productData, updateProductData, isProcessing }: Step1DetailsPhotosProps) {
   const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
   const { toast } = useToast();
 
   const [skuValidation, setSkuValidation] = useState<ValidationState>({ status: 'idle', message: '' });
   const [nameValidation, setNameValidation] = useState<ValidationState>({ status: 'idle', message: '' });
+  const [isGenerating, setIsGenerating] = useState(false);
 
 
   // --- Validation Logic ---
@@ -192,6 +195,51 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
     const newAttributesToAdd = suggested.filter(sAttr => !existingNames.has(sAttr.name.toLowerCase()));
     updateProductData({ attributes: [...productData.attributes, ...newAttributesToAdd] });
   };
+  
+  const handleGenerateDescriptions = async () => {
+    if (!productData.name) {
+      toast({
+        title: 'Falta el nombre',
+        description: 'Por favor, introduce un nombre de producto antes de generar descripciones.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    toast({
+      title: 'Generando Descripciones con IA...',
+      description: 'Esto puede tardar unos segundos.',
+    });
+
+    try {
+      const result = await generateProductDescription({
+        productName: productData.name,
+        productType: productData.productType,
+        keywords: productData.keywords,
+      });
+
+      updateProductData({
+        shortDescription: result.shortDescription,
+        longDescription: result.longDescription,
+      });
+
+      toast({
+        title: '¡Descripciones Generadas!',
+        description: 'Las descripciones corta y larga han sido actualizadas.',
+      });
+    } catch (error) {
+      console.error('Error generating descriptions:', error);
+      toast({
+        title: 'Error de IA',
+        description: 'No se pudieron generar las descripciones. Inténtalo de nuevo.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
 
   return (
     <div className="space-y-8">
@@ -310,14 +358,56 @@ export function Step1DetailsPhotos({ productData, updateProductData }: Step1Deta
             </Select>
             {isLoadingCategories && <p className="text-xs text-muted-foreground mt-1">Cargando categorías desde WooCommerce...</p>}
           </div>
-
-          <div>
-            <Label htmlFor="keywords">Palabras Clave (separadas por comas)</Label>
-            <Input id="keywords" name="keywords" value={productData.keywords} onChange={handleInputChange} placeholder="Ej: camiseta, algodón, verano, casual" />
-          </div>
         </CardContent>
       </Card>
       
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Descripciones y Palabras Clave</CardTitle>
+                <CardDescription>Esta información es clave para el SEO y para informar a tus clientes.</CardDescription>
+              </div>
+              <Button onClick={handleGenerateDescriptions} disabled={isGenerating || !productData.name} size="sm">
+                {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                Generar con IA
+              </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+           <div>
+            <Label htmlFor="keywords">Palabras Clave (separadas por comas)</Label>
+            <Input id="keywords" name="keywords" value={productData.keywords} onChange={handleInputChange} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing} />
+            <p className="text-xs text-muted-foreground mt-1">Ayudan a la IA y al SEO de tu producto.</p>
+          </div>
+          <div>
+              <Label htmlFor="shortDescription">Descripción Corta</Label>
+              <Textarea
+                id="shortDescription"
+                name="shortDescription"
+                value={productData.shortDescription}
+                onChange={handleInputChange}
+                placeholder="Un resumen atractivo y conciso de tu producto."
+                rows={3}
+                disabled={isProcessing}
+              />
+          </div>
+        
+          <div>
+              <Label htmlFor="longDescription">Descripción Larga</Label>
+              <Textarea
+                id="longDescription"
+                name="longDescription"
+                value={productData.longDescription}
+                onChange={handleInputChange}
+                placeholder="Describe tu producto en detalle: características, materiales, usos, etc."
+                rows={6}
+                disabled={isProcessing}
+              />
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Atributos del Producto</CardTitle>
