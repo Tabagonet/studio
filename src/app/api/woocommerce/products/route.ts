@@ -1,67 +1,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminStorage } from '@/lib/firebase-admin';
+import { adminAuth } from '@/lib/firebase-admin';
 import { wooApi } from '@/lib/woocommerce';
 import type { ProductData } from '@/lib/types';
 import axios from 'axios';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
-
-
-// Helper function to update image metadata after creation
-async function updateImageMetadata(createdProduct: any, productData: ProductData) {
-    const wooUrl = process.env.WOOCOMMERCE_STORE_URL;
-    const consumerKey = process.env.WOOCOMMERCE_API_KEY;
-    const consumerSecret = process.env.WOOCOMMERCE_API_SECRET;
-
-    if (!wooUrl || !consumerKey || !consumerSecret) {
-        console.warn('[WooAutomate] Cannot update image metadata: WooCommerce credentials are not fully configured.');
-        return;
-    }
-
-    for (const image of createdProduct.images) {
-        try {
-            const metadataPayload: { title?: string; alt_text?: string; caption?: string, description?: string } = {};
-
-            if (productData.name) {
-              metadataPayload.title = productData.name;
-              metadataPayload.alt_text = productData.name; // Alt text is crucial for SEO
-            }
-            if (productData.shortDescription) {
-              // The caption is often displayed under the image.
-              metadataPayload.caption = productData.shortDescription;
-            }
-            if (productData.longDescription) {
-              // The description is for the media library.
-              metadataPayload.description = productData.longDescription;
-            }
-            
-            if (Object.keys(metadataPayload).length === 0) {
-                continue;
-            }
-
-            const mediaUpdateUrl = `${wooUrl}/wp-json/wp/v2/media/${image.id}`;
-            
-            await axios.post(mediaUpdateUrl, metadataPayload, {
-                auth: {
-                  username: consumerKey,
-                  password: consumerSecret,
-                },
-                headers: { 'Content-Type': 'application/json' }
-            });
-
-            console.log(`[WooAutomate] Successfully updated metadata for image ID: ${image.id}`);
-
-        } catch (metaError: any) {
-            console.warn(`[WooAutomate] Warning: Could not update metadata for image ID: ${image.id}.`);
-            if (metaError.response) {
-                console.warn(`[WooAutomate] Metadata Error (${metaError.response.status}):`, metaError.response.data);
-            } else {
-                console.warn('[WooAutomate] Metadata Error:', metaError.message);
-            }
-        }
-    }
-}
+import FormData from 'form-data';
 
 // Helper to create a URL-friendly slug
 const slugify = (text: string) => {
@@ -73,8 +18,49 @@ const slugify = (text: string) => {
         .replace(/-+$/, '');            // Trim - from end of text
 };
 
-// Helper function to format data for WooCommerce API
-const formatProductForWooCommerce = (data: ProductData, processedImageUrls: { src: string }[]) => {
+// Helper function to update image metadata in WordPress after creation
+async function updateImageMetadata(createdProduct: any, productData: ProductData) {
+    const wooUrl = process.env.WOOCOMMERCE_STORE_URL;
+    const consumerKey = process.env.WOOCOMMERCE_API_KEY;
+    const consumerSecret = process.env.WOOCOMMERCE_API_SECRET;
+
+    if (!wooUrl || !consumerKey || !consumerSecret) {
+        console.warn('[WooAutomate] Cannot update image metadata: WooCommerce credentials not fully configured.');
+        return;
+    }
+
+    for (const image of createdProduct.images) {
+        try {
+            const metadataPayload: { title?: string; alt_text?: string; caption?: string; description?: string } = {};
+
+            if (productData.name) {
+              metadataPayload.title = productData.name;
+              metadataPayload.alt_text = productData.name;
+            }
+            if (productData.shortDescription) {
+              metadataPayload.caption = productData.shortDescription;
+            }
+            if (productData.longDescription) {
+              metadataPayload.description = productData.longDescription;
+            }
+            
+            if (Object.keys(metadataPayload).length === 0) continue;
+
+            const mediaUpdateUrl = `${wooUrl}/wp-json/wp/v2/media/${image.id}`;
+            
+            await axios.post(mediaUpdateUrl, metadataPayload, {
+                auth: { username: consumerKey, password: consumerSecret },
+                headers: { 'Content-Type': 'application/json' }
+            });
+            console.log(`[WooAutomate] Successfully updated metadata for image ID: ${image.id}`);
+        } catch (metaError: any) {
+            console.warn(`[WooAutomate] Warning: Could not update metadata for image ID: ${image.id}. Error:`, metaError.message);
+        }
+    }
+}
+
+// Helper to format data for WooCommerce API
+const formatProductForWooCommerce = (data: ProductData, imageUrls: { src: string }[]) => {
   const wooAttributes = data.attributes
     .filter(attr => attr.name && attr.value)
     .map(attr => ({
@@ -84,18 +70,10 @@ const formatProductForWooCommerce = (data: ProductData, processedImageUrls: { sr
       variation: data.productType === 'variable'
     }));
   
-  const wooTags = data.keywords 
-    ? data.keywords.split(',').map(k => ({ name: k.trim() })).filter(k => k.name) 
-    : [];
+  const wooTags = data.keywords ? data.keywords.split(',').map(k => ({ name: k.trim() })).filter(k => k.name) : [];
+  const wooImages = imageUrls.map((img, index) => ({ src: img.src, position: index }));
 
-  const wooImages = processedImageUrls.map((img, index) => ({
-      src: img.src,
-      position: index,
-      name: data.name,
-      alt: data.name,
-  }));
-
-  const wooProduct = {
+  return {
     name: data.name,
     sku: data.sku || undefined,
     type: data.productType,
@@ -108,9 +86,22 @@ const formatProductForWooCommerce = (data: ProductData, processedImageUrls: { sr
     attributes: wooAttributes,
     tags: wooTags,
   };
-
-  return wooProduct;
 };
+
+// Fire-and-forget helper to delete images from the external host
+function deleteImagesFromExternalHost(urls: { src: string }[]) {
+    if (urls.length === 0) return;
+    const QUEFOTO_DELETE_API_URL = 'https://quefoto.es/api/delete'; // Assumed delete endpoint
+
+    console.log(`[WooAutomate] Starting background deletion of ${urls.length} images from quefoto.es.`);
+    
+    // We don't await this loop, letting it run in the background.
+    for (const url of urls) {
+        axios.post(QUEFOTO_DELETE_API_URL, { imageUrl: url.src })
+            .then(() => console.log(`[WooAutomate] Successfully requested deletion for: ${url.src}`))
+            .catch(error => console.warn(`[WooAutomate] Failed to request deletion for ${url.src}:`, error.message));
+    }
+}
 
 
 export async function POST(request: NextRequest) {
@@ -119,31 +110,25 @@ export async function POST(request: NextRequest) {
   if (!token) {
     return NextResponse.json({ success: false, error: 'Authentication token not provided.' }, { status: 401 });
   }
-
   try {
     if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
     await adminAuth.verifyIdToken(token);
   } catch (error) {
-    console.error("Error verifying Firebase token in /api/woocommerce/products:", error);
+    console.error("Error verifying Firebase token:", error);
     return NextResponse.json({ success: false, error: 'Invalid or expired authentication token.' }, { status: 401 });
   }
 
-  // 2. Validate WooCommerce & Firebase Admin clients
+  // 2. Validate WooCommerce API client
   if (!wooApi) {
     return NextResponse.json({ success: false, error: 'WooCommerce API client is not configured on the server.' }, { status: 503 });
   }
-  if (!adminStorage) {
-    return NextResponse.json({ success: false, error: 'Firebase Storage Admin client is not configured on the server.' }, { status: 503 });
-  }
 
   const productData: ProductData = await request.json();
-  const processedImageUrls: { src: string }[] = [];
+  const uploadedImageUrls: { src: string }[] = [];
+  const QUEFOTO_UPLOAD_API_URL = 'https://quefoto.es/api/upload';
 
-  // 3. Process and upload images to Firebase Storage
+  // 3. Process and upload images to external host
   if (productData.photos && productData.photos.length > 0) {
-    const bucket = adminStorage.bucket();
-
-    // Sort photos to ensure primary is first
     const sortedPhotos = [...productData.photos].sort((a, b) => (a.isPrimary ? -1 : b.isPrimary ? 1 : 0));
 
     for (const photo of sortedPhotos) {
@@ -151,7 +136,7 @@ export async function POST(request: NextRequest) {
 
       try {
         const base64EncodedImageString = photo.dataUri.split(',')[1];
-        if (!base64EncodedImageString) throw new Error('Invalid data URI');
+        if (!base64EncodedImageString) throw new Error('Invalid data URI provided.');
 
         const imageBuffer = Buffer.from(base64EncodedImageString, 'base64');
         
@@ -161,45 +146,41 @@ export async function POST(request: NextRequest) {
             .toBuffer();
 
         const seoFilename = `${slugify(productData.name || 'product')}-${uuidv4()}.webp`;
-        const filePath = `product-images/${seoFilename}`;
-        const file = bucket.file(filePath);
-
-        await file.save(processedBuffer, {
-            metadata: { contentType: 'image/webp' },
-            public: true,
-        });
         
-        const publicUrl = file.publicUrl();
-        processedImageUrls.push({ src: publicUrl });
+        const formData = new FormData();
+        formData.append('file', processedBuffer, { filename: seoFilename, contentType: 'image/webp' });
+
+        const uploadResponse = await axios.post(QUEFOTO_UPLOAD_API_URL, formData, {
+            headers: { ...formData.getHeaders() },
+        });
+
+        if (uploadResponse.data && uploadResponse.data.url) {
+            uploadedImageUrls.push({ src: uploadResponse.data.url });
+        } else {
+            throw new Error(`Image upload to '${QUEFOTO_UPLOAD_API_URL}' succeeded but returned no URL.`);
+        }
 
       } catch (imageError: any) {
-        console.error(`Error processing image ${photo.name}:`, imageError);
-
-        if (imageError.code === 404 || (imageError.message && imageError.message.toLowerCase().includes('bucket does not exist'))) {
-          const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
-          const userFriendlyError = `Error de Configuración: El bucket de Firebase Storage ('${bucketName || 'No configurado'}') no existe. \n\n**Solución:**\n1. Ve a tu Consola de Firebase.\n2. Ve a la sección "Storage".\n3. Haz clic en "Comenzar" para crear el bucket por defecto.\n4. Asegúrate de que la variable de entorno NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET coincide con el nombre del bucket.`;
-          return NextResponse.json({ success: false, error: userFriendlyError }, { status: 500 });
-        }
-        
-        return NextResponse.json({ success: false, error: `Failed to process image: ${photo.name}. Reason: ${imageError.message}` }, { status: 500 });
+        console.error(`Error processing and uploading image ${photo.name}:`, imageError.response?.data || imageError.message);
+        const userFriendlyError = `Error al procesar la imagen '${photo.name}'. Razón: ${imageError.message}`;
+        return NextResponse.json({ success: false, error: userFriendlyError }, { status: 500 });
       }
     }
   }
   
   // 4. Send data to WooCommerce
   try {
-    const formattedProduct = formatProductForWooCommerce(productData, processedImageUrls);
-
+    const formattedProduct = formatProductForWooCommerce(productData, uploadedImageUrls);
     const response = await wooApi.post('products', formattedProduct);
 
     if (response.status >= 200 && response.status < 300) {
       const createdProduct = response.data;
-
-      // Asynchronously update image caption and description metadata.
-      if (createdProduct.images && createdProduct.images.length > 0) {
-          console.log(`[WooAutomate] Product ${createdProduct.id} created. Updating metadata for ${createdProduct.images.length} images.`);
-          updateImageMetadata(createdProduct, productData);
-      }
+      
+      // Update image metadata in WordPress (don't wait for it)
+      updateImageMetadata(createdProduct, productData);
+      
+      // Fire-and-forget deletion from external host
+      deleteImagesFromExternalHost(uploadedImageUrls);
       
       return NextResponse.json({ success: true, data: createdProduct }, { status: response.status });
     } else {
