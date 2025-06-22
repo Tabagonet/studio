@@ -187,7 +187,7 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
       <div className="flex flex-col">
         <h4 className="font-semibold mb-2">Productos Simples Disponibles</h4>
         <div className="flex-grow flex flex-col h-96 rounded-md border">
-          <div className="p-2 border-b grid grid-cols-2 gap-2">
+          <div className="p-2 border-b grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Input
               placeholder="Buscar por nombre..."
               value={searchTerm}
@@ -214,15 +214,15 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
             {!isLoading && filteredAvailableProducts.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No se encontraron productos.</p>}
             <div className="space-y-2">
               {filteredAvailableProducts.map(product => (
-                <div key={product.id} className="flex items-center justify-between p-2 rounded-md border">
-                  <div className="flex items-center gap-2 overflow-hidden">
-                      <Image src={product.image || 'https://placehold.co/40x40.png'} alt={product.name} width={40} height={40} className="rounded-sm" />
-                      <div className="flex-1 overflow-hidden">
+                <div key={product.id} className="flex items-center justify-between gap-2 p-2 rounded-md border">
+                  <div className="flex flex-1 items-center gap-2 min-w-0">
+                      <Image src={product.image || 'https://placehold.co/40x40.png'} alt={product.name} width={40} height={40} className="rounded-sm flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{product.name}</p>
                           <p className="text-xs text-muted-foreground">{product.price}€</p>
                       </div>
                   </div>
-                  <Button size="icon-sm" variant="outline" onClick={() => handleAddProduct(product)}>
+                  <Button size="icon-sm" variant="outline" onClick={() => handleAddProduct(product)} className="flex-shrink-0">
                     <PlusCircle className="h-4 w-4" />
                   </Button>
                 </div>
@@ -246,14 +246,16 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
             {!isFetchingDetails && selectedProducts.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Añade productos desde la lista de disponibles.</p>}
             <div className="space-y-2">
                 {selectedProducts.map(product => (
-                <div key={product.id} className="flex items-center justify-between p-2 rounded-md border bg-muted/30">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                         <Image src={product.image || 'https://placehold.co/40x40.png'} alt={product.name} width={40} height={40} className="rounded-sm" />
-                        <div className="flex-1 overflow-hidden">
+                <div key={product.id} className="flex items-center justify-between gap-2 p-2 rounded-md border bg-muted/30">
+                    <div className="flex flex-1 items-center gap-2 min-w-0">
+                         <Image src={product.image || 'https://placehold.co/40x40.png'} alt={product.name} width={40} height={40} className="rounded-sm flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">{product.name}</p>
                         </div>
                     </div>
-                    <Button size="icon-sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleRemoveProduct(product.id)}><Trash2 className="h-4 w-4" /></Button>
+                    <Button size="icon-sm" variant="ghost" className="text-destructive hover:text-destructive flex-shrink-0" onClick={() => handleRemoveProduct(product.id)}>
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
                 </div>
                 ))}
             </div>
