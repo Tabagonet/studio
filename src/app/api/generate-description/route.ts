@@ -126,10 +126,7 @@ export async function POST(req: NextRequest) {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
         model: "gemini-1.5-flash-latest",
-        systemInstruction: {
-          parts: [{ text: `You must respond in valid JSON format. The JSON must adhere to this schema: ${JSON.stringify(GenerateProductDescriptionOutputSchema.jsonSchema())}` }],
-          role: "model"
-        },
+        systemInstruction: `You are an expert botanist, e-commerce copywriter, and SEO specialist. Your primary task is to generate a single, valid JSON object based on the user's prompt. The JSON object must strictly follow the schema requested in the user prompt. Do not add any extra text, comments, or markdown formatting like \`\`\`json around the JSON response.`,
         generationConfig: {
           responseMimeType: "application/json",
         },
