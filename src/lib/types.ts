@@ -97,3 +97,13 @@ export interface ParsedNameData {
 }
 
 export type WizardProcessingState = 'idle' | 'processing' | 'finished' | 'error';
+
+export interface ProductStats {
+  total: number;
+  status: {
+    [key: string]: number;
+  };
+  type: {
+    [key: string]: number;
+  };
+}

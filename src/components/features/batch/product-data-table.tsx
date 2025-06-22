@@ -27,10 +27,12 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { getColumns } from "./columns" 
-import type { ProductSearchResult, WooCommerceCategory } from "@/lib/types"
+import type { ProductSearchResult, WooCommerceCategory, ProductStats } from "@/lib/types"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { BrainCircuit, ChevronDown, Loader2 } from "lucide-react"
+import { BrainCircuit, ChevronDown, Loader2, Box, FileCheck2, FileText, BarChart3 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 
 
 export function ProductDataTable() {
@@ -44,6 +46,9 @@ export function ProductDataTable() {
   const [isLoadingCategories, setIsLoadingCategories] = React.useState(false);
   const [selectedCategory, setSelectedCategory] = React.useState('all');
 
+  const [stats, setStats] = React.useState<ProductStats | null>(null);
+  const [isLoadingStats, setIsLoadingStats] = React.useState(true);
+
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [rowSelection, setRowSelection] = React.useState({})
@@ -54,6 +59,33 @@ export function ProductDataTable() {
   })
 
   const { toast } = useToast()
+
+  const fetchStats = React.useCallback(async () => {
+    setIsLoadingStats(true);
+    const user = auth.currentUser;
+    if (!user) {
+        setIsLoadingStats(false);
+        return;
+    }
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/woocommerce/products/stats', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) {
+            console.error("Failed to fetch product stats:", await response.text());
+            setStats(null);
+            return;
+        }
+        const data = await response.json();
+        setStats(data);
+    } catch (error) {
+        console.error(error);
+        setStats(null);
+    } finally {
+        setIsLoadingStats(false);
+    }
+  }, []);
 
   const fetchData = React.useCallback(async () => {
     setIsLoading(true);
@@ -121,6 +153,7 @@ export function ProductDataTable() {
     const unsubscribe = auth.onAuthStateChanged((user) => {
         if (user) {
             fetchData();
+            fetchStats();
             user.getIdToken().then(fetchCats);
         } else {
             setIsLoading(false);
@@ -128,7 +161,7 @@ export function ProductDataTable() {
         }
     });
     return () => unsubscribe();
-  }, [fetchData, toast]);
+  }, [fetchData, fetchStats, toast]);
 
   React.useEffect(() => {
     if (categories.length === 0) return;
@@ -171,12 +204,13 @@ export function ProductDataTable() {
       }
       
       toast({ title: "¡Éxito!", description: "El estado del producto ha sido actualizado." });
-      fetchData(); // Refresh the table
+      fetchData();
+      fetchStats();
     } catch (error) {
       console.error(error);
       toast({ title: "Error", description: (error as Error).message, variant: "destructive" });
     }
-  }, [toast, fetchData]);
+  }, [toast, fetchData, fetchStats]);
 
   const columns = React.useMemo(() => getColumns(handleStatusUpdate), [handleStatusUpdate]);
 
@@ -246,6 +280,7 @@ export function ProductDataTable() {
 
         table.resetRowSelection();
         fetchData();
+        fetchStats();
 
     } catch (error: any) {
         toast({
@@ -263,6 +298,45 @@ export function ProductDataTable() {
 
   return (
     <div className="w-full space-y-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total de Productos</CardTitle>
+            <Box className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {isLoadingStats ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{stats?.total ?? 'N/A'}</div>}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Publicados</CardTitle>
+            <FileCheck2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {isLoadingStats ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{stats?.status?.publish ?? 'N/A'}</div>}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Borradores</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {isLoadingStats ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{stats?.status?.draft ?? 'N/A'}</div>}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Tipos (S/V/A)</CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {isLoadingStats ? <Skeleton className="h-8 w-24" /> : <div className="text-2xl font-bold">{`${stats?.type?.simple ?? 'N/A'} / ${stats?.type?.variable ?? 'N/A'} / ${stats?.type?.grouped ?? 'N/A'}`}</div>}
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 py-4">
         <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
             <Input
