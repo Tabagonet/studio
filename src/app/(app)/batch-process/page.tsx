@@ -54,16 +54,34 @@ export default function BatchProcessPage() {
   };
 
   const handleDownloadTemplate = () => {
-    const headers = ['sku', 'nombre', 'precio_regular', 'precio_oferta', 'categorias', 'stock_inicial'];
+    const headers = [
+      'sku', 'nombre', 'tipo', 'categorias', 'etiquetas', 
+      'precio_regular', 'precio_oferta', 'stock_inicial',
+      'descripcion_corta', 'descripcion_larga',
+      'atributo_1_nombre', 'atributo_1_valores', 'atributo_1_variacion', 'atributo_1_visible',
+      'atributo_2_nombre', 'atributo_2_valores', 'atributo_2_variacion', 'atributo_2_visible',
+    ];
     const exampleData = [
-      ['SKU-PROD-1', 'Monstera Deliciosa', '29.99', '19.99', 'Plantas > De Interior', '100'],
-      ['SKU-PROD-2', 'Echeveria "Lola"', '35.50', '', 'Plantas > Suculentas', '50'],
-      ['SKU-PROD-3', 'Pala de Jardín de Acero', '12.50', '9.99', 'Herramientas', '200'],
+      // Simple product example
+      [
+        'SKU-PALA-ACERO', 'Pala de Jardín de Acero', 'simple', 'Herramientas', 'jardineria, pala, acero',
+        '12.50', '9.99', '200', 'Pala de acero resistente para todo tipo de tareas.', 'Fabricada con acero al carbono de alta calidad, esta pala es perfecta para cavar, plantar y mover tierra. Mango ergonómico de madera.',
+        '', '', '', '', // No attributes
+        '', '', '', ''
+      ],
+      // Variable product example
+      [
+        'TSHIRT-COOL', 'Camiseta Molona', 'variable', 'Ropa > Camisetas', 'ropa, camiseta, verano',
+        '', '', '0', // Price and stock can be left blank for parent variable product
+        'Camiseta de algodón 100% orgánico.', 'Disponible en varios colores y tallas, esta camiseta es perfecta para el verano. Tejido suave y transpirable.',
+        'Color', 'Rojo | Verde | Azul', '1', '1', // Attribute 1 (Color) for variations
+        'Talla', 'S | M | L', '1', '1'             // Attribute 2 (Talla) for variations
+      ]
     ];
     
     const csvContent = [
       headers.join(','),
-      ...exampleData.map(row => row.map(cell => `"${cell}"`).join(',')) // Quote cells to handle commas
+      ...exampleData.map(row => row.map(cell => `"${cell}"`).join(','))
     ].join('\n');
       
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -105,14 +123,28 @@ export default function BatchProcessPage() {
       
       <Alert>
         <Info className="h-4 w-4" />
-        <AlertTitle>Cómo Funciona el Proceso Híbrido</AlertTitle>
+        <AlertTitle>Cómo Funciona el Proceso por Lotes</AlertTitle>
         <AlertDescription>
-          <ol className="list-decimal list-inside space-y-2 mt-2">
+          <ol className="list-decimal list-inside space-y-3 mt-2">
             <li>
-              <strong>Prepara tus Imágenes:</strong> Para agrupar las fotos, nombra los archivos con el patrón <strong><code>SKU-NUMERO.jpg</code></strong>. El <strong>SKU</strong> es el identificador único del producto y el <strong>NÚMERO</strong> las diferencia y las ordena (la ` -1` será la imagen principal). Por ejemplo: `PLANTA-01-1.jpg`, `PLANTA-01-2.jpg`.
+              <strong>Prepara tus Imágenes:</strong> Nombra cada foto con el patrón <strong><code>SKU-NUMERO.jpg</code></strong>. El <strong>SKU</strong> debe coincidir exactamente con el de tu CSV. El <strong>NÚMERO</strong> (`-1`, `-2`, etc.) las agrupa y ordena (la `-1` será la imagen principal).
+              <br />
+              <em className="text-xs">Ejemplo: `TSHIRT-COOL-1.jpg`, `TSHIRT-COOL-2.jpg`.</em>
             </li>
             <li>
-              <strong>Prepara tu archivo CSV:</strong> Descarga la plantilla. La columna <strong><code>sku</code></strong> es obligatoria y debe coincidir con el identificador en los nombres de las imágenes. La columna <strong><code>nombre</code></strong> será el título de tu producto y el texto que usará la IA para generar contenido.
+              <strong>Prepara tu archivo CSV:</strong> Descarga nuestra plantilla. Contiene todas las columnas necesarias para crear productos <strong>simples</strong> y <strong>variables</strong>.
+              <ul className="list-disc list-inside pl-6 mt-2 text-sm space-y-1">
+                  <li><strong>Columnas Clave:</strong> <code>sku</code> y <code>nombre</code> son obligatorios. El <code>nombre</code> se usará para la IA.</li>
+                  <li><strong>Categorías:</strong> Usa <code>&gt;</code> para indicar jerarquía. Ej: <code>Ropa &gt; Camisetas</code>.</li>
+                  <li><strong>Productos Variables:</strong>
+                      <ul className="list-['-_'] list-inside pl-4">
+                        <li>Define el <code>tipo</code> como <code>variable</code>.</li>
+                        <li>Usa las columnas <code>atributo_1_nombre</code>, <code>atributo_1_valores</code>, etc.</li>
+                        <li>Separa los valores de los atributos con <code>|</code>. Ej: <code>Rojo | Verde | Azul</code>.</li>
+                        <li>Pon <code>1</code> en <code>atributo_1_variacion</code> para que se generen las combinaciones.</li>
+                      </ul>
+                  </li>
+              </ul>
             </li>
             <li>
               <strong>Sube Ambos Archivos:</strong> Arrastra tus imágenes y tu archivo CSV a las zonas de carga de abajo.
@@ -123,6 +155,7 @@ export default function BatchProcessPage() {
           </ol>
         </AlertDescription>
       </Alert>
+
 
       <Card>
         <CardHeader>
