@@ -109,7 +109,7 @@ export default function BatchProcessPage() {
         <AlertDescription>
           <ol className="list-decimal list-inside space-y-2 mt-2">
             <li>
-              <strong>Prepara tus Imágenes:</strong> Nombra cada foto con el patrón <strong><code>SKU-NUMERO.jpg</code></strong>. Por ejemplo, <code>CAM-AZ-M-1.jpg</code> y <code>CAM-AZ-M-2.jpg</code> para el mismo producto. El SKU será el identificador único.
+              <strong>Prepara tus Imágenes:</strong> Para que el sistema sepa qué imágenes pertenecen al mismo producto, debes nombrarlas siguiendo el patrón <strong><code>SKU-NUMERO.jpg</code></strong>. El <strong>SKU</strong> agrupa las fotos, y el <strong>NÚMERO</strong> las diferencia y las ordena (la <code>-1</code> será la imagen principal). Por ejemplo, para un producto con SKU <code>PLANTA-TROPICAL-01</code> que tiene 3 fotos, las nombrarías así: <code>PLANTA-TROPICAL-01-1.jpg</code>, <code>PLANTA-TROPICAL-01-2.jpg</code>, y <code>PLANTA-TROPICAL-01-3.jpg</code>.
             </li>
             <li>
               <strong>Prepara tu archivo CSV:</strong> Descarga nuestra plantilla y crea una hoja de cálculo con los datos de tus productos. La columna <strong><code>sku</code></strong> es obligatoria. Para las categorías, usa <strong><code>&gt;</code></strong> para indicar jerarquía (ej. <code>Plantas &gt; Suculentas</code>). Si una categoría no existe, se creará automáticamente.
