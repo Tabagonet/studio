@@ -4,12 +4,7 @@ import { getApiClientsForUser } from '@/lib/api-helpers';
 import { z } from 'zod';
 import { adminAuth } from '@/lib/firebase-admin';
 
-// Schema for updating a product's status
-const updateStatusSchema = z.object({
-  status: z.enum(['publish', 'draft', 'pending', 'private']),
-});
-
-// Schema for updating general product details
+// Schema for updating a product
 const productUpdateSchema = z.object({
     name: z.string().min(1, 'Name cannot be empty.').optional(),
     sku: z.string().optional(),
@@ -18,7 +13,9 @@ const productUpdateSchema = z.object({
     short_description: z.string().optional(),
     description: z.string().optional(),
     status: z.enum(['publish', 'draft', 'pending', 'private']).optional(),
-}).passthrough(); // Allow other fields to be passed through without validation
+    tags: z.string().optional(),
+    category_id: z.number().nullable().optional(),
+});
 
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -70,21 +67,24 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     const body = await req.json();
 
-    // Check if it's just a status update
-    if (body.status && Object.keys(body).length === 1) {
-        const validationResult = updateStatusSchema.safeParse(body);
-        if (!validationResult.success) {
-            return NextResponse.json({ error: 'Invalid status provided.', details: validationResult.error.flatten() }, { status: 400 });
-        }
-    } else {
-        // It's a full product update
-        const validationResult = productUpdateSchema.safeParse(body);
+    const validationResult = productUpdateSchema.safeParse(body);
         if (!validationResult.success) {
             return NextResponse.json({ error: 'Invalid product data.', details: validationResult.error.flatten() }, { status: 400 });
-        }
     }
     
-    const response = await wooApi.put(`products/${productId}`, body);
+    const validatedData = validationResult.data;
+    const wooPayload: any = { ...validatedData };
+
+    if (validatedData.tags !== undefined) {
+      wooPayload.tags = validatedData.tags.split(',').map((k: string) => ({ name: k.trim() })).filter((t: any) => t.name);
+    }
+    
+    if (validatedData.category_id !== undefined) {
+      wooPayload.categories = validatedData.category_id ? [{ id: validatedData.category_id }] : [];
+      delete wooPayload.category_id;
+    }
+    
+    const response = await wooApi.put(`products/${productId}`, wooPayload);
 
     return NextResponse.json({ success: true, data: response.data });
   } catch (error: any) {

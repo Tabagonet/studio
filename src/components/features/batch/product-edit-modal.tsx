@@ -20,6 +20,10 @@ import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import type { WooCommerceCategory } from '@/lib/types';
+
 
 interface ProductEditModalProps {
   productId: number;
@@ -34,6 +38,9 @@ interface ProductEditState {
   short_description: string;
   description: string;
   imageUrl: string | null;
+  status: 'publish' | 'draft' | 'pending' | 'private';
+  tags: string;
+  category_id: number | null;
 }
 
 export function ProductEditModal({ productId, onClose }: ProductEditModalProps) {
@@ -41,13 +48,18 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
+  const [categoryTree, setCategoryTree] = useState<{ category: WooCommerceCategory; depth: number }[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+  
   const { toast } = useToast();
 
   const shortDescRef = useRef<HTMLTextAreaElement>(null);
   const longDescRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    const fetchProductData = async () => {
+    const fetchInitialData = async () => {
       setIsLoading(true);
       setError(null);
       const user = auth.currentUser;
@@ -59,25 +71,38 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
 
       try {
         const token = await user.getIdToken();
-        const response = await fetch(`/api/woocommerce/products/${productId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const [productResponse, categoriesResponse] = await Promise.all([
+           fetch(`/api/woocommerce/products/${productId}`, { headers: { 'Authorization': `Bearer ${token}` }}),
+           fetch('/api/woocommerce/categories', { headers: { 'Authorization': `Bearer ${token}` }}),
+        ]);
 
-        if (!response.ok) {
-          const errorData = await response.json();
+        if (!productResponse.ok) {
+          const errorData = await productResponse.json();
           throw new Error(errorData.error || 'Failed to fetch product data.');
         }
+        const productData = await productResponse.json();
 
-        const data = await response.json();
+        if (categoriesResponse.ok) {
+          const catData = await categoriesResponse.json();
+          setWooCategories(catData);
+        } else {
+          console.error("Failed to fetch categories");
+        }
+        setIsLoadingCategories(false);
+
         setProduct({
-          name: data.name || '',
-          sku: data.sku || '',
-          regular_price: data.regular_price || '',
-          sale_price: data.sale_price || '',
-          short_description: data.short_description || '',
-          description: data.description || '',
-          imageUrl: data.images?.length > 0 ? data.images[0].src : null,
+          name: productData.name || '',
+          sku: productData.sku || '',
+          regular_price: productData.regular_price || '',
+          sale_price: productData.sale_price || '',
+          short_description: productData.short_description || '',
+          description: productData.description || '',
+          imageUrl: productData.images?.length > 0 ? productData.images[0].src : null,
+          status: productData.status || 'draft',
+          tags: productData.tags?.map((t: any) => t.name).join(', ') || '',
+          category_id: productData.categories?.length > 0 ? productData.categories[0].id : null,
         });
+
       } catch (e: any) {
         setError(e.message);
         toast({ title: 'Error', description: e.message, variant: 'destructive' });
@@ -86,14 +111,37 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
       }
     };
 
-    fetchProductData();
+    fetchInitialData();
   }, [productId, toast]);
+  
+  useEffect(() => {
+    if (wooCategories.length === 0) {
+        setCategoryTree([]);
+        return;
+    }
+    const buildTree = (parentId = 0, depth = 0): { category: WooCommerceCategory; depth: number }[] => {
+        const children = wooCategories.filter(cat => cat.parent === parentId).sort((a, b) => a.name.localeCompare(b.name));
+        let result: { category: WooCommerceCategory; depth: number }[] = [];
+        for (const child of children) {
+            result.push({ category: child, depth });
+            result = result.concat(buildTree(child.id, depth + 1));
+        }
+        return result;
+    };
+    setCategoryTree(buildTree());
+  }, [wooCategories]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!product) return;
     setProduct({ ...product, [e.target.name]: e.target.value });
   };
   
+   const handleSelectChange = (name: 'status' | 'category_id', value: string) => {
+    if (!product) return;
+    const finalValue = name === 'category_id' ? (value ? parseInt(value, 10) : null) : value;
+    setProduct({ ...product, [name]: finalValue });
+  };
+
   const handleApplyTag = (
     ref: React.RefObject<HTMLTextAreaElement>,
     field: keyof Omit<ProductEditState, 'imageUrl'>,
@@ -201,11 +249,25 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                       <Label htmlFor="name">Nombre</Label>
                       <Input id="name" name="name" value={product.name} onChange={handleInputChange} />
                     </div>
-                    <div>
-                      <Label htmlFor="sku">SKU</Label>
-                      <Input id="sku" name="sku" value={product.sku} onChange={handleInputChange} />
+                     <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="sku">SKU</Label>
+                          <Input id="sku" name="sku" value={product.sku} onChange={handleInputChange} />
+                        </div>
+                        <div>
+                          <Label htmlFor="status">Estado</Label>
+                          <Select name="status" value={product.status} onValueChange={(value) => handleSelectChange('status', value)}>
+                            <SelectTrigger id="status"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="publish">Publicado</SelectItem>
+                              <SelectItem value="draft">Borrador</SelectItem>
+                              <SelectItem value="pending">Pendiente</SelectItem>
+                              <SelectItem value="private">Privado</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                     <div className="grid grid-cols-2 gap-4">
                         <div>
                           <Label htmlFor="regular_price">Precio Regular (€)</Label>
                           <Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} />
@@ -214,6 +276,25 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                           <Label htmlFor="sale_price">Precio Oferta (€)</Label>
                           <Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} />
                         </div>
+                    </div>
+                    <div>
+                        <Label htmlFor="category_id">Categoría</Label>
+                        <Select name="category_id" value={product.category_id?.toString() || ''} onValueChange={(value) => handleSelectChange('category_id', value)} disabled={isLoadingCategories}>
+                            <SelectTrigger><SelectValue placeholder="Selecciona una categoría..." /></SelectTrigger>
+                            <SelectContent>
+                                {categoryTree.map(({ category, depth }) => (
+                                    <SelectItem key={category.id} value={category.id.toString()}>
+                                        <span style={{ paddingLeft: `${depth * 1.25}rem` }}>
+                                            {depth > 0 && '— '} {category.name}
+                                        </span>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div>
+                        <Label htmlFor="tags">Etiquetas (separadas por comas)</Label>
+                        <Input id="tags" name="tags" value={product.tags} onChange={handleInputChange} />
                     </div>
                 </div>
 
@@ -250,7 +331,8 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                         <Image
                           src={product.imageUrl}
                           alt={product.name || 'Product image'}
-                          fill
+                          width={128}
+                          height={128}
                           className="rounded-md object-cover"
                         />
                       ) : (
@@ -259,18 +341,22 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                         </div>
                       )}
                     </div>
-                    <h4 className="text-lg font-semibold truncate text-center">{product.name || "Nombre del Producto"}</h4>
+                    <h4 className="text-md font-semibold truncate text-center">{product.name || "Nombre del Producto"}</h4>
+                     <div className="text-center space-x-1">
+                        <Badge variant={product.status === 'publish' ? 'default' : 'secondary'} className="capitalize">{product.status}</Badge>
+                        <Badge variant="outline">{categoryTree.find(c => c.category.id === product.category_id)?.category.name || 'Sin Categoría'}</Badge>
+                    </div>
                     <div className="flex items-baseline justify-center gap-2 mt-2">
                       {product.sale_price ? (
                         <>
-                          <p className="text-xl font-bold text-primary">{product.sale_price}€</p>
-                          <p className="text-md text-muted-foreground line-through">{product.regular_price}€</p>
+                          <p className="text-lg font-bold text-primary">{product.sale_price}€</p>
+                          <p className="text-sm text-muted-foreground line-through">{product.regular_price}€</p>
                         </>
                       ) : (
-                        <p className="text-xl font-bold">{product.regular_price ? `${product.regular_price}€` : 'N/A'}</p>
+                        <p className="text-lg font-bold">{product.regular_price ? `${product.regular_price}€` : 'N/A'}</p>
                       )}
                     </div>
-                    <div className="space-y-3 text-sm">
+                    <div className="space-y-3 text-xs">
                         <div>
                             <h5 className="font-semibold mb-1 border-b pb-1">Descripción Corta</h5>
                             <div className="prose prose-sm max-w-none text-muted-foreground mt-2" dangerouslySetInnerHTML={{ __html: product.short_description || "..." }} />
@@ -279,6 +365,16 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                             <h5 className="font-semibold mb-1 border-b pb-1">Descripción Larga</h5>
                             <div className="prose prose-sm max-w-none text-muted-foreground mt-2 [&_strong]:text-foreground [&_em]:text-foreground" dangerouslySetInnerHTML={{ __html: product.description || "..." }} />
                         </div>
+                        {product.tags && (
+                          <div>
+                            <h5 className="font-semibold mb-1 border-b pb-1">Etiquetas</h5>
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {product.tags.split(',').map(k => k.trim()).filter(k => k).map((keyword, index) => (
+                                <Badge key={index} variant="secondary">{keyword}</Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                     </div>
                 </div>
               </div>
