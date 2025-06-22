@@ -36,6 +36,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 export function ProductDataTable() {
   const [data, setData] = React.useState<ProductSearchResult[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
+  const [isAiProcessing, setIsAiProcessing] = React.useState(false);
   const [totalPages, setTotalPages] = React.useState(1)
   
   const [categories, setCategories] = React.useState<WooCommerceCategory[]>([]);
@@ -201,12 +202,62 @@ export function ProductDataTable() {
     },
   })
 
-  const handleAiAction = (action: string) => {
+  const handleAiAction = async (action: string) => {
+    const selectedRows = table.getSelectedRowModel().rows;
+    if (selectedRows.length === 0) {
+      toast({ title: "No hay productos seleccionados", variant: "destructive" });
+      return;
+    }
+    
+    setIsAiProcessing(true);
+    const productIds = selectedRows.map(row => row.original.id);
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: "No autenticado", variant: "destructive" });
+        setIsAiProcessing(false);
+        return;
+    }
+
     toast({
-        title: `"${action}" Seleccionado`,
-        description: "Esta funcionalidad estará disponible próximamente."
-    })
+        title: "Procesando con IA...",
+        description: `Aplicando "${action}" a ${productIds.length} producto(s). Esto puede tardar.`,
+    });
+
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/process-photos', { // This is the repurposed endpoint
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ productIds }),
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || result.message || 'Fallo la acción en lote.');
+        }
+        
+        toast({
+            title: "¡Acción completada!",
+            description: result.message,
+        });
+
+        table.resetRowSelection();
+        fetchData();
+
+    } catch (error: any) {
+        toast({
+            title: "Error en la acción de IA",
+            description: error.message,
+            variant: "destructive",
+        });
+    } finally {
+        setIsAiProcessing(false);
+    }
   }
+
 
   const selectedRowCount = Object.keys(rowSelection).length;
 
@@ -245,9 +296,9 @@ export function ProductDataTable() {
         </div>
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="outline" disabled={selectedRowCount === 0} className="w-full md:w-auto">
-                    <BrainCircuit className="mr-2 h-4 w-4" />
-                    Acciones ({selectedRowCount})
+                <Button variant="outline" disabled={selectedRowCount === 0 || isAiProcessing} className="w-full md:w-auto">
+                    {isAiProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BrainCircuit className="mr-2 h-4 w-4" />}
+                    {isAiProcessing ? "Procesando..." : `Acciones (${selectedRowCount})`}
                     <ChevronDown className="ml-2 h-4 w-4" />
                 </Button>
             </DropdownMenuTrigger>
@@ -257,7 +308,7 @@ export function ProductDataTable() {
                 <DropdownMenuItem onClick={() => handleAiAction("Generar Descripciones")}>
                     Generar/Actualizar Descripciones
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleAiAction("Generar Metadatos de Imagen")}>
+                <DropdownMenuItem disabled>
                     Generar Metadatos para Imágenes
                 </DropdownMenuItem>
             </DropdownMenuContent>

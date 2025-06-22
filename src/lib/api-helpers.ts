@@ -1,10 +1,36 @@
 
 // src/lib/api-helpers.ts
-import { adminDb } from '@/lib/firebase-admin';
+import { adminDb, adminAuth } from '@/lib/firebase-admin';
 import { createWooCommerceApi } from '@/lib/woocommerce';
 import { createWordPressApi } from '@/lib/wordpress';
 import type WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
 import type { AxiosInstance } from 'axios';
+import { z } from 'zod';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+
+// --- Schemas for AI Content Generation ---
+export const GenerateProductDescriptionInputSchema = z.object({
+  productName: z.string().min(1, 'Product name is required.'),
+  productType: z.string(),
+  keywords: z.string().optional(),
+  language: z.enum(['Spanish', 'English']).default('Spanish'),
+  groupedProductIds: z.array(z.number()).optional(),
+});
+
+export const GenerateProductDescriptionOutputSchema = z.object({
+  shortDescription: z.string().describe('A brief, catchy, and SEO-friendly summary of the product (1-2 sentences). Must use HTML for formatting.'),
+  longDescription: z.string().describe('A detailed, persuasive, and comprehensive description of the product, following a specific structure for plants. Must use HTML for formatting.'),
+  keywords: z.string().describe('A comma-separated list of 5 to 10 relevant SEO keywords/tags for the product, in English, using PascalCase or camelCase format.'),
+  imageTitle: z.string().describe('A concise, SEO-friendly title for the product images. Example: "Drought-Tolerant Agave Avellanidens Plant".'),
+  imageAltText: z.string().describe('A descriptive alt text for SEO, describing the image for visually impaired users. Example: "A large Agave Avellanidens succulent with blue-green leaves in a sunny, rocky garden."'),
+  imageCaption: z.string().describe('An engaging caption for the image, suitable for the media library. This can be based on the short description.'),
+  imageDescription: z.string().describe('A detailed description for the image media library entry. This can be a more detailed version of the alt text or based on the long description.'),
+});
+
+type GenerateProductDescriptionInput = z.infer<typeof GenerateProductDescriptionInputSchema>;
+type GenerateProductDescriptionOutput = z.infer<typeof GenerateProductDescriptionOutputSchema>;
+
 
 interface ApiClients {
   wooApi: WooCommerceRestApi;
@@ -55,4 +81,156 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   }
 
   return { wooApi, wpApi };
+}
+
+
+// --- AI Content Generation Helper ---
+
+const DEFAULT_PROMPT_TEMPLATE = `You are an expert botanist, e-commerce copywriter, and SEO specialist.
+Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
+The response must be a valid JSON object. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
+
+**Input Information:**
+- **Plant Name / Group Name:** {{productName}}
+- **Language for output:** {{language}}
+- **Product Type:** {{productType}}
+- **User-provided Keywords (for inspiration):** {{keywords}}
+- **Contained Products (for "Grouped" type only):**
+{{groupedProductsList}}
+
+**Instructions:**
+1.  **Research & Synthesis:**
+    - For "simple" or "variable" products, research the provided **Plant Name**.
+    - For "Grouped" products, your primary task is to **synthesize the information from the "Contained Products" list provided above.** Do not perform external research on the group name itself. Your goal is to create a compelling description for the *collection* of items listed. Use the details from **all** products in the list to inform your response.
+
+2.  **Generate Content:** Populate a JSON object with the following keys and specifications:
+
+    a.  **"shortDescription":** Write a concise and engaging summary in {{language}}. The product name, "{{productName}}", MUST be wrapped in <strong> HTML tags. If it's a grouped product, summarize the collection.
+
+    b.  **"longDescription":** Write a detailed description entirely in **{{language}}**. It MUST follow this structure. All labels (e.g., "Botanical Name", "Common Names", etc.) MUST be translated to {{language}}. For each item, **you must find the correct information** and format it with the translated label in bold (<strong>) and the value in italic (<em>). For a "Grouped" product, adapt the details to describe the collection as a whole.
+        <strong>[Translated "Botanical Name"]:</strong> <em>[Find and insert the scientific name, or general family for groups]</em><br>
+        <strong>[Translated "Common Names"]:</strong> <em>[Find and list common names, or a collective name for groups]</em><br>
+        <strong>[Translated "Mature Size"]:</strong> <em>[Find and insert typical height and spread]</em><br>
+        <strong>[Translated "Light Requirements"]:</strong> <em>[Find and insert light needs]</em><br>
+        <strong>[Translated "Soil Requirements"]:</strong> <em>[Find and insert soil needs]</em><br>
+        <strong>[Translated "Water Needs"]:</strong> <em>[Find and insert water needs]</em><br>
+        <strong>[Translated "Foliage"]:</strong> <em>[Find and describe the foliage]</em><br>
+        <strong>[Translated "Flowers"]:</strong> <em>[Find and describe the flowers]</em><br>
+        <strong>[Translated "Growth Rate"]:</strong> <em>[Find and insert the growth rate]</em><br>
+        <br>
+        <strong>[Translated "Uses"]:</strong><br>
+        - <strong>[Translated "Architectural Plant"]:</strong> <em>[Explain this use based on research, in {{language}}]</em><br>
+        - <strong>[Translated "Xeriscaping"]:</strong> <em>[Explain this use based on research, in {{language}}]</em><br>
+        - <strong>[Translated "Ecological Landscaping"]:</strong> <em>[Explain this use based on research, in {{language}}]</em><br>
+        <br>
+        <strong>[Translated "Benefits"]:</strong><br>
+        - <strong>[Translated "Extreme Drought Tolerance"]:</strong> <em>[Explain this benefit based on research, in {{language}}]</em><br>
+        - <strong>[Translated "Low Maintenance"]:</strong> <em>[Explain this benefit based on research, in {{language}}]</em><br>
+        - <strong>[Translated "Visual Interest"]:</strong> <em>[Explain this benefit based on research, in {{language}}]</em><br>
+        - <strong>[Translated "Habitat Support"]:</strong> <em>[Explain this benefit based on research, in {{language}}]</em><br>
+        <br>
+        <em>[Write a final summary paragraph here, in {{language}}. If "Grouped", highlight the value of the collection.]</em>
+
+    c.  **"keywords":** Generate a comma-separated list of 5-10 relevant SEO keywords in English (PascalCase or camelCase).
+
+    d.  **"imageTitle":** Generate a concise, SEO-friendly title for product images. Example: "Drought-Tolerant Agave Avellanidens Plant".
+
+    e.  **"imageAltText":** Generate a descriptive alt text for SEO, describing the image for visually impaired users. Example: "A large Agave Avellanidens succulent with blue-green leaves in a sunny, rocky garden."
+
+    f.  **"imageCaption":** Generate an engaging caption for the image, suitable for the media library. This can be based on the short description.
+
+    g.  **"imageDescription":** Generate a detailed description for the image media library entry. This can be a more detailed version of the alt text or based on the long description.
+
+Generate the complete JSON object based on your research of "{{productName}}".`;
+
+async function getUserPromptTemplate(uid: string): Promise<string> {
+    if (!adminDb) {
+        console.warn("generate-description API: Firestore not available, using default prompt template.");
+        return DEFAULT_PROMPT_TEMPLATE;
+    }
+    try {
+        const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+        if (userSettingsDoc.exists()) {
+            const data = userSettingsDoc.data();
+            if (data && data.promptTemplate) {
+                return data.promptTemplate;
+            }
+        }
+        return DEFAULT_PROMPT_TEMPLATE;
+    } catch (error) {
+        console.error("Error fetching user prompt template, using default:", error);
+        return DEFAULT_PROMPT_TEMPLATE;
+    }
+}
+
+const stripHtml = (html: string | null | undefined): string => {
+    return html ? html.replace(/<[^>]*>?/gm, '') : '';
+};
+
+
+/**
+ * Generates product content using the Google AI API.
+ * @param {GenerateProductDescriptionInput} input - The product data.
+ * @param {string} uid - The user's Firebase UID.
+ * @param {WooCommerceRestApi} wooApi - An initialized WooCommerce API client, required for grouped products.
+ * @returns {Promise<GenerateProductDescriptionOutput>} The generated content.
+ */
+export async function generateProductContent(
+  input: GenerateProductDescriptionInput,
+  uid: string,
+  wooApi: WooCommerceRestApi
+): Promise<GenerateProductDescriptionOutput> {
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) {
+    throw new Error('La clave API de Google AI no está configurada en el servidor.');
+  }
+
+  let groupedProductsList = 'N/A';
+  if (input.productType === 'grouped' && input.groupedProductIds && input.groupedProductIds.length > 0) {
+    try {
+      const response = await wooApi.get("products", { include: input.groupedProductIds, per_page: 100 });
+      if (response.data && response.data.length > 0) {
+        groupedProductsList = response.data.map((product: any) => {
+          const name = product.name;
+          const desc = stripHtml(product.short_description) || stripHtml(product.description)?.substring(0, 150) + '...' || 'No description available.';
+          return `* Product: ${name}\n* Details: ${desc}`;
+        }).join('\n\n');
+      }
+    } catch (e) {
+      console.error("Failed to fetch details for grouped products:", e);
+      groupedProductsList = 'Error fetching product details.';
+    }
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: "gemini-1.5-flash-latest",
+    systemInstruction: `You are an expert botanist, e-commerce copywriter, and SEO specialist. Your primary task is to generate a single, valid JSON object based on the user's prompt. The JSON object must strictly follow the schema requested in the user prompt. Do not add any extra text, comments, or markdown formatting like \`\`\`json around the JSON response.`,
+    generationConfig: {
+      responseMimeType: "application/json",
+    },
+  });
+
+  const promptTemplate = await getUserPromptTemplate(uid);
+  const finalPrompt = promptTemplate
+    .replace(/{{productName}}/g, input.productName)
+    .replace(/{{language}}/g, input.language)
+    .replace(/{{productType}}/g, input.productType)
+    .replace(/{{keywords}}/g, input.keywords || '')
+    .replace(/{{groupedProductsList}}/g, groupedProductsList || 'N/A');
+
+  const result = await model.generateContent(finalPrompt);
+  const response = result.response;
+  const responseText = response.text();
+  
+  const parsedJson = JSON.parse(responseText);
+  const validatedOutput = GenerateProductDescriptionOutputSchema.safeParse(parsedJson);
+
+  if (!validatedOutput.success) {
+    console.error('AI model returned invalid JSON structure.', validatedOutput.error.flatten());
+    console.error('Raw model output:', responseText);
+    throw new Error("La IA devolvió una respuesta con un formato inesperado.");
+  }
+  
+  return validatedOutput.data;
 }
