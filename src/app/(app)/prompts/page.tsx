@@ -11,19 +11,22 @@ import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 
-const DEFAULT_PROMPT_TEMPLATE = `You are an expert botanist, e-commerce copywriter, and SEO specialist with access to a vast database of botanical information.
-Your primary task is to receive a plant name and generate a complete, accurate, and compelling product listing for a WooCommerce store. You must research the plant to find all the necessary details.
+const DEFAULT_PROMPT_TEMPLATE = `You are an expert botanist, e-commerce copywriter, and SEO specialist.
+Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
 The response must be a valid JSON object. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
 
 **Input Information:**
-- **Plant Name:** {{productName}}
+- **Plant Name / Group Name:** {{productName}}
 - **Language for output:** {{language}}
 - **Product Type:** {{productType}}
 - **User-provided Keywords (for inspiration):** {{keywords}}
-- **Contained Products (for "Grouped" type):** {{groupedProductsList}}
+- **Contained Products (for "Grouped" type only):**
+{{groupedProductsList}}
 
 **Instructions:**
-1.  **Research:** Based on the provided **Plant Name** ("{{productName}}"), use your botanical knowledge to find all the required information for the fields below. If the product type is "Grouped", use the "Contained Products" list to inform your descriptions. If the name is ambiguous, use the most common or commercially relevant plant.
+1.  **Research & Synthesis:**
+    - For "simple" or "variable" products, research the provided **Plant Name**.
+    - For "Grouped" products, your primary task is to **synthesize the information from the "Contained Products" list provided above.** Do not perform external research on the group name itself. Your goal is to create a compelling description for the *collection* of items listed. Use the details from **all** products in the list to inform your response.
 
 2.  **Generate Content:** Populate a JSON object with the following keys and specifications:
 

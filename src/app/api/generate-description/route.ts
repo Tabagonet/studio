@@ -5,6 +5,10 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { z } from 'zod';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 
+// Helper to strip HTML tags for cleaner AI prompts
+const stripHtml = (html: string | null | undefined): string => {
+    return html ? html.replace(/<[^>]*>?/gm, '') : '';
+}
 
 // Define input schema for validation
 const GenerateProductDescriptionInputSchema = z.object({
@@ -26,19 +30,22 @@ const GenerateProductDescriptionOutputSchema = z.object({
   imageDescription: z.string().describe('A detailed description for the image media library entry. This can be a more detailed version of the alt text or based on the long description.'),
 });
 
-const DEFAULT_PROMPT_TEMPLATE = `You are an expert botanist, e-commerce copywriter, and SEO specialist with access to a vast database of botanical information.
-Your primary task is to receive a plant name and generate a complete, accurate, and compelling product listing for a WooCommerce store. You must research the plant to find all the necessary details.
+const DEFAULT_PROMPT_TEMPLATE = `You are an expert botanist, e-commerce copywriter, and SEO specialist.
+Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
 The response must be a valid JSON object. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
 
 **Input Information:**
-- **Plant Name:** {{productName}}
+- **Plant Name / Group Name:** {{productName}}
 - **Language for output:** {{language}}
 - **Product Type:** {{productType}}
 - **User-provided Keywords (for inspiration):** {{keywords}}
-- **Contained Products (for "Grouped" type):** {{groupedProductsList}}
+- **Contained Products (for "Grouped" type only):**
+{{groupedProductsList}}
 
 **Instructions:**
-1.  **Research:** Based on the provided **Plant Name** ("{{productName}}"), use your botanical knowledge to find all the required information for the fields below. If the product type is "Grouped", use the "Contained Products" list to inform your descriptions. If the name is ambiguous, use the most common or commercially relevant plant.
+1.  **Research & Synthesis:**
+    - For "simple" or "variable" products, research the provided **Plant Name**.
+    - For "Grouped" products, your primary task is to **synthesize the information from the "Contained Products" list provided above.** Do not perform external research on the group name itself. Your goal is to create a compelling description for the *collection* of items listed. Use the details from **all** products in the list to inform your response.
 
 2.  **Generate Content:** Populate a JSON object with the following keys and specifications:
 
@@ -134,17 +141,20 @@ export async function POST(req: NextRequest) {
     console.log('/api/generate-description: Request body parsed and validated:', validationResult.data);
 
     // Fetch details for grouped products if applicable
-    let groupedProductsList = '';
+    let groupedProductsList = 'N/A';
     if (productType === 'grouped' && groupedProductIds && groupedProductIds.length > 0) {
         try {
             console.log('/api/generate-description: Fetching details for grouped products:', groupedProductIds);
             const { wooApi } = await getApiClientsForUser(uid);
             const response = await wooApi.get("products", { include: groupedProductIds, per_page: 100 });
             if (response.data && response.data.length > 0) {
-                groupedProductsList = response.data.map((product: any) =>
-                    `- ${product.name} (SKU: ${product.sku || 'N/A'})`
-                ).join('\n');
-                 console.log('/api/generate-description: Successfully fetched grouped product details.');
+                groupedProductsList = response.data.map((product: any) => {
+                    const name = product.name;
+                    // Use short description, fallback to start of long description, fallback to N/A
+                    const desc = stripHtml(product.short_description) || stripHtml(product.description)?.substring(0, 150) + '...' || 'No description available.';
+                    return `* Product: ${name}\n* Details: ${desc}`;
+                }).join('\n\n');
+                 console.log('/api/generate-description: Successfully fetched grouped product details and descriptions.');
             }
         } catch (e) {
             console.error("Failed to fetch details for grouped products:", e);
