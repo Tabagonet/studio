@@ -1,8 +1,9 @@
 
 "use client";
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import Image from 'next/image';
+import axios from 'axios';
 import {
   Dialog,
   DialogContent,
@@ -16,14 +17,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Star, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import type { WooCommerceCategory } from '@/lib/types';
+import type { WooCommerceCategory, WooCommerceImage, ProductPhoto } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
+import { ImageUploader } from '@/components/features/wizard/image-uploader';
+import { v4 as uuidv4 } from 'uuid';
+import { cn } from '@/lib/utils';
 
 
 interface ProductEditModalProps {
@@ -38,7 +41,7 @@ interface ProductEditState {
   sale_price: string;
   short_description: string;
   description: string;
-  imageUrl: string | null;
+  images: (WooCommerceImage | ProductPhoto)[];
   status: 'publish' | 'draft' | 'pending' | 'private';
   tags: string;
   category_id: number | null;
@@ -56,8 +59,129 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
   
   const { toast } = useToast();
 
-  const shortDescRef = useRef<HTMLTextAreaElement>(null);
-  const longDescRef = useRef<HTMLTextAreaElement>(null);
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (!product) return;
+    setProduct({ ...product, [e.target.name]: e.target.value });
+  };
+  
+  const handleSelectChange = (name: 'status' | 'category_id', value: string) => {
+    if (!product) return;
+    const finalValue = name === 'category_id' ? (value ? parseInt(value, 10) : null) : value;
+    setProduct({ ...product, [name]: finalValue as any });
+  };
+
+  const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
+      if (!product) return;
+      // This function from ImageUploader gives the full new array of photos
+      // We need to merge it correctly, keeping existing WooCommerceImages
+      const existingImages = product.images.filter(img => 'alt' in img); // Simple check for WooCommerceImage
+      setProduct(p => p ? { ...p, images: [...existingImages, ...newPhotos] } : null);
+  };
+
+  const handleSetPrimary = (id: number | string) => {
+      if (!product) return;
+      const newImages = [...product.images];
+      const primaryIndex = newImages.findIndex(img => ('id' in img && img.id === id) || ('file' in img && img.id === id) );
+      if (primaryIndex > -1) {
+          const [primaryImage] = newImages.splice(primaryIndex, 1);
+          newImages.unshift(primaryImage);
+          setProduct({ ...product, images: newImages });
+      }
+  };
+
+  const handleDeleteImage = async (id: number | string) => {
+      if (!product) return;
+      
+      const imageToDelete = product.images.find(img => ('id' in img && img.id === id) || ('file' in img && img.id === id));
+      if (!imageToDelete) return;
+
+      const remainingImages = product.images.filter(img => (('id' in img && img.id !== id) || ('file' in img && img.id !== id)));
+      setProduct({ ...product, images: remainingImages });
+      
+      toast({ title: `Imagen "${imageToDelete.name}" eliminada de la cola.` });
+
+      // If it's an existing image from WordPress, call the API to delete it
+      if ('alt' in imageToDelete && typeof id === 'number') {
+        try {
+            const user = auth.currentUser;
+            if (!user) return;
+            const token = await user.getIdToken();
+            await fetch(`/api/wordpress/media/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            toast({ title: 'Imagen eliminada de WordPress', description: `La imagen ha sido eliminada permanentemente de tu biblioteca de medios.` });
+        } catch (e) {
+            console.error('Failed to delete image from WordPress:', e);
+            toast({ title: 'Error al eliminar imagen de WP', description: 'La imagen se ha quitado del producto, pero no se pudo eliminar de la biblioteca de medios.', variant: 'destructive'});
+        }
+      }
+  };
+
+  const handleSaveChanges = async () => {
+    setIsSaving(true);
+    const user = auth.currentUser;
+    if (!user || !product) {
+      toast({ title: 'Error', description: 'No se puede guardar el producto.', variant: 'destructive' });
+      setIsSaving(false);
+      return;
+    }
+
+    try {
+        const token = await user.getIdToken();
+
+        // 1. Upload any new images to the temporary server
+        const uploadedImages: (WooCommerceImage | { src: string })[] = [];
+        for (const img of product.images) {
+            if ('file' in img && img.file) { // It's a new ProductPhoto
+                const formData = new FormData();
+                formData.append('imagen', img.file);
+                const response = await axios.post('/api/upload-image', formData, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.data.success) throw new Error(`Error subiendo ${img.name}`);
+                uploadedImages.push({ src: response.data.url });
+            } else if ('alt' in img) { // It's an existing WooCommerceImage
+                uploadedImages.push({ id: img.id });
+            }
+        }
+
+        // 2. Prepare final payload
+        const { images, ...rest } = product;
+        const payload = {
+            ...rest,
+            images: uploadedImages,
+            // Pass image metadata for new uploads
+            imageTitle: product.name,
+            imageAltText: `Imagen de ${product.name}`,
+            imageCaption: `Foto de ${product.name}`,
+            imageDescription: `Descripción detallada de la imagen de ${product.name}`,
+        };
+        
+        // 3. Send final payload to the update endpoint
+        const response = await fetch(`/api/woocommerce/products/${productId}`, {
+            method: 'PUT',
+            headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to save changes.');
+        }
+        
+        toast({ title: '¡Éxito!', description: 'El producto ha sido actualizado.' });
+        onClose(true);
+
+    } catch (e: any) {
+        toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
+    } finally {
+        setIsSaving(false);
+    }
+  };
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -98,7 +222,7 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
           sale_price: productData.sale_price || '',
           short_description: productData.short_description || '',
           description: productData.description || '',
-          imageUrl: productData.images?.length > 0 ? productData.images[0].src : null,
+          images: productData.images || [],
           status: productData.status || 'draft',
           tags: productData.tags?.map((t: any) => t.name).join(', ') || '',
           category_id: productData.categories?.length > 0 ? productData.categories[0].id : null,
@@ -132,98 +256,13 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
     setCategoryTree(buildTree());
   }, [wooCategories]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    if (!product) return;
-    setProduct({ ...product, [e.target.name]: e.target.value });
-  };
-  
-   const handleSelectChange = (name: 'status' | 'category_id', value: string) => {
-    if (!product) return;
-    const finalValue = name === 'category_id' ? (value ? parseInt(value, 10) : null) : value;
-    setProduct({ ...product, [name]: finalValue });
-  };
-
-  const handleApplyTag = (
-    ref: React.RefObject<HTMLTextAreaElement>,
-    field: keyof Omit<ProductEditState, 'imageUrl'>,
-    tag: 'strong' | 'em'
-  ) => {
-    const textarea = ref.current;
-    if (!textarea || !product) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = textarea.value.substring(start, end);
-
-    if (!selectedText) {
-        textarea.focus();
-        toast({
-            title: "Selecciona texto primero",
-            description: "Debes seleccionar el texto al que quieres aplicar el formato.",
-            variant: "default"
-        });
-        return;
-    }
-
-    const newValue = 
-      textarea.value.substring(0, start) +
-      `<${tag}>${selectedText}</${tag}>` +
-      textarea.value.substring(end);
-      
-    setProduct({ ...product, [field]: newValue });
-
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + `<${tag}>`.length, end + `<${tag}>`.length);
-    }, 0);
-  };
-
-  const handleSaveChanges = async () => {
-    setIsSaving(true);
-    const user = auth.currentUser;
-    if (!user || !product) {
-      toast({ title: 'Error', description: 'Cannot save product.', variant: 'destructive' });
-      setIsSaving(false);
-      return;
-    }
-    
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { imageUrl, ...payload } = product;
-
-    try {
-      const token = await user.getIdToken();
-      const response = await fetch(`/api/woocommerce/products/${productId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save changes.');
-      }
-      
-      toast({ title: '¡Éxito!', description: 'El producto ha sido actualizado.' });
-      onClose(true);
-
-    } catch (e: any) {
-      toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-
   return (
     <Dialog open={true} onOpenChange={() => onClose(false)}>
-      <DialogContent className="sm:max-w-6xl flex flex-col max-h-[90vh]">
+      <DialogContent className="sm:max-w-4xl flex flex-col max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Editar Producto</DialogTitle>
           <DialogDescription>
-            Realiza cambios en los detalles del producto. La vista previa de la derecha se actualizará en tiempo real.
+            Realiza cambios en los detalles del producto. Los cambios se guardarán al hacer clic en "Guardar Cambios".
           </DialogDescription>
         </DialogHeader>
         
@@ -244,11 +283,9 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
         )}
         
         {!isLoading && !error && product && (
-           <div className="grid grid-cols-1 lg:grid-cols-10 gap-8 py-4 flex-1 overflow-y-hidden">
-              {/* --- EDITING PANE --- */}
-              <div className="lg:col-span-7 space-y-4 overflow-y-auto pr-4">
-                
-                <div className="space-y-4 p-4 border rounded-lg bg-muted/25">
+           <div className="flex-1 overflow-y-auto pr-4 space-y-6">
+              
+                <div className="space-y-4 p-4 border rounded-lg">
                   <h3 className="text-lg font-medium text-foreground">Información General</h3>
                    <div>
                       <Label htmlFor="name">Nombre del Producto</Label>
@@ -274,7 +311,7 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                     </div>
                 </div>
                 
-                <div className="space-y-4 p-4 border rounded-lg bg-muted/25">
+                <div className="space-y-4 p-4 border rounded-lg">
                    <h3 className="text-lg font-medium text-foreground">Precios y Catálogo</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -307,86 +344,55 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                     </div>
                 </div>
                 
-                <div className="space-y-4 p-4 border rounded-lg bg-muted/25">
+                <div className="space-y-4 p-4 border rounded-lg">
                    <h3 className="text-lg font-medium text-foreground">Descripciones</h3>
                     <div>
                         <Label htmlFor="short_description">Descripción Corta</Label>
-                        <div className="mt-1 rounded-md border bg-background">
-                            <div className="p-1 flex items-center gap-1 border-b bg-muted/50">
-                                <Button type="button" size="sm" variant="ghost" className="font-bold" onClick={() => handleApplyTag(shortDescRef, 'short_description', 'strong')}>B</Button>
-                                <Button type="button" size="sm" variant="ghost" className="italic" onClick={() => handleApplyTag(shortDescRef, 'short_description', 'em')}>I</Button>
-                            </div>
-                            <Textarea ref={shortDescRef} id="short_description" name="short_description" value={product.short_description} onChange={handleInputChange} rows={4} className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-t-none" />
-                        </div>
+                        <Textarea id="short_description" name="short_description" value={product.short_description} onChange={handleInputChange} rows={4} />
                     </div>
                     <div>
                         <Label htmlFor="description">Descripción Larga</Label>
-                        <div className="mt-1 rounded-md border bg-background">
-                             <div className="p-1 flex items-center gap-1 border-b bg-muted/50">
-                                <Button type="button" size="sm" variant="ghost" className="font-bold" onClick={() => handleApplyTag(longDescRef, 'description', 'strong')}>B</Button>
-                                <Button type="button" size="sm" variant="ghost" className="italic" onClick={() => handleApplyTag(longDescRef, 'description', 'em')}>I</Button>
-                            </div>
-                            <Textarea ref={longDescRef} id="description" name="description" value={product.description} onChange={handleInputChange} rows={10} className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-t-none" />
-                        </div>
+                        <Textarea id="description" name="description" value={product.description} onChange={handleInputChange} rows={10} />
                     </div>
                 </div>
-              </div>
-              
-              {/* --- PREVIEW PANE --- */}
-              <div className="lg:col-span-3 hidden lg:flex flex-col bg-card border rounded-lg p-4 space-y-4 overflow-y-auto">
-                <div className="space-y-4">
-                    <div className="relative aspect-square w-32 h-32 mx-auto rounded-lg overflow-hidden">
-                      {product.imageUrl ? (
-                        <Image
-                          src={product.imageUrl}
-                          alt={product.name || 'Product image'}
-                          fill
-                          className="object-cover"
-                        />
-                      ) : (
-                        <div className="bg-muted rounded-md w-full h-full flex items-center justify-center">
-                          <span className="text-muted-foreground text-xs">Sin imagen</span>
-                        </div>
-                      )}
+
+                <div className="space-y-4 p-4 border rounded-lg">
+                   <h3 className="text-lg font-medium text-foreground">Imágenes</h3>
+                    <p className="text-sm text-muted-foreground">Gestiona la galería de imágenes de tu producto. La primera imagen es la principal.</p>
+
+                    <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                        {product.images.map((img, index) => {
+                            const isPrimary = index === 0;
+                            const imageId = 'file' in img ? img.id : img.id;
+                            const imageUrl = 'file' in img ? img.previewUrl : img.src;
+                            return (
+                                <div key={imageId} className="relative group border rounded-lg overflow-hidden shadow-sm aspect-square">
+                                    <Image src={imageUrl} alt={img.name || 'Product image'} fill sizes="(max-width: 768px) 33vw, 17vw" className="object-cover" />
+                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                        {!isPrimary && (
+                                            <Button variant="ghost" size="icon" onClick={() => handleSetPrimary(imageId)} title="Marcar como principal">
+                                                <Star className="h-5 w-5 text-white" />
+                                            </Button>
+                                        )}
+                                        <Button variant="ghost" size="icon" onClick={() => handleDeleteImage(imageId)} title="Eliminar imagen">
+                                            <Trash2 className="h-5 w-5 text-destructive" />
+                                        </Button>
+                                    </div>
+                                    {isPrimary && (
+                                        <div className="absolute top-1 left-1 bg-primary text-primary-foreground text-xs font-bold px-1.5 py-0.5 rounded">
+                                            PRINCIPAL
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
-                    <h4 className="text-lg font-semibold truncate text-center">{product.name || "Nombre del Producto"}</h4>
-                     <div className="text-center space-x-1">
-                        <Badge variant={product.status === 'publish' ? 'default' : 'secondary'} className="capitalize">{product.status}</Badge>
-                        <Badge variant="outline">{categoryTree.find(c => c.category.id === product.category_id)?.category.name || 'Sin Categoría'}</Badge>
-                    </div>
-                    <div className="flex items-baseline justify-center gap-2 mt-2">
-                      {product.sale_price ? (
-                        <>
-                          <p className="text-xl font-bold text-primary">{product.sale_price}€</p>
-                          <p className="text-sm text-muted-foreground line-through">{product.regular_price}€</p>
-                        </>
-                      ) : (
-                        <p className="text-xl font-bold">{product.regular_price ? `${product.regular_price}€` : 'N/A'}</p>
-                      )}
-                    </div>
-                    <div className="space-y-4 text-xs">
-                        <Separator />
-                        <div>
-                            <h5 className="font-semibold mb-1">Descripción Corta</h5>
-                            <div className="prose prose-sm max-w-none text-muted-foreground" dangerouslySetInnerHTML={{ __html: product.short_description || "..." }} />
-                        </div>
-                         <div>
-                            <h5 className="font-semibold mb-1">Descripción Larga</h5>
-                            <div className="prose prose-sm max-w-none text-muted-foreground [&_strong]:text-foreground [&_em]:text-foreground" dangerouslySetInnerHTML={{ __html: product.description || "..." }} />
-                        </div>
-                        {product.tags && (
-                          <div>
-                            <h5 className="font-semibold mb-1">Etiquetas</h5>
-                            <div className="flex flex-wrap gap-1">
-                              {product.tags.split(',').map(k => k.trim()).filter(k => k).map((keyword, index) => (
-                                <Badge key={index} variant="secondary" className="text-xs">{keyword}</Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                    </div>
+                    
+                    <Separator className="my-4" />
+                    
+                    <ImageUploader photos={product.images.filter((i): i is ProductPhoto => 'file' in i)} onPhotosChange={handlePhotosChange} isProcessing={isSaving} />
+
                 </div>
-              </div>
            </div>
         )}
 

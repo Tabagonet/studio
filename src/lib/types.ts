@@ -18,13 +18,22 @@ export interface ProductPhoto {
   file?: File; // The actual file object, present only on client-side before upload
   previewUrl: string; // Used for client-side preview (object URL)
   name: string; // filename
-  isPrimary?: boolean;
+  isPrimary?: boolean; // Note: this is a client-side concept for the uploader
   status: UploadStatus;
   progress: number; // 0-100
   error?: string; // Error message if upload fails
   // Fields for the new upload flow
   uploadedUrl?: string; // The URL from the temporary host (quefoto.es)
   uploadedFilename?: string; // The filename on the temporary host
+}
+
+export interface WooCommerceImage {
+  id: number;
+  date_created: string;
+  date_modified: string;
+  src: string;
+  name: string;
+  alt: string;
 }
 
 export interface ProductAttribute {

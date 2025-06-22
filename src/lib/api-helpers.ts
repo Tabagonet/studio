@@ -1,12 +1,14 @@
 
 // src/lib/api-helpers.ts
-import { adminDb, adminAuth } from '@/lib/firebase-admin';
+import { adminDb } from '@/lib/firebase-admin';
 import { createWooCommerceApi } from '@/lib/woocommerce';
 import { createWordPressApi } from '@/lib/wordpress';
 import type WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
 import type { AxiosInstance } from 'axios';
 import { z } from 'zod';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import axios from 'axios';
+import FormData from 'form-data';
 
 
 // --- Schemas for AI Content Generation ---
@@ -233,4 +235,54 @@ export async function generateProductContent(
   }
   
   return validatedOutput.data;
+}
+
+
+/**
+ * Uploads an image from a given URL to the WordPress media library.
+ * @param imageUrl The URL of the image to upload.
+ * @param seoFilename A desired filename for SEO purposes.
+ * @param imageMetadata Metadata for the image (title, alt, etc.).
+ * @param wpApi Initialized Axios instance for WordPress API.
+ * @returns The ID of the newly uploaded media item.
+ */
+export async function uploadImageToWordPress(
+  imageUrl: string,
+  seoFilename: string,
+  imageMetadata: { title: string; alt_text: string; caption: string; description: string; },
+  wpApi: AxiosInstance
+): Promise<number> {
+    try {
+        const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+        const imageBuffer = Buffer.from(imageResponse.data);
+
+        const formData = new FormData();
+        formData.append('file', imageBuffer, seoFilename);
+        formData.append('title', imageMetadata.title);
+        formData.append('alt_text', imageMetadata.alt_text);
+        formData.append('caption', imageMetadata.caption);
+        formData.append('description', imageMetadata.description);
+
+        const mediaResponse = await wpApi.post('/media', formData, {
+            headers: {
+                ...formData.getHeaders(),
+                'Content-Disposition': `attachment; filename=${seoFilename}`,
+            },
+        });
+
+        return mediaResponse.data.id;
+
+    } catch (uploadError: any) {
+        let errorMsg = `Error al procesar la imagen desde la URL '${imageUrl}'.`;
+        if (uploadError.response?.data?.message) {
+            errorMsg += ` Razón: ${uploadError.response.data.message}`;
+            if (uploadError.response.status === 401 || uploadError.response.status === 403) {
+                errorMsg += ' Esto es probablemente un problema de permisos. Asegúrate de que el usuario de la Contraseña de Aplicación tiene el rol de "Editor" o "Administrador" en WordPress.';
+            }
+        } else {
+            errorMsg += ` Razón: ${uploadError.message}`;
+        }
+        console.error(errorMsg, uploadError.response?.data);
+        throw new Error(errorMsg);
+    }
 }

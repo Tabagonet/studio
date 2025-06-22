@@ -1,8 +1,19 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getApiClientsForUser } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/api-helpers';
 import { z } from 'zod';
 import { adminAuth } from '@/lib/firebase-admin';
+
+const slugify = (text: string) => {
+    if (!text) return '';
+    return text.toString().toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w-]+/g, '')
+        .replace(/--+/g, '-')
+        .replace(/^-+/, '')
+        .replace(/-+$/, '');
+};
+
 
 // Schema for updating a product
 const productUpdateSchema = z.object({
@@ -15,6 +26,15 @@ const productUpdateSchema = z.object({
     status: z.enum(['publish', 'draft', 'pending', 'private']).optional(),
     tags: z.string().optional(),
     category_id: z.number().nullable().optional(),
+    images: z.array(z.object({
+        id: z.number().optional(), // For existing images
+        src: z.string().url().optional(), // For new images from a temporary URL
+    })).optional(),
+    // Metadata for any new images being uploaded
+    imageTitle: z.string().optional(),
+    imageAltText: z.string().optional(),
+    imageCaption: z.string().optional(),
+    imageDescription: z.string().optional(),
 });
 
 
@@ -59,7 +79,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const decodedToken = await adminAuth.verifyIdToken(token);
     const uid = decodedToken.uid;
     
-    const { wooApi } = await getApiClientsForUser(uid);
+    const { wooApi, wpApi } = await getApiClientsForUser(uid);
     const productId = params.id;
     if (!productId) {
       return NextResponse.json({ error: 'Product ID is required.' }, { status: 400 });
@@ -73,7 +93,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
     
     const validatedData = validationResult.data;
-    const wooPayload: any = { ...validatedData };
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { images, imageTitle, imageAltText, imageCaption, imageDescription, ...restOfData } = validatedData;
+    const wooPayload: any = { ...restOfData };
 
     if (validatedData.tags !== undefined) {
       wooPayload.tags = validatedData.tags.split(',').map((k: string) => ({ name: k.trim() })).filter((t: any) => t.name);
@@ -83,11 +105,45 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       wooPayload.categories = validatedData.category_id ? [{ id: validatedData.category_id }] : [];
       delete wooPayload.category_id;
     }
+
+    // New Image Handling Logic
+    if (images) {
+        const processedImages = [];
+        let imageIndex = 0;
+
+        for (const image of images) {
+            if (image.id) {
+                // It's an existing image, just add its ID and position
+                processedImages.push({ id: image.id, position: imageIndex });
+            } else if (image.src) {
+                // It's a new image from a temporary URL, upload it to WordPress
+                const baseNameForSeo = imageTitle || validatedData.name || 'product-image';
+                const filenameSuffix = images.length > 1 ? `-${productId}-${imageIndex + 1}` : `-${productId}`;
+                const seoFilename = `${slugify(baseNameForSeo)}${filenameSuffix}.jpg`;
+
+                const newImageId = await uploadImageToWordPress(
+                    image.src,
+                    seoFilename,
+                    {
+                        title: imageTitle || validatedData.name || '',
+                        alt_text: imageAltText || validatedData.name || '',
+                        caption: imageCaption || '',
+                        description: imageDescription || '',
+                    },
+                    wpApi
+                );
+                processedImages.push({ id: newImageId, position: imageIndex });
+            }
+            imageIndex++;
+        }
+        wooPayload.images = processedImages;
+    }
     
     const response = await wooApi.put(`products/${productId}`, wooPayload);
 
     return NextResponse.json({ success: true, data: response.data });
-  } catch (error: any) {
+  } catch (error: any)
+ {
     console.error(`Error updating product ${params.id}:`, error.response?.data || error.message);
     const errorMessage = error.response?.data?.message || 'Failed to update product.';
     const status = error.message.includes('configure API connections') ? 400 : (error.response?.status || 500);
