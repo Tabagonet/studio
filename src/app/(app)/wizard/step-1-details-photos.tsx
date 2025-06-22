@@ -37,6 +37,7 @@ interface ValidationState {
 
 export function Step1DetailsPhotos({ productData, updateProductData, isProcessing }: Step1DetailsPhotosProps) {
   const [wooCategories, setWooCategories] = React.useState<WooCommerceCategory[]>([]);
+  const [categoryTree, setCategoryTree] = React.useState<{ category: WooCommerceCategory; depth: number }[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = React.useState(false);
   const { toast } = useToast();
 
@@ -189,6 +190,30 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
     return () => unsubscribe();
   }, [toast]);
+
+  // Effect to build the category tree for rendering
+  React.useEffect(() => {
+    if (wooCategories.length === 0) {
+        setCategoryTree([]);
+        return;
+    }
+
+    const buildTree = (parentId = 0, depth = 0): { category: WooCommerceCategory; depth: number }[] => {
+        const children = wooCategories
+            .filter(cat => cat.parent === parentId)
+            .sort((a, b) => a.name.localeCompare(b.name));
+        
+        let result: { category: WooCommerceCategory; depth: number }[] = [];
+        for (const child of children) {
+            result.push({ category: child, depth });
+            result = result.concat(buildTree(child.id, depth + 1));
+        }
+        return result;
+    };
+    
+    setCategoryTree(buildTree());
+  }, [wooCategories]);
+
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     updateProductData({ [e.target.name]: e.target.value });
@@ -534,9 +559,14 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                 )}
               </SelectTrigger>
               <SelectContent>
-                {!isLoadingCategories && wooCategories.length === 0 && <SelectItem value="no-cat" disabled>No hay categorías disponibles</SelectItem>}
-                {wooCategories.map(cat => (
-                  <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
+                {!isLoadingCategories && categoryTree.length === 0 && <SelectItem value="no-cat" disabled>No hay categorías disponibles</SelectItem>}
+                {categoryTree.map(({ category, depth }) => (
+                  <SelectItem key={category.id} value={category.id.toString()}>
+                     <span style={{ paddingLeft: `${depth * 1.25}rem` }}>
+                      {depth > 0 && '— '}
+                      {category.name}
+                    </span>
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

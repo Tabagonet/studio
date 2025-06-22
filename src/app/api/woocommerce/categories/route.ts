@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
           id: cat.id,
           name: cat.name,
           slug: cat.slug,
+          parent: cat.parent,
         }));
         
     return NextResponse.json(categories);
