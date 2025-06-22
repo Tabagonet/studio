@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { auth } from '@/lib/firebase';
 import type { ProductData, ProductPhoto } from '@/lib/types';
+import { Progress } from '@/components/ui/progress';
 
 // Staged product type
 interface StagedProduct {
@@ -26,6 +27,7 @@ interface StagedProduct {
   statusMessage: string;
   processingStatus?: 'pending' | 'processing' | 'completed' | 'error';
   processingMessage?: string;
+  progress?: number;
 }
 
 const getStatusInfo = (product: StagedProduct) => {
@@ -221,11 +223,16 @@ export default function BatchProcessPage() {
   
   const readyProductsCount = stagedProducts.filter(p => p.status === 'ready').length;
 
-  const updateProductProcessingStatus = (sku: string, processingStatus: StagedProduct['processingStatus'], processingMessage?: string) => {
+  const updateProductProcessingStatus = (
+    sku: string, 
+    processingStatus: StagedProduct['processingStatus'], 
+    processingMessage?: string,
+    progress?: number,
+  ) => {
     setStagedProducts(prev => 
       prev.map(p => 
         p.id === sku 
-          ? { ...p, processingStatus, processingMessage: processingMessage || p.processingMessage } 
+          ? { ...p, processingStatus, processingMessage: processingMessage || p.processingMessage, progress: progress !== undefined ? progress : p.progress } 
           : p
       )
     );
@@ -252,8 +259,9 @@ export default function BatchProcessPage() {
     let failures = 0;
 
     for (const product of productsToProcess) {
+        const currentProductState = stagedProducts.find(p => p.id === product.id);
         try {
-            updateProductProcessingStatus(product.id, 'processing', 'Generando contenido con IA...');
+            updateProductProcessingStatus(product.id, 'processing', 'Generando contenido con IA...', 10);
             const aiPayload = {
                 productName: product.name,
                 productType: product.csvData.tipo || 'simple',
@@ -268,30 +276,36 @@ export default function BatchProcessPage() {
             if (!aiResponse.ok) throw new Error(`La IA falló: ${await aiResponse.text()}`);
             const aiContent = await aiResponse.json();
 
-            updateProductProcessingStatus(product.id, 'processing', 'Subiendo imágenes...');
+            updateProductProcessingStatus(product.id, 'processing', 'Subiendo imágenes...', 20);
             const uploadedPhotos: ProductPhoto[] = [];
-            for (const imageFile of product.images) {
-                const formData = new FormData();
-                formData.append('imagen', imageFile);
-                const imageResponse = await fetch('/api/upload-image', {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` },
-                    body: formData,
-                });
-                if (!imageResponse.ok) throw new Error(`Fallo en la subida de ${imageFile.name}`);
-                const imageData = await imageResponse.json();
-                uploadedPhotos.push({
-                    id: imageData.url,
-                    previewUrl: imageData.url,
-                    name: imageFile.name,
-                    uploadedUrl: imageData.url,
-                    uploadedFilename: imageData.filename_saved_on_server,
-                    status: 'completed',
-                    progress: 100
-                });
+            if (product.images.length > 0) {
+                for (const [index, imageFile] of product.images.entries()) {
+                    const formData = new FormData();
+                    formData.append('imagen', imageFile);
+                    const imageResponse = await fetch('/api/upload-image', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` },
+                        body: formData,
+                    });
+                    if (!imageResponse.ok) throw new Error(`Fallo en la subida de ${imageFile.name}`);
+                    const imageData = await imageResponse.json();
+                    uploadedPhotos.push({
+                        id: imageData.url,
+                        previewUrl: imageData.url,
+                        name: imageFile.name,
+                        uploadedUrl: imageData.url,
+                        uploadedFilename: imageData.filename_saved_on_server,
+                        status: 'completed',
+                        progress: 100
+                    });
+                     const imageProgress = 20 + (60 * (index + 1) / product.images.length);
+                    updateProductProcessingStatus(product.id, 'processing', `Subiendo imagen ${index + 1} de ${product.images.length}...`, imageProgress);
+                }
+            } else {
+                updateProductProcessingStatus(product.id, 'processing', 'Creando producto (sin imágenes)...', 80);
             }
 
-            updateProductProcessingStatus(product.id, 'processing', 'Creando producto en WooCommerce...');
+            updateProductProcessingStatus(product.id, 'processing', 'Creando producto en WooCommerce...', 95);
             const productPayload: Partial<ProductData> = {
                 name: product.name,
                 sku: product.id,
@@ -331,12 +345,12 @@ export default function BatchProcessPage() {
                 throw new Error(`Error al crear en Woo: ${errorData.error || 'Error desconocido'}`);
             }
 
-            updateProductProcessingStatus(product.id, 'completed', '¡Producto creado con éxito!');
+            updateProductProcessingStatus(product.id, 'completed', '¡Producto creado con éxito!', 100);
             successes++;
 
         } catch (error: any) {
             failures++;
-            updateProductProcessingStatus(product.id, 'error', error.message);
+            updateProductProcessingStatus(product.id, 'error', error.message, currentProductState?.progress);
         }
     }
 
@@ -508,25 +522,30 @@ export default function BatchProcessPage() {
                         const message = product.processingStatus !== 'pending' ? product.processingMessage : product.statusMessage;
 
                         return (
-                            <div key={product.id} className="flex items-center gap-4 p-3 border rounded-lg bg-card hover:bg-muted/50 transition-colors">
+                            <div key={product.id} className="flex items-start gap-4 p-3 border rounded-lg bg-card hover:bg-muted/50 transition-colors">
                                 <Image
                                     src={previewImage}
                                     alt={`Previsualización de ${product.name}`}
                                     width={80}
                                     height={80}
-                                    className="rounded-md object-cover h-20 w-20"
+                                    className="rounded-md object-cover h-20 w-20 flex-shrink-0"
                                 />
-                                <div className="flex-1 space-y-1">
-                                    <h3 className="font-semibold">{product.name}</h3>
+                                <div className="flex-1 min-w-0 space-y-1">
+                                    <h3 className="font-semibold truncate">{product.name}</h3>
                                     <p className="text-sm text-muted-foreground">SKU: <code className="bg-muted px-1 py-0.5 rounded">{product.id}</code></p>
                                     <p className="text-sm text-muted-foreground">Imágenes encontradas: <Badge variant="secondary">{product.images.length}</Badge></p>
                                 </div>
-                                <div className="flex items-center gap-2 w-48">
-                                    <StatusIcon className={cn("h-5 w-5", statusInfo.color)} />
-                                    <div className="flex flex-col">
-                                       <span className={cn("font-medium", statusInfo.color)}>{statusInfo.label}</span>
-                                       <p className="text-xs text-muted-foreground">{message}</p>
+                                <div className="flex-1 max-w-xs space-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <StatusIcon className={cn("h-5 w-5 flex-shrink-0", statusInfo.color)} />
+                                        <div className="flex flex-col">
+                                        <span className={cn("font-medium", statusInfo.color)}>{statusInfo.label}</span>
+                                        <p className="text-xs text-muted-foreground">{message}</p>
+                                        </div>
                                     </div>
+                                    {product.processingStatus === 'processing' && product.progress !== undefined && (
+                                        <Progress value={product.progress} className="h-2" />
+                                    )}
                                 </div>
                             </div>
                         );
@@ -540,3 +559,5 @@ export default function BatchProcessPage() {
     </div>
   );
 }
+
+    
