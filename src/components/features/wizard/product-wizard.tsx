@@ -97,17 +97,8 @@ export function ProductWizard() {
               description: `"${createResponse.data.data.name}" se ha creado en WooCommerce.`,
             });
             
-            // Step 3 (Fire and Forget): Delete images from temp server
-             for (const photo of finalPhotosForApi) {
-                if (photo.uploadedFilename) {
-                    axios.post('/api/delete-image', { filename: photo.uploadedFilename }, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    }).catch(err => {
-                        // Log cleanup error but don't fail the whole process
-                        console.warn(`Error en la limpieza de la imagen temporal ${photo.uploadedFilename}:`, err);
-                    });
-                }
-            }
+            // The cleanup is handled by the server API (`/api/woocommerce/products`)
+            // No need to call delete from the client anymore.
 
             setProgress({ images: 100, product: 100 });
             setProcessingState('finished');

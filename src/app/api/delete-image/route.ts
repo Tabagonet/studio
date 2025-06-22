@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import axios from "axios";
+import FormData from "form-data";
 
 export async function POST(req: NextRequest) {
   // Authentication
@@ -24,26 +25,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "No se proporcionó nombre de archivo para eliminar" }, { status: 400 });
     }
 
-    // This assumes your external server has a `borrarfoto.php` script that accepts a POST request
-    // with a `filename` in the body to delete the specified file.
     const deleteUrl = "https://quefoto.es/borrarfoto.php";
     console.log(`[API /api/delete-image] Enviando solicitud para eliminar ${filename} a ${deleteUrl}`);
     
-    // We send data as application/x-www-form-urlencoded as PHP often expects it this way
-    const params = new URLSearchParams();
-    params.append('filename', filename);
+    // Using FormData to be consistent with the upload API which is known to work.
+    const deleteFormData = new FormData();
+    deleteFormData.append('filename', filename);
 
-    const response = await axios.post(deleteUrl, params, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    const response = await axios.post(deleteUrl, deleteFormData, {
+      headers: {
+        ...deleteFormData.getHeaders(),
+      },
       timeout: 15000,
     });
 
     console.log(`[API /api/delete-image] Respuesta de ${deleteUrl}:`, response.data);
 
-    if (response.data.success) {
+    // Make the response handling more robust.
+    if (typeof response.data === 'object' && response.data !== null && response.data.success) {
       return NextResponse.json({ success: true, message: `Archivo ${filename} eliminado.` });
-    } else {
-      throw new Error(response.data.error || "Error desconocido del servidor de imágenes al eliminar.");
+    } else if (typeof response.data === 'string' && response.data.toLowerCase().includes('success')) {
+       return NextResponse.json({ success: true, message: `Archivo ${filename} eliminado.` });
+    }
+     else {
+      const serverError = response.data?.error || (typeof response.data === 'string' ? response.data : "Error desconocido del servidor de imágenes al eliminar.");
+      throw new Error(serverError);
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

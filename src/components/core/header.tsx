@@ -151,7 +151,7 @@ export function Header() {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-9 w-9 rounded-full">
                     {currentUser.photoURL ? (
-                       <Image src={currentUser.photoURL} alt={currentUser.displayName || "User avatar"} fill className="rounded-full object-cover" data-ai-hint="user avatar" />
+                       <Image src={currentUser.photoURL} alt={currentUser.displayName || "User avatar"} fill sizes="36px" className="rounded-full object-cover" data-ai-hint="user avatar" />
                     ) : (
                       <UserCircle className="h-6 w-6" />
                     )}
