@@ -19,19 +19,25 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const query = searchParams.get('q') || '';
     const include = searchParams.get('include');
+    const page = searchParams.get('page') || '1';
+    const category = searchParams.get('category');
 
     const params: any = {
       type: 'simple',
       status: 'publish',
-      per_page: 100, // Fetch up to 100 products, the API maximum.
+      per_page: 20, // A reasonable page size
+      page: parseInt(page, 10),
     };
 
     if (include) {
       params.include = include.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
-      // If we are getting specific IDs, remove the type constraint
       delete params.type; 
-    } else if (query) { // Only add search parameter if there is a query
+    } else if (query) {
         params.search = query;
+    }
+
+    if (category && category !== 'all') {
+        params.category = category;
     }
 
 
@@ -43,8 +49,10 @@ export async function GET(req: NextRequest) {
         price: product.price,
         image: product.images.length > 0 ? product.images[0].src : null,
     }));
+
+    const totalPages = response.headers['x-wp-totalpages'] ? parseInt(response.headers['x-wp-totalpages'], 10) : 1;
         
-    return NextResponse.json(products);
+    return NextResponse.json({ products, totalPages });
   } catch (error: any) {
     console.error('Error searching WooCommerce products:', error.response?.data || error.message);
     const errorMessage = error.response?.data?.message || error.message || 'Failed to search products.';
