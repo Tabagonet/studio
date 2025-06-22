@@ -80,4 +80,5 @@ export const INITIAL_PRODUCT_DATA: ProductData = {
   imageAltText: '',
   imageCaption: '',
   imageDescription: '',
+  groupedProductIds: [],
 };

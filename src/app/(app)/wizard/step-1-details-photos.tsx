@@ -18,6 +18,8 @@ import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Checkbox } from '@/components/ui/checkbox';
+import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
 
 
 interface Step1DetailsPhotosProps {
@@ -215,14 +217,14 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     }
   };
 
-  const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string) => {
+  const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string | boolean) => {
     const newAttributes = [...productData.attributes];
     newAttributes[index] = { ...newAttributes[index], [field]: value };
     updateProductData({ attributes: newAttributes });
   };
 
   const addAttribute = () => {
-    updateProductData({ attributes: [...productData.attributes, { name: '', value: '' }] });
+    updateProductData({ attributes: [...productData.attributes, { name: '', value: '', forVariations: false }] });
   };
 
   const removeAttribute = (index: number) => {
@@ -550,42 +552,73 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
       <Card>
         <CardHeader>
-          <CardTitle>Atributos del Producto</CardTitle>
-          <CardDescription>Añade atributos como talla, color, material, etc. Para productos variables, define aquí los atributos que usarás para las variaciones.</CardDescription>
+          <CardTitle>Atributos y Grupos</CardTitle>
+          <CardDescription>
+            {productData.productType === 'grouped' 
+                ? "Selecciona los productos que formarán parte de este grupo." 
+                : "Añade atributos. Para productos variables, marca los que usarás para las variaciones."
+            }
+        </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {productData.attributes.map((attr, index) => (
-            <div key={index} className="flex items-end gap-2 p-3 border rounded-md bg-muted/20">
-              <div className="flex-1">
-                <Label htmlFor={`attrName-${index}`}>Nombre del Atributo</Label>
-                <Input 
-                  id={`attrName-${index}`} 
-                  value={attr.name} 
-                  onChange={(e) => handleAttributeChange(index, 'name', e.target.value)}
-                  placeholder="Ej: Color" 
-                />
-              </div>
-              <div className="flex-1">
-                <Label htmlFor={`attrValue-${index}`}>Valor(es) del Atributo</Label>
-                <Input 
-                  id={`attrValue-${index}`} 
-                  value={attr.value} 
-                  onChange={(e) => handleAttributeChange(index, 'value', e.target.value)}
-                  placeholder="Ej: Azul | Rojo | Verde (para variaciones)" 
-                />
-                 {productData.productType === 'variable' && (
-                    <p className="text-xs text-muted-foreground mt-1">Para variaciones, separa los valores con " | " (ej: S | M | L)</p>
+          {productData.productType === 'grouped' ? (
+              <GroupedProductSelector 
+                  productIds={productData.groupedProductIds || []} 
+                  onProductIdsChange={(ids) => updateProductData({ groupedProductIds: ids })} 
+              />
+          ) : (
+            <>
+              {productData.attributes.map((attr, index) => (
+                <div key={index} className="flex flex-wrap items-end gap-2 p-3 border rounded-md bg-muted/20">
+                  <div className="flex-1 min-w-[150px]">
+                    <Label htmlFor={`attrName-${index}`}>Nombre del Atributo</Label>
+                    <Input 
+                      id={`attrName-${index}`} 
+                      value={attr.name} 
+                      onChange={(e) => handleAttributeChange(index, 'name', e.target.value)}
+                      placeholder="Ej: Color" 
+                    />
+                  </div>
+                  <div className="flex-1 min-w-[200px]">
+                    <Label htmlFor={`attrValue-${index}`}>Valor(es) del Atributo</Label>
+                    <Input 
+                      id={`attrValue-${index}`} 
+                      value={attr.value} 
+                      onChange={(e) => handleAttributeChange(index, 'value', e.target.value)}
+                      placeholder="Ej: Azul | Rojo | Verde (para variaciones)" 
+                    />
+                    {productData.productType === 'variable' && (
+                        <p className="text-xs text-muted-foreground mt-1">Para variaciones, separa los valores con " | " (ej: S | M | L)</p>
+                      )}
+                  </div>
+                  {productData.productType === 'variable' && (
+                      <div className="flex items-center space-x-2 pt-5">
+                          <Checkbox
+                              id={`attrVariation-${index}`}
+                              checked={!!attr.forVariations}
+                              onCheckedChange={(checked) => handleAttributeChange(index, 'forVariations', !!checked)}
+                          />
+                          <Label htmlFor={`attrVariation-${index}`} className="text-sm font-medium leading-none whitespace-nowrap">
+                              Para variaciones
+                          </Label>
+                      </div>
                   )}
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo">
-                <Trash2 className="h-4 w-4 text-destructive" />
+                  <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" className="self-end">
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+              <Button type="button" variant="outline" onClick={addAttribute} className="mt-2">
+                <PlusCircle className="mr-2 h-4 w-4" /> Añadir Atributo
               </Button>
-            </div>
-          ))}
-          <Button type="button" variant="outline" onClick={addAttribute} className="mt-2">
-            <PlusCircle className="mr-2 h-4 w-4" /> Añadir Atributo
-          </Button>
-          <AiAttributeSuggester keywords={productData.keywords} onAttributesSuggested={handleSuggestedAttributes} />
+               {productData.productType === 'variable' && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                      La gestión detallada de precios y stock para cada variación se podrá hacer desde WooCommerce una vez creado el producto.
+                  </p>
+                )}
+              <AiAttributeSuggester keywords={productData.keywords} onAttributesSuggested={handleSuggestedAttributes} />
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

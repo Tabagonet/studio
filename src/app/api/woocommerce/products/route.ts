@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
         name: attr.name,
         position: index,
         visible: true,
-        variation: productData.productType === 'variable',
+        variation: productData.productType === 'variable' && !!attr.forVariations,
         options: productData.productType === 'variable' ? attr.value.split('|').map(s => s.trim()) : [attr.value],
       }));
     
@@ -100,6 +100,7 @@ export async function POST(request: NextRequest) {
       images: wordpressImageIds,
       attributes: wooAttributes,
       tags: wooTags,
+      ...(productData.productType === 'grouped' && { grouped_products: productData.groupedProductIds || [] }),
     };
 
     // Only add pricing for non-grouped products

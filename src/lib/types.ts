@@ -30,6 +30,7 @@ export interface ProductPhoto {
 export interface ProductAttribute {
   name: string;
   value: string;
+  forVariations?: boolean;
 }
 
 export type ProductType = 'simple' | 'variable' | 'grouped';
@@ -52,12 +53,20 @@ export interface ProductData {
   longDescription: string;
   attributes: ProductAttribute[];
   photos: ProductPhoto[];
+  groupedProductIds?: number[];
   language: 'Spanish' | 'English';
   // AI-generated image metadata
   imageTitle?: string;
   imageAltText?: string;
   imageCaption?: string;
   imageDescription?: string;
+}
+
+export interface SimpleProductSearchResult {
+  id: number;
+  name: string;
+  price: string;
+  image: string | null;
 }
 
 export interface ParsedNameData {
