@@ -3,7 +3,7 @@
 
 import { ColumnDef } from "@tanstack/react-table"
 import Image from "next/image"
-import { ArrowUpDown, MoreHorizontal, Eye, EyeOff } from "lucide-react"
+import { ArrowUpDown, MoreHorizontal, Eye, EyeOff, Pencil } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -77,7 +77,17 @@ export const getColumns = (
   },
   {
     accessorKey: "status",
-    header: "Estado",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Estado
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      )
+    },
     cell: ({ row }) => {
       const status = row.getValue("status") as string;
       const statusText = {
@@ -92,7 +102,17 @@ export const getColumns = (
   },
   {
     accessorKey: "type",
-    header: "Tipo",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Tipo
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      )
+    },
     cell: ({ row }) => {
       const type = row.getValue("type") as string;
       const typeText = {
@@ -144,6 +164,10 @@ export const getColumns = (
                 Hacer Visible
               </DropdownMenuItem>
             )}
+             <DropdownMenuItem disabled>
+              <Pencil className="mr-2 h-4 w-4" />
+              Editar producto
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
              <DropdownMenuLabel>Otras Acciones</DropdownMenuLabel>
             <DropdownMenuItem
@@ -152,7 +176,6 @@ export const getColumns = (
               Copiar ID del producto
             </DropdownMenuItem>
             <DropdownMenuItem disabled>Ver en la tienda</DropdownMenuItem>
-            <DropdownMenuItem disabled>Editar producto</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )
