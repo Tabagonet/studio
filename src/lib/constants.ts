@@ -27,18 +27,6 @@ export const NAV_ITEMS: NavItem[] = [
     disabled: false,
   },
   {
-    title: 'Gestión de Plantillas',
-    href: '/templates',
-    icon: FileText,
-    disabled: true,
-  },
-  {
-    title: 'Reglas de Automatización',
-    href: '/rules',
-    icon: Cog,
-    disabled: true,
-  },
-  {
     title: 'Gestión de Prompts IA',
     href: '/prompts',
     icon: Brain,
