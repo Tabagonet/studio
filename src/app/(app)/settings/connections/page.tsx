@@ -319,13 +319,12 @@ export default function ConnectionsPage() {
                 </Alert>
             )}
 
-
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col-reverse gap-4 pt-6 mt-6 border-t md:flex-row md:justify-between md:items-center">
                 <div>
                      {selectedKey !== 'new' && (
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
-                                <Button variant="destructive" disabled={isSaving || isDeleting}>
+                                <Button variant="destructive" disabled={isSaving || isDeleting} className="w-full md:w-auto">
                                     {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
                                     Eliminar Perfil
                                 </Button>
@@ -345,12 +344,12 @@ export default function ConnectionsPage() {
                         </AlertDialog>
                     )}
                 </div>
-                <div className="flex justify-end gap-4">
-                     <Button variant="outline" onClick={handleTestConnection} disabled={isSaving || testStatus === 'testing'}>
+                <div className="flex flex-col-reverse gap-4 md:flex-row">
+                     <Button variant="outline" onClick={handleTestConnection} disabled={isSaving || testStatus === 'testing'} className="w-full md:w-auto">
                         {testStatus === 'testing' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                         Probar Conexión
                     </Button>
-                    <Button onClick={handleSave} disabled={isSaving || isDeleting}>
+                    <Button onClick={handleSave} disabled={isSaving || isDeleting} className="w-full md:w-auto">
                         {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                         {isSaving ? "Guardando..." : "Guardar y Activar"}
                     </Button>
