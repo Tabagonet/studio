@@ -35,7 +35,7 @@ const getStatusInfo = (product: StagedProduct) => {
     if (product.processingStatus && product.processingStatus !== 'pending') {
         switch (product.processingStatus) {
             case 'processing':
-                 return { icon: Loader2, color: 'text-blue-600 animate-spin', label: 'Procesando' };
+                 return { icon: Loader2, color: 'text-blue-600', label: 'Procesando' };
             case 'completed':
                 return { icon: PackageCheck, color: 'text-green-600', label: 'Completado' };
             case 'error':
@@ -544,7 +544,10 @@ export default function BatchProcessPage() {
                                         </div>
                                     </div>
                                     {product.processingStatus === 'processing' && product.progress !== undefined && (
-                                        <Progress value={product.progress} className="h-2" />
+                                        <div className="w-full">
+                                            <Progress value={product.progress} className="h-2" />
+                                            <p className="text-xs text-right font-medium">{product.progress}%</p>
+                                        </div>
                                     )}
                                 </div>
                             </div>
@@ -559,5 +562,3 @@ export default function BatchProcessPage() {
     </div>
   );
 }
-
-    
