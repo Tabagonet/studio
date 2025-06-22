@@ -348,7 +348,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
       <Card>
         <CardHeader>
           <CardTitle>Información del Producto</CardTitle>
-          <CardDescription>Completa los detalles básicos de tu producto.</CardDescription>
+          <CardDescription>Completa los detalles, atributos y precios de tu producto.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -431,9 +431,79 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
               </p>
             )}
           </div>
+          
+          <div className="space-y-4 pt-4 border-t">
+            {productData.productType === 'grouped' ? (
+                <div>
+                    <Label className="text-base font-semibold">Productos del Grupo</Label>
+                    <p className="text-sm text-muted-foreground mb-2">Selecciona los productos simples que formarán parte de este producto agrupado.</p>
+                    <GroupedProductSelector 
+                        productIds={productData.groupedProductIds || []} 
+                        onProductIdsChange={(ids) => updateProductData({ groupedProductIds: ids })} 
+                    />
+                </div>
+            ) : (
+              <div>
+                <Label className="text-base font-semibold">Atributos del Producto</Label>
+                <p className="text-sm text-muted-foreground mb-2">Añade atributos como talla o color. Para productos variables, marca los que usarás para generar las variaciones.</p>
+                <div className="space-y-4">
+                  {productData.attributes.map((attr, index) => (
+                    <div key={index} className="flex flex-wrap items-end gap-2 p-3 border rounded-md bg-muted/20">
+                      <div className="flex-1 min-w-[150px]">
+                        <Label htmlFor={`attrName-${index}`}>Nombre del Atributo</Label>
+                        <Input 
+                          id={`attrName-${index}`} 
+                          value={attr.name} 
+                          onChange={(e) => handleAttributeChange(index, 'name', e.target.value)}
+                          placeholder="Ej: Color" 
+                        />
+                      </div>
+                      <div className="flex-1 min-w-[200px]">
+                        <Label htmlFor={`attrValue-${index}`}>Valor(es) del Atributo</Label>
+                        <Input 
+                          id={`attrValue-${index}`} 
+                          value={attr.value} 
+                          onChange={(e) => handleAttributeChange(index, 'value', e.target.value)}
+                          placeholder="Ej: Azul | Rojo | Verde (para variaciones)" 
+                        />
+                        {productData.productType === 'variable' && (
+                            <p className="text-xs text-muted-foreground mt-1">Para variaciones, separa los valores con " | " (ej: S | M | L)</p>
+                          )}
+                      </div>
+                      {productData.productType === 'variable' && (
+                          <div className="flex items-center space-x-2 pt-5">
+                              <Checkbox
+                                  id={`attrVariation-${index}`}
+                                  checked={!!attr.forVariations}
+                                  onCheckedChange={(checked) => handleAttributeChange(index, 'forVariations', !!checked)}
+                              />
+                              <Label htmlFor={`attrVariation-${index}`} className="text-sm font-medium leading-none whitespace-nowrap">
+                                  Para variaciones
+                              </Label>
+                          </div>
+                      )}
+                      <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" className="self-end">
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button type="button" variant="outline" onClick={addAttribute} className="mt-2">
+                    <PlusCircle className="mr-2 h-4 w-4" /> Añadir Atributo
+                  </Button>
+                  {productData.productType === 'variable' && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                          La gestión detallada de precios y stock para cada variación se podrá hacer desde WooCommerce una vez creado el producto.
+                      </p>
+                    )}
+                  <AiAttributeSuggester keywords={productData.keywords} onAttributesSuggested={handleSuggestedAttributes} />
+                </div>
+              </div>
+            )}
+        </div>
+
 
           {productData.productType !== 'grouped' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t pt-6">
               <div>
                 <Label htmlFor="regularPrice">Precio Regular (€)</Label>
                 <Input id="regularPrice" name="regularPrice" type="number" value={productData.regularPrice} onChange={handleInputChange} placeholder="Ej: 29.99" />
@@ -445,7 +515,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             </div>
           )}
 
-          <div>
+          <div className="border-t pt-6">
             <Label htmlFor="category">Categoría</Label>
             <Select name="category" value={productData.category?.id.toString() ?? ''} onValueChange={handleCategoryChange}>
               <SelectTrigger id="category" disabled={isLoadingCategories}>
@@ -549,79 +619,9 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
           </div>
         </CardContent>
       </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Atributos y Grupos</CardTitle>
-          <CardDescription>
-            {productData.productType === 'grouped' 
-                ? "Selecciona los productos que formarán parte de este grupo." 
-                : "Añade atributos. Para productos variables, marca los que usarás para las variaciones."
-            }
-        </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {productData.productType === 'grouped' ? (
-              <GroupedProductSelector 
-                  productIds={productData.groupedProductIds || []} 
-                  onProductIdsChange={(ids) => updateProductData({ groupedProductIds: ids })} 
-              />
-          ) : (
-            <>
-              {productData.attributes.map((attr, index) => (
-                <div key={index} className="flex flex-wrap items-end gap-2 p-3 border rounded-md bg-muted/20">
-                  <div className="flex-1 min-w-[150px]">
-                    <Label htmlFor={`attrName-${index}`}>Nombre del Atributo</Label>
-                    <Input 
-                      id={`attrName-${index}`} 
-                      value={attr.name} 
-                      onChange={(e) => handleAttributeChange(index, 'name', e.target.value)}
-                      placeholder="Ej: Color" 
-                    />
-                  </div>
-                  <div className="flex-1 min-w-[200px]">
-                    <Label htmlFor={`attrValue-${index}`}>Valor(es) del Atributo</Label>
-                    <Input 
-                      id={`attrValue-${index}`} 
-                      value={attr.value} 
-                      onChange={(e) => handleAttributeChange(index, 'value', e.target.value)}
-                      placeholder="Ej: Azul | Rojo | Verde (para variaciones)" 
-                    />
-                    {productData.productType === 'variable' && (
-                        <p className="text-xs text-muted-foreground mt-1">Para variaciones, separa los valores con " | " (ej: S | M | L)</p>
-                      )}
-                  </div>
-                  {productData.productType === 'variable' && (
-                      <div className="flex items-center space-x-2 pt-5">
-                          <Checkbox
-                              id={`attrVariation-${index}`}
-                              checked={!!attr.forVariations}
-                              onCheckedChange={(checked) => handleAttributeChange(index, 'forVariations', !!checked)}
-                          />
-                          <Label htmlFor={`attrVariation-${index}`} className="text-sm font-medium leading-none whitespace-nowrap">
-                              Para variaciones
-                          </Label>
-                      </div>
-                  )}
-                  <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" className="self-end">
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              ))}
-              <Button type="button" variant="outline" onClick={addAttribute} className="mt-2">
-                <PlusCircle className="mr-2 h-4 w-4" /> Añadir Atributo
-              </Button>
-               {productData.productType === 'variable' && (
-                  <p className="text-sm text-muted-foreground mt-2">
-                      La gestión detallada de precios y stock para cada variación se podrá hacer desde WooCommerce una vez creado el producto.
-                  </p>
-                )}
-              <AiAttributeSuggester keywords={productData.keywords} onAttributesSuggested={handleSuggestedAttributes} />
-            </>
-          )}
-        </CardContent>
-      </Card>
     </div>
     </TooltipProvider>
   );
 }
+
+    
