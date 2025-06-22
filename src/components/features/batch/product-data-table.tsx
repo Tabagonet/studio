@@ -29,7 +29,7 @@ import { Input } from "@/components/ui/input"
 import { getColumns } from "./columns" 
 import type { ProductSearchResult, WooCommerceCategory, ProductStats } from "@/lib/types"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { BrainCircuit, ChevronDown, Loader2, Box, FileCheck2, FileText, BarChart3 } from "lucide-react"
+import { BrainCircuit, ChevronDown, Loader2, Box, FileCheck2, FileText, BarChart3, Eye, EyeOff } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -40,6 +40,7 @@ export function ProductDataTable() {
   const [data, setData] = React.useState<ProductSearchResult[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [isAiProcessing, setIsAiProcessing] = React.useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = React.useState(false);
   const [totalPages, setTotalPages] = React.useState(1)
   
   const [categories, setCategories] = React.useState<WooCommerceCategory[]>([]);
@@ -352,8 +353,72 @@ export function ProductDataTable() {
     }
   }
 
+  const handleBatchStatusUpdate = async (status: 'publish' | 'draft') => {
+    const selectedRows = table.getSelectedRowModel().rows;
+    if (selectedRows.length === 0) {
+      toast({ title: "No hay productos seleccionados", variant: "destructive" });
+      return;
+    }
+    
+    setIsUpdatingStatus(true);
+    const productIds = selectedRows.map(row => row.original.id);
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: "No autenticado", variant: "destructive" });
+        setIsUpdatingStatus(false);
+        return;
+    }
+
+    const actionText = status === 'publish' ? 'publicando' : 'ocultando';
+    toast({
+        title: "Actualizando en lote...",
+        description: `Se están ${actionText} ${productIds.length} producto(s).`,
+    });
+
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/woocommerce/products/batch-update', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ productIds, status }),
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || result.message || 'Fallo la acción en lote.');
+        }
+        
+        toast({
+            title: "¡Acción completada!",
+            description: result.message,
+        });
+
+        table.resetRowSelection();
+        fetchData();
+        fetchStats();
+
+    } catch (error: any) {
+        toast({
+            title: "Error en la acción en lote",
+            description: error.message,
+            variant: "destructive",
+        });
+    } finally {
+        setIsUpdatingStatus(false);
+    }
+  }
 
   const selectedRowCount = Object.keys(rowSelection).length;
+  const isActionRunning = isAiProcessing || isUpdatingStatus;
+
+  const getButtonText = () => {
+    if (isAiProcessing) return "Procesando IA...";
+    if (isUpdatingStatus) return "Actualizando...";
+    return `Acciones (${selectedRowCount})`;
+  };
 
   return (
     <div className="w-full space-y-4">
@@ -458,20 +523,26 @@ export function ProductDataTable() {
         </div>
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="outline" disabled={selectedRowCount === 0 || isAiProcessing} className="w-full md:w-auto mt-2 md:mt-0">
-                    {isAiProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BrainCircuit className="mr-2 h-4 w-4" />}
-                    {isAiProcessing ? "Procesando..." : `Acciones (${selectedRowCount})`}
-                    <ChevronDown className="ml-2 h-4 w-4" />
+                <Button variant="outline" disabled={selectedRowCount === 0 || isActionRunning} className="w-full md:w-auto mt-2 md:mt-0">
+                     {isActionRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronDown className="mr-2 h-4 w-4" />}
+                     {getButtonText()}
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
                  <DropdownMenuLabel>Acciones de IA</DropdownMenuLabel>
-                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => handleAiAction("Generar Descripciones")}>
-                    Generar/Actualizar Descripciones
+                    <BrainCircuit className="mr-2 h-4 w-4" /> Generar Descripciones
                 </DropdownMenuItem>
                 <DropdownMenuItem disabled>
                     Generar Metadatos para Imágenes
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Acciones de Estado</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => handleBatchStatusUpdate('publish')}>
+                    <Eye className="mr-2 h-4 w-4" /> Hacer Visibles (Publicar)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleBatchStatusUpdate('draft')}>
+                    <EyeOff className="mr-2 h-4 w-4" /> Ocultar (Poner como Borrador)
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
