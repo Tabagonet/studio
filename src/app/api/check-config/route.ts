@@ -34,10 +34,14 @@ export async function GET(req: NextRequest) {
     try {
       const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
       if (userSettingsDoc.exists) {
-        const connections = userSettingsDoc.data()?.connections;
-        if (connections) {
-          userConfig.wooCommerceConfigured = !!(connections.wooCommerceStoreUrl && connections.wooCommerceApiKey && connections.wooCommerceApiSecret);
-          userConfig.wordPressConfigured = !!(connections.wordpressApiUrl && connections.wordpressUsername && connections.wordpressApplicationPassword);
+        const settings = userSettingsDoc.data();
+        const allConnections = settings?.connections;
+        const activeKey = settings?.activeConnectionKey;
+        
+        if (activeKey && allConnections && allConnections[activeKey]) {
+          const activeConnection = allConnections[activeKey];
+          userConfig.wooCommerceConfigured = !!(activeConnection.wooCommerceStoreUrl && activeConnection.wooCommerceApiKey && activeConnection.wooCommerceApiSecret);
+          userConfig.wordPressConfigured = !!(activeConnection.wordpressApiUrl && activeConnection.wordpressUsername && activeConnection.wordpressApplicationPassword);
         }
       }
     } catch (dbError) {

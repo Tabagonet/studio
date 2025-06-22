@@ -42,7 +42,9 @@ export function Header() {
           });
           if (response.ok) {
             const data = await response.json();
-            setStoreUrl(data.connections?.wooCommerceStoreUrl || null);
+            const activeKey = data.activeConnectionKey;
+            const activeConnection = data.allConnections && activeKey ? data.allConnections[activeKey] : null;
+            setStoreUrl(activeConnection?.wooCommerceStoreUrl || null);
           } else {
             setStoreUrl(null);
           }
@@ -156,10 +158,10 @@ export function Header() {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/settings/profile"><UserIcon className="mr-2 h-4 w-4" />Perfil</Link>
+                    <Link href="/settings"><UserIcon className="mr-2 h-4 w-4" />Perfil</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                     <Link href="/settings/billing"><CreditCard className="mr-2 h-4 w-4" />Facturación</Link>
+                     <Link href="/settings"><CreditCard className="mr-2 h-4 w-4" />Facturación</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/settings"><SettingsIcon className="mr-2 h-4 w-4" />Configuración</Link>

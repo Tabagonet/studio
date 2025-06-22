@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebase-admin';
+import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
 
 // Helper function to get user UID from token
@@ -13,7 +13,7 @@ async function getUserIdFromRequest(req: NextRequest): Promise<string> {
     return decodedToken.uid;
 }
 
-// GET handler to fetch the user's connections
+// GET handler to fetch all user connections and the active one
 export async function GET(req: NextRequest) {
     if (!adminDb) {
         return NextResponse.json({ error: 'Firestore not configured on server' }, { status: 503 });
@@ -25,16 +25,28 @@ export async function GET(req: NextRequest) {
 
         if (userSettingsDoc.exists) {
             const data = userSettingsDoc.data();
-            return NextResponse.json({ connections: data?.connections || null });
+            return NextResponse.json({
+                allConnections: data?.connections || {},
+                activeConnectionKey: data?.activeConnectionKey || null,
+            });
         }
-        return NextResponse.json({ connections: null });
+        return NextResponse.json({ allConnections: {}, activeConnectionKey: null });
     } catch (error: any) {
         console.error('Error fetching user connections:', error);
         return NextResponse.json({ error: error.message || 'Authentication required' }, { status: 401 });
     }
 }
 
-// POST handler to save the user's connections
+const connectionDataSchema = z.object({
+    wooCommerceStoreUrl: z.string().url().optional().or(z.literal('')),
+    wooCommerceApiKey: z.string().optional(),
+    wooCommerceApiSecret: z.string().optional(),
+    wordpressApiUrl: z.string().url().optional().or(z.literal('')),
+    wordpressUsername: z.string().optional(),
+    wordpressApplicationPassword: z.string().optional(),
+});
+
+// POST handler to save/update a connection profile and optionally set it as active
 export async function POST(req: NextRequest) {
     if (!adminDb) {
         return NextResponse.json({ error: 'Firestore not configured on server' }, { status: 503 });
@@ -44,17 +56,10 @@ export async function POST(req: NextRequest) {
         const uid = await getUserIdFromRequest(req);
         const body = await req.json();
 
-        const connectionSchema = z.object({
-            wooCommerceStoreUrl: z.string().url().optional().or(z.literal('')),
-            wooCommerceApiKey: z.string().optional(),
-            wooCommerceApiSecret: z.string().optional(),
-            wordpressApiUrl: z.string().url().optional().or(z.literal('')),
-            wordpressUsername: z.string().optional(),
-            wordpressApplicationPassword: z.string().optional(),
-        });
-        
         const payloadSchema = z.object({
-            connections: connectionSchema
+            key: z.string().min(1, "Key is required"),
+            connectionData: connectionDataSchema,
+            setActive: z.boolean().optional().default(false),
         });
 
         const validationResult = payloadSchema.safeParse(body);
@@ -62,16 +67,70 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid data', details: validationResult.error.flatten() }, { status: 400 });
         }
         
-        const { connections } = validationResult.data;
+        const { key, connectionData, setActive } = validationResult.data;
 
-        await adminDb.collection('user_settings').doc(uid).set({
-            connections: connections
+        const userSettingsRef = adminDb.collection('user_settings').doc(uid);
+
+        await userSettingsRef.set({
+            connections: {
+                [key]: connectionData
+            },
+            // Also set as active if requested
+            ...(setActive && { activeConnectionKey: key })
         }, { merge: true });
 
-        return NextResponse.json({ success: true, message: 'Connections saved successfully.' });
+        return NextResponse.json({ success: true, message: 'Connection saved successfully.' });
+
     } catch (error: any) {
         console.error('Error saving user connections:', error);
         const status = error.message.includes('Authentication') ? 401 : 500;
         return NextResponse.json({ error: error.message || 'Failed to save connections' }, { status });
+    }
+}
+
+
+// DELETE handler to remove a connection profile
+export async function DELETE(req: NextRequest) {
+    if (!adminDb || !admin.firestore.FieldValue) {
+        return NextResponse.json({ error: 'Firestore not configured on server' }, { status: 503 });
+    }
+
+    try {
+        const uid = await getUserIdFromRequest(req);
+        const body = await req.json();
+
+        const payloadSchema = z.object({
+            key: z.string().min(1, "Key is required"),
+        });
+
+        const validationResult = payloadSchema.safeParse(body);
+        if (!validationResult.success) {
+            return NextResponse.json({ error: 'Invalid data', details: validationResult.error.flatten() }, { status: 400 });
+        }
+        
+        const { key } = validationResult.data;
+        const userSettingsRef = adminDb.collection('user_settings').doc(uid);
+        const doc = await userSettingsRef.get();
+        const currentData = doc.data();
+
+        // Prepare the update payload
+        const updatePayload: { [key: string]: any } = {
+            [`connections.${key}`]: admin.firestore.FieldValue.delete()
+        };
+
+        // If the deleted key was the active one, find a new active key or set it to null
+        if (currentData?.activeConnectionKey === key) {
+            const otherKeys = Object.keys(currentData.connections || {}).filter(k => k !== key);
+            updatePayload.activeConnectionKey = otherKeys.length > 0 ? otherKeys[0] : null;
+        }
+
+        await userSettingsRef.update(updatePayload);
+
+        return NextResponse.json({ success: true, message: 'Connection deleted successfully.' });
+
+    } catch (error: any) {
+        console.error('Error deleting user connection:', error);
+        const status = error.message.includes('Authentication') ? 401 : 500;
+        return NextResponse.json({ error: error.message || 'Failed to delete connection' }, { status });
     }
 }

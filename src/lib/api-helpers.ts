@@ -12,7 +12,7 @@ interface ApiClients {
 }
 
 /**
- * Fetches user-specific credentials from Firestore and creates API clients.
+ * Fetches the active user-specific credentials from Firestore and creates API clients.
  * This is a centralized helper to be used by server-side API routes.
  * Throws an error if credentials are not found or incomplete.
  * @param {string} uid - The user's Firebase UID.
@@ -29,26 +29,29 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   }
 
   const settings = userSettingsDoc.data();
-  const connections = settings?.connections;
+  const allConnections = settings?.connections;
+  const activeConnectionKey = settings?.activeConnectionKey;
 
-  if (!connections) {
-    throw new Error('API connections not configured for this user.');
+  if (!activeConnectionKey || !allConnections || !allConnections[activeConnectionKey]) {
+      throw new Error('No active API connection is configured. Please select or create one in Settings > Connections.');
   }
 
+  const activeConnection = allConnections[activeConnectionKey];
+
   const wooApi = createWooCommerceApi({
-    url: connections.wooCommerceStoreUrl,
-    consumerKey: connections.wooCommerceApiKey,
-    consumerSecret: connections.wooCommerceApiSecret,
+    url: activeConnection.wooCommerceStoreUrl,
+    consumerKey: activeConnection.wooCommerceApiKey,
+    consumerSecret: activeConnection.wooCommerceApiSecret,
   });
 
   const wpApi = createWordPressApi({
-    url: connections.wordpressApiUrl,
-    username: connections.wordpressUsername,
-    applicationPassword: connections.wordpressApplicationPassword,
+    url: activeConnection.wordpressApiUrl,
+    username: activeConnection.wordpressUsername,
+    applicationPassword: activeConnection.wordpressApplicationPassword,
   });
 
   if (!wooApi || !wpApi) {
-    throw new Error('Failed to initialize API clients due to missing or invalid credentials.');
+    throw new Error('Failed to initialize API clients due to missing or invalid credentials in the active profile.');
   }
 
   return { wooApi, wpApi };
