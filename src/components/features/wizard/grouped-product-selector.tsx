@@ -55,7 +55,7 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
         const user = auth.currentUser;
         if (!user) return [];
         const token = await user.getIdToken();
-        const response = await fetch(`/api/woocommerce/search-products?include=${ids.join(',')}`, {
+        const response = await fetch(`/api/woocommerce/products/search-products?include=${ids.join(',')}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!response.ok) throw new Error('Failed to fetch product details');
@@ -105,7 +105,7 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
             params.append('category', category);
         }
 
-        const response = await fetch(`/api/woocommerce/search-products?${params.toString()}`, {
+        const response = await fetch(`/api/woocommerce/products/search-products?${params.toString()}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 

@@ -243,8 +243,8 @@ export const getColumns = (
                   Hacer Visible
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem asChild>
-                <Link href={product.permalink} target="_blank" rel="noopener noreferrer">
+              <DropdownMenuItem asChild disabled={!product.permalink}>
+                <Link href={product.permalink || ''} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="mr-2 h-4 w-4" />
                   Ver en la tienda
                 </Link>

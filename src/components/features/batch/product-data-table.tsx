@@ -128,7 +128,7 @@ export function ProductDataTable() {
       }
 
 
-      const response = await fetch(`/api/woocommerce/search-products?${params.toString()}`, {
+      const response = await fetch(`/api/woocommerce/products/search-products?${params.toString()}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
