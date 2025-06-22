@@ -5,7 +5,7 @@ import React, { useCallback, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { v4 as uuidv4 } from 'uuid';
 import Image from 'next/image';
-import { UploadCloud, X, Star, CheckCircle, AlertTriangle } from 'lucide-react';
+import { UploadCloud, X, Star, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import type { ProductPhoto } from '@/lib/types';
@@ -95,65 +95,84 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
       </div>
 
       {photos.length > 0 && (
-        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {photos.map((photo) => (
-            <div key={photo.id} className="relative group border rounded-lg overflow-hidden shadow-sm h-32">
-              <Image
-                src={photo.previewUrl}
-                alt={`Vista previa de ${photo.name}`}
-                fill
-                sizes="(max-width: 768px) 33vw, (max-width: 1024px) 25vw, 17vw"
-                className="object-cover"
-              />
+        <TooltipProvider>
+          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {photos.map((photo) => (
+              <div key={photo.id} className="relative group border rounded-lg overflow-hidden shadow-sm h-32">
+                <Image
+                  src={photo.previewUrl}
+                  alt={`Vista previa de ${photo.name}`}
+                  fill
+                  sizes="(max-width: 768px) 33vw, (max-width: 1024px) 25vw, 17vw"
+                  className="object-cover"
+                />
 
-              {!isProcessing && (
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" onClick={() => setAsPrimary(photo.id)} title="Marcar como principal">
-                    <Star className={cn("h-5 w-5 text-white", photo.isPrimary && "fill-yellow-400 text-yellow-400")}/>
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(photo)} title="Eliminar imagen">
-                    <X className="h-5 w-5 text-destructive" />
-                    </Button>
-                </div>
-              )}
+                {!isProcessing && (
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button variant="ghost" size="icon" onClick={() => setAsPrimary(photo.id)} title="Marcar como principal">
+                      <Star className={cn("h-5 w-5 text-white", photo.isPrimary && "fill-yellow-400 text-yellow-400")}/>
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(photo)} title="Eliminar imagen">
+                      <X className="h-5 w-5 text-destructive" />
+                      </Button>
+                  </div>
+                )}
 
-               {photo.isPrimary && (
-                 <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-xs font-bold px-2 py-1 rounded">
-                    PRINCIPAL
-                 </div>
-               )}
+                {photo.isPrimary && (
+                  <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-xs font-bold px-2 py-1 rounded">
+                      PRINCIPAL
+                  </div>
+                )}
 
-              {photo.status === 'uploading' && (
-                <div className="absolute bottom-0 left-0 right-0 p-2 bg-background/90 space-y-1">
-                  <p className="text-xs font-medium text-center">Subiendo: {photo.progress}%</p>
-                  <Progress value={photo.progress} className="h-2" />
-                </div>
-              )}
-              
-              {/* Minimalist Status Indicators */}
-              {photo.status === 'completed' && (
-                <div className="absolute top-1 right-1 bg-green-500/90 p-1 rounded-full text-white pointer-events-none" title="Subida completada">
-                    <CheckCircle className="h-4 w-4" />
-                </div>
-              )}
+                {photo.status === 'pending' && !isProcessing && (
+                    <Tooltip>
+                        <TooltipTrigger className="absolute top-1 right-1">
+                            <div className="bg-amber-500/90 p-1 rounded-full text-white flex items-center justify-center">
+                                <Clock className="h-4 w-4" />
+                            </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Pendiente de subir</p>
+                        </TooltipContent>
+                    </Tooltip>
+                )}
 
-              {photo.status === 'error' && (
-                <div className="absolute top-1 right-1">
-                    <TooltipProvider delayDuration={100}>
-                        <Tooltip>
-                            <TooltipTrigger className="bg-destructive/90 p-1 rounded-full text-destructive-foreground flex items-center justify-center">
-                                <AlertTriangle className="h-4 w-4" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>{photo.error || 'Error desconocido'}</p>
-                            </TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+                {photo.status === 'uploading' && (
+                  <div className="absolute bottom-0 left-0 right-0 p-2 bg-background/90 space-y-1">
+                    <p className="text-xs font-medium text-center">Subiendo: {photo.progress}%</p>
+                    <Progress value={photo.progress} className="h-2" />
+                  </div>
+                )}
+                
+                {photo.status === 'completed' && (
+                  <Tooltip>
+                      <TooltipTrigger className="absolute top-1 right-1">
+                          <div className="bg-green-500/90 p-1 rounded-full text-white flex items-center justify-center">
+                              <CheckCircle className="h-4 w-4" />
+                          </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                          <p>Guardada en el servidor</p>
+                      </TooltipContent>
+                  </Tooltip>
+                )}
+
+                {photo.status === 'error' && (
+                  <Tooltip>
+                      <TooltipTrigger className="absolute top-1 right-1">
+                          <div className="bg-destructive/90 p-1 rounded-full text-destructive-foreground flex items-center justify-center">
+                              <AlertTriangle className="h-4 w-4" />
+                          </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                          <p>{photo.error || 'Error desconocido'}</p>
+                      </TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
+            ))}
+          </div>
+        </TooltipProvider>
       )}
     </div>
   );
