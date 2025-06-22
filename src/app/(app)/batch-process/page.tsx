@@ -6,32 +6,53 @@ import { useDropzone } from 'react-dropzone';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { UploadCloud, FileText, Info, FileSpreadsheet, Image as ImageIcon, CheckCircle, Download } from "lucide-react";
+import { UploadCloud, FileText, Info, FileSpreadsheet, Image as ImageIcon, CheckCircle, Download, Loader2, FileWarning, PackageCheck, PackageX, PackageSearch } from "lucide-react";
 import { cn } from '@/lib/utils';
+import Papa from 'papaparse';
+import { useToast } from '@/hooks/use-toast';
+import Image from 'next/image';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
-// Placeholder type for combined data
+// Staged product type
 interface StagedProduct {
-  id: string; // SKU or unique identifier
+  id: string; // SKU
   name: string;
   images: File[];
-  csvData: Record<string, any> | null;
-  status: 'ready' | 'missing_images' | 'missing_csv_data';
+  csvData: Record<string, any>;
+  status: 'ready' | 'missing_images' | 'missing_csv_data' | 'error';
+  statusMessage: string;
 }
+
+const getStatusInfo = (status: StagedProduct['status']) => {
+    switch (status) {
+        case 'ready':
+            return { icon: PackageCheck, color: 'text-green-600', label: 'Listo' };
+        case 'missing_images':
+            return { icon: PackageSearch, color: 'text-yellow-600', label: 'Faltan Imágenes' };
+        case 'missing_csv_data':
+            return { icon: FileWarning, color: 'text-orange-600', label: 'Faltan Datos CSV' };
+        default:
+            return { icon: PackageX, color: 'text-destructive', label: 'Error' };
+    }
+}
+
 
 export default function BatchProcessPage() {
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvData, setCsvData] = useState<Record<string, any>[]>([]);
   const [stagedProducts, setStagedProducts] = useState<StagedProduct[]>([]);
+  const [isProcessingFiles, setIsProcessingFiles] = useState(false);
+  const { toast } = useToast();
 
   const onImagesDrop = useCallback((acceptedFiles: File[]) => {
     setImageFiles(prev => [...prev, ...acceptedFiles]);
-    // Here we would trigger the logic to group images by SKU
   }, []);
 
   const onCsvDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       setCsvFile(acceptedFiles[0]);
-      // Here we would trigger the logic to parse the CSV
     }
   }, []);
 
@@ -50,6 +71,7 @@ export default function BatchProcessPage() {
   const clearFiles = () => {
     setImageFiles([]);
     setCsvFile(null);
+    setCsvData([]);
     setStagedProducts([]);
   };
 
@@ -61,19 +83,17 @@ export default function BatchProcessPage() {
       'atributo_2_nombre', 'atributo_2_valores', 'atributo_2_variacion', 'atributo_2_visible',
     ];
     const exampleData = [
-      // Simple product example
       [
         'SKU-PALA-ACERO', 'Pala de Jardín de Acero', 'simple', 'Herramientas', 'jardineria, pala, acero',
         '12.50', '9.99', '200',
-        '', '', '', '', // No attributes for simple product
+        '', '', '', '',
         '', '', '', ''
       ],
-      // Variable product example
       [
         'TSHIRT-COOL', 'Camiseta Molona', 'variable', 'Ropa > Camisetas', 'ropa, camiseta, verano',
-        '', '', '0', // Price and stock can be left blank for parent variable product
-        'Color', 'Rojo | Verde | Azul', '1', '1', // Attribute 1 (Color) for variations
-        'Talla', 'S | M | L', '1', '1'             // Attribute 2 (Talla) for variations
+        '', '', '0',
+        'Color', 'Rojo | Verde | Azul', '1', '1',
+        'Talla', 'S | M | L', '1', '1'
       ]
     ];
     
@@ -94,16 +114,94 @@ export default function BatchProcessPage() {
     URL.revokeObjectURL(url);
   };
   
-  // This effect would combine the data when files change
+   // Effect to parse CSV file
   useEffect(() => {
-    if (imageFiles.length > 0 && csvFile) {
-        // Placeholder for the actual logic
-        // 1. Group images by identifier from filename
-        // 2. Parse CSV
-        // 3. Merge data and populate stagedProducts
-        console.log("Both file types are present. Ready to process.");
+    if (!csvFile) {
+        setCsvData([]);
+        return;
     }
-  }, [imageFiles, csvFile]);
+
+    Papa.parse(csvFile, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+            const validData = results.data.filter((row: any) => row.sku && row.sku.trim() !== '');
+            setCsvData(validData as Record<string, any>[]);
+             toast({
+                title: "CSV Analizado",
+                description: `Se han encontrado ${validData.length} filas con SKU válido.`,
+            });
+        },
+        error: (error: any) => {
+            console.error("Error parsing CSV:", error);
+            toast({ title: "Error al leer CSV", description: error.message, variant: "destructive" });
+        }
+    });
+  }, [csvFile, toast]);
+
+  // Effect to combine image and CSV data
+  useEffect(() => {
+    if (csvData.length === 0 && imageFiles.length === 0) {
+        setStagedProducts([]);
+        return;
+    }
+
+    setIsProcessingFiles(true);
+    
+    // Use a map for efficient lookups
+    const csvMap = new Map<string, Record<string, any>>();
+    csvData.forEach(row => {
+        if(row.sku) csvMap.set(row.sku.trim(), row);
+    });
+
+    const imagesBySku = new Map<string, File[]>();
+    imageFiles.forEach(file => {
+        const skuMatch = file.name.match(/^([a-zA-Z0-9_-]+)-/);
+        const sku = skuMatch ? skuMatch[1] : null;
+        if (sku) {
+            if (!imagesBySku.has(sku)) {
+                imagesBySku.set(sku, []);
+            }
+            imagesBySku.get(sku)!.push(file);
+        }
+    });
+
+    const combined: StagedProduct[] = [];
+    const processedSkus = new Set<string>();
+
+    // Process SKUs from CSV first
+    csvMap.forEach((row, sku) => {
+        const matchingImages = imagesBySku.get(sku) || [];
+        combined.push({
+            id: sku,
+            name: row.nombre || 'Nombre no encontrado',
+            csvData: row,
+            images: matchingImages.sort((a,b) => a.name.localeCompare(b.name)),
+            status: matchingImages.length > 0 ? 'ready' : 'missing_images',
+            statusMessage: matchingImages.length > 0 ? 'Listo para procesar.' : 'Datos encontrados en CSV, pero faltan imágenes con este SKU.'
+        });
+        processedSkus.add(sku);
+    });
+
+    // Process SKUs from images that weren't in the CSV
+    imagesBySku.forEach((images, sku) => {
+        if (!processedSkus.has(sku)) {
+            combined.push({
+                id: sku,
+                name: `Producto de SKU: ${sku}`,
+                images: images.sort((a,b) => a.name.localeCompare(b.name)),
+                csvData: {},
+                status: 'missing_csv_data',
+                statusMessage: 'Imágenes encontradas, pero faltan datos para este SKU en el CSV.'
+            });
+        }
+    });
+
+    setStagedProducts(combined.sort((a, b) => a.id.localeCompare(b.id)));
+    setIsProcessingFiles(false);
+  }, [imageFiles, csvData]);
+  
+  const readyProductsCount = stagedProducts.filter(p => p.status === 'ready').length;
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -227,7 +325,7 @@ export default function BatchProcessPage() {
       </div>
 
        <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
            <div>
             <CardTitle>3. Verificación y Procesamiento</CardTitle>
             <CardDescription>Revisa los productos identificados antes de generar contenido y crearlos en tu tienda.</CardDescription>
@@ -236,16 +334,57 @@ export default function BatchProcessPage() {
             <Button variant="destructive" onClick={clearFiles} disabled={imageFiles.length === 0 && !csvFile}>
                 Limpiar Todo
             </Button>
-            <Button disabled={stagedProducts.length === 0}>
-                Procesar {stagedProducts.length} Productos
+            <Button disabled={readyProductsCount === 0}>
+                Procesar {readyProductsCount} Productos
             </Button>
            </div>
         </CardHeader>
         <CardContent>
-            <div className="min-h-[200px] flex items-center justify-center text-center text-muted-foreground border border-dashed rounded-md">
-                <p>Aquí aparecerá la lista de productos detectados al subir imágenes y el archivo CSV.</p>
-            </div>
-            {/* Placeholder for the verification table */}
+            {isProcessingFiles && (
+                 <div className="min-h-[200px] flex items-center justify-center text-center text-muted-foreground">
+                    <Loader2 className="h-6 w-6 animate-spin mr-2"/>
+                    <p>Procesando y cruzando datos...</p>
+                </div>
+            )}
+            {!isProcessingFiles && stagedProducts.length === 0 && (
+                <div className="min-h-[200px] flex items-center justify-center text-center text-muted-foreground border border-dashed rounded-md">
+                    <p>Aquí aparecerá la lista de productos detectados al subir imágenes y el archivo CSV.</p>
+                </div>
+            )}
+            {!isProcessingFiles && stagedProducts.length > 0 && (
+                <ScrollArea className="max-h-[600px] border rounded-md">
+                    <div className="p-4 space-y-3">
+                    {stagedProducts.map((product) => {
+                        const statusInfo = getStatusInfo(product.status);
+                        const StatusIcon = statusInfo.icon;
+                        const previewImage = product.images.length > 0 ? URL.createObjectURL(product.images[0]) : "https://placehold.co/80x80.png";
+                        return (
+                            <div key={product.id} className="flex items-center gap-4 p-3 border rounded-lg bg-card hover:bg-muted/50 transition-colors">
+                                <Image
+                                    src={previewImage}
+                                    alt={`Previsualización de ${product.name}`}
+                                    width={80}
+                                    height={80}
+                                    className="rounded-md object-cover h-20 w-20"
+                                />
+                                <div className="flex-1 space-y-1">
+                                    <h3 className="font-semibold">{product.name}</h3>
+                                    <p className="text-sm text-muted-foreground">SKU: <code className="bg-muted px-1 py-0.5 rounded">{product.id}</code></p>
+                                    <p className="text-sm text-muted-foreground">Imágenes encontradas: <Badge variant="secondary">{product.images.length}</Badge></p>
+                                </div>
+                                <div className="flex items-center gap-2 w-48">
+                                    <StatusIcon className={cn("h-5 w-5", statusInfo.color)} />
+                                    <div className="flex flex-col">
+                                       <span className={cn("font-medium", statusInfo.color)}>{statusInfo.label}</span>
+                                       <p className="text-xs text-muted-foreground">{product.statusMessage}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                    </div>
+                </ScrollArea>
+            )}
         </CardContent>
       </Card>
 
