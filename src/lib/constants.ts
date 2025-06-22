@@ -16,7 +16,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Wand2,
   },
   {
-    title: 'Procesamiento en Lotes',
+    title: 'Gestión de Productos',
     href: '/batch',
     icon: Layers,
   },
