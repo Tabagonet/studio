@@ -418,23 +418,30 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                 ))}
               </SelectContent>
             </Select>
-            {productData.productType !== 'simple' && (
+            {productData.productType === 'variable' && (
               <p className="text-xs text-muted-foreground mt-1">
-                La configuración detallada para productos variables o agrupados se realizará en WooCommerce.
+                La configuración detallada para productos variables (precios, stock por variación) se realizará en WooCommerce.
+              </p>
+            )}
+            {productData.productType === 'grouped' && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Los productos agrupados no tienen precio. Estás creando un "contenedor" al que añadirás otros productos desde WooCommerce.
               </p>
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <Label htmlFor="regularPrice">Precio Regular (€)</Label>
-              <Input id="regularPrice" name="regularPrice" type="number" value={productData.regularPrice} onChange={handleInputChange} placeholder="Ej: 29.99" />
+          {productData.productType !== 'grouped' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <Label htmlFor="regularPrice">Precio Regular (€)</Label>
+                <Input id="regularPrice" name="regularPrice" type="number" value={productData.regularPrice} onChange={handleInputChange} placeholder="Ej: 29.99" />
+              </div>
+              <div>
+                <Label htmlFor="salePrice">Precio de Oferta (€) (Opcional)</Label>
+                <Input id="salePrice" name="salePrice" type="number" value={productData.salePrice} onChange={handleInputChange} placeholder="Ej: 19.99" />
+              </div>
             </div>
-            <div>
-              <Label htmlFor="salePrice">Precio de Oferta (€) (Opcional)</Label>
-              <Input id="salePrice" name="salePrice" type="number" value={productData.salePrice} onChange={handleInputChange} placeholder="Ej: 19.99" />
-            </div>
-          </div>
+          )}
 
           <div>
             <Label htmlFor="category">Categoría</Label>

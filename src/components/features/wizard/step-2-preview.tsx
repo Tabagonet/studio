@@ -56,15 +56,24 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                   dangerouslySetInnerHTML={{ __html: shortDescription || "No especificada." }}
                 />
               </div>
-              <div>
-                <h4 className="font-semibold text-lg">Precios</h4>
-                <p>
-                  <span className={cn("font-bold text-xl", salePrice && "line-through text-muted-foreground")}>
-                    {regularPrice ? `${regularPrice}€` : "No especificado"}
-                  </span>
-                  {salePrice && <span className="ml-2 font-bold text-xl text-primary">{`${salePrice}€`}</span>}
-                </p>
-              </div>
+
+              {productType !== 'grouped' ? (
+                <div>
+                  <h4 className="font-semibold text-lg">Precios</h4>
+                  <p>
+                    <span className={cn("font-bold text-xl", salePrice && "line-through text-muted-foreground")}>
+                      {regularPrice ? `${regularPrice}€` : "No especificado"}
+                    </span>
+                    {salePrice && <span className="ml-2 font-bold text-xl text-primary">{`${salePrice}€`}</span>}
+                  </p>
+                </div>
+              ) : (
+                 <div>
+                    <h4 className="font-semibold text-lg">Precios</h4>
+                    <p className="text-muted-foreground italic">Los productos agrupados no tienen precio.</p>
+                </div>
+              )}
+
               <div>
                 <h4 className="font-semibold text-lg">Detalles</h4>
                 <ul className="list-disc list-inside text-muted-foreground">

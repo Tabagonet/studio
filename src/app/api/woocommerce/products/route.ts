@@ -90,12 +90,10 @@ export async function POST(request: NextRequest) {
     
     const wooTags = productData.keywords ? productData.keywords.split(',').map(k => ({ name: k.trim() })).filter(k => k.name) : [];
     
-    const formattedProduct = {
+    const formattedProduct: any = {
       name: productData.name,
       sku: productData.sku || undefined,
       type: productData.productType,
-      regular_price: productData.regularPrice,
-      sale_price: productData.salePrice || undefined,
       description: productData.longDescription,
       short_description: productData.shortDescription,
       categories: productData.category ? [{ id: productData.category.id }] : [],
@@ -103,6 +101,13 @@ export async function POST(request: NextRequest) {
       attributes: wooAttributes,
       tags: wooTags,
     };
+
+    // Only add pricing for non-grouped products
+    if (productData.productType !== 'grouped') {
+        formattedProduct.regular_price = productData.regularPrice;
+        formattedProduct.sale_price = productData.salePrice || undefined;
+    }
+
 
     // 4. Send data to WooCommerce to create the product
     const response = await wooApi.post('products', formattedProduct);
