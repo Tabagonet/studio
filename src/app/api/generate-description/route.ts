@@ -31,16 +31,16 @@ The response must be a valid JSON object. Do not include any markdown backticks 
 - **Plant Name:** {{productName}}
 - **Language for output:** {{language}}
 - **Product Type:** {{productType}}
-- **User-provided Keywords (use for inspiration):** {{keywords}}
+- **User-provided Keywords (for inspiration):** {{keywords}}
 
 **Instructions:**
-1.  **Research:** Based on the provided **Plant Name** ("{{productName}}"), use your botanical knowledge to find all the required information for the fields below (Botanical Name, Common Names, Mature Size, etc.). If the name is ambiguous, use the most common or commercially relevant plant.
+1.  **Research:** Based on the provided **Plant Name** ("{{productName}}"), use your botanical knowledge to find all the required information for the fields below. If the name is ambiguous, use the most common or commercially relevant plant.
 
-2.  **Generate Content:** Populate the JSON object according to the following specifications:
+2.  **Generate Content:** Populate a JSON object with the following keys and specifications:
 
-    a.  **shortDescription:** Write a concise and engaging summary in {{language}}. The product name, "{{productName}}", MUST be wrapped in <strong> HTML tags.
+    a.  **"shortDescription":** Write a concise and engaging summary in {{language}}. The product name, "{{productName}}", MUST be wrapped in <strong> HTML tags.
 
-    b.  **longDescription:** Write a detailed description in {{language}}. It MUST follow this structure. For each item, **you must find the correct information** and format it with the label in bold (<strong>) and the value in italic (<em>).
+    b.  **"longDescription":** Write a detailed description in {{language}}. It MUST follow this structure. For each item, **you must find the correct information** and format it with the label in bold (<strong>) and the value in italic (<em>).
         <strong>Botanical Name:</strong> <em>[Find and insert the scientific name]</em><br>
         <strong>Common Names:</strong> <em>[Find and list common names]</em><br>
         <strong>Mature Size:</strong> <em>[Find and insert typical height and spread]</em><br>
@@ -52,21 +52,27 @@ The response must be a valid JSON object. Do not include any markdown backticks 
         <strong>Growth Rate:</strong> <em>[Find and insert the growth rate]</em><br>
         <br>
         <strong>Uses:</strong><br>
-        - <strong>Architectural Plant:</strong> <em>[Find and explain this use]</em><br>
-        - <strong>Xeriscaping:</strong> <em>[Find and explain this use]</em><br>
-        - <strong>Ecological Landscaping:</strong> <em>[Find and explain this use]</em><br>
+        - <strong>Architectural Plant:</strong> <em>[Explain this use based on research]</em><br>
+        - <strong>Xeriscaping:</strong> <em>[Explain this use based on research]</em><br>
+        - <strong>Ecological Landscaping:</strong> <em>[Explain this use based on research]</em><br>
         <br>
         <strong>Benefits:</strong><br>
-        - <strong>Extreme Drought Tolerance:</strong> <em>[Find and explain this benefit]</em><br>
-        - <strong>Low Maintenance:</strong> <em>[Find and explain this benefit]</em><br>
-        - <strong>Visual Interest:</strong> <em>[Find and explain this benefit]</em><br>
-        - <strong>Habitat Support:</strong> <em>[Find and explain this benefit]</em><br>
+        - <strong>Extreme Drought Tolerance:</strong> <em>[Explain this benefit based on research]</em><br>
+        - <strong>Low Maintenance:</strong> <em>[Explain this benefit based on research]</em><br>
+        - <strong>Visual Interest:</strong> <em>[Explain this benefit based on research]</em><br>
+        - <strong>Habitat Support:</strong> <em>[Explain this benefit based on research]</em><br>
         <br>
-        <em>[Write a final summary paragraph.]</em>
+        <em>[Write a final summary paragraph here.]</em>
 
-    c.  **keywords:** Generate a comma-separated list of 5-10 relevant SEO keywords in English (PascalCase or camelCase).
+    c.  **"keywords":** Generate a comma-separated list of 5-10 relevant SEO keywords in English (PascalCase or camelCase).
 
-    d. **Image Metadata:** Generate metadata based on the researched plant information.
+    d.  **"imageTitle":** Generate a concise, SEO-friendly title for product images. Example: "Drought-Tolerant Agave Avellanidens Plant".
+
+    e.  **"imageAltText":** Generate a descriptive alt text for SEO, describing the image for visually impaired users. Example: "A large Agave Avellanidens succulent with blue-green leaves in a sunny, rocky garden."
+
+    f.  **"imageCaption":** Generate an engaging caption for the image, suitable for the media library. This can be based on the short description.
+
+    g.  **"imageDescription":** Generate a detailed description for the image media library entry. This can be a more detailed version of the alt text or based on the long description.
 
 Generate the complete JSON object based on your research of "{{productName}}".`;
 
@@ -126,7 +132,7 @@ export async function POST(req: NextRequest) {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
         model: "gemini-1.5-flash-latest",
-        systemInstruction: `You are an expert botanist, e-commerce copywriter, and SEO specialist. Your primary task is to generate a single, valid JSON object based on the user's prompt. The JSON object must strictly follow the schema requested in the user prompt. Do not add any extra text, comments, or markdown formatting like \`\`\`json around the JSON response.`,
+        systemInstruction: `You are an expert botani_st, e-commerce copywriter, and SEO specialist. Your primary task is to generate a single, valid JSON object based on the user's prompt. The JSON object must strictly follow the schema requested in the user prompt. Do not add any extra text, comments, or markdown formatting like \`\`\`json around the JSON response.`,
         generationConfig: {
           responseMimeType: "application/json",
         },
