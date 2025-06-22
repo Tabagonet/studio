@@ -21,13 +21,17 @@ export async function GET(req: NextRequest) {
     const include = searchParams.get('include');
     const page = searchParams.get('page') || '1';
     const category = searchParams.get('category');
-    const type = searchParams.get('type'); // 'simple', 'variable', 'all', etc.
+    const type = searchParams.get('type');
+    const status = searchParams.get('status');
+    const stock_status = searchParams.get('stock_status');
+    const orderby = searchParams.get('orderby') || 'date';
+    const order = searchParams.get('order') || 'desc';
 
     const params: any = {
       per_page: 20,
       page: parseInt(page, 10),
-      orderby: 'date',
-      order: 'desc',
+      orderby,
+      order,
     };
 
     if (include) {
@@ -42,7 +46,12 @@ export async function GET(req: NextRequest) {
        if (category && category !== 'all') {
         params.category = category;
       }
-      // If 'type' is 'all' or not provided, we don't add the type param, so WC returns all types.
+      if (status && status !== 'all') {
+        params.status = status;
+      }
+      if (stock_status && stock_status !== 'all') {
+        params.stock_status = stock_status;
+      }
     }
 
     const response = await wooApi.get("products", params);
@@ -57,6 +66,7 @@ export async function GET(req: NextRequest) {
         status: product.status,
         stock_status: product.stock_status,
         categories: product.categories.map((c: any) => ({ id: c.id, name: c.name })),
+        date_created: product.date_created,
     }));
 
     const totalPages = response.headers['x-wp-totalpages'] ? parseInt(response.headers['x-wp-totalpages'], 10) : 1;

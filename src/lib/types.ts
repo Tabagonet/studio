@@ -88,6 +88,7 @@ export interface ProductSearchResult {
   status: 'draft' | 'pending' | 'private' | 'publish';
   stock_status: 'instock' | 'outofstock' | 'onbackorder';
   categories: { id: number; name: string }[];
+  date_created: string | null;
 }
 
 export interface ParsedNameData {

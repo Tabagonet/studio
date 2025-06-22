@@ -126,6 +126,21 @@ export const getColumns = (
     },
   },
   {
+    accessorKey: "stock_status",
+    header: "Stock",
+    cell: ({ row }) => {
+      const stock_status = row.getValue("stock_status") as string;
+      const statusMap: { [key: string]: { text: string; variant: "default" | "secondary" | "destructive" } } = {
+        instock: { text: 'En stock', variant: 'default' },
+        outofstock: { text: 'Agotado', variant: 'destructive' },
+        onbackorder: { text: 'En reserva', variant: 'secondary' },
+      };
+      const statusInfo = statusMap[stock_status] || { text: stock_status, variant: 'secondary' };
+
+      return <Badge variant={statusInfo.variant}>{statusInfo.text}</Badge>
+    },
+  },
+  {
     accessorKey: "price",
     header: () => <div className="text-right">Precio</div>,
     cell: ({ row }) => {
@@ -136,6 +151,30 @@ export const getColumns = (
       }).format(price)
 
       return <div className="text-right font-medium">{price ? formatted : "N/A"}</div>
+    },
+  },
+  {
+    accessorKey: "date_created",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Fecha
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      )
+    },
+    cell: ({ row }) => {
+      const date = row.getValue("date_created") as string;
+      if (!date) return 'N/A';
+      const formattedDate = new Date(date).toLocaleDateString('es-ES', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+      return <div>{formattedDate}</div>;
     },
   },
   {

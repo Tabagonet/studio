@@ -44,12 +44,18 @@ export function ProductDataTable() {
   const [categories, setCategories] = React.useState<WooCommerceCategory[]>([]);
   const [categoryTree, setCategoryTree] = React.useState<{ category: WooCommerceCategory; depth: number }[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = React.useState(false);
-  const [selectedCategory, setSelectedCategory] = React.useState('all');
 
   const [stats, setStats] = React.useState<ProductStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = React.useState(true);
 
-  const [sorting, setSorting] = React.useState<SortingState>([])
+  // Filter states
+  const [selectedCategory, setSelectedCategory] = React.useState('all');
+  const [selectedStatus, setSelectedStatus] = React.useState('all');
+  const [selectedStockStatus, setSelectedStockStatus] = React.useState('all');
+
+  const [sorting, setSorting] = React.useState<SortingState>([
+    { id: 'date_created', desc: true }
+  ]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [rowSelection, setRowSelection] = React.useState({})
   
@@ -99,18 +105,24 @@ export function ProductDataTable() {
     try {
       const token = await user.getIdToken();
       const nameFilter = columnFilters.find(f => f.id === 'name') as { id: string; value: string } | undefined;
+      const sort = sorting[0];
 
       const params = new URLSearchParams({
         page: (pagination.pageIndex + 1).toString(),
         per_page: pagination.pageSize.toString(),
-        type: 'all',
+        category: selectedCategory,
+        status: selectedStatus,
+        stock_status: selectedStockStatus,
       });
+
       if (nameFilter?.value) {
         params.append('q', nameFilter.value);
       }
-      if (selectedCategory !== 'all') {
-        params.append('category', selectedCategory);
+      if (sort) {
+        params.append('orderby', sort.id);
+        params.append('order', sort.desc ? 'desc' : 'asc');
       }
+
 
       const response = await fetch(`/api/woocommerce/search-products?${params.toString()}`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -130,7 +142,7 @@ export function ProductDataTable() {
     } finally {
       setIsLoading(false);
     }
-  }, [pagination, columnFilters, selectedCategory, toast]); 
+  }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedStockStatus, sorting, toast]); 
 
   React.useEffect(() => {
     const fetchCats = async (token: string) => {
@@ -226,6 +238,7 @@ export function ProductDataTable() {
     onRowSelectionChange: setRowSelection,
     manualPagination: true,
     manualFiltering: true,
+    manualSorting: true,
     pageCount: totalPages,
     onPaginationChange: setPagination,
     state: {
@@ -338,18 +351,18 @@ export function ProductDataTable() {
       </div>
 
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 py-4">
-        <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
             <Input
               placeholder="Filtrar por nombre..."
               value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
               onChange={(event) =>
                 table.getColumn("name")?.setFilterValue(event.target.value)
               }
-              className="w-full sm:max-w-xs"
+              className="w-full sm:w-auto sm:min-w-[200px] flex-grow"
             />
             <Select value={selectedCategory} onValueChange={setSelectedCategory} disabled={isLoadingCategories}>
-              <SelectTrigger className="w-full sm:max-w-xs">
-                <SelectValue placeholder="Filtrar por categoría..." />
+              <SelectTrigger className="w-full sm:w-auto sm:min-w-[180px] flex-grow">
+                <SelectValue placeholder="Categoría..." />
               </SelectTrigger>
               <SelectContent>
                 {isLoadingCategories ? <SelectItem value="loading" disabled>Cargando...</SelectItem> :
@@ -367,10 +380,33 @@ export function ProductDataTable() {
                 }
               </SelectContent>
             </Select>
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger className="w-full sm:w-auto sm:min-w-[150px] flex-grow">
+                <SelectValue placeholder="Estado..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los estados</SelectItem>
+                <SelectItem value="publish">Publicado</SelectItem>
+                <SelectItem value="draft">Borrador</SelectItem>
+                <SelectItem value="pending">Pendiente</SelectItem>
+                <SelectItem value="private">Privado</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={selectedStockStatus} onValueChange={setSelectedStockStatus}>
+              <SelectTrigger className="w-full sm:w-auto sm:min-w-[150px] flex-grow">
+                <SelectValue placeholder="Stock..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todo el stock</SelectItem>
+                <SelectItem value="instock">En Stock</SelectItem>
+                <SelectItem value="outofstock">Agotado</SelectItem>
+                <SelectItem value="onbackorder">En Reserva</SelectItem>
+              </SelectContent>
+            </Select>
         </div>
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="outline" disabled={selectedRowCount === 0 || isAiProcessing} className="w-full md:w-auto">
+                <Button variant="outline" disabled={selectedRowCount === 0 || isAiProcessing} className="w-full md:w-auto mt-2 md:mt-0">
                     {isAiProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BrainCircuit className="mr-2 h-4 w-4" />}
                     {isAiProcessing ? "Procesando..." : `Acciones (${selectedRowCount})`}
                     <ChevronDown className="ml-2 h-4 w-4" />
