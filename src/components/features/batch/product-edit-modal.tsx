@@ -133,7 +133,7 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
 
   return (
     <Dialog open={true} onOpenChange={() => onClose(false)}>
-      <DialogContent className="sm:max-w-4xl">
+      <DialogContent className="sm:max-w-6xl h-[90vh]">
         <DialogHeader>
           <DialogTitle>Editar Producto</DialogTitle>
           <DialogDescription>
@@ -142,7 +142,7 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
         </DialogHeader>
         
         {isLoading && (
-          <div className="flex items-center justify-center h-64">
+          <div className="flex items-center justify-center h-full">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             <p className="ml-3 text-muted-foreground">Cargando datos del producto...</p>
           </div>
@@ -156,8 +156,8 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
         )}
         
         {!isLoading && !error && product && (
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-4">
-              <div className="md:col-span-1 space-y-4 max-h-[60vh] overflow-y-auto pr-4">
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-4 overflow-hidden h-full">
+              <div className="md:col-span-1 space-y-4 overflow-y-auto pr-4">
                 <div>
                   <Label htmlFor="name">Nombre</Label>
                   <Input id="name" name="name" value={product.name} onChange={handleInputChange} />
@@ -178,18 +178,18 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                 </div>
                 <div>
                     <Label htmlFor="short_description">Descripción Corta</Label>
-                    <Textarea id="short_description" name="short_description" value={product.short_description} onChange={handleInputChange} rows={4} />
+                    <Textarea id="short_description" name="short_description" value={product.short_description} onChange={handleInputChange} rows={6} />
                 </div>
                 <div>
                     <Label htmlFor="description">Descripción Larga</Label>
-                    <Textarea id="description" name="description" value={product.description} onChange={handleInputChange} rows={8} />
+                    <Textarea id="description" name="description" value={product.description} onChange={handleInputChange} rows={15} />
                 </div>
               </div>
               
-              <div className="md:col-span-1 hidden md:block">
-                <h3 className="text-lg font-medium mb-4 text-center">Vista Previa</h3>
-                <Card className="sticky top-4">
-                  <CardContent className="p-4">
+              <div className="md:col-span-1 hidden md:block overflow-y-auto pr-4">
+                <h3 className="text-lg font-medium mb-4 text-center sticky top-0 bg-background py-2 z-10">Vista Previa</h3>
+                <Card>
+                  <CardContent className="p-4 space-y-4">
                     <div className="relative aspect-square w-full mb-4">
                       {product.imageUrl ? (
                         <Image
@@ -215,14 +215,21 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                         <p className="text-2xl font-bold">{product.regular_price ? `${product.regular_price}€` : 'N/A'}</p>
                       )}
                     </div>
-                    <div className="mt-4 prose prose-sm max-w-none text-muted-foreground" dangerouslySetInnerHTML={{ __html: product.short_description || "Descripción corta..." }} />
+                    <div>
+                        <h5 className="font-semibold mb-2">Descripción Corta</h5>
+                        <div className="prose prose-sm max-w-none text-muted-foreground" dangerouslySetInnerHTML={{ __html: product.short_description || "..." }} />
+                    </div>
+                     <div>
+                        <h5 className="font-semibold mb-2">Descripción Larga</h5>
+                        <div className="prose prose-sm max-w-none text-muted-foreground [&_strong]:text-foreground [&_em]:text-foreground" dangerouslySetInnerHTML={{ __html: product.description || "..." }} />
+                    </div>
                   </CardContent>
                 </Card>
               </div>
            </div>
         )}
 
-        <DialogFooter>
+        <DialogFooter className="mt-auto pt-4 border-t bg-background">
           <DialogClose asChild>
             <Button type="button" variant="secondary" onClick={() => onClose(false)}>
               Cancelar
