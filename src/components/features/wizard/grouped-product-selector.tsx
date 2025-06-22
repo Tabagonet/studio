@@ -120,38 +120,41 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       {/* Available Products Column */}
-      <div>
+      <div className="flex flex-col">
         <h4 className="font-semibold mb-2">Productos Simples Disponibles</h4>
-        <Input
-          placeholder="Buscar para filtrar productos..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="mb-2"
-        />
-        <ScrollArea className="h-72 w-full rounded-md border p-2">
-          {isLoading && <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>}
-          {!isLoading && filteredAvailableProducts.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">{debouncedSearchTerm ? 'No se encontraron productos.' : 'No hay productos simples disponibles.'}</p>}
-          <div className="space-y-2">
-            {filteredAvailableProducts.map(product => (
-              <div key={product.id} className="flex items-center justify-between p-2 rounded-md border">
-                <div className="flex items-center gap-2 overflow-hidden">
-                    <Image src={product.image || 'https://placehold.co/40x40.png'} alt={product.name} width={40} height={40} className="rounded-sm object-cover" />
-                    <div className="flex-1 overflow-hidden">
-                        <p className="text-sm font-medium truncate">{product.name}</p>
-                        <p className="text-xs text-muted-foreground">{product.price}€</p>
-                    </div>
-                </div>
-                <Button size="icon-sm" variant="outline" onClick={() => handleAddProduct(product)}><PlusCircle className="h-4 w-4" /></Button>
-              </div>
-            ))}
+        <div className="flex-grow flex flex-col h-80 rounded-md border">
+          <div className="p-2 border-b">
+            <Input
+              placeholder="Buscar para filtrar productos..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
-        </ScrollArea>
+          <ScrollArea className="flex-grow p-2">
+            {isLoading && <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>}
+            {!isLoading && filteredAvailableProducts.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">{debouncedSearchTerm ? 'No se encontraron productos.' : 'No hay productos simples disponibles.'}</p>}
+            <div className="space-y-2">
+              {filteredAvailableProducts.map(product => (
+                <div key={product.id} className="flex items-center justify-between p-2 rounded-md border">
+                  <div className="flex items-center gap-2 overflow-hidden">
+                      <Image src={product.image || 'https://placehold.co/40x40.png'} alt={product.name} width={40} height={40} className="rounded-sm object-cover" />
+                      <div className="flex-1 overflow-hidden">
+                          <p className="text-sm font-medium truncate">{product.name}</p>
+                          <p className="text-xs text-muted-foreground">{product.price}€</p>
+                      </div>
+                  </div>
+                  <Button size="icon-sm" variant="outline" onClick={() => handleAddProduct(product)}><PlusCircle className="h-4 w-4" /></Button>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
       </div>
 
       {/* Selected Products Column */}
-      <div>
+      <div className="flex flex-col">
         <h4 className="font-semibold mb-2">Productos en el Grupo ({selectedProducts.length})</h4>
-        <div className="h-72 rounded-md border">
+        <div className="flex-grow flex flex-col h-80 rounded-md border">
             <ScrollArea className="h-full w-full p-2">
             {isFetchingDetails && <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>}
             {!isFetchingDetails && selectedProducts.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Añade productos desde la lista de disponibles.</p>}
