@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { ProductPhoto } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ImageUploaderProps {
   photos: ProductPhoto[];
@@ -59,7 +60,7 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
 
   }, [photos, onPhotosChange, toast]);
   
-  const setAsPrimary = useCallback((id: string) => {
+  const setAsPrimary = useCallback((id: string | number) => {
     const updatedPhotos = photos.map(p => ({
         ...p,
         isPrimary: p.id === id
@@ -129,17 +130,25 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
                 </div>
               )}
               
+              {/* Minimalist Status Indicators */}
               {photo.status === 'completed' && (
-                <div className="absolute inset-0 bg-green-500/80 flex flex-col items-center justify-center text-white">
-                  <CheckCircle className="h-8 w-8" />
-                  <p className="text-sm font-bold mt-1">Subida</p>
+                <div className="absolute top-1 right-1 bg-green-500/90 p-1 rounded-full text-white pointer-events-none" title="Subida completada">
+                    <CheckCircle className="h-4 w-4" />
                 </div>
               )}
 
               {photo.status === 'error' && (
-                 <div className="absolute inset-0 bg-destructive/80 flex flex-col items-center justify-center text-destructive-foreground p-2">
-                  <AlertTriangle className="h-8 w-8" />
-                  <p className="text-xs font-bold mt-1 text-center">{photo.error || 'Error desconocido'}</p>
+                <div className="absolute top-1 right-1">
+                    <TooltipProvider delayDuration={100}>
+                        <Tooltip>
+                            <TooltipTrigger className="bg-destructive/90 p-1 rounded-full text-destructive-foreground flex items-center justify-center">
+                                <AlertTriangle className="h-4 w-4" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>{photo.error || 'Error desconocido'}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 </div>
               )}
             </div>
