@@ -23,14 +23,14 @@ export async function GET(req: NextRequest) {
     const params: any = {
       type: 'simple',
       status: 'publish',
-      per_page: 50,
+      per_page: 100, // Fetch up to 100 products, the API maximum.
     };
 
     if (include) {
       params.include = include.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
       // If we are getting specific IDs, remove the type constraint
       delete params.type; 
-    } else {
+    } else if (query) { // Only add search parameter if there is a query
         params.search = query;
     }
 
