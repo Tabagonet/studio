@@ -57,7 +57,6 @@ export default function BatchProcessPage() {
     const headers = [
       'sku', 'nombre', 'tipo', 'categorias', 'etiquetas', 
       'precio_regular', 'precio_oferta', 'stock_inicial',
-      'descripcion_corta', 'descripcion_larga',
       'atributo_1_nombre', 'atributo_1_valores', 'atributo_1_variacion', 'atributo_1_visible',
       'atributo_2_nombre', 'atributo_2_valores', 'atributo_2_variacion', 'atributo_2_visible',
     ];
@@ -65,15 +64,14 @@ export default function BatchProcessPage() {
       // Simple product example
       [
         'SKU-PALA-ACERO', 'Pala de Jardín de Acero', 'simple', 'Herramientas', 'jardineria, pala, acero',
-        '12.50', '9.99', '200', 'Pala de acero resistente para todo tipo de tareas.', 'Fabricada con acero al carbono de alta calidad, esta pala es perfecta para cavar, plantar y mover tierra. Mango ergonómico de madera.',
-        '', '', '', '', // No attributes
+        '12.50', '9.99', '200',
+        '', '', '', '', // No attributes for simple product
         '', '', '', ''
       ],
       // Variable product example
       [
         'TSHIRT-COOL', 'Camiseta Molona', 'variable', 'Ropa > Camisetas', 'ropa, camiseta, verano',
         '', '', '0', // Price and stock can be left blank for parent variable product
-        'Camiseta de algodón 100% orgánico.', 'Disponible en varios colores y tallas, esta camiseta es perfecta para el verano. Tejido suave y transpirable.',
         'Color', 'Rojo | Verde | Azul', '1', '1', // Attribute 1 (Color) for variations
         'Talla', 'S | M | L', '1', '1'             // Attribute 2 (Talla) for variations
       ]
