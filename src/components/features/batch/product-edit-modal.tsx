@@ -262,7 +262,7 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
     fetchInitialData();
   }, [productId, toast]);
   
-  const primaryPhoto = product?.images?.[0];
+  const primaryPhoto = product?.images?.find(p => p.isPrimary) || product?.images?.[0];
   const previewImageUrl = primaryPhoto ? primaryPhoto.previewUrl : 'https://placehold.co/128x128.png';
   const categoryName = wooCategories.find(c => c.id === product?.category_id)?.name || 'Sin categoría';
 
