@@ -94,7 +94,7 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
       </div>
 
       {photos.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
           {photos.map((photo) => (
             <div key={photo.id} className="relative group border rounded-lg overflow-hidden shadow-sm">
               <Image
@@ -102,7 +102,7 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
                 alt={`Vista previa de ${photo.name}`}
                 width={200}
                 height={200}
-                className="w-full h-40 object-cover"
+                className="w-full h-32 object-cover"
               />
 
               {!isProcessing && (

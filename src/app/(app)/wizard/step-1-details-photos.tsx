@@ -335,6 +335,16 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     <div className="space-y-8">
       <Card>
         <CardHeader>
+          <CardTitle>Imágenes del Producto</CardTitle>
+          <CardDescription>Sube las imágenes para tu producto. El nombre del producto se autocompletará con el de la primera imagen que subas. La primera imagen se usará como principal por defecto.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} isProcessing={false} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Información del Producto</CardTitle>
           <CardDescription>Completa los detalles básicos de tu producto.</CardDescription>
         </CardHeader>
@@ -569,16 +579,6 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             <PlusCircle className="mr-2 h-4 w-4" /> Añadir Atributo
           </Button>
           <AiAttributeSuggester keywords={productData.keywords} onAttributesSuggested={handleSuggestedAttributes} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Imágenes del Producto</CardTitle>
-          <CardDescription>Sube las imágenes para tu producto. La primera imagen se usará como principal por defecto.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} isProcessing={false} />
         </CardContent>
       </Card>
     </div>
