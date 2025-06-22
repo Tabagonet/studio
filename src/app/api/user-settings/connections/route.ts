@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
+import { addRemotePattern } from '@/lib/next-config-manager';
 
 // Helper function to get user UID from token
 async function getUserIdFromRequest(req: NextRequest): Promise<string> {
@@ -69,15 +70,21 @@ export async function POST(req: NextRequest) {
         
         const { key, connectionData, setActive } = validationResult.data;
 
+        // Save to Firestore first
         const userSettingsRef = adminDb.collection('user_settings').doc(uid);
-
         await userSettingsRef.set({
             connections: {
                 [key]: connectionData
             },
-            // Also set as active if requested
             ...(setActive && { activeConnectionKey: key })
         }, { merge: true });
+        
+        // After successful DB write, update next.config.js
+        // This is a "fire-and-forget" call; we don't want to block the response
+        // or fail the request if this part has an issue.
+        addRemotePattern(key).catch(err => {
+            console.error(`Failed to update next.config.js for hostname ${key}:`, err);
+        });
 
         return NextResponse.json({ success: true, message: 'Connection saved successfully.' });
 
