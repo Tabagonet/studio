@@ -77,13 +77,13 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
   }, [productIds, fetchProductsByIds]);
 
 
-  // Fetch available products based on search term
+  // Fetch available products based on search term (now runs on mount)
   useEffect(() => {
     const searchProducts = async () => {
       setIsLoading(true);
       try {
         const user = auth.currentUser;
-        if (!user) return;
+        if (!user) return; // Wait for user to be available
         const token = await user.getIdToken();
         const response = await fetch(`/api/woocommerce/search-products?q=${encodeURIComponent(debouncedSearchTerm)}`, {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -92,17 +92,14 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
         const data: SimpleProductSearchResult[] = await response.json();
         setAvailableProducts(data);
       } catch (error) {
-        toast({ variant: 'destructive', title: 'Error searching products', description: (error as Error).message });
+        toast({ variant: 'destructive', title: 'Error al buscar productos', description: (error as Error).message });
       } finally {
         setIsLoading(false);
       }
     };
-    if (debouncedSearchTerm) {
-        searchProducts();
-    } else {
-        setAvailableProducts([]);
-        setIsLoading(false);
-    }
+    
+    searchProducts();
+
   }, [debouncedSearchTerm, toast]);
 
   const handleAddProduct = (product: SimpleProductSearchResult) => {
@@ -126,14 +123,14 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
       <div>
         <h4 className="font-semibold mb-2">Productos Simples Disponibles</h4>
         <Input
-          placeholder="Buscar productos por nombre..."
+          placeholder="Buscar para filtrar productos..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="mb-2"
         />
         <ScrollArea className="h-72 w-full rounded-md border p-2">
           {isLoading && <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>}
-          {!isLoading && filteredAvailableProducts.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">{debouncedSearchTerm ? 'No se encontraron productos.' : 'Escribe para buscar...'}</p>}
+          {!isLoading && filteredAvailableProducts.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">{debouncedSearchTerm ? 'No se encontraron productos.' : 'No hay productos simples disponibles.'}</p>}
           <div className="space-y-2">
             {filteredAvailableProducts.map(product => (
               <div key={product.id} className="flex items-center justify-between p-2 rounded-md border">
