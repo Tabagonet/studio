@@ -23,6 +23,10 @@ const nextConfig = {
         protocol: 'https',
         hostname: 's.w.org',
       },
+      {
+        protocol: 'https',
+        hostname: 'www.farmacialavidriera.com',
+      },
     ],
   },
 };
