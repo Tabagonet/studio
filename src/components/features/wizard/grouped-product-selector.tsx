@@ -214,7 +214,7 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
             {!isLoading && filteredAvailableProducts.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No se encontraron productos.</p>}
             <div className="space-y-2">
               {filteredAvailableProducts.map(product => (
-                <div key={product.id} className="flex items-center justify-between gap-2 p-2 rounded-md border">
+                <div key={product.id} className="flex items-center gap-2 p-2 rounded-md border">
                   <div className="flex flex-1 items-center gap-2 min-w-0">
                       <Image src={product.image || 'https://placehold.co/40x40.png'} alt={product.name} width={40} height={40} className="rounded-sm flex-shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -246,7 +246,7 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
             {!isFetchingDetails && selectedProducts.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Añade productos desde la lista de disponibles.</p>}
             <div className="space-y-2">
                 {selectedProducts.map(product => (
-                <div key={product.id} className="flex items-center justify-between gap-2 p-2 rounded-md border bg-muted/30">
+                <div key={product.id} className="flex items-center gap-2 p-2 rounded-md border bg-muted/30">
                     <div className="flex flex-1 items-center gap-2 min-w-0">
                          <Image src={product.image || 'https://placehold.co/40x40.png'} alt={product.name} width={40} height={40} className="rounded-sm flex-shrink-0" />
                         <div className="flex-1 min-w-0">
