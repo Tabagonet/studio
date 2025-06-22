@@ -43,7 +43,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                   alt={name || 'Vista previa del producto'} 
                   width={300} 
                   height={300} 
-                  className="rounded-lg object-cover w-full aspect-square"
+                  className="rounded-lg object-cover w-full h-auto aspect-square"
                 />
               ) : (
                 <div className="w-full aspect-square bg-muted rounded-lg flex items-center justify-center">
@@ -178,7 +178,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                       alt={`Imagen secundaria de ${name}`}
                       width={100}
                       height={100}
-                      className="rounded-md object-cover w-full aspect-square"
+                      className="rounded-md object-cover w-full h-auto aspect-square"
                     />
                   ))}
                 </div>
