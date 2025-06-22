@@ -1,7 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser } from '@/lib/api-helpers';
+import { getApiClientsForUser, findOrCreateCategoryByPath } from '@/lib/api-helpers';
 import type { ProductData } from '@/lib/types';
 import axios from 'axios';
 import FormData from 'form-data';
@@ -76,6 +76,15 @@ export async function POST(request: NextRequest) {
       }
     }
     
+    // Handle category
+    let finalCategoryId: number | null = null;
+    if (productData.categoryPath) {
+        finalCategoryId = await findOrCreateCategoryByPath(productData.categoryPath, wooApi);
+    } else if (productData.category) {
+        finalCategoryId = productData.category.id;
+    }
+
+
     // 3. Prepare product data for WooCommerce
     const wooAttributes = productData.attributes
       .filter(attr => attr.name && attr.value)
@@ -95,7 +104,7 @@ export async function POST(request: NextRequest) {
       type: productData.productType,
       description: productData.longDescription,
       short_description: productData.shortDescription,
-      categories: productData.category ? [{ id: productData.category.id }] : [],
+      categories: finalCategoryId ? [{ id: finalCategoryId }] : [],
       images: wordpressImageIds,
       attributes: wooAttributes,
       tags: wooTags,

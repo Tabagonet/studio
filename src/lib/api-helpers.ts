@@ -286,3 +286,45 @@ export async function uploadImageToWordPress(
         throw new Error(errorMsg);
     }
 }
+
+/**
+ * Finds a category by its path (e.g., "Parent > Child") or creates it if it doesn't exist.
+ * @param pathString The category path string.
+ * @param wooApi An initialized WooCommerce API client.
+ * @returns The ID of the final category in the path.
+ */
+export async function findOrCreateCategoryByPath(pathString: string, wooApi: WooCommerceRestApi): Promise<number | null> {
+    if (!pathString || !pathString.trim()) {
+        return null;
+    }
+
+    const pathParts = pathString.split('>').map(part => part.trim());
+    let parentId = 0;
+    let finalCategoryId: number | null = null;
+    
+    // Fetch all categories once to avoid multiple API calls in the loop
+    const allCategoriesResponse = await wooApi.get("products/categories", { per_page: 100 });
+    const allCategories = allCategoriesResponse.data;
+
+    for (const part of pathParts) {
+        let foundCategory = allCategories.find(
+            (cat: any) => cat.name.toLowerCase() === part.toLowerCase() && cat.parent === parentId
+        );
+
+        if (foundCategory) {
+            parentId = foundCategory.id;
+        } else {
+            // Create the new category
+            const { data: newCategory } = await wooApi.post("products/categories", {
+                name: part,
+                parent: parentId,
+            });
+            // Add the new category to our local list to be found by the next iteration
+            allCategories.push(newCategory);
+            parentId = newCategory.id;
+        }
+        finalCategoryId = parentId;
+    }
+
+    return finalCategoryId;
+}

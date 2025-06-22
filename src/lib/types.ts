@@ -72,6 +72,7 @@ export interface ProductData {
   regularPrice: string;
   salePrice: string;
   category: WooCommerceCategory | null; // Store category object
+  categoryPath?: string; // Used for batch creation by name/path
   keywords: string;
   shortDescription: string;
   longDescription: string;

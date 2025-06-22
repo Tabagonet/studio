@@ -6,13 +6,15 @@ import { useDropzone } from 'react-dropzone';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { UploadCloud, FileText, Info, FileSpreadsheet, Image as ImageIcon, CheckCircle, Download, Loader2, FileWarning, PackageCheck, PackageX, PackageSearch } from "lucide-react";
+import { UploadCloud, FileText, Info, FileSpreadsheet, Image as ImageIcon, CheckCircle, Download, Loader2, FileWarning, PackageCheck, PackageX, PackageSearch, Sparkles } from "lucide-react";
 import { cn } from '@/lib/utils';
 import Papa from 'papaparse';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { auth } from '@/lib/firebase';
+import type { ProductData, ProductPhoto } from '@/lib/types';
 
 // Staged product type
 interface StagedProduct {
@@ -22,12 +24,27 @@ interface StagedProduct {
   csvData: Record<string, any>;
   status: 'ready' | 'missing_images' | 'missing_csv_data' | 'error';
   statusMessage: string;
+  processingStatus?: 'pending' | 'processing' | 'completed' | 'error';
+  processingMessage?: string;
 }
 
-const getStatusInfo = (status: StagedProduct['status']) => {
-    switch (status) {
+const getStatusInfo = (product: StagedProduct) => {
+    // During processing, this status takes precedence
+    if (product.processingStatus && product.processingStatus !== 'pending') {
+        switch (product.processingStatus) {
+            case 'processing':
+                 return { icon: Loader2, color: 'text-blue-600 animate-spin', label: 'Procesando' };
+            case 'completed':
+                return { icon: PackageCheck, color: 'text-green-600', label: 'Completado' };
+            case 'error':
+                 return { icon: PackageX, color: 'text-destructive', label: 'Error' };
+        }
+    }
+
+    // Default verification status
+    switch (product.status) {
         case 'ready':
-            return { icon: PackageCheck, color: 'text-green-600', label: 'Listo' };
+            return { icon: Sparkles, color: 'text-green-600', label: 'Listo' };
         case 'missing_images':
             return { icon: PackageSearch, color: 'text-yellow-600', label: 'Faltan Imágenes' };
         case 'missing_csv_data':
@@ -44,6 +61,7 @@ export default function BatchProcessPage() {
   const [csvData, setCsvData] = useState<Record<string, any>[]>([]);
   const [stagedProducts, setStagedProducts] = useState<StagedProduct[]>([]);
   const [isProcessingFiles, setIsProcessingFiles] = useState(false);
+  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
   const { toast } = useToast();
 
   const onImagesDrop = useCallback((acceptedFiles: File[]) => {
@@ -73,6 +91,7 @@ export default function BatchProcessPage() {
     setCsvFile(null);
     setCsvData([]);
     setStagedProducts([]);
+    setIsBatchProcessing(false);
   };
 
   const handleDownloadTemplate = () => {
@@ -148,7 +167,6 @@ export default function BatchProcessPage() {
 
     setIsProcessingFiles(true);
     
-    // Use a map for efficient lookups
     const csvMap = new Map<string, Record<string, any>>();
     csvData.forEach(row => {
         if(row.sku) csvMap.set(row.sku.trim(), row);
@@ -169,7 +187,6 @@ export default function BatchProcessPage() {
     const combined: StagedProduct[] = [];
     const processedSkus = new Set<string>();
 
-    // Process SKUs from CSV first
     csvMap.forEach((row, sku) => {
         const matchingImages = imagesBySku.get(sku) || [];
         combined.push({
@@ -178,12 +195,12 @@ export default function BatchProcessPage() {
             csvData: row,
             images: matchingImages.sort((a,b) => a.name.localeCompare(b.name)),
             status: matchingImages.length > 0 ? 'ready' : 'missing_images',
-            statusMessage: matchingImages.length > 0 ? 'Listo para procesar.' : 'Datos encontrados en CSV, pero faltan imágenes con este SKU.'
+            statusMessage: matchingImages.length > 0 ? 'Listo para procesar.' : 'Datos encontrados en CSV, pero faltan imágenes con este SKU.',
+            processingStatus: 'pending',
         });
         processedSkus.add(sku);
     });
 
-    // Process SKUs from images that weren't in the CSV
     imagesBySku.forEach((images, sku) => {
         if (!processedSkus.has(sku)) {
             combined.push({
@@ -192,7 +209,8 @@ export default function BatchProcessPage() {
                 images: images.sort((a,b) => a.name.localeCompare(b.name)),
                 csvData: {},
                 status: 'missing_csv_data',
-                statusMessage: 'Imágenes encontradas, pero faltan datos para este SKU en el CSV.'
+                statusMessage: 'Imágenes encontradas, pero faltan datos para este SKU en el CSV.',
+                processingStatus: 'pending',
             });
         }
     });
@@ -202,6 +220,132 @@ export default function BatchProcessPage() {
   }, [imageFiles, csvData]);
   
   const readyProductsCount = stagedProducts.filter(p => p.status === 'ready').length;
+
+  const updateProductProcessingStatus = (sku: string, processingStatus: StagedProduct['processingStatus'], processingMessage?: string) => {
+    setStagedProducts(prev => 
+      prev.map(p => 
+        p.id === sku 
+          ? { ...p, processingStatus, processingMessage: processingMessage || p.processingMessage } 
+          : p
+      )
+    );
+  };
+  
+  const handleProcessBatch = async () => {
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: 'No autenticado', description: 'Por favor, inicia sesión de nuevo.', variant: 'destructive'});
+        return;
+    }
+    const token = await user.getIdToken();
+    const productsToProcess = stagedProducts.filter(p => p.status === 'ready' && p.processingStatus === 'pending');
+    
+    if (productsToProcess.length === 0) {
+        toast({ title: 'Nada que procesar', description: 'No hay productos listos para ser creados.'});
+        return;
+    }
+    
+    setIsBatchProcessing(true);
+    toast({ title: 'Iniciando procesamiento por lote...', description: `Se procesarán ${productsToProcess.length} productos.` });
+
+    let successes = 0;
+    let failures = 0;
+
+    for (const product of productsToProcess) {
+        try {
+            updateProductProcessingStatus(product.id, 'processing', 'Generando contenido con IA...');
+            const aiPayload = {
+                productName: product.name,
+                productType: product.csvData.tipo || 'simple',
+                keywords: product.csvData.etiquetas || '',
+                language: 'Spanish' // Or make this configurable
+            };
+            const aiResponse = await fetch('/api/generate-description', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`},
+                body: JSON.stringify(aiPayload)
+            });
+            if (!aiResponse.ok) throw new Error(`La IA falló: ${await aiResponse.text()}`);
+            const aiContent = await aiResponse.json();
+
+            updateProductProcessingStatus(product.id, 'processing', 'Subiendo imágenes...');
+            const uploadedPhotos: ProductPhoto[] = [];
+            for (const imageFile of product.images) {
+                const formData = new FormData();
+                formData.append('imagen', imageFile);
+                const imageResponse = await fetch('/api/upload-image', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData,
+                });
+                if (!imageResponse.ok) throw new Error(`Fallo en la subida de ${imageFile.name}`);
+                const imageData = await imageResponse.json();
+                uploadedPhotos.push({
+                    id: imageData.url,
+                    previewUrl: imageData.url,
+                    name: imageFile.name,
+                    uploadedUrl: imageData.url,
+                    uploadedFilename: imageData.filename_saved_on_server,
+                    status: 'completed',
+                    progress: 100
+                });
+            }
+
+            updateProductProcessingStatus(product.id, 'processing', 'Creando producto en WooCommerce...');
+            const productPayload: Partial<ProductData> = {
+                name: product.name,
+                sku: product.id,
+                productType: product.csvData.tipo || 'simple',
+                regularPrice: product.csvData.precio_regular || '',
+                salePrice: product.csvData.precio_oferta || '',
+                keywords: aiContent.keywords,
+                shortDescription: aiContent.shortDescription,
+                longDescription: aiContent.longDescription,
+                photos: uploadedPhotos,
+                imageTitle: aiContent.imageTitle,
+                imageAltText: aiContent.imageAltText,
+                imageCaption: aiContent.imageCaption,
+                imageDescription: aiContent.imageDescription,
+                categoryPath: product.csvData.categorias || '',
+                attributes: [], // Will be populated next
+            };
+
+            for (let i = 1; i <= 2; i++) {
+                if (product.csvData[`atributo_${i}_nombre`]) {
+                    productPayload.attributes?.push({
+                        name: product.csvData[`atributo_${i}_nombre`],
+                        value: product.csvData[`atributo_${i}_valores`],
+                        forVariations: !!parseInt(product.csvData[`atributo_${i}_variacion`], 10)
+                    });
+                }
+            }
+            
+            const createResponse = await fetch('/api/woocommerce/products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(productPayload)
+            });
+
+            if (!createResponse.ok) {
+                const errorData = await createResponse.json();
+                throw new Error(`Error al crear en Woo: ${errorData.error || 'Error desconocido'}`);
+            }
+
+            updateProductProcessingStatus(product.id, 'completed', '¡Producto creado con éxito!');
+            successes++;
+
+        } catch (error: any) {
+            failures++;
+            updateProductProcessingStatus(product.id, 'error', error.message);
+        }
+    }
+
+    toast({
+        title: 'Proceso de lote finalizado',
+        description: `${successes} productos creados, ${failures} fallaron.`,
+    });
+    setIsBatchProcessing(false);
+  };
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -263,7 +407,7 @@ export default function BatchProcessPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button onClick={handleDownloadTemplate}>
+          <Button onClick={handleDownloadTemplate} disabled={isBatchProcessing}>
             Descargar Plantilla CSV
           </Button>
         </CardContent>
@@ -279,10 +423,11 @@ export default function BatchProcessPage() {
               {...getImageRootProps()}
               className={cn(
                 "flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg transition-colors cursor-pointer",
-                isImageDragActive ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"
+                isImageDragActive ? "border-primary bg-primary/10" : "border-border hover:border-primary/50",
+                isBatchProcessing && "cursor-not-allowed bg-muted/50"
               )}
             >
-              <input {...getImageInputProps()} />
+              <input {...getImageInputProps()} disabled={isBatchProcessing} />
               <UploadCloud className="h-10 w-10 text-muted-foreground" />
               <p className="mt-3 text-center text-sm">
                 {isImageDragActive ? 'Suelta las imágenes aquí' : 'Arrastra las imágenes o haz clic para seleccionarlas'}
@@ -305,10 +450,11 @@ export default function BatchProcessPage() {
               {...getCsvRootProps()}
               className={cn(
                 "flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg transition-colors cursor-pointer",
-                isCsvDragActive ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"
+                isCsvDragActive ? "border-primary bg-primary/10" : "border-border hover:border-primary/50",
+                 isBatchProcessing && "cursor-not-allowed bg-muted/50"
               )}
             >
-              <input {...getCsvInputProps()} />
+              <input {...getCsvInputProps()} disabled={isBatchProcessing} />
               <FileText className="h-10 w-10 text-muted-foreground" />
               <p className="mt-3 text-center text-sm">
                 {isCsvDragActive ? 'Suelta el archivo CSV aquí' : 'Arrastra el archivo CSV o haz clic para seleccionarlo'}
@@ -331,11 +477,12 @@ export default function BatchProcessPage() {
             <CardDescription>Revisa los productos identificados antes de generar contenido y crearlos en tu tienda.</CardDescription>
            </div>
            <div className="flex gap-2">
-            <Button variant="destructive" onClick={clearFiles} disabled={imageFiles.length === 0 && !csvFile}>
+            <Button variant="destructive" onClick={clearFiles} disabled={isBatchProcessing || (imageFiles.length === 0 && !csvFile)}>
                 Limpiar Todo
             </Button>
-            <Button disabled={readyProductsCount === 0}>
-                Procesar {readyProductsCount} Productos
+            <Button onClick={handleProcessBatch} disabled={isBatchProcessing || readyProductsCount === 0}>
+                {isBatchProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {isBatchProcessing ? 'Procesando...' : `Procesar ${readyProductsCount} Productos`}
             </Button>
            </div>
         </CardHeader>
@@ -355,9 +502,11 @@ export default function BatchProcessPage() {
                 <ScrollArea className="max-h-[600px] border rounded-md">
                     <div className="p-4 space-y-3">
                     {stagedProducts.map((product) => {
-                        const statusInfo = getStatusInfo(product.status);
+                        const statusInfo = getStatusInfo(product);
                         const StatusIcon = statusInfo.icon;
                         const previewImage = product.images.length > 0 ? URL.createObjectURL(product.images[0]) : "https://placehold.co/80x80.png";
+                        const message = product.processingStatus !== 'pending' ? product.processingMessage : product.statusMessage;
+
                         return (
                             <div key={product.id} className="flex items-center gap-4 p-3 border rounded-lg bg-card hover:bg-muted/50 transition-colors">
                                 <Image
@@ -376,7 +525,7 @@ export default function BatchProcessPage() {
                                     <StatusIcon className={cn("h-5 w-5", statusInfo.color)} />
                                     <div className="flex flex-col">
                                        <span className={cn("font-medium", statusInfo.color)}>{statusInfo.label}</span>
-                                       <p className="text-xs text-muted-foreground">{product.statusMessage}</p>
+                                       <p className="text-xs text-muted-foreground">{message}</p>
                                     </div>
                                 </div>
                             </div>
