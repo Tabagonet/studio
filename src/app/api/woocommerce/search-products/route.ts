@@ -1,7 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiClientsForUser } from '@/lib/api-helpers';
-import type { SimpleProductSearchResult } from '@/lib/types';
+import type { ProductSearchResult } from '@/lib/types';
 import { adminAuth } from '@/lib/firebase-admin';
 
 export async function GET(req: NextRequest) {
@@ -21,37 +21,42 @@ export async function GET(req: NextRequest) {
     const include = searchParams.get('include');
     const page = searchParams.get('page') || '1';
     const category = searchParams.get('category');
+    const type = searchParams.get('type'); // 'simple', 'variable', 'all', etc.
 
     const params: any = {
-      status: 'publish',
       per_page: 20,
       page: parseInt(page, 10),
-      orderby: 'date', // Added for more consistent results
-      order: 'desc',   // Added for more consistent results
+      orderby: 'date',
+      order: 'desc',
     };
 
     if (include) {
-      // If we are fetching specific products by ID, don't filter by type.
       params.include = include.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
     } else {
-      // If we are fetching the list of available products, it MUST be simple products.
-      params.type = 'simple';
       if (query) {
-          params.search = query;
+        params.search = query;
       }
-    }
-
-    if (category && category !== 'all') {
+      if (type && type !== 'all') {
+        params.type = type;
+      }
+       if (category && category !== 'all') {
         params.category = category;
+      }
+      // If 'type' is 'all' or not provided, we don't add the type param, so WC returns all types.
     }
 
     const response = await wooApi.get("products", params);
     
-    const products: SimpleProductSearchResult[] = response.data.map((product: any) => ({
+    const products: ProductSearchResult[] = response.data.map((product: any) => ({
         id: product.id,
         name: product.name,
         price: product.price,
         image: product.images.length > 0 ? product.images[0].src : null,
+        sku: product.sku,
+        type: product.type,
+        status: product.status,
+        stock_status: product.stock_status,
+        categories: product.categories.map((c: any) => ({ id: c.id, name: c.name })),
     }));
 
     const totalPages = response.headers['x-wp-totalpages'] ? parseInt(response.headers['x-wp-totalpages'], 10) : 1;

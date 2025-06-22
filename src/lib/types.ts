@@ -47,7 +47,7 @@ export interface ProductVariation {
 }
 
 
-export type ProductType = 'simple' | 'variable' | 'grouped';
+export type ProductType = 'simple' | 'variable' | 'grouped' | 'external';
 
 export interface WooCommerceCategory {
     id: number;
@@ -78,11 +78,16 @@ export interface ProductData {
   imageDescription?: string;
 }
 
-export interface SimpleProductSearchResult {
+export interface ProductSearchResult {
   id: number;
   name: string;
   price: string;
   image: string | null;
+  sku: string;
+  type: ProductType;
+  status: 'draft' | 'pending' | 'private' | 'publish';
+  stock_status: 'instock' | 'outofstock' | 'onbackorder';
+  categories: { id: number; name: string }[];
 }
 
 export interface ParsedNameData {

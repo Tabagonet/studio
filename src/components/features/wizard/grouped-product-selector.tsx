@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
-import type { SimpleProductSearchResult, WooCommerceCategory } from '@/lib/types';
+import type { ProductSearchResult, WooCommerceCategory } from '@/lib/types';
 import Image from 'next/image';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -32,8 +32,8 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export function GroupedProductSelector({ productIds, onProductIdsChange }: GroupedProductSelectorProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [availableProducts, setAvailableProducts] = useState<SimpleProductSearchResult[]>([]);
-  const [selectedProducts, setSelectedProducts] = useState<SimpleProductSearchResult[]>([]);
+  const [availableProducts, setAvailableProducts] = useState<ProductSearchResult[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<ProductSearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
   
@@ -94,6 +94,7 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
 
         const params = new URLSearchParams({
             page: page.toString(),
+            type: 'simple', // Grouped products can only contain simple products.
         });
         
         if (search) {
@@ -191,7 +192,7 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
     setCategoryTree(buildTree());
   }, [categories]);
 
-  const handleAddProduct = (product: SimpleProductSearchResult) => {
+  const handleAddProduct = (product: ProductSearchResult) => {
     if (!productIds.includes(product.id)) {
         onProductIdsChange([...productIds, product.id]);
     }

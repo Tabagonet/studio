@@ -1,0 +1,149 @@
+
+"use client"
+
+import { ColumnDef } from "@tanstack/react-table"
+import Image from "next/image"
+import { ArrowUpDown, MoreHorizontal } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Badge } from "@/components/ui/badge"
+import type { ProductSearchResult } from "@/lib/types"
+import { cn } from "@/lib/utils"
+
+
+export const columns: ColumnDef<ProductSearchResult>[] = [
+  {
+    id: "select",
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected() ||
+          (table.getIsSomePageRowsSelected() && "indeterminate")
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Seleccionar todas las filas"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        aria-label="Seleccionar fila"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: "name",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Producto
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      )
+    },
+    cell: ({ row }) => {
+      const product = row.original
+      return (
+        <div className="flex items-center gap-3">
+          <Image
+            src={product.image || "https://placehold.co/64x64.png"}
+            alt={product.name}
+            width={48}
+            height={48}
+            className="rounded-md object-cover h-12 w-12"
+          />
+          <div className="flex flex-col">
+            <span className="font-medium max-w-xs truncate">{product.name}</span>
+            <span className="text-xs text-muted-foreground">{product.sku || "Sin SKU"}</span>
+          </div>
+        </div>
+      )
+    }
+  },
+  {
+    accessorKey: "status",
+    header: "Estado",
+    cell: ({ row }) => {
+      const status = row.getValue("status") as string;
+      const statusText = {
+        publish: 'Publicado',
+        draft: 'Borrador',
+        pending: 'Pendiente',
+        private: 'Privado',
+      }[status] || status;
+      
+      return <Badge variant={status === 'publish' ? 'default' : 'secondary'}>{statusText}</Badge>
+    }
+  },
+  {
+    accessorKey: "type",
+    header: "Tipo",
+    cell: ({ row }) => {
+      const type = row.getValue("type") as string;
+      const typeText = {
+        simple: 'Simple',
+        variable: 'Variable',
+        grouped: 'Agrupado',
+        external: 'Externo',
+      }[type] || type;
+
+      return <span className="capitalize">{typeText}</span>;
+    },
+  },
+  {
+    accessorKey: "price",
+    header: () => <div className="text-right">Precio</div>,
+    cell: ({ row }) => {
+      const price = parseFloat(row.getValue("price"))
+      const formatted = new Intl.NumberFormat("es-ES", {
+        style: "currency",
+        currency: "EUR",
+      }).format(price)
+
+      return <div className="text-right font-medium">{price ? formatted : "N/A"}</div>
+    },
+  },
+  {
+    id: "actions",
+    cell: ({ row }) => {
+      const product = row.original
+
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="h-8 w-8 p-0">
+              <span className="sr-only">Abrir menú</span>
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+            <DropdownMenuItem
+              onClick={() => navigator.clipboard.writeText(product.id.toString())}
+            >
+              Copiar ID del producto
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled>Ver en la tienda</DropdownMenuItem>
+            <DropdownMenuItem disabled>Editar producto</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )
+    },
+  },
+]
