@@ -26,23 +26,30 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { columns } from "./columns"
-import type { ProductSearchResult } from "@/lib/types"
+import { getColumns } from "./columns" 
+import type { ProductSearchResult, WooCommerceCategory } from "@/lib/types"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { BrainCircuit, ChevronDown, Loader2 } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+
 
 export function ProductDataTable() {
   const [data, setData] = React.useState<ProductSearchResult[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [totalPages, setTotalPages] = React.useState(1)
   
+  const [categories, setCategories] = React.useState<WooCommerceCategory[]>([]);
+  const [categoryTree, setCategoryTree] = React.useState<{ category: WooCommerceCategory; depth: number }[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = React.useState(false);
+  const [selectedCategory, setSelectedCategory] = React.useState('all');
+
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [rowSelection, setRowSelection] = React.useState({})
   
   const [pagination, setPagination] = React.useState({
-    pageIndex: 0, // Initial page index
-    pageSize: 10, // Initial page size
+    pageIndex: 0, 
+    pageSize: 10, 
   })
 
   const { toast } = useToast()
@@ -68,6 +75,9 @@ export function ProductDataTable() {
       if (nameFilter?.value) {
         params.append('q', nameFilter.value);
       }
+      if (selectedCategory !== 'all') {
+        params.append('category', selectedCategory);
+      }
 
       const response = await fetch(`/api/woocommerce/search-products?${params.toString()}`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -87,20 +97,87 @@ export function ProductDataTable() {
     } finally {
       setIsLoading(false);
     }
-  }, [pagination, columnFilters, toast]);
+  }, [pagination, columnFilters, selectedCategory, toast]); 
 
   React.useEffect(() => {
+    const fetchCats = async (token: string) => {
+      setIsLoadingCategories(true);
+      try {
+        const response = await fetch('/api/woocommerce/categories', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('Failed to load categories');
+        const data = await response.json();
+        setCategories(data);
+      } catch (error) {
+        console.error(error);
+        toast({ title: "Error al Cargar Categorías", description: (error as Error).message, variant: "destructive" });
+      } finally {
+        setIsLoadingCategories(false);
+      }
+    };
+    
     const unsubscribe = auth.onAuthStateChanged((user) => {
         if (user) {
             fetchData();
+            user.getIdToken().then(fetchCats);
         } else {
             setIsLoading(false);
             setData([]);
         }
     });
     return () => unsubscribe();
-  }, [fetchData]);
+  }, [fetchData, toast]);
 
+  React.useEffect(() => {
+    if (categories.length === 0) return;
+    const buildTree = (parentId = 0, depth = 0): { category: WooCommerceCategory; depth: number }[] => {
+      const children = categories.filter(cat => cat.parent === parentId).sort((a, b) => a.name.localeCompare(b.name));
+      let result: { category: WooCommerceCategory; depth: number }[] = [];
+      for (const child of children) {
+        result.push({ category: child, depth });
+        result = result.concat(buildTree(child.id, depth + 1));
+      }
+      return result;
+    };
+    setCategoryTree(buildTree());
+  }, [categories]);
+
+  const handleStatusUpdate = React.useCallback(async (productId: number, newStatus: 'publish' | 'draft') => {
+    const user = auth.currentUser;
+    if (!user) {
+      toast({ title: "No autenticado", variant: "destructive" });
+      return;
+    }
+    
+    const actionText = newStatus === 'publish' ? 'publicando' : 'ocultando';
+    toast({ title: `Actualizando estado...`, description: `Se está ${actionText} el producto.` });
+
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch(`/api/woocommerce/products/${productId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || `Error al ${actionText} el producto.`);
+      }
+      
+      toast({ title: "¡Éxito!", description: "El estado del producto ha sido actualizado." });
+      fetchData(); // Refresh the table
+    } catch (error) {
+      console.error(error);
+      toast({ title: "Error", description: (error as Error).message, variant: "destructive" });
+    }
+  }, [toast, fetchData]);
+
+  const columns = React.useMemo(() => getColumns(handleStatusUpdate), [handleStatusUpdate]);
 
   const table = useReactTable({
     data,
@@ -135,18 +212,40 @@ export function ProductDataTable() {
 
   return (
     <div className="w-full space-y-4">
-      <div className="flex items-center justify-between py-4">
-        <Input
-          placeholder="Filtrar por nombre..."
-          value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
-          onChange={(event) =>
-            table.getColumn("name")?.setFilterValue(event.target.value)
-          }
-          className="max-w-sm"
-        />
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 py-4">
+        <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+            <Input
+              placeholder="Filtrar por nombre..."
+              value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
+              onChange={(event) =>
+                table.getColumn("name")?.setFilterValue(event.target.value)
+              }
+              className="w-full sm:max-w-xs"
+            />
+            <Select value={selectedCategory} onValueChange={setSelectedCategory} disabled={isLoadingCategories}>
+              <SelectTrigger className="w-full sm:max-w-xs">
+                <SelectValue placeholder="Filtrar por categoría..." />
+              </SelectTrigger>
+              <SelectContent>
+                {isLoadingCategories ? <SelectItem value="loading" disabled>Cargando...</SelectItem> :
+                <>
+                    <SelectItem value="all">Todas las categorías</SelectItem>
+                    {categoryTree.map(({ category, depth }) => (
+                        <SelectItem key={category.id} value={category.id.toString()}>
+                            <span style={{ paddingLeft: `${depth * 1.25}rem` }}>
+                              {depth > 0 && '— '}
+                              {category.name}
+                            </span>
+                        </SelectItem>
+                    ))}
+                </>
+                }
+              </SelectContent>
+            </Select>
+        </div>
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="outline" disabled={selectedRowCount === 0}>
+                <Button variant="outline" disabled={selectedRowCount === 0} className="w-full md:w-auto">
                     <BrainCircuit className="mr-2 h-4 w-4" />
                     Acciones ({selectedRowCount})
                     <ChevronDown className="ml-2 h-4 w-4" />

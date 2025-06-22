@@ -3,7 +3,7 @@
 
 import { ColumnDef } from "@tanstack/react-table"
 import Image from "next/image"
-import { ArrowUpDown, MoreHorizontal } from "lucide-react"
+import { ArrowUpDown, MoreHorizontal, Eye, EyeOff } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -17,10 +17,10 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import type { ProductSearchResult } from "@/lib/types"
-import { cn } from "@/lib/utils"
 
-
-export const columns: ColumnDef<ProductSearchResult>[] = [
+export const getColumns = (
+  handleStatusUpdate: (productId: number, newStatus: 'publish' | 'draft') => void
+): ColumnDef<ProductSearchResult>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -132,13 +132,25 @@ export const columns: ColumnDef<ProductSearchResult>[] = [
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+            <DropdownMenuLabel>Acciones Rápidas</DropdownMenuLabel>
+            {product.status === 'publish' ? (
+              <DropdownMenuItem onClick={() => handleStatusUpdate(product.id, 'draft')}>
+                <EyeOff className="mr-2 h-4 w-4" />
+                Ocultar en la tienda
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onClick={() => handleStatusUpdate(product.id, 'publish')}>
+                <Eye className="mr-2 h-4 w-4" />
+                Hacer Visible
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+             <DropdownMenuLabel>Otras Acciones</DropdownMenuLabel>
             <DropdownMenuItem
               onClick={() => navigator.clipboard.writeText(product.id.toString())}
             >
               Copiar ID del producto
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
             <DropdownMenuItem disabled>Ver en la tienda</DropdownMenuItem>
             <DropdownMenuItem disabled>Editar producto</DropdownMenuItem>
           </DropdownMenuContent>
