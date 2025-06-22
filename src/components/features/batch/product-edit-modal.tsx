@@ -23,6 +23,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import type { WooCommerceCategory } from '@/lib/types';
+import { Separator } from '@/components/ui/separator';
 
 
 interface ProductEditModalProps {
@@ -222,34 +223,38 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
         <DialogHeader>
           <DialogTitle>Editar Producto</DialogTitle>
           <DialogDescription>
-            Realiza cambios en los detalles del producto. La vista previa se actualizará en tiempo real.
+            Realiza cambios en los detalles del producto. La vista previa de la derecha se actualizará en tiempo real.
           </DialogDescription>
         </DialogHeader>
         
         {isLoading && (
-          <div className="flex items-center justify-center h-full">
+          <div className="flex items-center justify-center min-h-[400px]">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             <p className="ml-3 text-muted-foreground">Cargando datos del producto...</p>
           </div>
         )}
 
         {error && !isLoading && (
-          <Alert variant="destructive">
-            <AlertTitle>Error al cargar</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
+           <div className="flex items-center justify-center min-h-[400px]">
+                <Alert variant="destructive" className="w-auto">
+                    <AlertTitle>Error al cargar</AlertTitle>
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
+            </div>
         )}
         
         {!isLoading && !error && product && (
-           <div className="grid grid-cols-1 md:grid-cols-5 gap-6 py-4 flex-1 overflow-y-hidden">
+           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 py-4 flex-1 overflow-y-hidden">
               {/* --- EDITING PANE --- */}
-              <div className="md:col-span-3 space-y-4 overflow-y-auto pr-4">
-                <div className="p-4 rounded-lg bg-muted/30 space-y-4">
-                    <div>
-                      <Label htmlFor="name">Nombre</Label>
+              <div className="lg:col-span-2 space-y-6 overflow-y-auto pr-4">
+                
+                <section className="space-y-4">
+                  <h3 className="text-lg font-medium text-foreground">Información General</h3>
+                   <div>
+                      <Label htmlFor="name">Nombre del Producto</Label>
                       <Input id="name" name="name" value={product.name} onChange={handleInputChange} />
                     </div>
-                     <div className="grid grid-cols-2 gap-4">
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <Label htmlFor="sku">SKU</Label>
                           <Input id="sku" name="sku" value={product.sku} onChange={handleInputChange} />
@@ -267,7 +272,13 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                           </Select>
                         </div>
                     </div>
-                     <div className="grid grid-cols-2 gap-4">
+                </section>
+                
+                <Separator />
+
+                <section className="space-y-4">
+                   <h3 className="text-lg font-medium text-foreground">Precios y Catálogo</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <Label htmlFor="regular_price">Precio Regular (€)</Label>
                           <Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} />
@@ -277,7 +288,7 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                           <Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} />
                         </div>
                     </div>
-                    <div>
+                     <div>
                         <Label htmlFor="category_id">Categoría</Label>
                         <Select name="category_id" value={product.category_id?.toString() || ''} onValueChange={(value) => handleSelectChange('category_id', value)} disabled={isLoadingCategories}>
                             <SelectTrigger><SelectValue placeholder="Selecciona una categoría..." /></SelectTrigger>
@@ -296,44 +307,46 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                         <Label htmlFor="tags">Etiquetas (separadas por comas)</Label>
                         <Input id="tags" name="tags" value={product.tags} onChange={handleInputChange} />
                     </div>
-                </div>
+                </section>
+                
+                <Separator />
 
-                <div className="p-4 rounded-lg bg-muted/30 space-y-4">
+                <section className="space-y-4">
+                   <h3 className="text-lg font-medium text-foreground">Descripciones</h3>
                     <div>
                         <Label htmlFor="short_description">Descripción Corta</Label>
-                        <div className="border rounded-md bg-background">
+                        <div className="mt-1 rounded-md border bg-background">
                             <div className="p-1 flex items-center gap-1 border-b bg-muted/50">
                                 <Button type="button" size="sm" variant="ghost" className="font-bold" onClick={() => handleApplyTag(shortDescRef, 'short_description', 'strong')}>B</Button>
                                 <Button type="button" size="sm" variant="ghost" className="italic" onClick={() => handleApplyTag(shortDescRef, 'short_description', 'em')}>I</Button>
                             </div>
-                            <Textarea ref={shortDescRef} id="short_description" name="short_description" value={product.short_description} onChange={handleInputChange} rows={6} className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-t-none" />
+                            <Textarea ref={shortDescRef} id="short_description" name="short_description" value={product.short_description} onChange={handleInputChange} rows={4} className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-t-none" />
                         </div>
                     </div>
                     <div>
                         <Label htmlFor="description">Descripción Larga</Label>
-                        <div className="border rounded-md bg-background">
+                        <div className="mt-1 rounded-md border bg-background">
                              <div className="p-1 flex items-center gap-1 border-b bg-muted/50">
                                 <Button type="button" size="sm" variant="ghost" className="font-bold" onClick={() => handleApplyTag(longDescRef, 'description', 'strong')}>B</Button>
                                 <Button type="button" size="sm" variant="ghost" className="italic" onClick={() => handleApplyTag(longDescRef, 'description', 'em')}>I</Button>
                             </div>
-                            <Textarea ref={longDescRef} id="description" name="description" value={product.description} onChange={handleInputChange} rows={15} className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-t-none" />
+                            <Textarea ref={longDescRef} id="description" name="description" value={product.description} onChange={handleInputChange} rows={10} className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-t-none" />
                         </div>
                     </div>
-                </div>
+                </section>
               </div>
               
               {/* --- PREVIEW PANE --- */}
-              <div className="md:col-span-2 hidden md:flex flex-col overflow-y-auto pl-4 border-l">
-                <h3 className="text-lg font-medium text-center sticky top-0 bg-background py-2 z-10 border-b">Vista Previa</h3>
-                <div className="p-2 space-y-4">
-                    <div className="relative aspect-square w-32 h-32 mx-auto">
+              <div className="lg:col-span-1 hidden lg:flex flex-col bg-muted/30 rounded-lg p-4 space-y-4 overflow-y-auto">
+                <h3 className="text-lg font-medium text-center sticky top-0 bg-muted/30 py-2 z-10 border-b -mx-4 px-4">Vista Previa</h3>
+                <div className="pt-2 space-y-4">
+                    <div className="relative aspect-square w-32 h-32 mx-auto rounded-lg overflow-hidden">
                       {product.imageUrl ? (
                         <Image
                           src={product.imageUrl}
                           alt={product.name || 'Product image'}
-                          width={128}
-                          height={128}
-                          className="rounded-md object-cover"
+                          fill
+                          className="object-cover"
                         />
                       ) : (
                         <div className="bg-muted rounded-md w-full h-full flex items-center justify-center">
@@ -341,7 +354,7 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                         </div>
                       )}
                     </div>
-                    <h4 className="text-md font-semibold truncate text-center">{product.name || "Nombre del Producto"}</h4>
+                    <h4 className="text-xl font-semibold truncate text-center">{product.name || "Nombre del Producto"}</h4>
                      <div className="text-center space-x-1">
                         <Badge variant={product.status === 'publish' ? 'default' : 'secondary'} className="capitalize">{product.status}</Badge>
                         <Badge variant="outline">{categoryTree.find(c => c.category.id === product.category_id)?.category.name || 'Sin Categoría'}</Badge>
@@ -349,26 +362,27 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                     <div className="flex items-baseline justify-center gap-2 mt-2">
                       {product.sale_price ? (
                         <>
-                          <p className="text-lg font-bold text-primary">{product.sale_price}€</p>
-                          <p className="text-sm text-muted-foreground line-through">{product.regular_price}€</p>
+                          <p className="text-2xl font-bold text-primary">{product.sale_price}€</p>
+                          <p className="text-md text-muted-foreground line-through">{product.regular_price}€</p>
                         </>
                       ) : (
-                        <p className="text-lg font-bold">{product.regular_price ? `${product.regular_price}€` : 'N/A'}</p>
+                        <p className="text-2xl font-bold">{product.regular_price ? `${product.regular_price}€` : 'N/A'}</p>
                       )}
                     </div>
-                    <div className="space-y-3 text-xs">
+                    <div className="space-y-4 text-sm">
+                        <Separator />
                         <div>
-                            <h5 className="font-semibold mb-1 border-b pb-1">Descripción Corta</h5>
-                            <div className="prose prose-sm max-w-none text-muted-foreground mt-2" dangerouslySetInnerHTML={{ __html: product.short_description || "..." }} />
+                            <h5 className="font-semibold mb-2">Descripción Corta</h5>
+                            <div className="prose prose-sm max-w-none text-muted-foreground" dangerouslySetInnerHTML={{ __html: product.short_description || "..." }} />
                         </div>
                          <div>
-                            <h5 className="font-semibold mb-1 border-b pb-1">Descripción Larga</h5>
-                            <div className="prose prose-sm max-w-none text-muted-foreground mt-2 [&_strong]:text-foreground [&_em]:text-foreground" dangerouslySetInnerHTML={{ __html: product.description || "..." }} />
+                            <h5 className="font-semibold mb-2">Descripción Larga</h5>
+                            <div className="prose prose-sm max-w-none text-muted-foreground [&_strong]:text-foreground [&_em]:text-foreground" dangerouslySetInnerHTML={{ __html: product.description || "..." }} />
                         </div>
                         {product.tags && (
                           <div>
-                            <h5 className="font-semibold mb-1 border-b pb-1">Etiquetas</h5>
-                            <div className="flex flex-wrap gap-1 mt-2">
+                            <h5 className="font-semibold mb-2">Etiquetas</h5>
+                            <div className="flex flex-wrap gap-2">
                               {product.tags.split(',').map(k => k.trim()).filter(k => k).map((keyword, index) => (
                                 <Badge key={index} variant="secondary">{keyword}</Badge>
                               ))}
@@ -396,3 +410,5 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
     </Dialog>
   );
 }
+
+    
