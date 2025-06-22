@@ -40,15 +40,19 @@ export async function POST(req: NextRequest) {
             for (const productId of productIds) {
                 try {
                     const { data: product } = await wooApi.get(`products/${productId}`);
+                    let reason = '';
                     if (action === 'generateDescriptions' && (product.description || product.short_description)) {
-                        productsToConfirm.push({ id: productId, name: product.name, reason: 'Ya tiene descripción.' });
-                        continue; 
+                        reason = 'Ya tiene descripción.';
+                    } else if (action === 'generateImageMetadata' && product.images?.length > 0 && product.images[0].alt) {
+                        reason = 'La imagen ya tiene texto alternativo.';
                     }
-                    if (action === 'generateImageMetadata' && product.images?.length > 0 && product.images[0].alt) {
-                        productsToConfirm.push({ id: productId, name: product.name, reason: 'La imagen ya tiene texto alternativo.' });
+
+                    if (reason) {
+                        productsToConfirm.push({ id: productId, name: product.name, reason });
                     }
                 } catch (error: any) {
                     // Ignore errors during check; the main execution loop will catch and report them as failed.
+                    console.error(`Failed to check product ${productId} for confirmation. Error: ${error instanceof Error ? error.message : String(error)}`);
                 }
             }
 

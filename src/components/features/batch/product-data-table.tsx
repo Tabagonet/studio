@@ -339,27 +339,32 @@ export function ProductDataTable() {
             body: JSON.stringify({ productIds, action, force }),
         });
 
-        const result = await response.json();
         if (!response.ok) {
-            if (response.status === 409 && result.confirmationRequired) {
+            const result = await response.json().catch(() => ({})); // Avoid crash on non-JSON response
+
+            if (response.status === 409 && result.confirmationRequired && Array.isArray(result.products)) {
                 toast.dismiss(); // Hide "processing" toast
                 setConfirmationData({
                     products: result.products,
                     action: action,
                     productIds: productIds,
                 });
+                return; // Stop further execution until user confirms
             } else {
-                throw new Error(result.error || result.message || 'Fallo la acción en lote.');
+                // Handle other errors (500, 400, etc.) or malformed 409 responses
+                throw new Error(result.error || result.message || `El servidor respondió con un error ${response.status}.`);
             }
-        } else {
-            toast({
-                title: "¡Acción completada!",
-                description: result.message,
-            });
-            table.resetRowSelection();
-            fetchData();
-            fetchStats();
         }
+        
+        // This part only runs for successful (2xx) responses
+        const result = await response.json();
+        toast({
+            title: "¡Acción completada!",
+            description: result.message,
+        });
+        table.resetRowSelection();
+        fetchData();
+        fetchStats();
 
     } catch (error: any) {
         toast({
