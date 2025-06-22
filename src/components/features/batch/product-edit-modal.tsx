@@ -116,26 +116,58 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
 
     try {
         const token = await user.getIdToken();
-        const processedImagesForApi: ({id: number} | {src: string})[] = [];
+        const finalImagesForApi: ({id: number} | {src: string})[] = [];
+
+        // Add existing images to the final list first
+        product.images
+          .filter(img => !img.file && typeof img.id === 'number')
+          .forEach(img => finalImagesForApi.push({ id: img.id as number }));
         
-        for (const img of product.images) {
-            if (img.file) { // It's a new image that needs uploading
-                const formData = new FormData();
-                formData.append('imagen', img.file);
-                const response = await axios.post('/api/upload-image', formData, {
-                    headers: { 'Authorization': `Bearer ${token}` }
+        const newPhotosToUpload = product.images.filter(p => p.file);
+
+        for (const photo of newPhotosToUpload) {
+            // Set status to 'uploading' for this photo
+            setProduct(prev => {
+                if (!prev) return null;
+                return { ...prev, images: prev.images.map(p => p.id === photo.id ? { ...p, status: 'uploading', progress: 0 } : p) };
+            });
+
+            const formData = new FormData();
+            formData.append('imagen', photo.file);
+
+            const response = await axios.post('/api/upload-image', formData, {
+                headers: { 'Authorization': `Bearer ${token}` },
+                onUploadProgress: (progressEvent) => {
+                    const total = progressEvent.total || (photo.file?.size || 0);
+                    const percentCompleted = Math.round((progressEvent.loaded * 100) / total);
+                    setProduct(prev => {
+                        if (!prev) return null;
+                        return { ...prev, images: prev.images.map(p => p.id === photo.id ? { ...p, progress: percentCompleted } : p)};
+                    });
+                }
+            });
+
+            if (!response.data.success) {
+                 setProduct(prev => {
+                    if (!prev) return null;
+                    return { ...prev, images: prev.images.map(p => p.id === photo.id ? { ...p, status: 'error', error: response.data.error || 'Upload failed' } : p)};
                 });
-                if (!response.data.success) throw new Error(`Error subiendo ${img.name}`);
-                processedImagesForApi.push({ src: response.data.url });
-            } else if (typeof img.id === 'number') { // It's an existing WooCommerce image
-                processedImagesForApi.push({ id: img.id });
+               throw new Error(`Error subiendo ${photo.name}: ${response.data.error}`);
             }
+
+            finalImagesForApi.push({ src: response.data.url });
+            
+            // Mark as completed in the UI state
+            setProduct(prev => {
+                if (!prev) return null;
+                return { ...prev, images: prev.images.map(p => p.id === photo.id ? { ...p, status: 'completed', progress: 100 } : p) };
+            });
         }
         
         const { images, ...rest } = product;
         const payload = {
             ...rest,
-            images: processedImagesForApi,
+            images: finalImagesForApi,
             imageTitle: product.name,
             imageAltText: `Imagen de ${product.name}`,
             imageCaption: `Foto de ${product.name}`,
@@ -158,7 +190,6 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
 
     } catch (e: any) {
         toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
-    } finally {
         setIsSaving(false);
     }
   };

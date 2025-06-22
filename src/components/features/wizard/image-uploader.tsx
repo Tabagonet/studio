@@ -123,6 +123,13 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
                       PRINCIPAL
                   </div>
                 )}
+                
+                {photo.status === 'uploading' && (
+                  <div className="absolute bottom-0 left-0 right-0 p-2 bg-background/90 space-y-1">
+                    <p className="text-xs font-medium text-center">Subiendo: {photo.progress}%</p>
+                    <Progress value={photo.progress} className="h-2" />
+                  </div>
+                )}
 
                 {photo.status === 'pending' && !isProcessing && (
                     <Tooltip>
@@ -137,12 +144,6 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
                     </Tooltip>
                 )}
 
-                {photo.status === 'uploading' && (
-                  <div className="absolute bottom-0 left-0 right-0 p-2 bg-background/90 space-y-1">
-                    <p className="text-xs font-medium text-center">Subiendo: {photo.progress}%</p>
-                    <Progress value={photo.progress} className="h-2" />
-                  </div>
-                )}
                 
                 {photo.status === 'completed' && (
                   <Tooltip>
