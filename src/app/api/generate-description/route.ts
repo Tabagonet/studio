@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { z } from 'zod';
+import { getApiClientsForUser } from '@/lib/api-helpers';
+
 
 // Define input schema for validation
 const GenerateProductDescriptionInputSchema = z.object({
@@ -10,6 +12,7 @@ const GenerateProductDescriptionInputSchema = z.object({
   productType: z.string(),
   keywords: z.string().optional(),
   language: z.enum(['Spanish', 'English']).default('Spanish'),
+  groupedProductIds: z.array(z.number()).optional(),
 });
 
 // Define output schema for creating the JSON prompt and for parsing
@@ -32,17 +35,18 @@ The response must be a valid JSON object. Do not include any markdown backticks 
 - **Language for output:** {{language}}
 - **Product Type:** {{productType}}
 - **User-provided Keywords (for inspiration):** {{keywords}}
+- **Contained Products (for "Grouped" type):** {{groupedProductsList}}
 
 **Instructions:**
-1.  **Research:** Based on the provided **Plant Name** ("{{productName}}"), use your botanical knowledge to find all the required information for the fields below. If the name is ambiguous, use the most common or commercially relevant plant.
+1.  **Research:** Based on the provided **Plant Name** ("{{productName}}"), use your botanical knowledge to find all the required information for the fields below. If the product type is "Grouped", use the "Contained Products" list to inform your descriptions. If the name is ambiguous, use the most common or commercially relevant plant.
 
 2.  **Generate Content:** Populate a JSON object with the following keys and specifications:
 
-    a.  **"shortDescription":** Write a concise and engaging summary in {{language}}. The product name, "{{productName}}", MUST be wrapped in <strong> HTML tags.
+    a.  **"shortDescription":** Write a concise and engaging summary in {{language}}. The product name, "{{productName}}", MUST be wrapped in <strong> HTML tags. If it's a grouped product, summarize the collection.
 
-    b.  **"longDescription":** Write a detailed description in {{language}}. It MUST follow this structure. For each item, **you must find the correct information** and format it with the label in bold (<strong>) and the value in italic (<em>).
-        <strong>Botanical Name:</strong> <em>[Find and insert the scientific name]</em><br>
-        <strong>Common Names:</strong> <em>[Find and list common names]</em><br>
+    b.  **"longDescription":** Write a detailed description in {{language}}. It MUST follow this structure. For each item, **you must find the correct information** and format it with the label in bold (<strong>) and the value in italic (<em>). For a "Grouped" product, adapt the details to describe the collection as a whole.
+        <strong>Botanical Name:</strong> <em>[Find and insert the scientific name, or general family for groups]</em><br>
+        <strong>Common Names:</strong> <em>[Find and list common names, or a collective name for groups]</em><br>
         <strong>Mature Size:</strong> <em>[Find and insert typical height and spread]</em><br>
         <strong>Light Requirements:</strong> <em>[Find and insert light needs]</em><br>
         <strong>Soil Requirements:</strong> <em>[Find and insert soil needs]</em><br>
@@ -62,7 +66,7 @@ The response must be a valid JSON object. Do not include any markdown backticks 
         - <strong>Visual Interest:</strong> <em>[Explain this benefit based on research]</em><br>
         - <strong>Habitat Support:</strong> <em>[Explain this benefit based on research]</em><br>
         <br>
-        <em>[Write a final summary paragraph here.]</em>
+        <em>[Write a final summary paragraph here. If "Grouped", highlight the value of the collection.]</em>
 
     c.  **"keywords":** Generate a comma-separated list of 5-10 relevant SEO keywords in English (PascalCase or camelCase).
 
@@ -126,13 +130,33 @@ export async function POST(req: NextRequest) {
       console.error('/api/generate-description: Invalid request body:', validationResult.error.flatten());
       return NextResponse.json({ error: 'Invalid input', details: validationResult.error.flatten() }, { status: 400 });
     }
-    const { productName, productType, keywords, language } = validationResult.data;
+    const { productName, productType, keywords, language, groupedProductIds } = validationResult.data;
     console.log('/api/generate-description: Request body parsed and validated:', validationResult.data);
+
+    // Fetch details for grouped products if applicable
+    let groupedProductsList = '';
+    if (productType === 'grouped' && groupedProductIds && groupedProductIds.length > 0) {
+        try {
+            console.log('/api/generate-description: Fetching details for grouped products:', groupedProductIds);
+            const { wooApi } = await getApiClientsForUser(uid);
+            const response = await wooApi.get("products", { include: groupedProductIds, per_page: 100 });
+            if (response.data && response.data.length > 0) {
+                groupedProductsList = response.data.map((product: any) =>
+                    `- ${product.name} (SKU: ${product.sku || 'N/A'})`
+                ).join('\n');
+                 console.log('/api/generate-description: Successfully fetched grouped product details.');
+            }
+        } catch (e) {
+            console.error("Failed to fetch details for grouped products:", e);
+            groupedProductsList = 'Error fetching product details.';
+        }
+    }
+
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
         model: "gemini-1.5-flash-latest",
-        systemInstruction: `You are an expert botani_st, e-commerce copywriter, and SEO specialist. Your primary task is to generate a single, valid JSON object based on the user's prompt. The JSON object must strictly follow the schema requested in the user prompt. Do not add any extra text, comments, or markdown formatting like \`\`\`json around the JSON response.`,
+        systemInstruction: `You are an expert botanist, e-commerce copywriter, and SEO specialist. Your primary task is to generate a single, valid JSON object based on the user's prompt. The JSON object must strictly follow the schema requested in the user prompt. Do not add any extra text, comments, or markdown formatting like \`\`\`json around the JSON response.`,
         generationConfig: {
           responseMimeType: "application/json",
         },
@@ -147,7 +171,8 @@ export async function POST(req: NextRequest) {
       .replace(/{{productName}}/g, productName)
       .replace(/{{language}}/g, language)
       .replace(/{{productType}}/g, productType)
-      .replace(/{{keywords}}/g, keywords || '');
+      .replace(/{{keywords}}/g, keywords || '')
+      .replace(/{{groupedProductsList}}/g, groupedProductsList || 'N/A');
 
     console.log('/api/generate-description: Final prompt constructed. Calling generateContent...');
 

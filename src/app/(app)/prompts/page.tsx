@@ -20,17 +20,18 @@ The response must be a valid JSON object. Do not include any markdown backticks 
 - **Language for output:** {{language}}
 - **Product Type:** {{productType}}
 - **User-provided Keywords (for inspiration):** {{keywords}}
+- **Contained Products (for "Grouped" type):** {{groupedProductsList}}
 
 **Instructions:**
-1.  **Research:** Based on the provided **Plant Name** ("{{productName}}"), use your botanical knowledge to find all the required information for the fields below. If the name is ambiguous, use the most common or commercially relevant plant.
+1.  **Research:** Based on the provided **Plant Name** ("{{productName}}"), use your botanical knowledge to find all the required information for the fields below. If the product type is "Grouped", use the "Contained Products" list to inform your descriptions. If the name is ambiguous, use the most common or commercially relevant plant.
 
 2.  **Generate Content:** Populate a JSON object with the following keys and specifications:
 
-    a.  **"shortDescription":** Write a concise and engaging summary in {{language}}. The product name, "{{productName}}", MUST be wrapped in <strong> HTML tags.
+    a.  **"shortDescription":** Write a concise and engaging summary in {{language}}. The product name, "{{productName}}", MUST be wrapped in <strong> HTML tags. If it's a grouped product, summarize the collection.
 
-    b.  **"longDescription":** Write a detailed description in {{language}}. It MUST follow this structure. For each item, **you must find the correct information** and format it with the label in bold (<strong>) and the value in italic (<em>).
-        <strong>Botanical Name:</strong> <em>[Find and insert the scientific name]</em><br>
-        <strong>Common Names:</strong> <em>[Find and list common names]</em><br>
+    b.  **"longDescription":** Write a detailed description in {{language}}. It MUST follow this structure. For each item, **you must find the correct information** and format it with the label in bold (<strong>) and the value in italic (<em>). For a "Grouped" product, adapt the details to describe the collection as a whole.
+        <strong>Botanical Name:</strong> <em>[Find and insert the scientific name, or general family for groups]</em><br>
+        <strong>Common Names:</strong> <em>[Find and list common names, or a collective name for groups]</em><br>
         <strong>Mature Size:</strong> <em>[Find and insert typical height and spread]</em><br>
         <strong>Light Requirements:</strong> <em>[Find and insert light needs]</em><br>
         <strong>Soil Requirements:</strong> <em>[Find and insert soil needs]</em><br>
@@ -50,7 +51,7 @@ The response must be a valid JSON object. Do not include any markdown backticks 
         - <strong>Visual Interest:</strong> <em>[Explain this benefit based on research]</em><br>
         - <strong>Habitat Support:</strong> <em>[Explain this benefit based on research]</em><br>
         <br>
-        <em>[Write a final summary paragraph here.]</em>
+        <em>[Write a final summary paragraph here. If "Grouped", highlight the value of the collection.]</em>
 
     c.  **"keywords":** Generate a comma-separated list of 5-10 relevant SEO keywords in English (PascalCase or camelCase).
 
@@ -174,7 +175,7 @@ export default function PromptsPage() {
             <AlertTitle>¿Cómo funciona esto?</AlertTitle>
             <AlertDescription>
                 <p>{`Aquí puedes editar la plantilla de "prompt" que se envía al modelo de IA (Gemini) para generar el contenido de tus productos. Puedes ajustar el tono, el estilo y las instrucciones para que se adapten mejor a tu marca.`}</p>
-                <p className="mt-2">{`Utiliza placeholders como`} <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{productName}}`}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{productType}}`}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{keywords}}`}</code>, y <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{language}}`}</code>. {`El sistema los reemplazará con los datos del producto correspondiente en cada solicitud.`}</p>
+                <p className="mt-2">{`Utiliza placeholders como`} <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{productName}}`}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{productType}}`}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{keywords}}`}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{language}}`}</code>, y <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{groupedProductsList}}`}</code>. {`El sistema los reemplazará con los datos del producto correspondiente en cada solicitud.`}</p>
                 <p className="mt-2 font-semibold">Nota: La estructura de salida JSON no es editable desde aquí para garantizar la compatibilidad.</p>
             </AlertDescription>
         </Alert>

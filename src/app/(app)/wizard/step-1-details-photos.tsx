@@ -262,18 +262,25 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
     try {
       const token = await user.getIdToken();
+      
+      const requestBody: any = {
+        productName: productData.name,
+        productType: productData.productType,
+        keywords: productData.keywords,
+        language: productData.language,
+      };
+
+      if (productData.productType === 'grouped' && productData.groupedProductIds) {
+        requestBody.groupedProductIds = productData.groupedProductIds;
+      }
+      
       const response = await fetch('/api/generate-description', {
           method: 'POST',
           headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({
-            productName: productData.name,
-            productType: productData.productType,
-            keywords: productData.keywords,
-            language: productData.language,
-          })
+          body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
