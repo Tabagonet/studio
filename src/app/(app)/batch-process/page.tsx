@@ -71,11 +71,13 @@ export default function BatchProcessPage() {
 
   const onImagesDrop = useCallback((acceptedFiles: File[]) => {
     // Replace existing images instead of appending to start a new batch
+    clearFiles();
     setImageFiles(acceptedFiles);
   }, []);
 
   const onCsvDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
+      clearFiles();
       setCsvFile(acceptedFiles[0]);
     }
   }, []);
@@ -380,10 +382,15 @@ export default function BatchProcessPage() {
 
             for (let i = 1; i <= 2; i++) {
                 if (product.csvData[`atributo_${i}_nombre`]) {
+                    const isVariationAttr = product.csvData[`atributo_${i}_variacion`] === '1';
+                    // The attribute should be visible by default unless explicitly set to '0'
+                    const isVisibleAttr = product.csvData[`atributo_${i}_visible`] !== '0';
+            
                     productPayload.attributes?.push({
                         name: product.csvData[`atributo_${i}_nombre`],
                         value: product.csvData[`atributo_${i}_valores`],
-                        forVariations: !!parseInt(product.csvData[`atributo_${i}_variacion`], 10)
+                        forVariations: isVariationAttr,
+                        visible: isVisibleAttr
                     });
                 }
             }
@@ -583,6 +590,11 @@ export default function BatchProcessPage() {
                                     width={80}
                                     height={80}
                                     className="rounded-md object-cover h-20 w-20 flex-shrink-0"
+                                    onLoad={() => {
+                                        if (product.images.length > 0 && previewImage.startsWith('blob:')) {
+                                           // Optional: URL.revokeObjectURL(previewImage) if it causes memory issues, but usually fine for previews.
+                                        }
+                                    }}
                                 />
                                 <div className="flex-1 min-w-0 space-y-1">
                                     <h3 className="font-semibold truncate">{product.name}</h3>

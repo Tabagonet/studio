@@ -40,6 +40,7 @@ export interface ProductAttribute {
   name: string;
   value: string;
   forVariations?: boolean;
+  visible?: boolean;
 }
 
 export interface ProductVariationAttribute {

@@ -16,6 +16,24 @@ const slugify = (text: string) => {
         .replace(/-+$/, '');
 };
 
+// Helper function to compute the Cartesian product of arrays
+function cartesian(...args: string[][]): string[][] {
+    const r: string[][] = [];
+    const max = args.length - 1;
+    function helper(arr: string[], i: number) {
+        for (let j = 0, l = args[i].length; j < l; j++) {
+            const a = [...arr, args[i][j]];
+            if (i === max) {
+                r.push(a);
+            } else {
+                helper(a, i + 1);
+            }
+        }
+    }
+    helper([], 0);
+    return r;
+}
+
 export async function POST(request: NextRequest) {
   let uid, token;
   try {
@@ -91,7 +109,7 @@ export async function POST(request: NextRequest) {
       .map((attr, index) => ({
         name: attr.name,
         position: index,
-        visible: true,
+        visible: attr.visible !== false, // Use the value from data, default to true
         variation: productData.productType === 'variable' && !!attr.forVariations,
         options: productData.productType === 'variable' ? attr.value.split('|').map(s => s.trim()) : [attr.value],
       }));
@@ -123,28 +141,54 @@ export async function POST(request: NextRequest) {
     const createdProduct = response.data;
     const productId = createdProduct.id;
 
-    // 5. If it's a variable product, create the variations in a batch
-    if (productData.productType === 'variable' && productData.variations && productData.variations.length > 0) {
-      const variationsPayload = {
-        create: productData.variations.map(v => ({
-          regular_price: v.regularPrice || undefined,
-          sale_price: v.salePrice || undefined,
-          sku: v.sku || undefined,
-          attributes: v.attributes.map(a => ({
-              name: a.name,
-              option: a.value,
-          })),
-        })),
-      };
+    // 5. If it's a variable product, create the variations.
+    if (productData.productType === 'variable') {
+        let batchCreatePayload: any[] = [];
 
-      try {
-        await wooApi.post(`products/${productId}/variations/batch`, variationsPayload);
-      } catch (variationError: any) {
-        // If variations fail, the main product was still created. 
-        // We throw an error to inform the user that variations failed.
-        const errorMessage = variationError.response?.data?.message || variationError.message || 'Error desconocido al crear variaciones.';
-        throw new Error(`Producto principal creado (ID: ${productId}), pero falló la creación de variaciones: ${errorMessage}`);
-      }
+        // Case 1: Variations are pre-generated (e.g., from the wizard)
+        if (productData.variations && productData.variations.length > 0) {
+            batchCreatePayload = productData.variations.map(v => ({
+                regular_price: v.regularPrice || undefined,
+                sale_price: v.salePrice || undefined,
+                sku: v.sku || undefined,
+                attributes: v.attributes.map(a => ({
+                    name: a.name,
+                    option: a.value,
+                })),
+            }));
+        } 
+        // Case 2: Variations need to be generated from attributes (e.g., from batch process)
+        else {
+            const variationAttributes = productData.attributes.filter(
+                attr => attr.forVariations && attr.name && attr.value
+            );
+
+            if (variationAttributes.length > 0) {
+                const attributeNames = variationAttributes.map(attr => attr.name);
+                const attributeValueSets = variationAttributes.map(attr =>
+                    attr.value.split('|').map(v => v.trim()).filter(Boolean)
+                );
+                
+                if (attributeValueSets.every(set => set.length > 0)) {
+                    const combinations = cartesian(...attributeValueSets);
+                    batchCreatePayload = combinations.map(combo => ({
+                        attributes: combo.map((value, index) => ({
+                            name: attributeNames[index],
+                            option: value,
+                        })),
+                    }));
+                }
+            }
+        }
+        
+        if (batchCreatePayload.length > 0) {
+            try {
+                await wooApi.post(`products/${productId}/variations/batch`, { create: batchCreatePayload });
+            } catch (variationError: any) {
+                const errorMessage = variationError.response?.data?.message || variationError.message || 'Error desconocido al crear variaciones.';
+                throw new Error(`Producto principal creado (ID: ${productId}), pero falló la creación de variaciones: ${errorMessage}`);
+            }
+        }
     }
 
 
