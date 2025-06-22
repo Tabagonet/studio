@@ -24,7 +24,7 @@ export const NAV_ITEMS: NavItem[] = [
     title: 'Proceso en Lotes',
     href: '/batch-process',
     icon: UploadCloud,
-    disabled: true,
+    disabled: false,
   },
   {
     title: 'Gestión de Plantillas',
