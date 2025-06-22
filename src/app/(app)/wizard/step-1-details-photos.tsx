@@ -145,19 +145,19 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
 
   React.useEffect(() => {
-    const fetchCategories = async () => {
+    const fetchCategories = async (token: string) => {
       setIsLoadingCategories(true);
       try {
-        const response = await fetch('/api/woocommerce/categories');
+        const response = await fetch('/api/woocommerce/categories', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
         if (!response.ok) {
           let errorMessage = `Error fetching categories: ${response.status} ${response.statusText}`;
-          const responseText = await response.text();
           try {
-            const errorData = JSON.parse(responseText);
-            errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
-          } catch (parseError) {
-            errorMessage = `Server returned non-JSON error for categories. Status: ${response.status}. Body: ${responseText.substring(0,100)}...`;
-            console.error("Non-JSON error response from /api/woocommerce/categories:", responseText);
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || "Error desconocido al cargar categorías.";
+          } catch(e) {
+            errorMessage = "No se pudieron cargar las categorías. Revisa tu conexión con WooCommerce en la página de Configuración.";
           }
           throw new Error(errorMessage);
         }
@@ -174,7 +174,17 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         setIsLoadingCategories(false);
       }
     };
-    fetchCategories();
+    
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            const token = await user.getIdToken();
+            fetchCategories(token);
+        } else {
+            setIsLoadingCategories(false);
+        }
+    });
+
+    return () => unsubscribe();
   }, [toast]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
