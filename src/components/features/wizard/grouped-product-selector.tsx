@@ -92,9 +92,13 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
         const token = await user.getIdToken();
 
         const params = new URLSearchParams({
-            q: search,
             page: page.toString(),
         });
+        
+        if (search) {
+            params.append('q', search);
+        }
+
         if (category && category !== 'all') {
             params.append('category', category);
         }
@@ -118,17 +122,26 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
         setIsLoading(false);
     }
   }, [toast]);
+  
+  const handleCategoryChange = (category: string) => {
+      setSelectedCategory(category);
+      setCurrentPage(1); // Reset page when category changes
+  };
 
-  useEffect(() => {
-    setCurrentPage(1);
-    fetchAvailableProducts(1, selectedCategory, debouncedSearchTerm);
-  }, [debouncedSearchTerm, selectedCategory, fetchAvailableProducts]);
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+    setCurrentPage(1); // Reset page on new search
+  };
   
   useEffect(() => {
-    if (currentPage > 1) {
-        fetchAvailableProducts(currentPage, selectedCategory, debouncedSearchTerm);
-    }
-  }, [currentPage, selectedCategory, debouncedSearchTerm, fetchAvailableProducts]);
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+        if (user) {
+            fetchAvailableProducts(currentPage, selectedCategory, debouncedSearchTerm);
+        }
+    });
+    return () => unsubscribe();
+  }, [debouncedSearchTerm, selectedCategory, currentPage, fetchAvailableProducts]);
+
 
   useEffect(() => {
     const fetchCats = async () => {
@@ -148,7 +161,10 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
         setIsLoadingCategories(false);
       }
     };
-    fetchCats();
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+        if(user) fetchCats();
+    });
+    return () => unsubscribe();
   }, [toast]);
 
   const handleAddProduct = (product: SimpleProductSearchResult) => {
@@ -175,9 +191,9 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
             <Input
               placeholder="Buscar por nombre..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={handleSearchChange}
             />
-            <Select value={selectedCategory} onValueChange={setSelectedCategory} disabled={isLoadingCategories}>
+            <Select value={selectedCategory} onValueChange={handleCategoryChange} disabled={isLoadingCategories}>
                 <SelectTrigger>
                     <SelectValue placeholder="Filtrar por categoría..." />
                 </SelectTrigger>
@@ -206,7 +222,9 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
                           <p className="text-xs text-muted-foreground">{product.price}€</p>
                       </div>
                   </div>
-                  <Button size="icon-sm" variant="outline" onClick={() => handleAddProduct(product)}><PlusCircle className="h-4 w-4" /></Button>
+                  <Button size="icon-sm" variant="outline" onClick={() => handleAddProduct(product)}>
+                    <PlusCircle className="h-4 w-4" />
+                  </Button>
                 </div>
               ))}
             </div>
