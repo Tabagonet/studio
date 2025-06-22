@@ -4,6 +4,8 @@ import { ProductData } from "@/lib/types";
 import Image from 'next/image';
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 interface Step2PreviewProps {
   productData: ProductData;
@@ -12,7 +14,8 @@ interface Step2PreviewProps {
 export function Step2Preview({ productData }: Step2PreviewProps) {
   const { 
     name, sku, productType, regularPrice, salePrice, category, 
-    keywords, shortDescription, longDescription, attributes, photos 
+    keywords, shortDescription, longDescription, attributes, photos,
+    variations,
   } = productData;
 
   const primaryPhoto = photos.find(p => p.isPrimary) || photos[0];
@@ -40,7 +43,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                   alt={name || 'Vista previa del producto'} 
                   width={300} 
                   height={300} 
-                  className="rounded-lg object-cover w-full aspect-square"
+                  className="rounded-lg w-full h-auto"
                 />
               ) : (
                 <div className="w-full aspect-square bg-muted rounded-lg flex items-center justify-center">
@@ -57,7 +60,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                 />
               </div>
 
-              {productType !== 'grouped' ? (
+              {productType !== 'grouped' && productType !== 'variable' && (
                 <div>
                   <h4 className="font-semibold text-lg">Precios</h4>
                   <p>
@@ -67,12 +70,18 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                     {salePrice && <span className="ml-2 font-bold text-xl text-primary">{`${salePrice}€`}</span>}
                   </p>
                 </div>
-              ) : (
+              )}
+              {(productType === 'grouped' || productType === 'variable') && (
                  <div>
                     <h4 className="font-semibold text-lg">Precios</h4>
-                    <p className="text-muted-foreground italic">Los productos agrupados no tienen precio.</p>
+                    <p className="text-muted-foreground italic">
+                      {productType === 'grouped' 
+                        ? 'Los productos agrupados no tienen precio.'
+                        : 'El precio se define en cada variación.'}
+                    </p>
                 </div>
               )}
+
 
               <div>
                 <h4 className="font-semibold text-lg">Detalles</h4>
@@ -106,6 +115,46 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                     </div>
                 </div>
             )}
+
+            {productType === 'variable' && variations && variations.length > 0 && (
+              <div>
+                <h4 className="font-semibold text-lg">Variaciones Generadas</h4>
+                  <Accordion type="single" collapsible className="w-full">
+                    {variations.map(variation => (
+                      <AccordionItem value={variation.id} key={variation.id}>
+                        <AccordionTrigger>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1">
+                             {variation.attributes.map(attr => (
+                                <span key={attr.name} className="text-sm">
+                                  <span className="font-medium">{attr.name}:</span>
+                                  <span className="text-muted-foreground ml-1">{attr.value}</span>
+                                </span>
+                              ))}
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                           <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>SKU</TableHead>
+                                  <TableHead>Precio Regular</TableHead>
+                                  <TableHead>Precio de Oferta</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                <TableRow>
+                                  <TableCell>{variation.sku || "N/A"}</TableCell>
+                                  <TableCell>{variation.regularPrice ? `${variation.regularPrice}€` : 'N/A'}</TableCell>
+                                  <TableCell>{variation.salePrice ? `${variation.salePrice}€` : 'N/A'}</TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+              </div>
+            )}
             
             {keywords && (
               <div>
@@ -129,7 +178,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                       alt={`Imagen secundaria de ${name}`}
                       width={100}
                       height={100}
-                      className="rounded-md object-cover w-full aspect-square"
+                      className="rounded-md w-full h-auto"
                     />
                   ))}
                 </div>

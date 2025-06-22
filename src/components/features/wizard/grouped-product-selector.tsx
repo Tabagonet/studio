@@ -200,7 +200,7 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
               {filteredAvailableProducts.map(product => (
                 <div key={product.id} className="flex items-center justify-between p-2 rounded-md border">
                   <div className="flex items-center gap-2 overflow-hidden">
-                      <Image src={product.image || 'https://placehold.co/40x40.png'} alt={product.name} width={40} height={40} className="rounded-sm object-cover" />
+                      <Image src={product.image || 'https://placehold.co/40x40.png'} alt={product.name} width={40} height={40} className="rounded-sm" />
                       <div className="flex-1 overflow-hidden">
                           <p className="text-sm font-medium truncate">{product.name}</p>
                           <p className="text-xs text-muted-foreground">{product.price}€</p>
@@ -230,7 +230,7 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
                 {selectedProducts.map(product => (
                 <div key={product.id} className="flex items-center justify-between p-2 rounded-md border bg-muted/30">
                     <div className="flex items-center gap-2 overflow-hidden">
-                         <Image src={product.image || 'https://placehold.co/40x40.png'} alt={product.name} width={40} height={40} className="rounded-sm object-cover" />
+                         <Image src={product.image || 'https://placehold.co/40x40.png'} alt={product.name} width={40} height={40} className="rounded-sm" />
                         <div className="flex-1 overflow-hidden">
                             <p className="text-sm font-medium truncate">{product.name}</p>
                         </div>
