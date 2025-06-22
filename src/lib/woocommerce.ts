@@ -1,29 +1,42 @@
+
 // src/lib/woocommerce.ts
 import WooCommerceRestApi from "@woocommerce/woocommerce-rest-api";
 
-const wooCommerceStoreUrl = process.env.WOOCOMMERCE_STORE_URL;
-const wooCommerceApiKey = process.env.WOOCOMMERCE_API_KEY;
-const wooCommerceApiSecret = process.env.WOOCOMMERCE_API_SECRET;
+interface WooCommerceCredentials {
+  url: string;
+  consumerKey: string;
+  consumerSecret: string;
+}
 
-let wooApi: WooCommerceRestApi | null = null;
+/**
+ * Creates a new WooCommerce REST API instance on-demand.
+ * This is used in API routes to create a client with user-specific credentials.
+ * @param {WooCommerceCredentials} credentials - The user's WooCommerce API credentials.
+ * @returns {WooCommerceRestApi | null} A configured API client or null if credentials are incomplete.
+ */
+export function createWooCommerceApi(credentials: WooCommerceCredentials): WooCommerceRestApi | null {
+  const { url, consumerKey, consumerSecret } = credentials;
 
-if (wooCommerceStoreUrl && wooCommerceApiKey && wooCommerceApiSecret) {
+  if (!url || !consumerKey || !consumerSecret) {
+    console.warn("Incomplete WooCommerce credentials provided. Cannot create API client.");
+    return null;
+  }
+
   try {
-    wooApi = new WooCommerceRestApi({
-      url: wooCommerceStoreUrl,
-      consumerKey: wooCommerceApiKey,
-      consumerSecret: wooCommerceApiSecret,
+    const wooApi = new WooCommerceRestApi({
+      url: url,
+      consumerKey: consumerKey,
+      consumerSecret: consumerSecret,
       version: "wc/v3",
       queryStringAuth: true 
     });
-    console.log("WooCommerce API client initialized successfully.");
+    // console.log("WooCommerce API client dynamically created for user.");
+    return wooApi;
   } catch (error) {
-    console.error("Error initializing WooCommerce API client:", error);
+    console.error("Error creating dynamic WooCommerce API client:", error);
+    return null;
   }
-} else {
-  console.warn(
-    "WooCommerce environment variables (WOOCOMMERCE_STORE_URL, WOOCOMMERCE_API_KEY, WOOCOMMERCE_API_SECRET) are not fully set. WooCommerce API client not initialized."
-  );
 }
 
-export { wooApi };
+// The global wooApi instance is removed to enforce per-user credential usage.
+export const wooApi = null;

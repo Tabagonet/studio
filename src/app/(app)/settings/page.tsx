@@ -3,21 +3,20 @@
 
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { KeyRound, DatabaseZap, Download, Upload, Info, Globe, BrainCircuit, Loader2 } from "lucide-react";
+import { KeyRound, DatabaseZap, Download, Upload, Info, BrainCircuit, Loader2, ExternalLink } from "lucide-react";
 import { auth } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 
 
 type ServerConfigStatus = {
   googleAiApiKey: boolean;
-  wooCommerceStoreUrl: boolean;
-  wooCommerceApiKey: boolean;
-  wooCommerceApiSecret: boolean;
+  wooCommerceConfigured: boolean;
+  wordPressConfigured: boolean;
   firebaseAdminSdk: boolean;
-  wordpressApiConfigured?: boolean;
 };
 
 const StatusBadge = ({ status, loading, configuredText = "Configurada", missingText = "Falta" }: { status?: boolean, loading: boolean, configuredText?: string, missingText?: string }) => {
@@ -52,9 +51,8 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const fetchConfigStatus = async () => {
-      // Wait for auth to be initialized
       const unsubscribe = auth.onAuthStateChanged(async (user) => {
-        unsubscribe(); // Unsubscribe after the first auth state check to prevent multiple calls
+        unsubscribe(); 
         if (user) {
           try {
             const token = await user.getIdToken();
@@ -63,21 +61,15 @@ export default function SettingsPage() {
             });
 
             if (!response.ok) {
-              let errorMsg = `Error del servidor: ${response.status}`;
-              try {
-                  const errorData = await response.json();
-                  errorMsg = errorData.error || errorMsg;
-              } catch (e) {
-                  // Ignore if response is not json
-              }
-              throw new Error(errorMsg);
+              const errorData = await response.json().catch(() => ({}));
+              throw new Error(errorData.error || `Error del servidor: ${response.status}`);
             }
             
             const data: ServerConfigStatus = await response.json();
             setServerConfig(data);
           } catch (error: any) {
             toast({
-              title: "Error al verificar configuración del servidor",
+              title: "Error al verificar configuración",
               description: error.message,
               variant: "destructive"
             });
@@ -86,7 +78,6 @@ export default function SettingsPage() {
             setIsLoadingConfig(false);
           }
         } else {
-            // No user logged in, can't check server config
             setIsLoadingConfig(false);
         }
       });
@@ -95,99 +86,95 @@ export default function SettingsPage() {
     fetchConfigStatus();
   }, [toast]);
 
-  // Client-side accessible Firebase config check
   const isFirebaseClientConfigured = !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID &&
-                                     !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY &&
-                                     !!process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+                                     !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 
-  const firebaseAdminHint = "Se configura en .env (FIREBASE_SERVICE_ACCOUNT_JSON). Ver Firebase Console > Configuración del proyecto > Cuentas de servicio > Generar nueva clave privada. Pegar el contenido COMPLETO del archivo JSON como una ÚNICA LÍNEA.";
-  const wooCommerceStoreUrlHint = "Configurada en .env (WOOCOMMERCE_STORE_URL)";
-  const wooCommerceApiKeysHint = "Configuradas en .env (WOOCOMMERCE_API_KEY y WOOCOMMERCE_API_SECRET)";
-  const googleAiApiKeyHint = "Configurada en .env (GOOGLE_API_KEY). Obtén una clave gratis desde Google AI Studio.";
-  const wordpressApiHint = "Configurado en .env (WORDPRESS_API_URL, WORDPRESS_USERNAME, WORDPRESS_APPLICATION_PASSWORD). Genera una Contraseña de Aplicación en tu perfil de usuario de WordPress (Usuarios > Perfil > Contraseñas de aplicación). El rol del usuario debe ser Administrador o Editor.";
-
+  const firebaseAdminHint = "Esta clave (FIREBASE_SERVICE_ACCOUNT_JSON) es para toda la aplicación y se configura en el archivo .env del servidor.";
+  const googleAiApiKeyHint = "Esta clave (GOOGLE_API_KEY) es para toda la aplicación y se configura en el archivo .env del servidor. Obtén una clave gratis desde Google AI Studio.";
 
   return (
     <div className="container mx-auto py-8 space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-foreground font-headline">Configuración</h1>
-        <p className="text-muted-foreground">Administra las configuraciones generales y datos de la aplicación. Las claves sensibles se gestionan mediante variables de entorno.</p>
+        <p className="text-muted-foreground">Administra las configuraciones generales, conexiones de API y datos de la aplicación.</p>
       </div>
+
+       <Card className="shadow-lg">
+        <CardHeader>
+            <div className="flex items-center space-x-2">
+                <KeyRound className="h-6 w-6 text-primary" />
+                <CardTitle>Conexiones API</CardTitle>
+            </div>
+            <CardDescription>
+                Gestiona aquí las credenciales para conectar tu cuenta con servicios externos como WooCommerce y WordPress.
+                Estas claves son específicas para tu usuario.
+            </CardDescription>
+        </CardHeader>
+        <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+                Haz clic en el botón para configurar o actualizar tus claves de API de WooCommerce y las contraseñas de aplicación de WordPress.
+            </p>
+            <Button asChild>
+                <Link href="/settings/connections">
+                    Gestionar Conexiones
+                    <ExternalLink className="ml-2 h-4 w-4" />
+                </Link>
+            </Button>
+        </CardContent>
+      </Card>
+
 
       <Card className="shadow-lg">
         <CardHeader>
           <div className="flex items-center space-x-2">
-            <KeyRound className="h-6 w-6 text-primary" />
-            <CardTitle>Estado de Configuración de API y Servicios</CardTitle>
+            <Info className="h-6 w-6 text-primary" />
+            <CardTitle>Estado de Configuración</CardTitle>
           </div>
           <CardDescription>
-            Estado de las claves API y servicios. Las configuraciones del servidor se verifican en tiempo real.
+            Estado de las configuraciones. Las globales se gestionan en el servidor, las de usuario en la sección de Conexiones.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* CLIENT-SIDE CHECK */}
-          <div className="flex items-center justify-between p-3 border rounded-md">
-            <Label htmlFor="firebaseClientStatus" className="flex items-center">
+           {/* GLOBAL SETTINGS */}
+           <div title={firebaseAdminHint} className="flex items-center justify-between p-3 border rounded-md bg-muted/30 cursor-help">
+            <Label className="flex items-center cursor-help">
               <Image src="https://www.gstatic.com/mobilesdk/160503_mobilesdk/logo/2x/firebase_28.png" alt="Firebase" width={16} height={16} className="mr-2" />
-              Configuración Firebase (Cliente)
-            </Label>
-             <span id="firebaseClientStatus" className={`px-2 py-1 text-xs rounded-full ${isFirebaseClientConfigured ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-              {isFirebaseClientConfigured ? "Detectada" : "Falta"}
-            </span>
-          </div>
-
-          {/* SERVER-SIDE CHECKS */}
-          <div title={firebaseAdminHint} className="flex items-center justify-between p-3 border rounded-md bg-muted/30 cursor-help">
-            <Label htmlFor="firebaseAdminStatus" className="flex items-center cursor-help">
-              <Image src="https://www.gstatic.com/mobilesdk/160503_mobilesdk/logo/2x/firebase_28.png" alt="Firebase" width={16} height={16} className="mr-2" />
-              Configuración Firebase (Admin SDK)
+              Firebase Admin SDK (Global)
             </Label>
             <StatusBadge status={serverConfig?.firebaseAdminSdk} loading={isLoadingConfig} />
           </div>
-          
-          <div title={wooCommerceStoreUrlHint} className="flex items-center justify-between p-3 border rounded-md bg-muted/30 cursor-help">
-            <Label htmlFor="wooCommerceStoreUrlStatus" className="flex items-center cursor-help"><Globe className="h-4 w-4 mr-2 text-purple-600" />URL Tienda WooCommerce</Label>
-             <StatusBadge status={serverConfig?.wooCommerceStoreUrl} loading={isLoadingConfig} />
-          </div>
-          
-          <div title={wooCommerceApiKeysHint} className="flex items-center justify-between p-3 border rounded-md bg-muted/30 cursor-help">
-            <Label htmlFor="wooCommerceApiStatus" className="flex items-center cursor-help"><KeyRound className="h-4 w-4 mr-2 text-purple-600" />Claves API WooCommerce</Label>
-            <StatusBadge status={serverConfig ? serverConfig.wooCommerceApiKey && serverConfig.wooCommerceApiSecret : undefined} loading={isLoadingConfig} missingText="Faltan Claves" />
-          </div>
-
-          <div title={wordpressApiHint} className="flex items-center justify-between p-3 border rounded-md bg-muted/30 cursor-help">
-            <Label htmlFor="wordpressApiStatus" className="flex items-center cursor-help">
-                <Image src="https://s.w.org/style/images/about/WordPress-logotype-wmark.png" alt="WordPress Logo" width={16} height={16} className="mr-2" data-ai-hint="logo wordpress"/>
-                API de WordPress (Contraseña de App)
-            </Label>
-            <StatusBadge status={serverConfig?.wordpressApiConfigured} loading={isLoadingConfig} configuredText="Configurada" missingText="Falta" />
-          </div>
-          
           <div title={googleAiApiKeyHint} className="flex items-center justify-between p-3 border rounded-md bg-muted/30 cursor-help">
-            <Label htmlFor="googleAiStatus" className="flex items-center cursor-help">
+            <Label className="flex items-center cursor-help">
               <BrainCircuit className="h-4 w-4 mr-2 text-blue-500" />
-              Clave API de Google AI
+              Clave API de Google AI (Global)
             </Label>
              <StatusBadge status={serverConfig?.googleAiApiKey} loading={isLoadingConfig} />
+          </div>
+          
+          {/* PER-USER SETTINGS */}
+          <div className="flex items-center justify-between p-3 border rounded-md">
+            <Label className="flex items-center">
+                <Image src="https://quefoto.es/wp-content/uploads/2024/07/woocommerce-logo.png" alt="WooCommerce" width={16} height={16} className="mr-2" data-ai-hint="logo woocommerce"/>
+                Conexión WooCommerce (Tu Usuario)
+            </Label>
+            <StatusBadge status={serverConfig?.wooCommerceConfigured} loading={isLoadingConfig} />
+          </div>
+          <div className="flex items-center justify-between p-3 border rounded-md">
+            <Label className="flex items-center">
+                <Image src="https://s.w.org/style/images/about/WordPress-logotype-wmark.png" alt="WordPress Logo" width={16} height={16} className="mr-2" data-ai-hint="logo wordpress"/>
+                Conexión WordPress (Tu Usuario)
+            </Label>
+            <StatusBadge status={serverConfig?.wordPressConfigured} loading={isLoadingConfig} />
           </div>
           
            <div className="mt-2 p-3 bg-accent/50 rounded-md flex items-start space-x-2">
             <Info className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm text-muted-foreground">
-                Para configurar estas claves y URLs, edita el archivo <code className="font-code bg-muted px-1 py-0.5 rounded-sm">.env</code> en la raíz de tu proyecto y reinicia la aplicación si se ejecuta localmente.
-                Si está desplegada en Vercel, configura estas variables en los ajustes de entorno de tu proyecto en Vercel.
+                Las configuraciones marcadas como <span className="font-semibold">"(Global)"</span> se establecen en el archivo <code className="font-code bg-muted px-1 py-0.5 rounded-sm">.env</code> del servidor y afectan a toda la aplicación.
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                - <code className="font-code text-xs">NEXT_PUBLIC_...</code>: Variables accesibles en el navegador (cliente).
-                <br />
-                - <code className="font-code text-xs">FIREBASE_SERVICE_ACCOUNT_JSON</code>: Contenido del JSON de la cuenta de servicio de Firebase (solo para el servidor). Pega el contenido del archivo JSON como una **sola línea**.
-                <br />
-                - <code className="font-code text-xs">WOOCOMMERCE_...</code>: Variables para la API de WooCommerce (solo para el servidor).
-                <br />
-                - <code className="font-code text-xs">WORDPRESS_...</code>: Variables para la API de WordPress (solo para el servidor).
-                <br />
-                - <code className="font-code text-xs">GOOGLE_API_KEY</code>: Clave para la API de Google AI (Gemini). Se configura en el servidor y la puedes obtener gratis en Google AI Studio.
+               <p className="text-sm text-muted-foreground mt-2">
+                 Las configuraciones marcadas como <span className="font-semibold">"(Tu Usuario)"</span> son personales y se gestionan en la página de <Link href="/settings/connections" className="underline font-medium">Conexiones API</Link>.
               </p>
             </div>
           </div>
@@ -200,7 +187,7 @@ export default function SettingsPage() {
             <DatabaseZap className="h-6 w-6 text-primary" />
             <CardTitle>Gestión de Datos y Plantillas</CardTitle>
           </div>
-          <CardDescription>Exporta o importa configuraciones (plantillas, reglas) y limpia datos temporales.</CardDescription>
+          <CardDescription>Exporta o importa configuraciones y limpia datos temporales.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-4">
@@ -209,7 +196,7 @@ export default function SettingsPage() {
             </div>
             <div>
                 <h4 className="font-medium mb-2">Limpieza de Datos</h4>
-                <p className="text-sm text-muted-foreground mb-3">Elimina datos temporales almacenados en Firebase (imágenes no procesadas, colas de procesamiento, etc.). Esta acción es irreversible.</p>
+                <p className="text-sm text-muted-foreground mb-3">Elimina datos temporales. Esta acción es irreversible.</p>
                 <Button variant="destructive" disabled>Limpiar Datos Temporales</Button>
                  <p className="text-xs text-muted-foreground mt-1">Esta funcionalidad estará disponible próximamente.</p>
             </div>
