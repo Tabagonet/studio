@@ -3,9 +3,10 @@
 
 import { ColumnDef } from "@tanstack/react-table"
 import Image from "next/image"
-import { ArrowUpDown, MoreHorizontal, Eye, EyeOff, Pencil, CheckCircle2, XCircle } from "lucide-react"
+import Link from "next/link"
+import { ArrowUpDown, MoreHorizontal, Eye, EyeOff, Pencil, CheckCircle2, XCircle, ExternalLink, Trash2 } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
@@ -18,10 +19,13 @@ import {
 import { Badge } from "@/components/ui/badge"
 import type { ProductSearchResult } from "@/lib/types"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+
 
 export const getColumns = (
   handleStatusUpdate: (productId: number, newStatus: 'publish' | 'draft') => void,
   handleEdit: (productId: number) => void,
+  handleDelete: (productId: number) => void,
 ): ColumnDef<ProductSearchResult>[] => [
   {
     id: "select",
@@ -214,40 +218,66 @@ export const getColumns = (
       const product = row.original
 
       return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Abrir menú</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Acciones Rápidas</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => handleEdit(product.id)}>
-              <Pencil className="mr-2 h-4 w-4" />
-              Editar producto
-            </DropdownMenuItem>
-            {product.status === 'publish' ? (
-              <DropdownMenuItem onClick={() => handleStatusUpdate(product.id, 'draft')}>
-                <EyeOff className="mr-2 h-4 w-4" />
-                Ocultar en la tienda
+        <AlertDialog>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0">
+                <span className="sr-only">Abrir menú</span>
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Acciones Rápidas</DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => handleEdit(product.id)}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Editar producto
               </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem onClick={() => handleStatusUpdate(product.id, 'publish')}>
-                <Eye className="mr-2 h-4 w-4" />
-                Hacer Visible
+              {product.status === 'publish' ? (
+                <DropdownMenuItem onClick={() => handleStatusUpdate(product.id, 'draft')}>
+                  <EyeOff className="mr-2 h-4 w-4" />
+                  Ocultar en la tienda
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onClick={() => handleStatusUpdate(product.id, 'publish')}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  Hacer Visible
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem asChild>
+                <Link href={product.permalink} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Ver en la tienda
+                </Link>
               </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-             <DropdownMenuLabel>Otras Acciones</DropdownMenuLabel>
-            <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(product.id.toString())}
-            >
-              Copiar ID del producto
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled>Ver en la tienda</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <DropdownMenuSeparator />
+              <AlertDialogTrigger asChild>
+                <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Eliminar permanentemente
+                </DropdownMenuItem>
+              </AlertDialogTrigger>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+                  <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                      Esta acción no se puede deshacer. Se eliminará permanentemente el producto 
+                      <strong className="mx-1">{product.name}</strong> 
+                      y todos sus datos asociados.
+                  </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction 
+                      className={buttonVariants({ variant: "destructive" })}
+                      onClick={() => handleDelete(product.id)}
+                  >
+                    Sí, eliminar producto
+                  </AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )
     },
   },

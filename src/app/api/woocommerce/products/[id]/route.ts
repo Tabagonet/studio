@@ -98,3 +98,37 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     );
   }
 }
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const token = req.headers.get('Authorization')?.split('Bearer ')[1];
+    if (!token) {
+        return NextResponse.json({ error: 'No auth token provided.' }, { status: 401 });
+    }
+    if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
+    const decodedToken = await adminAuth.verifyIdToken(token);
+    const uid = decodedToken.uid;
+    
+    const { wooApi } = await getApiClientsForUser(uid);
+    const productId = params.id;
+    if (!productId) {
+      return NextResponse.json({ error: 'Product ID is required.' }, { status: 400 });
+    }
+
+    // `force: true` permanently deletes the product.
+    // `force: false` would move it to trash.
+    const response = await wooApi.delete(`products/${productId}`, { force: true });
+
+    return NextResponse.json({ success: true, data: response.data });
+
+  } catch (error: any) {
+    console.error(`Error deleting product ${params.id}:`, error.response?.data || error.message);
+    const errorMessage = error.response?.data?.message || 'Failed to delete product.';
+    const status = error.message.includes('configure API connections') ? 400 : (error.response?.status || 500);
+    
+    return NextResponse.json(
+      { error: errorMessage, details: error.response?.data },
+      { status }
+    );
+  }
+}

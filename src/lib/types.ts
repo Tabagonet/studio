@@ -89,6 +89,7 @@ export interface ProductSearchResult {
   stock_status: 'instock' | 'outofstock' | 'onbackorder';
   categories: { id: number; name: string }[];
   date_created: string | null;
+  permalink: string;
 }
 
 export interface ParsedNameData {

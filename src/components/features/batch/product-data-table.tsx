@@ -228,6 +228,36 @@ export function ProductDataTable() {
     }
   }, [toast, fetchData, fetchStats]);
 
+  const handleDeleteProduct = React.useCallback(async (productId: number) => {
+    const user = auth.currentUser;
+    if (!user) {
+      toast({ title: "No autenticado", variant: "destructive" });
+      return;
+    }
+
+    toast({ title: `Eliminando producto...` });
+
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch(`/api/woocommerce/products/${productId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Error al eliminar el producto.');
+      }
+
+      toast({ title: "¡Producto Eliminado!", description: "El producto se ha eliminado permanentemente." });
+      fetchData();
+      fetchStats();
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      toast({ title: "Error al Eliminar", description: (error as Error).message, variant: "destructive" });
+    }
+  }, [toast, fetchData, fetchStats]);
+
   const handleEditProduct = (productId: number) => {
     setEditingProductId(productId);
   };
@@ -240,7 +270,7 @@ export function ProductDataTable() {
     }
   };
 
-  const columns = React.useMemo(() => getColumns(handleStatusUpdate, handleEditProduct), [handleStatusUpdate]);
+  const columns = React.useMemo(() => getColumns(handleStatusUpdate, handleEditProduct, handleDeleteProduct), [handleStatusUpdate, handleDeleteProduct]);
 
   const table = useReactTable({
     data,
