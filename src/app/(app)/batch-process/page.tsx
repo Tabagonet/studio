@@ -67,7 +67,8 @@ export default function BatchProcessPage() {
   const { toast } = useToast();
 
   const onImagesDrop = useCallback((acceptedFiles: File[]) => {
-    setImageFiles(prev => [...prev, ...acceptedFiles]);
+    // Replace existing images instead of appending to start a new batch
+    setImageFiles(acceptedFiles);
   }, []);
 
   const onCsvDrop = useCallback((acceptedFiles: File[]) => {
@@ -221,7 +222,7 @@ export default function BatchProcessPage() {
     setIsProcessingFiles(false);
   }, [imageFiles, csvData]);
   
-  const readyProductsCount = stagedProducts.filter(p => p.status === 'ready').length;
+  const readyProductsCount = stagedProducts.filter(p => p.status === 'ready' && p.processingStatus === 'pending').length;
 
   const updateProductProcessingStatus = (
     sku: string, 
@@ -562,3 +563,5 @@ export default function BatchProcessPage() {
     </div>
   );
 }
+
+    
