@@ -34,6 +34,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ProductEditModal } from "./product-edit-modal"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 
 export function ProductDataTable() {
@@ -67,6 +69,12 @@ export function ProductDataTable() {
   })
   
   const [editingProductId, setEditingProductId] = React.useState<number | null>(null);
+
+  const [confirmationData, setConfirmationData] = React.useState<{
+    products: { id: number; name: string; reason: string }[];
+    action: 'generateDescriptions' | 'generateImageMetadata';
+    productIds: number[];
+  } | null>(null);
 
   const { toast } = useToast()
 
@@ -296,15 +304,16 @@ export function ProductDataTable() {
     },
   })
 
-  const handleAiAction = async (action: 'generateDescriptions' | 'generateImageMetadata') => {
+  const handleAiAction = async (action: 'generateDescriptions' | 'generateImageMetadata', force = false) => {
     const selectedRows = table.getSelectedRowModel().rows;
-    if (selectedRows.length === 0) {
+    const productIds = force && confirmationData ? confirmationData.productIds : selectedRows.map(row => row.original.id);
+
+    if (productIds.length === 0) {
       toast({ title: "No hay productos seleccionados", variant: "destructive" });
       return;
     }
     
     setIsAiProcessing(true);
-    const productIds = selectedRows.map(row => row.original.id);
     const user = auth.currentUser;
     if (!user) {
         toast({ title: "No autenticado", variant: "destructive" });
@@ -327,22 +336,30 @@ export function ProductDataTable() {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
             },
-            body: JSON.stringify({ productIds, action }),
+            body: JSON.stringify({ productIds, action, force }),
         });
 
         const result = await response.json();
         if (!response.ok) {
-            throw new Error(result.error || result.message || 'Fallo la acción en lote.');
+            if (response.status === 409 && result.confirmationRequired) {
+                toast.dismiss(); // Hide "processing" toast
+                setConfirmationData({
+                    products: result.products,
+                    action: action,
+                    productIds: productIds,
+                });
+            } else {
+                throw new Error(result.error || result.message || 'Fallo la acción en lote.');
+            }
+        } else {
+            toast({
+                title: "¡Acción completada!",
+                description: result.message,
+            });
+            table.resetRowSelection();
+            fetchData();
+            fetchStats();
         }
-        
-        toast({
-            title: "¡Acción completada!",
-            description: result.message,
-        });
-
-        table.resetRowSelection();
-        fetchData();
-        fetchStats();
 
     } catch (error: any) {
         toast({
@@ -352,6 +369,9 @@ export function ProductDataTable() {
         });
     } finally {
         setIsAiProcessing(false);
+        if (force) {
+            setConfirmationData(null);
+        }
     }
   }
 
@@ -430,6 +450,37 @@ export function ProductDataTable() {
           onClose={handleCloseModal}
         />
       )}
+      <AlertDialog open={!!confirmationData} onOpenChange={(open) => !open && setConfirmationData(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Confirmar Sobrescritura</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Los siguientes productos ya tienen datos. ¿Estás seguro de que quieres que la IA los sobrescriba? Esta acción no se puede deshacer.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <ScrollArea className="max-h-40 my-4 border rounded-md p-2">
+                <ul className="text-sm space-y-1">
+                    {confirmationData?.products.map(p => (
+                        <li key={p.id}>
+                            <strong>{p.name}</strong>: <span className="text-muted-foreground">{p.reason}</span>
+                        </li>
+                    ))}
+                </ul>
+            </ScrollArea>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setConfirmationData(null)}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction 
+                    onClick={() => {
+                        if (confirmationData) {
+                            handleAiAction(confirmationData.action, true);
+                        }
+                    }}
+                >
+                    Sí, sobrescribir todo
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -532,18 +583,18 @@ export function ProductDataTable() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
                  <DropdownMenuLabel>Acciones de IA</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => handleAiAction("generateDescriptions")}>
+                <DropdownMenuItem onSelect={() => handleAiAction("generateDescriptions", false)}>
                     <BrainCircuit className="mr-2 h-4 w-4" /> Generar Descripciones
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleAiAction("generateImageMetadata")}>
+                <DropdownMenuItem onSelect={() => handleAiAction("generateImageMetadata", false)}>
                     <ImageIcon className="mr-2 h-4 w-4" /> Generar Metadatos para Imágenes
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Acciones de Estado</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => handleBatchStatusUpdate('publish')}>
+                <DropdownMenuItem onSelect={() => handleBatchStatusUpdate('publish')}>
                     <Eye className="mr-2 h-4 w-4" /> Hacer Visibles (Publicar)
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleBatchStatusUpdate('draft')}>
+                <DropdownMenuItem onSelect={() => handleBatchStatusUpdate('draft')}>
                     <EyeOff className="mr-2 h-4 w-4" /> Ocultar (Poner como Borrador)
                 </DropdownMenuItem>
             </DropdownMenuContent>

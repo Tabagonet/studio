@@ -9,6 +9,7 @@ import { z } from 'zod';
 const BatchUpdateInputSchema = z.object({
   productIds: z.array(z.number()).min(1, 'At least one product ID is required.'),
   action: z.enum(['generateDescriptions', 'generateImageMetadata']),
+  force: z.boolean().optional().default(false),
 });
 
 export async function POST(req: NextRequest) {
@@ -29,10 +30,38 @@ export async function POST(req: NextRequest) {
         if (!validation.success) {
             return NextResponse.json({ error: 'Invalid input', details: validation.error.flatten() }, { status: 400 });
         }
-        const { productIds, action } = validation.data;
+        const { productIds, action, force } = validation.data;
 
         const { wooApi, wpApi } = await getApiClientsForUser(uid);
 
+        // --- Confirmation Check Step (if force is false) ---
+        if (!force) {
+            const productsToConfirm: { id: number; name: string; reason: string }[] = [];
+            for (const productId of productIds) {
+                try {
+                    const { data: product } = await wooApi.get(`products/${productId}`);
+                    if (action === 'generateDescriptions' && (product.description || product.short_description)) {
+                        productsToConfirm.push({ id: productId, name: product.name, reason: 'Ya tiene descripción.' });
+                        continue; 
+                    }
+                    if (action === 'generateImageMetadata' && product.images?.length > 0 && product.images[0].alt) {
+                        productsToConfirm.push({ id: productId, name: product.name, reason: 'La imagen ya tiene texto alternativo.' });
+                    }
+                } catch (error: any) {
+                    // Ignore errors during check; the main execution loop will catch and report them as failed.
+                }
+            }
+
+            if (productsToConfirm.length > 0) {
+                return NextResponse.json({
+                    confirmationRequired: true,
+                    products: productsToConfirm,
+                }, { status: 409 }); // 409 Conflict is a fitting status code
+            }
+        }
+
+
+        // --- Execution Step ---
         const results = {
             success: [] as number[],
             failed: [] as { id: number; reason: string }[],
