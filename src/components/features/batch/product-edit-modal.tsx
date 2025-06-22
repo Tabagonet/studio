@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Image from 'next/image';
 import {
   Dialog,
@@ -43,6 +43,9 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+
+  const shortDescRef = useRef<HTMLTextAreaElement>(null);
+  const longDescRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     const fetchProductData = async () => {
@@ -92,6 +95,43 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
     setProduct({ ...product, [e.target.name]: e.target.value });
   };
   
+  const handleApplyTag = (
+    ref: React.RefObject<HTMLTextAreaElement>,
+    field: keyof Omit<ProductEditState, 'imageUrl'>,
+    tag: 'strong' | 'em'
+  ) => {
+    const textarea = ref.current;
+    if (!textarea || !product) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = textarea.value.substring(start, end);
+
+    if (!selectedText) {
+        textarea.focus();
+        toast({
+            title: "Selecciona texto primero",
+            description: "Debes seleccionar el texto al que quieres aplicar el formato.",
+            variant: "default"
+        });
+        return;
+    }
+
+    const newValue = 
+      textarea.value.substring(0, start) +
+      `<${tag}>${selectedText}</${tag}>` +
+      textarea.value.substring(end);
+      
+    // Manually update state
+    setProduct({ ...product, [field]: newValue });
+
+    // Refocus the textarea after state update
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + `<${tag}>`.length, end + `<${tag}>`.length);
+    }, 0);
+  };
+
   const handleSaveChanges = async () => {
     setIsSaving(true);
     const user = auth.currentUser;
@@ -178,11 +218,23 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                 </div>
                 <div>
                     <Label htmlFor="short_description">Descripción Corta</Label>
-                    <Textarea id="short_description" name="short_description" value={product.short_description} onChange={handleInputChange} rows={6} />
+                    <div className="border rounded-md">
+                        <div className="p-1 flex items-center gap-1 border-b bg-muted/50">
+                            <Button type="button" size="sm" variant="ghost" className="font-bold" onClick={() => handleApplyTag(shortDescRef, 'short_description', 'strong')}>B</Button>
+                            <Button type="button" size="sm" variant="ghost" className="italic" onClick={() => handleApplyTag(shortDescRef, 'short_description', 'em')}>I</Button>
+                        </div>
+                        <Textarea ref={shortDescRef} id="short_description" name="short_description" value={product.short_description} onChange={handleInputChange} rows={6} className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-t-none" />
+                    </div>
                 </div>
                 <div>
                     <Label htmlFor="description">Descripción Larga</Label>
-                    <Textarea id="description" name="description" value={product.description} onChange={handleInputChange} rows={15} />
+                    <div className="border rounded-md">
+                         <div className="p-1 flex items-center gap-1 border-b bg-muted/50">
+                            <Button type="button" size="sm" variant="ghost" className="font-bold" onClick={() => handleApplyTag(longDescRef, 'description', 'strong')}>B</Button>
+                            <Button type="button" size="sm" variant="ghost" className="italic" onClick={() => handleApplyTag(longDescRef, 'description', 'em')}>I</Button>
+                        </div>
+                        <Textarea ref={longDescRef} id="description" name="description" value={product.description} onChange={handleInputChange} rows={15} className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-t-none" />
+                    </div>
                 </div>
               </div>
               
@@ -190,7 +242,7 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                 <h3 className="text-lg font-medium mb-4 text-center sticky top-0 bg-background py-2 z-10">Vista Previa</h3>
                 <Card>
                   <CardContent className="p-4 space-y-4">
-                    <div className="relative aspect-square w-full mb-4">
+                    <div className="relative aspect-square w-full max-w-[300px] mx-auto mb-4">
                       {product.imageUrl ? (
                         <Image
                           src={product.imageUrl}
@@ -244,3 +296,5 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
     </Dialog>
   );
 }
+
+    
