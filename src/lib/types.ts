@@ -14,11 +14,11 @@ export interface NavItem {
 export type UploadStatus = 'pending' | 'uploading' | 'completed' | 'error';
 
 export interface ProductPhoto {
-  id: string; // Unique ID for the photo (e.g., uuid)
+  id: string | number; // Unique ID, can be number (from Woo) or string (from client)
   file?: File; // The actual file object, present only on client-side before upload
-  previewUrl: string; // Used for client-side preview (object URL)
+  previewUrl: string; // Used for client-side preview (object URL or existing src)
   name: string; // filename
-  isPrimary?: boolean; // Note: this is a client-side concept for the uploader
+  isPrimary?: boolean; 
   status: UploadStatus;
   progress: number; // 0-100
   error?: string; // Error message if upload fails
@@ -76,7 +76,7 @@ export interface ProductData {
   shortDescription: string;
   longDescription: string;
   attributes: ProductAttribute[];
-  photos: ProductPhoto[];
+  photos: ProductPhoto[]; // Unified to always use ProductPhoto type
   variations?: ProductVariation[];
   groupedProductIds?: number[];
   language: 'Spanish' | 'English';

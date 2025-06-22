@@ -17,17 +17,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Star, Trash2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { WooCommerceCategory, WooCommerceImage, ProductPhoto } from '@/lib/types';
-import { Separator } from '@/components/ui/separator';
-import { ImageUploader } from '@/components/features/wizard/image-uploader';
-import { v4 as uuidv4 } from 'uuid';
-import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { ImageUploader } from '@/components/features/wizard/image-uploader';
+import { cn } from '@/lib/utils';
 
 
 interface ProductEditModalProps {
@@ -42,7 +40,7 @@ interface ProductEditState {
   sale_price: string;
   short_description: string;
   description: string;
-  images: (WooCommerceImage | ProductPhoto)[];
+  images: ProductPhoto[]; // Unified to ProductPhoto
   status: 'publish' | 'draft' | 'pending' | 'private';
   tags: string;
   category_id: number | null;
@@ -100,52 +98,12 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
             textarea.setSelectionRange(start + tag.length + 2, end + tag.length + 2);
         }, 0);
     };
-
-  const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
+  
+  const handlePhotosChange = (updatedPhotos: ProductPhoto[]) => {
       if (!product) return;
-      const existingImages = product.images.filter(img => 'alt' in img);
-      const updatedPhotos = [...existingImages, ...newPhotos];
-      setProduct(p => p ? { ...p, images: updatedPhotos } : null);
+      setProduct({ ...product, images: updatedPhotos });
   };
 
-  const handleSetPrimary = (id: number | string) => {
-      if (!product) return;
-      const newImages = [...product.images];
-      const primaryIndex = newImages.findIndex(img => ('id' in img && img.id === id) );
-      if (primaryIndex > -1) {
-          const [primaryImage] = newImages.splice(primaryIndex, 1);
-          newImages.unshift(primaryImage);
-          setProduct({ ...product, images: newImages });
-      }
-  };
-
-  const handleDeleteImage = async (id: number | string) => {
-      if (!product) return;
-      
-      const imageToDelete = product.images.find(img => ('id' in img && img.id === id));
-      if (!imageToDelete) return;
-
-      const remainingImages = product.images.filter(img => ('id' in img && img.id !== id));
-      setProduct({ ...product, images: remainingImages });
-      
-      toast({ title: `Imagen eliminada de la cola.` });
-
-      if ('alt' in imageToDelete && typeof id === 'number') {
-        try {
-            const user = auth.currentUser;
-            if (!user) return;
-            const token = await user.getIdToken();
-            await fetch(`/api/wordpress/media/${id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            toast({ title: 'Imagen eliminada de WordPress', description: `La imagen ha sido eliminada permanentemente de tu biblioteca de medios.` });
-        } catch (e) {
-            console.error('Failed to delete image from WordPress:', e);
-            toast({ title: 'Error al eliminar imagen de WP', description: 'La imagen se ha quitado del producto, pero no se pudo eliminar de la biblioteca de medios.', variant: 'destructive'});
-        }
-      }
-  };
 
   const handleSaveChanges = async () => {
     setIsSaving(true);
@@ -158,32 +116,26 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
 
     try {
         const token = await user.getIdToken();
-        const uploadedImages: ({id: number; position: number} | {src: string; position: number})[] = [];
-        let imageIndex = 0;
+        const processedImagesForApi: ({id: number} | {src: string})[] = [];
         
         for (const img of product.images) {
-            let processedImage;
-            if ('file' in img && img.file) {
+            if (img.file) { // It's a new image that needs uploading
                 const formData = new FormData();
                 formData.append('imagen', img.file);
                 const response = await axios.post('/api/upload-image', formData, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (!response.data.success) throw new Error(`Error subiendo ${img.name}`);
-                processedImage = { src: response.data.url, position: imageIndex };
-            } else if ('alt' in img) {
-                processedImage = { id: img.id, position: imageIndex };
-            }
-            if (processedImage) {
-                uploadedImages.push(processedImage);
-                imageIndex++;
+                processedImagesForApi.push({ src: response.data.url });
+            } else if (typeof img.id === 'number') { // It's an existing WooCommerce image
+                processedImagesForApi.push({ id: img.id });
             }
         }
-
+        
         const { images, ...rest } = product;
         const payload = {
             ...rest,
-            images: uploadedImages,
+            images: processedImagesForApi,
             imageTitle: product.name,
             imageAltText: `Imagen de ${product.name}`,
             imageCaption: `Foto de ${product.name}`,
@@ -243,6 +195,18 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
         }
         setIsLoadingCategories(false);
 
+        const existingImagesAsProductPhotos: ProductPhoto[] = productData.images.map(
+          (img: WooCommerceImage, index: number): ProductPhoto => ({
+              id: img.id,
+              previewUrl: img.src,
+              name: img.name,
+              isPrimary: index === 0,
+              status: 'completed',
+              progress: 100,
+          })
+        );
+
+
         setProduct({
           name: productData.name || '',
           sku: productData.sku || '',
@@ -250,7 +214,7 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
           sale_price: productData.sale_price || '',
           short_description: productData.short_description || '',
           description: productData.description || '',
-          images: productData.images || [],
+          images: existingImagesAsProductPhotos,
           status: productData.status || 'draft',
           tags: productData.tags?.map((t: any) => t.name).join(', ') || '',
           category_id: productData.categories?.length > 0 ? productData.categories[0].id : null,
@@ -268,7 +232,7 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
   }, [productId, toast]);
   
   const primaryPhoto = product?.images?.[0];
-  const previewImageUrl = primaryPhoto ? ('src' in primaryPhoto ? primaryPhoto.src : (primaryPhoto as ProductPhoto).previewUrl) : 'https://placehold.co/128x128.png';
+  const previewImageUrl = primaryPhoto ? primaryPhoto.previewUrl : 'https://placehold.co/128x128.png';
   const categoryName = wooCategories.find(c => c.id === product?.category_id)?.name || 'Sin categoría';
 
   return (
@@ -377,35 +341,12 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
 
                     <div className="p-4 border rounded-lg bg-muted/20">
                         <h3 className="text-lg font-medium">Imágenes</h3>
-                        <p className="text-sm text-muted-foreground mb-4">Gestiona la galería de imágenes de tu producto. La primera imagen es la principal.</p>
-                        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-4">
-                            {product.images.filter(img => 'alt' in img).map((img, index) => {
-                                const imageId = (img as WooCommerceImage).id;
-                                return (
-                                    <div key={imageId} className="relative group border rounded-lg overflow-hidden shadow-sm aspect-square">
-                                        <Image src={(img as WooCommerceImage).src} alt={img.name || 'Product image'} fill sizes="(max-width: 768px) 33vw, 17vw" className="object-cover" />
-                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                            {index > 0 && (
-                                                <Button variant="ghost" size="icon" onClick={() => handleSetPrimary(imageId)} title="Marcar como principal">
-                                                    <Star className="h-5 w-5 text-white" />
-                                                </Button>
-                                            )}
-                                            <Button variant="ghost" size="icon" onClick={() => handleDeleteImage(imageId)} title="Eliminar imagen">
-                                                <Trash2 className="h-5 w-5 text-destructive" />
-                                            </Button>
-                                        </div>
-                                        {index === 0 && (
-                                            <div className="absolute top-1 left-1 bg-primary text-primary-foreground text-xs font-bold px-1.5 py-0.5 rounded">
-                                                PRINCIPAL
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        <Separator />
-                        <h4 className="text-md font-medium mt-4">Añadir nuevas imágenes</h4>
-                        <ImageUploader photos={product.images.filter((i): i is ProductPhoto => 'file' in i)} onPhotosChange={handlePhotosChange} isProcessing={isSaving} />
+                        <p className="text-sm text-muted-foreground mb-4">Gestiona la galería. La primera imagen es la principal. Arrastra nuevas imágenes a la zona de carga.</p>
+                        <ImageUploader
+                            photos={product.images}
+                            onPhotosChange={handlePhotosChange}
+                            isProcessing={isSaving}
+                        />
                     </div>
                 </div>
 
@@ -413,7 +354,7 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                     <div className="aspect-square w-32 h-32 relative mx-auto rounded-md overflow-hidden border">
                        <Image src={previewImageUrl} alt={product.name || 'Vista previa del producto'} fill sizes="128px" className="object-cover" />
                     </div>
-                    <Separator />
+                    
                     <h4 className="font-bold text-base leading-tight text-center">{product.name || "Nombre del Producto"}</h4>
                     <p className="text-center text-sm">
                         <span className={cn("font-bold text-xl", product.sale_price && "line-through text-muted-foreground text-base")}>
@@ -432,8 +373,7 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                             ))}
                         </div>
                     )}
-                    <Separator />
-                     <div className="space-y-3 text-xs text-muted-foreground">
+                     <div className="space-y-3 text-xs text-muted-foreground pt-3 border-t">
                         <div>
                             <h5 className="font-semibold text-foreground mb-1">Descripción Corta</h5>
                             <div className="prose prose-xs max-w-none [&_strong]:text-foreground/90 [&_em]:text-foreground/90" dangerouslySetInnerHTML={{ __html: product.short_description || "..." }} />

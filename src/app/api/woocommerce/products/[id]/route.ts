@@ -94,9 +94,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     
     const validatedData = validationResult.data;
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { images, imageTitle, imageAltText, imageCaption, imageDescription, ...restOfData } = validatedData;
+    const { imageTitle, imageAltText, imageCaption, imageDescription, ...restOfData } = validatedData;
     const wooPayload: any = { ...restOfData };
-
+    
+    // Process tags and categories from validated data
     if (validatedData.tags !== undefined) {
       wooPayload.tags = validatedData.tags.split(',').map((k: string) => ({ name: k.trim() })).filter((t: any) => t.name);
     }
@@ -107,18 +108,18 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
 
     // New Image Handling Logic
-    if (images) {
+    if (validatedData.images) {
         const processedImages = [];
         let imageIndex = 0;
 
-        for (const image of images) {
+        for (const image of validatedData.images) {
             if (image.id) {
-                // It's an existing image, just add its ID and position
-                processedImages.push({ id: image.id, position: imageIndex });
+                // It's an existing image, just add its ID. Position is determined by array order.
+                processedImages.push({ id: image.id });
             } else if (image.src) {
                 // It's a new image from a temporary URL, upload it to WordPress
                 const baseNameForSeo = imageTitle || validatedData.name || 'product-image';
-                const filenameSuffix = images.length > 1 ? `-${productId}-${imageIndex + 1}` : `-${productId}`;
+                const filenameSuffix = validatedData.images.length > 1 ? `-${productId}-${imageIndex + 1}` : `-${productId}`;
                 const seoFilename = `${slugify(baseNameForSeo)}${filenameSuffix}.jpg`;
 
                 const newImageId = await uploadImageToWordPress(
@@ -132,11 +133,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
                     },
                     wpApi
                 );
-                processedImages.push({ id: newImageId, position: imageIndex });
+                processedImages.push({ id: newImageId });
             }
             imageIndex++;
         }
         wooPayload.images = processedImages;
+    } else {
+        // If 'images' key is not present in payload, don't touch the images.
+        delete wooPayload.images;
     }
     
     const response = await wooApi.put(`products/${productId}`, wooPayload);
