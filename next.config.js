@@ -1,3 +1,4 @@
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -17,6 +18,10 @@ const nextConfig = {
       {
         protocol: 'https',
         hostname: 'quefoto.es',
+      },
+      {
+        protocol: 'https',
+        hostname: 's.w.org',
       },
     ],
   },

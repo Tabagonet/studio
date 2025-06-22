@@ -17,6 +17,7 @@ type ServerConfigStatus = {
   wooCommerceApiKey: boolean;
   wooCommerceApiSecret: boolean;
   firebaseAdminSdk: boolean;
+  wordpressApiConfigured?: boolean;
 };
 
 const StatusBadge = ({ status, loading, configuredText = "Configurada", missingText = "Falta" }: { status?: boolean, loading: boolean, configuredText?: string, missingText?: string }) => {
@@ -103,6 +104,7 @@ export default function SettingsPage() {
   const wooCommerceStoreUrlHint = "Configurada en .env (WOOCOMMERCE_STORE_URL)";
   const wooCommerceApiKeysHint = "Configuradas en .env (WOOCOMMERCE_API_KEY y WOOCOMMERCE_API_SECRET)";
   const googleAiApiKeyHint = "Configurada en .env (GOOGLE_API_KEY). Obtén una clave gratis desde Google AI Studio.";
+  const wordpressApiHint = "Configurado en .env (WORDPRESS_API_URL, WORDPRESS_USERNAME, WORDPRESS_APPLICATION_PASSWORD). Genera una Contraseña de Aplicación en tu perfil de usuario de WordPress (Usuarios > Perfil > Contraseñas de aplicación). El rol del usuario debe ser Administrador o Editor.";
 
 
   return (
@@ -152,6 +154,14 @@ export default function SettingsPage() {
             <Label htmlFor="wooCommerceApiStatus" className="flex items-center cursor-help"><KeyRound className="h-4 w-4 mr-2 text-purple-600" />Claves API WooCommerce</Label>
             <StatusBadge status={serverConfig ? serverConfig.wooCommerceApiKey && serverConfig.wooCommerceApiSecret : undefined} loading={isLoadingConfig} missingText="Faltan Claves" />
           </div>
+
+          <div title={wordpressApiHint} className="flex items-center justify-between p-3 border rounded-md bg-muted/30 cursor-help">
+            <Label htmlFor="wordpressApiStatus" className="flex items-center cursor-help">
+                <Image src="https://s.w.org/style/images/about/WordPress-logotype-wmark.png" alt="WordPress Logo" width={16} height={16} className="mr-2" data-ai-hint="logo wordpress"/>
+                API de WordPress (Contraseña de App)
+            </Label>
+            <StatusBadge status={serverConfig?.wordpressApiConfigured} loading={isLoadingConfig} configuredText="Configurada" missingText="Falta" />
+          </div>
           
           <div title={googleAiApiKeyHint} className="flex items-center justify-between p-3 border rounded-md bg-muted/30 cursor-help">
             <Label htmlFor="googleAiStatus" className="flex items-center cursor-help">
@@ -174,6 +184,8 @@ export default function SettingsPage() {
                 - <code className="font-code text-xs">FIREBASE_SERVICE_ACCOUNT_JSON</code>: Contenido del JSON de la cuenta de servicio de Firebase (solo para el servidor). Pega el contenido del archivo JSON como una **sola línea**.
                 <br />
                 - <code className="font-code text-xs">WOOCOMMERCE_...</code>: Variables para la API de WooCommerce (solo para el servidor).
+                <br />
+                - <code className="font-code text-xs">WORDPRESS_...</code>: Variables para la API de WordPress (solo para el servidor).
                 <br />
                 - <code className="font-code text-xs">GOOGLE_API_KEY</code>: Clave para la API de Google AI (Gemini). Se configura en el servidor y la puedes obtener gratis en Google AI Studio.
               </p>
