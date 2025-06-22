@@ -339,25 +339,24 @@ export function ProductDataTable() {
             body: JSON.stringify({ productIds, action, force }),
         });
         
-        // Read the body ONCE to avoid consumption errors.
-        const result = await response.json().catch(() => ({ error: 'Respuesta inválida del servidor.', message: 'La respuesta de la API no era un JSON válido.' }));
+        const result = await response.json();
 
         if (!response.ok) {
-            // Check for the specific 409 confirmation case
-            if (response.status === 409 && result.confirmationRequired && Array.isArray(result.products)) {
-                dismiss(); // Hide "processing" toast
-                setConfirmationData({
-                    products: result.products,
-                    action: action,
-                    productIds: productIds,
-                });
-                return; // Exit here, do not proceed to throw
-            }
-            // For all other errors, throw to be caught by the catch block
-            throw new Error(result.error || result.message || `El servidor respondió con un error ${response.status}.`);
+            throw new Error(result.message || result.error || 'Fallo en la comunicación con el servidor.');
         }
         
-        // This part is only reached if response.ok is true
+        // Check for our custom confirmation payload in a successful (200 OK) response
+        if (result.confirmationRequired) {
+            dismiss();
+            setConfirmationData({
+                products: result.products,
+                action: action,
+                productIds: productIds,
+            });
+            return;
+        }
+        
+        // This is the true success case where products were updated
         toast({
             title: "¡Acción completada!",
             description: result.message,
@@ -473,7 +472,7 @@ export function ProductDataTable() {
                 </ul>
             </ScrollArea>
             <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => setConfirmationData(null)}>Cancelar</AlertDialogCancel>
+                <AlertDialogCancel onClick={() => { setConfirmationData(null); setIsAiProcessing(false); }}>Cancelar</AlertDialogCancel>
                 <AlertDialogAction 
                     onClick={() => {
                         if (confirmationData) {

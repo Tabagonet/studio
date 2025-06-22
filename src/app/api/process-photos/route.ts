@@ -57,10 +57,11 @@ export async function POST(req: NextRequest) {
             }
 
             if (productsToConfirm.length > 0) {
+                // Return a 200 OK with a specific payload to avoid browser error logs for 409.
                 return NextResponse.json({
                     confirmationRequired: true,
                     products: productsToConfirm,
-                }, { status: 409 }); // 409 Conflict is a fitting status code
+                });
             }
         }
 
