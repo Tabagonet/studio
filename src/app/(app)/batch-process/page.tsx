@@ -54,11 +54,11 @@ export default function BatchProcessPage() {
   };
 
   const handleDownloadTemplate = () => {
-    const headers = ['sku', 'precio_regular', 'precio_oferta', 'categorias', 'stock_inicial'];
+    const headers = ['sku', 'nombre', 'precio_regular', 'precio_oferta', 'categorias', 'stock_inicial'];
     const exampleData = [
-      ['SKU-PROD-1', '29.99', '19.99', 'Plantas > De Interior', '100'],
-      ['SKU-PROD-2', '35.50', '', 'Plantas > Suculentas', '50'],
-      ['SKU-PROD-3', '12.50', '9.99', 'Herramientas', '200'],
+      ['SKU-PROD-1', 'Monstera Deliciosa', '29.99', '19.99', 'Plantas > De Interior', '100'],
+      ['SKU-PROD-2', 'Echeveria "Lola"', '35.50', '', 'Plantas > Suculentas', '50'],
+      ['SKU-PROD-3', 'Pala de Jardín de Acero', '12.50', '9.99', 'Herramientas', '200'],
     ];
     
     const csvContent = [
@@ -109,10 +109,10 @@ export default function BatchProcessPage() {
         <AlertDescription>
           <ol className="list-decimal list-inside space-y-2 mt-2">
             <li>
-              <strong>Prepara tus Imágenes:</strong> Para que el sistema sepa qué imágenes pertenecen al mismo producto, debes nombrarlas siguiendo el patrón <strong><code>SKU-NUMERO.jpg</code></strong>. El <strong>SKU</strong> agrupa las fotos, y el <strong>NÚMERO</strong> las diferencia y las ordena (la <code>-1</code> será la imagen principal). Por ejemplo, para un producto con SKU <code>PLANTA-TROPICAL-01</code> que tiene 3 fotos, las nombrarías así: <code>PLANTA-TROPICAL-01-1.jpg</code>, <code>PLANTA-TROPICAL-01-2.jpg</code>, y <code>PLANTA-TROPICAL-01-3.jpg</code>.
+              <strong>Prepara tus Imágenes:</strong> Para agrupar las fotos, nombra los archivos con el patrón <strong><code>SKU-NUMERO.jpg</code></strong>. El <strong>SKU</strong> es el identificador único del producto y el <strong>NÚMERO</strong> las diferencia y las ordena (la ` -1` será la imagen principal). Por ejemplo: `PLANTA-01-1.jpg`, `PLANTA-01-2.jpg`.
             </li>
             <li>
-              <strong>Prepara tu archivo CSV:</strong> Descarga nuestra plantilla y crea una hoja de cálculo con los datos de tus productos. La columna <strong><code>sku</code></strong> es obligatoria. Para las categorías, usa <strong><code>&gt;</code></strong> para indicar jerarquía (ej. <code>Plantas &gt; Suculentas</code>). Si una categoría no existe, se creará automáticamente.
+              <strong>Prepara tu archivo CSV:</strong> Descarga la plantilla. La columna <strong><code>sku</code></strong> es obligatoria y debe coincidir con el identificador en los nombres de las imágenes. La columna <strong><code>nombre</code></strong> será el título de tu producto y el texto que usará la IA para generar contenido.
             </li>
             <li>
               <strong>Sube Ambos Archivos:</strong> Arrastra tus imágenes y tu archivo CSV a las zonas de carga de abajo.
@@ -130,7 +130,7 @@ export default function BatchProcessPage() {
             <Download className="h-5 w-5 text-muted-foreground" /> Plantilla CSV
           </CardTitle>
           <CardDescription>
-            Descarga un archivo CSV de ejemplo con las columnas recomendadas para rellenar los datos de tus productos. El campo <strong><code>sku</code></strong> es obligatorio y debe coincidir con el identificador en los nombres de las imágenes.
+            Descarga un archivo CSV de ejemplo con las columnas recomendadas. El campo <strong><code>sku</code></strong> es obligatorio y debe coincidir con el identificador en los nombres de las imágenes.
           </CardDescription>
         </CardHeader>
         <CardContent>
