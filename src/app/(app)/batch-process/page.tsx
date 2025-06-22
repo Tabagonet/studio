@@ -54,22 +54,23 @@ export default function BatchProcessPage() {
   };
 
   const handleDownloadTemplate = () => {
-    const headers = ['sku', 'precio_regular', 'precio_oferta', 'categoria_slug', 'stock_inicial'];
+    const headers = ['sku', 'precio_regular', 'precio_oferta', 'categorias', 'stock_inicial'];
     const exampleData = [
-      ['SKU-PROD-1', '29.99', '19.99', 'plantas-de-interior', '100'],
-      ['SKU-PROD-2', '35.50', '', 'suculentas', '50'],
+      ['SKU-PROD-1', '29.99', '19.99', 'Plantas > De Interior', '100'],
+      ['SKU-PROD-2', '35.50', '', 'Plantas > Suculentas', '50'],
+      ['SKU-PROD-3', '12.50', '9.99', 'Herramientas', '200'],
     ];
     
     const csvContent = [
       headers.join(','),
-      ...exampleData.map(row => row.join(','))
+      ...exampleData.map(row => row.map(cell => `"${cell}"`).join(',')) // Quote cells to handle commas
     ].join('\n');
       
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", "plantilla_productos.csv");
+    link.setAttribute("download", "plantilla_productos_wooautomate.csv");
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -111,7 +112,7 @@ export default function BatchProcessPage() {
               <strong>Prepara tus Imágenes:</strong> Nombra cada foto con el patrón <strong><code>SKU-NUMERO.jpg</code></strong>. Por ejemplo, <code>CAM-AZ-M-1.jpg</code> y <code>CAM-AZ-M-2.jpg</code> para el mismo producto. El SKU será el identificador único.
             </li>
             <li>
-              <strong>Prepara tu archivo CSV:</strong> Descarga nuestra plantilla y crea una hoja de cálculo con una columna llamada <strong><code>sku</code></strong> que contenga los mismos identificadores que usaste en las imágenes. Añade otras columnas para los datos que no se pueden obtener de la IA (ej. <code>precio_regular</code>, <code>categoria_slug</code>, <code>stock</code>).
+              <strong>Prepara tu archivo CSV:</strong> Descarga nuestra plantilla y crea una hoja de cálculo con los datos de tus productos. La columna <strong><code>sku</code></strong> es obligatoria. Para las categorías, usa <strong><code>&gt;</code></strong> para indicar jerarquía (ej. <code>Plantas &gt; Suculentas</code>). Si una categoría no existe, se creará automáticamente.
             </li>
             <li>
               <strong>Sube Ambos Archivos:</strong> Arrastra tus imágenes y tu archivo CSV a las zonas de carga de abajo.
@@ -134,7 +135,7 @@ export default function BatchProcessPage() {
         </CardHeader>
         <CardContent>
           <Button onClick={handleDownloadTemplate}>
-            Descargar Plantilla de Ejemplo
+            Descargar Plantilla CSV
           </Button>
         </CardContent>
       </Card>
