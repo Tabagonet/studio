@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { UserCircle, LogOut, Settings as SettingsIcon, User as UserIcon, CreditCard } from "lucide-react"; // Renamed Settings to SettingsIcon
+import { UserCircle, LogOut, Settings as SettingsIcon, User as UserIcon, CreditCard, Globe } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,18 +18,46 @@ import {
 import { auth, firebaseSignOut, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { Skeleton } from '../ui/skeleton';
 
 export function Header() {
   const router = useRouter();
   const { toast } = useToast();
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  const [storeUrl, setStoreUrl] = useState<string | null>(null);
+  const [isLoadingUrl, setIsLoadingUrl] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       setIsLoadingAuth(false);
+      
+      if (user) {
+        setIsLoadingUrl(true);
+        try {
+          const token = await user.getIdToken();
+          const response = await fetch('/api/user-settings/connections', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setStoreUrl(data.connections?.wooCommerceStoreUrl || null);
+          } else {
+            setStoreUrl(null);
+          }
+        } catch (error) {
+          console.error("Failed to fetch connection status:", error);
+          setStoreUrl(null);
+        } finally {
+          setIsLoadingUrl(false);
+        }
+      } else {
+        setStoreUrl(null);
+        setIsLoadingUrl(false);
+      }
     });
+
     return () => unsubscribe();
   }, []);
 
@@ -51,6 +79,41 @@ export function Header() {
     }
   };
 
+  const renderStoreStatus = () => {
+    if (isLoadingAuth || isLoadingUrl) {
+      return <Skeleton className="h-5 w-40 hidden md:block" />;
+    }
+
+    let statusElement;
+    if (storeUrl) {
+      try {
+        const hostname = new URL(storeUrl).hostname;
+        statusElement = (
+          <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Cambiar conexión">
+            <Globe className="h-4 w-4 text-green-500" />
+            <span className="hidden md:inline">{hostname}</span>
+          </Link>
+        );
+      } catch (e) {
+        statusElement = (
+          <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-destructive" title="URL de tienda inválida. Click para corregir.">
+            <Globe className="h-4 w-4" />
+            <span className="hidden md:inline">URL Inválida</span>
+          </Link>
+        );
+      }
+    } else {
+      statusElement = (
+        <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Configurar conexión">
+          <Globe className="h-4 w-4 text-destructive" />
+          <span className="hidden md:inline">No conectado</span>
+        </Link>
+      );
+    }
+    
+    return <div>{statusElement}</div>;
+  }
+
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 items-center">
@@ -62,7 +125,8 @@ export function Header() {
           <SidebarTrigger />
         </div>
 
-        <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
+        <div className="flex flex-1 items-center justify-between space-x-4 md:justify-end">
+          {renderStoreStatus()}
           <nav className="flex items-center">
             {isLoadingAuth ? (
               <Button variant="ghost" className="relative h-9 w-9 rounded-full" disabled>
