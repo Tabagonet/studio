@@ -51,29 +51,29 @@ The response must be a valid JSON object. Do not include any markdown backticks 
 
     a.  **"shortDescription":** Write a concise and engaging summary in {{language}}. The product name, "{{productName}}", MUST be wrapped in <strong> HTML tags. If it's a grouped product, summarize the collection.
 
-    b.  **"longDescription":** Write a detailed description in {{language}}. It MUST follow this structure. For each item, **you must find the correct information** and format it with the label in bold (<strong>) and the value in italic (<em>). For a "Grouped" product, adapt the details to describe the collection as a whole.
-        <strong>Botanical Name:</strong> <em>[Find and insert the scientific name, or general family for groups]</em><br>
-        <strong>Common Names:</strong> <em>[Find and list common names, or a collective name for groups]</em><br>
-        <strong>Mature Size:</strong> <em>[Find and insert typical height and spread]</em><br>
-        <strong>Light Requirements:</strong> <em>[Find and insert light needs]</em><br>
-        <strong>Soil Requirements:</strong> <em>[Find and insert soil needs]</em><br>
-        <strong>Water Needs:</strong> <em>[Find and insert water needs]</em><br>
-        <strong>Foliage:</strong> <em>[Find and describe the foliage]</em><br>
-        <strong>Flowers:</strong> <em>[Find and describe the flowers]</em><br>
-        <strong>Growth Rate:</strong> <em>[Find and insert the growth rate]</em><br>
+    b.  **"longDescription":** Write a detailed description entirely in **{{language}}**. It MUST follow this structure. All labels (e.g., "Botanical Name", "Common Names", etc.) MUST be translated to {{language}}. For each item, **you must find the correct information** and format it with the translated label in bold (<strong>) and the value in italic (<em>). For a "Grouped" product, adapt the details to describe the collection as a whole.
+        <strong>[Translated "Botanical Name"]:</strong> <em>[Find and insert the scientific name, or general family for groups]</em><br>
+        <strong>[Translated "Common Names"]:</strong> <em>[Find and list common names, or a collective name for groups]</em><br>
+        <strong>[Translated "Mature Size"]:</strong> <em>[Find and insert typical height and spread]</em><br>
+        <strong>[Translated "Light Requirements"]:</strong> <em>[Find and insert light needs]</em><br>
+        <strong>[Translated "Soil Requirements"]:</strong> <em>[Find and insert soil needs]</em><br>
+        <strong>[Translated "Water Needs"]:</strong> <em>[Find and insert water needs]</em><br>
+        <strong>[Translated "Foliage"]:</strong> <em>[Find and describe the foliage]</em><br>
+        <strong>[Translated "Flowers"]:</strong> <em>[Find and describe the flowers]</em><br>
+        <strong>[Translated "Growth Rate"]:</strong> <em>[Find and insert the growth rate]</em><br>
         <br>
-        <strong>Uses:</strong><br>
-        - <strong>Architectural Plant:</strong> <em>[Explain this use based on research]</em><br>
-        - <strong>Xeriscaping:</strong> <em>[Explain this use based on research]</em><br>
-        - <strong>Ecological Landscaping:</strong> <em>[Explain this use based on research]</em><br>
+        <strong>[Translated "Uses"]:</strong><br>
+        - <strong>[Translated "Architectural Plant"]:</strong> <em>[Explain this use based on research, in {{language}}]</em><br>
+        - <strong>[Translated "Xeriscaping"]:</strong> <em>[Explain this use based on research, in {{language}}]</em><br>
+        - <strong>[Translated "Ecological Landscaping"]:</strong> <em>[Explain this use based on research, in {{language}}]</em><br>
         <br>
-        <strong>Benefits:</strong><br>
-        - <strong>Extreme Drought Tolerance:</strong> <em>[Explain this benefit based on research]</em><br>
-        - <strong>Low Maintenance:</strong> <em>[Explain this benefit based on research]</em><br>
-        - <strong>Visual Interest:</strong> <em>[Explain this benefit based on research]</em><br>
-        - <strong>Habitat Support:</strong> <em>[Explain this benefit based on research]</em><br>
+        <strong>[Translated "Benefits"]:</strong><br>
+        - <strong>[Translated "Extreme Drought Tolerance"]:</strong> <em>[Explain this benefit based on research, in {{language}}]</em><br>
+        - <strong>[Translated "Low Maintenance"]:</strong> <em>[Explain this benefit based on research, in {{language}}]</em><br>
+        - <strong>[Translated "Visual Interest"]:</strong> <em>[Explain this benefit based on research, in {{language}}]</em><br>
+        - <strong>[Translated "Habitat Support"]:</strong> <em>[Explain this benefit based on research, in {{language}}]</em><br>
         <br>
-        <em>[Write a final summary paragraph here. If "Grouped", highlight the value of the collection.]</em>
+        <em>[Write a final summary paragraph here, in {{language}}. If "Grouped", highlight the value of the collection.]</em>
 
     c.  **"keywords":** Generate a comma-separated list of 5-10 relevant SEO keywords in English (PascalCase or camelCase).
 
