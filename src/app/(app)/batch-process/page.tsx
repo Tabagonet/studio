@@ -6,7 +6,7 @@ import { useDropzone } from 'react-dropzone';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { UploadCloud, FileText, Info, FileSpreadsheet, Image as ImageIcon, CheckCircle, Download, Loader2, FileWarning, PackageCheck, PackageX, PackageSearch, Sparkles } from "lucide-react";
+import { UploadCloud, FileText, Info, FileSpreadsheet, Image as ImageIcon, CheckCircle, Download, Loader2, FileWarning, PackageCheck, PackageX, PackageSearch, Sparkles, ShieldAlert } from "lucide-react";
 import { cn } from '@/lib/utils';
 import Papa from 'papaparse';
 import { useToast } from '@/hooks/use-toast';
@@ -23,7 +23,7 @@ interface StagedProduct {
   name: string;
   images: File[];
   csvData: Record<string, any>;
-  status: 'ready' | 'missing_images' | 'missing_csv_data' | 'error';
+  status: 'ready' | 'missing_images' | 'missing_csv_data' | 'error' | 'duplicate';
   statusMessage: string;
   processingStatus?: 'pending' | 'processing' | 'completed' | 'error';
   processingMessage?: string;
@@ -51,6 +51,8 @@ const getStatusInfo = (product: StagedProduct) => {
             return { icon: PackageSearch, color: 'text-yellow-600', label: 'Faltan Imágenes' };
         case 'missing_csv_data':
             return { icon: FileWarning, color: 'text-orange-600', label: 'Faltan Datos CSV' };
+        case 'duplicate':
+            return { icon: ShieldAlert, color: 'text-amber-600', label: 'Duplicado' };
         default:
             return { icon: PackageX, color: 'text-destructive', label: 'Error' };
     }
@@ -63,6 +65,7 @@ export default function BatchProcessPage() {
   const [csvData, setCsvData] = useState<Record<string, any>[]>([]);
   const [stagedProducts, setStagedProducts] = useState<StagedProduct[]>([]);
   const [isProcessingFiles, setIsProcessingFiles] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
   const { toast } = useToast();
 
@@ -161,66 +164,116 @@ export default function BatchProcessPage() {
     });
   }, [csvFile, toast]);
 
-  // Effect to combine image and CSV data
+  // Effect to combine and verify image and CSV data
   useEffect(() => {
     if (csvData.length === 0 && imageFiles.length === 0) {
         setStagedProducts([]);
         return;
     }
 
-    setIsProcessingFiles(true);
-    
-    const csvMap = new Map<string, Record<string, any>>();
-    csvData.forEach(row => {
-        if(row.sku) csvMap.set(row.sku.trim(), row);
-    });
+    const processAndVerifyProducts = async () => {
+        setIsProcessingFiles(true);
+        setIsVerifying(true);
 
-    const imagesBySku = new Map<string, File[]>();
-    imageFiles.forEach(file => {
-        const skuMatch = file.name.match(/^([a-zA-Z0-9_-]+)-/);
-        const sku = skuMatch ? skuMatch[1] : null;
-        if (sku) {
-            if (!imagesBySku.has(sku)) {
-                imagesBySku.set(sku, []);
-            }
-            imagesBySku.get(sku)!.push(file);
+        const user = auth.currentUser;
+        if (!user) {
+            toast({ title: 'No autenticado', description: 'Por favor, inicia sesión para verificar productos.', variant: 'destructive'});
+            setIsProcessingFiles(false);
+            setIsVerifying(false);
+            return;
         }
-    });
+        const token = await user.getIdToken();
 
-    const combined: StagedProduct[] = [];
-    const processedSkus = new Set<string>();
-
-    csvMap.forEach((row, sku) => {
-        const matchingImages = imagesBySku.get(sku) || [];
-        combined.push({
-            id: sku,
-            name: row.nombre || 'Nombre no encontrado',
-            csvData: row,
-            images: matchingImages.sort((a,b) => a.name.localeCompare(b.name)),
-            status: matchingImages.length > 0 ? 'ready' : 'missing_images',
-            statusMessage: matchingImages.length > 0 ? 'Listo para procesar.' : 'Datos encontrados en CSV, pero faltan imágenes con este SKU.',
-            processingStatus: 'pending',
+        const csvMap = new Map<string, Record<string, any>>();
+        csvData.forEach(row => {
+            if(row.sku) csvMap.set(row.sku.trim(), row);
         });
-        processedSkus.add(sku);
-    });
 
-    imagesBySku.forEach((images, sku) => {
-        if (!processedSkus.has(sku)) {
-            combined.push({
-                id: sku,
-                name: `Producto de SKU: ${sku}`,
-                images: images.sort((a,b) => a.name.localeCompare(b.name)),
-                csvData: {},
-                status: 'missing_csv_data',
-                statusMessage: 'Imágenes encontradas, pero faltan datos para este SKU en el CSV.',
-                processingStatus: 'pending',
-            });
-        }
-    });
+        const imagesBySku = new Map<string, File[]>();
+        imageFiles.forEach(file => {
+            const skuMatch = file.name.match(/^([a-zA-Z0-9_-]+)-/);
+            const sku = skuMatch ? skuMatch[1] : null;
+            if (sku) {
+                if (!imagesBySku.has(sku)) {
+                    imagesBySku.set(sku, []);
+                }
+                imagesBySku.get(sku)!.push(file);
+            }
+        });
+        
+        const verificationPromises: Promise<StagedProduct>[] = [];
 
-    setStagedProducts(combined.sort((a, b) => a.id.localeCompare(b.id)));
-    setIsProcessingFiles(false);
-  }, [imageFiles, csvData]);
+        csvMap.forEach((row, sku) => {
+            const promise = (async (): Promise<StagedProduct> => {
+                const matchingImages = imagesBySku.get(sku) || [];
+                
+                try {
+                    const checkResponse = await fetch(`/api/woocommerce/products/check?sku=${encodeURIComponent(sku)}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    
+                    if (checkResponse.ok) {
+                        const checkResult = await checkResponse.json();
+                        if (checkResult.exists) {
+                            return {
+                                id: sku,
+                                name: row.nombre || 'Nombre no encontrado',
+                                csvData: row,
+                                images: matchingImages.sort((a,b) => a.name.localeCompare(b.name)),
+                                status: 'duplicate',
+                                statusMessage: `Este producto (SKU: ${sku}) ya existe en WooCommerce.`,
+                                processingStatus: 'pending',
+                            };
+                        }
+                    } else {
+                        console.warn(`Failed to check existence for SKU: ${sku}`);
+                    }
+                } catch (err) {
+                    console.error(`Error during existence check for SKU ${sku}:`, err);
+                }
+
+                const hasImages = matchingImages.length > 0;
+                return {
+                    id: sku,
+                    name: row.nombre || 'Nombre no encontrado',
+                    csvData: row,
+                    images: matchingImages.sort((a,b) => a.name.localeCompare(b.name)),
+                    status: hasImages ? 'ready' : 'missing_images',
+                    statusMessage: hasImages ? 'Listo para procesar.' : 'Datos encontrados en CSV, pero faltan imágenes con este SKU.',
+                    processingStatus: 'pending',
+                };
+            })();
+            verificationPromises.push(promise);
+        });
+
+        const verifiedProducts = await Promise.all(verificationPromises);
+        setIsVerifying(false);
+
+        const processedSkus = new Set<string>();
+        verifiedProducts.forEach(p => processedSkus.add(p.id));
+        
+        const combined = [...verifiedProducts];
+
+        imagesBySku.forEach((images, sku) => {
+            if (!processedSkus.has(sku)) {
+                combined.push({
+                    id: sku,
+                    name: `Producto de SKU: ${sku}`,
+                    images: images.sort((a,b) => a.name.localeCompare(b.name)),
+                    csvData: {},
+                    status: 'missing_csv_data',
+                    statusMessage: 'Imágenes encontradas, pero faltan datos para este SKU en el CSV.',
+                    processingStatus: 'pending',
+                });
+            }
+        });
+
+        setStagedProducts(combined.sort((a, b) => a.id.localeCompare(b.id)));
+        setIsProcessingFiles(false);
+    };
+
+    processAndVerifyProducts();
+  }, [imageFiles, csvData, toast]);
   
   const readyProductsCount = stagedProducts.filter(p => p.status === 'ready' && p.processingStatus === 'pending').length;
 
@@ -505,7 +558,7 @@ export default function BatchProcessPage() {
             {isProcessingFiles && (
                  <div className="min-h-[200px] flex items-center justify-center text-center text-muted-foreground">
                     <Loader2 className="h-6 w-6 animate-spin mr-2"/>
-                    <p>Procesando y cruzando datos...</p>
+                    <p>{isVerifying ? 'Verificando productos existentes en WooCommerce...' : 'Procesando y cruzando datos...'}</p>
                 </div>
             )}
             {!isProcessingFiles && stagedProducts.length === 0 && (
@@ -563,5 +616,3 @@ export default function BatchProcessPage() {
     </div>
   );
 }
-
-    
