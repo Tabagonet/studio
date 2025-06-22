@@ -338,27 +338,29 @@ export function ProductDataTable() {
             },
             body: JSON.stringify({ productIds, action, force }),
         });
-
-        const result = await response.json().catch(() => ({}));
-
-        if (response.status === 409 && result.confirmationRequired && Array.isArray(result.products)) {
-            dismiss(); // Hide "processing" toast
-            setConfirmationData({
-                products: result.products,
-                action: action,
-                productIds: productIds,
-            });
-            return; 
-        }
         
+        // Read the body ONCE to avoid consumption errors.
+        const result = await response.json().catch(() => ({ error: 'Respuesta inválida del servidor.', message: 'La respuesta de la API no era un JSON válido.' }));
+
         if (!response.ok) {
+            // Check for the specific 409 confirmation case
+            if (response.status === 409 && result.confirmationRequired && Array.isArray(result.products)) {
+                dismiss(); // Hide "processing" toast
+                setConfirmationData({
+                    products: result.products,
+                    action: action,
+                    productIds: productIds,
+                });
+                return; // Exit here, do not proceed to throw
+            }
+            // For all other errors, throw to be caught by the catch block
             throw new Error(result.error || result.message || `El servidor respondió con un error ${response.status}.`);
         }
-
-        const successMessage = await response.json();
+        
+        // This part is only reached if response.ok is true
         toast({
             title: "¡Acción completada!",
-            description: successMessage.message,
+            description: result.message,
         });
         table.resetRowSelection();
         fetchData();
