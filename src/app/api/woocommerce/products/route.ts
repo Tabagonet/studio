@@ -34,15 +34,17 @@ export async function POST(request: NextRequest) {
     
     // 2. Upload images to WordPress via its REST API
     const wordpressImageIds = [];
-    for (const photo of productData.photos) {
+    for (const [index, photo] of productData.photos.entries()) {
       if (!photo.uploadedUrl) continue;
 
       try {
         const imageResponse = await axios.get(photo.uploadedUrl, { responseType: 'arraybuffer' });
         const imageBuffer = Buffer.from(imageResponse.data);
 
-        const originalFilename = photo.name || 'image.jpg';
-        const seoFilename = `${slugify(productData.name || 'product')}-${slugify(path.parse(originalFilename).name)}.jpg`;
+        // Generate a new SEO-friendly filename, ignoring the original.
+        const baseNameForSeo = productData.imageTitle || productData.name || 'product-image';
+        const filenameSuffix = productData.photos.length > 1 ? `-${index + 1}` : '';
+        const seoFilename = `${slugify(baseNameForSeo)}${filenameSuffix}.jpg`;
 
         const formData = new FormData();
         formData.append('file', imageBuffer, seoFilename);
