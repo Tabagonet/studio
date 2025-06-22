@@ -1,5 +1,5 @@
 
-import { Home, Wand2, FileText, Cog, Bell, Settings, Layers, Brain } from 'lucide-react';
+import { Home, Wand2, FileText, Cog, Bell, Settings, Layers, Brain, UploadCloud } from 'lucide-react';
 import type { NavItem, ProductType, ProductData } from '@/lib/types';
 
 export const APP_NAME = "WooAutomate";
@@ -19,6 +19,12 @@ export const NAV_ITEMS: NavItem[] = [
     title: 'Gestión de Productos',
     href: '/batch',
     icon: Layers,
+  },
+  {
+    title: 'Proceso en Lotes',
+    href: '/batch-process',
+    icon: UploadCloud,
+    disabled: true,
   },
   {
     title: 'Gestión de Plantillas',

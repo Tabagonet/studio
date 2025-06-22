@@ -15,7 +15,7 @@ export default function BatchProcessingPage() {
             <div className="flex items-center space-x-3">
                 <Layers className="h-8 w-8 text-primary" />
                 <div>
-                    <CardTitle>Gestión de Productos en Lote</CardTitle>
+                    <CardTitle>Gestión de Productos</CardTitle>
                     <CardDescription>Visualiza, selecciona y aplica acciones masivas a los productos de tu tienda.</CardDescription>
                 </div>
             </div>
