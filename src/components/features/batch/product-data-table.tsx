@@ -29,7 +29,7 @@ import { Input } from "@/components/ui/input"
 import { getColumns } from "./columns" 
 import type { ProductSearchResult, WooCommerceCategory, ProductStats } from "@/lib/types"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { BrainCircuit, ChevronDown, Loader2, Box, FileCheck2, FileText, BarChart3, Eye, EyeOff } from "lucide-react"
+import { BrainCircuit, ChevronDown, Loader2, Box, FileCheck2, FileText, BarChart3, Eye, EyeOff, Image as ImageIcon } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -296,7 +296,7 @@ export function ProductDataTable() {
     },
   })
 
-  const handleAiAction = async (action: string) => {
+  const handleAiAction = async (action: 'generateDescriptions' | 'generateImageMetadata') => {
     const selectedRows = table.getSelectedRowModel().rows;
     if (selectedRows.length === 0) {
       toast({ title: "No hay productos seleccionados", variant: "destructive" });
@@ -312,20 +312,22 @@ export function ProductDataTable() {
         return;
     }
 
+    const actionText = action === 'generateDescriptions' ? 'descripciones' : 'metadatos de imagen';
+
     toast({
         title: "Procesando con IA...",
-        description: `Aplicando "${action}" a ${productIds.length} producto(s). Esto puede tardar.`,
+        description: `Generando ${actionText} para ${productIds.length} producto(s). Esto puede tardar.`,
     });
 
     try {
         const token = await user.getIdToken();
-        const response = await fetch('/api/process-photos', { // This is the repurposed endpoint
+        const response = await fetch('/api/process-photos', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
             },
-            body: JSON.stringify({ productIds }),
+            body: JSON.stringify({ productIds, action }),
         });
 
         const result = await response.json();
@@ -530,11 +532,11 @@ export function ProductDataTable() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
                  <DropdownMenuLabel>Acciones de IA</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => handleAiAction("Generar Descripciones")}>
+                <DropdownMenuItem onClick={() => handleAiAction("generateDescriptions")}>
                     <BrainCircuit className="mr-2 h-4 w-4" /> Generar Descripciones
                 </DropdownMenuItem>
-                <DropdownMenuItem disabled>
-                    Generar Metadatos para Imágenes
+                <DropdownMenuItem onClick={() => handleAiAction("generateImageMetadata")}>
+                    <ImageIcon className="mr-2 h-4 w-4" /> Generar Metadatos para Imágenes
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Acciones de Estado</DropdownMenuLabel>

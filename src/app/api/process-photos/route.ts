@@ -8,6 +8,7 @@ import { z } from 'zod';
 
 const BatchUpdateInputSchema = z.object({
   productIds: z.array(z.number()).min(1, 'At least one product ID is required.'),
+  action: z.enum(['generateDescriptions', 'generateImageMetadata']),
 });
 
 export async function POST(req: NextRequest) {
@@ -28,9 +29,9 @@ export async function POST(req: NextRequest) {
         if (!validation.success) {
             return NextResponse.json({ error: 'Invalid input', details: validation.error.flatten() }, { status: 400 });
         }
-        const { productIds } = validation.data;
+        const { productIds, action } = validation.data;
 
-        const { wooApi } = await getApiClientsForUser(uid);
+        const { wooApi, wpApi } = await getApiClientsForUser(uid);
 
         const results = {
             success: [] as number[],
@@ -52,12 +53,28 @@ export async function POST(req: NextRequest) {
                     groupedProductIds: [], // Not supported in batch mode for now
                 }, uid, wooApi);
 
-                // 3. Update product in Woo
-                await wooApi.put(`products/${productId}`, {
-                    short_description: aiContent.shortDescription,
-                    description: aiContent.longDescription,
-                    tags: aiContent.keywords.split(',').map(k => ({ name: k.trim() })).filter(k => k.name),
-                });
+                // 3. Perform action based on input
+                if (action === 'generateDescriptions') {
+                    await wooApi.put(`products/${productId}`, {
+                        short_description: aiContent.shortDescription,
+                        description: aiContent.longDescription,
+                        tags: aiContent.keywords.split(',').map(k => ({ name: k.trim() })).filter(k => k.name),
+                    });
+                } else if (action === 'generateImageMetadata') {
+                    if (!product.images || product.images.length === 0) {
+                        throw new Error('El producto no tiene imágenes para actualizar.');
+                    }
+                    // Update metadata for each image associated with the product
+                    for (const image of product.images) {
+                        // The WP REST API uses POST on /media/<id> for updates.
+                        await wpApi.post(`media/${image.id}`, {
+                            title: aiContent.imageTitle,
+                            alt_text: aiContent.imageAltText,
+                            caption: aiContent.imageCaption,
+                            description: aiContent.imageDescription,
+                        });
+                    }
+                }
 
                 results.success.push(productId);
 
