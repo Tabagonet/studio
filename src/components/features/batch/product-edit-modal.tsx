@@ -20,7 +20,6 @@ import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Card, CardContent } from '@/components/ui/card';
 
 interface ProductEditModalProps {
   productId: number;
@@ -122,10 +121,8 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
       `<${tag}>${selectedText}</${tag}>` +
       textarea.value.substring(end);
       
-    // Manually update state
     setProduct({ ...product, [field]: newValue });
 
-    // Refocus the textarea after state update
     setTimeout(() => {
       textarea.focus();
       textarea.setSelectionRange(start + `<${tag}>`.length, end + `<${tag}>`.length);
@@ -161,7 +158,7 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
       }
       
       toast({ title: '¡Éxito!', description: 'El producto ha sido actualizado.' });
-      onClose(true); // Close modal and trigger refresh
+      onClose(true);
 
     } catch (e: any) {
       toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
@@ -173,7 +170,7 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
 
   return (
     <Dialog open={true} onOpenChange={() => onClose(false)}>
-      <DialogContent className="sm:max-w-6xl h-[90vh]">
+      <DialogContent className="sm:max-w-6xl flex flex-col max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Editar Producto</DialogTitle>
           <DialogDescription>
@@ -196,53 +193,59 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
         )}
         
         {!isLoading && !error && product && (
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-4 overflow-hidden h-full">
-              <div className="md:col-span-1 space-y-4 overflow-y-auto pr-4">
-                <div>
-                  <Label htmlFor="name">Nombre</Label>
-                  <Input id="name" name="name" value={product.name} onChange={handleInputChange} />
-                </div>
-                <div>
-                  <Label htmlFor="sku">SKU</Label>
-                  <Input id="sku" name="sku" value={product.sku} onChange={handleInputChange} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+           <div className="grid grid-cols-1 md:grid-cols-5 gap-6 py-4 flex-1 overflow-y-hidden">
+              {/* --- EDITING PANE --- */}
+              <div className="md:col-span-3 space-y-4 overflow-y-auto pr-4">
+                <div className="p-4 rounded-lg bg-muted/30 space-y-4">
                     <div>
-                      <Label htmlFor="regular_price">Precio Regular (€)</Label>
-                      <Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} />
+                      <Label htmlFor="name">Nombre</Label>
+                      <Input id="name" name="name" value={product.name} onChange={handleInputChange} />
                     </div>
                     <div>
-                      <Label htmlFor="sale_price">Precio Oferta (€)</Label>
-                      <Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} />
+                      <Label htmlFor="sku">SKU</Label>
+                      <Input id="sku" name="sku" value={product.sku} onChange={handleInputChange} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="regular_price">Precio Regular (€)</Label>
+                          <Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} />
+                        </div>
+                        <div>
+                          <Label htmlFor="sale_price">Precio Oferta (€)</Label>
+                          <Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} />
+                        </div>
                     </div>
                 </div>
-                <div>
-                    <Label htmlFor="short_description">Descripción Corta</Label>
-                    <div className="border rounded-md">
-                        <div className="p-1 flex items-center gap-1 border-b bg-muted/50">
-                            <Button type="button" size="sm" variant="ghost" className="font-bold" onClick={() => handleApplyTag(shortDescRef, 'short_description', 'strong')}>B</Button>
-                            <Button type="button" size="sm" variant="ghost" className="italic" onClick={() => handleApplyTag(shortDescRef, 'short_description', 'em')}>I</Button>
+
+                <div className="p-4 rounded-lg bg-muted/30 space-y-4">
+                    <div>
+                        <Label htmlFor="short_description">Descripción Corta</Label>
+                        <div className="border rounded-md bg-background">
+                            <div className="p-1 flex items-center gap-1 border-b bg-muted/50">
+                                <Button type="button" size="sm" variant="ghost" className="font-bold" onClick={() => handleApplyTag(shortDescRef, 'short_description', 'strong')}>B</Button>
+                                <Button type="button" size="sm" variant="ghost" className="italic" onClick={() => handleApplyTag(shortDescRef, 'short_description', 'em')}>I</Button>
+                            </div>
+                            <Textarea ref={shortDescRef} id="short_description" name="short_description" value={product.short_description} onChange={handleInputChange} rows={6} className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-t-none" />
                         </div>
-                        <Textarea ref={shortDescRef} id="short_description" name="short_description" value={product.short_description} onChange={handleInputChange} rows={6} className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-t-none" />
                     </div>
-                </div>
-                <div>
-                    <Label htmlFor="description">Descripción Larga</Label>
-                    <div className="border rounded-md">
-                         <div className="p-1 flex items-center gap-1 border-b bg-muted/50">
-                            <Button type="button" size="sm" variant="ghost" className="font-bold" onClick={() => handleApplyTag(longDescRef, 'description', 'strong')}>B</Button>
-                            <Button type="button" size="sm" variant="ghost" className="italic" onClick={() => handleApplyTag(longDescRef, 'description', 'em')}>I</Button>
+                    <div>
+                        <Label htmlFor="description">Descripción Larga</Label>
+                        <div className="border rounded-md bg-background">
+                             <div className="p-1 flex items-center gap-1 border-b bg-muted/50">
+                                <Button type="button" size="sm" variant="ghost" className="font-bold" onClick={() => handleApplyTag(longDescRef, 'description', 'strong')}>B</Button>
+                                <Button type="button" size="sm" variant="ghost" className="italic" onClick={() => handleApplyTag(longDescRef, 'description', 'em')}>I</Button>
+                            </div>
+                            <Textarea ref={longDescRef} id="description" name="description" value={product.description} onChange={handleInputChange} rows={15} className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-t-none" />
                         </div>
-                        <Textarea ref={longDescRef} id="description" name="description" value={product.description} onChange={handleInputChange} rows={15} className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-t-none" />
                     </div>
                 </div>
               </div>
               
-              <div className="md:col-span-1 hidden md:block overflow-y-auto pr-4">
-                <h3 className="text-lg font-medium mb-4 text-center sticky top-0 bg-background py-2 z-10">Vista Previa</h3>
-                <Card>
-                  <CardContent className="p-4 space-y-4">
-                    <div className="relative aspect-square w-full max-w-[300px] mx-auto mb-4">
+              {/* --- PREVIEW PANE --- */}
+              <div className="md:col-span-2 hidden md:flex flex-col overflow-y-auto pl-4 border-l">
+                <h3 className="text-lg font-medium text-center sticky top-0 bg-background py-2 z-10 border-b">Vista Previa</h3>
+                <div className="p-2 space-y-4">
+                    <div className="relative aspect-square w-32 h-32 mx-auto">
                       {product.imageUrl ? (
                         <Image
                           src={product.imageUrl}
@@ -252,36 +255,37 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                         />
                       ) : (
                         <div className="bg-muted rounded-md w-full h-full flex items-center justify-center">
-                          <span className="text-muted-foreground">Sin imagen</span>
+                          <span className="text-muted-foreground text-xs">Sin imagen</span>
                         </div>
                       )}
                     </div>
-                    <h4 className="text-xl font-semibold truncate">{product.name || "Nombre del Producto"}</h4>
-                    <div className="flex items-baseline gap-2 mt-2">
+                    <h4 className="text-lg font-semibold truncate text-center">{product.name || "Nombre del Producto"}</h4>
+                    <div className="flex items-baseline justify-center gap-2 mt-2">
                       {product.sale_price ? (
                         <>
-                          <p className="text-2xl font-bold text-primary">{product.sale_price}€</p>
-                          <p className="text-lg text-muted-foreground line-through">{product.regular_price}€</p>
+                          <p className="text-xl font-bold text-primary">{product.sale_price}€</p>
+                          <p className="text-md text-muted-foreground line-through">{product.regular_price}€</p>
                         </>
                       ) : (
-                        <p className="text-2xl font-bold">{product.regular_price ? `${product.regular_price}€` : 'N/A'}</p>
+                        <p className="text-xl font-bold">{product.regular_price ? `${product.regular_price}€` : 'N/A'}</p>
                       )}
                     </div>
-                    <div>
-                        <h5 className="font-semibold mb-2">Descripción Corta</h5>
-                        <div className="prose prose-sm max-w-none text-muted-foreground" dangerouslySetInnerHTML={{ __html: product.short_description || "..." }} />
+                    <div className="space-y-3 text-sm">
+                        <div>
+                            <h5 className="font-semibold mb-1 border-b pb-1">Descripción Corta</h5>
+                            <div className="prose prose-sm max-w-none text-muted-foreground mt-2" dangerouslySetInnerHTML={{ __html: product.short_description || "..." }} />
+                        </div>
+                         <div>
+                            <h5 className="font-semibold mb-1 border-b pb-1">Descripción Larga</h5>
+                            <div className="prose prose-sm max-w-none text-muted-foreground mt-2 [&_strong]:text-foreground [&_em]:text-foreground" dangerouslySetInnerHTML={{ __html: product.description || "..." }} />
+                        </div>
                     </div>
-                     <div>
-                        <h5 className="font-semibold mb-2">Descripción Larga</h5>
-                        <div className="prose prose-sm max-w-none text-muted-foreground [&_strong]:text-foreground [&_em]:text-foreground" dangerouslySetInnerHTML={{ __html: product.description || "..." }} />
-                    </div>
-                  </CardContent>
-                </Card>
+                </div>
               </div>
            </div>
         )}
 
-        <DialogFooter className="mt-auto pt-4 border-t bg-background">
+        <DialogFooter className="mt-auto pt-4 border-t">
           <DialogClose asChild>
             <Button type="button" variant="secondary" onClick={() => onClose(false)}>
               Cancelar
@@ -296,5 +300,3 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
     </Dialog>
   );
 }
-
-    
