@@ -20,7 +20,8 @@ import type { ProductSearchResult } from "@/lib/types"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export const getColumns = (
-  handleStatusUpdate: (productId: number, newStatus: 'publish' | 'draft') => void
+  handleStatusUpdate: (productId: number, newStatus: 'publish' | 'draft') => void,
+  handleEdit: (productId: number) => void,
 ): ColumnDef<ProductSearchResult>[] => [
   {
     id: "select",
@@ -222,6 +223,10 @@ export const getColumns = (
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Acciones Rápidas</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => handleEdit(product.id)}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Editar producto
+            </DropdownMenuItem>
             {product.status === 'publish' ? (
               <DropdownMenuItem onClick={() => handleStatusUpdate(product.id, 'draft')}>
                 <EyeOff className="mr-2 h-4 w-4" />
@@ -233,10 +238,6 @@ export const getColumns = (
                 Hacer Visible
               </DropdownMenuItem>
             )}
-             <DropdownMenuItem disabled>
-              <Pencil className="mr-2 h-4 w-4" />
-              Editar producto
-            </DropdownMenuItem>
             <DropdownMenuSeparator />
              <DropdownMenuLabel>Otras Acciones</DropdownMenuLabel>
             <DropdownMenuItem

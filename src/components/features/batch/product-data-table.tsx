@@ -33,6 +33,7 @@ import { BrainCircuit, ChevronDown, Loader2, Box, FileCheck2, FileText, BarChart
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ProductEditModal } from "./product-edit-modal"
 
 
 export function ProductDataTable() {
@@ -63,6 +64,8 @@ export function ProductDataTable() {
     pageIndex: 0, 
     pageSize: 10, 
   })
+  
+  const [editingProductId, setEditingProductId] = React.useState<number | null>(null);
 
   const { toast } = useToast()
 
@@ -225,7 +228,19 @@ export function ProductDataTable() {
     }
   }, [toast, fetchData, fetchStats]);
 
-  const columns = React.useMemo(() => getColumns(handleStatusUpdate), [handleStatusUpdate]);
+  const handleEditProduct = (productId: number) => {
+    setEditingProductId(productId);
+  };
+  
+  const handleCloseModal = (refresh: boolean) => {
+    setEditingProductId(null);
+    if (refresh) {
+      fetchData();
+      fetchStats();
+    }
+  };
+
+  const columns = React.useMemo(() => getColumns(handleStatusUpdate, handleEditProduct), [handleStatusUpdate]);
 
   const table = useReactTable({
     data,
@@ -312,6 +327,12 @@ export function ProductDataTable() {
 
   return (
     <div className="w-full space-y-4">
+      {editingProductId && (
+        <ProductEditModal
+          productId={editingProductId}
+          onClose={handleCloseModal}
+        />
+      )}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

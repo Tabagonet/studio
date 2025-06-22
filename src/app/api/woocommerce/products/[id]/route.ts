@@ -4,9 +4,53 @@ import { getApiClientsForUser } from '@/lib/api-helpers';
 import { z } from 'zod';
 import { adminAuth } from '@/lib/firebase-admin';
 
+// Schema for updating a product's status
 const updateStatusSchema = z.object({
   status: z.enum(['publish', 'draft', 'pending', 'private']),
 });
+
+// Schema for updating general product details
+const productUpdateSchema = z.object({
+    name: z.string().min(1, 'Name cannot be empty.').optional(),
+    sku: z.string().optional(),
+    regular_price: z.string().optional(),
+    sale_price: z.string().optional(),
+    short_description: z.string().optional(),
+    description: z.string().optional(),
+    status: z.enum(['publish', 'draft', 'pending', 'private']).optional(),
+}).passthrough(); // Allow other fields to be passed through without validation
+
+
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const token = req.headers.get('Authorization')?.split('Bearer ')[1];
+    if (!token) {
+        return NextResponse.json({ error: 'No auth token provided.' }, { status: 401 });
+    }
+    if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
+    const decodedToken = await adminAuth.verifyIdToken(token);
+    const uid = decodedToken.uid;
+    
+    const { wooApi } = await getApiClientsForUser(uid);
+    const productId = params.id;
+    if (!productId) {
+      return NextResponse.json({ error: 'Product ID is required.' }, { status: 400 });
+    }
+
+    const response = await wooApi.get(`products/${productId}`);
+    return NextResponse.json(response.data);
+
+  } catch (error: any) {
+    console.error(`Error fetching product ${params.id}:`, error.response?.data || error.message);
+    const errorMessage = error.response?.data?.message || 'Failed to fetch product details.';
+    const status = error.message.includes('configure API connections') ? 400 : (error.response?.status || 500);
+    
+    return NextResponse.json(
+      { error: errorMessage, details: error.response?.data },
+      { status }
+    );
+  }
+}
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -25,21 +69,27 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
 
     const body = await req.json();
-    const validationResult = updateStatusSchema.safeParse(body);
-    if (!validationResult.success) {
-      return NextResponse.json({ error: 'Invalid status provided.', details: validationResult.error.flatten() }, { status: 400 });
-    }
 
-    const { status } = validationResult.data;
+    // Check if it's just a status update
+    if (body.status && Object.keys(body).length === 1) {
+        const validationResult = updateStatusSchema.safeParse(body);
+        if (!validationResult.success) {
+            return NextResponse.json({ error: 'Invalid status provided.', details: validationResult.error.flatten() }, { status: 400 });
+        }
+    } else {
+        // It's a full product update
+        const validationResult = productUpdateSchema.safeParse(body);
+        if (!validationResult.success) {
+            return NextResponse.json({ error: 'Invalid product data.', details: validationResult.error.flatten() }, { status: 400 });
+        }
+    }
     
-    const response = await wooApi.put(`products/${productId}`, {
-      status: status,
-    });
+    const response = await wooApi.put(`products/${productId}`, body);
 
     return NextResponse.json({ success: true, data: response.data });
   } catch (error: any) {
     console.error(`Error updating product ${params.id}:`, error.response?.data || error.message);
-    const errorMessage = error.response?.data?.message || 'Failed to update product status.';
+    const errorMessage = error.response?.data?.message || 'Failed to update product.';
     const status = error.message.includes('configure API connections') ? 400 : (error.response?.status || 500);
     
     return NextResponse.json(
