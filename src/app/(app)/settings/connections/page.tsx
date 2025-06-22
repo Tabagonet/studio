@@ -153,6 +153,7 @@ export default function ConnectionsPage() {
                 title: "Conexión Guardada",
                 description: `Los datos para '${key}' han sido guardados y activados.`,
             });
+            window.dispatchEvent(new Event('connections-updated')); // Notify header to update
             await fetchConnections(); // Refetch to update list and active status
             setSelectedKey(key); // Ensure the saved key is now selected
         } catch (error: any) {
@@ -182,6 +183,7 @@ export default function ConnectionsPage() {
             });
             
             toast({ title: "Conexión Eliminada", description: `El perfil para '${selectedKey}' ha sido eliminado.` });
+            window.dispatchEvent(new Event('connections-updated')); // Notify header to update
             await fetchConnections(); // Refetch to update the list
         } catch (error: any) {
             toast({ title: "Error al Eliminar", description: error.message, variant: "destructive" });

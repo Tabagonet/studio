@@ -29,38 +29,50 @@ export function Header() {
   const [isLoadingUrl, setIsLoadingUrl] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const fetchConnectionStatus = async (user: FirebaseUser | null) => {
+        if (user) {
+            setIsLoadingUrl(true);
+            try {
+              const token = await user.getIdToken();
+              const response = await fetch('/api/user-settings/connections', {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              if (response.ok) {
+                const data = await response.json();
+                const activeKey = data.activeConnectionKey;
+                const activeConnection = data.allConnections && activeKey ? data.allConnections[activeKey] : null;
+                setStoreUrl(activeConnection?.wooCommerceStoreUrl || null);
+              } else {
+                setStoreUrl(null);
+              }
+            } catch (error) {
+              console.error("Failed to fetch connection status:", error);
+              setStoreUrl(null);
+            } finally {
+              setIsLoadingUrl(false);
+            }
+        } else {
+            setStoreUrl(null);
+            setIsLoadingUrl(false);
+        }
+    };
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       setIsLoadingAuth(false);
-      
-      if (user) {
-        setIsLoadingUrl(true);
-        try {
-          const token = await user.getIdToken();
-          const response = await fetch('/api/user-settings/connections', {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (response.ok) {
-            const data = await response.json();
-            const activeKey = data.activeConnectionKey;
-            const activeConnection = data.allConnections && activeKey ? data.allConnections[activeKey] : null;
-            setStoreUrl(activeConnection?.wooCommerceStoreUrl || null);
-          } else {
-            setStoreUrl(null);
-          }
-        } catch (error) {
-          console.error("Failed to fetch connection status:", error);
-          setStoreUrl(null);
-        } finally {
-          setIsLoadingUrl(false);
-        }
-      } else {
-        setStoreUrl(null);
-        setIsLoadingUrl(false);
-      }
+      fetchConnectionStatus(user);
     });
 
-    return () => unsubscribe();
+    const handleConnectionsUpdate = () => {
+      fetchConnectionStatus(auth.currentUser);
+    };
+
+    window.addEventListener('connections-updated', handleConnectionsUpdate);
+
+    return () => {
+        unsubscribe();
+        window.removeEventListener('connections-updated', handleConnectionsUpdate);
+    };
   }, []);
 
   const handleSignOut = async () => {
