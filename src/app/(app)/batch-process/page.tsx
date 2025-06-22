@@ -6,7 +6,7 @@ import { useDropzone } from 'react-dropzone';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { UploadCloud, FileText, Info, FileSpreadsheet, Image as ImageIcon, CheckCircle } from "lucide-react";
+import { UploadCloud, FileText, Info, FileSpreadsheet, Image as ImageIcon, CheckCircle, Download } from "lucide-react";
 import { cn } from '@/lib/utils';
 
 // Placeholder type for combined data
@@ -52,6 +52,30 @@ export default function BatchProcessPage() {
     setCsvFile(null);
     setStagedProducts([]);
   };
+
+  const handleDownloadTemplate = () => {
+    const headers = ['sku', 'precio_regular', 'precio_oferta', 'categoria_slug', 'stock_inicial'];
+    const exampleData = [
+      ['SKU-PROD-1', '29.99', '19.99', 'plantas-de-interior', '100'],
+      ['SKU-PROD-2', '35.50', '', 'suculentas', '50'],
+    ];
+    
+    const csvContent = [
+      headers.join(','),
+      ...exampleData.map(row => row.join(','))
+    ].join('\n');
+      
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "plantilla_productos.csv");
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
   
   // This effect would combine the data when files change
   useEffect(() => {
@@ -87,7 +111,7 @@ export default function BatchProcessPage() {
               <strong>Prepara tus Imágenes:</strong> Nombra cada foto con el patrón <strong><code>SKU-NUMERO.jpg</code></strong>. Por ejemplo, <code>CAM-AZ-M-1.jpg</code> y <code>CAM-AZ-M-2.jpg</code> para el mismo producto. El SKU será el identificador único.
             </li>
             <li>
-              <strong>Prepara tu archivo CSV:</strong> Crea una hoja de cálculo con una columna llamada <strong><code>sku</code></strong> que contenga los mismos identificadores que usaste en las imágenes. Añade otras columnas para los datos que no se pueden obtener de la IA (ej. <code>precio_regular</code>, <code>categoria_slug</code>, <code>stock</code>).
+              <strong>Prepara tu archivo CSV:</strong> Descarga nuestra plantilla y crea una hoja de cálculo con una columna llamada <strong><code>sku</code></strong> que contenga los mismos identificadores que usaste en las imágenes. Añade otras columnas para los datos que no se pueden obtener de la IA (ej. <code>precio_regular</code>, <code>categoria_slug</code>, <code>stock</code>).
             </li>
             <li>
               <strong>Sube Ambos Archivos:</strong> Arrastra tus imágenes y tu archivo CSV a las zonas de carga de abajo.
@@ -98,6 +122,22 @@ export default function BatchProcessPage() {
           </ol>
         </AlertDescription>
       </Alert>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Download className="h-5 w-5 text-muted-foreground" /> Plantilla CSV
+          </CardTitle>
+          <CardDescription>
+            Descarga un archivo CSV de ejemplo con las columnas recomendadas para rellenar los datos de tus productos. El campo <strong><code>sku</code></strong> es obligatorio y debe coincidir con el identificador en los nombres de las imágenes.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={handleDownloadTemplate}>
+            Descargar Plantilla de Ejemplo
+          </Button>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>

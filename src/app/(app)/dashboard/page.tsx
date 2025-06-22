@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, UploadCloud, Settings2, History, BarChart3, FileArchive } from "lucide-react";
@@ -36,10 +37,10 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <CardDescription className="mb-4 text-sm">
-                Sube múltiples imágenes para crear varios productos a la vez de forma eficiente.
+                Sube imágenes y un archivo CSV para crear productos de forma masiva y eficiente.
               </CardDescription>
               <Button asChild variant="outline" className="w-full">
-                <Link href="/batch">Iniciar Procesamiento</Link>
+                <Link href="/batch-process">Iniciar Procesamiento</Link>
               </Button>
             </CardContent>
           </Card>
