@@ -244,11 +244,11 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
         )}
         
         {!isLoading && !error && product && (
-           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 py-4 flex-1 overflow-y-hidden">
+           <div className="grid grid-cols-1 lg:grid-cols-10 gap-8 py-4 flex-1 overflow-y-hidden">
               {/* --- EDITING PANE --- */}
-              <div className="lg:col-span-2 space-y-6 overflow-y-auto pr-4">
+              <div className="lg:col-span-7 space-y-4 overflow-y-auto pr-4">
                 
-                <section className="space-y-4">
+                <div className="space-y-4 p-4 border rounded-lg bg-muted/25">
                   <h3 className="text-lg font-medium text-foreground">Información General</h3>
                    <div>
                       <Label htmlFor="name">Nombre del Producto</Label>
@@ -272,11 +272,9 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                           </Select>
                         </div>
                     </div>
-                </section>
+                </div>
                 
-                <Separator />
-
-                <section className="space-y-4">
+                <div className="space-y-4 p-4 border rounded-lg bg-muted/25">
                    <h3 className="text-lg font-medium text-foreground">Precios y Catálogo</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -307,11 +305,9 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                         <Label htmlFor="tags">Etiquetas (separadas por comas)</Label>
                         <Input id="tags" name="tags" value={product.tags} onChange={handleInputChange} />
                     </div>
-                </section>
+                </div>
                 
-                <Separator />
-
-                <section className="space-y-4">
+                <div className="space-y-4 p-4 border rounded-lg bg-muted/25">
                    <h3 className="text-lg font-medium text-foreground">Descripciones</h3>
                     <div>
                         <Label htmlFor="short_description">Descripción Corta</Label>
@@ -333,13 +329,12 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                             <Textarea ref={longDescRef} id="description" name="description" value={product.description} onChange={handleInputChange} rows={10} className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-t-none" />
                         </div>
                     </div>
-                </section>
+                </div>
               </div>
               
               {/* --- PREVIEW PANE --- */}
-              <div className="lg:col-span-1 hidden lg:flex flex-col bg-muted/30 rounded-lg p-4 space-y-4 overflow-y-auto">
-                <h3 className="text-lg font-medium text-center sticky top-0 bg-muted/30 py-2 z-10 border-b -mx-4 px-4">Vista Previa</h3>
-                <div className="pt-2 space-y-4">
+              <div className="lg:col-span-3 hidden lg:flex flex-col bg-card border rounded-lg p-4 space-y-4 overflow-y-auto">
+                <div className="space-y-4">
                     <div className="relative aspect-square w-32 h-32 mx-auto rounded-lg overflow-hidden">
                       {product.imageUrl ? (
                         <Image
@@ -354,7 +349,7 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                         </div>
                       )}
                     </div>
-                    <h4 className="text-xl font-semibold truncate text-center">{product.name || "Nombre del Producto"}</h4>
+                    <h4 className="text-lg font-semibold truncate text-center">{product.name || "Nombre del Producto"}</h4>
                      <div className="text-center space-x-1">
                         <Badge variant={product.status === 'publish' ? 'default' : 'secondary'} className="capitalize">{product.status}</Badge>
                         <Badge variant="outline">{categoryTree.find(c => c.category.id === product.category_id)?.category.name || 'Sin Categoría'}</Badge>
@@ -362,29 +357,29 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
                     <div className="flex items-baseline justify-center gap-2 mt-2">
                       {product.sale_price ? (
                         <>
-                          <p className="text-2xl font-bold text-primary">{product.sale_price}€</p>
-                          <p className="text-md text-muted-foreground line-through">{product.regular_price}€</p>
+                          <p className="text-xl font-bold text-primary">{product.sale_price}€</p>
+                          <p className="text-sm text-muted-foreground line-through">{product.regular_price}€</p>
                         </>
                       ) : (
-                        <p className="text-2xl font-bold">{product.regular_price ? `${product.regular_price}€` : 'N/A'}</p>
+                        <p className="text-xl font-bold">{product.regular_price ? `${product.regular_price}€` : 'N/A'}</p>
                       )}
                     </div>
-                    <div className="space-y-4 text-sm">
+                    <div className="space-y-4 text-xs">
                         <Separator />
                         <div>
-                            <h5 className="font-semibold mb-2">Descripción Corta</h5>
+                            <h5 className="font-semibold mb-1">Descripción Corta</h5>
                             <div className="prose prose-sm max-w-none text-muted-foreground" dangerouslySetInnerHTML={{ __html: product.short_description || "..." }} />
                         </div>
                          <div>
-                            <h5 className="font-semibold mb-2">Descripción Larga</h5>
+                            <h5 className="font-semibold mb-1">Descripción Larga</h5>
                             <div className="prose prose-sm max-w-none text-muted-foreground [&_strong]:text-foreground [&_em]:text-foreground" dangerouslySetInnerHTML={{ __html: product.description || "..." }} />
                         </div>
                         {product.tags && (
                           <div>
-                            <h5 className="font-semibold mb-2">Etiquetas</h5>
-                            <div className="flex flex-wrap gap-2">
+                            <h5 className="font-semibold mb-1">Etiquetas</h5>
+                            <div className="flex flex-wrap gap-1">
                               {product.tags.split(',').map(k => k.trim()).filter(k => k).map((keyword, index) => (
-                                <Badge key={index} variant="secondary">{keyword}</Badge>
+                                <Badge key={index} variant="secondary" className="text-xs">{keyword}</Badge>
                               ))}
                             </div>
                           </div>
@@ -410,5 +405,3 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
     </Dialog>
   );
 }
-
-    
