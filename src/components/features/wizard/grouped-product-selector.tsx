@@ -38,6 +38,7 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
   
   const [categories, setCategories] = useState<WooCommerceCategory[]>([]);
+  const [categoryTree, setCategoryTree] = useState<{ category: WooCommerceCategory; depth: number }[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
   
@@ -167,6 +168,29 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
     return () => unsubscribe();
   }, [toast]);
 
+  // Effect to build the category tree for rendering
+  useEffect(() => {
+    if (categories.length === 0) {
+        setCategoryTree([]);
+        return;
+    }
+
+    const buildTree = (parentId = 0, depth = 0): { category: WooCommerceCategory; depth: number }[] => {
+        const children = categories
+            .filter(cat => cat.parent === parentId)
+            .sort((a, b) => a.name.localeCompare(b.name));
+        
+        let result: { category: WooCommerceCategory; depth: number }[] = [];
+        for (const child of children) {
+            result.push({ category: child, depth });
+            result = result.concat(buildTree(child.id, depth + 1));
+        }
+        return result;
+    };
+    
+    setCategoryTree(buildTree());
+  }, [categories]);
+
   const handleAddProduct = (product: SimpleProductSearchResult) => {
     if (!productIds.includes(product.id)) {
         onProductIdsChange([...productIds, product.id]);
@@ -201,8 +225,13 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
                     {isLoadingCategories ? <SelectItem value="loading" disabled>Cargando...</SelectItem> :
                     <>
                         <SelectItem value="all">Todas las categorías</SelectItem>
-                        {categories.map(cat => (
-                            <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
+                        {categoryTree.map(({ category, depth }) => (
+                            <SelectItem key={category.id} value={category.id.toString()}>
+                                <span style={{ paddingLeft: `${depth * 1.25}rem` }}>
+                                  {depth > 0 && '— '}
+                                  {category.name}
+                                </span>
+                            </SelectItem>
                         ))}
                     </>
                     }
