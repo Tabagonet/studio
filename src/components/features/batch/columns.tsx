@@ -3,7 +3,7 @@
 
 import { ColumnDef } from "@tanstack/react-table"
 import Image from "next/image"
-import { ArrowUpDown, MoreHorizontal, Eye, EyeOff, Pencil } from "lucide-react"
+import { ArrowUpDown, MoreHorizontal, Eye, EyeOff, Pencil, CheckCircle2, XCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import type { ProductSearchResult } from "@/lib/types"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export const getColumns = (
   handleStatusUpdate: (productId: number, newStatus: 'publish' | 'draft') => void
@@ -127,17 +128,46 @@ export const getColumns = (
   },
   {
     accessorKey: "stock_status",
-    header: "Stock",
+    header: () => <div className="text-center">Stock</div>,
     cell: ({ row }) => {
       const stock_status = row.getValue("stock_status") as string;
-      const statusMap: { [key: string]: { text: string; variant: "default" | "secondary" | "destructive" } } = {
-        instock: { text: 'En stock', variant: 'default' },
-        outofstock: { text: 'Agotado', variant: 'destructive' },
-        onbackorder: { text: 'En reserva', variant: 'secondary' },
-      };
-      const statusInfo = statusMap[stock_status] || { text: stock_status, variant: 'secondary' };
+      const centeredDiv = (child: React.ReactNode) => <div className="flex justify-center">{child}</div>;
 
-      return <Badge variant={statusInfo.variant}>{statusInfo.text}</Badge>
+      if (stock_status === 'instock') {
+        return centeredDiv(
+          <TooltipProvider delayDuration={100}>
+            <Tooltip>
+              <TooltipTrigger>
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>En Stock</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )
+      }
+
+      if (stock_status === 'outofstock') {
+        return centeredDiv(
+          <TooltipProvider delayDuration={100}>
+            <Tooltip>
+              <TooltipTrigger>
+                <XCircle className="h-5 w-5 text-destructive" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Agotado</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )
+      }
+      
+      if (stock_status === 'onbackorder') {
+          return centeredDiv(<Badge variant="secondary">En Reserva</Badge>)
+      }
+
+      return centeredDiv(<span className="text-muted-foreground text-sm">N/A</span>)
     },
   },
   {
