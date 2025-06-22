@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
     const query = searchParams.get('q') || '';
     const include = searchParams.get('include');
     const page = searchParams.get('page') || '1';
+    const perPage = searchParams.get('per_page') || '10';
     const category = searchParams.get('category');
     const type = searchParams.get('type');
     const status = searchParams.get('status');
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
     const order = searchParams.get('order') || 'desc';
 
     const params: any = {
-      per_page: 20,
+      per_page: parseInt(perPage, 10),
       page: parseInt(page, 10),
       orderby,
       order,

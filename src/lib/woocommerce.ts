@@ -28,7 +28,10 @@ export function createWooCommerceApi(credentials: WooCommerceCredentials): WooCo
       consumerKey: consumerKey,
       consumerSecret: consumerSecret,
       version: "wc/v3",
-      queryStringAuth: true 
+      queryStringAuth: true,
+      axiosConfig: {
+        timeout: 20000, // 20-second timeout
+      }
     });
     // console.log("WooCommerce API client dynamically created for user.");
     return wooApi;
