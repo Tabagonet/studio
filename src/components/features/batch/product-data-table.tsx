@@ -119,7 +119,8 @@ export function ProductDataTable() {
         params.append('q', nameFilter.value);
       }
       if (sort) {
-        params.append('orderby', sort.id);
+        const orderbyValue = sort.id === 'date_created' ? 'date' : sort.id;
+        params.append('orderby', orderbyValue);
         params.append('order', sort.desc ? 'desc' : 'asc');
       }
 
