@@ -23,23 +23,27 @@ export async function GET(req: NextRequest) {
     const category = searchParams.get('category');
 
     const params: any = {
-      type: 'simple',
       status: 'publish',
-      per_page: 20, // A reasonable page size
+      per_page: 20,
       page: parseInt(page, 10),
+      orderby: 'date', // Added for more consistent results
+      order: 'desc',   // Added for more consistent results
     };
 
     if (include) {
+      // If we are fetching specific products by ID, don't filter by type.
       params.include = include.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
-      delete params.type; 
-    } else if (query) {
-        params.search = query;
+    } else {
+      // If we are fetching the list of available products, it MUST be simple products.
+      params.type = 'simple';
+      if (query) {
+          params.search = query;
+      }
     }
 
     if (category && category !== 'all') {
         params.category = category;
     }
-
 
     const response = await wooApi.get("products", params);
     
