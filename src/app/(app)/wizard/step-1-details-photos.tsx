@@ -20,6 +20,7 @@ import Link from 'next/link';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
+import { VariableProductManager } from '@/components/features/wizard/variable-product-manager';
 
 
 interface Step1DetailsPhotosProps {
@@ -429,18 +430,18 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             </Select>
             {productData.productType === 'variable' && (
               <p className="text-xs text-muted-foreground mt-1">
-                La configuración detallada para productos variables (precios, stock por variación) se realizará en WooCommerce.
+                Define atributos y luego genera variaciones.
               </p>
             )}
             {productData.productType === 'grouped' && (
               <p className="text-xs text-muted-foreground mt-1">
-                Los productos agrupados no tienen precio. Estás creando un "contenedor" al que añadirás otros productos desde WooCommerce.
+                Los productos agrupados no tienen precio. Estás creando un "contenedor" para otros productos.
               </p>
             )}
           </div>
           
           <div className="space-y-4 pt-4 border-t">
-            {productData.productType === 'grouped' ? (
+            {productData.productType === 'grouped' && (
                 <div>
                     <Label className="text-base font-semibold">Productos del Grupo</Label>
                     <p className="text-sm text-muted-foreground mb-2">Selecciona los productos simples que formarán parte de este producto agrupado.</p>
@@ -449,7 +450,9 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                         onProductIdsChange={(ids) => updateProductData({ groupedProductIds: ids })} 
                     />
                 </div>
-            ) : (
+            )}
+
+            {productData.productType !== 'grouped' && (
               <div>
                 <Label className="text-base font-semibold">Atributos del Producto</Label>
                 <p className="text-sm text-muted-foreground mb-2">Añade atributos como talla o color. Para productos variables, marca los que usarás para generar las variaciones.</p>
@@ -471,7 +474,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                           id={`attrValue-${index}`} 
                           value={attr.value} 
                           onChange={(e) => handleAttributeChange(index, 'value', e.target.value)}
-                          placeholder="Ej: Azul | Rojo | Verde (para variaciones)" 
+                          placeholder="Ej: Azul | Rojo | Verde" 
                         />
                         {productData.productType === 'variable' && (
                             <p className="text-xs text-muted-foreground mt-1">Para variaciones, separa los valores con " | " (ej: S | M | L)</p>
@@ -497,11 +500,6 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                   <Button type="button" variant="outline" onClick={addAttribute} className="mt-2">
                     <PlusCircle className="mr-2 h-4 w-4" /> Añadir Atributo
                   </Button>
-                  {productData.productType === 'variable' && (
-                      <p className="text-sm text-muted-foreground mt-2">
-                          La gestión detallada de precios y stock para cada variación se podrá hacer desde WooCommerce una vez creado el producto.
-                      </p>
-                    )}
                   <AiAttributeSuggester keywords={productData.keywords} onAttributesSuggested={handleSuggestedAttributes} />
                 </div>
               </div>
@@ -544,6 +542,13 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             </Select>
             {isLoadingCategories && <p className="text-xs text-muted-foreground mt-1">Cargando categorías desde WooCommerce...</p>}
           </div>
+
+          {productData.productType === 'variable' && (
+            <div className="border-t pt-6">
+                <VariableProductManager productData={productData} updateProductData={updateProductData} />
+            </div>
+          )}
+
         </CardContent>
       </Card>
       
@@ -630,5 +635,3 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     </TooltipProvider>
   );
 }
-
-    

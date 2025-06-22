@@ -5,7 +5,6 @@ import { getApiClientsForUser } from '@/lib/api-helpers';
 import type { ProductData } from '@/lib/types';
 import axios from 'axios';
 import FormData from 'form-data';
-import path from 'path';
 
 const slugify = (text: string) => {
     if (!text) return '';
@@ -103,8 +102,8 @@ export async function POST(request: NextRequest) {
       ...(productData.productType === 'grouped' && { grouped_products: productData.groupedProductIds || [] }),
     };
 
-    // Only add pricing for non-grouped products
-    if (productData.productType !== 'grouped') {
+    // Only add pricing for non-grouped, non-variable products
+    if (productData.productType === 'simple') {
         formattedProduct.regular_price = productData.regularPrice;
         formattedProduct.sale_price = productData.salePrice || undefined;
     }
@@ -112,23 +111,47 @@ export async function POST(request: NextRequest) {
 
     // 4. Send data to WooCommerce to create the product
     const response = await wooApi.post('products', formattedProduct);
+    const createdProduct = response.data;
+    const productId = createdProduct.id;
 
-    if (response.status >= 200 && response.status < 300) {
-      // 5. Fire-and-forget deletion of temp images from quefoto.es
-      for (const photo of productData.photos) {
-        if (photo.uploadedFilename) {
-          const origin = request.nextUrl.origin;
-          axios.post(`${origin}/api/delete-image`, { filename: photo.uploadedFilename }, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          }).catch(deleteError => {
-            console.warn(`Failed to delete temporary image ${photo.uploadedFilename}. Manual cleanup may be required.`, deleteError);
-          });
-        }
+    // 5. If it's a variable product, create the variations in a batch
+    if (productData.productType === 'variable' && productData.variations && productData.variations.length > 0) {
+      const variationsPayload = {
+        create: productData.variations.map(v => ({
+          regular_price: v.regularPrice || undefined,
+          sale_price: v.salePrice || undefined,
+          sku: v.sku || undefined,
+          attributes: v.attributes.map(a => ({
+              name: a.name,
+              option: a.value,
+          })),
+        })),
+      };
+
+      try {
+        await wooApi.post(`products/${productId}/variations/batch`, variationsPayload);
+      } catch (variationError: any) {
+        // If variations fail, the main product was still created. 
+        // We throw an error to inform the user that variations failed.
+        const errorMessage = variationError.response?.data?.message || variationError.message || 'Error desconocido al crear variaciones.';
+        throw new Error(`Producto principal creado (ID: ${productId}), pero falló la creación de variaciones: ${errorMessage}`);
       }
-      return NextResponse.json({ success: true, data: response.data }, { status: response.status });
-    } else {
-      return NextResponse.json({ success: false, error: 'Received a non-successful status from WooCommerce.', details: response.data }, { status: response.status });
     }
+
+
+    // 6. Fire-and-forget deletion of temp images from quefoto.es
+    for (const photo of productData.photos) {
+      if (photo.uploadedFilename) {
+        const origin = request.nextUrl.origin;
+        axios.post(`${origin}/api/delete-image`, { filename: photo.uploadedFilename }, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }).catch(deleteError => {
+          console.warn(`Failed to delete temporary image ${photo.uploadedFilename}. Manual cleanup may be required.`, deleteError);
+        });
+      }
+    }
+    
+    return NextResponse.json({ success: true, data: createdProduct }, { status: response.status });
 
   } catch (error: any) {
     console.error('Error creating product in WooCommerce:', error.response?.data || error.message);

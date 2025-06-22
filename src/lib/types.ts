@@ -33,6 +33,20 @@ export interface ProductAttribute {
   forVariations?: boolean;
 }
 
+export interface ProductVariationAttribute {
+  name: string;
+  value: string;
+}
+
+export interface ProductVariation {
+  id: string; // client-side UUID
+  attributes: ProductVariationAttribute[];
+  sku: string;
+  regularPrice: string;
+  salePrice: string;
+}
+
+
 export type ProductType = 'simple' | 'variable' | 'grouped';
 
 export interface WooCommerceCategory {
@@ -53,6 +67,7 @@ export interface ProductData {
   longDescription: string;
   attributes: ProductAttribute[];
   photos: ProductPhoto[];
+  variations?: ProductVariation[];
   groupedProductIds?: number[];
   language: 'Spanish' | 'English';
   // AI-generated image metadata
