@@ -13,6 +13,11 @@ export interface NavItem {
   adminOnly?: boolean;
 }
 
+export interface NavGroup {
+  title: string;
+  items: NavItem[];
+}
+
 export type UploadStatus = 'pending' | 'uploading' | 'completed' | 'error';
 
 export interface ProductPhoto {

@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, UploadCloud, Settings2, History, BarChart3, Layers, Loader2, Link as LinkIcon, Calendar, Download } from "lucide-react";
+import { PlusCircle, UploadCloud, History, BarChart3, Layers, Loader2, Link as LinkIcon, Calendar, Download, Newspaper } from "lucide-react";
 import Link from "next/link";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
@@ -203,8 +203,8 @@ export default function DashboardPage() {
         <p className="text-muted-foreground">Bienvenido a WooAutomate. Gestiona tus productos y automatizaciones.</p>
       </div>
 
-      <section aria-labelledby="quick-actions-title">
-        <h2 id="quick-actions-title" className="text-xl font-semibold mb-4 text-foreground font-headline">Acciones Rápidas</h2>
+      <section aria-labelledby="quick-actions-woocommerce-title">
+        <h2 id="quick-actions-woocommerce-title" className="text-xl font-semibold mb-4 text-foreground font-headline">Herramientas de WooCommerce</h2>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg flex flex-col">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -235,18 +235,23 @@ export default function DashboardPage() {
               </Button>
             </CardContent>
           </Card>
+        </div>
+      </section>
 
+      <section aria-labelledby="quick-actions-blog-title">
+        <h2 id="quick-actions-blog-title" className="text-xl font-semibold mb-4 text-foreground font-headline">Herramientas de Blog</h2>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg flex flex-col">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-lg font-medium">Configuración</CardTitle>
-              <Settings2 className="h-6 w-6 text-primary" />
+              <CardTitle className="text-lg font-medium">Crear Nueva Entrada</CardTitle>
+              <Newspaper className="h-6 w-6 text-primary" />
             </CardHeader>
             <CardContent className="flex flex-col flex-grow">
               <CardDescription className="mb-4 text-sm">
-                Ajusta plantillas, reglas y claves API para personalizar el plugin.
+                Usa el asistente con IA para generar nuevo contenido y traducciones para tu blog.
               </CardDescription>
               <Button asChild variant="secondary" className="w-full mt-auto">
-                 <Link href="/settings">Ir a Configuración</Link>
+                 <Link href="/blog-creator">Crear Entrada</Link>
               </Button>
             </CardContent>
           </Card>

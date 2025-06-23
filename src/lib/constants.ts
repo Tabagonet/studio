@@ -1,66 +1,48 @@
 
-import { Home, Wand2, FileText, Cog, Bell, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper } from 'lucide-react';
-import type { NavItem, ProductType, ProductData, BlogPostData } from '@/lib/types';
+import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell } from 'lucide-react';
+import type { NavItem, ProductType, ProductData, BlogPostData, NavGroup } from '@/lib/types';
 
 export const APP_NAME = "WooAutomate";
 export const SUPPORT_EMAIL = "intelvisual@intelvisual.es";
 
-export const NAV_ITEMS: NavItem[] = [
+export const NAV_GROUPS: NavGroup[] = [
   {
-    title: 'Panel de Control',
-    href: '/dashboard',
-    icon: Home,
+    title: 'General',
+    items: [
+      { title: 'Panel de Control', href: '/dashboard', icon: Home },
+      { title: 'Notificaciones', href: '/notifications', icon: Bell },
+    ]
   },
   {
-    title: 'Asistente de Creación',
-    href: '/wizard',
-    icon: Wand2,
+    title: 'WooCommerce',
+    items: [
+      { title: 'Asistente de Creación', href: '/wizard', icon: Wand2 },
+      { title: 'Gestión de Productos', href: '/batch', icon: Layers },
+      { title: 'Proceso en Lotes', href: '/batch-process', icon: UploadCloud },
+    ]
   },
   {
-    title: 'Creador de Entradas',
-    href: '/blog-creator',
-    icon: Newspaper,
+    title: 'Blog',
+    items: [
+       { title: 'Creador de Entradas', href: '/blog-creator', icon: Newspaper },
+    ]
+  },
+   {
+    title: 'Ajustes',
+    items: [
+       { title: 'Gestión de Prompts IA', href: '/prompts', icon: Brain },
+       { title: 'Configuración', href: '/settings', icon: Settings },
+    ]
   },
   {
-    title: 'Gestión de Productos',
-    href: '/batch',
-    icon: Layers,
-  },
-  {
-    title: 'Proceso en Lotes',
-    href: '/batch-process',
-    icon: UploadCloud,
-    disabled: false,
-  },
-  {
-    title: 'Gestión de Prompts IA',
-    href: '/prompts',
-    icon: Brain,
-    disabled: false,
-  },
-  {
-    title: 'Notificaciones',
-    href: '/notifications',
-    icon: Bell,
-  },
-  {
-    title: 'Gestión de Usuarios',
-    href: '/admin/users',
-    icon: Users,
-    adminOnly: true,
-  },
-  {
-    title: 'Actividad de Usuarios',
-    href: '/admin/activity',
-    icon: LineChart,
-    adminOnly: true,
-  },
-  {
-    title: 'Configuración',
-    href: '/settings',
-    icon: Settings,
-  },
+    title: 'Administración',
+    items: [
+      { title: 'Gestión de Usuarios', href: '/admin/users', icon: Users, adminOnly: true },
+      { title: 'Actividad de Usuarios', href: '/admin/activity', icon: LineChart, adminOnly: true },
+    ]
+  }
 ];
+
 
 export const WIZARD_STEPS = [
   { id: '01', name: 'Detalles y Fotos', description: 'Información básica y carga de imágenes.' },
