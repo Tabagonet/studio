@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
 
     const { wpApi } = await getApiClientsForUser(uid);
 
-    const statusesToCount = ['publish', 'draft', 'future', 'private'];
+    const statusesToCount = ['publish', 'draft', 'future', 'private', 'pending'];
 
     const getCount = async (params: any): Promise<number> => {
       try {
@@ -28,21 +28,23 @@ export async function GET(req: NextRequest) {
       }
     };
 
-    const allCountPromises = [
-        getCount({}), // Total posts
-        ...statusesToCount.map(status => getCount({ status })),
-    ];
+    // Get counts for each status in parallel
+    const statusCountPromises = statusesToCount.map(status => getCount({ status }));
+    const statusCountsArray = await Promise.all(statusCountPromises);
     
-    const counts = await Promise.all(allCountPromises);
+    // Sum the counts for the total
+    const total = statusCountsArray.reduce((sum, count) => sum + count, 0);
 
-    const [total, ...restCounts] = counts;
+    // Build the status object for the response
+    const statusCountsObject = statusesToCount.reduce((acc, status, index) => {
+        (acc as any)[status] = statusCountsArray[index];
+        return acc;
+    }, {} as { [key: string]: number });
+
 
     const stats = {
       total: total,
-      status: statusesToCount.reduce((acc, status, index) => {
-        (acc as any)[status] = restCounts[index];
-        return acc;
-      }, {} as { [key: string]: number }),
+      status: statusCountsObject
     };
 
     return NextResponse.json(stats);
@@ -58,3 +60,4 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+
