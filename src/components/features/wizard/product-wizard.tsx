@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -6,7 +5,7 @@ import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
 import { Step2Preview } from '@/app/(app)/wizard/step-2-preview'; 
 import { Step3Confirm } from '@/app/(app)/wizard/step-3-confirm';
 import { Step4Processing } from '@/app/(app)/wizard/step-4-processing';
-import type { ProductData, ProductPhoto, WizardProcessingState } from '@/lib/types';
+import type { ProductData, WizardProcessingState } from '@/lib/types';
 import { INITIAL_PRODUCT_DATA } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -44,7 +43,7 @@ export function ProductWizard() {
 
         // Step 1: Upload images to the temporary server (quefoto.es)
         const photosToUpload = productData.photos.filter(p => p.file);
-        const uploadedPhotosInfo: { id: string; uploadedUrl: string; uploadedFilename: string }[] = [];
+        const uploadedPhotosInfo: { id: string | number; uploadedUrl: string; uploadedFilename: string }[] = [];
 
         if (photosToUpload.length > 0) {
           for (const [index, photo] of photosToUpload.entries()) {

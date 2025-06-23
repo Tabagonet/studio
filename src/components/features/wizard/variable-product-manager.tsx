@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -186,5 +185,3 @@ export function VariableProductManager({ productData, updateProductData }: Varia
         </Card>
     );
 }
-
-    

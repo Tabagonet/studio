@@ -7,17 +7,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
+import { VariableProductManager } from '@/components/features/wizard/variable-product-manager';
+import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
 import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory } from '@/lib/types';
 import { PRODUCT_TYPES } from '@/lib/constants';
 import { PlusCircle, Trash2, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface Step1DetailsPhotosProps {
   productData: ProductData;
   updateProductData: (data: Partial<ProductData>) => void;
-  isProcessing?: boolean; // Accept isProcessing prop
+  isProcessing?: boolean;
 }
 
 export function Step1DetailsPhotos({ productData, updateProductData, isProcessing = false }: Step1DetailsPhotosProps) {
@@ -35,7 +38,37 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
           throw new Error(errorData.error || `Error: ${response.status}`);
         }
         const data: WooCommerceCategory[] = await response.json();
-        setWooCategories(data);
+        
+        const categoryMap = new Map<number, WooCommerceCategory>(data.map(cat => [cat.id, { ...cat, children: [] }]));
+        const tree: WooCommerceCategory[] = [];
+
+        data.forEach(cat => {
+            if (cat.parent === 0) {
+                tree.push(categoryMap.get(cat.id)!);
+            } else {
+                const parent = categoryMap.get(cat.parent);
+                if (parent) {
+                    (parent as any).children.push(categoryMap.get(cat.id)!);
+                }
+            }
+        });
+        
+        const flattenedHierarchy: WooCommerceCategory[] = [];
+        const flatten = (categories: WooCommerceCategory[], depth: number) => {
+            for (const category of categories) {
+                flattenedHierarchy.push({
+                    ...category,
+                    name: '— '.repeat(depth) + category.name,
+                });
+                if ((category as any).children.length > 0) {
+                    flatten((category as any).children, depth + 1);
+                }
+            }
+        };
+
+        flatten(tree, 0);
+        setWooCategories(flattenedHierarchy);
+
       } catch (error) {
         console.error("Error fetching WooCommerce categories:", error);
         toast({
@@ -54,14 +87,18 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     updateProductData({ [e.target.name]: e.target.value });
   };
 
-  const handleSelectChange = (name: string, value: string | ProductType) => {
-    updateProductData({ [name]: value });
+  const handleSelectChange = (name: string, value: string) => {
+    if (name === 'category') {
+      const selectedCat = wooCategories.find(c => c.id.toString() === value);
+      updateProductData({ [name]: selectedCat || null });
+    } else {
+      updateProductData({ [name]: value });
+    }
   };
 
   const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
-    if (!productData.name && newPhotos && newPhotos.length > 0) {
+    if (!productData.name && newPhotos.length > 0) {
       const firstNewFile = newPhotos.find(p => p && p.file);
-      
       if (firstNewFile) {
         const { extractedProductName } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
         updateProductData({ photos: newPhotos, name: extractedProductName });
@@ -71,14 +108,14 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     updateProductData({ photos: newPhotos });
   };
   
-  const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string) => {
+  const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string | boolean) => {
     const newAttributes = [...productData.attributes];
     newAttributes[index] = { ...newAttributes[index], [field]: value };
     updateProductData({ attributes: newAttributes });
   };
 
   const addAttribute = () => {
-    updateProductData({ attributes: [...productData.attributes, { name: '', value: '' }] });
+    updateProductData({ attributes: [...productData.attributes, { name: '', value: '', forVariations: false, visible: true }] });
   };
 
   const removeAttribute = (index: number) => {
@@ -126,20 +163,22 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             </Select>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <Label htmlFor="regularPrice">Precio Regular (€)</Label>
-              <Input id="regularPrice" name="regularPrice" type="number" value={productData.regularPrice} onChange={handleInputChange} placeholder="Ej: 29.99" disabled={isProcessing} />
+          {productData.productType !== 'grouped' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <Label htmlFor="regularPrice">Precio Regular (€)</Label>
+                <Input id="regularPrice" name="regularPrice" type="number" value={productData.regularPrice} onChange={handleInputChange} placeholder="Ej: 29.99" disabled={isProcessing || productData.productType === 'variable'} />
+              </div>
+              <div>
+                <Label htmlFor="salePrice">Precio de Oferta (€) (Opcional)</Label>
+                <Input id="salePrice" name="salePrice" type="number" value={productData.salePrice} onChange={handleInputChange} placeholder="Ej: 19.99" disabled={isProcessing || productData.productType === 'variable'} />
+              </div>
             </div>
-            <div>
-              <Label htmlFor="salePrice">Precio de Oferta (€) (Opcional)</Label>
-              <Input id="salePrice" name="salePrice" type="number" value={productData.salePrice} onChange={handleInputChange} placeholder="Ej: 19.99" disabled={isProcessing} />
-            </div>
-          </div>
+          )}
 
           <div>
             <Label htmlFor="category">Categoría</Label>
-            <Select name="category" value={productData.category} onValueChange={(value) => handleSelectChange('category', value)} disabled={isProcessing || isLoadingCategories}>
+            <Select name="category" value={productData.category?.id.toString() || ''} onValueChange={(value) => handleSelectChange('category', value)} disabled={isProcessing || isLoadingCategories}>
               <SelectTrigger id="category">
                 {isLoadingCategories ? (
                   <div className="flex items-center">
@@ -151,9 +190,10 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                 )}
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="">Sin categoría</SelectItem>
                 {!isLoadingCategories && wooCategories.length === 0 && <SelectItem value="" disabled>No hay categorías disponibles</SelectItem>}
                 {wooCategories.map(cat => (
-                  <SelectItem key={cat.id} value={cat.slug}>{cat.name}</SelectItem>
+                  <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -161,6 +201,21 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
           </div>
         </CardContent>
       </Card>
+      
+      {productData.productType === 'grouped' && (
+          <Card>
+              <CardHeader>
+                  <CardTitle>Productos Agrupados</CardTitle>
+                  <CardDescription>Busca y selecciona los productos simples que formarán parte de este grupo.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                  <GroupedProductSelector 
+                      productIds={productData.groupedProductIds || []} 
+                      onProductIdsChange={(ids) => updateProductData({ groupedProductIds: ids })} 
+                  />
+              </CardContent>
+          </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -202,44 +257,44 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         </CardContent>
       </Card>
       
-      <Card>
-        <CardHeader>
-          <CardTitle>Atributos del Producto</CardTitle>
-          <CardDescription>Añade atributos como talla, color, etc. Para productos variables, separa los valores con " | ".</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {productData.attributes.map((attr, index) => (
-            <div key={index} className="flex items-end gap-2 p-3 border rounded-md bg-muted/20">
-              <div className="flex-1">
-                <Label htmlFor={`attrName-${index}`}>Nombre</Label>
-                <Input 
-                  id={`attrName-${index}`} 
-                  value={attr.name} 
-                  onChange={(e) => handleAttributeChange(index, 'name', e.target.value)}
-                  placeholder="Ej: Color" 
-                  disabled={isProcessing}
-                />
-              </div>
-              <div className="flex-1">
-                <Label htmlFor={`attrValue-${index}`}>Valor(es)</Label>
-                <Input 
-                  id={`attrValue-${index}`} 
-                  value={attr.value} 
-                  onChange={(e) => handleAttributeChange(index, 'value', e.target.value)}
-                  placeholder="Ej: Azul | Rojo | Verde" 
-                  disabled={isProcessing}
-                />
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" disabled={isProcessing}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            </div>
-          ))}
-          <Button type="button" variant="outline" onClick={addAttribute} className="mt-2" disabled={isProcessing}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Añadir Atributo
-          </Button>
-        </CardContent>
-      </Card>
+      {productData.productType !== 'grouped' && (
+        <Card>
+            <CardHeader>
+                <CardTitle>Atributos del Producto</CardTitle>
+                <CardDescription>Añade atributos como talla, color, etc. Para productos variables, separa los valores con " | ".</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+            {productData.attributes.map((attr, index) => (
+                <div key={index} className="flex flex-col sm:flex-row items-start sm:items-end gap-2 p-3 border rounded-md bg-muted/20">
+                    <div className="flex-1 w-full">
+                        <Label htmlFor={`attrName-${index}`}>Nombre</Label>
+                        <Input id={`attrName-${index}`} value={attr.name} onChange={(e) => handleAttributeChange(index, 'name', e.target.value)} placeholder="Ej: Color" disabled={isProcessing} />
+                    </div>
+                    <div className="flex-1 w-full">
+                        <Label htmlFor={`attrValue-${index}`}>Valor(es)</Label>
+                        <Input id={`attrValue-${index}`} value={attr.value} onChange={(e) => handleAttributeChange(index, 'value', e.target.value)} placeholder="Ej: Azul | Rojo | Verde" disabled={isProcessing} />
+                    </div>
+                    <div className="flex items-center gap-4 pt-2 sm:pt-0 sm:self-end sm:h-10">
+                        {productData.productType === 'variable' && (
+                           <div className="flex items-center space-x-2">
+                                <Checkbox id={`attrVar-${index}`} checked={attr.forVariations} onCheckedChange={(checked) => handleAttributeChange(index, 'forVariations', !!checked)} disabled={isProcessing} />
+                                <Label htmlFor={`attrVar-${index}`} className="text-sm font-normal whitespace-nowrap">Para variaciones</Label>
+                            </div>
+                        )}
+                        <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" disabled={isProcessing} className="flex-shrink-0">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                    </div>
+                </div>
+            ))}
+            <Button type="button" variant="outline" onClick={addAttribute} className="mt-2" disabled={isProcessing}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Añadir Atributo
+            </Button>
+            </CardContent>
+        </Card>
+      )}
+
+      {productData.productType === 'variable' && <VariableProductManager productData={productData} updateProductData={updateProductData} />}
 
       <Card>
         <CardHeader>
