@@ -67,6 +67,24 @@ export interface WooCommerceCategory {
     parent: number;
 }
 
+export interface WordPressPostCategory {
+    id: number;
+    name: string;
+    slug: string;
+    parent: number;
+    count: number;
+}
+
+export interface BlogPostData {
+  title: string;
+  content: string;
+  topic: string; // for AI
+  keywords: string; // for AI and tags
+  categoryId: number | null;
+  status: 'publish' | 'draft' | 'pending';
+  featuredImage: ProductPhoto | null;
+}
+
 export interface ProductData {
   sku: string;
   shouldSaveSku?: boolean;

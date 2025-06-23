@@ -1,5 +1,5 @@
 
-import { Home, Wand2, FileText, Cog, Bell, Settings, Layers, Brain, UploadCloud, Users, LineChart } from 'lucide-react';
+import { Home, Wand2, FileText, Cog, Bell, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper } from 'lucide-react';
 import type { NavItem, ProductType, ProductData } from '@/lib/types';
 
 export const APP_NAME = "WooAutomate";
@@ -15,6 +15,11 @@ export const NAV_ITEMS: NavItem[] = [
     title: 'Asistente de Creación',
     href: '/wizard',
     icon: Wand2,
+  },
+  {
+    title: 'Creador de Entradas',
+    href: '/blog-creator',
+    icon: Newspaper,
   },
   {
     title: 'Gestión de Productos',

@@ -338,3 +338,36 @@ export async function findOrCreateCategoryByPath(pathString: string, wooApi: Woo
 
     return finalCategoryId;
 }
+
+/**
+ * Finds tags by name or creates them if they don't exist in WordPress.
+ * @param tagNames An array of tag names.
+ * @param wpApi An initialized Axios instance for the WordPress API.
+ * @returns A promise that resolves to an array of tag IDs.
+ */
+export async function findOrCreateTags(tagNames: string[], wpApi: AxiosInstance): Promise<number[]> {
+  if (!tagNames || tagNames.length === 0) {
+    return [];
+  }
+  const tagIds: number[] = [];
+
+  for (const name of tagNames) {
+    try {
+      // 1. Search for the tag
+      const searchResponse = await wpApi.get('/tags', { search: name, per_page: 1 });
+      const existingTag = searchResponse.data.find((tag: any) => tag.name.toLowerCase() === name.toLowerCase());
+
+      if (existingTag) {
+        tagIds.push(existingTag.id);
+      } else {
+        // 2. Create the tag if it doesn't exist
+        const createResponse = await wpApi.post('/tags', { name });
+        tagIds.push(createResponse.data.id);
+      }
+    } catch (error: any) {
+        console.error(`Failed to find or create tag "${name}":`, error.response?.data || error.message);
+        // Continue to the next tag even if one fails
+    }
+  }
+  return tagIds;
+}
