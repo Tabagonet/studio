@@ -2,6 +2,7 @@
 // src/components/core/sidebar-nav.tsx
 "use client";
 
+import React, { useState, useEffect } from 'react';
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -12,7 +13,7 @@ import {
 import { NAV_ITEMS, APP_NAME } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { Package, LogOut } from "lucide-react"; 
-import { auth, firebaseSignOut } from '@/lib/firebase';
+import { auth, firebaseSignOut, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 
@@ -20,6 +21,33 @@ export function SidebarNav() {
   const pathname = usePathname();
   const { toast } = useToast();
   const router = useRouter();
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          const response = await fetch('/api/user/verify', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (response.ok) {
+            const userData = await response.json();
+            setUserRole(userData.role);
+          } else {
+            setUserRole(null);
+          }
+        } catch (error) {
+          console.error("Failed to fetch user role for sidebar", error);
+          setUserRole(null);
+        }
+      } else {
+        setUserRole(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const handleSignOut = async () => {
     try {
@@ -39,6 +67,8 @@ export function SidebarNav() {
     }
   };
 
+  const visibleNavItems = NAV_ITEMS.filter(item => !item.adminOnly || userRole === 'admin');
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-4 py-6 border-b border-sidebar-border">
@@ -46,7 +76,7 @@ export function SidebarNav() {
         <h1 className="text-xl font-semibold text-sidebar-foreground">{APP_NAME}</h1>
       </div>
       <SidebarMenu className="flex-1 p-4 overflow-y-auto">
-        {NAV_ITEMS.map((item) => (
+        {visibleNavItems.map((item) => (
           <SidebarMenuItem key={item.title}>
             <Link
               href={item.href}

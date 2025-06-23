@@ -9,6 +9,7 @@ export interface NavItem {
   label?: string;
   disabled?: boolean;
   external?: boolean;
+  adminOnly?: boolean;
 }
 
 export type UploadStatus = 'pending' | 'uploading' | 'completed' | 'error';

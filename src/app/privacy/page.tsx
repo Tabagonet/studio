@@ -78,7 +78,7 @@ export default function PrivacyPolicyPage() {
 
             <h3>9. Contacto</h3>
             <p>
-              Si tienes alguna pregunta sobre esta Política de Privacidad, por favor, contáctanos en: <a href="mailto:tabagonet@gmail.com">tabagonet@gmail.com</a>.
+              Si tienes alguna pregunta sobre esta Política de Privacidad, por favor, contáctanos en: <a href="mailto:intelvisual@intelvisual.es">intelvisual@intelvisual.es</a>.
             </p>
             <div className="text-center pt-6">
                 <Link href="/login" className="text-sm text-primary hover:underline">Volver al inicio de sesión</Link>
