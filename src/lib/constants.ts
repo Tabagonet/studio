@@ -3,6 +3,7 @@ import { Home, Wand2, FileText, Cog, Bell, Settings, Layers, Brain, UploadCloud,
 import type { NavItem, ProductType, ProductData } from '@/lib/types';
 
 export const APP_NAME = "WooAutomate";
+export const SUPPORT_EMAIL = "intelvisual@intelvisual.es";
 
 export const NAV_ITEMS: NavItem[] = [
   {
@@ -84,5 +85,3 @@ export const INITIAL_PRODUCT_DATA: ProductData = {
   imageDescription: '',
   groupedProductIds: [],
 };
-
-    

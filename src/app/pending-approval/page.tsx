@@ -4,10 +4,11 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { auth, firebaseSignOut } from "@/lib/firebase";
-import { Clock, LogOut } from "lucide-react";
+import { Clock, LogOut, Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import { APP_NAME } from "@/lib/constants";
+import { APP_NAME, SUPPORT_EMAIL } from "@/lib/constants";
+import Link from "next/link";
 
 export default function PendingApprovalPage() {
     const router = useRouter();
@@ -41,12 +42,20 @@ export default function PendingApprovalPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <p className="text-sm text-muted-foreground">
-                        Recibirás una notificación una vez que tu cuenta sea aprobada. Si tienes alguna pregunta, por favor contacta con el soporte.
+                        Si tienes alguna pregunta, por favor contacta con el soporte.
                     </p>
-                    <Button variant="outline" onClick={handleSignOut}>
-                        <LogOut className="mr-2 h-4 w-4" />
-                        Cerrar Sesión
-                    </Button>
+                    <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                        <Button variant="outline" onClick={handleSignOut}>
+                            <LogOut className="mr-2 h-4 w-4" />
+                            Cerrar Sesión
+                        </Button>
+                        <Button asChild>
+                           <Link href={`mailto:${SUPPORT_EMAIL}`}>
+                                <Mail className="mr-2 h-4 w-4" />
+                                Contactar con Soporte
+                            </Link>
+                        </Button>
+                    </div>
                 </CardContent>
             </Card>
         </div>
