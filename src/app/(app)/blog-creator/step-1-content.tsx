@@ -57,6 +57,14 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
     const contentRef = useRef<HTMLTextAreaElement>(null);
     const { toast } = useToast();
 
+    if (!postData) {
+        return (
+            <div className="flex min-h-[400px] items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+        );
+    }
+
     const availableTargetLanguages = ALL_LANGUAGES.filter(lang => lang.code !== postData.sourceLanguage);
 
     useEffect(() => {
@@ -301,3 +309,5 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
         </div>
     );
 }
+
+    
