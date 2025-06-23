@@ -127,4 +127,14 @@ export type ProductStats = {
   };
 };
 
+export interface UserNotification {
+  id: string;
+  recipientUid: string;
+  type: 'new_user_pending' | 'generic';
+  title: string;
+  message: string;
+  link?: string;
+  read: boolean;
+  createdAt: string; // ISO string date
+}
     

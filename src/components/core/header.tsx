@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { UserCircle, LogOut, Settings as SettingsIcon, User as UserIcon, CreditCard, Globe } from "lucide-react";
+import { UserCircle, LogOut, Settings as SettingsIcon, User as UserIcon, CreditCard, Globe, Bell, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +19,9 @@ import { auth, firebaseSignOut, onAuthStateChanged, type FirebaseUser } from '@/
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Skeleton } from '../ui/skeleton';
+import type { UserNotification } from '@/lib/types';
+import { formatDistanceToNow } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export function Header() {
   const router = useRouter();
@@ -27,6 +30,35 @@ export function Header() {
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [storeUrl, setStoreUrl] = useState<string | null>(null);
   const [isLoadingUrl, setIsLoadingUrl] = useState(true);
+
+  const [notifications, setNotifications] = useState<UserNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isNotificationLoading, setIsNotificationLoading] = useState(true);
+
+  const fetchNotifications = async (user: FirebaseUser | null) => {
+    if (user) {
+        setIsNotificationLoading(true);
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/notifications', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setNotifications(data.notifications);
+                setUnreadCount(data.notifications.filter((n: UserNotification) => !n.read).length);
+            }
+        } catch (error) {
+            console.error("Failed to fetch notifications:", error);
+        } finally {
+            setIsNotificationLoading(false);
+        }
+    } else {
+        setNotifications([]);
+        setUnreadCount(0);
+        setIsNotificationLoading(false);
+    }
+  };
 
   useEffect(() => {
     const fetchConnectionStatus = async (user: FirebaseUser | null) => {
@@ -61,6 +93,7 @@ export function Header() {
       setCurrentUser(user);
       setIsLoadingAuth(false);
       fetchConnectionStatus(user);
+      fetchNotifications(user);
     });
 
     const handleConnectionsUpdate = () => {
@@ -74,6 +107,30 @@ export function Header() {
         window.removeEventListener('connections-updated', handleConnectionsUpdate);
     };
   }, []);
+
+  const handleMarkAsRead = async () => {
+    if (unreadCount === 0) return;
+    
+    // Optimistically update UI
+    setUnreadCount(0);
+    // Not changing the individual read status visually in dropdown to avoid re-render flash
+    // The badge disappears, which is the main feedback.
+
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+        const token = await user.getIdToken();
+        await fetch('/api/notifications', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        // On next fetch, notifications will be marked as read.
+    } catch (error) {
+        console.error("Failed to mark notifications as read:", error);
+        // If error, we can revert the unread count, but for now we'll leave it
+        // as the user's intent was to read them.
+    }
+  };
 
   const handleSignOut = async () => {
     try {
@@ -139,9 +196,58 @@ export function Header() {
           <SidebarTrigger />
         </div>
 
-        <div className="flex flex-1 items-center justify-between space-x-4 md:justify-end">
+        <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
           {renderStoreStatus()}
-          <nav className="flex items-center">
+          <nav className="flex items-center space-x-1">
+
+            <DropdownMenu onOpenChange={(open) => { if (open) handleMarkAsRead(); }}>
+              <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+                      <Bell className="h-5 w-5" />
+                      {unreadCount > 0 && (
+                          <span className="absolute top-1.5 right-1.5 flex h-3 w-3">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-destructive"></span>
+                          </span>
+                      )}
+                  </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-80 md:w-96" align="end">
+                  <DropdownMenuLabel>Notificaciones</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {isNotificationLoading ? (
+                      <DropdownMenuItem disabled className="justify-center">
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando...
+                      </DropdownMenuItem>
+                  ) : notifications.length === 0 ? (
+                      <DropdownMenuItem disabled className="justify-center text-center py-4">No tienes notificaciones.</DropdownMenuItem>
+                  ) : (
+                      <>
+                        {notifications.slice(0, 5).map(notification => (
+                            <DropdownMenuItem key={notification.id} asChild className="cursor-pointer">
+                                <Link href={notification.link || '#'} className="flex flex-col items-start !space-x-0 !p-2">
+                                    <div className="flex justify-between w-full">
+                                        <p className="font-semibold">{notification.title}</p>
+                                        {!notification.read && <div className="h-2 w-2 rounded-full bg-primary flex-shrink-0" />}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground whitespace-normal">{notification.message}</p>
+                                    <p className="text-xs text-muted-foreground/80 mt-1">
+                                      {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: es })}
+                                    </p>
+                                </Link>
+                            </DropdownMenuItem>
+                        ))}
+                      </>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                      <Link href="/notifications" className="justify-center">
+                          Ver todas las notificaciones
+                      </Link>
+                  </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             {isLoadingAuth ? (
               <Button variant="ghost" className="relative h-9 w-9 rounded-full" disabled>
                  <UserCircle className="h-6 w-6 animate-pulse" />

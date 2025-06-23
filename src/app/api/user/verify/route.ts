@@ -87,6 +87,27 @@ export async function GET(req: NextRequest) {
       
       await userRef.set(newUser);
       
+      // --- Create notification for admins ---
+      if (newUser.status === 'pending_approval') {
+          const adminsSnapshot = await adminDb.collection('users').where('role', '==', 'admin').get();
+          if (!adminsSnapshot.empty) {
+              const batch = adminDb.batch();
+              adminsSnapshot.forEach(adminDoc => {
+                  const notificationRef = adminDb.collection('notifications').doc();
+                  batch.set(notificationRef, {
+                      recipientUid: adminDoc.id,
+                      type: 'new_user_pending',
+                      title: 'Nuevo Usuario Registrado',
+                      message: `El usuario ${newUser.displayName || newUser.email} está pendiente de aprobación.`,
+                      link: '/admin/users',
+                      read: false,
+                      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                  });
+              });
+              await batch.commit();
+          }
+      }
+
       const { createdAt, ...returnData } = newUser;
       const validatedNewData = userSchema.safeParse(returnData);
       if (!validatedNewData.success) {
