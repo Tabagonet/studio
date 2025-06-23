@@ -63,7 +63,7 @@ const getStatusInfo = (product: StagedProduct) => {
 
 export default function BatchProcessPage() {
   const [imageFiles, setImageFiles] = useState<File[]>([]);
-  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvFile, setCsvFile] = useState<File | null>([]);
   const [csvData, setCsvData] = useState<Record<string, any>[]>([]);
   const [stagedProducts, setStagedProducts] = useState<StagedProduct[]>([]);
   const [isProcessingFiles, setIsProcessingFiles] = useState(false);
@@ -645,3 +645,5 @@ export default function BatchProcessPage() {
     </div>
   );
 }
+
+    

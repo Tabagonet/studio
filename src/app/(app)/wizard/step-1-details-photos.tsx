@@ -325,3 +325,5 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     </div>
   );
 }
+
+    

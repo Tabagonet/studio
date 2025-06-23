@@ -186,3 +186,5 @@ export function VariableProductManager({ productData, updateProductData }: Varia
         </Card>
     );
 }
+
+    

@@ -190,3 +190,5 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
     </div>
   );
 }
+
+    

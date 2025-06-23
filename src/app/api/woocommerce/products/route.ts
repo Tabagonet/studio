@@ -214,3 +214,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: userFriendlyError, details: error.response?.data }, { status: errorStatus });
   }
 }
+
+    
