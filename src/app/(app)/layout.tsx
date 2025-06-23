@@ -7,7 +7,7 @@ import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { AppLayout } from "@/components/core/app-layout";
 import { Loader2 } from 'lucide-react'; 
 
-type AuthStatus = 'loading' | 'authorized' | 'unauthenticated';
+type AuthStatus = 'loading' | 'authorized' | 'unauthenticated' | 'pending_approval' | 'rejected';
 
 export default function AuthenticatedAppLayout({
   children,
@@ -18,15 +18,48 @@ export default function AuthenticatedAppLayout({
   const [authStatus, setAuthStatus] = useState<AuthStatus>('loading');
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user: FirebaseUser | null) => {
-      if (user) {
-        // Temporarily bypass the API verification to stop the auth loop.
-        // We will grant access to any logged-in user for now.
-        setAuthStatus('authorized');
-      } else {
-        // No user, redirect to login
+    const unsubscribe = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
+      if (!user) {
         setAuthStatus('unauthenticated');
         router.replace('/login'); 
+        return;
+      }
+
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/user/verify', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Verification failed with status: ${response.status}`);
+        }
+        
+        const userData = await response.json();
+
+        switch(userData.status) {
+            case 'active':
+                setAuthStatus('authorized');
+                break;
+            case 'pending_approval':
+                setAuthStatus('pending_approval');
+                router.replace('/pending-approval');
+                break;
+            case 'rejected':
+                setAuthStatus('rejected');
+                router.replace('/access-denied');
+                break;
+            default:
+                throw new Error('Unknown user status');
+        }
+
+      } catch (error) {
+        console.error("Error verifying user role:", error);
+        // Fallback to unauthenticated to prevent access on error
+        setAuthStatus('unauthenticated');
+        // Optionally sign out the user if verification fails critically
+        // await auth.signOut(); 
+        router.replace('/login');
       }
     });
 
@@ -42,7 +75,7 @@ export default function AuthenticatedAppLayout({
     );
   }
 
-  // Redirects are handled in useEffect, this is a fallback state
+  // Redirects are handled in useEffect, this is a fallback state for non-authorized statuses
   if (authStatus !== 'authorized') {
     return (
        <div className="flex h-screen w-screen items-center justify-center bg-background">
