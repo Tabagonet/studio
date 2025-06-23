@@ -1,5 +1,6 @@
 
-import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell } from 'lucide-react';
+
+import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList } from 'lucide-react';
 import type { NavItem, ProductType, ProductData, BlogPostData, NavGroup } from '@/lib/types';
 
 export const APP_NAME = "WooAutomate";
@@ -25,6 +26,7 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'Blog',
     items: [
        { title: 'Creador de Entradas', href: '/blog-creator', icon: Newspaper },
+       { title: 'Gestión de Entradas', href: '/blog', icon: ClipboardList },
     ]
   },
    {

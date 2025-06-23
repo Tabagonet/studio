@@ -102,6 +102,18 @@ export interface BlogPostData {
   publishDate: Date | null;
 }
 
+export interface BlogPostSearchResult {
+  id: number;
+  title: string;
+  link: string;
+  status: 'publish' | 'draft' | 'pending' | 'future' | 'private';
+  date_created: string;
+  author_name: string;
+  featured_image_url: string | null;
+  categories: { id: number; name: string }[];
+  tags: { id: number; name: string }[];
+}
+
 export interface ProductData {
   sku: string;
   shouldSaveSku?: boolean;
@@ -168,6 +180,16 @@ export type ProductStats = {
     simple: number;
     variable: number;
     grouped: number;
+  };
+};
+
+export type BlogStats = {
+  total: number;
+  status: {
+    publish: number;
+    draft: number;
+    future: number;
+    private: number;
   };
 };
 

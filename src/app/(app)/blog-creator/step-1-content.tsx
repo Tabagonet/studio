@@ -319,7 +319,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                             <div>
                                 <Label htmlFor="content">Contenido</Label>
                                 <ContentToolbar onInsertTag={handleInsertTag} onInsertLink={() => openActionDialog('link')} onInsertImage={() => openActionDialog('image')} />
-                                <Textarea id="content" name="content" ref={contentRef} value={postData.content} onChange={handleInputChange} rows={25} placeholder="El cuerpo de tu entrada de blog..." className="rounded-t-none" />
+                                <Textarea id="content" name="content" ref={contentRef} value={postData.content} onChange={handleInputChange} rows={30} placeholder="El cuerpo de tu entrada de blog..." className="rounded-t-none" />
                             </div>
 
                              <div className="space-y-4 pt-6 border-t">
