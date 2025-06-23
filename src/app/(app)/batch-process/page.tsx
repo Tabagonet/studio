@@ -73,14 +73,15 @@ export default function BatchProcessPage() {
   const { toast } = useToast();
 
   const onImagesDrop = useCallback((acceptedFiles: File[]) => {
-    // Replace existing images instead of appending to start a new batch
-    clearFiles();
+    // This replaces existing images, allowing the user to correct their selection.
+    // It no longer clears the CSV file.
     setImageFiles(acceptedFiles);
   }, []);
 
   const onCsvDrop = useCallback((acceptedFiles: File[]) => {
+    // A new CSV file always replaces the old one.
+    // This no longer clears the image files.
     if (acceptedFiles.length > 0) {
-      clearFiles();
       setCsvFile(acceptedFiles[0]);
     }
   }, []);
