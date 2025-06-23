@@ -375,50 +375,48 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
         {error && <Alert variant="destructive"><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
         
         {!isLoading && !error && post && (
-           <div className="flex-1 min-h-0">
-           <Tabs defaultValue="edit" className="flex-1 min-h-0 flex flex-col h-full">
-            <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="edit">Editor</TabsTrigger>
-                <TabsTrigger value="preview">Vista Previa</TabsTrigger>
-            </TabsList>
-            <TabsContent value="edit" className="space-y-4 flex-1 overflow-y-auto p-2">
-                <div>
-                  <Label htmlFor="title">Título</Label>
-                  <Input id="title" name="title" value={post.title} onChange={handleInputChange} />
-                </div>
-                <div>
-                  <Label htmlFor="content">Contenido</Label>
-                  <ContentToolbar onInsertTag={handleInsertTag} onInsertLink={() => openActionDialog('link')} onInsertImage={() => openActionDialog('image')} />
-                  <Textarea id="content" name="content" ref={contentRef} value={post.content} onChange={handleInputChange} rows={15} className="rounded-t-none" />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div><Label>Autor</Label><Select name="author" value={post.author?.toString() || ''} onValueChange={(v) => handleSelectChange('author', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{authors.map(a => <SelectItem key={a.id} value={a.id.toString()}>{a.name}</SelectItem>)}</SelectContent></Select></div>
-                    <div><Label>Estado</Label><Select name="status" value={post.status} onValueChange={(v) => handleSelectChange('status', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="publish">Publicado</SelectItem><SelectItem value="draft">Borrador</SelectItem><SelectItem value="pending">Pendiente</SelectItem><SelectItem value="private">Privado</SelectItem><SelectItem value="future">Programado</SelectItem></SelectContent></Select></div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div><Label>Categoría</Label><Select name="category" value={post.category?.toString() || ''} onValueChange={(v) => handleSelectChange('category', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{categories.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent></Select></div>
-                    <div><Label>Etiquetas (separadas por comas)</Label><Input name="tags" value={post.tags} onChange={handleInputChange} /></div>
-                </div>
-                <div><Label>Imagen Destacada</Label><ImageUploader photos={post.featured_media ? [post.featured_media] : []} onPhotosChange={handlePhotosChange} isProcessing={isSaving} /></div>
-                 <div className="space-y-4 pt-6 border-t">
-                    <h3 className="text-sm font-medium text-muted-foreground">Asistente IA</h3>
-                    <div className="p-4 border rounded-lg space-y-3 bg-card">
-                        <Label>Mejorar o etiquetar contenido existente</Label>
-                        <div className="flex flex-col sm:flex-row gap-2">
-                            <Button onClick={() => handleAIGeneration('enhance_content')} disabled={isAiLoading || !post.content} className="w-full">
-                                {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                                Mejorar Contenido
-                            </Button>
-                            <Button onClick={() => handleAIGeneration('suggest_keywords')} disabled={isAiLoading || !post.content} className="w-full" variant="outline">
-                                {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tags className="mr-2 h-4 w-4" />}
-                                Sugerir Etiquetas
-                            </Button>
+            <Tabs defaultValue="edit" className="flex-1 flex flex-col min-h-0">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="edit">Editor</TabsTrigger>
+                    <TabsTrigger value="preview">Vista Previa</TabsTrigger>
+                </TabsList>
+                <TabsContent value="edit" className="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div>
+                    <Label htmlFor="title">Título</Label>
+                    <Input id="title" name="title" value={post.title} onChange={handleInputChange} />
+                    </div>
+                    <div>
+                    <Label htmlFor="content">Contenido</Label>
+                    <ContentToolbar onInsertTag={handleInsertTag} onInsertLink={() => openActionDialog('link')} onInsertImage={() => openActionDialog('image')} />
+                    <Textarea id="content" name="content" ref={contentRef} value={post.content} onChange={handleInputChange} rows={15} className="rounded-t-none" />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div><Label>Autor</Label><Select name="author" value={post.author?.toString() || ''} onValueChange={(v) => handleSelectChange('author', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{authors.map(a => <SelectItem key={a.id} value={a.id.toString()}>{a.name}</SelectItem>)}</SelectContent></Select></div>
+                        <div><Label>Estado</Label><Select name="status" value={post.status} onValueChange={(v) => handleSelectChange('status', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="publish">Publicado</SelectItem><SelectItem value="draft">Borrador</SelectItem><SelectItem value="pending">Pendiente</SelectItem><SelectItem value="private">Privado</SelectItem><SelectItem value="future">Programado</SelectItem></SelectContent></Select></div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div><Label>Categoría</Label><Select name="category" value={post.category?.toString() || ''} onValueChange={(v) => handleSelectChange('category', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{categories.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent></Select></div>
+                        <div><Label>Etiquetas (separadas por comas)</Label><Input name="tags" value={post.tags} onChange={handleInputChange} /></div>
+                    </div>
+                    <div><Label>Imagen Destacada</Label><ImageUploader photos={post.featured_media ? [post.featured_media] : []} onPhotosChange={handlePhotosChange} isProcessing={isSaving} /></div>
+                    <div className="space-y-4 pt-6 border-t">
+                        <h3 className="text-sm font-medium text-muted-foreground">Asistente IA</h3>
+                        <div className="p-4 border rounded-lg space-y-3 bg-card">
+                            <Label>Mejorar o etiquetar contenido existente</Label>
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <Button onClick={() => handleAIGeneration('enhance_content')} disabled={isAiLoading || !post.content} className="w-full">
+                                    {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                    Mejorar Contenido
+                                </Button>
+                                <Button onClick={() => handleAIGeneration('suggest_keywords')} disabled={isAiLoading || !post.content} className="w-full" variant="outline">
+                                    {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tags className="mr-2 h-4 w-4" />}
+                                    Sugerir Etiquetas
+                                </Button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </TabsContent>
-            <TabsContent value="preview" className="flex-1 overflow-y-auto p-1 border rounded-md">
-                 <div className="p-4 space-y-4">
+                </TabsContent>
+                <TabsContent value="preview" className="flex-1 overflow-y-auto p-4 border rounded-md">
                     {post.featured_media?.previewUrl && (
                         <div className="relative h-48 w-full mb-4 rounded-md overflow-hidden">
                             <Image 
@@ -435,12 +433,10 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
                         <span>Autor: <strong>{authors.find(a => a.id === post.author)?.name || "No asignado"}</strong></span>
                     </div>
                     <div className="prose prose-lg dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: post.content || "<p>Contenido no disponible.</p>" }} />
-                </div>
-            </TabsContent>
+                </TabsContent>
            </Tabs>
-           </div>
         )}
-        <DialogFooter className="pt-4 border-t mt-auto">
+        <DialogFooter className="pt-4 border-t">
           <DialogClose asChild><Button type="button" variant="secondary">Cancelar</Button></DialogClose>
           <Button type="submit" onClick={handleSaveChanges} disabled={isSaving || isLoading || !!error}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar Cambios</Button>
         </DialogFooter>
