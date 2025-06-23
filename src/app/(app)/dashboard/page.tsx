@@ -203,9 +203,7 @@ export default function DashboardPage() {
         <p className="text-muted-foreground">Bienvenido a WooAutomate. Gestiona tus productos y automatizaciones.</p>
       </div>
 
-      <section aria-labelledby="quick-actions-woocommerce-title">
-        <h2 id="quick-actions-woocommerce-title" className="text-xl font-semibold mb-4 text-foreground font-headline">Herramientas de WooCommerce</h2>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg flex flex-col">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-lg font-medium">Crear Nuevo Producto</CardTitle>
@@ -235,12 +233,7 @@ export default function DashboardPage() {
               </Button>
             </CardContent>
           </Card>
-        </div>
-      </section>
 
-      <section aria-labelledby="quick-actions-blog-title">
-        <h2 id="quick-actions-blog-title" className="text-xl font-semibold mb-4 text-foreground font-headline">Herramientas de Blog</h2>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg flex flex-col">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-lg font-medium">Crear Nueva Entrada</CardTitle>
@@ -256,7 +249,6 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
-      </section>
 
       <section aria-labelledby="statistics-title">
         <div className="flex justify-between items-center mb-4">
