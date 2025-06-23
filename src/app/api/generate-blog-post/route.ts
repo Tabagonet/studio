@@ -42,18 +42,12 @@ export async function POST(req: NextRequest) {
         const { mode, language, topic, keywords, existingTitle, existingContent } = validationResult.data;
 
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash-latest",
-            generationConfig: {
-                responseMimeType: "application/json",
-            },
-        });
         
         let systemInstruction = '';
         let prompt = '';
 
         if (mode === 'generate_from_topic') {
-            systemInstruction = `You are a professional blog writer and content creator. Your task is to generate a blog post based on a given topic and keywords in the specified language. The response must be a single, valid JSON object with two keys: 'title' and 'content'. The 'title' should be an engaging, SEO-friendly headline. The 'content' should be a well-structured blog post of around 500 words, using HTML tags like <h2>, <p>, <ul>, <li>, and <strong> for formatting. Do not include markdown or the word 'json' in your output.`;
+            systemInstruction = `You are a professional blog writer and content creator. Your task is to generate a blog post based on a given topic and keywords in the specified language. The response must be a single, valid JSON object with three keys: 'title' (an engaging, SEO-friendly headline), 'content' (a well-structured blog post of around 500 words, using HTML tags like <h2>, <p>, <ul>, <li>, and <strong> for formatting), and 'suggestedKeywords' (a comma-separated string of 5-7 relevant, SEO-focused keywords based on the generated content). Do not include markdown or the word 'json' in your output.`;
             prompt = `
                 Generate a blog post.
                 Topic: "${topic}"
@@ -61,7 +55,7 @@ export async function POST(req: NextRequest) {
                 Language: ${language}
             `;
         } else { // enhance_content
-             systemInstruction = `You are an expert SEO copywriter. Enhance the following blog post for better readability, engagement, and search engine optimization. Correct any grammatical errors. Return a valid JSON object with three keys: 'title' (an improved, SEO-friendly title), 'content' (the enhanced content with HTML formatting), and 'suggestedKeywords' (a comma-separated string of 5-7 relevant keywords). Do not include markdown or the word 'json' in your output.`;
+             systemInstruction = `You are an expert SEO copywriter. Enhance the following blog post for better readability, engagement, and search engine optimization. Correct any grammatical errors. Return a valid JSON object with three keys: 'title' (an improved, SEO-friendly title), 'content' (the enhanced content with HTML formatting), and 'suggestedKeywords' (a comma-separated string of 5-7 relevant keywords based on the final content). Do not include markdown or the word 'json' in your output.`;
              prompt = `
                 Enhance this blog post in ${language}.
                 Original Title: "${existingTitle}"
