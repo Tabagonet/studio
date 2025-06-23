@@ -3,6 +3,7 @@
 const nextConfig = {
   // This comment forces a server restart to clear potential cache issues.
   // Adding another comment to trigger a full server reload and clear the cache.
+  // Final comment added to ensure the cache is cleared.
   images: {
     remotePatterns: [
       {
