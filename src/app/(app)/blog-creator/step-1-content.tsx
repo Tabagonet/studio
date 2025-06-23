@@ -307,8 +307,11 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                 {/* Main content column */}
                 <div className="lg:col-span-2 space-y-6">
                     <Card>
-                        <CardHeader><CardTitle>Editor de Contenido</CardTitle></CardHeader>
-                        <CardContent className="space-y-4">
+                        <CardHeader>
+                            <CardTitle>Editor de Contenido y Asistente IA</CardTitle>
+                             <CardDescription>Escribe tu entrada y usa la IA para generar, mejorar o etiquetar tu contenido.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
                             <div>
                                 <Label htmlFor="title">Título de la Entrada</Label>
                                 <Input id="title" name="title" value={postData.title} onChange={handleInputChange} placeholder="El título de tu entrada" />
@@ -318,34 +321,29 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                                 <ContentToolbar onInsertTag={handleInsertTag} onInsertLink={() => openActionDialog('link')} onInsertImage={() => openActionDialog('image')} />
                                 <Textarea id="content" name="content" ref={contentRef} value={postData.content} onChange={handleInputChange} rows={15} placeholder="El cuerpo de tu entrada de blog..." className="rounded-t-none" />
                             </div>
-                        </CardContent>
-                    </Card>
 
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Asistente IA</CardTitle>
-                            <CardDescription>Usa la IA para generar, mejorar o etiquetar tu contenido.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="p-4 border rounded-lg space-y-3">
-                                <Label htmlFor="topic">1. Generar desde un tema</Label>
-                                <Input id="topic" name="topic" value={postData.topic} onChange={handleInputChange} placeholder="Ej: Las 5 mejores plantas de interior" />
-                                <Button onClick={() => handleAIGeneration('generate_from_topic')} disabled={isLoading.ai || !postData.topic} className="w-full">
-                                    {isLoading.ai ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                                    Generar Borrador con Etiquetas
-                                </Button>
-                            </div>
-                            <div className="p-4 border rounded-lg space-y-3">
-                                <Label>2. Mejorar o etiquetar contenido existente</Label>
-                                <div className="flex flex-col sm:flex-row gap-2">
-                                    <Button onClick={() => handleAIGeneration('enhance_content')} disabled={isLoading.ai || !postData.content} className="w-full">
-                                        {isLoading.ai ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                                        Mejorar Contenido
+                             <div className="space-y-4 pt-6 border-t">
+                                <h3 className="text-sm font-medium text-muted-foreground">Asistente IA</h3>
+                                <div className="p-4 border rounded-lg space-y-3 bg-card">
+                                    <Label htmlFor="topic">1. Generar desde un tema</Label>
+                                    <Input id="topic" name="topic" value={postData.topic} onChange={handleInputChange} placeholder="Ej: Las 5 mejores plantas de interior" />
+                                    <Button onClick={() => handleAIGeneration('generate_from_topic')} disabled={isLoading.ai || !postData.topic} className="w-full">
+                                        {isLoading.ai ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                        Generar Borrador con Etiquetas
                                     </Button>
-                                    <Button onClick={() => handleAIGeneration('suggest_keywords')} disabled={isLoading.ai || !postData.content} className="w-full" variant="outline">
-                                        {isLoading.ai ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tags className="mr-2 h-4 w-4" />}
-                                        Sugerir Etiquetas
-                                    </Button>
+                                </div>
+                                <div className="p-4 border rounded-lg space-y-3 bg-card">
+                                    <Label>2. Mejorar o etiquetar contenido existente</Label>
+                                    <div className="flex flex-col sm:flex-row gap-2">
+                                        <Button onClick={() => handleAIGeneration('enhance_content')} disabled={isLoading.ai || !postData.content} className="w-full">
+                                            {isLoading.ai ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                            Mejorar Contenido
+                                        </Button>
+                                        <Button onClick={() => handleAIGeneration('suggest_keywords')} disabled={isLoading.ai || !postData.content} className="w-full" variant="outline">
+                                            {isLoading.ai ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tags className="mr-2 h-4 w-4" />}
+                                            Sugerir Etiquetas
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         </CardContent>
