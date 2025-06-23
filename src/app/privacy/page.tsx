@@ -14,7 +14,7 @@ export default function PrivacyPolicyPage() {
           </CardHeader>
           <CardContent className="prose prose-sm md:prose-base max-w-none text-muted-foreground">
             <p>
-              Bienvenido a {APP_NAME}. Tu privacidad es de suma importancia para nosotros. Esta Política de Privacidad explica cómo {`[Nombre de la Empresa/Tu Nombre]`} ("nosotros", "nuestro") recopila, usa, comparte y protege tu información en relación con el uso de nuestra aplicación web {APP_NAME} (el "Servicio").
+              Bienvenido a {APP_NAME}. Tu privacidad es de suma importancia para nosotros. Esta Política de Privacidad explica cómo {`Grupo 4 alas S.L.`} ("nosotros", "nuestro") recopila, usa, comparte y protege tu información en relación con el uso de nuestra aplicación web {APP_NAME} (el "Servicio").
             </p>
 
             <h3>1. Información que Recopilamos</h3>
@@ -78,7 +78,7 @@ export default function PrivacyPolicyPage() {
 
             <h3>9. Contacto</h3>
             <p>
-              Si tienes alguna pregunta sobre esta Política de Privacidad, por favor, contáctanos en: <a href="mailto:[Tu Email de Contacto]">[Tu Email de Contacto]</a>.
+              Si tienes alguna pregunta sobre esta Política de Privacidad, por favor, contáctanos en: <a href="mailto:intelvisual@intelvisual.es">intelvisual@intelvisual.es</a>.
             </p>
             <div className="text-center pt-6">
                 <Link href="/login" className="text-sm text-primary hover:underline">Volver al inicio de sesión</Link>

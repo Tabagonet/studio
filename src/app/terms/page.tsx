@@ -14,7 +14,7 @@ export default function TermsOfServicePage() {
           </CardHeader>
           <CardContent className="prose prose-sm md:prose-base max-w-none text-muted-foreground">
             <p>
-              Estos términos y condiciones ("Términos") rigen tu acceso y uso de la aplicación web {APP_NAME} (el "Servicio"), operada por {`[Nombre de la Empresa/Tu Nombre]`} ("nosotros", "nuestro"). Al acceder o utilizar el Servicio, aceptas estar sujeto a estos Términos.
+              Estos términos y condiciones ("Términos") rigen tu acceso y uso de la aplicación web {APP_NAME} (el "Servicio"), operada por {`Grupo 4 alas S.L.`} ("nosotros", "nuestro"). Al acceder o utilizar el Servicio, aceptas estar sujeto a estos Términos.
             </p>
 
             <h3>1. Cuentas de Usuario y Aprobación</h3>
@@ -38,7 +38,7 @@ export default function TermsOfServicePage() {
             
             <h3>4. Propiedad Intelectual</h3>
             <p>
-              El Servicio y su contenido original, características y funcionalidades son y seguirán siendo propiedad exclusiva de {`[Nombre de la Empresa/Tu Nombre]`} y sus licenciantes. El Servicio está protegido por derechos de autor, marcas comerciales y otras leyes.
+              El Servicio y su contenido original, características y funcionalidades son y seguirán siendo propiedad exclusiva de {`Grupo 4 alas S.L.`} y sus licenciantes. El Servicio está protegido por derechos de autor, marcas comerciales y otras leyes.
             </p>
 
             <h3>5. Terminación de la Cuenta</h3>
@@ -51,7 +51,7 @@ export default function TermsOfServicePage() {
               El Servicio se proporciona "TAL CUAL" y "SEGÚN DISPONIBILIDAD". En la máxima medida permitida por la ley aplicable, renunciamos a todas las garantías, expresas o implícitas. No garantizamos que el Servicio funcionará sin interrupciones, de forma segura o disponible en cualquier momento o lugar; que cualquier error o defecto será corregido; o que los resultados del uso del Servicio cumplirán con tus requisitos.
             </p>
             <p>
-              En ningún caso {`[Nombre de la Empresa/Tu Nombre]`} será responsable de ninguna pérdida o daño, incluida la pérdida de datos, la interrupción del negocio o cualquier otro daño resultante de tu uso o incapacidad para usar el Servicio o de errores en tus tiendas conectados al Servicio.
+              En ningún caso {`Grupo 4 alas S.L.`} será responsable de ninguna pérdida o daño, incluida la pérdida de datos, la interrupción del negocio o cualquier otro daño resultante de tu uso o incapacidad para usar el Servicio o de errores en tus tiendas conectados al Servicio.
             </p>
 
             <h3>7. Cambios en los Términos</h3>
@@ -61,12 +61,12 @@ export default function TermsOfServicePage() {
 
             <h3>8. Ley Aplicable</h3>
             <p>
-              Estos Términos se regirán e interpretarán de acuerdo con las leyes de {`[Tu País/Región]'}, sin tener en cuenta sus disposiciones sobre conflictos de leyes.
+              Estos Términos se regirán e interpretarán de acuerdo con las leyes de {`España`}, sin tener en cuenta sus disposiciones sobre conflictos de leyes.
             </p>
             
             <h3>9. Contacto</h3>
             <p>
-              Si tienes alguna pregunta sobre estos Términos, por favor, contáctanos en: <a href="mailto:[Tu Email de Contacto]">[Tu Email de Contacto]</a>.
+              Si tienes alguna pregunta sobre estos Términos, por favor, contáctanos en: <a href="mailto:intelvisual@intelvisual.es">intelvisual@intelvisual.es</a>.
             </p>
             <div className="text-center pt-6">
                 <Link href="/login" className="text-sm text-primary hover:underline">Volver al inicio de sesión</Link>
