@@ -5,13 +5,15 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, LineChart, History } from "lucide-react";
+import { Loader2, LineChart, History, Calendar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase";
 import type { ActivityLog } from '@/lib/types';
-import { formatDistanceToNow, parseISO } from 'date-fns';
+import { formatDistanceToNow, parseISO, subDays, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Image from 'next/image';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 
 interface UserStat {
     userId: string;
@@ -22,9 +24,12 @@ interface UserStat {
     connections: Set<string>;
 }
 
+type FilterType = 'this_month' | 'last_30_days' | 'all_time';
+
 export default function AdminActivityPage() {
     const [logs, setLogs] = useState<ActivityLog[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [filter, setFilter] = useState<FilterType>('this_month');
     const { toast } = useToast();
 
     useEffect(() => {
@@ -67,29 +72,48 @@ export default function AdminActivityPage() {
         });
         return () => unsubscribe();
     }, [toast]);
+    
+    const filteredLogs = useMemo(() => {
+        const now = new Date();
+        if (filter === 'this_month') {
+            const startOfThisMonth = startOfMonth(now);
+            return logs.filter(log => parseISO(log.timestamp) >= startOfThisMonth);
+        }
+        if (filter === 'last_30_days') {
+            const thirtyDaysAgo = subDays(now, 30);
+            return logs.filter(log => parseISO(log.timestamp) >= thirtyDaysAgo);
+        }
+        return logs;
+    }, [logs, filter]);
+    
+    const filterOptions: { value: FilterType; label: string }[] = [
+        { value: 'this_month', label: 'Este Mes' },
+        { value: 'last_30_days', label: 'Últimos 30 Días' },
+        { value: 'all_time', label: 'Desde Siempre' },
+    ];
 
     const userStats = useMemo(() => {
+        const productCreationLogs = filteredLogs.filter(log => log.action === 'PRODUCT_CREATED');
         const stats: Record<string, UserStat> = {};
-        logs.forEach(log => {
-            if (log.action === 'PRODUCT_CREATED') {
-                if (!stats[log.userId]) {
-                    stats[log.userId] = {
-                        userId: log.userId,
-                        displayName: log.user.displayName,
-                        email: log.user.email,
-                        photoURL: log.user.photoURL,
-                        productCount: 0,
-                        connections: new Set<string>(),
-                    };
-                }
-                stats[log.userId].productCount++;
-                if (log.details.connectionKey) {
-                    stats[log.userId].connections.add(log.details.connectionKey);
-                }
+        
+        productCreationLogs.forEach(log => {
+            if (!stats[log.userId]) {
+                stats[log.userId] = {
+                    userId: log.userId,
+                    displayName: log.user.displayName,
+                    email: log.user.email,
+                    photoURL: log.user.photoURL,
+                    productCount: 0,
+                    connections: new Set<string>(),
+                };
+            }
+            stats[log.userId].productCount++;
+            if (log.details.connectionKey) {
+                stats[log.userId].connections.add(log.details.connectionKey);
             }
         });
         return Object.values(stats).sort((a,b) => b.productCount - a.productCount);
-    }, [logs]);
+    }, [filteredLogs]);
 
 
     if (isLoading) {
@@ -105,12 +129,25 @@ export default function AdminActivityPage() {
         <div className="space-y-6">
             <Card>
                 <CardHeader>
-                    <div className="flex items-center space-x-3">
-                        <LineChart className="h-8 w-8 text-primary" />
-                        <div>
-                            <CardTitle>Resumen de Actividad por Usuario</CardTitle>
-                            <CardDescription>Estadísticas de creación de productos por cada usuario.</CardDescription>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div className="flex items-center space-x-3">
+                            <LineChart className="h-8 w-8 text-primary" />
+                            <div>
+                                <CardTitle>Resumen de Actividad por Usuario</CardTitle>
+                                <CardDescription>Estadísticas de creación de productos por cada usuario.</CardDescription>
+                            </div>
                         </div>
+                        <Select value={filter} onValueChange={(value: FilterType) => setFilter(value)}>
+                            <SelectTrigger className="w-full sm:w-[200px]">
+                                <Calendar className="mr-2 h-4 w-4" />
+                                <SelectValue placeholder="Seleccionar periodo" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {filterOptions.map(option => (
+                                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -146,7 +183,7 @@ export default function AdminActivityPage() {
                             )) : (
                                 <TableRow>
                                     <TableCell colSpan={3} className="h-24 text-center">
-                                        No hay estadísticas de creación de productos todavía.
+                                        No hay estadísticas de creación de productos para el periodo seleccionado.
                                     </TableCell>
                                 </TableRow>
                             )}
