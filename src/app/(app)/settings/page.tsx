@@ -50,6 +50,7 @@ export default function SettingsPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
+  const [isCleaningOrphans, setIsCleaningOrphans] = useState(false);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -217,6 +218,37 @@ export default function SettingsPage() {
         setIsCleaning(false);
     }
   };
+  
+  const handleOrphanCleanup = async () => {
+    setIsCleaningOrphans(true);
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: 'Error de autenticación', variant: 'destructive' });
+        setIsCleaningOrphans(false);
+        return;
+    }
+
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/admin/cleanup-orphan-logs', {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` },
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || 'No se pudieron limpiar los registros huérfanos.');
+        }
+        
+        toast({ title: 'Limpieza Completada', description: result.message });
+
+    } catch (error: any) {
+        toast({ title: 'Error en la Limpieza', description: error.message, variant: 'destructive' });
+    } finally {
+        setIsCleaningOrphans(false);
+    }
+  };
+
 
   const firebaseAdminHint = "Esta clave (FIREBASE_SERVICE_ACCOUNT_JSON) es para toda la aplicación y se configura en el archivo .env del servidor.";
   const googleAiApiKeyHint = "Esta clave (GOOGLE_API_KEY) es para toda la aplicación y se configura en el archivo .env del servidor. Obtén una clave gratis desde Google AI Studio.";
@@ -337,32 +369,54 @@ export default function SettingsPage() {
 
             <div className="space-y-2 pt-4 border-t">
                 <h4 className="font-medium">Limpieza de Datos</h4>
-                <p className="text-sm text-muted-foreground mb-3">Elimina permanentemente tu historial de actividad y notificaciones de la base de datos. Esta acción no se puede deshacer.</p>
-                
-                <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                        <Button variant="destructive" disabled={isCleaning}>
-                            {isCleaning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                            Limpiar Historial de Actividad
-                        </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                Esta acción eliminará permanentemente todos tus registros de actividad y notificaciones. No se puede deshacer.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleCleanup} className="bg-destructive hover:bg-destructive/90">
-                                Sí, eliminar mi historial
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-
-                 <p className="text-xs text-muted-foreground mt-1">La limpieza de imágenes huérfanas se realizará automáticamente por el servidor en futuras actualizaciones.</p>
+                <p className="text-sm text-muted-foreground mb-3">Elimina datos de la aplicación que ya no son necesarios o pertenecen a usuarios eliminados.</p>
+                <div className="flex flex-wrap gap-4">
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive" disabled={isCleaning}>
+                                {isCleaning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                                Limpiar Mi Historial
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Esta acción eliminará permanentemente todos TUS registros de actividad y notificaciones. No afectará a otros usuarios y no se puede deshacer.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleCleanup} className="bg-destructive hover:bg-destructive/90">
+                                    Sí, eliminar mi historial
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                    
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive" disabled={isCleaningOrphans}>
+                                {isCleaningOrphans ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                                Limpiar Registros Huérfanos
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>¿Confirmar limpieza?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Esta acción buscará y eliminará permanentemente todos los registros de actividad que pertenezcan a usuarios ya eliminados. No se puede deshacer.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleOrphanCleanup} className="bg-destructive hover:bg-destructive/90">
+                                    Sí, limpiar registros
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </div>
             </div>
         </CardContent>
       </Card>
