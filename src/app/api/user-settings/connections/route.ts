@@ -79,12 +79,34 @@ export async function POST(req: NextRequest) {
             ...(setActive && { activeConnectionKey: key })
         }, { merge: true });
         
-        // After successful DB write, update next.config.js
-        // This is a "fire-and-forget" call; we don't want to block the response
-        // or fail the request if this part has an issue.
-        addRemotePattern(key).catch(err => {
-            console.error(`Failed to update next.config.js for hostname ${key}:`, err);
-        });
+        // Fire-and-forget adding hostnames to next.config.js for image optimization
+        const { wooCommerceStoreUrl, wordpressApiUrl } = connectionData;
+        const hostnamesToAdd = new Set<string>();
+
+        if (wooCommerceStoreUrl) {
+            try {
+                hostnamesToAdd.add(new URL(wooCommerceStoreUrl).hostname);
+            } catch {
+                console.warn(`Invalid WooCommerce URL provided for remote pattern: ${wooCommerceStoreUrl}`);
+            }
+        }
+        if (wordpressApiUrl) {
+            try {
+                hostnamesToAdd.add(new URL(wordpressApiUrl).hostname);
+            } catch {
+                console.warn(`Invalid WordPress URL provided for remote pattern: ${wordpressApiUrl}`);
+            }
+        }
+
+        if (hostnamesToAdd.size > 0) {
+            const promises = Array.from(hostnamesToAdd).map(hostname =>
+                addRemotePattern(hostname).catch(err => {
+                    // Log error but don't fail the request
+                    console.error(`Failed to add remote pattern for ${hostname}:`, err);
+                })
+            );
+            Promise.all(promises).catch(err => console.error("Error during batch remote pattern update:", err));
+        }
 
         return NextResponse.json({ success: true, message: 'Connection saved successfully.' });
 

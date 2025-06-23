@@ -35,6 +35,9 @@ const INITIAL_STATE: ConnectionData = {
 
 function getHostname(url: string): string | null {
     try {
+        if (!url.startsWith('http')) {
+            url = `https://${url}`;
+        }
         return new URL(url).hostname;
     } catch (e) {
         return null;
@@ -124,9 +127,18 @@ export default function ConnectionsPage() {
     };
 
     const handleSave = async () => {
-        const key = getHostname(formData.wooCommerceStoreUrl);
+        const wooHostname = getHostname(formData.wooCommerceStoreUrl);
+        const wpHostname = getHostname(formData.wordpressApiUrl);
+        
+        // The key identifies the connection profile. Prioritize Woo URL, fallback to WP URL.
+        const key = wooHostname || wpHostname;
+    
         if (!key) {
-            toast({ title: "URL de la tienda inválida", description: "Por favor, introduce una URL válida para la tienda de WooCommerce.", variant: "destructive" });
+            toast({
+                title: "Datos Incompletos",
+                description: "Por favor, introduce una URL válida para WooCommerce o para WordPress.",
+                variant: "destructive"
+            });
             return;
         }
 
@@ -197,12 +209,12 @@ export default function ConnectionsPage() {
         setTestStatus('testing');
         // This is a mock response
         await new Promise(resolve => setTimeout(resolve, 1500));
-        if (formData.wooCommerceStoreUrl && formData.wordpressApiUrl) {
+        if (formData.wooCommerceStoreUrl || formData.wordpressApiUrl) {
             setTestStatus('success');
-            setTestMessage('¡La conexión con WooCommerce y WordPress parece correcta!');
+            setTestMessage('¡La conexión con los servicios configurados parece correcta!');
         } else {
             setTestStatus('error');
-            setTestMessage('Faltan datos para realizar la prueba. Asegúrate de rellenar las URLs.');
+            setTestMessage('Faltan datos para realizar la prueba. Asegúrate de rellenar las URLs de al menos un servicio.');
         }
     };
 
@@ -225,7 +237,7 @@ export default function ConnectionsPage() {
                         <KeyRound className="h-8 w-8 text-primary" />
                         <div>
                             <CardTitle>Gestión de Conexiones API</CardTitle>
-                            <CardDescription>Guarda y gestiona perfiles para múltiples tiendas WooCommerce.</CardDescription>
+                            <CardDescription>Guarda y gestiona perfiles para conectar tus sitios de WooCommerce y/o WordPress.</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -267,14 +279,14 @@ export default function ConnectionsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <Card>
                     <CardHeader>
-                        <CardTitle>WooCommerce</CardTitle>
-                        <CardDescription>Credenciales para la API REST de WooCommerce.</CardDescription>
+                        <CardTitle>WooCommerce (Tienda)</CardTitle>
+                        <CardDescription>Rellena esta sección para usar las funciones de tienda (crear productos, gestionar stock, etc.).</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div>
                             <Label htmlFor="wooCommerceStoreUrl">URL de la Tienda</Label>
                             <Input id="wooCommerceStoreUrl" name="wooCommerceStoreUrl" value={formData.wooCommerceStoreUrl} onChange={handleInputChange} placeholder="https://mitienda.com" disabled={isSaving} />
-                            <p className="text-xs text-muted-foreground mt-1">La URL se usará como identificador del perfil.</p>
+                            <p className="text-xs text-muted-foreground mt-1">La URL de WooCommerce se usará como identificador principal del perfil si está presente.</p>
                         </div>
                         <div>
                             <Label htmlFor="wooCommerceApiKey">Clave de Cliente (API Key)</Label>
@@ -289,14 +301,14 @@ export default function ConnectionsPage() {
 
                 <Card>
                     <CardHeader>
-                        <CardTitle>WordPress</CardTitle>
-                        <CardDescription>Credenciales para subir imágenes a la biblioteca de medios.</CardDescription>
+                        <CardTitle>WordPress (Blog y Medios)</CardTitle>
+                        <CardDescription>Rellena esta sección para gestionar el blog o para que el sistema pueda subir imágenes a tu biblioteca de medios.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div>
                             <Label htmlFor="wordpressApiUrl">URL de WordPress</Label>
-                            <Input id="wordpressApiUrl" name="wordpressApiUrl" value={formData.wordpressApiUrl} onChange={handleInputChange} placeholder="https://mitienda.com" disabled={isSaving}/>
-                            <p className="text-xs text-muted-foreground mt-1">Normalmente es la misma URL que tu tienda.</p>
+                            <Input id="wordpressApiUrl" name="wordpressApiUrl" value={formData.wordpressApiUrl} onChange={handleInputChange} placeholder="https://misitio.com" disabled={isSaving}/>
+                            <p className="text-xs text-muted-foreground mt-1">Si la URL de WooCommerce está vacía, esta se usará como identificador.</p>
                         </div>
                         <div>
                             <Label htmlFor="wordpressUsername">Nombre de Usuario de WordPress</Label>
