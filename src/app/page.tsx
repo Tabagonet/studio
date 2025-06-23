@@ -22,7 +22,7 @@ export default function RootPage() {
     });
 
     return () => unsubscribe();
-  }, [router]);
+  }, []);
 
   // This loading state will be shown until onAuthStateChanged makes its first determination
   return (

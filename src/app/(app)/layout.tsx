@@ -58,7 +58,7 @@ export default function AuthenticatedAppLayout({
     });
 
     return () => unsubscribe(); 
-  }, [router]);
+  }, []);
   
   if (authStatus === 'loading') {
     return (
