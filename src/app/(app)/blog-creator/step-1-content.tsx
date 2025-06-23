@@ -303,8 +303,9 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
 
     return (
         <>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Main content column */}
+                <div className="lg:col-span-2 space-y-6">
                     <Card>
                         <CardHeader><CardTitle>Editor de Contenido</CardTitle></CardHeader>
                         <CardContent className="space-y-4">
@@ -351,7 +352,8 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                     </Card>
                 </div>
                 
-                <div className="space-y-6">
+                {/* Sidebar column */}
+                <div className="lg:col-span-1 space-y-6">
                     <Card>
                         <CardHeader><CardTitle>Publicación y Traducción</CardTitle></CardHeader>
                         <CardContent className="space-y-6">
