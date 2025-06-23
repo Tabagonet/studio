@@ -102,6 +102,7 @@ export interface ProductSearchResult {
   stock_status: 'instock' | 'outofstock' | 'onbackorder';
   categories: { id: number; name: string }[];
   date_created: string | null;
+  permalink: string;
 }
 
 export interface ParsedNameData {
@@ -111,3 +112,17 @@ export interface ParsedNameData {
 }
 
 export type WizardProcessingState = 'idle' | 'processing' | 'finished' | 'error';
+
+
+export type ProductStats = {
+  total: number;
+  status: {
+    publish: number;
+    draft: number;
+  };
+  type: {
+    simple: number;
+    variable: number;
+    grouped: number;
+  };
+};

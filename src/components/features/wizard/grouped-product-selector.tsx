@@ -83,7 +83,7 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
         }
     };
     syncSelectedProducts();
-  }, [productIds, fetchProductsByIds]);
+  }, [productIds, fetchProductsByIds, selectedProducts]);
 
   const fetchAvailableProducts = useCallback(async (page: number, category: string, search: string) => {
     setIsLoading(true);
@@ -126,11 +126,13 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
   }, [toast]);
   
   const handleCategoryChange = (category: string) => {
+      setAvailableProducts([]);
       setSelectedCategory(category);
       setCurrentPage(1); // Reset page when category changes
   };
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAvailableProducts([]);
     setSearchTerm(e.target.value);
     setCurrentPage(1); // Reset page on new search
   };

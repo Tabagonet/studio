@@ -74,7 +74,7 @@ export const INITIAL_PRODUCT_DATA: ProductData = {
   keywords: "",
   shortDescription: "",
   longDescription: "",
-  attributes: [{ name: "", value: "", forVariations: false }],
+  attributes: [{ name: "", value: "", forVariations: false, visible: true }],
   photos: [],
   variations: [],
   language: 'Spanish',

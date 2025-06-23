@@ -17,6 +17,7 @@ import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { VariableProductManager } from '@/components/features/wizard/variable-product-manager';
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
+import { auth } from '@/lib/firebase';
 
 interface Step1DetailsPhotosProps {
   productData: ProductData;
@@ -99,7 +100,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   };
 
   const addAttribute = () => {
-    updateProductData({ attributes: [...productData.attributes, { name: '', value: '', forVariations: false }] });
+    updateProductData({ attributes: [...productData.attributes, { name: '', value: '', forVariations: false, visible: true }] });
   };
 
   const removeAttribute = (index: number) => {
@@ -253,21 +254,32 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                     />
                 </div>
               </div>
-               {productData.productType === 'variable' && (
-                  <div className="flex flex-col justify-center items-center pl-2 pt-5">
-                      <div className="flex items-center space-x-2">
-                          <Checkbox
-                              id={`attrForVariations-${index}`}
-                              checked={!!attr.forVariations}
-                              onCheckedChange={(checked) => handleAttributeChange(index, 'forVariations', !!checked)}
-                              disabled={isProcessing}
-                          />
-                          <Label htmlFor={`attrForVariations-${index}`} className="text-xs font-normal leading-none cursor-pointer">
-                              Para<br/>variaciones
-                          </Label>
-                      </div>
-                  </div>
-              )}
+              <div className="flex flex-col gap-2 pl-2 pt-5">
+                {productData.productType === 'variable' && (
+                    <div className="flex items-center space-x-2">
+                        <Checkbox
+                            id={`attrForVariations-${index}`}
+                            checked={!!attr.forVariations}
+                            onCheckedChange={(checked) => handleAttributeChange(index, 'forVariations', !!checked)}
+                            disabled={isProcessing}
+                        />
+                        <Label htmlFor={`attrForVariations-${index}`} className="text-xs font-normal leading-none cursor-pointer">
+                            Para<br/>variaciones
+                        </Label>
+                    </div>
+                )}
+                 <div className="flex items-center space-x-2">
+                    <Checkbox
+                        id={`attrVisible-${index}`}
+                        checked={!!attr.visible}
+                        onCheckedChange={(checked) => handleAttributeChange(index, 'visible', !!checked)}
+                        disabled={isProcessing}
+                    />
+                    <Label htmlFor={`attrVisible-${index}`} className="text-xs font-normal leading-none cursor-pointer">
+                        Visible
+                    </Label>
+                </div>
+              </div>
               <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" disabled={isProcessing} className="self-center">
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
@@ -313,4 +325,3 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     </div>
   );
 }
-
