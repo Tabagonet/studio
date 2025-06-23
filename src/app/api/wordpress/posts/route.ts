@@ -34,6 +34,19 @@ const categorySchema = z.object({
   count: z.number(),
 }).nullable();
 
+const featuredImageSchema = z.object({
+  id: z.union([z.string(), z.number()]),
+  file: z.any().optional(),
+  previewUrl: z.string().optional(),
+  name: z.string().optional(),
+  isPrimary: z.boolean().optional(),
+  status: z.string().optional(),
+  progress: z.number().optional(),
+  error: z.string().optional(),
+  uploadedUrl: z.string().url().optional(),
+  uploadedFilename: z.string().optional(),
+}).nullable();
+
 const postSchema = z.object({
   title: z.string().min(1),
   content: z.string().min(1),
@@ -41,7 +54,7 @@ const postSchema = z.object({
   keywords: z.string().optional(),
   category: categorySchema,
   status: z.enum(['publish', 'draft', 'pending']),
-  featuredImage: z.any().nullable(),
+  featuredImage: featuredImageSchema,
   sourceLanguage: z.string(),
   targetLanguages: z.array(z.string()),
   author: authorSchema,
@@ -74,16 +87,34 @@ export async function POST(request: NextRequest) {
 
         // 1. Upload featured image once, if it exists
         let featuredMediaId: number | null = null;
-        if (validatedPostData.featuredImage?.file) {
-             const tempFormData = new FormData();
-             tempFormData.append('imagen', validatedPostData.featuredImage.file);
-             const tempUploadResponse = await axios.post(`${request.nextUrl.origin}/api/upload-image`, tempFormData, { headers: { 'Authorization': `Bearer ${token}` } });
-             if (!tempUploadResponse.data.success) throw new Error(`Failed to upload image to temp host: ${tempUploadResponse.data.error}`);
-            
-            const tempImageUrl = tempUploadResponse.data.url;
+        const featuredImage = validatedPostData.featuredImage;
+
+        if (featuredImage && featuredImage.uploadedUrl) {
             const seoFilename = `${slugify(validatedPostData.title || 'blog-post')}.jpg`;
-            featuredMediaId = await uploadImageToWordPress(tempImageUrl, seoFilename, { title: validatedPostData.title, alt_text: `Imagen destacada para: ${validatedPostData.title}`, caption: '', description: validatedPostData.content.substring(0, 100), }, wpApi);
+            
+            featuredMediaId = await uploadImageToWordPress(
+                featuredImage.uploadedUrl,
+                seoFilename,
+                {
+                    title: validatedPostData.title,
+                    alt_text: `Imagen destacada para: ${validatedPostData.title}`,
+                    caption: '',
+                    description: validatedPostData.content.substring(0, 100),
+                },
+                wpApi
+            );
+
+            // Fire-and-forget deletion of the temporary image
+            if (featuredImage.uploadedFilename) {
+                const origin = request.nextUrl.origin;
+                axios.post(`${origin}/api/delete-image`, { filename: featuredImage.uploadedFilename }, {
+                  headers: { 'Authorization': `Bearer ${token}` }
+                }).catch(deleteError => {
+                  console.warn(`Failed to delete temporary image ${featuredImage.uploadedFilename}. Manual cleanup may be required.`, deleteError);
+                });
+            }
         }
+
 
         // 2. Find or create tags once
         const tagNames = validatedPostData.keywords ? validatedPostData.keywords.split(',').map(t => t.trim()).filter(Boolean) : [];

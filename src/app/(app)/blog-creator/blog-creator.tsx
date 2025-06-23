@@ -38,10 +38,41 @@ export function BlogCreator() {
         if (!user) throw new Error("No autenticado.");
         const token = await user.getIdToken();
 
+        let finalPostData = { ...postData };
+
+        // Handle featured image upload before creating the post
+        if (postData.featuredImage && postData.featuredImage.file) {
+            const formData = new FormData();
+            formData.append('imagen', postData.featuredImage.file);
+            
+            const uploadResponse = await fetch('/api/upload-image', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData,
+            });
+
+            if (!uploadResponse.ok) {
+                const errorData = await uploadResponse.json();
+                throw new Error(`Error al subir la imagen destacada: ${errorData.error || 'Unknown upload error'}`);
+            }
+
+            const imageData = await uploadResponse.json();
+            
+            finalPostData = {
+                ...finalPostData,
+                featuredImage: {
+                    ...finalPostData.featuredImage,
+                    uploadedUrl: imageData.url,
+                    uploadedFilename: imageData.filename_saved_on_server,
+                    file: undefined, // Remove the file object before sending to the next API
+                }
+            };
+        }
+
         const response = await fetch('/api/wordpress/posts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify(postData)
+            body: JSON.stringify(finalPostData)
         });
 
         if (!response.ok) {
@@ -53,7 +84,6 @@ export function BlogCreator() {
         setCreatedPosts(result.createdPosts);
     } catch (error: any) {
         toast({ title: "Error al Crear", description: error.message, variant: "destructive" });
-    } finally {
         setIsCreating(false);
     }
   };
