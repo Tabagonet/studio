@@ -57,12 +57,22 @@ export async function GET(req: NextRequest) {
     const response = await wooApi.get("products", params);
     
     const products: ProductSearchResult[] = response.data.map((product: any) => {
-        let imageUrl = null;
-        if (product.images && product.images.length > 0) {
+        let imageUrl: string | null = null;
+        
+        // Prefer the 'images' array first, as it's the standard for galleries.
+        if (product.images && product.images.length > 0 && product.images[0].src) {
             imageUrl = product.images[0].src;
-        } else if (product.image && typeof product.image === 'object' && product.image.src) {
-            // Handle cases where 'image' is an object with a 'src' property
-            imageUrl = product.image.src;
+        } 
+        // Fallback to the top-level 'image' property.
+        else if (product.image) {
+            // It can be an object with a 'src' property...
+            if (typeof product.image === 'object' && product.image.src) {
+                imageUrl = product.image.src;
+            } 
+            // ...or sometimes just a string URL.
+            else if (typeof product.image === 'string') {
+                imageUrl = product.image;
+            }
         }
 
         return {
@@ -76,6 +86,7 @@ export async function GET(req: NextRequest) {
             stock_status: product.stock_status,
             categories: product.categories.map((c: any) => ({ id: c.id, name: c.name })),
             date_created: product.date_created,
+            permalink: product.permalink,
         };
     });
 
