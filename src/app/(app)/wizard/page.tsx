@@ -1,5 +1,5 @@
 
-import { ProductWizard } from "@/components/features/wizard/product-wizard";
+import { ProductWizard } from "@/app/(app)/wizard/product-wizard";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Wand2 } from "lucide-react";
 

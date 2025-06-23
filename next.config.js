@@ -1,6 +1,7 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Comment added to force a server restart and clear potential cache issues.
   images: {
     remotePatterns: [
       {

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { auth } from '@/lib/firebase';
+import { auth, onAuthStateChanged } from '@/lib/firebase';
 import type { ProductSearchResult, WooCommerceCategory } from '@/lib/types';
 import Image from 'next/image';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -48,19 +48,16 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
   const { toast } = useToast();
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
   
-  const fetchProductsByIds = useCallback(async (ids: number[]) => {
+  const fetchProductsByIds = useCallback(async (ids: number[], token: string) => {
       if (ids.length === 0) return [];
       setIsFetchingDetails(true);
       try {
-        const user = auth.currentUser;
-        if (!user) return [];
-        const token = await user.getIdToken();
         const response = await fetch(`/api/woocommerce/products/search-products?include=${ids.join(',')}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!response.ok) throw new Error('Failed to fetch product details');
         const data = await response.json();
-        return data.products; // API now returns { products, totalPages }
+        return data.products;
       } catch (error) {
         toast({ variant: 'destructive', title: 'Error', description: 'Could not load details for selected products.' });
         return [];
@@ -71,39 +68,39 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
 
   useEffect(() => {
     const syncSelectedProducts = async () => {
+        const user = auth.currentUser;
+        if (!user) return;
+        const token = await user.getIdToken();
+
         const currentDisplayedIds = new Set(selectedProducts.map(p => p.id));
         const idsToFetch = productIds.filter(id => !currentDisplayedIds.has(id));
         const productsToKeep = selectedProducts.filter(p => productIds.includes(p.id));
         
         if (idsToFetch.length > 0) {
-            const newlyFetched = await fetchProductsByIds(idsToFetch);
+            const newlyFetched = await fetchProductsByIds(idsToFetch, token);
             setSelectedProducts([...productsToKeep, ...newlyFetched]);
         } else {
              setSelectedProducts(productsToKeep);
         }
     };
-    syncSelectedProducts();
+
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        syncSelectedProducts();
+      }
+    });
   }, [productIds, fetchProductsByIds]);
 
-  const fetchAvailableProducts = useCallback(async (page: number, category: string, search: string) => {
+  const fetchAvailableProducts = useCallback(async (page: number, category: string, search: string, token: string) => {
     setIsLoading(true);
     try {
-        const user = auth.currentUser;
-        if (!user) return;
-        const token = await user.getIdToken();
-
         const params = new URLSearchParams({
             page: page.toString(),
-            type: 'simple', // Grouped products can only contain simple products.
+            type: 'simple',
         });
         
-        if (search) {
-            params.append('q', search);
-        }
-
-        if (category && category !== 'all') {
-            params.append('category', category);
-        }
+        if (search) params.append('q', search);
+        if (category && category !== 'all') params.append('category', category);
 
         const response = await fetch(`/api/woocommerce/products/search-products?${params.toString()}`, {
             headers: { 'Authorization': `Bearer ${token}` }
@@ -127,18 +124,19 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
   
   const handleCategoryChange = (category: string) => {
       setSelectedCategory(category);
-      setCurrentPage(1); // Reset page when category changes
+      setCurrentPage(1);
   };
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
-    setCurrentPage(1); // Reset page on new search
+    setCurrentPage(1);
   };
   
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
         if (user) {
-            fetchAvailableProducts(currentPage, selectedCategory, debouncedSearchTerm);
+            const token = await user.getIdToken();
+            fetchAvailableProducts(currentPage, selectedCategory, debouncedSearchTerm, token);
         }
     });
     return () => unsubscribe();
@@ -146,12 +144,9 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
 
 
   useEffect(() => {
-    const fetchCats = async () => {
+    const fetchCats = async (token: string) => {
       setIsLoadingCategories(true);
       try {
-        const user = auth.currentUser;
-        if (!user) return;
-        const token = await user.getIdToken();
         const response = await fetch('/api/woocommerce/categories', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -163,24 +158,21 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
         setIsLoadingCategories(false);
       }
     };
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-        if(user) fetchCats();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+        if(user) user.getIdToken().then(fetchCats);
     });
     return () => unsubscribe();
   }, [toast]);
 
-  // Effect to build the category tree for rendering
   useEffect(() => {
     if (categories.length === 0) {
         setCategoryTree([]);
         return;
     }
-
     const buildTree = (parentId = 0, depth = 0): { category: WooCommerceCategory; depth: number }[] => {
         const children = categories
             .filter(cat => cat.parent === parentId)
             .sort((a, b) => a.name.localeCompare(b.name));
-        
         let result: { category: WooCommerceCategory; depth: number }[] = [];
         for (const child of children) {
             result.push({ category: child, depth });
@@ -188,7 +180,6 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
         }
         return result;
     };
-    
     setCategoryTree(buildTree());
   }, [categories]);
 
@@ -262,7 +253,13 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
           </ScrollArea>
            {currentPage < totalPages && !isLoading && (
               <div className="p-2 border-t">
-                  <Button variant="secondary" className="w-full" onClick={() => setCurrentPage(p => p + 1)}>Cargar más productos</Button>
+                  <Button variant="secondary" className="w-full" onClick={() => {
+                      const user = auth.currentUser;
+                      if(user) {
+                          user.getIdToken().then(token => fetchAvailableProducts(currentPage + 1, selectedCategory, debouncedSearchTerm, token));
+                          setCurrentPage(p => p + 1);
+                      }
+                  }}>Cargar más productos</Button>
               </div>
             )}
         </div>
