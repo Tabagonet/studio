@@ -6,36 +6,54 @@ let adminDb: admin.firestore.Firestore | null = null;
 let adminAuth: admin.auth.Auth | null = null;
 let adminStorage: admin.storage.Storage | null = null;
 
-// The service account is expected to be in a single environment variable
+// The credentials can be provided as a single JSON string or as individual environment variables.
 const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+const serviceAccountFromVars = {
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  // Replace escaped newlines in private key
+  privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+};
+
+let serviceAccount: admin.ServiceAccount | undefined;
 
 if (serviceAccountJson) {
-  // Check if the app is already initialized to avoid errors
-  if (!admin.apps.length) {
+  try {
+    serviceAccount = JSON.parse(serviceAccountJson);
+  } catch (e) {
+    console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", e);
+  }
+} else if (serviceAccountFromVars.projectId && serviceAccountFromVars.privateKey && serviceAccountFromVars.clientEmail) {
+  serviceAccount = {
+    projectId: serviceAccountFromVars.projectId,
+    privateKey: serviceAccountFromVars.privateKey,
+    clientEmail: serviceAccountFromVars.clientEmail,
+  };
+}
+
+// Initialize the app only if it hasn't been initialized yet
+if (!admin.apps.length) {
+  if (serviceAccount) {
     try {
-      const serviceAccount = JSON.parse(serviceAccountJson);
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
       });
       console.log('Firebase Admin SDK initialized successfully.');
-      // Get the services after initialization
-      adminDb = admin.firestore();
-      adminAuth = admin.auth();
-      adminStorage = admin.storage();
     } catch (error) {
       console.error('Firebase Admin SDK initialization error:', error);
-      console.error("Please ensure the FIREBASE_SERVICE_ACCOUNT_JSON environment variable is a valid JSON object.");
     }
   } else {
-    // If the app is already initialized, just get the services
+    // This warning is important for debugging in production environments
+    console.warn('Firebase Admin SDK not initialized: No service account credentials found in environment variables. Check FIREBASE_SERVICE_ACCOUNT_JSON or individual FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, FIREBASE_CLIENT_EMAIL variables.');
+  }
+}
+
+// Assign the services if the app was successfully initialized
+if (admin.apps.length > 0) {
     adminDb = admin.firestore();
     adminAuth = admin.auth();
     adminStorage = admin.storage();
-  }
-} else {
-  // Warn if the service account JSON is missing
-  console.warn('Firebase Admin SDK not initialized: FIREBASE_SERVICE_ACCOUNT_JSON environment variable is not set.');
 }
 
 export { adminDb, adminAuth, adminStorage, admin };
