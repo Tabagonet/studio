@@ -4,6 +4,7 @@
 import * as React from "react"
 import {
   ColumnFiltersState,
+  RowSelectionState,
   SortingState,
   flexRender,
   getCoreRowModel,
@@ -23,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { getColumns } from "./columns" 
 import type { BlogPostSearchResult, WordPressPostCategory, BlogStats } from "@/lib/types"
@@ -31,7 +32,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { BlogEditModal } from "./blog-edit-modal"
-import { BookOpen, FileCheck2, FileClock, FileText, Loader2, Lock } from "lucide-react"
+import { BookOpen, FileCheck2, FileClock, FileText, Loader2, Lock, Trash2, ChevronDown } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+
 
 export function BlogDataTable() {
   const [data, setData] = React.useState<BlogPostSearchResult[]>([])
@@ -44,6 +48,7 @@ export function BlogDataTable() {
 
   const [stats, setStats] = React.useState<BlogStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = React.useState(true);
+  const [isBatchActionLoading, setIsBatchActionLoading] = React.useState(false);
 
   // Filter states
   const [selectedCategory, setSelectedCategory] = React.useState('all');
@@ -53,6 +58,7 @@ export function BlogDataTable() {
     { id: 'date_created', desc: true }
   ]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
+  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
   
   const [pagination, setPagination] = React.useState({
     pageIndex: 0, 
@@ -255,6 +261,7 @@ export function BlogDataTable() {
     columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -268,8 +275,67 @@ export function BlogDataTable() {
       sorting,
       columnFilters,
       pagination,
+      rowSelection,
     },
-  })
+  });
+
+  const handleBatchDelete = async () => {
+    setIsBatchActionLoading(true);
+    const selectedRows = table.getSelectedRowModel().rows;
+    const postIds = selectedRows.map(row => row.original.id);
+
+    if (postIds.length === 0) {
+        toast({ title: "No hay entradas seleccionadas", variant: "destructive" });
+        setIsBatchActionLoading(false);
+        return;
+    }
+
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: "No autenticado", variant: "destructive" });
+        setIsBatchActionLoading(false);
+        return;
+    }
+
+    toast({ title: `Eliminando ${postIds.length} entrada(s)...` });
+
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/wordpress/posts/batch', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ postIds, action: 'delete' })
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || result.message || 'Fallo la acción en lote.');
+        }
+
+        toast({
+            title: "¡Acción completada!",
+            description: result.message,
+        });
+
+        table.resetRowSelection();
+        fetchData();
+        fetchStats();
+
+    } catch (error: any) {
+        toast({
+            title: "Error en la eliminación en lote",
+            description: error.message,
+            variant: "destructive",
+        });
+    } finally {
+        setIsBatchActionLoading(false);
+    }
+};
+
+  const selectedRowCount = table.getFilteredSelectedRowModel().rows.length;
 
   return (
     <div className="w-full space-y-4">
@@ -317,6 +383,38 @@ export function BlogDataTable() {
               </SelectContent>
             </Select>
         </div>
+         <AlertDialog>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={selectedRowCount === 0 || isBatchActionLoading} className="w-full md:w-auto mt-2 md:mt-0">
+                {isBatchActionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronDown className="mr-2 h-4 w-4" />}
+                Acciones ({selectedRowCount})
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Acciones en Lote</DropdownMenuLabel>
+              <AlertDialogTrigger asChild>
+                <DropdownMenuItem className="text-destructive focus:text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" /> Eliminar Entradas
+                </DropdownMenuItem>
+              </AlertDialogTrigger>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+                  <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                      Esta acción no se puede deshacer. Se eliminarán permanentemente {selectedRowCount} entrada(s).
+                  </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                  <AlertDialogCancel onClick={() => setIsBatchActionLoading(false)}>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleBatchDelete} className={buttonVariants({ variant: "destructive" })}>
+                      Sí, eliminar entradas
+                  </AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
       <div className="rounded-md border">
         <Table>
@@ -332,9 +430,15 @@ export function BlogDataTable() {
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end space-x-2 py-4">
-        <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>Anterior</Button>
-        <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>Siguiente</Button>
+      <div className="flex items-center justify-between space-x-2 py-4">
+        <div className="flex-1 text-sm text-muted-foreground">
+          {table.getFilteredSelectedRowModel().rows.length} de{" "}
+          {table.getFilteredRowModel().rows.length} fila(s) seleccionadas.
+        </div>
+        <div className="space-x-2">
+            <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>Anterior</Button>
+            <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>Siguiente</Button>
+        </div>
       </div>
     </div>
   )

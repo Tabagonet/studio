@@ -5,6 +5,7 @@ import { ColumnDef } from "@tanstack/react-table"
 import Image from "next/image"
 import Link from "next/link"
 import { ArrowUpDown, MoreHorizontal, Eye, EyeOff, Pencil, ExternalLink, Trash2 } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
 
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
@@ -24,6 +25,28 @@ export const getColumns = (
   handleEdit: (postId: number) => void,
   handleDelete: (postId: number) => void,
 ): ColumnDef<BlogPostSearchResult>[] => [
+  {
+    id: "select",
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected() ||
+          (table.getIsSomePageRowsSelected() && "indeterminate")
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Seleccionar todas las filas"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        aria-label="Seleccionar fila"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
   {
     accessorKey: "title",
     header: ({ column }) => (
@@ -77,20 +100,6 @@ export const getColumns = (
         <div className="flex flex-wrap gap-1">
           {categories.slice(0, 2).map(cat => <Badge key={cat.id} variant="outline">{cat.name}</Badge>)}
           {categories.length > 2 && <Badge variant="outline">+{categories.length - 2}</Badge>}
-        </div>
-      );
-    },
-  },
-  {
-    accessorKey: "tags",
-    header: "Etiquetas",
-    cell: ({ row }) => {
-      const tags = row.original.tags;
-      if (!tags || tags.length === 0) return <span className="text-muted-foreground">N/A</span>;
-      return (
-        <div className="flex flex-wrap gap-1">
-          {tags.slice(0, 2).map(tag => <Badge key={tag.id} variant="secondary">{tag.name}</Badge>)}
-          {tags.length > 2 && <Badge variant="secondary">+{tags.length - 2}</Badge>}
         </div>
       );
     },
