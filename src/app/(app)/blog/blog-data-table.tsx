@@ -115,7 +115,8 @@ export function BlogDataTable() {
         params.append('q', titleFilter.value);
       }
       if (sort) {
-        params.append('orderby', sort.id);
+        const orderbyValue = sort.id === 'date_created' ? 'date' : sort.id;
+        params.append('orderby', orderbyValue);
         params.append('order', sort.desc ? 'desc' : 'asc');
       }
 
