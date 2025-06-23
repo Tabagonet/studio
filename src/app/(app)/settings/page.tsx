@@ -6,9 +6,10 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { KeyRound, DatabaseZap, Download, Upload, Info, BrainCircuit, Loader2, ExternalLink, Server, Store, Globe } from "lucide-react";
+import { KeyRound, DatabaseZap, Download, Upload, Info, BrainCircuit, Loader2, ExternalLink, Server, Store, Globe, Trash2 } from "lucide-react";
 import { auth } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 
 type ServerConfigStatus = {
@@ -47,6 +48,7 @@ export default function SettingsPage() {
   const [serverConfig, setServerConfig] = useState<ServerConfigStatus | null>(null);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+  const [isCleaning, setIsCleaning] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -117,11 +119,41 @@ export default function SettingsPage() {
         a.remove();
         window.URL.revokeObjectURL(url);
 
-        toast({ title: 'Exportación Exitosa', description: 'Tu archivo de configuración se ha descargado.' });
+        toast({ title: 'Exportación Exitosa', description: 'Tu archivo de configuración de seguridad se ha descargado.' });
     } catch (error: any) {
         toast({ title: 'Error al Exportar', description: error.message, variant: 'destructive' });
     } finally {
         setIsExporting(false);
+    }
+  };
+
+  const handleCleanup = async () => {
+    setIsCleaning(true);
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: 'Error de autenticación', variant: 'destructive' });
+        setIsCleaning(false);
+        return;
+    }
+
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/user-settings/cleanup', {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` },
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || 'No se pudieron limpiar los datos.');
+        }
+        
+        toast({ title: 'Limpieza Completada', description: 'Tu historial de actividad y notificaciones ha sido eliminado.' });
+
+    } catch (error: any) {
+        toast({ title: 'Error en la Limpieza', description: error.message, variant: 'destructive' });
+    } finally {
+        setIsCleaning(false);
     }
   };
 
@@ -227,24 +259,54 @@ export default function SettingsPage() {
             <DatabaseZap className="h-6 w-6 text-primary" />
             <CardTitle>Gestión de Datos y Plantillas</CardTitle>
           </div>
-          <CardDescription>Exporta tus conexiones de API y plantillas de prompts a un archivo de seguridad JSON.</CardDescription>
+          <CardDescription>Exporta tus conexiones de API y plantillas de prompts a un archivo JSON de seguridad. También puedes limpiar tu historial de actividad.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-4">
-                <Button variant="outline" onClick={handleExportSettings} disabled={isExporting}>
-                    {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                    {isExporting ? 'Exportando...' : 'Exportar Configuración'}
-                </Button>
-                <Button variant="outline" disabled><Upload className="mr-2 h-4 w-4" /> Importar Configuración</Button>
+        <CardContent className="space-y-6">
+            <div className="space-y-2">
+                <h4 className="font-medium">Copia de Seguridad</h4>
+                <p className="text-sm text-muted-foreground mb-3">Exporta tus conexiones de API y plantillas de IA personalizadas a un archivo JSON.</p>
+                <div className="flex flex-wrap gap-4">
+                    <Button variant="outline" onClick={handleExportSettings} disabled={isExporting}>
+                        {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                        {isExporting ? 'Exportando...' : 'Exportar Configuración'}
+                    </Button>
+                    <Button variant="outline" disabled><Upload className="mr-2 h-4 w-4" /> Importar Configuración (próximamente)</Button>
+                </div>
             </div>
-            <div>
-                <h4 className="font-medium mb-2">Limpieza de Datos</h4>
-                <p className="text-sm text-muted-foreground mb-3">Elimina datos temporales. Esta acción es irreversible.</p>
-                <Button variant="destructive" disabled>Limpiar Datos Temporales</Button>
-                 <p className="text-xs text-muted-foreground mt-1">Esta funcionalidad estará disponible próximamente.</p>
+
+            <div className="space-y-2 pt-4 border-t">
+                <h4 className="font-medium">Limpieza de Datos</h4>
+                <p className="text-sm text-muted-foreground mb-3">Elimina permanentemente tu historial de actividad y notificaciones de la base de datos. Esta acción no se puede deshacer.</p>
+                
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="destructive" disabled={isCleaning}>
+                            {isCleaning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                            Limpiar Historial de Actividad
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Esta acción eliminará permanentemente todos tus registros de actividad y notificaciones. No se puede deshacer.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleCleanup} className="bg-destructive hover:bg-destructive/90">
+                                Sí, eliminar mi historial
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+
+                 <p className="text-xs text-muted-foreground mt-1">La limpieza de imágenes huérfanas se realizará automáticamente por el servidor en futuras actualizaciones.</p>
             </div>
         </CardContent>
       </Card>
     </div>
   );
 }
+
+    
