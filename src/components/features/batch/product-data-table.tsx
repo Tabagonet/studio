@@ -3,7 +3,6 @@
 
 import * as React from "react"
 import {
-  ColumnDef,
   ColumnFiltersState,
   SortingState,
   flexRender,
@@ -24,12 +23,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { getColumns } from "./columns" 
 import type { ProductSearchResult, WooCommerceCategory, ProductStats } from "@/lib/types"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { BrainCircuit, ChevronDown, Loader2, Box, FileCheck2, FileText, BarChart3, Eye, EyeOff, Image as ImageIcon } from "lucide-react"
+import { BrainCircuit, ChevronDown, Loader2, Box, FileCheck2, FileText, BarChart3, Eye, EyeOff, Image as ImageIcon, Trash2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -43,6 +42,7 @@ export function ProductDataTable() {
   const [isLoading, setIsLoading] = React.useState(true)
   const [isAiProcessing, setIsAiProcessing] = React.useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = React.useState(false);
+  const [isDeleting, setIsDeleting] = React.useState(false);
   const [totalPages, setTotalPages] = React.useState(1)
   
   const [categories, setCategories] = React.useState<WooCommerceCategory[]>([]);
@@ -345,7 +345,6 @@ export function ProductDataTable() {
             throw new Error(result.message || result.error || 'Fallo en la comunicación con el servidor.');
         }
         
-        // Check for our custom confirmation payload in a successful (200 OK) response
         if (result.confirmationRequired) {
             dismiss();
             setConfirmationData({
@@ -356,7 +355,6 @@ export function ProductDataTable() {
             return;
         }
         
-        // This is the true success case where products were updated
         toast({
             title: "¡Acción completada!",
             description: result.message,
@@ -436,13 +434,70 @@ export function ProductDataTable() {
         setIsUpdatingStatus(false);
     }
   }
+  
+    const handleBatchDelete = async () => {
+        setIsDeleting(true);
+        const selectedRows = table.getSelectedRowModel().rows;
+        const productIds = selectedRows.map(row => row.original.id);
+    
+        if (productIds.length === 0) {
+            toast({ title: "No hay productos seleccionados", variant: "destructive" });
+            setIsDeleting(false);
+            return;
+        }
+    
+        const user = auth.currentUser;
+        if (!user) {
+            toast({ title: "No autenticado", variant: "destructive" });
+            setIsDeleting(false);
+            return;
+        }
+    
+        toast({ title: `Eliminando ${productIds.length} producto(s)...` });
+    
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/woocommerce/products/batch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ productIds, action: 'delete' })
+            });
+    
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.error || result.message || 'Fallo la acción en lote.');
+            }
+    
+            toast({
+                title: "¡Acción completada!",
+                description: result.message,
+            });
+    
+            table.resetRowSelection();
+            fetchData();
+            fetchStats();
+    
+        } catch (error: any) {
+            toast({
+                title: "Error en la eliminación en lote",
+                description: error.message,
+                variant: "destructive",
+            });
+        } finally {
+            setIsDeleting(false);
+        }
+    };
 
   const selectedRowCount = Object.keys(rowSelection).length;
-  const isActionRunning = isAiProcessing || isUpdatingStatus;
+  const isActionRunning = isAiProcessing || isUpdatingStatus || isDeleting;
 
   const getButtonText = () => {
     if (isAiProcessing) return "Procesando IA...";
     if (isUpdatingStatus) return "Actualizando...";
+    if (isDeleting) return "Eliminando...";
     return `Acciones (${selectedRowCount})`;
   };
 
@@ -578,31 +633,54 @@ export function ProductDataTable() {
               </SelectContent>
             </Select>
         </div>
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button variant="outline" disabled={selectedRowCount === 0 || isActionRunning} className="w-full md:w-auto mt-2 md:mt-0">
-                     {isActionRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronDown className="mr-2 h-4 w-4" />}
-                     {getButtonText()}
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-                 <DropdownMenuLabel>Acciones de IA</DropdownMenuLabel>
-                <DropdownMenuItem onSelect={() => handleAiAction("generateDescriptions", false)}>
-                    <BrainCircuit className="mr-2 h-4 w-4" /> Generar Descripciones
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => handleAiAction("generateImageMetadata", false)}>
-                    <ImageIcon className="mr-2 h-4 w-4" /> Generar Metadatos para Imágenes
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>Acciones de Estado</DropdownMenuLabel>
-                <DropdownMenuItem onSelect={() => handleBatchStatusUpdate('publish')}>
-                    <Eye className="mr-2 h-4 w-4" /> Hacer Visibles (Publicar)
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => handleBatchStatusUpdate('draft')}>
-                    <EyeOff className="mr-2 h-4 w-4" /> Ocultar (Poner como Borrador)
-                </DropdownMenuItem>
-            </DropdownMenuContent>
-        </DropdownMenu>
+        <AlertDialog>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" disabled={selectedRowCount === 0 || isActionRunning} className="w-full md:w-auto mt-2 md:mt-0">
+                        {isActionRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronDown className="mr-2 h-4 w-4" />}
+                        {getButtonText()}
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Acciones de IA</DropdownMenuLabel>
+                    <DropdownMenuItem onSelect={() => handleAiAction("generateDescriptions", false)}>
+                        <BrainCircuit className="mr-2 h-4 w-4" /> Generar Descripciones
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => handleAiAction("generateImageMetadata", false)}>
+                        <ImageIcon className="mr-2 h-4 w-4" /> Generar Metadatos para Imágenes
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Acciones de Estado</DropdownMenuLabel>
+                    <DropdownMenuItem onSelect={() => handleBatchStatusUpdate('publish')}>
+                        <Eye className="mr-2 h-4 w-4" /> Hacer Visibles (Publicar)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => handleBatchStatusUpdate('draft')}>
+                        <EyeOff className="mr-2 h-4 w-4" /> Ocultar (Poner como Borrador)
+                    </DropdownMenuItem>
+                     <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Otras Acciones</DropdownMenuLabel>
+                    <AlertDialogTrigger asChild>
+                        <DropdownMenuItem className="text-destructive focus:text-destructive">
+                            <Trash2 className="mr-2 h-4 w-4" /> Eliminar Productos
+                        </DropdownMenuItem>
+                    </AlertDialogTrigger>
+                </DropdownMenuContent>
+            </DropdownMenu>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                  <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                      Esta acción no se puede deshacer. Se eliminarán permanentemente {selectedRowCount} producto(s) y todos sus datos.
+                  </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                  <AlertDialogCancel onClick={() => setIsDeleting(false)}>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleBatchDelete} className={buttonVariants({ variant: "destructive" })}>
+                      Sí, eliminar productos
+                  </AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
       <div className="rounded-md border">
         <Table>
