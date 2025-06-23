@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { KeyRound, DatabaseZap, Download, Upload, Info, BrainCircuit, Loader2, ExternalLink } from "lucide-react";
+import { KeyRound, DatabaseZap, Download, Upload, Info, BrainCircuit, Loader2, ExternalLink, Server, Store, Globe } from "lucide-react";
 import { auth } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 
@@ -137,7 +137,7 @@ export default function SettingsPage() {
            {/* GLOBAL SETTINGS */}
            <div title={firebaseAdminHint} className="flex items-center justify-between p-3 border rounded-md bg-muted/30 cursor-help">
             <Label className="flex items-center cursor-help">
-              <img src="https://www.gstatic.com/mobilesdk/160503_mobilesdk/logo/2x/firebase_28.png" alt="Firebase" width={16} height={16} className="mr-2" />
+              <Server className="h-4 w-4 mr-2 text-orange-500" />
               Firebase Admin SDK (Global)
             </Label>
             <StatusBadge status={serverConfig?.firebaseAdminSdk} loading={isLoadingConfig} />
@@ -153,14 +153,14 @@ export default function SettingsPage() {
           {/* PER-USER SETTINGS */}
           <div className="flex items-center justify-between p-3 border rounded-md">
             <Label className="flex items-center">
-                <img src="https://quefoto.es/wp-content/uploads/2024/07/woocommerce-logo.png" alt="WooCommerce" width={16} height={16} className="mr-2" data-ai-hint="logo woocommerce"/>
+                <Store className="h-4 w-4 mr-2 text-purple-500" />
                 Conexión WooCommerce (Tu Usuario)
             </Label>
             <StatusBadge status={serverConfig?.wooCommerceConfigured} loading={isLoadingConfig} />
           </div>
           <div className="flex items-center justify-between p-3 border rounded-md">
             <Label className="flex items-center">
-                <img src="https://s.w.org/style/images/about/WordPress-logotype-wmark.png" alt="WordPress Logo" width={16} height={16} className="mr-2" data-ai-hint="logo wordpress"/>
+                <Globe className="h-4 w-4 mr-2 text-blue-600" />
                 Conexión WordPress (Tu Usuario)
             </Label>
             <StatusBadge status={serverConfig?.wordPressConfigured} loading={isLoadingConfig} />
