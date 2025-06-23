@@ -1,7 +1,8 @@
-
+// Forcing server restart to clear the route cache.
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // This comment forces a server restart to clear potential cache issues.
+  // Adding another comment to trigger a full server reload and clear the cache.
   images: {
     remotePatterns: [
       {
