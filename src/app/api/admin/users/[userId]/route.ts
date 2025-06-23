@@ -1,0 +1,65 @@
+
+// src/app/api/admin/users/[userId]/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { adminAuth, adminDb } from '@/lib/firebase-admin';
+
+async function isAdmin(req: NextRequest): Promise<boolean> {
+    const token = req.headers.get('Authorization')?.split('Bearer ')[1];
+    if (!token) return false;
+    try {
+        if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized");
+        const decodedToken = await adminAuth.verifyIdToken(token);
+        const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
+        return userDoc.exists && userDoc.data()?.role === 'admin';
+    } catch { return false; }
+}
+
+
+export async function DELETE(req: NextRequest, { params }: { params: { userId: string } }) {
+    if (!await isAdmin(req)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    
+    if (!adminDb || !adminAuth) {
+        return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 503 });
+    }
+
+    const { userId } = params;
+    const requestingUid = req.headers.get('x-decoded-uid'); // Assume a middleware might add this
+    if (!userId) {
+        return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+    }
+
+    if (userId === requestingUid) {
+        return NextResponse.json({ error: 'Admins cannot delete their own account.' }, { status: 400 });
+    }
+    
+    try {
+        // Use a transaction or batch to ensure atomicity
+        const batch = adminDb.batch();
+        
+        const userRef = adminDb.collection('users').doc(userId);
+        const userSettingsRef = adminDb.collection('user_settings').doc(userId);
+        
+        batch.delete(userRef);
+        batch.delete(userSettingsRef); // Also delete user settings
+        
+        // First, commit database deletions
+        await batch.commit();
+
+        // Then, delete the user from Firebase Auth
+        await adminAuth.deleteUser(userId);
+
+        return NextResponse.json({ success: true, message: `User ${userId} and their data have been deleted.` });
+
+    } catch (error: any) {
+        console.error(`Error deleting user ${userId}:`, error);
+        
+        // Handle case where user might not exist in Auth anymore but exists in DB
+        if (error.code === 'auth/user-not-found') {
+            return NextResponse.json({ success: true, message: 'User already deleted from Auth, DB records cleaned up.' });
+        }
+
+        return NextResponse.json({ error: 'Failed to delete user', details: error.message }, { status: 500 });
+    }
+}
