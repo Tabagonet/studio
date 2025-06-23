@@ -90,7 +90,7 @@ export interface BlogPostData {
   categoryId: number | null;
   status: 'publish' | 'draft' | 'pending';
   featuredImage: ProductPhoto | null;
-  sourceLanguage: 'Spanish' | 'English';
+  sourceLanguage: string;
   targetLanguages: string[];
   authorId: number | null;
   publishDate: Date | null;

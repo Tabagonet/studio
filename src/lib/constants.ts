@@ -1,6 +1,6 @@
 
 import { Home, Wand2, FileText, Cog, Bell, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper } from 'lucide-react';
-import type { NavItem, ProductType, ProductData } from '@/lib/types';
+import type { NavItem, ProductType, ProductData, BlogPostData } from '@/lib/types';
 
 export const APP_NAME = "WooAutomate";
 export const SUPPORT_EMAIL = "intelvisual@intelvisual.es";
@@ -96,4 +96,18 @@ export const INITIAL_PRODUCT_DATA: ProductData = {
   imageDescription: '',
   groupedProductIds: [],
   source: 'wizard',
+};
+
+export const INITIAL_BLOG_DATA: BlogPostData = {
+  title: '',
+  content: '',
+  topic: '',
+  keywords: '',
+  categoryId: null,
+  status: 'draft',
+  featuredImage: null,
+  sourceLanguage: 'Spanish',
+  targetLanguages: [],
+  authorId: null,
+  publishDate: null,
 };
