@@ -3,7 +3,6 @@
 
 import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
-import axios from 'axios';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,8 +16,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { WordPressPostCategory, WordPressUser, ProductPhoto } from '@/lib/types';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 
 interface BlogEditModalProps {
   postId: number;
@@ -54,7 +51,7 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
   
   const handleSelectChange = (name: 'status' | 'category' | 'author', value: string) => {
     if (!post) return;
-    const finalValue = value ? parseInt(value, 10) : null;
+    const finalValue = (name === 'category' || name === 'author') ? (value ? parseInt(value, 10) : null) : value;
     setPost({ ...post, [name]: finalValue as any });
   };
 
@@ -134,17 +131,23 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
             tags: post.tags,
         };
 
-        if (post.featured_media?.file) { // New image uploaded
+        const newPhoto = post.featured_media?.file ? post.featured_media : null;
+
+        if (newPhoto) {
             const formData = new FormData();
-            formData.append('imagen', post.featured_media.file);
-            const uploadResponse = await axios.post('/api/upload-image', formData, {
-                headers: { 'Authorization': `Bearer ${token}` }
+            formData.append('imagen', newPhoto.file);
+            const uploadResponse = await fetch('/api/upload-image', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData,
             });
-            if (!uploadResponse.data.success) throw new Error(uploadResponse.data.error || 'Failed to upload new image.');
-            payload.featured_image_src = uploadResponse.data.url;
-        } else if (post.featured_media?.id) { // Existing image
+            const uploadData = await uploadResponse.json();
+            if (!uploadResponse.ok) throw new Error(uploadData.error || 'Failed to upload new image.');
+            payload.featured_image_src = uploadData.url;
+
+        } else if (post.featured_media?.id) {
             payload.featured_media_id = post.featured_media.id;
-        } else { // Image removed
+        } else {
             payload.featured_media_id = 0;
         }
         
@@ -188,7 +191,7 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
 
         if (!postResponse.ok) throw new Error('Failed to fetch post data.');
         const postData = await postResponse.json();
-
+        
         if (categoriesResponse.ok) setCategories(await categoriesResponse.json());
         if (authorsResponse.ok) setAuthors(await authorsResponse.json());
         
@@ -223,19 +226,19 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
 
   return (
     <Dialog open={true} onOpenChange={() => onClose(false)}>
-      <DialogContent className="sm:max-w-4xl">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
         <DialogHeader><DialogTitle>Editar Entrada: {post?.title || "Cargando..."}</DialogTitle></DialogHeader>
         
         {isLoading && <div className="flex items-center justify-center min-h-[300px]"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}
         {error && <Alert variant="destructive"><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
         
         {!isLoading && !error && post && (
-           <Tabs defaultValue="edit" className="space-y-4">
+           <Tabs defaultValue="edit" className="flex-1 min-h-0 flex flex-col">
             <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="edit">Editor</TabsTrigger>
                 <TabsTrigger value="preview">Vista Previa</TabsTrigger>
             </TabsList>
-            <TabsContent value="edit" className="space-y-4 max-h-[70vh] overflow-y-auto p-1">
+            <TabsContent value="edit" className="space-y-4 flex-1 overflow-y-auto p-2">
                 <div><Label htmlFor="title">Título</Label><Input id="title" name="title" value={post.title} onChange={handleInputChange} /></div>
                 <div><Label htmlFor="content">Contenido</Label><Textarea id="content" name="content" value={post.content} onChange={handleInputChange} rows={15} /></div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -264,7 +267,7 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
                     </div>
                 </div>
             </TabsContent>
-            <TabsContent value="preview" className="max-h-[70vh] overflow-y-auto p-1 border rounded-md">
+            <TabsContent value="preview" className="flex-1 overflow-y-auto p-1 border rounded-md">
                  <div className="p-4 space-y-4">
                     {post.featured_media?.previewUrl && (
                         <div className="relative h-48 w-full mb-4 rounded-md overflow-hidden">
@@ -286,7 +289,7 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
             </TabsContent>
            </Tabs>
         )}
-        <DialogFooter className="pt-4">
+        <DialogFooter className="pt-4 border-t">
           <DialogClose asChild><Button type="button" variant="secondary">Cancelar</Button></DialogClose>
           <Button type="submit" onClick={handleSaveChanges} disabled={isSaving || isLoading || !!error}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar Cambios</Button>
         </DialogFooter>
