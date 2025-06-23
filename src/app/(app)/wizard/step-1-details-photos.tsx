@@ -97,7 +97,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
   React.useEffect(() => {
     const skuValue = productData.sku;
-    if (!skuValue) {
+    if (!skuValue || productData.shouldSaveSku === false) {
       setSkuValidation({ status: 'idle', message: '' });
       return;
     }
@@ -118,7 +118,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     }, 800); // Debounce delay
 
     return () => clearTimeout(handler);
-  }, [productData.sku]);
+  }, [productData.sku, productData.shouldSaveSku]);
   
   React.useEffect(() => {
     const nameValue = productData.name;
@@ -422,9 +422,11 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                   value={productData.sku}
                   onChange={handleInputChange}
                   placeholder="Ej: CAM-ALG-AZ-M"
+                  disabled={productData.shouldSaveSku === false || isProcessing}
                   className={cn(
                     skuValidation.status === 'invalid' && 'border-destructive focus-visible:ring-destructive',
-                    skuValidation.status === 'valid' && 'border-green-500 focus-visible:ring-green-500'
+                    skuValidation.status === 'valid' && 'border-green-500 focus-visible:ring-green-500',
+                    productData.shouldSaveSku === false && 'bg-muted/50'
                   )}
                 />
                 <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -438,6 +440,17 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                   {skuValidation.message}
                 </p>
               )}
+              <div className="flex items-center space-x-2 mt-2">
+                <Checkbox
+                    id="shouldSaveSku"
+                    checked={productData.shouldSaveSku !== false}
+                    onCheckedChange={(checked) => updateProductData({ shouldSaveSku: !!checked })}
+                    disabled={isProcessing}
+                />
+                <Label htmlFor="shouldSaveSku" className="text-sm font-normal cursor-pointer">
+                    Guardar SKU con el producto
+                </Label>
+              </div>
             </div>
           </div>
 

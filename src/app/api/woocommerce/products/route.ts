@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
     
     const formattedProduct: any = {
       name: productData.name,
-      sku: productData.sku || undefined,
+      ...(productData.shouldSaveSku !== false && productData.sku && { sku: productData.sku }),
       type: productData.productType,
       description: productData.longDescription,
       short_description: productData.shortDescription,
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
             batchCreatePayload = productData.variations.map(v => ({
                 regular_price: v.regularPrice || undefined,
                 sale_price: v.salePrice || undefined,
-                sku: v.sku || undefined,
+                ...(productData.shouldSaveSku !== false && v.sku && { sku: v.sku }),
                 attributes: v.attributes.map(a => ({
                     name: a.name,
                     option: a.value,

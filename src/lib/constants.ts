@@ -59,6 +59,7 @@ export const PRODUCT_TYPES: { value: ProductType; label: string }[] = [
 
 export const INITIAL_PRODUCT_DATA: ProductData = {
   sku: "",
+  shouldSaveSku: true,
   name: "",
   productType: 'simple',
   regularPrice: "",

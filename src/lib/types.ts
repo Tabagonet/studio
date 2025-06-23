@@ -68,6 +68,7 @@ export interface WooCommerceCategory {
 
 export interface ProductData {
   sku: string;
+  shouldSaveSku?: boolean;
   name: string;
   productType: ProductType;
   regularPrice: string;
