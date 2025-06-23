@@ -21,9 +21,9 @@ export default function AuthenticatedAppLayout({
     const unsubscribe = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
       if (user) {
         try {
-            // Do NOT force refresh the token unless absolutely necessary to avoid quota issues.
-            // The SDK handles caching and refreshing in the background.
-            const token = await user.getIdToken();
+            // Force a token refresh to ensure we have the latest claims and a valid token.
+            // This prevents race conditions on new sign-ins where the token might not yet be valid.
+            const token = await user.getIdToken(true);
             const response = await fetch('/api/user/verify', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
