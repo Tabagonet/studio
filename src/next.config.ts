@@ -1,3 +1,2 @@
-// This file should not exist and has been neutralized.
-// Next.js configuration belongs in the root directory.
-module.exports = {};
+// This file is intentionally left empty to resolve a configuration conflict.
+// Please use next.config.js for all Next.js configuration.
