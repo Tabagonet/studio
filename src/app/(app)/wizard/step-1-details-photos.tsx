@@ -190,8 +190,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                 )}
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Sin categoría</SelectItem>
-                {!isLoadingCategories && wooCategories.length === 0 && <SelectItem value="" disabled>No hay categorías disponibles</SelectItem>}
+                <SelectItem value="none">Sin categoría</SelectItem>
+                {!isLoadingCategories && wooCategories.length === 0 && <SelectItem value="none" disabled>No hay categorías disponibles</SelectItem>}
                 {wooCategories.map(cat => (
                   <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
                 ))}

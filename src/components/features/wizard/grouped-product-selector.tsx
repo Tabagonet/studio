@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -125,40 +126,23 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
   }, [toast]);
   
   const handleCategoryChange = (category: string) => {
-      setAvailableProducts([]);
       setSelectedCategory(category);
       setCurrentPage(1); // Reset page when category changes
   };
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setAvailableProducts([]);
     setSearchTerm(e.target.value);
     setCurrentPage(1); // Reset page on new search
   };
   
   useEffect(() => {
-    // This effect runs when the debounced search term or category changes.
-    // It fetches the first page of results.
     const unsubscribe = auth.onAuthStateChanged((user) => {
         if (user) {
-            fetchAvailableProducts(1, selectedCategory, debouncedSearchTerm);
+            fetchAvailableProducts(currentPage, selectedCategory, debouncedSearchTerm);
         }
     });
     return () => unsubscribe();
-  }, [debouncedSearchTerm, selectedCategory, fetchAvailableProducts]);
-  
-  useEffect(() => {
-    // This effect handles pagination (loading more products).
-    // It only runs when currentPage changes and is > 1.
-    if (currentPage > 1) {
-        const unsubscribe = auth.onAuthStateChanged((user) => {
-            if (user) {
-                fetchAvailableProducts(currentPage, selectedCategory, debouncedSearchTerm);
-            }
-        });
-       return () => unsubscribe();
-    }
-  }, [currentPage, debouncedSearchTerm, selectedCategory, fetchAvailableProducts]);
+  }, [debouncedSearchTerm, selectedCategory, currentPage, fetchAvailableProducts]);
 
 
   useEffect(() => {
