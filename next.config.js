@@ -1,7 +1,7 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Comment added to force a server restart and clear potential cache issues.
+  // This comment forces a server restart to clear potential cache issues.
   images: {
     remotePatterns: [
       {
@@ -29,7 +29,7 @@ const nextConfig = {
         hostname: 'www.farmacialavidriera.com',
       },
       {
-        protocol: 'https',
+        protocol: 'https,',
         hostname: 'treezom.com',
       },
     ],

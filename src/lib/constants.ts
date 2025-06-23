@@ -90,4 +90,5 @@ export const INITIAL_PRODUCT_DATA: ProductData = {
   imageCaption: '',
   imageDescription: '',
   groupedProductIds: [],
+  source: 'wizard',
 };
