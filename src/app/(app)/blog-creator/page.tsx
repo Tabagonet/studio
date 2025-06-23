@@ -11,7 +11,7 @@ export default function BlogCreatorPage() {
             <div className="flex items-center space-x-3">
                 <Newspaper className="h-8 w-8 text-primary" />
                 <div>
-                    <CardTitle>Creador de Entradas de Blog</CardTitle>
+                    <CardTitle>Asistente de Creación de Entradas</CardTitle>
                     <CardDescription>Usa el asistente y la IA para crear nuevo contenido para tu blog de WordPress.</CardDescription>
                 </div>
             </div>

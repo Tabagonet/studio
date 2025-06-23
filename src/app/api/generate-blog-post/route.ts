@@ -5,10 +5,14 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { z } from 'zod';
 
 const GenerateBlogPostInputSchema = z.object({
-  topic: z.string().min(1, 'Topic is required.'),
+  mode: z.enum(['generate_from_topic', 'enhance_content']),
+  language: z.string().optional().default('Spanish'),
+  topic: z.string().optional(),
   keywords: z.string().optional(),
-  language: z.string().optional().default('Spanish')
+  existingTitle: z.string().optional(),
+  existingContent: z.string().optional(),
 });
+
 
 export async function POST(req: NextRequest) {
     try {
@@ -35,25 +39,48 @@ export async function POST(req: NextRequest) {
         if (!validationResult.success) {
             return NextResponse.json({ error: 'Invalid input', details: validationResult.error.flatten() }, { status: 400 });
         }
-        const { topic, keywords, language } = validationResult.data;
+        const { mode, language, topic, keywords, existingTitle, existingContent } = validationResult.data;
 
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({
             model: "gemini-1.5-flash-latest",
-            systemInstruction: `You are a professional blog writer and content creator. Your task is to generate a blog post based on a given topic and keywords in the specified language. The response must be a single, valid JSON object with two keys: 'title' and 'content'. The 'title' should be an engaging, SEO-friendly headline. The 'content' should be a well-structured blog post of around 500 words, using HTML tags like <h2>, <p>, <ul>, <li>, and <strong> for formatting. Do not include markdown or the word 'json' in your output.`,
             generationConfig: {
                 responseMimeType: "application/json",
             },
         });
         
-        const finalPrompt = `
-            Generate a blog post.
-            Topic: "${topic}"
-            Keywords to include: "${keywords || 'none'}"
-            Language: ${language}
-        `;
+        let systemInstruction = '';
+        let prompt = '';
 
-        const result = await model.generateContent(finalPrompt);
+        if (mode === 'generate_from_topic') {
+            systemInstruction = `You are a professional blog writer and content creator. Your task is to generate a blog post based on a given topic and keywords in the specified language. The response must be a single, valid JSON object with two keys: 'title' and 'content'. The 'title' should be an engaging, SEO-friendly headline. The 'content' should be a well-structured blog post of around 500 words, using HTML tags like <h2>, <p>, <ul>, <li>, and <strong> for formatting. Do not include markdown or the word 'json' in your output.`;
+            prompt = `
+                Generate a blog post.
+                Topic: "${topic}"
+                Keywords to include: "${keywords || 'none'}"
+                Language: ${language}
+            `;
+        } else { // enhance_content
+             systemInstruction = `You are an expert SEO copywriter. Enhance the following blog post for better readability, engagement, and search engine optimization. Correct any grammatical errors. Return a valid JSON object with three keys: 'title' (an improved, SEO-friendly title), 'content' (the enhanced content with HTML formatting), and 'suggestedKeywords' (a comma-separated string of 5-7 relevant keywords). Do not include markdown or the word 'json' in your output.`;
+             prompt = `
+                Enhance this blog post in ${language}.
+                Original Title: "${existingTitle}"
+                Original Content:
+                ---
+                ${existingContent}
+                ---
+            `;
+        }
+
+        const modelWithSystemInstruction = genAI.getGenerativeModel({
+            model: "gemini-1.5-flash-latest",
+            systemInstruction,
+             generationConfig: {
+                responseMimeType: "application/json",
+            },
+        });
+
+        const result = await modelWithSystemInstruction.generateContent(prompt);
         const responseText = result.response.text();
         const parsedJson = JSON.parse(responseText);
 
