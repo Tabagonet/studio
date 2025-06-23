@@ -33,6 +33,13 @@ export async function POST(req: NextRequest) {
         const { productIds, action, force } = validation.data;
 
         const { wooApi, wpApi } = await getApiClientsForUser(uid);
+        if (!wooApi) {
+            throw new Error('WooCommerce API is not configured for the active connection.');
+        }
+        if (action === 'generateImageMetadata' && !wpApi) {
+             throw new Error('WordPress API must be configured to update image metadata.');
+        }
+
 
         // --- Confirmation Check Step (if force is false) ---
         if (!force) {
@@ -95,6 +102,7 @@ export async function POST(req: NextRequest) {
                         tags: aiContent.keywords.split(',').map(k => ({ name: k.trim() })).filter(k => k.name),
                     });
                 } else if (action === 'generateImageMetadata') {
+                    if (!wpApi) throw new Error('WordPress API client is not available.'); // Should be caught earlier, but for safety.
                     if (!product.images || product.images.length === 0) {
                         throw new Error('El producto no tiene imágenes para actualizar.');
                     }
@@ -125,6 +133,7 @@ export async function POST(req: NextRequest) {
 
     } catch (error: any) {
         console.error('Error in batch update API:', error);
-        return NextResponse.json({ error: 'An unexpected error occurred during batch processing.', message: error.message }, { status: 500 });
+        const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
+        return NextResponse.json({ error: 'An unexpected error occurred during batch processing.', message: error.message }, { status });
     }
 }

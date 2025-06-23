@@ -31,6 +31,9 @@ export async function POST(req: NextRequest) {
         const { productIds, action } = validation.data;
 
         const { wooApi } = await getApiClientsForUser(uid);
+        if (!wooApi) {
+            throw new Error('WooCommerce API is not configured for the active connection.');
+        }
 
         let batchData: any = {};
         if (action === 'delete') {
@@ -53,6 +56,7 @@ export async function POST(req: NextRequest) {
 
     } catch (error: any) {
         console.error('Error in product batch action API:', error.response?.data || error);
-        return NextResponse.json({ error: 'An unexpected error occurred during batch processing.', message: error.response?.data?.message || error.message }, { status: 500 });
+        const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
+        return NextResponse.json({ error: 'An unexpected error occurred during batch processing.', message: error.response?.data?.message || error.message }, { status });
     }
 }

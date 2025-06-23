@@ -29,6 +29,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const uid = (await adminAuth.verifyIdToken(token)).uid;
     
     const { wpApi } = await getApiClientsForUser(uid);
+    if (!wpApi) {
+        throw new Error('WordPress API is not configured for the active connection.');
+    }
+
     const postId = params.id;
     if (!postId) return NextResponse.json({ error: 'Post ID is required.' }, { status: 400 });
 
@@ -44,7 +48,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   } catch (error: any) {
     console.error(`Error fetching post ${params.id}:`, error.response?.data || error.message);
     const errorMessage = error.response?.data?.message || 'Failed to fetch post details.';
-    const status = error.message.includes('configure API connections') ? 400 : (error.response?.status || 500);
+    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     return NextResponse.json({ error: errorMessage }, { status });
   }
 }
@@ -57,6 +61,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const uid = (await adminAuth.verifyIdToken(token)).uid;
     
     const { wpApi } = await getApiClientsForUser(uid);
+    if (!wpApi) {
+        throw new Error('WordPress API is not configured for the active connection.');
+    }
+
     const postId = params.id;
     if (!postId) return NextResponse.json({ error: 'Post ID is required.' }, { status: 400 });
 
@@ -92,7 +100,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   } catch (error: any) {
     console.error(`Error updating post ${params.id}:`, error.response?.data || error.message);
     const errorMessage = error.response?.data?.message || 'Failed to update post.';
-    const status = error.message.includes('configure API connections') ? 400 : (error.response?.status || 500);
+    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     return NextResponse.json({ error: errorMessage }, { status });
   }
 }
@@ -106,6 +114,10 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const uid = (await adminAuth.verifyIdToken(token)).uid;
     
     const { wpApi } = await getApiClientsForUser(uid);
+    if (!wpApi) {
+        throw new Error('WordPress API is not configured for the active connection.');
+    }
+
     const postId = params.id;
     if (!postId) return NextResponse.json({ error: 'Post ID is required.' }, { status: 400 });
 
@@ -114,7 +126,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   } catch (error: any) {
     console.error(`Error deleting post ${params.id}:`, error.response?.data || error.message);
     const errorMessage = error.response?.data?.message || 'Failed to delete post.';
-    const status = error.message.includes('configure API connections') ? 400 : (error.response?.status || 500);
+    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     return NextResponse.json({ error: errorMessage }, { status });
   }
 }

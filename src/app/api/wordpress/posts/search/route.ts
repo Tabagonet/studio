@@ -15,6 +15,9 @@ export async function GET(req: NextRequest) {
     const uid = decodedToken.uid;
 
     const { wpApi } = await getApiClientsForUser(uid);
+    if (!wpApi) {
+        throw new Error('WordPress API is not configured for the active connection.');
+    }
     
     const { searchParams } = new URL(req.url);
     const query = searchParams.get('q');
@@ -65,7 +68,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Error searching WordPress posts:', error.response?.data || error.message);
     const errorMessage = error.response?.data?.message || error.message || 'Failed to search posts.';
-    const status = error.message.includes('configure API connections') ? 400 : (error.response?.status || 500);
+    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     
     return NextResponse.json(
       { error: errorMessage, details: error.response?.data },

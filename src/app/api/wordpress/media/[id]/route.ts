@@ -14,6 +14,10 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const uid = decodedToken.uid;
     
     const { wpApi } = await getApiClientsForUser(uid);
+    if (!wpApi) {
+        throw new Error('WordPress API is not configured for the active connection.');
+    }
+
     const mediaId = params.id;
     if (!mediaId) {
       return NextResponse.json({ error: 'Media ID is required.' }, { status: 400 });
@@ -28,7 +32,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   } catch (error: any) {
     console.error(`Error deleting media ${params.id}:`, error.response?.data || error.message);
     const errorMessage = error.response?.data?.message || 'Failed to delete media item.';
-    const status = error.message.includes('configure API connections') ? 400 : (error.response?.status || 500);
+    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     
     return NextResponse.json(
       { error: errorMessage, details: error.response?.data },

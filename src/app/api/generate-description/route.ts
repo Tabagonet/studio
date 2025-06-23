@@ -34,6 +34,8 @@ export async function POST(req: NextRequest) {
     console.log('/api/generate-description: Request body parsed and validated:', inputData);
 
     const { wooApi } = await getApiClientsForUser(uid);
+    // For this endpoint, wooApi is optional for the AI but required for grouped products.
+    // The generateProductContent function will handle the case where it's null.
 
     const generatedContent = await generateProductContent(inputData, uid, wooApi);
     

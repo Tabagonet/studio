@@ -14,6 +14,9 @@ export async function GET(req: NextRequest) {
     const uid = decodedToken.uid;
 
     const { wpApi } = await getApiClientsForUser(uid);
+    if (!wpApi) {
+      throw new Error('WordPress API is not configured for the active connection.');
+    }
 
     const statusesToCount = ['publish', 'draft', 'future', 'private', 'pending'];
 
@@ -52,7 +55,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Error fetching WordPress post stats:', error.response?.data || error.message);
     const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch post stats.';
-    const status = error.message.includes('configure API connections') ? 400 : (error.response?.status || 500);
+    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     
     return NextResponse.json(
       { error: errorMessage, details: error.response?.data },
@@ -60,4 +63,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

@@ -43,6 +43,10 @@ export async function POST(request: NextRequest) {
         uid = decodedToken.uid;
         
         const { wpApi } = await getApiClientsForUser(uid);
+        if (!wpApi) {
+            throw new Error('WordPress API is not configured for the active connection.');
+        }
+
         const body = await request.json();
         
         const validation = payloadSchema.safeParse(body);
@@ -101,7 +105,8 @@ export async function POST(request: NextRequest) {
     } catch (error: any) {
         console.error('Error creating WordPress post:', error.response?.data || error.message);
         const errorMessage = error.response?.data?.message || 'An unknown error occurred while creating the post.';
+        const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
         const userFriendlyError = `Error al crear la entrada. Razón: ${errorMessage}`;
-        return NextResponse.json({ success: false, error: userFriendlyError }, { status: 500 });
+        return NextResponse.json({ success: false, error: userFriendlyError }, { status });
     }
 }

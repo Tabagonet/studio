@@ -15,6 +15,9 @@ export async function GET(req: NextRequest) {
     const uid = decodedToken.uid;
 
     const { wooApi } = await getApiClientsForUser(uid);
+    if (!wooApi) {
+        throw new Error('WooCommerce API is not configured for the active connection.');
+    }
 
     const response = await wooApi.get("products/categories", { per_page: 100 });
     
@@ -31,7 +34,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Error fetching WooCommerce categories:', error.response?.data || error.message);
     const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch categories.';
-    const status = error.message.includes('configure API connections') ? 400 : (error.response?.status || 500);
+    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     
     return NextResponse.json(
       { error: errorMessage, details: error.response?.data },

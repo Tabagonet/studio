@@ -35,8 +35,8 @@ type GenerateProductDescriptionOutput = z.infer<typeof GenerateProductDescriptio
 
 
 interface ApiClients {
-  wooApi: WooCommerceRestApi;
-  wpApi: AxiosInstance;
+  wooApi: WooCommerceRestApi | null;
+  wpApi: AxiosInstance | null;
   activeConnectionKey: string;
 }
 
@@ -78,10 +78,6 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
     username: activeConnection.wordpressUsername,
     applicationPassword: activeConnection.wordpressApplicationPassword,
   });
-
-  if (!wooApi || !wpApi) {
-    throw new Error('Failed to initialize API clients due to missing or invalid credentials in the active profile.');
-  }
 
   return { wooApi, wpApi, activeConnectionKey };
 }
@@ -190,7 +186,7 @@ const stripHtml = (html: string | null | undefined): string => {
 export async function generateProductContent(
   input: GenerateProductDescriptionInput,
   uid: string,
-  wooApi: WooCommerceRestApi
+  wooApi: WooCommerceRestApi | null
 ): Promise<GenerateProductDescriptionOutput> {
   const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) {
@@ -199,18 +195,22 @@ export async function generateProductContent(
 
   let groupedProductsList = 'N/A';
   if (input.productType === 'grouped' && input.groupedProductIds && input.groupedProductIds.length > 0) {
-    try {
-      const response = await wooApi.get("products", { include: input.groupedProductIds, per_page: 100 });
-      if (response.data && response.data.length > 0) {
-        groupedProductsList = response.data.map((product: any) => {
-          const name = product.name;
-          const desc = stripHtml(product.short_description) || stripHtml(product.description)?.substring(0, 150) + '...' || 'No description available.';
-          return `* Product: ${name}\n* Details: ${desc}`;
-        }).join('\n\n');
-      }
-    } catch (e) {
-      console.error("Failed to fetch details for grouped products:", e);
-      groupedProductsList = 'Error fetching product details.';
+    if (!wooApi) {
+        groupedProductsList = 'WooCommerce API is not configured. Cannot fetch grouped product details.';
+    } else {
+        try {
+          const response = await wooApi.get("products", { include: input.groupedProductIds, per_page: 100 });
+          if (response.data && response.data.length > 0) {
+            groupedProductsList = response.data.map((product: any) => {
+              const name = product.name;
+              const desc = stripHtml(product.short_description) || stripHtml(product.description)?.substring(0, 150) + '...' || 'No description available.';
+              return `* Product: ${name}\n* Details: ${desc}`;
+            }).join('\n\n');
+          }
+        } catch (e) {
+          console.error("Failed to fetch details for grouped products:", e);
+          groupedProductsList = 'Error fetching product details.';
+        }
     }
   }
 

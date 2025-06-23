@@ -14,6 +14,9 @@ export async function GET(request: NextRequest) {
     const uid = decodedToken.uid;
 
     const { wooApi } = await getApiClientsForUser(uid);
+    if (!wooApi) {
+        throw new Error('WooCommerce API is not configured for the active connection.');
+    }
 
     const { searchParams } = new URL(request.url);
     const sku = searchParams.get('sku');
@@ -43,7 +46,7 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('Error checking product existence:', error.response?.data || error.message);
     const errorMessage = error.response?.data?.message || error.message || 'An unknown error occurred while checking the product.';
-    const status = error.message.includes('configure API connections') ? 400 : (error.response?.status || 500);
+    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     const details = error.response?.data?.data;
     
     return NextResponse.json({ error: errorMessage, details }, { status });

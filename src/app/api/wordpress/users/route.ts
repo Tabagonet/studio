@@ -16,6 +16,9 @@ export async function GET(req: NextRequest) {
 
 
     const { wpApi } = await getApiClientsForUser(uid);
+    if (!wpApi) {
+        throw new Error('WordPress API is not configured for the active connection.');
+    }
 
     // Fetch all users. You might want to add role filtering if your setup requires it.
     // For example, roles: ['administrator', 'editor', 'author']
@@ -33,7 +36,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Error fetching WordPress users:', error.response?.data || error.message);
     const errorMessage = error.response?.data?.message || 'Failed to fetch users.';
-    const status = error.message.includes('configure API connections') ? 400 : (error.response?.status || 500);
+    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     
     return NextResponse.json(
       { error: errorMessage, details: error.response?.data },

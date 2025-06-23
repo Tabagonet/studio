@@ -47,6 +47,9 @@ export async function POST(request: NextRequest) {
     uid = decodedToken.uid;
     
     const { wooApi, wpApi, activeConnectionKey } = await getApiClientsForUser(uid);
+    if (!wooApi || !wpApi) {
+        throw new Error('Both WooCommerce and WordPress APIs must be configured for this action.');
+    }
     const productData: ProductData = await request.json();
     
     // 2. Upload images to WordPress via its REST API
@@ -227,8 +230,8 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Error creating product in WooCommerce:', error.response?.data || error.message);
     const errorMessage = error.response?.data?.message || 'An unknown error occurred while creating the product.';
-    const errorStatus = error.response?.status || 500;
+    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     const userFriendlyError = `Error al crear el producto. Razón: ${errorMessage}`;
-    return NextResponse.json({ success: false, error: userFriendlyError, details: error.response?.data }, { status: errorStatus });
+    return NextResponse.json({ success: false, error: userFriendlyError, details: error.response?.data }, { status });
   }
 }

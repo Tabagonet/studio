@@ -15,6 +15,9 @@ export async function GET(req: NextRequest) {
     const uid = decodedToken.uid;
 
     const { wpApi } = await getApiClientsForUser(uid);
+    if (!wpApi) {
+        throw new Error('WordPress API is not configured for the active connection.');
+    }
 
     const response = await wpApi.get("categories", { per_page: 100 });
     
@@ -31,8 +34,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(categories);
   } catch (error: any) {
     console.error('Error fetching WordPress post categories:', error.response?.data || error.message);
-    const errorMessage = error.response?.data?.message || 'Failed to fetch categories.';
-    const status = error.message.includes('configure API connections') ? 400 : (error.response?.status || 500);
+    const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch categories.';
+    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     
     return NextResponse.json(
       { error: errorMessage, details: error.response?.data },

@@ -30,6 +30,9 @@ export async function POST(req: NextRequest) {
         const { postIds, action } = validation.data;
 
         const { wpApi } = await getApiClientsForUser(uid);
+        if (!wpApi) {
+            throw new Error('WordPress API is not configured for the active connection.');
+        }
 
         const results = {
             success: [] as number[],
@@ -59,6 +62,7 @@ export async function POST(req: NextRequest) {
 
     } catch (error: any) {
         console.error('Error in blog batch action API:', error);
-        return NextResponse.json({ error: 'An unexpected error occurred during batch processing.', message: error.message }, { status: 500 });
+        const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
+        return NextResponse.json({ error: 'An unexpected error occurred during batch processing.', message: error.message }, { status });
     }
 }

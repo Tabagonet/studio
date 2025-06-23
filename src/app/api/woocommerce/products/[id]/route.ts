@@ -49,6 +49,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const uid = decodedToken.uid;
     
     const { wooApi } = await getApiClientsForUser(uid);
+    if (!wooApi) {
+      throw new Error('WooCommerce API is not configured for the active connection.');
+    }
+    
     const productId = params.id;
     if (!productId) {
       return NextResponse.json({ error: 'Product ID is required.' }, { status: 400 });
@@ -60,7 +64,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   } catch (error: any) {
     console.error(`Error fetching product ${params.id}:`, error.response?.data || error.message);
     const errorMessage = error.response?.data?.message || 'Failed to fetch product details.';
-    const status = error.message.includes('configure API connections') ? 400 : (error.response?.status || 500);
+    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     
     return NextResponse.json(
       { error: errorMessage, details: error.response?.data },
@@ -80,6 +84,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const uid = decodedToken.uid;
     
     const { wooApi, wpApi } = await getApiClientsForUser(uid);
+    if (!wooApi) {
+        throw new Error('WooCommerce API is not configured for the active connection.');
+    }
+
     const productId = params.id;
     if (!productId) {
       return NextResponse.json({ error: 'Product ID is required.' }, { status: 400 });
@@ -109,6 +117,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     // New Image Handling Logic
     if (validatedData.images) {
+        if (!wpApi) {
+          throw new Error('WordPress API must be configured to upload new images.');
+        }
         const processedImages = [];
         let imageIndex = 0;
 
@@ -150,7 +161,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
  {
     console.error(`Error updating product ${params.id}:`, error.response?.data || error.message);
     const errorMessage = error.response?.data?.message || 'Failed to update product.';
-    const status = error.message.includes('configure API connections') ? 400 : (error.response?.status || 500);
+    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     
     return NextResponse.json(
       { error: errorMessage, details: error.response?.data },
@@ -170,6 +181,10 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const uid = decodedToken.uid;
     
     const { wooApi } = await getApiClientsForUser(uid);
+    if (!wooApi) {
+        throw new Error('WooCommerce API is not configured for the active connection.');
+    }
+
     const productId = params.id;
     if (!productId) {
       return NextResponse.json({ error: 'Product ID is required.' }, { status: 400 });
@@ -184,7 +199,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   } catch (error: any) {
     console.error(`Error deleting product ${params.id}:`, error.response?.data || error.message);
     const errorMessage = error.response?.data?.message || 'Failed to delete product.';
-    const status = error.message.includes('configure API connections') ? 400 : (error.response?.status || 500);
+    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     
     return NextResponse.json(
       { error: errorMessage, details: error.response?.data },
