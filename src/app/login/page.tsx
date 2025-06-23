@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { auth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
@@ -85,8 +86,16 @@ export default function LoginPage() {
             )}
             Iniciar Sesión con Google
           </Button>
-          <p className="text-xs text-center text-muted-foreground">
-            Al continuar, aceptas nuestros Términos de Servicio y Política de Privacidad.
+          <p className="text-xs text-center text-muted-foreground px-4">
+            Al continuar, aceptas nuestros{' '}
+            <Link href="/terms" className="underline hover:text-primary">
+              Términos de Servicio
+            </Link>{' '}
+            y nuestra{' '}
+            <Link href="/privacy" className="underline hover:text-primary">
+              Política de Privacidad
+            </Link>
+            .
           </p>
         </CardContent>
       </Card>
