@@ -46,6 +46,7 @@ const StatusBadge = ({ status, loading, configuredText = "Configurada", missingT
 export default function SettingsPage() {
   const [serverConfig, setServerConfig] = useState<ServerConfigStatus | null>(null);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -84,6 +85,46 @@ export default function SettingsPage() {
 
     fetchConfigStatus();
   }, [toast]);
+  
+  const handleExportSettings = async () => {
+    setIsExporting(true);
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: 'Error de autenticación', variant: 'destructive' });
+        setIsExporting(false);
+        return;
+    }
+
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/user-settings/export', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'No se pudo exportar la configuración.');
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const formattedDate = new Date().toISOString().split('T')[0];
+        a.download = `wooautomate_settings_${formattedDate}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+
+        toast({ title: 'Exportación Exitosa', description: 'Tu archivo de configuración se ha descargado.' });
+    } catch (error: any) {
+        toast({ title: 'Error al Exportar', description: error.message, variant: 'destructive' });
+    } finally {
+        setIsExporting(false);
+    }
+  };
+
 
   const isFirebaseClientConfigured = !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID &&
                                      !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
@@ -190,7 +231,10 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-4">
-                <Button variant="outline" disabled><Download className="mr-2 h-4 w-4" /> Exportar Configuración</Button>
+                <Button variant="outline" onClick={handleExportSettings} disabled={isExporting}>
+                    {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                    {isExporting ? 'Exportando...' : 'Exportar Configuración'}
+                </Button>
                 <Button variant="outline" disabled><Upload className="mr-2 h-4 w-4" /> Importar Configuración</Button>
             </div>
             <div>
