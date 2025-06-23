@@ -3,7 +3,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bell, Loader2, Inbox } from "lucide-react";
+import { Button } from '@/components/ui/button';
+import { Bell, Loader2, Inbox, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import type { UserNotification } from '@/lib/types';
@@ -15,6 +16,7 @@ import { es } from 'date-fns/locale';
 export default function NotificationsPage() {
     const [notifications, setNotifications] = useState<UserNotification[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isDeleting, setIsDeleting] = useState<string | null>(null);
     const { toast } = useToast();
 
     useEffect(() => {
@@ -30,7 +32,6 @@ export default function NotificationsPage() {
                         throw new Error('Failed to load notifications.');
                     }
                     const data = await response.json();
-                    // Sort notifications on the client-side
                     const sortedNotifications = data.notifications.sort((a: UserNotification, b: UserNotification) =>
                         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
                     );
@@ -47,6 +48,44 @@ export default function NotificationsPage() {
         });
         return () => unsubscribe();
     }, [toast]);
+
+    const handleDelete = async (notificationId: string) => {
+        setIsDeleting(notificationId);
+        
+        // Optimistic UI update
+        const originalNotifications = [...notifications];
+        setNotifications(prev => prev.filter(n => n.id !== notificationId));
+
+        const user = auth.currentUser;
+        if (!user) {
+            toast({ title: "No autenticado", variant: "destructive" });
+            setNotifications(originalNotifications);
+            setIsDeleting(null);
+            return;
+        }
+
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch(`/api/notifications/${notificationId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'No se pudo eliminar la notificación.');
+            }
+
+            toast({ title: "Notificación eliminada" });
+        } catch (error: any) {
+            toast({ title: "Error al eliminar", description: error.message, variant: "destructive" });
+            // Rollback on error
+            setNotifications(originalNotifications);
+        } finally {
+            setIsDeleting(null);
+        }
+    };
+
 
     return (
         <div className="container mx-auto py-8">
@@ -74,11 +113,14 @@ export default function NotificationsPage() {
                     ) : (
                         <div className="space-y-3">
                             {notifications.map(notification => (
-                                <Link key={notification.id} href={notification.link || '#'} className="block">
-                                    <div className={cn(
-                                        "p-4 border rounded-lg transition-colors cursor-pointer",
+                                <div 
+                                    key={notification.id} 
+                                    className={cn(
+                                        "flex items-center gap-4 p-4 border rounded-lg transition-colors",
                                         notification.read ? 'bg-card hover:bg-muted/50' : 'bg-primary/10 hover:bg-primary/20 border-primary/50'
-                                    )}>
+                                    )}
+                                >
+                                    <Link href={notification.link || '#'} className="flex-grow">
                                         <div className="flex justify-between items-start">
                                             <div className="flex items-center gap-3">
                                                 {!notification.read && (
@@ -93,8 +135,18 @@ export default function NotificationsPage() {
                                                 {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: es })}
                                             </p>
                                         </div>
-                                    </div>
-                                </Link>
+                                    </Link>
+                                    <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="text-muted-foreground hover:text-destructive flex-shrink-0"
+                                        onClick={() => handleDelete(notification.id)}
+                                        disabled={isDeleting === notification.id}
+                                        aria-label="Eliminar notificación"
+                                    >
+                                        {isDeleting === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                    </Button>
+                                </div>
                             ))}
                         </div>
                     )}
