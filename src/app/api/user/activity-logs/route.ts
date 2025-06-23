@@ -1,3 +1,4 @@
+
 // src/app/api/user/activity-logs/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -26,7 +27,6 @@ export async function GET(req: NextRequest) {
     try {
         const logsSnapshot = await adminDb.collection('activity_logs')
             .where('userId', '==', uid)
-            .orderBy('timestamp', 'desc')
             .limit(100) // Limit to a reasonable number for the dashboard
             .get();
         

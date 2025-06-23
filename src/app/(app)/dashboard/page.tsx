@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -35,7 +36,10 @@ export default function DashboardPage() {
             throw new Error('No se pudo cargar la actividad.');
           }
           const data = await response.json();
-          setLogs(data.logs);
+          const sortedLogs = data.logs.sort((a: ActivityLog, b: ActivityLog) => 
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          );
+          setLogs(sortedLogs);
         } catch (error: any) {
           toast({ title: 'Error', description: error.message, variant: 'destructive' });
         } finally {

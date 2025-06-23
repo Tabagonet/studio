@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
         });
 
         // 2. Fetch all activity logs, limited to the most recent 200 for performance
-        const logsSnapshot = await adminDb.collection('activity_logs').orderBy('timestamp', 'desc').limit(200).get();
+        const logsSnapshot = await adminDb.collection('activity_logs').limit(200).get();
         
         // 3. Combine logs with user data
         const logs = logsSnapshot.docs.map(doc => {
