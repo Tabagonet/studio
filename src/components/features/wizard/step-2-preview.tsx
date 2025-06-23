@@ -4,19 +4,13 @@ import { ProductData } from "@/lib/types";
 import Image from 'next/image';
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 interface Step2PreviewProps {
   productData: ProductData;
 }
 
 export function Step2Preview({ productData }: Step2PreviewProps) {
-  const { 
-    name, sku, productType, regularPrice, salePrice, category, 
-    keywords, shortDescription, longDescription, attributes, photos,
-    variations,
-  } = productData;
+  const { name, sku, productType, regularPrice, salePrice, category, keywords, shortDescription, longDescription, attributes, photos } = productData;
 
   const primaryPhoto = photos.find(p => p.isPrimary) || photos[0];
 
@@ -54,34 +48,18 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
             <div className="md:col-span-2 space-y-4">
               <div>
                 <h4 className="font-semibold text-lg">Descripción Corta</h4>
-                <div
-                  className="text-muted-foreground prose prose-sm max-w-none"
-                  dangerouslySetInnerHTML={{ __html: shortDescription || "No especificada." }}
-                />
+                <p className="text-muted-foreground">{shortDescription || "No especificada."}</p>
               </div>
 
-              {productType !== 'grouped' && productType !== 'variable' && (
-                <div>
-                  <h4 className="font-semibold text-lg">Precios</h4>
-                  <p>
-                    <span className={cn("font-bold text-xl", salePrice && "line-through text-muted-foreground")}>
-                      {regularPrice ? `${regularPrice}€` : "No especificado"}
-                    </span>
-                    {salePrice && <span className="ml-2 font-bold text-xl text-primary">{`${salePrice}€`}</span>}
-                  </p>
-                </div>
-              )}
-              {(productType === 'grouped' || productType === 'variable') && (
-                 <div>
-                    <h4 className="font-semibold text-lg">Precios</h4>
-                    <p className="text-muted-foreground italic">
-                      {productType === 'grouped' 
-                        ? 'Los productos agrupados no tienen precio.'
-                        : 'El precio se define en cada variación.'}
-                    </p>
-                </div>
-              )}
-
+              <div>
+                <h4 className="font-semibold text-lg">Precios</h4>
+                <p>
+                  <span className={cn("font-bold text-xl", salePrice && "line-through text-muted-foreground")}>
+                    {regularPrice ? `${regularPrice}€` : "No especificado"}
+                  </span>
+                  {salePrice && <span className="ml-2 font-bold text-xl text-primary">{`${salePrice}€`}</span>}
+                </p>
+              </div>
 
               <div>
                 <h4 className="font-semibold text-lg">Detalles</h4>
@@ -96,10 +74,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
           <div className="space-y-4">
             <div>
               <h4 className="font-semibold text-lg">Descripción Larga</h4>
-              <div 
-                className="text-muted-foreground whitespace-pre-wrap prose prose-sm max-w-none [&_strong]:text-foreground [&_em]:text-foreground"
-                dangerouslySetInnerHTML={{ __html: longDescription || "No especificada." }}
-              />
+              <p className="text-muted-foreground whitespace-pre-wrap">{longDescription || "No especificada."}</p>
             </div>
             
             {attributes && attributes.length > 0 && attributes.some(attr => attr.name) && (
@@ -114,46 +89,6 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                         ))}
                     </div>
                 </div>
-            )}
-
-            {productType === 'variable' && variations && variations.length > 0 && (
-              <div>
-                <h4 className="font-semibold text-lg">Variaciones Generadas</h4>
-                  <Accordion type="single" collapsible className="w-full">
-                    {variations.map(variation => (
-                      <AccordionItem value={variation.id} key={variation.id}>
-                        <AccordionTrigger>
-                          <div className="flex flex-wrap gap-x-4 gap-y-1">
-                             {variation.attributes.map(attr => (
-                                <span key={attr.name} className="text-sm">
-                                  <span className="font-medium">{attr.name}:</span>
-                                  <span className="text-muted-foreground ml-1">{attr.value}</span>
-                                </span>
-                              ))}
-                          </div>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                           <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>SKU</TableHead>
-                                  <TableHead>Precio Regular</TableHead>
-                                  <TableHead>Precio de Oferta</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                <TableRow>
-                                  <TableCell>{variation.sku || "N/A"}</TableCell>
-                                  <TableCell>{variation.regularPrice ? `${variation.regularPrice}€` : 'N/A'}</TableCell>
-                                  <TableCell>{variation.salePrice ? `${variation.salePrice}€` : 'N/A'}</TableCell>
-                                </TableRow>
-                              </TableBody>
-                            </Table>
-                        </AccordionContent>
-                      </AccordionItem>
-                    ))}
-                  </Accordion>
-              </div>
             )}
             
             {keywords && (
