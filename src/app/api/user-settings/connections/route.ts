@@ -38,14 +38,27 @@ export async function GET(req: NextRequest) {
     }
 }
 
+// A custom Zod schema to validate a string is either empty or a valid URL.
+const urlOrEmptyString = z.string().refine((value) => {
+    if (value === '') return true; // Allow empty string
+    try {
+        new URL(value); // Check if it's a valid URL
+        return true;
+    } catch {
+        return false;
+    }
+}, { message: "Invalid URL format" });
+
+
 const connectionDataSchema = z.object({
-    wooCommerceStoreUrl: z.union([z.string().url({ message: "Invalid WooCommerce URL" }), z.literal('')]),
+    wooCommerceStoreUrl: urlOrEmptyString,
     wooCommerceApiKey: z.string().optional(),
     wooCommerceApiSecret: z.string().optional(),
-    wordpressApiUrl: z.union([z.string().url({ message: "Invalid WordPress URL" }), z.literal('')]),
+    wordpressApiUrl: urlOrEmptyString,
     wordpressUsername: z.string().optional(),
     wordpressApplicationPassword: z.string().optional(),
 });
+
 
 // POST handler to save/update a connection profile and optionally set it as active
 export async function POST(req: NextRequest) {
