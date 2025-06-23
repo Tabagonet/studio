@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
     wooCommerceConfigured: false,
     wordPressConfigured: false,
   };
+  let activeStoreUrl: string | null = null;
 
   if (adminDb) {
     try {
@@ -42,6 +43,7 @@ export async function GET(req: NextRequest) {
           const activeConnection = allConnections[activeKey];
           userConfig.wooCommerceConfigured = !!(activeConnection.wooCommerceStoreUrl && activeConnection.wooCommerceApiKey && activeConnection.wooCommerceApiSecret);
           userConfig.wordPressConfigured = !!(activeConnection.wordpressApiUrl && activeConnection.wordpressUsername && activeConnection.wordpressApplicationPassword);
+          activeStoreUrl = activeConnection.wooCommerceStoreUrl || activeConnection.wordpressApiUrl || null;
         }
       }
     } catch (dbError) {
@@ -56,6 +58,7 @@ export async function GET(req: NextRequest) {
   const finalConfigStatus = {
     ...globalConfig,
     ...userConfig,
+    activeStoreUrl: activeStoreUrl,
   };
 
   return NextResponse.json(finalConfigStatus);

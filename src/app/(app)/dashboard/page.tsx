@@ -15,6 +15,8 @@ import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow, parseISO, subDays, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Papa from 'papaparse';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 type FilterType = 'this_month' | 'last_30_days' | 'all_time';
 
@@ -24,34 +26,66 @@ export default function DashboardPage() {
   const [filter, setFilter] = useState<FilterType>('this_month');
   const { toast } = useToast();
 
+  const [configStatus, setConfigStatus] = useState<{ wooCommerceConfigured: boolean; wordPressConfigured: boolean } | null>(null);
+  const [isLoadingConfig, setIsLoadingConfig] = useState(true);
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const handleAuthChange = async (user: import('firebase/auth').User | null) => {
       if (user) {
         setIsLoading(true);
+        setIsLoadingConfig(true);
+        
         try {
           const token = await user.getIdToken();
-          const response = await fetch('/api/user/activity-logs', {
+          
+          // Fetch activity logs
+          const logsPromise = fetch('/api/user/activity-logs', {
             headers: { 'Authorization': `Bearer ${token}` }
           });
-          if (!response.ok) {
-            throw new Error('No se pudo cargar la actividad.');
-          }
-          const data = await response.json();
-          const sortedLogs = data.logs.sort((a: ActivityLog, b: ActivityLog) => 
+          
+          // Fetch config status
+          const configPromise = fetch('/api/check-config', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+
+          const [logsResponse, configResponse] = await Promise.all([logsPromise, configPromise]);
+
+          if (!logsResponse.ok) throw new Error('No se pudo cargar la actividad.');
+          const logsData = await logsResponse.json();
+          const sortedLogs = logsData.logs.sort((a: ActivityLog, b: ActivityLog) => 
             new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
           );
           setLogs(sortedLogs);
+          
+          if (!configResponse.ok) throw new Error('No se pudo verificar la configuración.');
+          setConfigStatus(await configResponse.json());
+
         } catch (error: any) {
           toast({ title: 'Error', description: error.message, variant: 'destructive' });
         } finally {
           setIsLoading(false);
+          setIsLoadingConfig(false);
         }
       } else {
         setIsLoading(false);
+        setIsLoadingConfig(false);
         setLogs([]);
+        setConfigStatus(null);
       }
-    });
-    return () => unsubscribe();
+    };
+
+    const unsubscribe = onAuthStateChanged(auth, handleAuthChange);
+    
+    // Also re-check config when connections are updated
+    const handleConnectionsUpdate = () => {
+        if (auth.currentUser) handleAuthChange(auth.currentUser);
+    };
+    window.addEventListener('connections-updated', handleConnectionsUpdate);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('connections-updated', handleConnectionsUpdate);
+    };
   }, [toast]);
 
   const filteredLogs = useMemo(() => {
@@ -109,7 +143,6 @@ export default function DashboardPage() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
-
 
   const renderStats = () => {
     if (isLoading) {
@@ -195,6 +228,9 @@ export default function DashboardPage() {
       </Table>
     );
   }
+
+  const wooConfigured = !isLoadingConfig && !!configStatus?.wooCommerceConfigured;
+  const wpConfigured = !isLoadingConfig && !!configStatus?.wordPressConfigured;
   
   return (
     <div className="space-y-8">
@@ -204,51 +240,90 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg flex flex-col">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-lg font-medium">Crear Nuevo Producto</CardTitle>
-              <PlusCircle className="h-6 w-6 text-primary" />
-            </CardHeader>
-            <CardContent className="flex flex-col flex-grow">
-              <CardDescription className="mb-4 text-sm">
-                Inicia el asistente para añadir productos simples o variables a tu tienda WooCommerce.
-              </CardDescription>
-              <Button asChild className="w-full mt-auto">
-                <Link href="/wizard">Iniciar Asistente</Link>
-              </Button>
-            </CardContent>
-          </Card>
+        <TooltipProvider>
+            <Tooltip delayDuration={100}>
+              <TooltipTrigger asChild>
+                <div className={cn(!wooConfigured && "cursor-not-allowed")}>
+                  <Card className={cn("shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col", !wooConfigured && "bg-muted/50")}>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-lg font-medium">Crear Nuevo Producto</CardTitle>
+                      <PlusCircle className="h-6 w-6 text-primary" />
+                    </CardHeader>
+                    <CardContent className="flex flex-col flex-grow">
+                      <CardDescription className="mb-4 text-sm">
+                        Inicia el asistente para añadir productos simples o variables a tu tienda WooCommerce.
+                      </CardDescription>
+                      <Button asChild className="w-full mt-auto" disabled={!wooConfigured}>
+                        <Link href="/wizard" className={cn(!wooConfigured && "pointer-events-none")}>Iniciar Asistente</Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </TooltipTrigger>
+              {!wooConfigured && (
+                <TooltipContent>
+                  <p>Configuración de WooCommerce incompleta. Ve a Ajustes.</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+        </TooltipProvider>
 
-          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg flex flex-col">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-lg font-medium">Procesamiento en Lotes</CardTitle>
-              <UploadCloud className="h-6 w-6 text-primary" />
-            </CardHeader>
-            <CardContent className="flex flex-col flex-grow">
-              <CardDescription className="mb-4 text-sm">
-                Sube imágenes y un archivo CSV para crear productos de forma masiva y eficiente.
-              </CardDescription>
-              <Button asChild variant="outline" className="w-full mt-auto">
-                <Link href="/batch-process">Iniciar Procesamiento</Link>
-              </Button>
-            </CardContent>
-          </Card>
+        <TooltipProvider>
+            <Tooltip delayDuration={100}>
+              <TooltipTrigger asChild>
+                <div className={cn(!wooConfigured && "cursor-not-allowed")}>
+                  <Card className={cn("shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col", !wooConfigured && "bg-muted/50")}>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-lg font-medium">Procesamiento en Lotes</CardTitle>
+                      <UploadCloud className="h-6 w-6 text-primary" />
+                    </CardHeader>
+                    <CardContent className="flex flex-col flex-grow">
+                      <CardDescription className="mb-4 text-sm">
+                        Sube imágenes y un archivo CSV para crear productos de forma masiva y eficiente.
+                      </CardDescription>
+                      <Button asChild variant="outline" className="w-full mt-auto" disabled={!wooConfigured}>
+                        <Link href="/batch-process" className={cn(!wooConfigured && "pointer-events-none")}>Iniciar Procesamiento</Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </TooltipTrigger>
+              {!wooConfigured && (
+                <TooltipContent>
+                  <p>Configuración de WooCommerce incompleta. Ve a Ajustes.</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+        </TooltipProvider>
 
-          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg flex flex-col">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-lg font-medium">Crear Nueva Entrada</CardTitle>
-              <Newspaper className="h-6 w-6 text-primary" />
-            </CardHeader>
-            <CardContent className="flex flex-col flex-grow">
-              <CardDescription className="mb-4 text-sm">
-                Usa el asistente con IA para generar nuevo contenido y traducciones para tu blog.
-              </CardDescription>
-              <Button asChild variant="secondary" className="w-full mt-auto">
-                 <Link href="/blog-creator">Crear Entrada</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+        <TooltipProvider>
+            <Tooltip delayDuration={100}>
+              <TooltipTrigger asChild>
+                <div className={cn(!wpConfigured && "cursor-not-allowed")}>
+                  <Card className={cn("shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col", !wpConfigured && "bg-muted/50")}>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-lg font-medium">Crear Nueva Entrada</CardTitle>
+                      <Newspaper className="h-6 w-6 text-primary" />
+                    </CardHeader>
+                    <CardContent className="flex flex-col flex-grow">
+                      <CardDescription className="mb-4 text-sm">
+                        Usa el asistente con IA para generar nuevo contenido y traducciones para tu blog.
+                      </CardDescription>
+                      <Button asChild variant="secondary" className="w-full mt-auto" disabled={!wpConfigured}>
+                         <Link href="/blog-creator" className={cn(!wpConfigured && "pointer-events-none")}>Crear Entrada</Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </TooltipTrigger>
+              {!wpConfigured && (
+                <TooltipContent>
+                  <p>Configuración de WordPress incompleta. Ve a Ajustes.</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+        </TooltipProvider>
+      </div>
 
       <section aria-labelledby="statistics-title">
         <div className="flex justify-between items-center mb-4">

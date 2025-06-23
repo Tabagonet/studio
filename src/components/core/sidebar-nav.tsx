@@ -18,37 +18,70 @@ import { Package, LogOut } from "lucide-react";
 import { auth, firebaseSignOut, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { Skeleton } from '../ui/skeleton';
 
 export function SidebarNav() {
   const pathname = usePathname();
   const { toast } = useToast();
   const router = useRouter();
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [configStatus, setConfigStatus] = useState<{ wooCommerceConfigured: boolean; wordPressConfigured: boolean } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
-      if (user) {
-        try {
-          const token = await user.getIdToken();
-          const response = await fetch('/api/user/verify', {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (response.ok) {
-            const userData = await response.json();
-            setUserRole(userData.role);
-          } else {
-            setUserRole(null);
-          }
-        } catch (error) {
-          console.error("Failed to fetch user role for sidebar", error);
-          setUserRole(null);
-        }
+  const fetchUserAndConfigData = async (user: FirebaseUser) => {
+    try {
+      const token = await user.getIdToken();
+      
+      const [roleResponse, configResponse] = await Promise.all([
+        fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` }})
+      ]);
+
+      if (roleResponse.ok) {
+        const userData = await roleResponse.json();
+        setUserRole(userData.role);
       } else {
         setUserRole(null);
       }
+
+      if(configResponse.ok) {
+        setConfigStatus(await configResponse.json());
+      } else {
+        setConfigStatus({ wooCommerceConfigured: false, wordPressConfigured: false });
+      }
+
+    } catch (error) {
+      console.error("Failed to fetch user/config for sidebar", error);
+      setUserRole(null);
+      setConfigStatus({ wooCommerceConfigured: false, wordPressConfigured: false });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user: FirebaseUser | null) => {
+      if (user) {
+        setIsLoading(true);
+        fetchUserAndConfigData(user);
+      } else {
+        setUserRole(null);
+        setConfigStatus(null);
+        setIsLoading(false);
+      }
     });
 
-    return () => unsubscribe();
+    const handleConnectionsUpdate = () => {
+        if (auth.currentUser) {
+           fetchUserAndConfigData(auth.currentUser);
+        }
+    };
+    window.addEventListener('connections-updated', handleConnectionsUpdate);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('connections-updated', handleConnectionsUpdate);
+    };
   }, []);
 
   const handleSignOut = async () => {
@@ -68,6 +101,79 @@ export function SidebarNav() {
       });
     }
   };
+  
+  const renderNavItems = () => {
+    if (isLoading) {
+      return (
+        <>
+          <SidebarGroup>
+            <Skeleton className="h-5 w-20 mb-2" />
+            <Skeleton className="h-8 w-full mb-1" />
+            <Skeleton className="h-8 w-full" />
+          </SidebarGroup>
+          <SidebarGroup>
+            <Skeleton className="h-5 w-24 mb-2" />
+            <Skeleton className="h-8 w-full mb-1" />
+            <Skeleton className="h-8 w-full mb-1" />
+            <Skeleton className="h-8 w-full" />
+          </SidebarGroup>
+        </>
+      )
+    }
+
+    return NAV_GROUPS.map((group) => {
+      const visibleItems = group.items.filter(item => !item.adminOnly || userRole === 'admin');
+      if (visibleItems.length === 0) return null;
+
+      return (
+        <SidebarGroup key={group.title}>
+          <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
+          {visibleItems.map((item) => {
+            let isDisabled = !!item.disabled;
+            let tooltipText = item.title;
+            
+            if (group.title === 'WooCommerce' && (!configStatus || !configStatus.wooCommerceConfigured)) {
+              isDisabled = true;
+              tooltipText = "Configuración de WooCommerce incompleta";
+            }
+            if (group.title === 'Blog' && (!configStatus || !configStatus.wordPressConfigured)) {
+              isDisabled = true;
+              tooltipText = "Configuración de WordPress incompleta";
+            }
+
+            return (
+              <SidebarMenuItem key={item.href}>
+                <Link
+                  href={item.href}
+                  target={item.external ? "_blank" : undefined}
+                  rel={item.external ? "noopener noreferrer" : undefined}
+                  className={cn(isDisabled && "pointer-events-none")}
+                  aria-disabled={isDisabled}
+                  tabIndex={isDisabled ? -1 : undefined}
+                  onClick={(e) => { if (isDisabled) e.preventDefault(); }}
+                >
+                  <SidebarMenuButton
+                    className={cn(
+                      "w-full justify-start",
+                      !item.external && pathname === item.href && "bg-sidebar-accent text-sidebar-accent-foreground",
+                    )}
+                    disabled={isDisabled}
+                    tooltip={{ children: tooltipText, className: "bg-card text-card-foreground border-border"}}
+                  >
+                    <item.icon className="mr-2 h-4 w-4" /> 
+                    <span className="truncate group-data-[collapsible=icon]:hidden">
+                      {item.title}
+                    </span>
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
+            );
+          })}
+        </SidebarGroup>
+      );
+    });
+  }
+
 
   return (
     <div className="flex flex-col h-full">
@@ -76,41 +182,7 @@ export function SidebarNav() {
         <h1 className="text-xl font-semibold text-sidebar-foreground">{APP_NAME}</h1>
       </div>
       <SidebarMenu className="flex-1 p-0 overflow-y-auto">
-        {NAV_GROUPS.map((group) => {
-          const visibleItems = group.items.filter(item => !item.adminOnly || userRole === 'admin');
-          if (visibleItems.length === 0) {
-            return null;
-          }
-          return (
-            <SidebarGroup key={group.title}>
-              <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
-              {visibleItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <Link
-                    href={item.href}
-                    target={item.external ? "_blank" : undefined}
-                    rel={item.external ? "noopener noreferrer" : undefined}
-                    className={cn(item.disabled && "pointer-events-none")}
-                  >
-                    <SidebarMenuButton
-                      className={cn(
-                        "w-full justify-start",
-                        !item.external && pathname === item.href && "bg-sidebar-accent text-sidebar-accent-foreground",
-                      )}
-                      disabled={item.disabled}
-                      tooltip={{ children: item.title, className: "bg-card text-card-foreground border-border"}}
-                    >
-                      <item.icon className="mr-2 h-4 w-4" /> 
-                      <span className="truncate group-data-[collapsible=icon]:hidden">
-                        {item.title}
-                      </span>
-                    </SidebarMenuButton>
-                  </Link>
-                </SidebarMenuItem>
-              ))}
-            </SidebarGroup>
-          );
-        })}
+        {renderNavItems()}
       </SidebarMenu>
       <div className="p-4 border-t border-sidebar-border mt-auto">
         <SidebarMenuItem>

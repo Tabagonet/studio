@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { UserCircle, LogOut, Settings as SettingsIcon, Globe, Bell, Loader2 } from "lucide-react";
+import { UserCircle, LogOut, Settings as SettingsIcon, Globe, Bell, Loader2, AlertTriangle } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,14 +22,22 @@ import { Skeleton } from '../ui/skeleton';
 import type { UserNotification } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+
+interface ConfigStatus {
+    storeUrl: string | null;
+    wooCommerceConfigured: boolean;
+    wordPressConfigured: boolean;
+}
 
 export function Header() {
   const router = useRouter();
   const { toast } = useToast();
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  const [storeUrl, setStoreUrl] = useState<string | null>(null);
-  const [isLoadingUrl, setIsLoadingUrl] = useState(true);
+  
+  const [configStatus, setConfigStatus] = useState<ConfigStatus | null>(null);
+  const [isLoadingStatus, setIsLoadingStatus] = useState(true);
 
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -63,35 +71,38 @@ export function Header() {
     }
   };
 
-  useEffect(() => {
-    const fetchConnectionStatus = async (user: FirebaseUser | null) => {
-        if (user) {
-            setIsLoadingUrl(true);
-            try {
-              const token = await user.getIdToken();
-              const response = await fetch('/api/user-settings/connections', {
-                headers: { 'Authorization': `Bearer ${token}` }
-              });
-              if (response.ok) {
-                const data = await response.json();
-                const activeKey = data.activeConnectionKey;
-                const activeConnection = data.allConnections && activeKey ? data.allConnections[activeKey] : null;
-                setStoreUrl(activeConnection?.wooCommerceStoreUrl || null);
-              } else {
-                setStoreUrl(null);
-              }
-            } catch (error) {
-              console.error("Failed to fetch connection status:", error);
-              setStoreUrl(null);
-            } finally {
-              setIsLoadingUrl(false);
-            }
+  const fetchConnectionStatus = async (user: FirebaseUser | null) => {
+    if (user) {
+      setIsLoadingStatus(true);
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/check-config', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setConfigStatus({
+            storeUrl: data.activeStoreUrl,
+            wooCommerceConfigured: data.wooCommerceConfigured,
+            wordPressConfigured: data.wordPressConfigured,
+          });
         } else {
-            setStoreUrl(null);
-            setIsLoadingUrl(false);
+          setConfigStatus(null);
         }
-    };
+      } catch (error) {
+        console.error("Failed to fetch connection status:", error);
+        setConfigStatus(null);
+      } finally {
+        setIsLoadingStatus(false);
+      }
+    } else {
+      setConfigStatus(null);
+      setIsLoadingStatus(false);
+    }
+  };
 
+
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       setIsLoadingAuth(false);
@@ -114,11 +125,7 @@ export function Header() {
   const handleMarkAsRead = async () => {
     if (unreadCount === 0) return;
     
-    // Optimistically update UI
     setUnreadCount(0);
-    // Not changing the individual read status visually in dropdown to avoid re-render flash
-    // The badge disappears, which is the main feedback.
-
     const user = auth.currentUser;
     if (!user) return;
     try {
@@ -127,11 +134,8 @@ export function Header() {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` }
         });
-        // On next fetch, notifications will be marked as read.
     } catch (error) {
         console.error("Failed to mark notifications as read:", error);
-        // If error, we can revert the unread count, but for now we'll leave it
-        // as the user's intent was to read them.
     }
   };
 
@@ -154,30 +158,12 @@ export function Header() {
   };
 
   const renderStoreStatus = () => {
-    if (isLoadingAuth || isLoadingUrl) {
+    if (isLoadingAuth || isLoadingStatus) {
       return <Skeleton className="h-5 w-40 hidden md:block" />;
     }
 
-    let statusElement;
-    if (storeUrl) {
-      try {
-        const hostname = new URL(storeUrl).hostname;
-        statusElement = (
-          <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Cambiar conexión">
-            <Globe className="h-4 w-4 text-green-500" />
-            <span className="hidden md:inline">{hostname}</span>
-          </Link>
-        );
-      } catch (e) {
-        statusElement = (
-          <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-destructive" title="URL de tienda inválida. Click para corregir.">
-            <Globe className="h-4 w-4" />
-            <span className="hidden md:inline">URL Inválida</span>
-          </Link>
-        );
-      }
-    } else {
-      statusElement = (
+    if (!configStatus?.storeUrl) {
+      return (
         <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Configurar conexión">
           <Globe className="h-4 w-4 text-destructive" />
           <span className="hidden md:inline">No conectado</span>
@@ -185,7 +171,47 @@ export function Header() {
       );
     }
     
-    return <div>{statusElement}</div>;
+    try {
+        const hostname = new URL(configStatus.storeUrl).hostname;
+        const isFullyConfigured = configStatus.wooCommerceConfigured && configStatus.wordPressConfigured;
+        
+        if (isFullyConfigured) {
+          return (
+            <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Cambiar conexión">
+              <Globe className="h-4 w-4 text-green-500" />
+              <span className="hidden md:inline">{hostname}</span>
+            </Link>
+          );
+        }
+
+        const tooltips: string[] = [];
+        if (!configStatus.wooCommerceConfigured) tooltips.push("WooCommerce no configurado.");
+        if (!configStatus.wordPressConfigured) tooltips.push("WordPress no configurado.");
+
+        return (
+            <TooltipProvider>
+                <Tooltip delayDuration={100}>
+                    <TooltipTrigger asChild>
+                        <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-amber-600 hover:text-amber-500 transition-colors">
+                            <AlertTriangle className="h-4 w-4" />
+                            <span className="hidden md:inline">{hostname}</span>
+                        </Link>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p>{tooltips.join(' ')}</p>
+                    </TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
+        );
+
+    } catch (e) {
+        return (
+          <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-destructive" title="URL de tienda inválida. Click para corregir.">
+            <Globe className="h-4 w-4" />
+            <span className="hidden md:inline">URL Inválida</span>
+          </Link>
+        );
+    }
   }
 
   return (
