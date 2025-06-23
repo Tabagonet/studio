@@ -1,12 +1,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress, findOrCreateTags, translateContent } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress, findOrCreateTags } from '@/lib/api-helpers';
 import { z } from 'zod';
 import type { BlogPostData } from '@/lib/types';
 import axios from 'axios';
-import { v4 as uuidv4 } from 'uuid';
-
 
 const slugify = (text: string) => {
     if (!text) return '';
@@ -18,49 +16,21 @@ const slugify = (text: string) => {
         .replace(/-+$/, '');
 };
 
-
-const authorSchema = z.object({
-  id: z.number(),
-  name: z.string(),
-  slug: z.string(),
-  avatar_urls: z.record(z.string()),
-}).nullable();
-
-const categorySchema = z.object({
-  id: z.number(),
-  name: z.string(),
-  slug: z.string(),
-  parent: z.number(),
-  count: z.number(),
-}).nullable();
-
-const featuredImageSchema = z.object({
-  id: z.union([z.string(), z.number()]),
-  file: z.any().optional(),
-  previewUrl: z.string().optional(),
-  name: z.string().optional(),
-  isPrimary: z.boolean().optional(),
-  status: z.string().optional(),
-  progress: z.number().optional(),
-  error: z.string().optional(),
-  uploadedUrl: z.string().url().optional(),
-  uploadedFilename: z.string().optional(),
-}).nullable();
-
 const postSchema = z.object({
   title: z.string().min(1),
   content: z.string().min(1),
-  topic: z.string().optional(),
-  keywords: z.string().optional(),
-  category: categorySchema,
   status: z.enum(['publish', 'draft', 'pending']),
-  featuredImage: featuredImageSchema,
-  sourceLanguage: z.string(),
-  targetLanguages: z.array(z.string()),
-  author: authorSchema,
+  author: z.object({ id: z.number() }).nullable(),
+  category: z.object({ id: z.number() }).nullable(),
+  keywords: z.string().optional(),
+  featuredImage: z.object({ uploadedUrl: z.string().url().optional() }).nullable(),
   publishDate: z.string().nullable().or(z.date().nullable()),
 });
 
+const payloadSchema = z.object({
+    postData: postSchema,
+    translationGroupId: z.string().uuid(),
+});
 
 export async function POST(request: NextRequest) {
     let uid, token;
@@ -73,90 +43,60 @@ export async function POST(request: NextRequest) {
         uid = decodedToken.uid;
         
         const { wpApi } = await getApiClientsForUser(uid);
-        const postData = await request.json();
+        const body = await request.json();
         
-        const validation = postSchema.safeParse(postData);
+        const validation = payloadSchema.safeParse(body);
         if (!validation.success) {
              return NextResponse.json({ success: false, error: 'Invalid data provided', details: validation.error.flatten() }, { status: 400 });
         }
-
-        const validatedPostData = validation.data;
         
-        const translationGroupId = uuidv4();
-        const createdPosts: { url: string; title: string }[] = [];
+        const { postData, translationGroupId } = validation.data;
 
         // 1. Upload featured image once, if it exists
         let featuredMediaId: number | null = null;
-        const featuredImage = validatedPostData.featuredImage;
-
-        if (featuredImage && featuredImage.uploadedUrl) {
-            const seoFilename = `${slugify(validatedPostData.title || 'blog-post')}.jpg`;
+        if (postData.featuredImage?.uploadedUrl) {
+            const seoFilename = `${slugify(postData.title || 'blog-post')}.jpg`;
             
             featuredMediaId = await uploadImageToWordPress(
-                featuredImage.uploadedUrl,
+                postData.featuredImage.uploadedUrl,
                 seoFilename,
                 {
-                    title: validatedPostData.title,
-                    alt_text: `Imagen destacada para: ${validatedPostData.title}`,
+                    title: postData.title,
+                    alt_text: `Imagen destacada para: ${postData.title}`,
                     caption: '',
-                    description: validatedPostData.content.substring(0, 100),
+                    description: postData.content.substring(0, 100),
                 },
                 wpApi
             );
-
-            // Fire-and-forget deletion of the temporary image
-            if (featuredImage.uploadedFilename) {
-                const origin = request.nextUrl.origin;
-                axios.post(`${origin}/api/delete-image`, { filename: featuredImage.uploadedFilename }, {
-                  headers: { 'Authorization': `Bearer ${token}` }
-                }).catch(deleteError => {
-                  console.warn(`Failed to delete temporary image ${featuredImage.uploadedFilename}. Manual cleanup may be required.`, deleteError);
-                });
-            }
         }
-
 
         // 2. Find or create tags once
-        const tagNames = validatedPostData.keywords ? validatedPostData.keywords.split(',').map(t => t.trim()).filter(Boolean) : [];
+        const tagNames = postData.keywords ? postData.keywords.split(',').map(t => t.trim()).filter(Boolean) : [];
         const tagIds = await findOrCreateTags(tagNames, wpApi);
         
-        // 3. Create the original post
-        const originalPostPayload: any = {
-            title: validatedPostData.title,
-            content: validatedPostData.content,
-            status: validatedPostData.status || 'draft',
+        // 3. Create the post
+        const postPayload: any = {
+            title: postData.title,
+            content: postData.content,
+            status: postData.status || 'draft',
             meta: { translation_group_id: translationGroupId }
         };
-        if (featuredMediaId) originalPostPayload.featured_media = featuredMediaId;
-        if (validatedPostData.category?.id) originalPostPayload.categories = [validatedPostData.category.id];
-        if (tagIds.length > 0) originalPostPayload.tags = tagIds;
-        if (validatedPostData.author?.id) originalPostPayload.author = validatedPostData.author.id;
-        if (validatedPostData.publishDate) originalPostPayload.date = validatedPostData.publishDate;
+        if (featuredMediaId) postPayload.featured_media = featuredMediaId;
+        if (postData.category?.id) postPayload.categories = [postData.category.id];
+        if (tagIds.length > 0) postPayload.tags = tagIds;
+        if (postData.author?.id) postPayload.author = postData.author.id;
+        if (postData.publishDate) postPayload.date = new Date(postData.publishDate).toISOString();
 
-        const originalPostResponse = await wpApi.post('/posts', originalPostPayload);
-        const originalPost = originalPostResponse.data;
-        createdPosts.push({ url: originalPost.link.replace('?p=', '/wp-admin/post.php?post=') + '&action=edit', title: originalPost.title.rendered });
-
-
-        // 4. Create translated posts
-        for (const lang of validatedPostData.targetLanguages) {
-            try {
-                const translatedContent = await translateContent({ title: validatedPostData.title, content: validatedPostData.content }, lang);
-                const translatedPostPayload = {
-                    ...originalPostPayload,
-                    title: translatedContent.title,
-                    content: translatedContent.content,
-                };
-                const translatedPostResponse = await wpApi.post('/posts', translatedPostPayload);
-                const translatedPost = translatedPostResponse.data;
-                createdPosts.push({ url: translatedPost.link.replace('?p=', '/wp-admin/post.php?post=') + '&action=edit', title: translatedPost.title.rendered });
-            } catch (translationError) {
-                console.error(`Failed to create translation for ${lang}:`, translationError);
-                // Don't stop the whole process, just skip this language
-            }
-        }
+        const postResponse = await wpApi.post('/posts', postPayload);
+        const createdPost = postResponse.data;
         
-        return NextResponse.json({ success: true, createdPosts }, { status: 201 });
+        const responseData = {
+            success: true,
+            title: createdPost.title.rendered,
+            url: createdPost.link.replace('?p=', '/wp-admin/post.php?post=') + '&action=edit',
+        };
+        
+        return NextResponse.json(responseData, { status: 201 });
 
     } catch (error: any) {
         console.error('Error creating WordPress post:', error.response?.data || error.message);

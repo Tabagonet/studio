@@ -1,4 +1,5 @@
 
+
 import type { LucideIcon } from 'lucide-react';
 
 // Core navigation type, kept for UI layout
@@ -142,7 +143,15 @@ export interface ParsedNameData {
 }
 
 export type WizardProcessingState = 'idle' | 'processing' | 'finished' | 'error';
+export type SubmissionStatus = 'idle' | 'processing' | 'success' | 'error';
 
+export type SubmissionStepStatus = 'pending' | 'processing' | 'success' | 'error';
+export interface SubmissionStep {
+  id: string;
+  name: string;
+  status: SubmissionStepStatus;
+  error?: string;
+}
 
 export type ProductStats = {
   total: number;
