@@ -3,9 +3,9 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
-import { Step2Preview } from './step-2-preview'; 
-import { Step3Confirm } from './step-3-confirm';
-import { Step4Processing } from './step-4-processing';
+import { Step2Preview } from '@/app/(app)/wizard/step-2-preview'; 
+import { Step3Confirm } from '@/app/(app)/wizard/step-3-confirm';
+import { Step4Processing } from '@/app/(app)/wizard/step-4-processing';
 import type { ProductData, ProductPhoto, WizardProcessingState } from '@/lib/types';
 import { INITIAL_PRODUCT_DATA } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
