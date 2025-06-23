@@ -34,7 +34,8 @@ const INITIAL_BLOG_DATA: BlogPostData = {
     publishDate: null,
 };
 
-const AVAILABLE_LANGUAGES = [
+const ALL_LANGUAGES = [
+    { code: 'Spanish', name: 'Español' },
     { code: 'English', name: 'Inglés' },
     { code: 'French', name: 'Francés' },
     { code: 'German', name: 'Alemán' },
@@ -94,6 +95,18 @@ export function BlogCreator() {
 
     const handleSelectChange = (name: string, value: string) => {
         setPostData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSourceLanguageChange = (newSourceLang: string) => {
+        setPostData(prev => {
+            // Remove the new source language from target languages if it was selected.
+            const newTargetLangs = prev.targetLanguages.filter(l => l !== newSourceLang);
+            return {
+                ...prev,
+                sourceLanguage: newSourceLang,
+                targetLanguages: newTargetLangs
+            };
+        });
     };
 
     const handlePhotoChange = (photos: ProductPhoto[]) => {
@@ -187,6 +200,8 @@ export function BlogCreator() {
         setIsCreating(false);
         setCreatedPosts([]);
     };
+    
+    const availableTargetLanguages = ALL_LANGUAGES.filter(lang => lang.code !== postData.sourceLanguage);
 
     if (isCreating) {
         return (
@@ -310,18 +325,19 @@ export function BlogCreator() {
                         </div>
                         <div className="space-y-3 pt-4 border-t">
                             <Label>Idioma de la Entrada Original</Label>
-                            <Select name="sourceLanguage" value={postData.sourceLanguage} onValueChange={(value) => handleSelectChange('sourceLanguage', value)}>
+                            <Select name="sourceLanguage" value={postData.sourceLanguage} onValueChange={handleSourceLanguageChange}>
                                 <SelectTrigger><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="Spanish">Español</SelectItem>
-                                    <SelectItem value="English">Inglés</SelectItem>
+                                    {ALL_LANGUAGES.map(lang => (
+                                        <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>
                         <div className="space-y-3 pt-4 border-t">
                              <Label>Crear traducciones en:</Label>
                              <div className="grid grid-cols-2 gap-2">
-                                {AVAILABLE_LANGUAGES.map(lang => (
+                                {availableTargetLanguages.map(lang => (
                                     <div key={lang.code} className="flex items-center space-x-2">
                                         <Checkbox 
                                             id={`lang-${lang.code}`}
