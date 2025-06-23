@@ -26,7 +26,7 @@ export default function AuthenticatedAppLayout({
       }
 
       try {
-        const token = await user.getIdToken();
+        const token = await user.getIdToken(true);
         const response = await fetch('/api/user/verify', {
             headers: { 'Authorization': `Bearer ${token}` }
         });

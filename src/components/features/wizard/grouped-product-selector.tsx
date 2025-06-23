@@ -83,7 +83,7 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
         }
     };
     syncSelectedProducts();
-  }, [productIds, fetchProductsByIds, selectedProducts]);
+  }, [productIds, fetchProductsByIds]);
 
   const fetchAvailableProducts = useCallback(async (page: number, category: string, search: string) => {
     setIsLoading(true);
@@ -138,13 +138,28 @@ export function GroupedProductSelector({ productIds, onProductIdsChange }: Group
   };
   
   useEffect(() => {
+    // This effect runs when the debounced search term or category changes.
+    // It fetches the first page of results.
     const unsubscribe = auth.onAuthStateChanged((user) => {
         if (user) {
-            fetchAvailableProducts(currentPage, selectedCategory, debouncedSearchTerm);
+            fetchAvailableProducts(1, selectedCategory, debouncedSearchTerm);
         }
     });
     return () => unsubscribe();
-  }, [debouncedSearchTerm, selectedCategory, currentPage, fetchAvailableProducts]);
+  }, [debouncedSearchTerm, selectedCategory, fetchAvailableProducts]);
+  
+  useEffect(() => {
+    // This effect handles pagination (loading more products).
+    // It only runs when currentPage changes and is > 1.
+    if (currentPage > 1) {
+        const unsubscribe = auth.onAuthStateChanged((user) => {
+            if (user) {
+                fetchAvailableProducts(currentPage, selectedCategory, debouncedSearchTerm);
+            }
+        });
+       return () => unsubscribe();
+    }
+  }, [currentPage, debouncedSearchTerm, selectedCategory, fetchAvailableProducts]);
 
 
   useEffect(() => {

@@ -144,7 +144,7 @@ export function VariableProductManager({ productData, updateProductData }: Varia
                                              ))}
                                         </div>
                                     </AccordionTrigger>
-                                    <AccordionContent className="space-y-4">
+                                    <AccordionContent className="space-y-4 p-4">
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             <div>
                                                 <Label htmlFor={`sku-${variation.id}`}>SKU de la Variación</Label>

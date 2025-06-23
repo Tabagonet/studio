@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Error creating product in WooCommerce:', error.response?.data || error.message);
-    const errorMessage = error.response?.data?.message || error.message || 'An unknown error occurred while creating the product.';
+    const errorMessage = error.response?.data?.message || 'An unknown error occurred while creating the product.';
     const errorStatus = error.response?.status || 500;
     const userFriendlyError = `Error al crear el producto. Razón: ${errorMessage}`;
     return NextResponse.json({ success: false, error: userFriendlyError, details: error.response?.data }, { status: errorStatus });
