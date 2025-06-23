@@ -35,22 +35,30 @@ export async function DELETE(req: NextRequest, { params }: { params: { userId: s
     }
     
     try {
-        // Use a transaction or batch to ensure atomicity
         const batch = adminDb.batch();
         
+        // References to the user's main data
         const userRef = adminDb.collection('users').doc(userId);
         const userSettingsRef = adminDb.collection('user_settings').doc(userId);
         
+        // Find and add user's activity logs to the batch for deletion
+        const activityLogsQuery = adminDb.collection('activity_logs').where('userId', '==', userId);
+        const activityLogsSnapshot = await activityLogsQuery.get();
+        activityLogsSnapshot.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+
+        // Add user documents to the batch
         batch.delete(userRef);
-        batch.delete(userSettingsRef); // Also delete user settings
+        batch.delete(userSettingsRef);
         
-        // First, commit database deletions
+        // First, commit all database deletions
         await batch.commit();
 
         // Then, delete the user from Firebase Auth
         await adminAuth.deleteUser(userId);
 
-        return NextResponse.json({ success: true, message: `User ${userId} and their data have been deleted.` });
+        return NextResponse.json({ success: true, message: `User ${userId} and all associated data have been deleted.` });
 
     } catch (error: any) {
         console.error(`Error deleting user ${userId}:`, error);
