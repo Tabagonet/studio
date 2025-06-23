@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
         const headers = new Headers();
         headers.set('Content-Type', 'application/json');
         const formattedDate = new Date().toISOString().split('T')[0];
-        headers.set('Content-Disposition', `attachment; filename="wooautomate_settings_${formattedDate}.json"`);
+        headers.set('Content-Disposition', `attachment; filename="autopress_ai_settings_${formattedDate}.json"`);
 
         return new NextResponse(jsonString, { headers });
 

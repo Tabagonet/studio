@@ -26,12 +26,12 @@ const firebaseConfig = {
 let app: FirebaseApp;
 
 try {
-  app = getApp('wooautomate'); // Use a unique app name if you have multiple Firebase apps
+  app = getApp('autopress'); // Use a unique app name if you have multiple Firebase apps
 } catch (e) {
   if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
     console.error("Firebase client config is missing. Make sure NEXT_PUBLIC_FIREBASE_ environment variables are set.");
   }
-  app = initializeApp(firebaseConfig, 'wooautomate');
+  app = initializeApp(firebaseConfig, 'autopress');
 }
 
 const db: Firestore = getFirestore(app);

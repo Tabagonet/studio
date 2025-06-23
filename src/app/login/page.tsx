@@ -69,7 +69,7 @@ export default function LoginPage() {
            <Image src="https://placehold.co/100x100.png" alt={`${APP_NAME} Logo`} width={80} height={80} className="mx-auto mb-4 rounded-full" data-ai-hint="logo brand" />
           <CardTitle className="text-3xl font-bold tracking-tight font-headline text-foreground">{`Bienvenido a ${APP_NAME}`}</CardTitle>
           <CardDescription className="text-md text-muted-foreground pt-2">
-            Inicia sesión para automatizar tu tienda WooCommerce.
+            Inicia sesión para automatizar tu tienda y blog.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 p-8">

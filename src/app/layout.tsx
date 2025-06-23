@@ -2,10 +2,11 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { ClientToaster } from '@/components/core/client-toaster'; // Import the new ClientToaster
+import { APP_NAME } from '@/lib/constants';
 
 export const metadata: Metadata = {
-  title: 'WooAutomate',
-  description: 'Automate WooCommerce product creation with ease.',
+  title: APP_NAME,
+  description: 'Automate WooCommerce and WordPress content with AI.',
 };
 
 export default function RootLayout({

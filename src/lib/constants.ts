@@ -3,7 +3,7 @@
 import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList } from 'lucide-react';
 import type { NavItem, ProductType, ProductData, BlogPostData, NavGroup } from '@/lib/types';
 
-export const APP_NAME = "WooAutomate";
+export const APP_NAME = "AutoPress AI";
 export const SUPPORT_EMAIL = "intelvisual@intelvisual.es";
 
 export const NAV_GROUPS: NavGroup[] = [
