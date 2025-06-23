@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -14,10 +13,6 @@ import { PlusCircle, Trash2, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
-import { Checkbox } from '@/components/ui/checkbox';
-import { VariableProductManager } from '@/components/features/wizard/variable-product-manager';
-import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
-import { auth } from '@/lib/firebase';
 
 interface Step1DetailsPhotosProps {
   productData: ProductData;
@@ -33,16 +28,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   useEffect(() => {
     const fetchCategories = async () => {
       setIsLoadingCategories(true);
-      const user = auth.currentUser;
-      if (!user) {
-          setIsLoadingCategories(false);
-          return;
-      }
       try {
-        const token = await user.getIdToken();
-        const response = await fetch('/api/woocommerce/categories', {
-            headers: { 'Authorization': `Bearer ${token}` },
-        });
+        const response = await fetch('/api/woocommerce/categories');
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.error || `Error: ${response.status}`);
@@ -68,12 +55,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   };
 
   const handleSelectChange = (name: string, value: string | ProductType) => {
-    if (name === 'category') {
-      const selectedCategory = wooCategories.find(cat => cat.slug === value) || null;
-      updateProductData({ category: selectedCategory });
-    } else {
-      updateProductData({ [name]: value });
-    }
+    updateProductData({ [name]: value });
   };
 
   const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
@@ -89,18 +71,14 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     updateProductData({ photos: newPhotos });
   };
   
-  const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string | boolean) => {
+  const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string) => {
     const newAttributes = [...productData.attributes];
     newAttributes[index] = { ...newAttributes[index], [field]: value };
     updateProductData({ attributes: newAttributes });
   };
-  
-  const handleGroupedIdsChange = (ids: number[]) => {
-    updateProductData({ groupedProductIds: ids });
-  };
 
   const addAttribute = () => {
-    updateProductData({ attributes: [...productData.attributes, { name: '', value: '', forVariations: false, visible: true }] });
+    updateProductData({ attributes: [...productData.attributes, { name: '', value: '' }] });
   };
 
   const removeAttribute = (index: number) => {
@@ -161,7 +139,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
           <div>
             <Label htmlFor="category">Categoría</Label>
-            <Select name="category" value={productData.category?.slug ?? ''} onValueChange={(value) => handleSelectChange('category', value as string)} disabled={isProcessing || isLoadingCategories}>
+            <Select name="category" value={productData.category} onValueChange={(value) => handleSelectChange('category', value)} disabled={isProcessing || isLoadingCategories}>
               <SelectTrigger id="category">
                 {isLoadingCategories ? (
                   <div className="flex items-center">
@@ -232,55 +210,27 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         <CardContent className="space-y-4">
           {productData.attributes.map((attr, index) => (
             <div key={index} className="flex items-end gap-2 p-3 border rounded-md bg-muted/20">
-              <div className="grid grid-cols-2 gap-2 flex-1">
-                <div>
-                    <Label htmlFor={`attrName-${index}`}>Nombre</Label>
-                    <Input 
-                      id={`attrName-${index}`} 
-                      value={attr.name} 
-                      onChange={(e) => handleAttributeChange(index, 'name', e.target.value)}
-                      placeholder="Ej: Color" 
-                      disabled={isProcessing}
-                    />
-                </div>
-                <div>
-                    <Label htmlFor={`attrValue-${index}`}>Valor(es)</Label>
-                    <Input 
-                      id={`attrValue-${index}`} 
-                      value={attr.value} 
-                      onChange={(e) => handleAttributeChange(index, 'value', e.target.value)}
-                      placeholder="Ej: Azul | Rojo | Verde" 
-                      disabled={isProcessing}
-                    />
-                </div>
+              <div className="flex-1">
+                <Label htmlFor={`attrName-${index}`}>Nombre</Label>
+                <Input 
+                  id={`attrName-${index}`} 
+                  value={attr.name} 
+                  onChange={(e) => handleAttributeChange(index, 'name', e.target.value)}
+                  placeholder="Ej: Color" 
+                  disabled={isProcessing}
+                />
               </div>
-              <div className="flex flex-col gap-2 pl-2 pt-5">
-                {productData.productType === 'variable' && (
-                    <div className="flex items-center space-x-2">
-                        <Checkbox
-                            id={`attrForVariations-${index}`}
-                            checked={!!attr.forVariations}
-                            onCheckedChange={(checked) => handleAttributeChange(index, 'forVariations', !!checked)}
-                            disabled={isProcessing}
-                        />
-                        <Label htmlFor={`attrForVariations-${index}`} className="text-xs font-normal leading-none cursor-pointer">
-                            Para<br/>variaciones
-                        </Label>
-                    </div>
-                )}
-                 <div className="flex items-center space-x-2">
-                    <Checkbox
-                        id={`attrVisible-${index}`}
-                        checked={!!attr.visible}
-                        onCheckedChange={(checked) => handleAttributeChange(index, 'visible', !!checked)}
-                        disabled={isProcessing}
-                    />
-                    <Label htmlFor={`attrVisible-${index}`} className="text-xs font-normal leading-none cursor-pointer">
-                        Visible
-                    </Label>
-                </div>
+              <div className="flex-1">
+                <Label htmlFor={`attrValue-${index}`}>Valor(es)</Label>
+                <Input 
+                  id={`attrValue-${index}`} 
+                  value={attr.value} 
+                  onChange={(e) => handleAttributeChange(index, 'value', e.target.value)}
+                  placeholder="Ej: Azul | Rojo | Verde" 
+                  disabled={isProcessing}
+                />
               </div>
-              <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" disabled={isProcessing} className="self-center">
+              <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" disabled={isProcessing}>
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             </div>
@@ -290,28 +240,6 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
           </Button>
         </CardContent>
       </Card>
-      
-      {productData.productType === 'variable' && (
-        <VariableProductManager 
-          productData={productData}
-          updateProductData={updateProductData}
-        />
-      )}
-
-      {productData.productType === 'grouped' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Productos Agrupados</CardTitle>
-            <CardDescription>Selecciona los productos simples que formarán parte de este grupo.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <GroupedProductSelector 
-              productIds={productData.groupedProductIds || []}
-              onProductIdsChange={handleGroupedIdsChange}
-            />
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardHeader>
@@ -325,5 +253,3 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     </div>
   );
 }
-
-    
