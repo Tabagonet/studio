@@ -39,10 +39,10 @@ export async function GET(req: NextRequest) {
 }
 
 const connectionDataSchema = z.object({
-    wooCommerceStoreUrl: z.string().url().optional().or(z.literal('')),
+    wooCommerceStoreUrl: z.union([z.string().url({ message: "Invalid WooCommerce URL" }), z.literal('')]),
     wooCommerceApiKey: z.string().optional(),
     wooCommerceApiSecret: z.string().optional(),
-    wordpressApiUrl: z.string().url().optional().or(z.literal('')),
+    wordpressApiUrl: z.union([z.string().url({ message: "Invalid WordPress URL" }), z.literal('')]),
     wordpressUsername: z.string().optional(),
     wordpressApplicationPassword: z.string().optional(),
 });

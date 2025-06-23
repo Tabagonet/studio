@@ -17,10 +17,10 @@ async function getUserIdFromRequest(req: NextRequest): Promise<string> {
 // Zod schema for validating the structure of the imported JSON file.
 // This should match the structure of the exported file.
 const connectionDataSchema = z.object({
-    wooCommerceStoreUrl: z.string().url({ message: "Invalid WooCommerce Store URL" }).optional().or(z.literal('')),
+    wooCommerceStoreUrl: z.union([z.string().url({ message: "Invalid WooCommerce Store URL" }), z.literal('')]).optional(),
     wooCommerceApiKey: z.string().optional(),
     wooCommerceApiSecret: z.string().optional(),
-    wordpressApiUrl: z.string().url({ message: "Invalid WordPress API URL" }).optional().or(z.literal('')),
+    wordpressApiUrl: z.union([z.string().url({ message: "Invalid WordPress API URL" }), z.literal('')]).optional(),
     wordpressUsername: z.string().optional(),
     wordpressApplicationPassword: z.string().optional(),
     promptTemplate: z.string().optional(),
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
 
         // Fire-and-forget adding hostnames to next.config.js for image optimization
         const hostnames = Object.values(importedData.connections)
-            .map(conn => conn.wooCommerceStoreUrl)
+            .flatMap(conn => [conn.wooCommerceStoreUrl, conn.wordpressApiUrl])
             .filter((url): url is string => !!url)
             .map(url => {
                 try { return new URL(url).hostname; }
@@ -62,7 +62,8 @@ export async function POST(req: NextRequest) {
             .filter((hostname): hostname is string => !!hostname);
 
         if (hostnames.length > 0) {
-            Promise.all(hostnames.map(hostname => addRemotePattern(hostname).catch(err => {
+            const uniqueHostnames = [...new Set(hostnames)];
+            Promise.all(uniqueHostnames.map(hostname => addRemotePattern(hostname).catch(err => {
                 // Log error but don't fail the request
                 console.error(`Failed to add remote pattern for ${hostname}:`, err);
             }))).catch(err => console.error("Error during batch remote pattern update:", err));
