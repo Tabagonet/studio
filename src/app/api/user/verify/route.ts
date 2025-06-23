@@ -14,7 +14,7 @@ const userSchema = z.object({
   termsAccepted: z.boolean(),
 });
 
-const ADMIN_EMAIL = 'intelvisual@intelvisual.es';
+const ADMIN_EMAIL = 'tabagonet@gmail.com';
 
 export async function GET(req: NextRequest) {
   let decodedToken;
