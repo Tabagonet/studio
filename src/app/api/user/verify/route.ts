@@ -14,6 +14,8 @@ const userSchema = z.object({
   termsAccepted: z.boolean(),
 });
 
+const ADMIN_EMAIL = 'intelvisual@intelvisual.es';
+
 export async function GET(req: NextRequest) {
   let decodedToken;
   try {
@@ -42,23 +44,44 @@ export async function GET(req: NextRequest) {
     if (userDoc.exists) {
       // User exists, return their data
       const userData = userDoc.data();
+
+      // --- Admin Override ---
+      // This ensures the primary admin user always has the correct role and status.
+      if (userData?.email === ADMIN_EMAIL && (userData?.role !== 'admin' || userData?.status !== 'active')) {
+          console.log(`Applying admin override for ${ADMIN_EMAIL}`);
+          const adminUpdate = { role: 'admin', status: 'active' };
+          await userRef.update(adminUpdate);
+          
+          const updatedUserData = { ...userData, ...adminUpdate };
+          const validatedData = userSchema.safeParse(updatedUserData);
+          
+          if (!validatedData.success) {
+               console.error("Admin override user data is invalid:", validatedData.error);
+               return NextResponse.json({ error: "Invalid admin override data." }, { status: 500 });
+          }
+          return NextResponse.json(validatedData.data);
+      }
+      // --- End Admin Override ---
+
       const validatedData = userSchema.safeParse(userData);
       if (!validatedData.success) {
-        // This could happen if the DB schema is manually changed. We should handle it gracefully.
         console.error("User data in DB is invalid:", validatedData.error);
         return NextResponse.json({ error: "Invalid user data in database." }, { status: 500 });
       }
       return NextResponse.json(validatedData.data);
+
     } else {
-      // User does not exist, create a new pending user
+      // User does not exist, create a new user.
+      const isAdmin = email === ADMIN_EMAIL;
+
       const newUser = {
         uid: uid,
         email: email || '',
         displayName: name || null,
         photoURL: picture || null,
-        role: 'pending',
-        status: 'pending_approval',
-        termsAccepted: false,
+        role: isAdmin ? 'admin' : 'pending',
+        status: isAdmin ? 'active' : 'pending_approval',
+        termsAccepted: isAdmin, // Admins auto-accept terms
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       };
       
@@ -67,7 +90,6 @@ export async function GET(req: NextRequest) {
       const { createdAt, ...returnData } = newUser;
       const validatedNewData = userSchema.safeParse(returnData);
       if (!validatedNewData.success) {
-        // Should not happen, but as a safeguard
          console.error("Newly created user data is invalid:", validatedNewData.error);
          return NextResponse.json({ error: "Failed to create valid user data." }, { status: 500 });
       }
