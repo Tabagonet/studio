@@ -5,7 +5,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { z } from 'zod';
 
 const GenerateBlogPostInputSchema = z.object({
-  mode: z.enum(['generate_from_topic', 'enhance_content']),
+  mode: z.enum(['generate_from_topic', 'enhance_content', 'suggest_keywords']),
   language: z.string().optional().default('Spanish'),
   topic: z.string().optional(),
   keywords: z.string().optional(),
@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
         
         let systemInstruction = '';
         let prompt = '';
+        let model;
 
         if (mode === 'generate_from_topic') {
             systemInstruction = `You are a professional blog writer and content creator. Your task is to generate a blog post based on a given topic and keywords in the specified language. The response must be a single, valid JSON object with three keys: 'title' (an engaging, SEO-friendly headline), 'content' (a well-structured blog post of around 500 words, using HTML tags like <h2>, <p>, <ul>, <li>, and <strong> for formatting), and 'suggestedKeywords' (a comma-separated string of 5-7 relevant, SEO-focused keywords based on the generated content). Do not include markdown or the word 'json' in your output.`;
@@ -54,8 +55,8 @@ export async function POST(req: NextRequest) {
                 Keywords to include: "${keywords || 'none'}"
                 Language: ${language}
             `;
-        } else { // enhance_content
-             systemInstruction = `You are an expert SEO copywriter. Enhance the following blog post for better readability, engagement, and search engine optimization. Correct any grammatical errors. Return a valid JSON object with three keys: 'title' (an improved, SEO-friendly title), 'content' (the enhanced content with HTML formatting), and 'suggestedKeywords' (a comma-separated string of 5-7 relevant keywords based on the final content). Do not include markdown or the word 'json' in your output.`;
+        } else if (mode === 'enhance_content') {
+             systemInstruction = `You are an expert SEO copywriter. Enhance the following blog post for better readability, engagement, and search engine optimization. Correct any grammatical errors. Return a valid JSON object with two keys: 'title' (an improved, SEO-friendly title) and 'content' (the enhanced content with HTML formatting). Do not include markdown or the word 'json' in your output.`;
              prompt = `
                 Enhance this blog post in ${language}.
                 Original Title: "${existingTitle}"
@@ -64,9 +65,19 @@ export async function POST(req: NextRequest) {
                 ${existingContent}
                 ---
             `;
+        } else { // suggest_keywords
+             systemInstruction = `You are an expert SEO specialist. Based on the following blog post title and content, generate a list of relevant, SEO-focused keywords. Return a single, valid JSON object with one key: 'suggestedKeywords' (a comma-separated string of 5-7 relevant keywords). Do not include markdown or the word 'json' in your output.`;
+             prompt = `
+                Generate SEO keywords for this blog post in ${language}.
+                Title: "${existingTitle}"
+                Content:
+                ---
+                ${existingContent}
+                ---
+            `;
         }
 
-        const modelWithSystemInstruction = genAI.getGenerativeModel({
+        model = genAI.getGenerativeModel({
             model: "gemini-1.5-flash-latest",
             systemInstruction,
              generationConfig: {
@@ -74,12 +85,19 @@ export async function POST(req: NextRequest) {
             },
         });
 
-        const result = await modelWithSystemInstruction.generateContent(prompt);
+        const result = await model.generateContent(prompt);
         const responseText = result.response.text();
         const parsedJson = JSON.parse(responseText);
 
-        if (!parsedJson.title || !parsedJson.content) {
-             throw new Error("AI returned an invalid JSON structure.");
+        // Validate the response based on the mode
+        if (mode === 'generate_from_topic' && (!parsedJson.title || !parsedJson.content)) {
+             throw new Error("AI returned an invalid JSON structure for topic generation.");
+        }
+        if (mode === 'enhance_content' && (!parsedJson.title || !parsedJson.content)) {
+            throw new Error("AI returned an invalid JSON structure for content enhancement.");
+        }
+        if (mode === 'suggest_keywords' && !parsedJson.suggestedKeywords) {
+            throw new Error("AI returned an invalid JSON structure for keyword suggestion.");
         }
         
         return NextResponse.json(parsedJson);

@@ -12,7 +12,7 @@ import { ImageUploader } from "@/components/features/wizard/image-uploader";
 import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import type { BlogPostData, WordPressPostCategory, ProductPhoto, WordPressUser } from "@/lib/types";
-import { Loader2, Sparkles, Wand2, Languages, Edit, Pilcrow, Heading2, List, ListOrdered, CalendarIcon, Info } from "lucide-react";
+import { Loader2, Sparkles, Wand2, Languages, Edit, Pilcrow, Heading2, List, ListOrdered, CalendarIcon, Info, Tags } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
@@ -121,7 +121,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
         updatePostData({ targetLanguages: newLangs });
     };
 
-    const handleAIGeneration = async (mode: 'generate_from_topic' | 'enhance_content') => {
+    const handleAIGeneration = async (mode: 'generate_from_topic' | 'enhance_content' | 'suggest_keywords') => {
         setIsLoading(prev => ({ ...prev, ai: true }));
         try {
             const user = auth.currentUser;
@@ -133,8 +133,8 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                 if (!postData.topic) throw new Error("Por favor, introduce un tema para la IA.");
                 payload.topic = postData.topic;
                 payload.keywords = postData.keywords;
-            } else {
-                if (!postData.title || !postData.content) throw new Error("El título y el contenido son necesarios para mejorar.");
+            } else { // enhance_content or suggest_keywords
+                if (!postData.title || !postData.content) throw new Error("El título y el contenido son necesarios para esta acción.");
                 payload.existingTitle = postData.title;
                 payload.existingContent = postData.content;
             }
@@ -151,12 +151,27 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
             }
 
             const aiContent = await response.json();
-            updatePostData({
-                title: aiContent.title,
-                content: aiContent.content,
-                ...(aiContent.suggestedKeywords && { keywords: aiContent.suggestedKeywords })
-            });
-            toast({ title: "Contenido actualizado por la IA", description: "Se han rellenado el título, contenido y etiquetas." });
+
+            // Handle different response structures
+            if (mode === 'generate_from_topic') {
+                updatePostData({
+                    title: aiContent.title,
+                    content: aiContent.content,
+                    ...(aiContent.suggestedKeywords && { keywords: aiContent.suggestedKeywords })
+                });
+                toast({ title: "Contenido generado por la IA", description: "Se han rellenado título, contenido y etiquetas." });
+            } else if (mode === 'enhance_content') {
+                updatePostData({
+                    title: aiContent.title,
+                    content: aiContent.content
+                });
+                toast({ title: "Contenido mejorado", description: "Se han actualizado el título y el contenido." });
+            } else { // suggest_keywords
+                updatePostData({
+                    ...(aiContent.suggestedKeywords && { keywords: aiContent.suggestedKeywords })
+                });
+                toast({ title: "Etiquetas sugeridas", description: "Se han actualizado las etiquetas." });
+            }
 
         } catch (error: any) {
             toast({ title: "Error de IA", description: error.message, variant: "destructive" });
@@ -205,7 +220,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                  <Card>
                     <CardHeader>
                         <CardTitle>Asistente IA</CardTitle>
-                        <CardDescription>Usa la IA para generar o mejorar tu contenido.</CardDescription>
+                        <CardDescription>Usa la IA para generar, mejorar o etiquetar tu contenido.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="p-4 border rounded-lg space-y-3">
@@ -213,15 +228,21 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                             <Input id="topic" name="topic" value={postData.topic} onChange={handleInputChange} placeholder="Ej: Las 5 mejores plantas de interior" />
                             <Button onClick={() => handleAIGeneration('generate_from_topic')} disabled={isLoading.ai || !postData.topic} className="w-full">
                                 {isLoading.ai ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                                Generar Borrador
+                                Generar Borrador con Etiquetas
                             </Button>
                         </div>
                         <div className="p-4 border rounded-lg space-y-3">
-                            <Label>2. Mejorar contenido existente</Label>
-                             <Button onClick={() => handleAIGeneration('enhance_content')} disabled={isLoading.ai || !postData.content} className="w-full">
-                                {isLoading.ai ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                                Mejorar y sugerir etiquetas
-                            </Button>
+                            <Label>2. Mejorar o etiquetar contenido existente</Label>
+                             <div className="flex flex-col sm:flex-row gap-2">
+                                <Button onClick={() => handleAIGeneration('enhance_content')} disabled={isLoading.ai || !postData.content} className="w-full">
+                                    {isLoading.ai ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                    Mejorar Contenido
+                                </Button>
+                                <Button onClick={() => handleAIGeneration('suggest_keywords')} disabled={isLoading.ai || !postData.content} className="w-full" variant="outline">
+                                    {isLoading.ai ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tags className="mr-2 h-4 w-4" />}
+                                    Sugerir Etiquetas
+                                </Button>
+                             </div>
                         </div>
                     </CardContent>
                 </Card>
