@@ -11,9 +11,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ImageUploader } from "@/components/features/wizard/image-uploader";
 import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
-import type { BlogPostData, WordPressPostCategory, ProductPhoto } from "@/lib/types";
-import { Loader2, Sparkles, Rocket, CheckCircle, ExternalLink } from "lucide-react";
+import type { BlogPostData, WordPressPostCategory, ProductPhoto, WordPressUser } from "@/lib/types";
+import { Loader2, Sparkles, Rocket, CheckCircle, ExternalLink, Globe, CalendarIcon } from "lucide-react";
 import Link from 'next/link';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const INITIAL_BLOG_DATA: BlogPostData = {
     title: '',
@@ -22,37 +27,63 @@ const INITIAL_BLOG_DATA: BlogPostData = {
     keywords: '',
     categoryId: null,
     status: 'draft',
-    featuredImage: null
+    featuredImage: null,
+    sourceLanguage: 'Spanish',
+    targetLanguages: [],
+    authorId: null,
+    publishDate: null,
 };
 
+const AVAILABLE_LANGUAGES = [
+    { code: 'English', name: 'Inglés' },
+    { code: 'French', name: 'Francés' },
+    { code: 'German', name: 'Alemán' },
+    { code: 'Portuguese', name: 'Portugués' },
+];
 
 export function BlogCreator() {
     const [postData, setPostData] = useState<BlogPostData>(INITIAL_BLOG_DATA);
     const [categories, setCategories] = useState<WordPressPostCategory[]>([]);
-    const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+    const [authors, setAuthors] = useState<WordPressUser[]>([]);
+    const [isLoading, setIsLoading] = useState({ categories: true, authors: true });
     const [isGenerating, setIsGenerating] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
-    const [createdPostUrl, setCreatedPostUrl] = useState<string | null>(null);
+    const [createdPosts, setCreatedPosts] = useState<{ url: string; title: string }[]>([]);
     const { toast } = useToast();
 
     useEffect(() => {
-        const fetchCategories = async (token: string) => {
-            setIsLoadingCategories(true);
+        const fetchData = async (token: string) => {
+            setIsLoading(prev => ({ ...prev, categories: true, authors: true }));
             try {
-                const response = await fetch('/api/wordpress/post-categories', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (!response.ok) throw new Error("No se pudieron cargar las categorías.");
-                setCategories(await response.json());
+                const [catResponse, authorResponse] = await Promise.all([
+                    fetch('/api/wordpress/post-categories', { headers: { 'Authorization': `Bearer ${token}` } }),
+                    fetch('/api/wordpress/users', { headers: { 'Authorization': `Bearer ${token}` } })
+                ]);
+
+                if (!catResponse.ok) throw new Error("No se pudieron cargar las categorías.");
+                setCategories(await catResponse.json());
+                setIsLoading(prev => ({ ...prev, categories: false }));
+
+                if (!authorResponse.ok) throw new Error("No se pudieron cargar los autores.");
+                const authorData = await authorResponse.json();
+                setAuthors(authorData);
+                // Set default author to current user if found
+                const user = auth.currentUser;
+                const matchingAuthor = authorData.find((a: WordPressUser) => a.name.toLowerCase() === user?.displayName?.toLowerCase());
+                if (matchingAuthor) {
+                    setPostData(prev => ({ ...prev, authorId: matchingAuthor.id }));
+                }
+
+                setIsLoading(prev => ({ ...prev, authors: false }));
+
             } catch (error: any) {
-                toast({ title: "Error", description: error.message, variant: "destructive" });
-            } finally {
-                setIsLoadingCategories(false);
+                toast({ title: "Error de Carga", description: error.message, variant: "destructive" });
+                 setIsLoading(prev => ({ ...prev, categories: false, authors: false }));
             }
         };
 
         const unsubscribe = onAuthStateChanged(auth, user => {
-            if (user) user.getIdToken().then(fetchCategories);
+            if (user) user.getIdToken().then(fetchData);
         });
         return () => unsubscribe();
     }, [toast]);
@@ -69,6 +100,15 @@ export function BlogCreator() {
         setPostData(prev => ({ ...prev, featuredImage: photos[0] || null }));
     };
 
+    const handleLanguageToggle = (langCode: string) => {
+        setPostData(prev => {
+            const newLangs = prev.targetLanguages.includes(langCode)
+                ? prev.targetLanguages.filter(l => l !== langCode)
+                : [...prev.targetLanguages, langCode];
+            return { ...prev, targetLanguages: newLangs };
+        });
+    };
+
     const handleGenerateContent = async () => {
         if (!postData.topic) {
             toast({ title: "Falta el tema", description: "Por favor, introduce un tema o título para la IA.", variant: "destructive" });
@@ -83,7 +123,11 @@ export function BlogCreator() {
             const response = await fetch('/api/generate-blog-post', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ topic: postData.topic, keywords: postData.keywords })
+                body: JSON.stringify({ 
+                    topic: postData.topic, 
+                    keywords: postData.keywords,
+                    language: postData.sourceLanguage 
+                })
             });
 
             if (!response.ok) {
@@ -111,7 +155,7 @@ export function BlogCreator() {
             return;
         }
         setIsCreating(true);
-        setCreatedPostUrl(null);
+        setCreatedPosts([]);
         
         try {
             const user = auth.currentUser;
@@ -130,9 +174,8 @@ export function BlogCreator() {
             }
 
             const result = await response.json();
-            setCreatedPostUrl(result.post_url);
-            toast({ title: "¡Entrada Creada!", description: `"${result.data.title.rendered}" se ha guardado como borrador.`});
-            // Don't reset form, let user see the success state
+            setCreatedPosts(result.createdPosts);
+            toast({ title: "¡Entradas Creadas!", description: `Se han creado ${result.createdPosts.length} entradas como borrador.`});
         } catch (error: any) {
             toast({ title: "Error al Crear", description: error.message, variant: "destructive" });
              setIsCreating(false);
@@ -142,7 +185,7 @@ export function BlogCreator() {
     const resetForm = () => {
         setPostData(INITIAL_BLOG_DATA);
         setIsCreating(false);
-        setCreatedPostUrl(null);
+        setCreatedPosts([]);
     };
 
     if (isCreating) {
@@ -150,29 +193,35 @@ export function BlogCreator() {
             <Card>
                 <CardHeader className="text-center">
                     <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
-                    <CardTitle className="mt-4">Creando Entrada...</CardTitle>
-                    <CardDescription>Estamos guardando tu entrada en WordPress. Por favor, espera.</CardDescription>
+                    <CardTitle className="mt-4">Creando Entradas...</CardTitle>
+                    <CardDescription>Estamos guardando tus entradas en WordPress. Por favor, espera.</CardDescription>
                 </CardHeader>
             </Card>
         );
     }
     
-     if (createdPostUrl) {
+     if (createdPosts.length > 0) {
         return (
             <Card>
                 <CardHeader className="text-center">
                     <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
-                    <CardTitle className="mt-4">¡Entrada Creada con Éxito!</CardTitle>
-                    <CardDescription>Tu entrada ha sido guardada como borrador en WordPress.</CardDescription>
+                    <CardTitle className="mt-4">¡Entradas Creadas con Éxito!</CardTitle>
+                    <CardDescription>
+                        Se han guardado como borrador en WordPress. Para enlazarlas, usa el campo personalizado <code className="bg-muted px-1 py-0.5 rounded">translation_group_id</code> en tu plugin de idiomas.
+                    </CardDescription>
                 </CardHeader>
-                <CardContent className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <CardContent className="flex flex-col items-center justify-center gap-4">
+                     <div className="space-y-2 text-center">
+                        {createdPosts.map(post => (
+                             <Button variant="link" asChild key={post.url}>
+                                <Link href={post.url} target="_blank" rel="noopener noreferrer">
+                                   <ExternalLink className="mr-2 h-4 w-4" /> Ver "{post.title}"
+                                </Link>
+                            </Button>
+                        ))}
+                    </div>
                      <Button onClick={resetForm}>
                         <Rocket className="mr-2 h-4 w-4" /> Crear otra entrada
-                    </Button>
-                    <Button variant="outline" asChild>
-                        <Link href={createdPostUrl} target="_blank" rel="noopener noreferrer">
-                           <ExternalLink className="mr-2 h-4 w-4" /> Ver borrador en WordPress
-                        </Link>
                     </Button>
                 </CardContent>
             </Card>
@@ -223,17 +272,83 @@ export function BlogCreator() {
              <div className="space-y-6">
                 <Card>
                     <CardHeader>
+                        <CardTitle>Publicación y Traducción</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                         <div>
+                             <Label htmlFor="authorId">Autor</Label>
+                             <Select name="authorId" value={postData.authorId?.toString() || ''} onValueChange={(value) => handleSelectChange('authorId', value)} disabled={isLoading.authors}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecciona un autor..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {isLoading.authors ? <SelectItem value="loading" disabled>Cargando autores...</SelectItem> :
+                                    authors.map(author => <SelectItem key={author.id} value={author.id.toString()}>{author.name}</SelectItem>)
+                                    }
+                                </SelectContent>
+                             </Select>
+                        </div>
+                        <div>
+                            <Label htmlFor="publishDate">Fecha de Publicación</Label>
+                             <Popover>
+                                <PopoverTrigger asChild>
+                                <Button variant={"outline"} className="w-full justify-start text-left font-normal">
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {postData.publishDate ? format(postData.publishDate, "PPP", { locale: es }) : <span>Selecciona una fecha</span>}
+                                </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                <Calendar
+                                    mode="single"
+                                    selected={postData.publishDate || undefined}
+                                    onSelect={(date) => setPostData(prev => ({ ...prev, publishDate: date || null }))}
+                                    initialFocus
+                                />
+                                </PopoverContent>
+                            </Popover>
+                            <p className="text-xs text-muted-foreground mt-1">Si se deja en blanco, se publicará con la fecha actual.</p>
+                        </div>
+                        <div className="space-y-3 pt-4 border-t">
+                            <Label>Idioma de la Entrada Original</Label>
+                            <Select name="sourceLanguage" value={postData.sourceLanguage} onValueChange={(value) => handleSelectChange('sourceLanguage', value)}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Spanish">Español</SelectItem>
+                                    <SelectItem value="English">Inglés</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-3 pt-4 border-t">
+                             <Label>Crear traducciones en:</Label>
+                             <div className="grid grid-cols-2 gap-2">
+                                {AVAILABLE_LANGUAGES.map(lang => (
+                                    <div key={lang.code} className="flex items-center space-x-2">
+                                        <Checkbox 
+                                            id={`lang-${lang.code}`}
+                                            checked={postData.targetLanguages.includes(lang.code)}
+                                            onCheckedChange={() => handleLanguageToggle(lang.code)}
+                                        />
+                                        <Label htmlFor={`lang-${lang.code}`} className="font-normal">{lang.name}</Label>
+                                    </div>
+                                ))}
+                             </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
                         <CardTitle>Organización</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div>
                              <Label htmlFor="categoryId">Categoría</Label>
-                             <Select name="categoryId" onValueChange={(value) => handleSelectChange('categoryId', value)} disabled={isLoadingCategories}>
+                             <Select name="categoryId" value={postData.categoryId?.toString() || ''} onValueChange={(value) => handleSelectChange('categoryId', value)} disabled={isLoading.categories}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Selecciona una categoría..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {isLoadingCategories ? <SelectItem value="loading" disabled>Cargando...</SelectItem> :
+                                    {isLoading.categories ? <SelectItem value="loading" disabled>Cargando...</SelectItem> :
                                     categories.map(cat => <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>)
                                     }
                                 </SelectContent>
@@ -261,10 +376,9 @@ export function BlogCreator() {
                  
                 <Button onClick={handleCreatePost} disabled={isCreating} size="lg" className="w-full">
                     <Rocket className="mr-2 h-4 w-4" />
-                    Crear Entrada como Borrador
+                    Crear Entrada(s) como Borrador
                 </Button>
             </div>
         </div>
     );
 }
-

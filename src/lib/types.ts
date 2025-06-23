@@ -75,6 +75,13 @@ export interface WordPressPostCategory {
     count: number;
 }
 
+export interface WordPressUser {
+    id: number;
+    name: string;
+    slug: string;
+    avatar_urls: { [key: string]: string };
+}
+
 export interface BlogPostData {
   title: string;
   content: string;
@@ -83,6 +90,10 @@ export interface BlogPostData {
   categoryId: number | null;
   status: 'publish' | 'draft' | 'pending';
   featuredImage: ProductPhoto | null;
+  sourceLanguage: 'Spanish' | 'English';
+  targetLanguages: string[];
+  authorId: number | null;
+  publishDate: Date | null;
 }
 
 export interface ProductData {
@@ -175,4 +186,3 @@ export interface ActivityLog {
     photoURL: string;
   };
 }
-    

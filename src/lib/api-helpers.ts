@@ -249,6 +249,48 @@ export async function generateProductContent(
 
 
 /**
+ * Translates content using Google AI.
+ * @param contentToTranslate An object with title and content strings.
+ * @param targetLanguage The language to translate to.
+ * @returns A promise that resolves to the translated title and content.
+ */
+export async function translateContent(
+  contentToTranslate: { title: string; content: string },
+  targetLanguage: string
+): Promise<{ title: string; content: string }> {
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) {
+    throw new Error('La clave API de Google AI no está configurada en el servidor.');
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-1.5-flash-latest',
+    systemInstruction: `You are an expert translator. Translate the user-provided JSON content into the specified target language. It is crucial that you maintain the original JSON structure with 'title' and 'content' keys. You must also preserve all HTML tags (e.g., <h2>, <p>, <strong>) in their correct positions within the 'content' field. Your output must be only the translated JSON object, without any extra text or markdown formatting.`,
+    generationConfig: {
+      responseMimeType: 'application/json',
+    },
+  });
+
+  const prompt = `Translate the following content to ${targetLanguage}:\n\n${JSON.stringify(contentToTranslate)}`;
+  
+  const result = await model.generateContent(prompt);
+  const responseText = result.response.text();
+  
+  try {
+    const parsedJson = JSON.parse(responseText);
+    if (typeof parsedJson.title === 'string' && typeof parsedJson.content === 'string') {
+      return parsedJson;
+    }
+    throw new Error('AI returned JSON with incorrect schema.');
+  } catch (error) {
+    console.error('Error parsing translated content from AI:', responseText, error);
+    throw new Error('Failed to parse translation from AI.');
+  }
+}
+
+
+/**
  * Uploads an image from a given URL to the WordPress media library.
  * @param imageUrl The URL of the image to upload.
  * @param seoFilename A desired filename for SEO purposes.

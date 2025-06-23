@@ -7,6 +7,7 @@ import { z } from 'zod';
 const GenerateBlogPostInputSchema = z.object({
   topic: z.string().min(1, 'Topic is required.'),
   keywords: z.string().optional(),
+  language: z.string().optional().default('Spanish')
 });
 
 export async function POST(req: NextRequest) {
@@ -34,12 +35,12 @@ export async function POST(req: NextRequest) {
         if (!validationResult.success) {
             return NextResponse.json({ error: 'Invalid input', details: validationResult.error.flatten() }, { status: 400 });
         }
-        const { topic, keywords } = validationResult.data;
+        const { topic, keywords, language } = validationResult.data;
 
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({
             model: "gemini-1.5-flash-latest",
-            systemInstruction: "You are a professional blog writer and content creator. Your task is to generate a blog post based on a given topic and keywords. The response must be a single, valid JSON object with two keys: 'title' and 'content'. The 'title' should be an engaging, SEO-friendly headline. The 'content' should be a well-structured blog post of around 500 words, using HTML tags like <h2>, <p>, <ul>, <li>, and <strong> for formatting. Do not include markdown or the word 'json' in your output.",
+            systemInstruction: `You are a professional blog writer and content creator. Your task is to generate a blog post based on a given topic and keywords in the specified language. The response must be a single, valid JSON object with two keys: 'title' and 'content'. The 'title' should be an engaging, SEO-friendly headline. The 'content' should be a well-structured blog post of around 500 words, using HTML tags like <h2>, <p>, <ul>, <li>, and <strong> for formatting. Do not include markdown or the word 'json' in your output.`,
             generationConfig: {
                 responseMimeType: "application/json",
             },
@@ -49,14 +50,13 @@ export async function POST(req: NextRequest) {
             Generate a blog post.
             Topic: "${topic}"
             Keywords to include: "${keywords || 'none'}"
-            Language: Spanish
+            Language: ${language}
         `;
 
         const result = await model.generateContent(finalPrompt);
         const responseText = result.response.text();
         const parsedJson = JSON.parse(responseText);
 
-        // Basic validation of the returned object
         if (!parsedJson.title || !parsedJson.content) {
              throw new Error("AI returned an invalid JSON structure.");
         }
