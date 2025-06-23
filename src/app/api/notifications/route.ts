@@ -27,7 +27,6 @@ export async function GET(req: NextRequest) {
     try {
         const notificationsSnapshot = await adminDb.collection('notifications')
             .where('recipientUid', '==', uid)
-            .orderBy('createdAt', 'desc')
             .limit(50) // Limit to last 50 notifications for performance
             .get();
         
@@ -36,7 +35,8 @@ export async function GET(req: NextRequest) {
             return {
                 id: doc.id,
                 ...data,
-                createdAt: data.createdAt.toDate().toISOString(),
+                // Add a fallback for createdAt to prevent server errors
+                createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : new Date(0).toISOString(),
             };
         });
         

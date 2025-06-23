@@ -45,8 +45,11 @@ export function Header() {
             });
             if (response.ok) {
                 const data = await response.json();
-                setNotifications(data.notifications);
-                setUnreadCount(data.notifications.filter((n: UserNotification) => !n.read).length);
+                const sortedNotifications = data.notifications.sort((a: UserNotification, b: UserNotification) =>
+                    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                );
+                setNotifications(sortedNotifications);
+                setUnreadCount(sortedNotifications.filter((n: UserNotification) => !n.read).length);
             }
         } catch (error) {
             console.error("Failed to fetch notifications:", error);

@@ -30,7 +30,11 @@ export default function NotificationsPage() {
                         throw new Error('Failed to load notifications.');
                     }
                     const data = await response.json();
-                    setNotifications(data.notifications);
+                    // Sort notifications on the client-side
+                    const sortedNotifications = data.notifications.sort((a: UserNotification, b: UserNotification) =>
+                        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                    );
+                    setNotifications(sortedNotifications);
                 } catch (error: any) {
                     toast({ title: 'Error', description: error.message, variant: 'destructive' });
                 } finally {
