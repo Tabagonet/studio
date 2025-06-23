@@ -103,11 +103,11 @@ export const INITIAL_BLOG_DATA: BlogPostData = {
   content: '',
   topic: '',
   keywords: '',
-  categoryId: null,
+  category: null,
   status: 'draft',
   featuredImage: null,
   sourceLanguage: 'Spanish',
   targetLanguages: [],
-  authorId: null,
+  author: null,
   publishDate: null,
 };

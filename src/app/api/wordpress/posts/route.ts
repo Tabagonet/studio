@@ -19,18 +19,33 @@ const slugify = (text: string) => {
 };
 
 
+const authorSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  slug: z.string(),
+  avatar_urls: z.record(z.string()),
+}).nullable();
+
+const categorySchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  slug: z.string(),
+  parent: z.number(),
+  count: z.number(),
+}).nullable();
+
 const postSchema = z.object({
   title: z.string().min(1),
   content: z.string().min(1),
   topic: z.string().optional(),
   keywords: z.string().optional(),
-  categoryId: z.number().nullable(),
+  category: categorySchema,
   status: z.enum(['publish', 'draft', 'pending']),
-  featuredImage: z.any().nullable(), // Simplified for validation
+  featuredImage: z.any().nullable(),
   sourceLanguage: z.string(),
   targetLanguages: z.array(z.string()),
-  authorId: z.number().nullable(),
-  publishDate: z.string().nullable(), // Expecting ISO string from client
+  author: authorSchema,
+  publishDate: z.string().nullable().or(z.date().nullable()),
 });
 
 
@@ -45,45 +60,47 @@ export async function POST(request: NextRequest) {
         uid = decodedToken.uid;
         
         const { wpApi } = await getApiClientsForUser(uid);
-        const postData: BlogPostData = await request.json();
+        const postData = await request.json();
         
         const validation = postSchema.safeParse(postData);
         if (!validation.success) {
              return NextResponse.json({ success: false, error: 'Invalid data provided', details: validation.error.flatten() }, { status: 400 });
         }
+
+        const validatedPostData = validation.data;
         
         const translationGroupId = uuidv4();
         const createdPosts: { url: string; title: string }[] = [];
 
         // 1. Upload featured image once, if it exists
         let featuredMediaId: number | null = null;
-        if (postData.featuredImage?.file) {
+        if (validatedPostData.featuredImage?.file) {
              const tempFormData = new FormData();
-             tempFormData.append('imagen', postData.featuredImage.file);
+             tempFormData.append('imagen', validatedPostData.featuredImage.file);
              const tempUploadResponse = await axios.post(`${request.nextUrl.origin}/api/upload-image`, tempFormData, { headers: { 'Authorization': `Bearer ${token}` } });
              if (!tempUploadResponse.data.success) throw new Error(`Failed to upload image to temp host: ${tempUploadResponse.data.error}`);
             
             const tempImageUrl = tempUploadResponse.data.url;
-            const seoFilename = `${slugify(postData.title || 'blog-post')}.jpg`;
-            featuredMediaId = await uploadImageToWordPress(tempImageUrl, seoFilename, { title: postData.title, alt_text: `Imagen destacada para: ${postData.title}`, caption: '', description: postData.content.substring(0, 100), }, wpApi);
+            const seoFilename = `${slugify(validatedPostData.title || 'blog-post')}.jpg`;
+            featuredMediaId = await uploadImageToWordPress(tempImageUrl, seoFilename, { title: validatedPostData.title, alt_text: `Imagen destacada para: ${validatedPostData.title}`, caption: '', description: validatedPostData.content.substring(0, 100), }, wpApi);
         }
 
         // 2. Find or create tags once
-        const tagNames = postData.keywords ? postData.keywords.split(',').map(t => t.trim()).filter(Boolean) : [];
+        const tagNames = validatedPostData.keywords ? validatedPostData.keywords.split(',').map(t => t.trim()).filter(Boolean) : [];
         const tagIds = await findOrCreateTags(tagNames, wpApi);
         
         // 3. Create the original post
         const originalPostPayload: any = {
-            title: postData.title,
-            content: postData.content,
-            status: postData.status || 'draft',
+            title: validatedPostData.title,
+            content: validatedPostData.content,
+            status: validatedPostData.status || 'draft',
             meta: { translation_group_id: translationGroupId }
         };
         if (featuredMediaId) originalPostPayload.featured_media = featuredMediaId;
-        if (postData.categoryId) originalPostPayload.categories = [postData.categoryId];
+        if (validatedPostData.category?.id) originalPostPayload.categories = [validatedPostData.category.id];
         if (tagIds.length > 0) originalPostPayload.tags = tagIds;
-        if (postData.authorId) originalPostPayload.author = postData.authorId;
-        if (postData.publishDate) originalPostPayload.date = postData.publishDate;
+        if (validatedPostData.author?.id) originalPostPayload.author = validatedPostData.author.id;
+        if (validatedPostData.publishDate) originalPostPayload.date = validatedPostData.publishDate;
 
         const originalPostResponse = await wpApi.post('/posts', originalPostPayload);
         const originalPost = originalPostResponse.data;
@@ -91,9 +108,9 @@ export async function POST(request: NextRequest) {
 
 
         // 4. Create translated posts
-        for (const lang of postData.targetLanguages) {
+        for (const lang of validatedPostData.targetLanguages) {
             try {
-                const translatedContent = await translateContent({ title: postData.title, content: postData.content }, lang);
+                const translatedContent = await translateContent({ title: validatedPostData.title, content: validatedPostData.content }, lang);
                 const translatedPostPayload = {
                     ...originalPostPayload,
                     title: translatedContent.title,

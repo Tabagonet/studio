@@ -35,7 +35,7 @@ export function Step2Preview({ postData }: { postData: BlogPostData }) {
                     )}
                     <CardTitle className="text-3xl font-bold">{postData.title || "Entrada sin título"}</CardTitle>
                     <div className="text-sm text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 pt-2">
-                        <span>Autor: <strong>{postData.authorId || "No asignado"}</strong></span>
+                        <span>Autor: <strong>{postData.author?.name || "No asignado"}</strong></span>
                         <span>Fecha: <strong>{postData.publishDate ? format(postData.publishDate, "PPP", { locale: es }) : "Ahora"}</strong></span>
                     </div>
                 </CardHeader>
@@ -43,7 +43,7 @@ export function Step2Preview({ postData }: { postData: BlogPostData }) {
                 <CardFooter className="flex-col items-start gap-4">
                     <div>
                         <h4 className="font-semibold mb-2">Categoría</h4>
-                        {postData.categoryId ? <Badge>{postData.categoryId}</Badge> : <span className="text-sm text-muted-foreground">Ninguna</span>}
+                        {postData.category ? <Badge>{postData.category.name}</Badge> : <span className="text-sm text-muted-foreground">Ninguna</span>}
                     </div>
                      <div>
                         <h4 className="font-semibold mb-2">Etiquetas</h4>

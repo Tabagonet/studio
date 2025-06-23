@@ -82,8 +82,8 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                     setAuthors(authorData);
                     const user = auth.currentUser;
                     const matchingAuthor = authorData.find((a: WordPressUser) => a.name.toLowerCase() === user?.displayName?.toLowerCase());
-                    if (matchingAuthor && !postData.authorId) {
-                        updatePostData({ authorId: matchingAuthor.id });
+                    if (matchingAuthor && !postData.author) {
+                        updatePostData({ author: matchingAuthor });
                     }
                 }
             } catch (error: any) {
@@ -97,14 +97,10 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
             if (user) user.getIdToken().then(fetchData);
         });
         return () => unsubscribe();
-    }, [toast, updatePostData, postData.authorId]);
+    }, [toast, updatePostData, postData.author]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         updatePostData({ [e.target.name]: e.target.value });
-    };
-
-    const handleSelectChange = (name: string, value: string) => {
-        updatePostData({ [name]: value });
     };
     
     const handlePhotoChange = (photos: ProductPhoto[]) => {
@@ -237,7 +233,10 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                     <CardContent className="space-y-6">
                          <div>
                              <Label>Autor</Label>
-                             <Select name="authorId" value={postData.authorId?.toString() || ''} onValueChange={(value) => updatePostData({ authorId: parseInt(value) })} disabled={isLoading.authors}>
+                             <Select name="author" value={postData.author?.id.toString() || ''} onValueChange={(value) => {
+                                 const selectedAuthor = authors.find(a => a.id.toString() === value);
+                                 updatePostData({ author: selectedAuthor || null });
+                             }} disabled={isLoading.authors}>
                                 <SelectTrigger><SelectValue placeholder="Selecciona un autor..." /></SelectTrigger>
                                 <SelectContent>
                                     {authors.map(author => <SelectItem key={author.id} value={author.id.toString()}>{author.name}</SelectItem>)}
@@ -285,7 +284,10 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                     <CardContent className="space-y-4">
                         <div>
                              <Label>Categoría</Label>
-                             <Select name="categoryId" value={postData.categoryId?.toString() || ''} onValueChange={(value) => updatePostData({ categoryId: parseInt(value) })} disabled={isLoading.categories}>
+                             <Select name="category" value={postData.category?.id.toString() || ''} onValueChange={(value) => {
+                                const selectedCategory = categories.find(c => c.id.toString() === value);
+                                updatePostData({ category: selectedCategory || null });
+                             }} disabled={isLoading.categories}>
                                 <SelectTrigger><SelectValue placeholder="Selecciona una categoría..." /></SelectTrigger>
                                 <SelectContent>
                                     {categories.map(cat => <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>)}
@@ -309,5 +311,3 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
         </div>
     );
 }
-
-    
