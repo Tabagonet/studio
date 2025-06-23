@@ -21,8 +21,9 @@ export default function AuthenticatedAppLayout({
     const unsubscribe = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
       if (user) {
         try {
-            // Force refresh the token to ensure it's not stale. This prevents 401 errors on fast reloads.
-            const token = await user.getIdToken(true);
+            // Do NOT force refresh the token unless absolutely necessary to avoid quota issues.
+            // The SDK handles caching and refreshing in the background.
+            const token = await user.getIdToken();
             const response = await fetch('/api/user/verify', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
