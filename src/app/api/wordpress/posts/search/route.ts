@@ -34,7 +34,15 @@ export async function GET(req: NextRequest) {
     };
     
     if (query) params.search = query;
-    if (status && status !== 'all') params.status = status;
+    
+    if (status && status !== 'all') {
+        params.status = status;
+    } else {
+        // If 'all' or no status is selected, fetch all relevant statuses.
+        // By default, the WP API only returns 'publish' status.
+        params.status = 'publish,future,draft,pending,private';
+    }
+    
     if (category && category !== 'all') params.categories = [category];
 
     const response = await wpApi.get("posts", { params });
