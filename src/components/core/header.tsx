@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { UserCircle, LogOut, Settings as SettingsIcon, User as UserIcon, CreditCard, Globe, Bell, Loader2 } from "lucide-react";
+import { UserCircle, LogOut, Settings as SettingsIcon, Globe, Bell, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -278,12 +278,6 @@ export function Header() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/settings"><UserIcon className="mr-2 h-4 w-4" />Perfil</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                     <Link href="/settings"><CreditCard className="mr-2 h-4 w-4" />Facturación</Link>
-                  </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/settings"><SettingsIcon className="mr-2 h-4 w-4" />Configuración</Link>
                   </DropdownMenuItem>
