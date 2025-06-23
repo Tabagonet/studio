@@ -16,6 +16,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { auth } from '@/lib/firebase';
 import type { ProductData, ProductPhoto } from '@/lib/types';
 import { Progress } from '@/components/ui/progress';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 
 // Staged product type
 interface StagedProduct {
@@ -67,6 +69,7 @@ export default function BatchProcessPage() {
   const [isProcessingFiles, setIsProcessingFiles] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+  const [saveSkuInWoo, setSaveSkuInWoo] = useState(true);
   const { toast } = useToast();
 
   const onImagesDrop = useCallback((acceptedFiles: File[]) => {
@@ -365,6 +368,7 @@ export default function BatchProcessPage() {
             const productPayload: Partial<ProductData> = {
                 name: product.name,
                 sku: product.id,
+                shouldSaveSku: saveSkuInWoo,
                 productType: product.csvData.tipo || 'simple',
                 regularPrice: product.csvData.precio_regular || '',
                 salePrice: product.csvData.precio_oferta || '',
@@ -546,19 +550,32 @@ export default function BatchProcessPage() {
       </div>
 
        <Card>
-        <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <CardHeader className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
            <div>
             <CardTitle>3. Verificación y Procesamiento</CardTitle>
             <CardDescription>Revisa los productos identificados antes de generar contenido y crearlos en tu tienda.</CardDescription>
            </div>
-           <div className="flex gap-2">
-            <Button variant="destructive" onClick={clearFiles} disabled={isBatchProcessing || (imageFiles.length === 0 && !csvFile)}>
-                Limpiar Todo
-            </Button>
-            <Button onClick={handleProcessBatch} disabled={isBatchProcessing || readyProductsCount === 0}>
-                {isBatchProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {isBatchProcessing ? 'Procesando...' : `Procesar ${readyProductsCount} Productos`}
-            </Button>
+           <div className="flex flex-col items-start md:items-end gap-3">
+            <div className="flex items-center space-x-2">
+                <Checkbox 
+                    id="save-sku" 
+                    checked={saveSkuInWoo} 
+                    onCheckedChange={(checked) => setSaveSkuInWoo(!!checked)}
+                    disabled={isBatchProcessing}
+                />
+                <Label htmlFor="save-sku" className="text-sm font-normal cursor-pointer">
+                    Guardar SKUs en WooCommerce
+                </Label>
+            </div>
+            <div className="flex gap-2">
+                <Button variant="destructive" onClick={clearFiles} disabled={isBatchProcessing || (imageFiles.length === 0 && !csvFile)}>
+                    Limpiar Todo
+                </Button>
+                <Button onClick={handleProcessBatch} disabled={isBatchProcessing || readyProductsCount === 0}>
+                    {isBatchProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {isBatchProcessing ? 'Procesando...' : `Procesar ${readyProductsCount} Productos`}
+                </Button>
+            </div>
            </div>
         </CardHeader>
         <CardContent>
@@ -603,7 +620,7 @@ export default function BatchProcessPage() {
                                 </div>
                                 <div className="flex-1 max-w-xs space-y-2">
                                     <div className="flex items-center gap-2">
-                                        <StatusIcon className={cn("h-5 w-5 flex-shrink-0", statusInfo.color)} />
+                                        <StatusIcon className={cn("h-5 w-5 flex-shrink-0", statusInfo.color, product.processingStatus === 'processing' && 'animate-spin')} />
                                         <div className="flex flex-col">
                                         <span className={cn("font-medium", statusInfo.color)}>{statusInfo.label}</span>
                                         <p className="text-xs text-muted-foreground">{message}</p>
