@@ -26,13 +26,13 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) throw new Error('No auth token provided.');
     if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
-    await adminAuth.verifyIdToken(token);
     const uid = (await adminAuth.verifyIdToken(token)).uid;
     
     const { wpApi } = await getApiClientsForUser(uid);
     const postId = params.id;
     if (!postId) return NextResponse.json({ error: 'Post ID is required.' }, { status: 400 });
 
+    // Use _embed to get related data like featured image URL and author name
     const response = await wpApi.get(`/posts/${postId}`, { params: { _embed: true } });
     
     const postData = response.data;
@@ -66,13 +66,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     
     const { tags, featured_image_src, ...postPayload } = validation.data;
     
-    // Handle tags
+    // Handle tags by finding or creating them
     if (tags) {
         const tagNames = tags.split(',').map(t => t.trim()).filter(Boolean);
         (postPayload as any).tags = await findOrCreateTags(tagNames, wpApi);
     }
     
-    // Handle featured image
+    // Handle featured image: upload if new src is provided
     if (featured_image_src) {
         const seoFilename = `${slugify(postPayload.title || 'blog-post')}-${postId}.jpg`;
         (postPayload as any).featured_media = await uploadImageToWordPress(featured_image_src, seoFilename, {
@@ -82,6 +82,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             description: postPayload.content?.substring(0, 100) || '',
         }, wpApi);
     } else if (postPayload.featured_media_id !== undefined) {
+        // Handle setting an existing image or removing it
         (postPayload as any).featured_media = postPayload.featured_media_id;
     }
 

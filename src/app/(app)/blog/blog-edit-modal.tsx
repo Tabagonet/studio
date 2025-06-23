@@ -4,20 +4,21 @@
 import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import axios from 'axios';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Sparkles, Wand2, Tags } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { WordPressPostCategory, WordPressUser, ProductPhoto } from '@/lib/types';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
-import { cn } from '@/lib/utils';
-import { v4 as uuidv4 } from 'uuid';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 interface BlogEditModalProps {
   postId: number;
@@ -38,6 +39,7 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
   const [post, setPost] = useState<PostEditState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isAiLoading, setIsAiLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [categories, setCategories] = useState<WordPressPostCategory[]>([]);
@@ -60,6 +62,57 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
       if (!post) return;
       setPost({ ...post, featured_media: updatedPhotos[0] || null });
   };
+
+  const handleAIGeneration = async (mode: 'enhance_content' | 'suggest_keywords') => {
+        setIsAiLoading(true);
+        if (!post) {
+            setIsAiLoading(false);
+            return;
+        }
+        try {
+            const user = auth.currentUser;
+            if (!user) throw new Error("No autenticado.");
+            const token = await user.getIdToken();
+            
+            const payload = { 
+                mode, 
+                language: 'Spanish',
+                existingTitle: post.title,
+                existingContent: post.content
+            };
+            
+            if (!payload.existingTitle || !payload.existingContent) {
+                 throw new Error("El título y el contenido son necesarios para esta acción.");
+            }
+
+            const response = await fetch('/api/generate-blog-post', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || "La IA no pudo procesar la solicitud.");
+            }
+
+            const aiContent = await response.json();
+
+            if (mode === 'enhance_content') {
+                setPost({ ...post, title: aiContent.title, content: aiContent.content });
+                toast({ title: "Contenido mejorado", description: "Se han actualizado el título y el contenido." });
+            } else { // suggest_keywords
+                setPost({ ...post, tags: aiContent.suggestedKeywords });
+                toast({ title: "Etiquetas sugeridas", description: "Se han actualizado las etiquetas." });
+            }
+
+        } catch (error: any) {
+            toast({ title: "Error de IA", description: error.message, variant: "destructive" });
+        } finally {
+            setIsAiLoading(false);
+        }
+    };
+
 
   const handleSaveChanges = async () => {
     setIsSaving(true);
@@ -128,7 +181,7 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
       try {
         const token = await user.getIdToken();
         const [postResponse, categoriesResponse, authorsResponse] = await Promise.all([
-           fetch(`/api/wordpress/posts/${postId}`, { headers: { 'Authorization': `Bearer ${token}` }}),
+           fetch(`/api/wordpress/posts/${postId}?_embed=true`, { headers: { 'Authorization': `Bearer ${token}` }}),
            fetch('/api/wordpress/post-categories', { headers: { 'Authorization': `Bearer ${token}` }}),
            fetch('/api/wordpress/users', { headers: { 'Authorization': `Bearer ${token}` }})
         ]);
@@ -148,7 +201,7 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
               progress: 100,
             }
           : null;
-
+          
         setPost({
           title: postData.title.rendered || '',
           content: postData.content.rendered || '',
@@ -171,13 +224,18 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
   return (
     <Dialog open={true} onOpenChange={() => onClose(false)}>
       <DialogContent className="sm:max-w-4xl">
-        <DialogHeader><DialogTitle>Editar Entrada</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Editar Entrada: {post?.title || "Cargando..."}</DialogTitle></DialogHeader>
         
         {isLoading && <div className="flex items-center justify-center min-h-[300px]"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}
         {error && <Alert variant="destructive"><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
         
         {!isLoading && !error && post && (
-           <div className="space-y-4 max-h-[70vh] overflow-y-auto p-1">
+           <Tabs defaultValue="edit" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="edit">Editor</TabsTrigger>
+                <TabsTrigger value="preview">Vista Previa</TabsTrigger>
+            </TabsList>
+            <TabsContent value="edit" className="space-y-4 max-h-[70vh] overflow-y-auto p-1">
                 <div><Label htmlFor="title">Título</Label><Input id="title" name="title" value={post.title} onChange={handleInputChange} /></div>
                 <div><Label htmlFor="content">Contenido</Label><Textarea id="content" name="content" value={post.content} onChange={handleInputChange} rows={15} /></div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -189,9 +247,46 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
                     <div><Label>Etiquetas (separadas por comas)</Label><Input name="tags" value={post.tags} onChange={handleInputChange} /></div>
                 </div>
                 <div><Label>Imagen Destacada</Label><ImageUploader photos={post.featured_media ? [post.featured_media] : []} onPhotosChange={handlePhotosChange} isProcessing={isSaving} /></div>
-           </div>
+                 <div className="space-y-4 pt-6 border-t">
+                    <h3 className="text-sm font-medium text-muted-foreground">Asistente IA</h3>
+                    <div className="p-4 border rounded-lg space-y-3 bg-card">
+                        <Label>Mejorar o etiquetar contenido existente</Label>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                            <Button onClick={() => handleAIGeneration('enhance_content')} disabled={isAiLoading || !post.content} className="w-full">
+                                {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                Mejorar Contenido
+                            </Button>
+                            <Button onClick={() => handleAIGeneration('suggest_keywords')} disabled={isAiLoading || !post.content} className="w-full" variant="outline">
+                                {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tags className="mr-2 h-4 w-4" />}
+                                Sugerir Etiquetas
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            </TabsContent>
+            <TabsContent value="preview" className="max-h-[70vh] overflow-y-auto p-1 border rounded-md">
+                 <div className="p-4 space-y-4">
+                    {post.featured_media?.previewUrl && (
+                        <div className="relative h-48 w-full mb-4 rounded-md overflow-hidden">
+                            <Image 
+                                src={post.featured_media.previewUrl} 
+                                alt={post.title || "Imagen destacada"}
+                                fill
+                                className="object-cover"
+                                sizes="(max-width: 768px) 100vw, 50vw"
+                            />
+                        </div>
+                    )}
+                    <h1 className="text-3xl font-bold">{post.title || "Entrada sin título"}</h1>
+                    <div className="text-sm text-muted-foreground">
+                        <span>Autor: <strong>{authors.find(a => a.id === post.author)?.name || "No asignado"}</strong></span>
+                    </div>
+                    <div className="prose prose-lg dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: post.content || "<p>Contenido no disponible.</p>" }} />
+                </div>
+            </TabsContent>
+           </Tabs>
         )}
-        <DialogFooter>
+        <DialogFooter className="pt-4">
           <DialogClose asChild><Button type="button" variant="secondary">Cancelar</Button></DialogClose>
           <Button type="submit" onClick={handleSaveChanges} disabled={isSaving || isLoading || !!error}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar Cambios</Button>
         </DialogFooter>
