@@ -21,7 +21,8 @@ export default function AuthenticatedAppLayout({
     const unsubscribe = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
       if (user) {
         try {
-            const token = await user.getIdToken();
+            // Force refresh the token to ensure it's not stale. This prevents 401 errors on fast reloads.
+            const token = await user.getIdToken(true);
             const response = await fetch('/api/user/verify', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -34,8 +35,10 @@ export default function AuthenticatedAppLayout({
             const userData = await response.json();
             
             if (userData.status === 'pending_approval') {
+                setAuthStatus('pending_approval');
                 router.replace('/pending-approval');
             } else if (userData.status === 'rejected') {
+                setAuthStatus('rejected');
                 router.replace('/access-denied');
             } else if (userData.status === 'active' && (userData.role === 'user' || userData.role === 'admin')) {
                 setAuthStatus('authorized');
