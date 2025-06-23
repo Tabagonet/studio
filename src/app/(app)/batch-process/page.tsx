@@ -382,7 +382,8 @@ export default function BatchProcessPage() {
                 imageCaption: aiContent.imageCaption,
                 imageDescription: aiContent.imageDescription,
                 categoryPath: product.csvData.categorias || '',
-                attributes: [], // Will be populated next
+                attributes: [],
+                source: 'batch',
             };
 
             for (let i = 1; i <= 2; i++) {

@@ -1,5 +1,5 @@
 
-import { Home, Wand2, FileText, Cog, Bell, Settings, Layers, Brain, UploadCloud, Users } from 'lucide-react';
+import { Home, Wand2, FileText, Cog, Bell, Settings, Layers, Brain, UploadCloud, Users, LineChart } from 'lucide-react';
 import type { NavItem, ProductType, ProductData } from '@/lib/types';
 
 export const APP_NAME = "WooAutomate";
@@ -42,6 +42,12 @@ export const NAV_ITEMS: NavItem[] = [
     title: 'Gestión de Usuarios',
     href: '/admin/users',
     icon: Users,
+    adminOnly: true,
+  },
+  {
+    title: 'Actividad de Usuarios',
+    href: '/admin/activity',
+    icon: LineChart,
     adminOnly: true,
   },
   {

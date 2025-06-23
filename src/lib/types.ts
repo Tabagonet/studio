@@ -89,6 +89,7 @@ export interface ProductData {
   imageAltText?: string;
   imageCaption?: string;
   imageDescription?: string;
+  source?: 'wizard' | 'batch';
 }
 
 export interface ProductSearchResult {
@@ -136,5 +137,24 @@ export interface UserNotification {
   link?: string;
   read: boolean;
   createdAt: string; // ISO string date
+}
+
+export interface ActivityLog {
+  id: string;
+  userId: string;
+  action: string;
+  timestamp: string; // ISO string
+  details: {
+    productId?: number;
+    productName?: string;
+    connectionKey?: string;
+    source?: 'wizard' | 'batch';
+    [key: string]: any;
+  };
+  user: { // Populated on the server
+    displayName: string;
+    email: string;
+    photoURL: string;
+  };
 }
     

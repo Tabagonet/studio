@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth } from '@/lib/firebase-admin';
+import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
 import { getApiClientsForUser, findOrCreateCategoryByPath } from '@/lib/api-helpers';
 import type { ProductData } from '@/lib/types';
 import axios from 'axios';
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     const decodedToken = await adminAuth.verifyIdToken(token);
     uid = decodedToken.uid;
     
-    const { wooApi, wpApi } = await getApiClientsForUser(uid);
+    const { wooApi, wpApi, activeConnectionKey } = await getApiClientsForUser(uid);
     const productData: ProductData = await request.json();
     
     // 2. Upload images to WordPress via its REST API
@@ -190,9 +190,24 @@ export async function POST(request: NextRequest) {
             }
         }
     }
+    
+    // 6. Log the activity
+    if (adminDb && admin.firestore.FieldValue) {
+        const logRef = adminDb.collection('activity_logs').doc();
+        await logRef.set({
+            userId: uid,
+            action: 'PRODUCT_CREATED',
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            details: {
+                productId: createdProduct.id,
+                productName: createdProduct.name,
+                connectionKey: activeConnectionKey,
+                source: productData.source || 'unknown'
+            }
+        });
+    }
 
-
-    // 6. Fire-and-forget deletion of temp images from quefoto.es
+    // 7. Fire-and-forget deletion of temp images from quefoto.es
     for (const photo of productData.photos) {
       if (photo.uploadedFilename) {
         const origin = request.nextUrl.origin;
@@ -214,5 +229,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: userFriendlyError, details: error.response?.data }, { status: errorStatus });
   }
 }
-
-    

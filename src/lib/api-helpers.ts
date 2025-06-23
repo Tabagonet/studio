@@ -37,6 +37,7 @@ type GenerateProductDescriptionOutput = z.infer<typeof GenerateProductDescriptio
 interface ApiClients {
   wooApi: WooCommerceRestApi;
   wpApi: AxiosInstance;
+  activeConnectionKey: string;
 }
 
 /**
@@ -82,7 +83,7 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
     throw new Error('Failed to initialize API clients due to missing or invalid credentials in the active profile.');
   }
 
-  return { wooApi, wpApi };
+  return { wooApi, wpApi, activeConnectionKey };
 }
 
 
