@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, UploadCloud, Settings2, History, BarChart3, Layers, Loader2, Link as LinkIcon, Calendar } from "lucide-react";
+import { PlusCircle, UploadCloud, Settings2, History, BarChart3, Layers, Loader2, Link as LinkIcon, Calendar, Download } from "lucide-react";
 import Link from "next/link";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow, parseISO, subDays, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
+import Papa from 'papaparse';
 
 type FilterType = 'this_month' | 'last_30_days' | 'all_time';
 
@@ -81,6 +82,34 @@ export default function DashboardPage() {
     { value: 'last_30_days', label: 'Últimos 30 Días' },
     { value: 'all_time', label: 'Desde Siempre' },
   ];
+  
+  const handleExportCsv = () => {
+    if (logs.length === 0) {
+        toast({ title: 'Nada que exportar', description: 'No tienes registros de actividad para exportar.', variant: "destructive" });
+        return;
+    }
+    
+    const dataToExport = logs.map(log => ({
+        'Fecha': new Date(log.timestamp).toLocaleString('es-ES'),
+        'Producto': log.details.productName || 'N/A',
+        'Conexión': log.details.connectionKey || 'N/A',
+        'Origen': log.details.source || 'Desconocido',
+    }));
+
+    const csv = Papa.unparse(dataToExport);
+    const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    const formattedDate = new Date().toISOString().split('T')[0];
+    link.setAttribute("download", `mi-actividad-wooautomate-${formattedDate}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
 
   const renderStats = () => {
     if (isLoading) {
@@ -245,8 +274,12 @@ export default function DashboardPage() {
       <section aria-labelledby="recent-activity-title">
         <h2 id="recent-activity-title" className="text-xl font-semibold mb-4 text-foreground font-headline">Actividad Reciente</h2>
         <Card className="shadow-lg rounded-lg">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
                  <CardTitle className="text-lg font-medium">Últimos Productos Procesados</CardTitle>
+                 <Button variant="outline" size="sm" onClick={handleExportCsv}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Exportar Actividad
+                 </Button>
             </CardHeader>
             <CardContent className="p-0">
                 {renderRecentActivity()}

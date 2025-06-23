@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, LineChart, History, Calendar } from "lucide-react";
+import { Loader2, LineChart, History, Calendar, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase";
 import type { ActivityLog } from '@/lib/types';
@@ -13,6 +13,8 @@ import { formatDistanceToNow, parseISO, subDays, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Image from 'next/image';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import Papa from 'papaparse';
 
 
 interface UserStat {
@@ -118,6 +120,62 @@ export default function AdminActivityPage() {
         return Object.values(stats).sort((a,b) => b.productCount - a.productCount);
     }, [filteredLogs]);
 
+    const handleExportUserStats = () => {
+        if (userStats.length === 0) {
+            toast({ title: 'Nada que exportar', description: 'No hay estadísticas de usuario para el periodo seleccionado.', variant: "destructive" });
+            return;
+        }
+
+        const dataToExport = userStats.map(stat => ({
+            'Usuario': stat.displayName,
+            'Email': stat.email,
+            'Productos Creados': stat.productCount,
+            'Webs Utilizadas': Array.from(stat.connections).join(', '),
+        }));
+
+        const csv = Papa.unparse(dataToExport);
+        const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        const formattedDate = new Date().toISOString().split('T')[0];
+        link.setAttribute("download", `reporte-actividad-usuarios-${formattedDate}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleExportDetailedLogs = () => {
+        if (logs.length === 0) { // Use all logs, not just filtered for detailed export
+            toast({ title: 'Nada que exportar', description: 'No hay registros detallados para exportar.', variant: "destructive" });
+            return;
+        }
+
+        const dataToExport = logs.map(log => ({
+            'Fecha': new Date(log.timestamp).toLocaleString('es-ES'),
+            'Usuario': log.user.displayName,
+            'Acción': log.action,
+            'Detalles': log.action === 'PRODUCT_CREATED' 
+                ? `Creó "${log.details.productName}" en ${log.details.connectionKey} (desde ${log.details.source})`
+                : JSON.stringify(log.details)
+        }));
+
+        const csv = Papa.unparse(dataToExport);
+        const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        const formattedDate = new Date().toISOString().split('T')[0];
+        link.setAttribute("download", `reporte-detallado-actividad-${formattedDate}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
 
     if (isLoading) {
         return (
@@ -140,17 +198,23 @@ export default function AdminActivityPage() {
                                 <CardDescription>Estadísticas de creación de productos por cada usuario.</CardDescription>
                             </div>
                         </div>
-                        <Select value={filter} onValueChange={(value: FilterType) => setFilter(value)}>
-                            <SelectTrigger className="w-full sm:w-[200px]">
-                                <Calendar className="mr-2 h-4 w-4" />
-                                <SelectValue placeholder="Seleccionar periodo" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {filterOptions.map(option => (
-                                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                            <Select value={filter} onValueChange={(value: FilterType) => setFilter(value)}>
+                                <SelectTrigger className="w-full sm:w-[200px]">
+                                    <Calendar className="mr-2 h-4 w-4" />
+                                    <SelectValue placeholder="Seleccionar periodo" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {filterOptions.map(option => (
+                                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                             <Button variant="outline" onClick={handleExportUserStats}>
+                                <Download className="mr-2 h-4 w-4" />
+                                Exportar Resumen
+                            </Button>
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -197,12 +261,18 @@ export default function AdminActivityPage() {
 
             <Card>
                 <CardHeader>
-                    <div className="flex items-center space-x-3">
-                        <History className="h-8 w-8 text-primary" />
-                        <div>
-                            <CardTitle>Registro de Actividad Detallado</CardTitle>
-                            <CardDescription>Las 200 acciones más recientes realizadas en la aplicación.</CardDescription>
+                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div className="flex items-center space-x-3">
+                            <History className="h-8 w-8 text-primary" />
+                            <div>
+                                <CardTitle>Registro de Actividad Detallado</CardTitle>
+                                <CardDescription>Las 200 acciones más recientes realizadas en la aplicación.</CardDescription>
+                            </div>
                         </div>
+                        <Button variant="outline" onClick={handleExportDetailedLogs}>
+                            <Download className="mr-2 h-4 w-4" />
+                            Exportar Registros
+                        </Button>
                     </div>
                 </CardHeader>
                 <CardContent>
