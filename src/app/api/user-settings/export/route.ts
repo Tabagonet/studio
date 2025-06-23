@@ -21,14 +21,16 @@ export async function GET(req: NextRequest) {
         const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
 
         if (!userSettingsDoc.exists) {
-            return NextResponse.json({ connections: {}, prompts: {} });
+            // Return an empty but correctly structured object if no settings exist
+            return NextResponse.json({ connections: {}, activeConnectionKey: null });
         }
         
         const settings = userSettingsDoc.data() || {};
         
-        // We only want to export connections and prompts
+        // Include all relevant user settings for a complete backup
         const exportData = {
             connections: settings.connections || {},
+            activeConnectionKey: settings.activeConnectionKey || null,
         };
 
         const jsonString = JSON.stringify(exportData, null, 2);
