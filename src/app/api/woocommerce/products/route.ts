@@ -219,7 +219,10 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    return NextResponse.json({ success: true, data: createdProduct }, { status: response.status });
+    const storeUrl = wooApi.url.endsWith('/') ? wooApi.url.slice(0, -1) : wooApi.url;
+    const adminUrl = `${storeUrl}/wp-admin/post.php?post=${createdProduct.id}&action=edit`;
+
+    return NextResponse.json({ success: true, data: createdProduct, admin_url: adminUrl }, { status: response.status });
 
   } catch (error: any) {
     console.error('Error creating product in WooCommerce:', error.response?.data || error.message);

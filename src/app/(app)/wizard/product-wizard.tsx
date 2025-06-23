@@ -11,15 +11,17 @@ import { INITIAL_PRODUCT_DATA } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
-import { ArrowLeft, ArrowRight, Rocket } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Rocket, ExternalLink } from 'lucide-react';
 import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import Link from 'next/link';
 
 export function ProductWizard() {
   const [currentStep, setCurrentStep] = useState(1);
   const [productData, setProductData] = useState<ProductData>(INITIAL_PRODUCT_DATA);
   const [processingState, setProcessingState] = useState<WizardProcessingState>('idle');
   const [progress, setProgress] = useState({ images: 0, product: 0 });
+  const [productAdminUrl, setProductAdminUrl] = useState<string | null>(null);
   const { toast } = useToast();
 
   const isProcessing = processingState === 'processing';
@@ -98,8 +100,7 @@ export function ProductWizard() {
               description: `"${createResponse.data.data.name}" se ha creado en WooCommerce.`,
             });
             
-            // The cleanup is handled by the server API (`/api/woocommerce/products`)
-            // No need to call delete from the client anymore.
+            setProductAdminUrl(createResponse.data.admin_url);
 
             setProgress({ images: 100, product: 100 });
             setProcessingState('finished');
@@ -159,6 +160,7 @@ export function ProductWizard() {
     setProductData(INITIAL_PRODUCT_DATA);
     setProgress({ images: 0, product: 0 });
     setProcessingState('idle');
+    setProductAdminUrl(null);
     setCurrentStep(1);
     window.scrollTo(0, 0);
   }
@@ -195,8 +197,14 @@ export function ProductWizard() {
             </CardHeader>
             <CardContent className="flex flex-wrap gap-4">
                 <Button onClick={startOver}>Crear otro producto</Button>
-                {/* This could link to the created product in WooCommerce admin */}
-                {processingState === 'finished' && <Button variant="outline" disabled>Ver producto en WooCommerce (próximamente)</Button>}
+                {processingState === 'finished' && productAdminUrl && (
+                  <Button asChild variant="outline">
+                    <Link href={productAdminUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Ver producto en WooCommerce
+                    </Link>
+                  </Button>
+                )}
             </CardContent>
         </Card>
       )}

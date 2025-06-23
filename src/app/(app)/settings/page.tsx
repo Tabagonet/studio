@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,8 +48,10 @@ export default function SettingsPage() {
   const [serverConfig, setServerConfig] = useState<ServerConfigStatus | null>(null);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchConfigStatus = async () => {
@@ -127,6 +129,65 @@ export default function SettingsPage() {
     }
   };
 
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/json') {
+      toast({ title: 'Archivo inválido', description: 'Por favor, selecciona un archivo .json válido.', variant: 'destructive' });
+      return;
+    }
+
+    setIsImporting(true);
+    const user = auth.currentUser;
+    if (!user) {
+      toast({ title: 'Error de autenticación', variant: 'destructive' });
+      setIsImporting(false);
+      return;
+    }
+
+    try {
+      const fileContent = await file.text();
+      const jsonData = JSON.parse(fileContent);
+
+      const token = await user.getIdToken();
+      const response = await fetch('/api/user-settings/import', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(jsonData)
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || result.message || 'Error al importar la configuración.');
+      }
+
+      toast({ title: 'Importación Exitosa', description: 'Tu configuración ha sido importada. La página se recargará.' });
+
+      window.dispatchEvent(new Event('connections-updated'));
+      setTimeout(() => window.location.reload(), 1500);
+
+    } catch (error: any) {
+      toast({
+        title: 'Error al Importar',
+        description: error.message.includes('JSON') ? 'El archivo JSON está mal formado.' : error.message,
+        variant: 'destructive'
+      });
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const handleCleanup = async () => {
     setIsCleaning(true);
     const user = auth.currentUser;
@@ -157,15 +218,12 @@ export default function SettingsPage() {
     }
   };
 
-
-  const isFirebaseClientConfigured = !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID &&
-                                     !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
-
   const firebaseAdminHint = "Esta clave (FIREBASE_SERVICE_ACCOUNT_JSON) es para toda la aplicación y se configura en el archivo .env del servidor.";
   const googleAiApiKeyHint = "Esta clave (GOOGLE_API_KEY) es para toda la aplicación y se configura en el archivo .env del servidor. Obtén una clave gratis desde Google AI Studio.";
 
   return (
     <div className="container mx-auto py-8 space-y-8">
+      <input type="file" ref={fileInputRef} onChange={handleFileSelected} className="hidden" accept=".json" />
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-foreground font-headline">Configuración</h1>
         <p className="text-muted-foreground">Administra las configuraciones generales, conexiones de API y datos de la aplicación.</p>
@@ -266,11 +324,14 @@ export default function SettingsPage() {
                 <h4 className="font-medium">Copia de Seguridad</h4>
                 <p className="text-sm text-muted-foreground mb-3">Exporta tus conexiones de API y plantillas de IA personalizadas a un archivo JSON.</p>
                 <div className="flex flex-wrap gap-4">
-                    <Button variant="outline" onClick={handleExportSettings} disabled={isExporting}>
+                    <Button variant="outline" onClick={handleExportSettings} disabled={isExporting || isImporting}>
                         {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                         {isExporting ? 'Exportando...' : 'Exportar Configuración'}
                     </Button>
-                    <Button variant="outline" disabled><Upload className="mr-2 h-4 w-4" /> Importar Configuración (próximamente)</Button>
+                    <Button variant="outline" onClick={handleImportClick} disabled={isImporting || isExporting}>
+                        {isImporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                        {isImporting ? 'Importando...' : 'Importar Configuración'}
+                    </Button>
                 </div>
             </div>
 
@@ -308,5 +369,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
-    
