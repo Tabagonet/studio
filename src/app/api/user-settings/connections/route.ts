@@ -38,16 +38,18 @@ export async function GET(req: NextRequest) {
     }
 }
 
-// A custom Zod schema to validate a string is either empty or a valid URL.
+// A more robust custom Zod schema to validate a string is either empty or a valid URL-like string.
 const urlOrEmptyString = z.string().refine((value) => {
     if (value === '') return true; // Allow empty string
     try {
-        new URL(value); // Check if it's a valid URL
+        // Prepend a protocol if it's missing, to handle domain-only inputs
+        const urlToTest = value.startsWith('http') ? value : `https://${value}`;
+        new URL(urlToTest);
         return true;
     } catch {
         return false;
     }
-}, { message: "Invalid URL format" });
+}, { message: "Invalid URL format. Must be a valid URL or empty." });
 
 
 const connectionDataSchema = z.object({
@@ -57,6 +59,7 @@ const connectionDataSchema = z.object({
     wordpressApiUrl: urlOrEmptyString,
     wordpressUsername: z.string().optional(),
     wordpressApplicationPassword: z.string().optional(),
+    promptTemplate: z.string().optional(), // For consistency with prompt management
 });
 
 
@@ -69,6 +72,8 @@ export async function POST(req: NextRequest) {
     try {
         const uid = await getUserIdFromRequest(req);
         const body = await req.json();
+        console.log('[API /connections] Received POST request body:', JSON.stringify(body, null, 2));
+
 
         const payloadSchema = z.object({
             key: z.string().min(1, "Key is required"),
@@ -78,10 +83,12 @@ export async function POST(req: NextRequest) {
 
         const validationResult = payloadSchema.safeParse(body);
         if (!validationResult.success) {
+            console.error('[API /connections] Validation failed:', JSON.stringify(validationResult.error.flatten(), null, 2));
             return NextResponse.json({ error: 'Invalid data', details: validationResult.error.flatten() }, { status: 400 });
         }
         
         const { key, connectionData, setActive } = validationResult.data;
+        console.log(`[API /connections] Validation successful for key: ${key}`);
 
         // Save to Firestore first
         const userSettingsRef = adminDb.collection('user_settings').doc(uid);
@@ -98,16 +105,18 @@ export async function POST(req: NextRequest) {
 
         if (wooCommerceStoreUrl) {
             try {
-                hostnamesToAdd.add(new URL(wooCommerceStoreUrl).hostname);
-            } catch {
+                const fullUrl = wooCommerceStoreUrl.startsWith('http') ? wooCommerceStoreUrl : `https://${wooCommerceStoreUrl}`;
+                hostnamesToAdd.add(new URL(fullUrl).hostname);
+            } catch (e) {
                 console.warn(`Invalid WooCommerce URL provided for remote pattern: ${wooCommerceStoreUrl}`);
             }
         }
         if (wordpressApiUrl) {
             try {
-                hostnamesToAdd.add(new URL(wordpressApiUrl).hostname);
-            } catch {
-                console.warn(`Invalid WordPress URL provided for remote pattern: ${wordpressApiUrl}`);
+                const fullUrl = wordpressApiUrl.startsWith('http') ? wordpressApiUrl : `https://${wordpressApiUrl}`;
+                hostnamesToAdd.add(new URL(fullUrl).hostname);
+            } catch (e) {
+                 console.warn(`Invalid WordPress URL provided for remote pattern: ${wordpressApiUrl}`);
             }
         }
 
