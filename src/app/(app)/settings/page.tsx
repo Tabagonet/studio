@@ -227,7 +227,7 @@ export default function SettingsPage() {
             <DatabaseZap className="h-6 w-6 text-primary" />
             <CardTitle>Gestión de Datos y Plantillas</CardTitle>
           </div>
-          <CardDescription>Exporta o importa configuraciones y limpia datos temporales.</CardDescription>
+          <CardDescription>Exporta tus conexiones de API y plantillas de prompts a un archivo de seguridad JSON.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-4">
