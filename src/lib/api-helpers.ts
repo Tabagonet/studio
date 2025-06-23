@@ -145,19 +145,28 @@ The response must be a valid JSON object. Do not include any markdown backticks 
 
 Generate the complete JSON object based on your research of "{{productName}}".`;
 
+/**
+ * Gets the correct prompt template for the user's active connection.
+ * @param {string} uid - The user's Firebase UID.
+ * @returns {Promise<string>} The connection-specific prompt or a default.
+ */
 async function getUserPromptTemplate(uid: string): Promise<string> {
     if (!adminDb) {
-        console.warn("generate-description API: Firestore not available, using default prompt template.");
+        console.warn("AI Helper: Firestore not available, using default prompt template.");
         return DEFAULT_PROMPT_TEMPLATE;
     }
     try {
         const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
-        if (userSettingsDoc.exists()) {
-            const data = userSettingsDoc.data();
-            if (data && data.promptTemplate) {
-                return data.promptTemplate;
+        if (userSettingsDoc.exists) {
+            const settings = userSettingsDoc.data();
+            const activeKey = settings?.activeConnectionKey;
+            const connections = settings?.connections;
+            
+            if (activeKey && connections && connections[activeKey] && connections[activeKey].promptTemplate) {
+                 return connections[activeKey].promptTemplate;
             }
         }
+        // Fallback to default if no specific prompt is found
         return DEFAULT_PROMPT_TEMPLATE;
     } catch (error) {
         console.error("Error fetching user prompt template, using default:", error);
@@ -207,7 +216,7 @@ export async function generateProductContent(
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
     model: "gemini-1.5-flash-latest",
-    systemInstruction: `You are an expert botanist, e-commerce copywriter, and SEO specialist. Your primary task is to generate a single, valid JSON object based on the user's prompt. The JSON object must strictly follow the schema requested in the user prompt. Do not add any extra text, comments, or markdown formatting like \`\`\`json around the JSON response.`,
+    systemInstruction: `You are an expert e-commerce copywriter and SEO specialist. Your primary task is to generate a single, valid JSON object based on the user's prompt. The JSON object must strictly follow the schema requested in the user prompt. Do not add any extra text, comments, or markdown formatting like \`\`\`json around the JSON response.`,
     generationConfig: {
       responseMimeType: "application/json",
     },

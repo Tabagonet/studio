@@ -6,17 +6,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Brain, Info, Save, Loader2 } from "lucide-react";
+import { Brain, Info, Save, Loader2, KeyRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 
-const DEFAULT_PROMPT_TEMPLATE = `You are an expert botanist, e-commerce copywriter, and SEO specialist.
+// This default template is a fallback if no prompt is found for a connection.
+const DEFAULT_PROMPT_TEMPLATE = `You are an expert e-commerce copywriter and SEO specialist.
 Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
 The response must be a valid JSON object. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
 
 **Input Information:**
-- **Plant Name / Group Name:** {{productName}}
+- **Product Name:** {{productName}}
 - **Language for output:** {{language}}
 - **Product Type:** {{productType}}
 - **User-provided Keywords (for inspiration):** {{keywords}}
@@ -24,47 +25,15 @@ The response must be a valid JSON object. Do not include any markdown backticks 
 {{groupedProductsList}}
 
 **Instructions:**
-1.  **Research & Synthesis:**
-    - For "simple" or "variable" products, research the provided **Plant Name**.
-    - For "Grouped" products, your primary task is to **synthesize the information from the "Contained Products" list provided above.** Do not perform external research on the group name itself. Your goal is to create a compelling description for the *collection* of items listed. Use the details from **all** products in the list to inform your response.
+Generate a JSON object with the following keys. Adapt the content to the product name provided.
 
-2.  **Generate Content:** Populate a JSON object with the following keys and specifications:
-
-    a.  **"shortDescription":** Write a concise and engaging summary in {{language}}. The product name, "{{productName}}", MUST be wrapped in <strong> HTML tags. If it's a grouped product, summarize the collection.
-
-    b.  **"longDescription":** Write a detailed description entirely in **{{language}}**. It MUST follow this structure. All labels (e.g., "Botanical Name", "Common Names", etc.) MUST be translated to {{language}}. For each item, **you must find the correct information** and format it with the translated label in bold (<strong>) and the value in italic (<em>). For a "Grouped" product, adapt the details to describe the collection as a whole.
-        <strong>[Translated "Botanical Name"]:</strong> <em>[Find and insert the scientific name, or general family for groups]</em><br>
-        <strong>[Translated "Common Names"]:</strong> <em>[Find and list common names, or a collective name for groups]</em><br>
-        <strong>[Translated "Mature Size"]:</strong> <em>[Find and insert typical height and spread]</em><br>
-        <strong>[Translated "Light Requirements"]:</strong> <em>[Find and insert light needs]</em><br>
-        <strong>[Translated "Soil Requirements"]:</strong> <em>[Find and insert soil needs]</em><br>
-        <strong>[Translated "Water Needs"]:</strong> <em>[Find and insert water needs]</em><br>
-        <strong>[Translated "Foliage"]:</strong> <em>[Find and describe the foliage]</em><br>
-        <strong>[Translated "Flowers"]:</strong> <em>[Find and describe the flowers]</em><br>
-        <strong>[Translated "Growth Rate"]:</strong> <em>[Find and insert the growth rate]</em><br>
-        <br>
-        <strong>[Translated "Uses"]:</strong><br>
-        - <strong>[Translated "Architectural Plant"]:</strong> <em>[Explain this use based on research, in {{language}}]</em><br>
-        - <strong>[Translated "Xeriscaping"]:</strong> <em>[Explain this use based on research, in {{language}}]</em><br>
-        - <strong>[Translated "Ecological Landscaping"]:</strong> <em>[Explain this use based on research, in {{language}}]</em><br>
-        <br>
-        <strong>[Translated "Benefits"]:</strong><br>
-        - <strong>[Translated "Extreme Drought Tolerance"]:</strong> <em>[Explain this benefit based on research, in {{language}}]</em><br>
-        - <strong>[Translated "Low Maintenance"]:</strong> <em>[Explain this benefit based on research, in {{language}}]</em><br>
-        - <strong>[Translated "Visual Interest"]:</strong> <em>[Explain this benefit based on research, in {{language}}]</em><br>
-        - <strong>[Translated "Habitat Support"]:</strong> <em>[Explain this benefit based on research, in {{language}}]</em><br>
-        <br>
-        <em>[Write a final summary paragraph here, in {{language}}. If "Grouped", highlight the value of the collection.]</em>
-
-    c.  **"keywords":** Generate a comma-separated list of 5-10 relevant SEO keywords in English (PascalCase or camelCase).
-
-    d.  **"imageTitle":** Generate a concise, SEO-friendly title for product images. Example: "Drought-Tolerant Agave Avellanidens Plant".
-
-    e.  **"imageAltText":** Generate a descriptive alt text for SEO, describing the image for visually impaired users. Example: "A large Agave Avellanidens succulent with blue-green leaves in a sunny, rocky garden."
-
-    f.  **"imageCaption":** Generate an engaging caption for the image, suitable for the media library. This can be based on the short description.
-
-    g.  **"imageDescription":** Generate a detailed description for the image media library entry. This can be a more detailed version of the alt text or based on the long description.
+a.  **"shortDescription":** A concise and engaging summary in {{language}}.
+b.  **"longDescription":** A detailed description in {{language}}. Use HTML tags like <strong>, <em>, and <br> for formatting.
+c.  **"keywords":** A comma-separated list of 5-10 relevant SEO keywords in English.
+d.  **"imageTitle":** A concise, SEO-friendly title for product images.
+e.  **"imageAltText":** A descriptive alt text for SEO.
+f.  **"imageCaption":** An engaging caption for the image.
+g.  **"imageDescription":** A detailed description for the image media library entry.
 
 Generate the complete JSON object based on your research of "{{productName}}".`;
 
@@ -74,56 +43,61 @@ export default function PromptsPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
+    const [activeConnectionKey, setActiveConnectionKey] = useState<string | null>(null);
 
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                try {
-                    const token = await user.getIdToken();
-                    const response = await fetch('/api/user-settings/prompt', {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
+    const fetchPromptForActiveConnection = async (user: any) => {
+        if (!user) {
+            setPrompt(DEFAULT_PROMPT_TEMPLATE);
+            setIsLoading(false);
+            return;
+        }
+        setIsLoading(true);
+        try {
+            const token = await user.getIdToken();
+            // This API now intelligently returns the prompt for the ACTIVE connection
+            const response = await fetch('/api/user-settings/prompt', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
 
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (data.prompt) {
-                            setPrompt(data.prompt);
-                        } else {
-                            setPrompt(DEFAULT_PROMPT_TEMPLATE);
-                        }
-                    } else {
-                        // Handle non-ok responses, e.g., if API returns error
-                        setPrompt(DEFAULT_PROMPT_TEMPLATE);
-                    }
-                } catch (error) {
-                    console.error("Error fetching custom prompt:", error);
-                    toast({
-                        title: "Error al cargar plantilla",
-                        description: "No se pudo cargar tu plantilla personalizada. Se usará la plantilla por defecto.",
-                        variant: "destructive"
-                    });
-                     setPrompt(DEFAULT_PROMPT_TEMPLATE);
-                } finally {
-                    setIsLoading(false);
-                }
+            if (response.ok) {
+                const data = await response.json();
+                setPrompt(data.prompt || DEFAULT_PROMPT_TEMPLATE);
+                setActiveConnectionKey(data.activeConnectionKey); // The API now also returns the key for context
             } else {
-                setIsLoading(false);
-                 setPrompt(DEFAULT_PROMPT_TEMPLATE); // Show default if not logged in
+                setPrompt(DEFAULT_PROMPT_TEMPLATE);
+                setActiveConnectionKey(null);
             }
-        });
+        } catch (error) {
+            console.error("Error fetching custom prompt:", error);
+            toast({
+                title: "Error al cargar plantilla",
+                description: "No se pudo cargar la plantilla. Se usará la plantilla por defecto.",
+                variant: "destructive"
+            });
+             setPrompt(DEFAULT_PROMPT_TEMPLATE);
+             setActiveConnectionKey(null);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
+    // Listen for auth changes and for our custom event when the connection is switched in the header
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, fetchPromptForActiveConnection);
+        window.addEventListener('connections-updated', () => fetchPromptForActiveConnection(auth.currentUser));
 
-        return () => unsubscribe();
+        return () => {
+            unsubscribe();
+            window.removeEventListener('connections-updated', () => fetchPromptForActiveConnection(auth.currentUser));
+        };
     }, [toast]);
+
 
     const handleSave = async () => {
         setIsSaving(true);
         const user = auth.currentUser;
         if (!user) {
-            toast({
-                title: "Error de autenticación",
-                description: "Debes iniciar sesión para guardar.",
-                variant: "destructive"
-            });
+            toast({ title: "Error de autenticación", variant: "destructive" });
             setIsSaving(false);
             return;
         }
@@ -141,12 +115,12 @@ export default function PromptsPage() {
 
             const result = await response.json();
             if (!response.ok) {
-                throw new Error(result.error || 'Error al guardar la plantilla');
+                throw new Error(result.error || result.message || 'Error al guardar la plantilla');
             }
 
             toast({
                 title: "Plantilla Guardada",
-                description: "Tu plantilla de prompt ha sido actualizada.",
+                description: `Tu plantilla para la conexión "${result.activeConnectionKey}" ha sido actualizada.`,
             });
         } catch (error: any) {
             toast({
@@ -167,7 +141,7 @@ export default function PromptsPage() {
                     <Brain className="h-8 w-8 text-primary" />
                     <div>
                         <CardTitle>Gestión de Prompts de IA</CardTitle>
-                        <CardDescription>Personaliza las instrucciones que recibe la IA para generar contenido.</CardDescription>
+                        <CardDescription>Personaliza las instrucciones que recibe la IA para cada una de tus conexiones.</CardDescription>
                     </div>
                 </div>
             </CardHeader>
@@ -177,23 +151,36 @@ export default function PromptsPage() {
             <Info className="h-4 w-4" />
             <AlertTitle>¿Cómo funciona esto?</AlertTitle>
             <AlertDescription>
-                <p>{`Aquí puedes editar la plantilla de "prompt" que se envía al modelo de IA (Gemini) para generar el contenido de tus productos. Puedes ajustar el tono, el estilo y las instrucciones para que se adapten mejor a tu marca.`}</p>
-                <p className="mt-2">{`Utiliza placeholders como`} <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{productName}}`}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{productType}}`}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{keywords}}`}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{language}}`}</code>, y <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{groupedProductsList}}`}</code>. {`El sistema los reemplazará con los datos del producto correspondiente en cada solicitud.`}</p>
-                <p className="mt-2 font-semibold">Nota: La estructura de salida JSON no es editable desde aquí para garantizar la compatibilidad.</p>
+                <p>Aquí puedes editar la plantilla de "prompt" que se envía a la IA para generar el contenido de tus productos.</p>
+                <p className="mt-2 font-semibold">
+                  Esta plantilla se guarda para la conexión que tienes activa actualmente. Si cambias de tienda en la cabecera, verás la plantilla correspondiente a esa otra conexión.
+                </p>
+                <p className="mt-2">{`Utiliza placeholders como`} <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{productName}}`}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{productType}}`}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{keywords}}`}</code>, <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{language}}`}</code>, y <code className="font-code bg-muted px-1 py-0.5 rounded-sm">{`{{groupedProductsList}}`}</code>. {`El sistema los reemplazará con los datos del producto.`}</p>
             </AlertDescription>
         </Alert>
 
         <Card>
             <CardHeader>
                 <CardTitle>Editor de Plantilla</CardTitle>
+                 {activeConnectionKey && (
+                    <CardDescription className="!mt-2 flex items-center gap-2 text-sm">
+                        <KeyRound className="h-4 w-4 text-muted-foreground" />
+                        Editando plantilla para la conexión: <code className="font-semibold text-foreground">{activeConnectionKey}</code>
+                    </CardDescription>
+                )}
+                 {!activeConnectionKey && !isLoading && (
+                    <CardDescription className="!mt-2 flex items-center gap-2 text-sm text-amber-600">
+                        <Info className="h-4 w-4" />
+                        No hay ninguna conexión activa. Se muestra y guardará la plantilla por defecto.
+                    </CardDescription>
+                 )}
             </CardHeader>
             <CardContent className="space-y-4">
                 <div>
-                    <Label htmlFor="prompt-template" className="text-base">Prompt para generar descripciones y palabras clave</Label>
                      {isLoading ? (
                         <div className="mt-2 flex h-[400px] w-full items-center justify-center rounded-md border border-dashed">
                              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                             <p className="ml-2 text-muted-foreground">Cargando plantilla...</p>
+                             <p className="ml-2 text-muted-foreground">Cargando plantilla para la conexión activa...</p>
                         </div>
                     ) : (
                         <Textarea 
