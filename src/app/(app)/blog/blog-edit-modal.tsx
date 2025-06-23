@@ -1,14 +1,14 @@
 
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Image from 'next/image';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Sparkles, Wand2, Tags } from 'lucide-react';
+import { Loader2, Sparkles, Wand2, Tags, Pilcrow, Heading2, List, ListOrdered, Link as LinkIcon, Image as ImageIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { WordPressPostCategory, WordPressUser, ProductPhoto } from '@/lib/types';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 interface BlogEditModalProps {
   postId: number;
@@ -32,6 +33,33 @@ interface PostEditState {
   featured_media: ProductPhoto | null;
 }
 
+const ContentToolbar = ({ onInsertTag, onInsertLink, onInsertImage }: { onInsertTag: (tag: 'h2' | 'ul' | 'ol' | 'strong' | 'em') => void; onInsertLink: () => void; onInsertImage: () => void; }) => (
+    <div className="flex items-center gap-1 mb-1 rounded-t-md border-b bg-muted p-1">
+        <Button type="button" variant="ghost" size="icon" onClick={() => onInsertTag('strong')} title="Negrita" className="h-8 w-8">
+            <Pilcrow className="h-4 w-4" />
+        </Button>
+        <Button type="button" variant="ghost" size="icon" onClick={() => onInsertTag('em')} title="Cursiva" className="h-8 w-8">
+            <span className="italic text-lg font-serif">I</span>
+        </Button>
+         <Button type="button" variant="ghost" size="icon" onClick={() => onInsertTag('h2')} title="Encabezado H2" className="h-8 w-8">
+            <Heading2 className="h-4 w-4" />
+        </Button>
+        <Button type="button" variant="ghost" size="icon" onClick={() => onInsertTag('ul')} title="Lista desordenada" className="h-8 w-8">
+            <List className="h-4 w-4" />
+        </Button>
+         <Button type="button" variant="ghost" size="icon" onClick={() => onInsertTag('ol')} title="Lista ordenada" className="h-8 w-8">
+            <ListOrdered className="h-4 w-4" />
+        </Button>
+        <Button type="button" variant="ghost" size="icon" onClick={onInsertLink} title="Añadir Enlace" className="h-8 w-8">
+            <LinkIcon className="h-4 w-4" />
+        </Button>
+        <Button type="button" variant="ghost" size="icon" onClick={onInsertImage} title="Insertar Imagen" className="h-8 w-8">
+            <ImageIcon className="h-4 w-4" />
+        </Button>
+    </div>
+);
+
+
 export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
   const [post, setPost] = useState<PostEditState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -41,6 +69,16 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
 
   const [categories, setCategories] = useState<WordPressPostCategory[]>([]);
   const [authors, setAuthors] = useState<WordPressUser[]>([]);
+  
+  const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
+  const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+  const selectionRef = useRef<{ start: number; end: number } | null>(null);
 
   const { toast } = useToast();
 
@@ -110,8 +148,7 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
         }
     };
 
-
-  const handleSaveChanges = async () => {
+    const handleSaveChanges = async () => {
     setIsSaving(true);
     const user = auth.currentUser;
     if (!user || !post) {
@@ -224,6 +261,111 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
     fetchInitialData();
   }, [postId]);
 
+  const handleInsertTag = (tag: 'h2' | 'ul' | 'ol' | 'strong' | 'em') => {
+      const textarea = contentRef.current;
+      if (!textarea || !post) return;
+      
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const selectedText = textarea.value.substring(start, end);
+      let newText;
+
+      if (tag === 'ul' || tag === 'ol') {
+          const listItems = selectedText.split('\\n').map(line => `  <li>${line}</li>`).join('\\n');
+          newText = `${textarea.value.substring(0, start)}<${tag}>\\n${listItems}\\n</${tag}>${textarea.value.substring(end)}`;
+      } else {
+          newText = `${textarea.value.substring(0, start)}<${tag}>${selectedText}</${tag}>${textarea.value.substring(end)}`;
+      }
+      
+      setPost({ ...post, content: newText });
+  };
+
+  const openActionDialog = (action: 'link' | 'image') => {
+      const textarea = contentRef.current;
+      if (textarea) {
+          selectionRef.current = { start: textarea.selectionStart, end: textarea.selectionEnd };
+          if (action === 'link') setIsLinkDialogOpen(true);
+          if (action === 'image') setIsImageDialogOpen(true);
+      }
+  };
+
+  const handleInsertLink = () => {
+      const textarea = contentRef.current;
+      const selection = selectionRef.current;
+      if (!textarea || !selection || !linkUrl || !post) return;
+      
+      const { start, end } = selection;
+      const selectedText = textarea.value.substring(start, end);
+      
+      if (!selectedText) {
+          toast({ title: 'Selecciona texto primero', description: 'Debes seleccionar el texto que quieres convertir en un enlace.', variant: 'destructive' });
+          return;
+      }
+
+      const newText = `${textarea.value.substring(0, start)}<a href="${linkUrl}" target="_blank" rel="noopener noreferrer">${selectedText}</a>${textarea.value.substring(end)}`;
+      
+      setPost({ ...post, content: newText });
+      setLinkUrl('');
+      setIsLinkDialogOpen(false);
+  };
+
+  const handleInsertImage = async () => {
+      let finalImageUrl = imageUrl;
+      if (!post) return;
+
+      if (imageFile) {
+          setIsUploadingImage(true);
+          try {
+              const user = auth.currentUser;
+              if (!user) throw new Error("No autenticado.");
+              const token = await user.getIdToken();
+
+              const formData = new FormData();
+              formData.append('imagen', imageFile);
+
+              const response = await fetch('/api/upload-image', {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${token}` },
+                  body: formData,
+              });
+              
+              if (!response.ok) {
+                  const errorData = await response.json();
+                  throw new Error(errorData.error || 'Fallo en la subida de imagen.');
+              }
+              
+              const imageData = await response.json();
+              finalImageUrl = imageData.url;
+
+          } catch (err: any) {
+              toast({ title: 'Error al subir imagen', description: err.message, variant: 'destructive' });
+              setIsUploadingImage(false);
+              return;
+          } finally {
+              setIsUploadingImage(false);
+          }
+      }
+
+      if (!finalImageUrl) {
+          toast({ title: 'Falta la imagen', description: 'Por favor, sube un archivo o introduce una URL.', variant: 'destructive' });
+          return;
+      }
+
+      const textarea = contentRef.current;
+      const selection = selectionRef.current;
+      if (!textarea || !selection) return;
+
+      const { start } = selection;
+      const newText = `${textarea.value.substring(0, start)}\\n<img src="${finalImageUrl}" alt="${post.title || 'Imagen insertada'}" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px;" />\\n${textarea.value.substring(start)}`;
+      
+      setPost({ ...post, content: newText });
+
+      setImageUrl('');
+      setImageFile(null);
+      setIsImageDialogOpen(false);
+  };
+
+
   return (
     <Dialog open={true} onOpenChange={() => onClose(false)}>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
@@ -233,14 +375,22 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
         {error && <Alert variant="destructive"><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
         
         {!isLoading && !error && post && (
-           <Tabs defaultValue="edit" className="flex-1 min-h-0 flex flex-col">
+           <div className="flex-1 min-h-0">
+           <Tabs defaultValue="edit" className="flex-1 min-h-0 flex flex-col h-full">
             <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="edit">Editor</TabsTrigger>
                 <TabsTrigger value="preview">Vista Previa</TabsTrigger>
             </TabsList>
             <TabsContent value="edit" className="space-y-4 flex-1 overflow-y-auto p-2">
-                <div><Label htmlFor="title">Título</Label><Input id="title" name="title" value={post.title} onChange={handleInputChange} /></div>
-                <div><Label htmlFor="content">Contenido</Label><Textarea id="content" name="content" value={post.content} onChange={handleInputChange} rows={15} /></div>
+                <div>
+                  <Label htmlFor="title">Título</Label>
+                  <Input id="title" name="title" value={post.title} onChange={handleInputChange} />
+                </div>
+                <div>
+                  <Label htmlFor="content">Contenido</Label>
+                  <ContentToolbar onInsertTag={handleInsertTag} onInsertLink={() => openActionDialog('link')} onInsertImage={() => openActionDialog('image')} />
+                  <Textarea id="content" name="content" ref={contentRef} value={post.content} onChange={handleInputChange} rows={15} className="rounded-t-none" />
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div><Label>Autor</Label><Select name="author" value={post.author?.toString() || ''} onValueChange={(v) => handleSelectChange('author', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{authors.map(a => <SelectItem key={a.id} value={a.id.toString()}>{a.name}</SelectItem>)}</SelectContent></Select></div>
                     <div><Label>Estado</Label><Select name="status" value={post.status} onValueChange={(v) => handleSelectChange('status', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="publish">Publicado</SelectItem><SelectItem value="draft">Borrador</SelectItem><SelectItem value="pending">Pendiente</SelectItem><SelectItem value="private">Privado</SelectItem><SelectItem value="future">Programado</SelectItem></SelectContent></Select></div>
@@ -288,11 +438,65 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
                 </div>
             </TabsContent>
            </Tabs>
+           </div>
         )}
-        <DialogFooter className="pt-4 border-t">
+        <DialogFooter className="pt-4 border-t mt-auto">
           <DialogClose asChild><Button type="button" variant="secondary">Cancelar</Button></DialogClose>
           <Button type="submit" onClick={handleSaveChanges} disabled={isSaving || isLoading || !!error}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar Cambios</Button>
         </DialogFooter>
+        
+        <AlertDialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Añadir Enlace</AlertDialogTitle>
+                    <AlertDialogDescription>Introduce la URL completa a la que quieres enlazar el texto seleccionado.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <Input 
+                    value={linkUrl} 
+                    onChange={(e) => setLinkUrl(e.target.value)} 
+                    placeholder="https://ejemplo.com" 
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleInsertLink(); } }}
+                />
+                <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setLinkUrl('')}>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleInsertLink}>Añadir Enlace</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Insertar Imagen</AlertDialogTitle>
+                    <AlertDialogDescription>Sube una imagen o introduce una URL para insertarla en el contenido.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="space-y-4">
+                    <div>
+                        <Label htmlFor="image-upload">Subir archivo</Label>
+                        <Input id="image-upload" type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
+                    </div>
+                    <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t" />
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                            <span className="bg-background px-2 text-muted-foreground">O</span>
+                        </div>
+                    </div>
+                    <div>
+                        <Label htmlFor="image-url">Insertar desde URL</Label>
+                        <Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" />
+                    </div>
+                </div>
+                <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => { setImageUrl(''); setImageFile(null); }}>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleInsertImage} disabled={isUploadingImage}>
+                        {isUploadingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Insertar Imagen
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
