@@ -14,6 +14,9 @@ import { PlusCircle, Trash2, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
+import { VariableProductManager } from '@/components/features/wizard/variable-product-manager';
+import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
 
 interface Step1DetailsPhotosProps {
   productData: ProductData;
@@ -27,31 +30,49 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   const { toast } = useToast();
 
   useEffect(() => {
-    // TODO: This should be a real API call. For now, it's mocked.
     const fetchCategories = async () => {
       setIsLoadingCategories(true);
-      // Simulating a network request
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // In the future, this will be:
-      // const response = await fetch('/api/woocommerce/categories');
-      // const data = await response.json();
-      // setWooCategories(data);
-      setWooCategories([
-          { id: 1, name: 'Cactus', slug: 'cactus', parent: 0 },
-          { id: 2, name: 'Suculentas', slug: 'suculentas', parent: 0 },
-          { id: 3, name: 'Plantas de Interior', slug: 'plantas-de-interior', parent: 0 },
-      ]);
-      setIsLoadingCategories(false);
+      const user = auth.currentUser;
+      if (!user) {
+          setIsLoadingCategories(false);
+          return;
+      }
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/woocommerce/categories', {
+            headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Error: ${response.status}`);
+        }
+        const data: WooCommerceCategory[] = await response.json();
+        setWooCategories(data);
+      } catch (error) {
+        console.error("Error fetching WooCommerce categories:", error);
+        toast({
+          title: "Error al Cargar Categorías",
+          description: (error as Error).message || "No se pudieron cargar las categorías de WooCommerce.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingCategories(false);
+      }
     };
     fetchCategories();
-  }, []);
+  }, [toast]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     updateProductData({ [e.target.name]: e.target.value });
   };
 
   const handleSelectChange = (name: string, value: string | ProductType) => {
-    updateProductData({ [name]: value });
+    if (name === 'category') {
+      const selectedCategory = wooCategories.find(cat => cat.slug === value) || null;
+      updateProductData({ category: selectedCategory });
+    } else {
+      updateProductData({ [name]: value });
+    }
   };
 
   const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
@@ -67,14 +88,18 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     updateProductData({ photos: newPhotos });
   };
   
-  const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string) => {
+  const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string | boolean) => {
     const newAttributes = [...productData.attributes];
     newAttributes[index] = { ...newAttributes[index], [field]: value };
     updateProductData({ attributes: newAttributes });
   };
+  
+  const handleGroupedIdsChange = (ids: number[]) => {
+    updateProductData({ groupedProductIds: ids });
+  };
 
   const addAttribute = () => {
-    updateProductData({ attributes: [...productData.attributes, { name: '', value: '' }] });
+    updateProductData({ attributes: [...productData.attributes, { name: '', value: '', forVariations: false }] });
   };
 
   const removeAttribute = (index: number) => {
@@ -135,7 +160,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
           <div>
             <Label htmlFor="category">Categoría</Label>
-            <Select name="category" value={productData.category?.slug ?? ''} onValueChange={(value) => handleSelectChange('category', value)} disabled={isProcessing || isLoadingCategories}>
+            <Select name="category" value={productData.category?.slug ?? ''} onValueChange={(value) => handleSelectChange('category', value as string)} disabled={isProcessing || isLoadingCategories}>
               <SelectTrigger id="category">
                 {isLoadingCategories ? (
                   <div className="flex items-center">
@@ -206,27 +231,44 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         <CardContent className="space-y-4">
           {productData.attributes.map((attr, index) => (
             <div key={index} className="flex items-end gap-2 p-3 border rounded-md bg-muted/20">
-              <div className="flex-1">
-                <Label htmlFor={`attrName-${index}`}>Nombre</Label>
-                <Input 
-                  id={`attrName-${index}`} 
-                  value={attr.name} 
-                  onChange={(e) => handleAttributeChange(index, 'name', e.target.value)}
-                  placeholder="Ej: Color" 
-                  disabled={isProcessing}
-                />
+              <div className="grid grid-cols-2 gap-2 flex-1">
+                <div>
+                    <Label htmlFor={`attrName-${index}`}>Nombre</Label>
+                    <Input 
+                      id={`attrName-${index}`} 
+                      value={attr.name} 
+                      onChange={(e) => handleAttributeChange(index, 'name', e.target.value)}
+                      placeholder="Ej: Color" 
+                      disabled={isProcessing}
+                    />
+                </div>
+                <div>
+                    <Label htmlFor={`attrValue-${index}`}>Valor(es)</Label>
+                    <Input 
+                      id={`attrValue-${index}`} 
+                      value={attr.value} 
+                      onChange={(e) => handleAttributeChange(index, 'value', e.target.value)}
+                      placeholder="Ej: Azul | Rojo | Verde" 
+                      disabled={isProcessing}
+                    />
+                </div>
               </div>
-              <div className="flex-1">
-                <Label htmlFor={`attrValue-${index}`}>Valor(es)</Label>
-                <Input 
-                  id={`attrValue-${index}`} 
-                  value={attr.value} 
-                  onChange={(e) => handleAttributeChange(index, 'value', e.target.value)}
-                  placeholder="Ej: Azul | Rojo | Verde" 
-                  disabled={isProcessing}
-                />
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" disabled={isProcessing}>
+               {productData.productType === 'variable' && (
+                  <div className="flex flex-col justify-center items-center pl-2 pt-5">
+                      <div className="flex items-center space-x-2">
+                          <Checkbox
+                              id={`attrForVariations-${index}`}
+                              checked={!!attr.forVariations}
+                              onCheckedChange={(checked) => handleAttributeChange(index, 'forVariations', !!checked)}
+                              disabled={isProcessing}
+                          />
+                          <Label htmlFor={`attrForVariations-${index}`} className="text-xs font-normal leading-none cursor-pointer">
+                              Para<br/>variaciones
+                          </Label>
+                      </div>
+                  </div>
+              )}
+              <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" disabled={isProcessing} className="self-center">
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             </div>
@@ -236,6 +278,28 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
           </Button>
         </CardContent>
       </Card>
+      
+      {productData.productType === 'variable' && (
+        <VariableProductManager 
+          productData={productData}
+          updateProductData={updateProductData}
+        />
+      )}
+
+      {productData.productType === 'grouped' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Productos Agrupados</CardTitle>
+            <CardDescription>Selecciona los productos simples que formarán parte de este grupo.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <GroupedProductSelector 
+              productIds={productData.groupedProductIds || []}
+              onProductIdsChange={handleGroupedIdsChange}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -249,3 +313,4 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     </div>
   );
 }
+
