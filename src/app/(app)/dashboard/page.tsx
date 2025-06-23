@@ -206,46 +206,46 @@ export default function DashboardPage() {
       <section aria-labelledby="quick-actions-title">
         <h2 id="quick-actions-title" className="text-xl font-semibold mb-4 text-foreground font-headline">Acciones Rápidas</h2>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg">
+          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg flex flex-col">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-lg font-medium">Crear Nuevo Producto</CardTitle>
               <PlusCircle className="h-6 w-6 text-primary" />
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-col flex-grow">
               <CardDescription className="mb-4 text-sm">
                 Inicia el asistente para añadir productos simples o variables a tu tienda WooCommerce.
               </CardDescription>
-              <Button asChild className="w-full">
+              <Button asChild className="w-full mt-auto">
                 <Link href="/wizard">Iniciar Asistente</Link>
               </Button>
             </CardContent>
           </Card>
 
-          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg">
+          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg flex flex-col">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-lg font-medium">Procesamiento en Lotes</CardTitle>
               <UploadCloud className="h-6 w-6 text-primary" />
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-col flex-grow">
               <CardDescription className="mb-4 text-sm">
                 Sube imágenes y un archivo CSV para crear productos de forma masiva y eficiente.
               </CardDescription>
-              <Button asChild variant="outline" className="w-full">
+              <Button asChild variant="outline" className="w-full mt-auto">
                 <Link href="/batch-process">Iniciar Procesamiento</Link>
               </Button>
             </CardContent>
           </Card>
 
-          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg">
+          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg flex flex-col">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-lg font-medium">Configuración</CardTitle>
               <Settings2 className="h-6 w-6 text-primary" />
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-col flex-grow">
               <CardDescription className="mb-4 text-sm">
                 Ajusta plantillas, reglas y claves API para personalizar el plugin.
               </CardDescription>
-              <Button asChild variant="secondary" className="w-full">
+              <Button asChild variant="secondary" className="w-full mt-auto">
                  <Link href="/settings">Ir a Configuración</Link>
               </Button>
             </CardContent>
