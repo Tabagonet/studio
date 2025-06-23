@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -17,6 +16,7 @@ import { es } from 'date-fns/locale';
 import Papa from 'papaparse';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { APP_NAME } from '@/lib/constants';
 
 type FilterType = 'this_month' | 'last_30_days' | 'all_time';
 
@@ -136,7 +136,7 @@ export default function DashboardPage() {
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
     const formattedDate = new Date().toISOString().split('T')[0];
-    link.setAttribute("download", `mi-actividad-wooautomate-${formattedDate}.csv`);
+    link.setAttribute("download", `mi-actividad-autopress-ai-${formattedDate}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -236,7 +236,7 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-foreground font-headline">Panel de Control</h1>
-        <p className="text-muted-foreground">Bienvenido a WooAutomate. Gestiona tus productos y automatizaciones.</p>
+        <p className="text-muted-foreground">Bienvenido a {APP_NAME}. Gestiona tus productos y automatizaciones.</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
