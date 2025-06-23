@@ -15,11 +15,16 @@ interface WooCommerceCredentials {
  * @returns {WooCommerceRestApi | null} A configured API client or null if credentials are incomplete.
  */
 export function createWooCommerceApi(credentials: WooCommerceCredentials): WooCommerceRestApi | null {
-  const { url, consumerKey, consumerSecret } = credentials;
+  let { url, consumerKey, consumerSecret } = credentials;
 
   if (!url || !consumerKey || !consumerSecret) {
     console.warn("Incomplete WooCommerce credentials provided. Cannot create API client.");
     return null;
+  }
+
+  // Ensure the URL has a protocol
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = `https://${url}`;
   }
 
   try {

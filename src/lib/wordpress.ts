@@ -15,13 +15,18 @@ interface WordPressCredentials {
  * @returns {AxiosInstance | null} A configured Axios instance or null if credentials are incomplete.
  */
 export function createWordPressApi(credentials: WordPressCredentials): AxiosInstance | null {
-  const { url, username, applicationPassword } = credentials;
+  let { url, username, applicationPassword } = credentials;
 
   if (!url || !username || !applicationPassword) {
     console.warn("Incomplete WordPress credentials provided. Cannot create API client.");
     return null;
   }
   
+  // Ensure the URL has a protocol
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = `https://${url}`;
+  }
+
   try {
     const token = Buffer.from(`${username}:${applicationPassword}`, 'utf8').toString('base64');
     
