@@ -11,11 +11,12 @@ import { VariableProductManager } from '@/components/features/wizard/variable-pr
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
 import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory } from '@/lib/types';
 import { PRODUCT_TYPES } from '@/lib/constants';
-import { PlusCircle, Trash2, Loader2 } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
+import { auth, onAuthStateChanged } from '@/lib/firebase';
 
 interface Step1DetailsPhotosProps {
   productData: ProductData;
@@ -25,21 +26,25 @@ interface Step1DetailsPhotosProps {
 
 export function Step1DetailsPhotos({ productData, updateProductData, isProcessing = false }: Step1DetailsPhotosProps) {
   const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
-  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    const fetchCategories = async () => {
+    const fetchCategories = async (token: string) => {
       setIsLoadingCategories(true);
       try {
-        const response = await fetch('/api/woocommerce/categories');
+        const response = await fetch('/api/woocommerce/categories', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.error || `Error: ${response.status}`);
         }
         const data: WooCommerceCategory[] = await response.json();
         
-        const categoryMap = new Map<number, WooCommerceCategory>(data.map(cat => [cat.id, { ...cat, children: [] }]));
+        const categoryMap = new Map<number, WooCommerceCategory>(data.map(cat => ({ ...cat, children: [] })).map(cat => [cat.id, cat]));
         const tree: WooCommerceCategory[] = [];
 
         data.forEach(cat => {
@@ -80,7 +85,18 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         setIsLoadingCategories(false);
       }
     };
-    fetchCategories();
+    
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            const token = await user.getIdToken();
+            fetchCategories(token);
+        } else {
+            setIsLoadingCategories(false);
+            setWooCategories([]);
+        }
+    });
+
+    return () => unsubscribe();
   }, [toast]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -122,6 +138,61 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     const newAttributes = productData.attributes.filter((_, i) => i !== index);
     updateProductData({ attributes: newAttributes });
   };
+
+  const handleGenerateContentWithAI = async () => {
+    if (!productData.name) {
+        toast({ title: "Falta el nombre", description: "Por favor, introduce un nombre para el producto antes de usar la IA.", variant: "destructive" });
+        return;
+    }
+    setIsGenerating(true);
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("No autenticado.");
+        const token = await user.getIdToken();
+
+        const payload = {
+            productName: productData.name,
+            productType: productData.productType,
+            keywords: productData.keywords,
+            language: productData.language,
+            groupedProductIds: productData.groupedProductIds,
+        };
+
+        const response = await fetch('/api/generate-description', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || "La IA no pudo generar el contenido.");
+        }
+
+        const aiContent = await response.json();
+        
+        updateProductData({
+            shortDescription: aiContent.shortDescription,
+            longDescription: aiContent.longDescription,
+            keywords: aiContent.keywords,
+            imageTitle: aiContent.imageTitle,
+            imageAltText: aiContent.imageAltText,
+            imageCaption: aiContent.imageCaption,
+            imageDescription: aiContent.imageDescription,
+        });
+
+        toast({ title: "¡Contenido generado!", description: "La IA ha rellenado las descripciones, palabras clave y metadatos de imagen." });
+
+    } catch (error: any) {
+        toast({ title: "Error de IA", description: error.message, variant: "destructive" });
+    } finally {
+        setIsGenerating(false);
+    }
+  };
+
 
   return (
     <div className="space-y-8">
@@ -178,7 +249,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
           <div>
             <Label htmlFor="category">Categoría</Label>
-            <Select name="category" value={productData.category?.id.toString() || ''} onValueChange={(value) => handleSelectChange('category', value)} disabled={isProcessing || isLoadingCategories}>
+            <Select name="category" value={productData.category?.id.toString() || 'none'} onValueChange={(value) => handleSelectChange('category', value)} disabled={isProcessing || isLoadingCategories}>
               <SelectTrigger id="category">
                 {isLoadingCategories ? (
                   <div className="flex items-center">
@@ -191,7 +262,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Sin categoría</SelectItem>
-                {!isLoadingCategories && wooCategories.length === 0 && <SelectItem value="none" disabled>No hay categorías disponibles</SelectItem>}
+                {!isLoadingCategories && wooCategories.length === 0 && <SelectItem value="no-cats" disabled>No hay categorías disponibles</SelectItem>}
                 {wooCategories.map(cat => (
                   <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
                 ))}
@@ -225,34 +296,44 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         <CardContent className="space-y-6">
            <div>
             <Label htmlFor="keywords">Palabras Clave (separadas por comas)</Label>
-            <Input id="keywords" name="keywords" value={productData.keywords} onChange={handleInputChange} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing} />
+            <Input id="keywords" name="keywords" value={productData.keywords} onChange={handleInputChange} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing || isGenerating} />
             <p className="text-xs text-muted-foreground mt-1">Ayudan a la IA y al SEO de tu producto.</p>
           </div>
 
-          <div>
-              <Label htmlFor="shortDescription">Descripción Corta</Label>
-              <Textarea
-                id="shortDescription"
-                name="shortDescription"
-                value={productData.shortDescription}
-                onChange={handleInputChange}
-                placeholder="Un resumen atractivo y conciso de tu producto."
-                rows={3}
-                disabled={isProcessing}
-              />
+          <div className="pt-2">
+            <Button onClick={handleGenerateContentWithAI} disabled={isProcessing || isGenerating || !productData.name} className="w-full sm:w-auto">
+                {isGenerating ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}
+                {isGenerating ? "Generando..." : "Generar Contenido con IA"}
+            </Button>
+            {!productData.name && <p className="text-xs text-destructive mt-1">Introduce un nombre de producto para activar la IA.</p>}
           </div>
-        
-          <div>
-              <Label htmlFor="longDescription">Descripción Larga</Label>
-              <Textarea
-                id="longDescription"
-                name="longDescription"
-                value={productData.longDescription}
-                onChange={handleInputChange}
-                placeholder="Describe tu producto en detalle: características, materiales, usos, etc."
-                rows={6}
-                disabled={isProcessing}
-              />
+
+          <div className="border-t pt-6 space-y-6">
+            <div>
+                <Label htmlFor="shortDescription">Descripción Corta</Label>
+                <Textarea
+                  id="shortDescription"
+                  name="shortDescription"
+                  value={productData.shortDescription}
+                  onChange={handleInputChange}
+                  placeholder="Un resumen atractivo y conciso de tu producto que será generado por la IA."
+                  rows={3}
+                  disabled={isProcessing || isGenerating}
+                />
+            </div>
+          
+            <div>
+                <Label htmlFor="longDescription">Descripción Larga</Label>
+                <Textarea
+                  id="longDescription"
+                  name="longDescription"
+                  value={productData.longDescription}
+                  onChange={handleInputChange}
+                  placeholder="Describe tu producto en detalle: características, materiales, usos, etc. La IA lo generará por ti."
+                  rows={6}
+                  disabled={isProcessing || isGenerating}
+                />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -268,26 +349,26 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                 <div key={index} className="flex flex-col sm:flex-row items-start sm:items-end gap-2 p-3 border rounded-md bg-muted/20">
                     <div className="flex-1 w-full">
                         <Label htmlFor={`attrName-${index}`}>Nombre</Label>
-                        <Input id={`attrName-${index}`} value={attr.name} onChange={(e) => handleAttributeChange(index, 'name', e.target.value)} placeholder="Ej: Color" disabled={isProcessing} />
+                        <Input id={`attrName-${index}`} value={attr.name} onChange={(e) => handleAttributeChange(index, 'name', e.target.value)} placeholder="Ej: Color" disabled={isProcessing || isGenerating} />
                     </div>
                     <div className="flex-1 w-full">
                         <Label htmlFor={`attrValue-${index}`}>Valor(es)</Label>
-                        <Input id={`attrValue-${index}`} value={attr.value} onChange={(e) => handleAttributeChange(index, 'value', e.target.value)} placeholder="Ej: Azul | Rojo | Verde" disabled={isProcessing} />
+                        <Input id={`attrValue-${index}`} value={attr.value} onChange={(e) => handleAttributeChange(index, 'value', e.target.value)} placeholder="Ej: Azul | Rojo | Verde" disabled={isProcessing || isGenerating} />
                     </div>
                     <div className="flex items-center gap-4 pt-2 sm:pt-0 sm:self-end sm:h-10">
                         {productData.productType === 'variable' && (
                            <div className="flex items-center space-x-2">
-                                <Checkbox id={`attrVar-${index}`} checked={attr.forVariations} onCheckedChange={(checked) => handleAttributeChange(index, 'forVariations', !!checked)} disabled={isProcessing} />
+                                <Checkbox id={`attrVar-${index}`} checked={attr.forVariations} onCheckedChange={(checked) => handleAttributeChange(index, 'forVariations', !!checked)} disabled={isProcessing || isGenerating} />
                                 <Label htmlFor={`attrVar-${index}`} className="text-sm font-normal whitespace-nowrap">Para variaciones</Label>
                             </div>
                         )}
-                        <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" disabled={isProcessing} className="flex-shrink-0">
+                        <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" disabled={isProcessing || isGenerating} className="flex-shrink-0">
                             <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                     </div>
                 </div>
             ))}
-            <Button type="button" variant="outline" onClick={addAttribute} className="mt-2" disabled={isProcessing}>
+            <Button type="button" variant="outline" onClick={addAttribute} className="mt-2" disabled={isProcessing || isGenerating}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Añadir Atributo
             </Button>
             </CardContent>
@@ -302,7 +383,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
           <CardDescription>Sube las imágenes para tu producto. La primera imagen se usará como principal.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} isProcessing={isProcessing} />
+          <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} isProcessing={isProcessing || isGenerating} />
         </CardContent>
       </Card>
     </div>
