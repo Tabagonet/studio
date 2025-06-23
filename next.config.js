@@ -29,7 +29,7 @@ const nextConfig = {
         hostname: 'www.farmacialavidriera.com',
       },
       {
-        protocol: 'https,',
+        protocol: 'https',
         hostname: 'treezom.com',
       },
     ],
