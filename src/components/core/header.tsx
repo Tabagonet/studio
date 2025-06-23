@@ -171,47 +171,54 @@ export function Header() {
       );
     }
     
+    let url: URL;
     try {
-        const hostname = new URL(configStatus.storeUrl).hostname;
-        const isFullyConfigured = configStatus.wooCommerceConfigured && configStatus.wordPressConfigured;
-        
-        if (isFullyConfigured) {
-          return (
-            <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Cambiar conexión">
-              <Globe className="h-4 w-4 text-green-500" />
-              <span className="hidden md:inline">{hostname}</span>
-            </Link>
-          );
-        }
+      const fullUrl = configStatus.storeUrl.startsWith('http') ? configStatus.storeUrl : `https://${configStatus.storeUrl}`;
+      url = new URL(fullUrl);
 
-        const tooltips: string[] = [];
-        if (!configStatus.wooCommerceConfigured) tooltips.push("WooCommerce no configurado.");
-        if (!configStatus.wordPressConfigured) tooltips.push("WordPress no configurado.");
-
-        return (
-            <TooltipProvider>
-                <Tooltip delayDuration={100}>
-                    <TooltipTrigger asChild>
-                        <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-amber-600 hover:text-amber-500 transition-colors">
-                            <AlertTriangle className="h-4 w-4" />
-                            <span className="hidden md:inline">{hostname}</span>
-                        </Link>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p>{tooltips.join(' ')}</p>
-                    </TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
-        );
-
+      if (url.protocol !== 'https:') {
+        throw new Error('Solo se admite el protocolo HTTPS.');
+      }
     } catch (e) {
-        return (
-          <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-destructive" title="URL de tienda inválida. Click para corregir.">
-            <Globe className="h-4 w-4" />
-            <span className="hidden md:inline">URL Inválida</span>
-          </Link>
-        );
+      return (
+        <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-destructive" title="URL de tienda inválida. Click para corregir.">
+          <Globe className="h-4 w-4" />
+          <span className="hidden md:inline">URL Inválida</span>
+        </Link>
+      );
     }
+
+    const hostname = url.hostname;
+    const isFullyConfigured = configStatus.wooCommerceConfigured && configStatus.wordPressConfigured;
+    
+    if (isFullyConfigured) {
+      return (
+        <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Cambiar conexión">
+          <Globe className="h-4 w-4 text-green-500" />
+          <span className="hidden md:inline">{hostname}</span>
+        </Link>
+      );
+    }
+    
+    const tooltips: string[] = [];
+    if (!configStatus.wooCommerceConfigured) tooltips.push("WooCommerce no configurado.");
+    if (!configStatus.wordPressConfigured) tooltips.push("WordPress no configurado.");
+
+    return (
+        <TooltipProvider>
+            <Tooltip delayDuration={100}>
+                <TooltipTrigger asChild>
+                    <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-amber-600 hover:text-amber-500 transition-colors">
+                        <AlertTriangle className="h-4 w-4" />
+                        <span className="hidden md:inline">{hostname}</span>
+                    </Link>
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>{tooltips.join(' ')}</p>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    );
   }
 
   return (

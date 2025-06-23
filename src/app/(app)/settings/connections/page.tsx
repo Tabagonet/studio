@@ -35,6 +35,7 @@ const INITIAL_STATE: ConnectionData = {
 
 function getHostname(url: string): string | null {
     try {
+        if (!url) return null;
         if (!url.startsWith('http')) {
             url = `https://${url}`;
         }
@@ -127,10 +128,38 @@ export default function ConnectionsPage() {
     };
 
     const handleSave = async () => {
+        const urlsToValidate = [
+            { name: 'WooCommerce', url: formData.wooCommerceStoreUrl },
+            { name: 'WordPress', url: formData.wordpressApiUrl }
+        ];
+
+        for (const item of urlsToValidate) {
+            if (item.url) { // Only validate if a URL is provided
+                try {
+                    const fullUrl = item.url.includes('://') ? item.url : `https://${item.url}`;
+                    const parsedUrl = new URL(fullUrl);
+                    if (parsedUrl.protocol !== 'https:') {
+                        toast({
+                            title: "Protocolo no seguro",
+                            description: `La URL de ${item.name} debe usar HTTPS. Se ha detectado: ${parsedUrl.protocol}`,
+                            variant: "destructive"
+                        });
+                        return;
+                    }
+                } catch (e) {
+                    toast({
+                        title: "URL Inválida",
+                        description: `El formato de la URL para ${item.name} no es válido.`,
+                        variant: "destructive"
+                    });
+                    return;
+                }
+            }
+        }
+
         const wooHostname = getHostname(formData.wooCommerceStoreUrl);
         const wpHostname = getHostname(formData.wordpressApiUrl);
         
-        // The key identifies the connection profile. Prioritize Woo URL, fallback to WP URL.
         const key = wooHostname || wpHostname;
     
         if (!key) {
