@@ -63,12 +63,17 @@ async function getAiAnalysis(content: string) {
   }
 
   const prompt = `
-    Analyze the following webpage content for on-page SEO. Provide a response in Spanish as a single, valid JSON object.
+    Analiza el siguiente contenido de una página web para optimización SEO (On-Page). Proporciona una respuesta en español, exclusivamente como un único y válido objeto JSON.
     
-    JSON Schema:
-    ${JSON.stringify(aiResponseSchema.shape, null, 2)}
+    Esquema JSON Requerido:
+    {
+      "score": "Una puntuación SEO estimada de 0 a 100.",
+      "summary": "Un breve resumen sobre de qué trata la página.",
+      "positives": "Un array con 2-3 aspectos SEO positivos encontrados.",
+      "improvements": "Un array con las 2-3 sugerencias de mejora más importantes y accionables."
+    }
 
-    Content to Analyze:
+    Contenido a Analizar:
     ---
     ${content.substring(0, 30000)} 
     ---

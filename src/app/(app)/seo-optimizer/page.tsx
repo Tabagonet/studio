@@ -4,86 +4,76 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { SearchCheck, Loader2, LinkIcon, BrainCircuit, CheckCircle, XCircle, Image as ImageIcon, Heading1, ListTree } from "lucide-react";
+import { SearchCheck, Loader2, BrainCircuit, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase";
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Skeleton } from '@/components/ui/skeleton';
+import { SeoPageListTable } from '@/components/features/seo/page-list-table';
+import { AnalysisView, type AnalysisResult } from '@/components/features/seo/analysis-view';
 
 
-interface AnalysisResult {
+export interface ContentItem {
+  id: number;
   title: string;
-  metaDescription: string;
-  h1: string;
-  headings: { tag: string; text: string }[];
-  images: { src: string; alt: string }[];
-  aiAnalysis: {
-    score: number;
-    summary: string;
-    positives: string[];
-    improvements: string[];
-  };
+  type: 'Post' | 'Page';
+  link: string;
 }
 
 export default function SeoOptimizerPage() {
-  const [url, setUrl] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isPreloading, setIsPreloading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [contentList, setContentList] = useState<ContentItem[]>([]);
+  const [isLoadingList, setIsLoadingList] = useState(true);
+
+  const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [selectedPage, setSelectedPage] = useState<ContentItem | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  
   const { toast } = useToast();
   
   useEffect(() => {
-    const fetchActiveUrl = async () => {
+    const fetchContentList = async () => {
         const user = auth.currentUser;
         if (!user) {
-            setIsPreloading(false);
+            setIsLoadingList(false);
             return;
         };
         try {
             const token = await user.getIdToken();
-            const response = await fetch('/api/check-config', {
+            const response = await fetch('/api/wordpress/content-list', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (response.ok) {
                 const data = await response.json();
-                if (data.activeStoreUrl) {
-                    setUrl(data.activeStoreUrl);
-                }
+                setContentList(data.content);
+            } else {
+                const errorData = await response.json();
+                setError(errorData.error || 'No se pudo cargar el contenido del sitio.');
             }
-        } catch (err) {
-            console.error("Failed to fetch active URL", err);
+        } catch (err: any) {
+            setError(err.message);
         } finally {
-            setIsPreloading(false);
+            setIsLoadingList(false);
         }
     };
-    fetchActiveUrl();
+    fetchContentList();
   }, []);
 
 
-  const handleAnalyze = async () => {
-    if (!url) {
-      toast({ title: "URL Requerida", description: "Por favor, introduce una URL para analizar.", variant: "destructive" });
-      return;
-    }
-    
-    let fullUrl = url.trim();
+  const handleAnalyze = async (page: ContentItem) => {
+    let fullUrl = page.link.trim();
     if (!/^https?:\/\//i.test(fullUrl)) {
         fullUrl = 'https://' + fullUrl;
     }
 
-    setIsLoading(true);
+    setIsLoadingAnalysis(true);
     setError(null);
     setAnalysis(null);
+    setSelectedPage(page);
 
     const user = auth.currentUser;
     if (!user) {
       toast({ title: "Autenticación Requerida", variant: "destructive" });
-      setIsLoading(false);
+      setIsLoadingAnalysis(false);
       return;
     }
 
@@ -109,12 +99,55 @@ export default function SeoOptimizerPage() {
       setError(err.message);
       toast({ title: "Error en el Análisis", description: err.message, variant: "destructive" });
     } finally {
-      setIsLoading(false);
+      setIsLoadingAnalysis(false);
     }
   };
-  
-  const imagesWithoutAlt = analysis ? analysis.images.filter(img => !img.alt).length : 0;
-  const totalImages = analysis ? analysis.images.length : 0;
+
+  const handleBackToList = () => {
+      setSelectedPage(null);
+      setAnalysis(null);
+      setError(null);
+  }
+
+  const renderContent = () => {
+    if (isLoadingList) {
+      return (
+        <div className="flex flex-col items-center justify-center text-center p-12 border border-dashed rounded-lg">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+          <p className="text-lg font-semibold text-muted-foreground">Cargando páginas y entradas de tu sitio...</p>
+        </div>
+      );
+    }
+    
+    if (selectedPage) {
+        return (
+            <div className="space-y-4">
+                <Button variant="outline" onClick={handleBackToList}>
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Volver al listado
+                </Button>
+                {isLoadingAnalysis && (
+                     <div className="flex flex-col items-center justify-center text-center p-12 border border-dashed rounded-lg">
+                        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                        <p className="text-lg font-semibold text-muted-foreground">Analizando {selectedPage.title}...</p>
+                        <p className="text-sm text-muted-foreground">Estamos leyendo el contenido y consultando a la IA.</p>
+                    </div>
+                )}
+                {error && !isLoadingAnalysis && (
+                    <Alert variant="destructive">
+                      <AlertTitle>Error en el Análisis</AlertTitle>
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                )}
+                {analysis && !isLoadingAnalysis && (
+                    <AnalysisView analysis={analysis} />
+                )}
+            </div>
+        )
+    }
+
+    return <SeoPageListTable data={contentList} onAnalyze={handleAnalyze} />;
+  }
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -123,154 +156,14 @@ export default function SeoOptimizerPage() {
           <div className="flex items-center space-x-3">
             <SearchCheck className="h-8 w-8 text-primary" />
             <div>
-              <CardTitle>Optimizador SEO de Páginas</CardTitle>
-              <CardDescription>Analiza cualquier URL de tu sitio para obtener un informe técnico y sugerencias de mejora con IA.</CardDescription>
+              <CardTitle>Optimizador SEO</CardTitle>
+              <CardDescription>Selecciona una página o entrada de tu sitio para obtener un informe técnico y sugerencias de mejora con IA.</CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="flex flex-col sm:flex-row items-end gap-2">
-          <div className="flex-grow w-full">
-            <Label htmlFor="url-input">URL de la página a analizar</Label>
-            {isPreloading ? (
-                 <Skeleton className="h-10 w-full" />
-            ) : (
-                <Input 
-                  id="url-input"
-                  type="url"
-                  placeholder="https://tu-sitio-web.com/tu-pagina-o-entrada/"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  disabled={isLoading}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleAnalyze(); }}
-                />
-            )}
-          </div>
-          <Button onClick={handleAnalyze} disabled={isLoading || isPreloading || !url} className="w-full sm:w-auto">
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LinkIcon className="mr-2 h-4 w-4" />}
-            {isLoading ? "Analizando..." : "Analizar URL"}
-          </Button>
-        </CardContent>
       </Card>
       
-      {isLoading && (
-          <div className="flex flex-col items-center justify-center text-center p-12 border border-dashed rounded-lg">
-            <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-            <p className="text-lg font-semibold text-muted-foreground">Analizando la página, esto puede tardar un momento...</p>
-            <p className="text-sm text-muted-foreground">Estamos leyendo el contenido y consultando a la IA.</p>
-        </div>
-      )}
-      
-      {error && !isLoading && (
-        <Alert variant="destructive">
-          <AlertTitle>Error en el Análisis</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {analysis && !isLoading && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Columna Izquierda: Análisis IA */}
-          <div className="lg:col-span-2 space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><BrainCircuit className="h-6 w-6 text-primary" /> Análisis con IA</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-center">
-                    <p className="text-sm text-muted-foreground">Puntuación SEO Estimada</p>
-                    <p className="text-6xl font-bold text-primary">{analysis.aiAnalysis.score}/100</p>
-                </div>
-                 <div>
-                    <h4 className="font-semibold mb-2">Resumen:</h4>
-                    <p className="text-sm text-muted-foreground">{analysis.aiAnalysis.summary}</p>
-                </div>
-                 <div>
-                    <h4 className="font-semibold mb-2 text-green-600">Puntos Fuertes:</h4>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-                        {analysis.aiAnalysis.positives.map((item, i) => <li key={i}>{item}</li>)}
-                    </ul>
-                </div>
-                <div>
-                    <h4 className="font-semibold mb-2 text-amber-600">Áreas de Mejora:</h4>
-                     <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-                        {analysis.aiAnalysis.improvements.map((item, i) => <li key={i}>{item}</li>)}
-                    </ul>
-                </div>
-              </CardContent>
-            </Card>
-            
-             <Card>
-              <CardHeader>
-                 <CardTitle className="flex items-center gap-2"><ListTree className="h-6 w-6 text-primary" /> Estructura de Encabezados</CardTitle>
-                 <CardDescription>Una buena jerarquía de encabezados (H1, H2, H3...) ayuda a Google a entender tu contenido.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                 <ScrollArea className="h-64">
-                    <div className="space-y-2">
-                        {analysis.headings.map((h, i) => (
-                            <div key={i} className="flex items-center gap-2">
-                                <Badge variant="secondary" className="font-bold">{h.tag.toUpperCase()}</Badge>
-                                <p className="text-sm text-muted-foreground">{h.text}</p>
-                            </div>
-                        ))}
-                    </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-
-          </div>
-
-          {/* Columna Derecha: SEO Técnico */}
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>SEO Técnico Básico</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-start gap-3">
-                  {analysis.title ? <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" /> : <XCircle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />}
-                  <div>
-                    <p className="font-semibold">Título de la Página</p>
-                    <p className="text-sm text-muted-foreground">{analysis.title || "No encontrado"}</p>
-                  </div>
-                </div>
-                 <div className="flex items-start gap-3">
-                  {analysis.metaDescription ? <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" /> : <XCircle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />}
-                  <div>
-                    <p className="font-semibold">Meta Descripción</p>
-                    <p className="text-sm text-muted-foreground">{analysis.metaDescription || "No encontrada"}</p>
-                  </div>
-                </div>
-                 <div className="flex items-start gap-3">
-                  {analysis.h1 ? <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" /> : <XCircle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />}
-                  <div>
-                    <p className="font-semibold">Encabezado H1</p>
-                    <p className="text-sm text-muted-foreground">{analysis.h1 || "No encontrado"}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><ImageIcon className="h-5 w-5 text-primary" /> SEO de Imágenes</CardTitle>
-                <CardDescription>El texto alternativo (alt) es crucial para la accesibilidad y el SEO.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                 <div className="flex items-center justify-between p-3 rounded-md bg-muted">
-                    <p className="font-semibold">Imágenes encontradas:</p>
-                    <Badge>{totalImages}</Badge>
-                 </div>
-                 <div className="flex items-center justify-between p-3 rounded-md bg-muted">
-                    <p className="font-semibold">Imágenes sin 'alt':</p>
-                    <Badge variant={imagesWithoutAlt > 0 ? "destructive" : "default"}>{imagesWithoutAlt}</Badge>
-                 </div>
-              </CardContent>
-            </Card>
-          </div>
-
-        </div>
-      )}
+      {renderContent()}
     </div>
   );
 }
