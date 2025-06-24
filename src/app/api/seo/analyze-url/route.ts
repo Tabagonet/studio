@@ -6,9 +6,13 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { z } from 'zod';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getApiClientsForUser } from '@/lib/api-helpers';
+
 
 const analyzeUrlSchema = z.object({
   url: z.string().min(1, "La URL no puede estar vacía."),
+  postId: z.number().optional(),
+  postType: z.enum(['Post', 'Page']).optional(),
 });
 
 const aiResponseSchema = z.object({
@@ -21,7 +25,42 @@ const aiResponseSchema = z.object({
   improvements: z.array(z.string()).describe("Una lista de las 2-3 sugerencias de mejora más importantes y accionables."),
 });
 
-async function getPageContent(url: string) {
+
+async function getPageContentFromApi(postId: number, postType: 'Post' | 'Page', uid: string) {
+    const { wpApi } = await getApiClientsForUser(uid);
+    if (!wpApi) {
+        throw new Error('WordPress API not configured.');
+    }
+
+    const endpoint = postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
+    const response = await wpApi.get(endpoint, { params: { context: 'edit' } });
+    const rawData = response.data;
+    
+    if (!rawData || !rawData.content || !rawData.title) {
+        throw new Error(`Could not fetch content for ${postType} ID ${postId} via API.`);
+    }
+
+    const contentHtml = rawData.content?.rendered || '';
+    const $ = cheerio.load(contentHtml);
+    $('script, style').remove();
+    
+    return {
+        title: rawData.title?.rendered || '',
+        metaDescription: rawData.meta?._yoast_wpseo_metadesc || '',
+        h1: $('h1').first().text(),
+        headings: $('h1, h2, h3, h4, h5, h6').map((i, el) => ({
+            tag: el.tagName,
+            text: $(el).text()
+        })).get(),
+        images: $('img').map((i, el) => ({
+            src: $(el).attr('src') || '',
+            alt: $(el).attr('alt') || ''
+        })).get(),
+        textContent: $('body').text().replace(/\s\s+/g, ' ').trim(),
+    };
+}
+
+async function getPageContentFromScraping(url: string) {
     try {
         const response = await axios.get(url, {
             headers: {
@@ -146,10 +185,21 @@ export async function POST(req: NextRequest) {
     if (!validation.success) {
       return NextResponse.json({ error: validation.error.flatten().fieldErrors.url?.[0] || 'URL inválida' }, { status: 400 });
     }
-    let { url } = validation.data;
-    url = url.trim().startsWith('http') ? url : `https://${url}`;
     
-    const pageData = await getPageContent(url);
+    const { url, postId, postType } = validation.data;
+    let pageData;
+
+    // New logic branch: if we have an ID, fetch directly via API to bypass cache.
+    if (postId && postType) {
+        console.log(`Analyzing via WP API for ${postType} ID: ${postId}`);
+        pageData = await getPageContentFromApi(postId, postType, uid);
+    } else {
+        // Fallback to scraping public URL (for external sites or when ID is not available)
+        console.log(`Analyzing via scraping public URL: ${url}`);
+        const finalUrl = url.trim().startsWith('http') ? url : `https://${url}`;
+        pageData = await getPageContentFromScraping(finalUrl);
+    }
+    
     if (!pageData.textContent || pageData.textContent.trim().length < 50) {
         throw new Error('No se encontró suficiente contenido textual en la página para analizar. Asegúrate de que la URL es correcta y tiene contenido visible.');
     }
@@ -176,5 +226,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-
-    

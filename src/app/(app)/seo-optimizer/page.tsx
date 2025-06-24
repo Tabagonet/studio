@@ -223,7 +223,11 @@ export default function SeoOptimizerPage() {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify({ url: urlToAnalyze })
+            body: JSON.stringify({ 
+              url: urlToAnalyze,
+              postId: page.id,
+              postType: page.type,
+            })
         });
 
         const result = await response.json();
@@ -259,14 +263,46 @@ export default function SeoOptimizerPage() {
       
       const fullUrl = urlToUse.startsWith('http') ? urlToUse : `https://${urlToUse}`;
       const dummyItem: ContentItem = {
-          id: Date.now(),
+          id: Date.now(), // Using timestamp as a temporary unique ID for external URLs
           title: fullUrl,
-          type: 'Page',
+          type: 'Page', // Assume Page for external URLs
           link: fullUrl,
           status: 'publish',
           parent: 0,
       };
-      handleAnalyze(dummyItem); 
+      // For manual analysis, we don't have an ID or type, so we just pass the URL
+      // The API will fall back to scraping.
+      setIsLoadingAnalysis(true);
+      setError(null);
+      setAnalysis(null);
+      setAnalysisHistory([]);
+      setSelectedPage(dummyItem);
+      
+      const user = auth.currentUser;
+      if (!user) {
+        toast({ title: "Autenticación Requerida", variant: "destructive" });
+        setIsLoadingAnalysis(false);
+        return;
+      }
+      
+      user.getIdToken().then(async (token) => {
+        try {
+            toast({ title: "Analizando URL externa con IA...", description: "Estamos leyendo la página y generando el informe SEO."});
+            const response = await fetch('/api/seo/analyze-url', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`},
+                body: JSON.stringify({ url: fullUrl })
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'Ocurrió un error desconocido');
+            setAnalysis(result);
+        } catch (err: any) {
+            setError(err.message);
+            toast({ title: "Error en el Análisis", description: err.message, variant: "destructive" });
+        } finally {
+            setIsLoadingAnalysis(false);
+        }
+      });
   };
 
   const handleBackToList = () => {
