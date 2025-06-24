@@ -357,6 +357,13 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                              <CardDescription>Usa la IA para generar ideas, crea tu entrada y dale formato.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
+                             <Alert>
+                                <Languages className="h-4 w-4" />
+                                <AlertTitle>Nueva Integración con Polylang</AlertTitle>
+                                <AlertDescription>
+                                    ¡Ahora nos integramos con Polylang! Al seleccionar idiomas de destino, la aplicación creará las traducciones y las enlazará automáticamente a la entrada original en tu WordPress.
+                                </AlertDescription>
+                            </Alert>
                              <div className="space-y-4 pt-6 border-t">
                                 <h3 className="text-sm font-medium text-muted-foreground">Asistente IA</h3>
                                 <div className="p-4 border rounded-lg space-y-3 bg-card">

@@ -15,6 +15,14 @@ import { Step2Preview } from './step-2-preview';
 import { Step3Results } from './step-3-results';
 import { Card } from '@/components/ui/card';
 
+const LANG_CODE_MAP: { [key: string]: string } = {
+    'Spanish': 'es',
+    'English': 'en',
+    'French': 'fr',
+    'German': 'de',
+    'Portuguese': 'pt',
+};
+
 export function BlogCreator() {
   const [currentStep, setCurrentStep] = useState(1);
   const [postData, setPostData] = useState<BlogPostData>(INITIAL_BLOG_DATA);
@@ -40,10 +48,9 @@ export function BlogCreator() {
   const handleCreatePost = async () => {
     setCurrentStep(3); // Move to the results/processing screen
     
-    // --- Initialize Steps ---
     const initialSteps: SubmissionStep[] = [];
     if (postData.featuredImage?.file) {
-      initialSteps.push({ id: 'upload_image', name: 'Subiendo imagen destacada', status: 'processing' });
+      initialSteps.push({ id: 'upload_image', name: 'Subiendo imagen destacada', status: 'pending' });
     }
     initialSteps.push({ id: 'create_original', name: `Creando entrada original (${postData.sourceLanguage})`, status: 'pending' });
     postData.targetLanguages.forEach(lang => {
@@ -72,7 +79,10 @@ export function BlogCreator() {
             const formData = new FormData();
             formData.append('imagen', postData.featuredImage.file);
             const uploadResponse = await fetch('/api/upload-image', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData });
-            if (!uploadResponse.ok) throw new Error('Error al subir la imagen destacada');
+            if (!uploadResponse.ok) {
+                const errorData = await uploadResponse.json();
+                throw new Error(errorData.error || 'Error al subir la imagen destacada');
+            }
             const imageData = await uploadResponse.json();
             finalPostData = { ...finalPostData, featuredImage: { ...finalPostData.featuredImage, uploadedUrl: imageData.url, uploadedFilename: imageData.filename_saved_on_server, file: undefined }};
             updateStepStatus('upload_image', 'success');
@@ -80,30 +90,52 @@ export function BlogCreator() {
 
         // --- Step 2: Create Original Post ---
         updateStepStatus('create_original', 'processing');
-        const originalPayload = { postData: finalPostData, translationGroupId };
+        const sourceLangSlug = LANG_CODE_MAP[postData.sourceLanguage] || 'en';
+        const originalPayload = { 
+            postData: finalPostData, 
+            translationGroupId,
+            lang: sourceLangSlug,
+        };
         const originalResponse = await fetch('/api/wordpress/posts', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(originalPayload) });
-        if (!originalResponse.ok) throw new Error(`Error al crear la entrada original`);
+        if (!originalResponse.ok) {
+            const errorData = await originalResponse.json();
+            throw new Error(errorData.error || `Error al crear la entrada original`);
+        }
         const originalResult = await originalResponse.json();
         createdPostUrls.push({ url: originalResult.url, title: originalResult.title });
         updateStepStatus('create_original', 'success');
         
         // --- Step 3: Create Translations ---
+        const originalPostId = originalResult.id;
+        const allTranslations = { [sourceLangSlug]: originalPostId };
+
         for (const lang of postData.targetLanguages) {
-            // Translate
+            // a. Translate content
             updateStepStatus(`translate_${lang}`, 'processing');
             const translateResponse = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ title: postData.title, content: postData.content, targetLanguage: lang }) });
             if (!translateResponse.ok) throw new Error(`Error al traducir a ${lang}`);
             const translatedContent = await translateResponse.json();
             updateStepStatus(`translate_${lang}`, 'success');
 
-            // Create translated post
+            // b. Create translated post, linked to original
             updateStepStatus(`create_${lang}`, 'processing');
             const translatedPostData = { ...finalPostData, title: translatedContent.title, content: translatedContent.content };
-            const translatedPayload = { postData: translatedPostData, translationGroupId };
+            const targetLangSlug = LANG_CODE_MAP[lang] || lang.toLowerCase().substring(0, 2);
+            
+            const translatedPayload = { 
+                postData: translatedPostData, 
+                translationGroupId,
+                lang: targetLangSlug,
+                translations: allTranslations, // Link to existing translations
+            };
             const translatedResponse = await fetch('/api/wordpress/posts', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(translatedPayload) });
-            if (!translatedResponse.ok) throw new Error(`Error al crear la entrada en ${lang}`);
+            if (!translatedResponse.ok) {
+                 const errorData = await translatedResponse.json();
+                 throw new Error(errorData.error || `Error al crear la entrada en ${lang}`);
+            }
             const translatedResult = await translatedResponse.json();
             createdPostUrls.push({ url: translatedResult.url, title: translatedResult.title });
+            allTranslations[targetLangSlug] = translatedResult.id; // Add new translation to the group for the next iteration
             updateStepStatus(`create_${lang}`, 'success');
         }
 

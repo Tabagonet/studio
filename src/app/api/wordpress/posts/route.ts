@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth } from '@/lib/firebase-admin';
+import { admin, adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser, uploadImageToWordPress, findOrCreateTags } from '@/lib/api-helpers';
 import { z } from 'zod';
 import type { BlogPostData } from '@/lib/types';
@@ -29,9 +29,12 @@ const postSchema = z.object({
   focusKeyword: z.string().optional(),
 });
 
+// Updated payload to support Polylang
 const payloadSchema = z.object({
     postData: postSchema,
     translationGroupId: z.string().uuid(),
+    lang: z.string(), // e.g. 'en', 'es'
+    translations: z.record(z.string(), z.number()).optional() // e.g. { en: 123, fr: 456 }
 });
 
 export async function POST(request: NextRequest) {
@@ -56,7 +59,7 @@ export async function POST(request: NextRequest) {
              return NextResponse.json({ success: false, error: 'Invalid data provided', details: validation.error.flatten() }, { status: 400 });
         }
         
-        const { postData, translationGroupId } = validation.data;
+        const { postData, translationGroupId, lang, translations } = validation.data;
 
         // 1. Upload featured image once, if it exists
         let featuredMediaId: number | null = null;
@@ -85,6 +88,8 @@ export async function POST(request: NextRequest) {
             title: postData.title,
             content: postData.content,
             status: postData.status || 'draft',
+            lang: lang,
+            translations: translations,
             meta: { 
                 translation_group_id: translationGroupId,
                 ...(postData.metaDescription && { _yoast_wpseo_metadesc: postData.metaDescription }),
@@ -102,6 +107,8 @@ export async function POST(request: NextRequest) {
         
         const responseData = {
             success: true,
+            id: createdPost.id,
+            lang: createdPost.lang, // Return the language slug of the created post
             title: createdPost.title.rendered,
             url: createdPost.link.replace('?p=', '/wp-admin/post.php?post=') + '&action=edit',
         };

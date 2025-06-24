@@ -38,8 +38,8 @@ export function Step3Results({ status, steps, finalLinks, onStartOver }: Step3Re
 
     const getOverallDescription = () => {
         switch (status) {
-            case 'processing': return 'Estamos guardando tus entradas en WordPress. Por favor, espera.';
-            case 'success': return 'Se han guardado como borrador en WordPress. Para enlazarlas, usa el campo personalizado `translation_group_id` en tu plugin de idiomas.';
+            case 'processing': return 'Estamos guardando y enlazando tus entradas en WordPress. Por favor, espera.';
+            case 'success': return 'Se han guardado tus entradas como borrador en WordPress. Las traducciones han sido enlazadas automáticamente a través de Polylang.';
             case 'error': return 'Ocurrió un error durante el proceso. Revisa los detalles abajo.';
             default: return '';
         }
