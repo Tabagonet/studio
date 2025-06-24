@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
@@ -73,7 +74,7 @@ function EditPageContent() {
     setPost({ ...post, [name]: finalValue as any });
   };
   
-  const handleAiGeneration = useCallback(async (mode: 'enhance_content' | 'suggest_keywords' | 'generate_meta_description' | 'generate_image_meta') => {
+  const handleAiGeneration = useCallback(async (mode: 'enhance_content' | 'suggest_keywords' | 'generate_meta_description' | 'generate_image_meta' | 'generate_focus_keyword') => {
         setIsAiLoading(true);
         if (!post) {
             setIsAiLoading(false);
@@ -117,6 +118,9 @@ function EditPageContent() {
             } else if (mode === 'generate_image_meta') {
                 setSuggestedImageMeta({ title: aiContent.imageTitle, altText: aiContent.imageAltText });
                 toast({ title: "Metadatos de imagen sugeridos", description: "Copia y pega los resultados en tu biblioteca de medios." });
+            } else if (mode === 'generate_focus_keyword') {
+                 setPost({ ...post, focusKeyword: aiContent.focusKeyword });
+                toast({ title: "Palabra clave sugerida", description: "Se ha rellenado el campo de palabra clave principal." });
             } else { // suggest_keywords
                 setPost({ ...post, tags: aiContent.suggestedKeywords });
                 toast({ title: "Etiquetas sugeridas", description: "Se han actualizado las etiquetas." });
@@ -428,6 +432,10 @@ function EditPageContent() {
                   <Button onClick={() => handleAiGeneration('enhance_content')} disabled={isAiLoading || !post.content}>
                       {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                       Mejorar Título con IA
+                  </Button>
+                  <Button onClick={() => handleAiGeneration('generate_focus_keyword')} disabled={isAiLoading || !post.content} variant="outline">
+                      {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                      Sugerir Palabra Clave Principal
                   </Button>
                   <Button onClick={() => handleAiGeneration('generate_meta_description')} disabled={isAiLoading || !post.content} variant="outline">
                       {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}

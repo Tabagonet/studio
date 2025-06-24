@@ -5,7 +5,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { z } from 'zod';
 
 const GenerateBlogPostInputSchema = z.object({
-  mode: z.enum(['generate_from_topic', 'enhance_content', 'suggest_keywords', 'generate_meta_description', 'suggest_titles', 'generate_image_meta']),
+  mode: z.enum(['generate_from_topic', 'enhance_content', 'suggest_keywords', 'generate_meta_description', 'suggest_titles', 'generate_image_meta', 'generate_focus_keyword']),
   language: z.string().optional().default('Spanish'),
   topic: z.string().optional(),
   keywords: z.string().optional(),
@@ -91,6 +91,16 @@ export async function POST(req: NextRequest) {
              prompt = `
                 Generate 5 blog post titles in ${language} for the keyword: "${ideaKeyword}"
             `;
+        } else if (mode === 'generate_focus_keyword') {
+            systemInstruction = `You are an expert SEO analyst. Your task is to identify the primary focus keyword (a short phrase of 2-4 words) from a blog post title and content. Return a single, valid JSON object with one key: 'focusKeyword'. The keyword should be in the same language as the content. Do not include markdown or the word 'json' in your output.`;
+            prompt = `
+                Identify the focus keyword in ${language} for this blog post:
+                Title: "${existingTitle}"
+                Content:
+                ---
+                ${existingContent}
+                ---
+            `;
         } else { // suggest_keywords
              systemInstruction = `You are an expert SEO specialist. Based on the following blog post title and content, generate a list of relevant, SEO-focused keywords. Return a single, valid JSON object with one key: 'suggestedKeywords' (a comma-separated string of 5-7 relevant keywords). Do not include markdown or the word 'json' in your output.`;
              prompt = `
@@ -130,8 +140,11 @@ export async function POST(req: NextRequest) {
         if (mode === 'generate_image_meta' && (!parsedJson.imageTitle || !parsedJson.imageAltText)) {
             throw new Error("AI returned an invalid JSON structure for image metadata generation.");
         }
-         if (mode === 'suggest_titles' && !Array.isArray(parsedJson.titles)) {
+        if (mode === 'suggest_titles' && !Array.isArray(parsedJson.titles)) {
             throw new Error("AI returned an invalid JSON structure for title suggestion.");
+        }
+        if (mode === 'generate_focus_keyword' && !parsedJson.focusKeyword) {
+            throw new Error("AI returned an invalid JSON structure for focus keyword generation.");
         }
         
         return NextResponse.json(parsedJson);
