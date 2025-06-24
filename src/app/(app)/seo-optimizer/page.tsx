@@ -64,7 +64,7 @@ export default function SeoOptimizerPage() {
         const statsPromise = fetch('/api/wordpress/content-stats', { headers: { 'Authorization': `Bearer ${token}` } });
         const configPromise = fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` } });
         
-        const [listResponse, statsResponse, configResponse] = await Promise.all([listPromise, statsPromise, configResponse]);
+        const [listResponse, statsResponse, configResponse] = await Promise.all([listPromise, statsPromise, configPromise]);
 
         if (listResponse.ok) {
             setContentList((await listResponse.json()).content);
