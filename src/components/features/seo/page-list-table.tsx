@@ -59,27 +59,25 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
   }, [data]);
 
   const tableData = React.useMemo(() => {
-    const pages = data.filter(item => item.type === 'Page');
-    const posts = data.filter(item => item.type === 'Post');
+    const itemMap = new Map(data.map(item => [item.id, { ...item, subRows: [] as ContentItem[] }]));
+    const roots: ContentItem[] = [];
 
-    const pageItems: ContentItem[] = pages.map(p => ({ ...p, subRows: [] }));
-    const pageMap = new Map(pageItems.map(p => [p.id, p]));
-    
-    const rootPages: ContentItem[] = [];
-
-    pageItems.forEach(page => {
-      if (page.parent && pageMap.has(page.parent)) {
-        pageMap.get(page.parent)?.subRows?.push(page);
-      } else {
-        rootPages.push(page);
-      }
+    itemMap.forEach(item => {
+        if (item.parent && itemMap.has(item.parent)) {
+            const parent = itemMap.get(item.parent);
+            if (parent) {
+                parent.subRows.push(item);
+            } else {
+                roots.push(item);
+            }
+        } else {
+            roots.push(item);
+        }
     });
-    
-    const sortAlphabetically = (a: ContentItem, b: ContentItem) => a.title.localeCompare(b.title);
-    rootPages.sort(sortAlphabetically);
-    posts.sort(sortAlphabetically);
 
-    return [...rootPages, ...posts];
+    const sortAlphabetically = (a: ContentItem, b: ContentItem) => a.title.localeCompare(b.title);
+    return roots.sort(sortAlphabetically);
+
   }, [data]);
 
 
