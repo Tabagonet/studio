@@ -10,11 +10,12 @@ export interface ContentItem {
   link: string;
   status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
   parent: number;
-  lang: string; // e.g., 'es', 'en'
+  lang: string; // e.g., 'ES', 'EN'
   translations: Record<string, number>;
 }
 
 export async function GET(req: NextRequest) {
+  console.log('[API /content-list] Request received. Re-running diagnostics.');
   try {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) {
@@ -24,61 +25,77 @@ export async function GET(req: NextRequest) {
       throw new Error("Firebase Admin Auth is not initialized.");
     }
     const uid = (await adminAuth.verifyIdToken(token)).uid;
+    console.log(`[API /content-list] User authenticated: ${uid}`);
     
     const { wpApi } = await getApiClientsForUser(uid);
     if (!wpApi) {
         throw new Error('WordPress API is not configured for the active connection.');
     }
 
-    const languagesToFetch = ['es', 'en', 'fr', 'de', 'pt']; // Check for common languages
-    const allContent: ContentItem[] = [];
+    console.log('[API /content-list] Fetching all posts and pages in a single request for diagnostics...');
+    const [postsResponse, pagesResponse] = await Promise.all([
+        wpApi.get('/posts', { params: { per_page: 100, status: 'publish,draft,pending,private,future', orderby: 'title', order: 'asc', context: 'view' } }),
+        wpApi.get('/pages', { params: { per_page: 100, status: 'publish,draft,pending,private,future', orderby: 'title', order: 'asc', context: 'view' } })
+    ]);
+    console.log('[API /content-list] Fetched data successfully.');
 
-    const fetchContentForLang = async (lang: string): Promise<ContentItem[]> => {
-      const fetchParams = {
-          per_page: 100, 
-          status: 'publish,draft,pending,private,future',
-          orderby: 'title',
-          order: 'asc',
-          context: 'view',
-          lang: lang,
-      };
+    if (postsResponse.data.length > 0) {
+        console.log("--- START OF DIAGNOSTIC LOG (POST) ---");
+        console.log("[API /content-list] Full object structure of the first post received from your WordPress site:");
+        console.log(JSON.stringify(postsResponse.data[0], null, 2));
+        console.log("--- END OF DIAGNOSTIC LOG (POST) ---");
+    } else {
+        console.log("[API /content-list] No posts found to log.");
+    }
 
-      try {
-        const [postsResponse, pagesResponse] = await Promise.all([
-            wpApi.get('/posts', { params: fetchParams }),
-            wpApi.get('/pages', { params: fetchParams })
-        ]);
+    if (pagesResponse.data.length > 0) {
+        console.log("--- START OF DIAGNOSTIC LOG (PAGE) ---");
+        console.log("[API /content-list] Full object structure of the first page received from your WordPress site:");
+        console.log(JSON.stringify(pagesResponse.data[0], null, 2));
+        console.log("--- END OF DIAGNOSTIC LOG (PAGE) ---");
+    } else {
+        console.log("[API /content-list] No pages found to log.");
+    }
 
-        const mapContent = (item: any): ContentItem => ({
+    const mapContent = (item: any): Omit<ContentItem, 'lang' | 'translations'> & { raw: any } => ({
+        id: item.id,
+        title: item.title?.rendered || 'No Title',
+        type: item.type === 'post' ? 'Post' : 'Page',
+        link: item.link,
+        status: item.status,
+        parent: item.parent || 0,
+        raw: item, // Keep the raw data for now
+    });
+    
+    const posts = postsResponse.data.map(mapContent);
+    const pages = pagesResponse.data.map(mapContent);
+    
+    const allContentData = [...posts, ...pages];
+
+    // Post-processing to find language
+    const finalContent = allContentData.map(item => {
+        // This is a temporary assignment to ensure the list appears.
+        // The real logic will be added after analyzing the new diagnostic logs.
+        const lang = item.raw.lang || 'default';
+
+        return {
             id: item.id,
-            title: item.title?.rendered || 'No Title',
-            type: item.type === 'post' ? 'Post' : 'Page',
+            title: item.title,
+            type: item.type,
             link: item.link,
             status: item.status,
-            parent: item.parent || 0,
-            lang: lang.toUpperCase(), // Assign the language we requested
-            translations: item.translations || {},
-        });
+            parent: item.parent,
+            lang: lang.toUpperCase(),
+            translations: item.raw.translations || {},
+        };
+    });
+        
+    return NextResponse.json({ content: finalContent });
 
-        const posts: ContentItem[] = postsResponse.data.map(mapContent);
-        const pages: ContentItem[] = pagesResponse.data.map(mapContent);
-        
-        return [...posts, ...pages];
-      } catch (error) {
-        // This is expected if a language doesn't exist on the site, so we just log and ignore.
-        // console.log(`No content found for language '${lang}' or error fetching it.`);
-        return [];
-      }
-    };
-    
-    const promises = languagesToFetch.map(lang => fetchContentForLang(lang));
-    const results = await Promise.all(promises);
-    results.forEach(contentArray => allContent.push(...contentArray));
-        
-    return NextResponse.json({ content: allContent });
   } catch (error: any) {
     const errorMessage = error.response?.data?.message || 'Failed to fetch content list.';
     const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
+    console.error(`[API /content-list] Critical error: ${errorMessage}`);
     return NextResponse.json({ error: errorMessage }, { status });
   }
 }
