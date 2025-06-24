@@ -31,8 +31,8 @@ export async function GET(req: NextRequest) {
     const params = {
       per_page: 100, // Fetch up to 100 items per type
       status: 'publish,draft,pending,private,future', // Fetch all statuses
-      _fields: 'id,title.rendered,link,type,status,parent,lang,translations', // Add lang and translations
-      orderby: 'title', // Order by title alphabetically
+      _fields: 'id,title.rendered,link,type,status,parent,lang,translations', // Correctly request lang and translations
+      orderby: 'title',
       order: 'asc',
     };
 
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
         link: item.link,
         status: item.status,
         parent: item.parent || null,
-        lang: item.lang || 'default',
+        lang: item.lang || 'default', // Fallback if lang is not set in WP
         translations: item.translations || {},
     });
 
