@@ -24,7 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { SearchCheck, ChevronRight } from "lucide-react";
+import { SearchCheck, ChevronRight, FileText } from "lucide-react";
 import type { ContentItem as RawContentItem } from "@/app/(app)/seo-optimizer/page";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -37,7 +37,7 @@ type ContentItem = RawContentItem & {
 interface SeoPageListTableProps {
   data: ContentItem[];
   scores: Record<number, number>;
-  onAnalyze: (page: ContentItem) => void;
+  onSelectPage: (page: ContentItem) => void;
 }
 
 const getStatusText = (status: ContentItem['status']) => {
@@ -61,7 +61,7 @@ const ScoreBadge = ({ score }: { score: number | undefined }) => {
     );
 };
 
-export function SeoPageListTable({ data, scores, onAnalyze }: SeoPageListTableProps) {
+export function SeoPageListTable({ data, scores, onSelectPage }: SeoPageListTableProps) {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
   const [languageFilter, setLanguageFilter] = React.useState('es'); // Default to Spanish
@@ -157,17 +157,27 @@ export function SeoPageListTable({ data, scores, onAnalyze }: SeoPageListTablePr
       {
         id: 'actions',
         header: () => <div className="text-right">Acción</div>,
-        cell: ({ row }) => (
-          <div className="text-right">
-            <Button onClick={() => onAnalyze(row.original)} size="sm">
-              <SearchCheck className="mr-0 md:mr-2 h-4 w-4" />
-              <span className="hidden md:inline">Analizar</span>
-            </Button>
-          </div>
-        ),
+        cell: ({ row }) => {
+            const hasScore = scores[row.original.id] !== undefined;
+            return (
+                <div className="text-right">
+                    {hasScore ? (
+                        <Button onClick={() => onSelectPage(row.original)} size="sm" variant="outline">
+                            <FileText className="mr-0 md:mr-2 h-4 w-4" />
+                            <span className="hidden md:inline">Ver Informe</span>
+                        </Button>
+                    ) : (
+                        <Button onClick={() => onSelectPage(row.original)} size="sm">
+                            <SearchCheck className="mr-0 md:mr-2 h-4 w-4" />
+                            <span className="hidden md:inline">Analizar</span>
+                        </Button>
+                    )}
+                </div>
+            );
+        },
       },
     ],
-    [onAnalyze, scores]
+    [onSelectPage, scores]
   );
 
   const table = useReactTable({

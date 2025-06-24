@@ -321,7 +321,7 @@ export default function SeoOptimizerPage() {
             {!error && (
               <SeoPageListTable 
                 data={contentList}
-                onAnalyze={handleAnalyze} 
+                onSelectPage={handleAnalyze} 
                 scores={scores}
               />
             )}
@@ -341,18 +341,24 @@ export default function SeoOptimizerPage() {
       )}
       <Card>
         <CardHeader>
-          <div className="flex items-center space-x-3">
-            <SearchCheck className="h-8 w-8 text-primary" />
-            <div>
-              <CardTitle>
-                {selectedPage ? `Análisis de: ${selectedPage.title}` : 'Optimizador SEO'}
-              </CardTitle>
-              <CardDescription>
-                 {selectedPage
-                  ? 'Revisa el informe técnico y las sugerencias de la IA para mejorar esta página.'
-                  : 'Selecciona una página o entrada de tu sitio para obtener un informe técnico y sugerencias de mejora con IA.'}
-              </CardDescription>
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div className="flex items-center space-x-3">
+              <SearchCheck className="h-8 w-8 text-primary" />
+              <div>
+                <CardTitle>
+                  {selectedPage ? `Análisis de: ${selectedPage.title}` : 'Optimizador SEO'}
+                </CardTitle>
+                <CardDescription>
+                   {selectedPage
+                    ? 'Revisa el informe técnico y las sugerencias de la IA para mejorar esta página.'
+                    : 'Selecciona una página o entrada de tu sitio para obtener un informe técnico y sugerencias de mejora con IA.'}
+                </CardDescription>
+              </div>
             </div>
+            <Button disabled>
+              <Printer className="mr-2 h-4 w-4" />
+              Generar Informe Global (Próximamente)
+            </Button>
           </div>
         </CardHeader>
       </Card>
