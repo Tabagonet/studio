@@ -17,7 +17,7 @@ const aiResponseSchema = z.object({
   improvements: z.array(z.string()).describe("Una lista de las 2-3 sugerencias de mejora más importantes y accionables."),
 });
 
-// Helper function to fetch and parse the URL content
+// Helper function to fetch and parse the URL content with better error handling
 async function getPageContent(url: string) {
     try {
         const response = await axios.get(url, {
@@ -50,8 +50,18 @@ async function getPageContent(url: string) {
 
         return extractedData;
     } catch (error) {
+        if (axios.isAxiosError(error)) {
+            let message = 'No se pudo acceder a la URL.';
+            if (error.code === 'ECONNABORTED') {
+                message = 'La solicitud a la URL tardó demasiado en responder (timeout de 10s).';
+            } else if (error.response) {
+                message = `La URL devolvió un error ${error.response.status}. Asegúrate de que es pública y accesible.`;
+            }
+            console.error(`Axios error fetching URL ${url}: ${message}`, error);
+            throw new Error(message);
+        }
         console.error(`Failed to fetch or parse URL: ${url}`, error);
-        throw new Error('No se pudo acceder o analizar la URL. Asegúrate de que es pública y correcta.');
+        throw new Error('No se pudo analizar la URL. Podría ser un problema de formato o de acceso.');
     }
 }
 
@@ -151,10 +161,15 @@ export async function POST(req: NextRequest) {
     // 1. Scrape and parse the page
     const pageData = await getPageContent(url);
     
-    // 2. Get AI analysis
+    // 2. Check if there's enough content to analyze
+    if (!pageData.textContent || pageData.textContent.trim().length < 50) {
+        throw new Error('No se encontró suficiente contenido textual en la página para analizar. Asegúrate de que la URL es correcta y tiene contenido visible.');
+    }
+    
+    // 3. Get AI analysis
     const aiAnalysis = await getAiAnalysis(pageData.textContent);
 
-    // 3. Combine results and send back to client
+    // 4. Combine results and send back to client
     const fullAnalysis = {
       title: pageData.title,
       metaDescription: pageData.metaDescription,
