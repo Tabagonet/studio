@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 const syncSchema = z.object({
   sourcePostId: z.number(),
+  postType: z.enum(['Post', 'Page']),
   translations: z.record(z.string(), z.number()),
   metaDescription: z.string().optional(),
   focusKeyword: z.string().optional(),
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid input', details: validation.error.flatten() }, { status: 400 });
         }
 
-        const { sourcePostId, translations, metaDescription, focusKeyword } = validation.data;
+        const { sourcePostId, postType, translations, metaDescription, focusKeyword } = validation.data;
 
         const { wpApi } = await getApiClientsForUser(uid);
         if (!wpApi) {
@@ -41,6 +42,8 @@ export async function POST(req: NextRequest) {
         if (!sourceLang) {
             throw new Error('Could not determine source language from translations object.');
         }
+
+        const endpoint = postType === 'Post' ? 'posts' : 'pages';
 
         const results = {
             success: [] as string[],
@@ -72,7 +75,7 @@ export async function POST(req: NextRequest) {
                 
                 // Only make the API call if there's something to update
                 if (Object.keys(payload.meta).length > 0) {
-                    await wpApi.post(`/posts/${postId}`, payload);
+                    await wpApi.post(`/${endpoint}/${postId}`, payload);
                     results.success.push(lang.toUpperCase());
                 }
 

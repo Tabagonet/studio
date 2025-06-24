@@ -157,9 +157,6 @@ function EditPageContent() {
             payload.categories = post.category ? [post.category] : [];
             payload.tags = post.tags;
         }
-
-        // NOTE: This tool no longer uploads or changes the featured image.
-        // It focuses purely on on-page SEO metadata.
         
         const apiPath = postType === 'Post' ? `/api/wordpress/posts/${postId}` : `/api/wordpress/pages/${postId}`;
 
@@ -174,12 +171,13 @@ function EditPageContent() {
             throw new Error(errorData.error || 'Failed to save changes.');
         }
         
-        toast({ title: '¡Éxito!', description: 'La entrada ha sido actualizada.' });
+        toast({ title: '¡Éxito!', description: `La entrada ha sido actualizada en ${postType === 'Post' ? 'WordPress' : 'la base de datos'}.` });
         
         if (syncSeo && post.translations && Object.keys(post.translations).length > 1) {
             toast({ title: "Sincronizando SEO...", description: "Aplicando mejoras a las traducciones. Esto puede tardar." });
             const syncPayload = {
                 sourcePostId: postId,
+                postType: postType,
                 translations: post.translations,
                 metaDescription: post.metaDescription,
                 focusKeyword: post.focusKeyword
@@ -199,8 +197,6 @@ function EditPageContent() {
             });
         }
         
-        // No redirigir, permitir que el usuario siga trabajando
-        // router.back();
     } catch (e: any) {
         toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
     } finally {
