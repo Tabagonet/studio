@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -128,6 +129,14 @@ export function SeoPageListTable({ data, scores, onAnalyze }: SeoPageListTablePr
         header: 'Estado',
         cell: ({ getValue }) => <Badge variant={getValue<string>() === 'publish' ? 'default' : 'secondary'}>{getStatusText(getValue<ContentItem['status']>())}</Badge>
       },
+       {
+        accessorKey: 'lang',
+        header: 'Idioma',
+        cell: ({ getValue }) => <Badge variant="outline" className="uppercase">{getValue<string>() || 'N/A'}</Badge>,
+        filterFn: (row, id, value) => {
+            return value.includes(row.getValue(id))
+        },
+      },
       {
         id: 'score',
         header: 'Score SEO',
@@ -163,6 +172,11 @@ export function SeoPageListTable({ data, scores, onAnalyze }: SeoPageListTablePr
     getExpandedRowModel: getExpandedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
   });
+  
+  const languages = React.useMemo(() => {
+    const langSet = new Set(data.map(item => item.lang).filter(Boolean));
+    return Array.from(langSet) as string[];
+  }, [data]);
 
   return (
     <div className="w-full space-y-4">
@@ -201,6 +215,21 @@ export function SeoPageListTable({ data, scores, onAnalyze }: SeoPageListTablePr
                 <SelectItem value="draft">Borrador</SelectItem>
                 <SelectItem value="pending">Pendiente</SelectItem>
                 <SelectItem value="private">Privado</SelectItem>
+            </SelectContent>
+        </Select>
+         <Select
+            value={(table.getColumn('lang')?.getFilterValue() as string) ?? 'all'}
+            onValueChange={(value) => table.getColumn('lang')?.setFilterValue(value === 'all' ? null : value)}
+            disabled={languages.length === 0}
+        >
+            <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Filtrar por idioma" />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="all">Todos los Idiomas</SelectItem>
+                 {languages.map(lang => (
+                    <SelectItem key={lang} value={lang}>{lang.toUpperCase()}</SelectItem>
+                ))}
             </SelectContent>
         </Select>
       </div>

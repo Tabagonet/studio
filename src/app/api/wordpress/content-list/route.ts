@@ -10,6 +10,7 @@ export interface ContentItem {
   link: string;
   status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
   parent: number;
+  lang: string;
 }
 
 export async function GET(req: NextRequest) {
@@ -29,8 +30,8 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch sequentially to avoid overloading the user's server
-    const postsResponse = await wpApi.get('/posts', { params: { per_page: 80, status: 'publish,draft,pending,private,future', orderby: 'title', order: 'asc' } });
-    const pagesResponse = await wpApi.get('/pages', { params: { per_page: 80, status: 'publish,draft,pending,private,future', orderby: 'title', order: 'asc' } });
+    const postsResponse = await wpApi.get('/posts', { params: { per_page: 100, status: 'publish,draft,pending,private,future', orderby: 'title', order: 'asc' } });
+    const pagesResponse = await wpApi.get('/pages', { params: { per_page: 100, status: 'publish,draft,pending,private,future', orderby: 'title', order: 'asc' } });
 
     const mapContent = (item: any): ContentItem => ({
         id: item.id,
@@ -39,6 +40,7 @@ export async function GET(req: NextRequest) {
         link: item.link,
         status: item.status,
         parent: item.parent || 0,
+        lang: item.lang || 'default', // Read the 'lang' property provided by the user's plugin
     });
     
     const posts = postsResponse.data.map(mapContent);
