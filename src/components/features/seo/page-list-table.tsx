@@ -27,7 +27,6 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowUpDown, SearchCheck } from "lucide-react";
 import type { ContentItem } from "@/app/(app)/seo-optimizer/page";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 
 interface TreeItem {
   item: ContentItem;
@@ -69,10 +68,8 @@ export function SeoPageListTable({
             });
     };
     
-    // Start with top-level pages (parent is 0 in WordPress)
     buildTree(0, 0); 
     
-    // It's possible some top-level pages have parent=null, handle that case too.
     const topLevelIds = new Set(tree.map(t => t.item.id));
     pages.forEach(p => {
         if (!p.parent && !topLevelIds.has(p.id)) {
@@ -118,7 +115,7 @@ export function SeoPageListTable({
       ),
     },
     {
-      accessorFn: row => row.item.status,
+      accessorFn: row => row.original.item.status,
       id: 'status',
       header: ({ column }) => (
          <Button
