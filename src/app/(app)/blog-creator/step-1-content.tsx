@@ -12,7 +12,7 @@ import { ImageUploader } from "@/components/features/wizard/image-uploader";
 import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import type { BlogPostData, WordPressPostCategory, ProductPhoto, WordPressUser } from "@/lib/types";
-import { Loader2, Sparkles, Wand2, Languages, Edit, Pilcrow, Heading2, List, ListOrdered, CalendarIcon, Info, Tags, Link as LinkIcon, Image as ImageIcon } from "lucide-react";
+import { Loader2, Sparkles, Wand2, Languages, Edit, Pilcrow, Heading2, List, ListOrdered, CalendarIcon, Info, Tags, Link as LinkIcon, Image as ImageIcon, Lightbulb, Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
@@ -70,6 +70,10 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
     const [imageUrl, setImageUrl] = useState('');
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [isUploadingImage, setIsUploadingImage] = useState(false);
+    
+    const [ideaKeyword, setIdeaKeyword] = useState('');
+    const [suggestedTitles, setSuggestedTitles] = useState<string[]>([]);
+    const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
     
     const contentRef = useRef<HTMLTextAreaElement>(null);
     const selectionRef = useRef<{ start: number; end: number } | null>(null);
@@ -139,6 +143,40 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
             : [...postData.targetLanguages, langCode];
         updatePostData({ targetLanguages: newLangs });
     };
+    
+    const handleGenerateIdeas = async () => {
+        if (!ideaKeyword) return;
+        setIsGeneratingIdeas(true);
+        setSuggestedTitles([]);
+        try {
+            const user = auth.currentUser;
+            if (!user) throw new Error("No autenticado.");
+            const token = await user.getIdToken();
+
+            const response = await fetch('/api/generate-blog-post', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ mode: 'suggest_titles', language: postData.sourceLanguage, ideaKeyword })
+            });
+
+            if (!response.ok) throw new Error("La IA no pudo generar las ideas.");
+            
+            const result = await response.json();
+            setSuggestedTitles(result.titles || []);
+
+        } catch (error: any) {
+            toast({ title: "Error de IA", description: error.message, variant: "destructive" });
+        } finally {
+            setIsGeneratingIdeas(false);
+        }
+    };
+    
+    const selectIdea = (title: string) => {
+        updatePostData({ topic: title });
+        setSuggestedTitles([]);
+        toast({ title: "Tema seleccionado", description: `"${title}" ha sido copiado al campo de tema.` });
+    };
+
 
     const handleAIGeneration = async (mode: 'generate_from_topic' | 'enhance_content' | 'suggest_keywords' | 'generate_meta_description') => {
         setIsLoading(prev => ({ ...prev, ai: true }));
@@ -316,31 +354,40 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                     <Card>
                         <CardHeader>
                             <CardTitle>Editor de Contenido y Asistente IA</CardTitle>
-                             <CardDescription>Escribe tu entrada y usa la IA para generar, mejorar o etiquetar tu contenido.</CardDescription>
+                             <CardDescription>Usa la IA para generar ideas, crea tu entrada y dale formato.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                            <div>
-                                <Label htmlFor="title">Título de la Entrada</Label>
-                                <Input id="title" name="title" value={postData.title} onChange={handleInputChange} placeholder="El título de tu entrada" />
-                            </div>
-                            <div>
-                                <Label htmlFor="content">Contenido</Label>
-                                <ContentToolbar onInsertTag={handleInsertTag} onInsertLink={() => openActionDialog('link')} onInsertImage={() => openActionDialog('image')} />
-                                <Textarea id="content" name="content" ref={contentRef} value={postData.content} onChange={handleInputChange} rows={30} placeholder="El cuerpo de tu entrada de blog..." className="rounded-t-none" />
-                            </div>
-
                              <div className="space-y-4 pt-6 border-t">
                                 <h3 className="text-sm font-medium text-muted-foreground">Asistente IA</h3>
                                 <div className="p-4 border rounded-lg space-y-3 bg-card">
-                                    <Label htmlFor="topic">1. Generar desde un tema</Label>
-                                    <Input id="topic" name="topic" value={postData.topic} onChange={handleInputChange} placeholder="Ej: Las 5 mejores plantas de interior" />
+                                    <Label>1. ¿Sin ideas? Genera títulos desde una palabra clave</Label>
+                                     <div className="flex gap-2">
+                                        <Input value={ideaKeyword} onChange={(e) => setIdeaKeyword(e.target.value)} placeholder="Ej: Jardinería sostenible" />
+                                        <Button onClick={handleGenerateIdeas} disabled={isGeneratingIdeas || !ideaKeyword}>
+                                            {isGeneratingIdeas ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lightbulb className="mr-2 h-4 w-4" />}
+                                            Generar Ideas
+                                        </Button>
+                                    </div>
+                                    {suggestedTitles.length > 0 && (
+                                        <div className="space-y-2 pt-2">
+                                            {suggestedTitles.map((title, index) => (
+                                                <Button key={index} variant="outline" className="w-full justify-start h-auto py-2" onClick={() => selectIdea(title)}>
+                                                   <Check className="mr-2 h-4 w-4 text-primary" /> <span className="text-left whitespace-normal">{title}</span>
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="p-4 border rounded-lg space-y-3 bg-card">
+                                    <Label htmlFor="topic">2. Generar borrador desde un tema</Label>
+                                    <Input id="topic" name="topic" value={postData.topic} onChange={handleInputChange} placeholder="Pega aquí una idea o escribe la tuya" />
                                     <Button onClick={() => handleAIGeneration('generate_from_topic')} disabled={isLoading.ai || !postData.topic} className="w-full">
                                         {isLoading.ai ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                                         Generar Borrador con Etiquetas
                                     </Button>
                                 </div>
                                 <div className="p-4 border rounded-lg space-y-3 bg-card">
-                                    <Label>2. Mejorar o etiquetar contenido existente</Label>
+                                    <Label>3. Mejorar o etiquetar contenido existente</Label>
                                     <div className="flex flex-col sm:flex-row gap-2">
                                         <Button onClick={() => handleAIGeneration('enhance_content')} disabled={isLoading.ai || !postData.content} className="w-full">
                                             {isLoading.ai ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
@@ -351,6 +398,19 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                                             Sugerir Etiquetas
                                         </Button>
                                     </div>
+                                </div>
+                            </div>
+                            
+                            <div className="border-t pt-6 space-y-4">
+                                <h3 className="text-lg font-medium">Borrador Actual</h3>
+                                <div>
+                                    <Label htmlFor="title">Título de la Entrada</Label>
+                                    <Input id="title" name="title" value={postData.title} onChange={handleInputChange} placeholder="El título de tu entrada" />
+                                </div>
+                                <div>
+                                    <Label htmlFor="content">Contenido</Label>
+                                    <ContentToolbar onInsertTag={handleInsertTag} onInsertLink={() => openActionDialog('link')} onInsertImage={() => openActionDialog('image')} />
+                                    <Textarea id="content" name="content" ref={contentRef} value={postData.content} onChange={handleInputChange} rows={30} placeholder="El cuerpo de tu entrada de blog..." className="rounded-t-none" />
                                 </div>
                             </div>
                         </CardContent>

@@ -5,10 +5,11 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { z } from 'zod';
 
 const GenerateBlogPostInputSchema = z.object({
-  mode: z.enum(['generate_from_topic', 'enhance_content', 'suggest_keywords', 'generate_meta_description']),
+  mode: z.enum(['generate_from_topic', 'enhance_content', 'suggest_keywords', 'generate_meta_description', 'suggest_titles']),
   language: z.string().optional().default('Spanish'),
   topic: z.string().optional(),
   keywords: z.string().optional(),
+  ideaKeyword: z.string().optional(),
   existingTitle: z.string().optional(),
   existingContent: z.string().optional(),
   focusKeyword: z.string().optional(),
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
         if (!validationResult.success) {
             return NextResponse.json({ error: 'Invalid input', details: validationResult.error.flatten() }, { status: 400 });
         }
-        const { mode, language, topic, keywords, existingTitle, existingContent, focusKeyword } = validationResult.data;
+        const { mode, language, topic, keywords, ideaKeyword, existingTitle, existingContent, focusKeyword } = validationResult.data;
 
         const genAI = new GoogleGenerativeAI(apiKey);
         
@@ -77,6 +78,11 @@ The response must be a single, valid JSON object with five keys: 'title' (an eng
                 ---
                 ${existingContent}
                 ---
+            `;
+        } else if (mode === 'suggest_titles') {
+             systemInstruction = `You are an expert SEO and content strategist. Based on the provided keyword, generate 5 creative, engaging, and SEO-friendly blog post titles. Return a single, valid JSON object with one key: 'titles', which is an array of 5 string titles. Do not include markdown or the word 'json' in your output.`;
+             prompt = `
+                Generate 5 blog post titles in ${language} for the keyword: "${ideaKeyword}"
             `;
         } else { // suggest_keywords
              systemInstruction = `You are an expert SEO specialist. Based on the following blog post title and content, generate a list of relevant, SEO-focused keywords. Return a single, valid JSON object with one key: 'suggestedKeywords' (a comma-separated string of 5-7 relevant keywords). Do not include markdown or the word 'json' in your output.`;
@@ -115,6 +121,9 @@ The response must be a single, valid JSON object with five keys: 'title' (an eng
         }
         if (mode === 'generate_meta_description' && !parsedJson.metaDescription) {
             throw new Error("AI returned an invalid JSON structure for meta description generation.");
+        }
+         if (mode === 'suggest_titles' && !Array.isArray(parsedJson.titles)) {
+            throw new Error("AI returned an invalid JSON structure for title suggestion.");
         }
         
         return NextResponse.json(parsedJson);
