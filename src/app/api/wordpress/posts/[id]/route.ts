@@ -17,7 +17,7 @@ const postUpdateSchema = z.object({
     author: z.number().optional().nullable(),
     categories: z.array(z.number()).optional(),
     tags: z.string().optional(), // Comma-separated string of tag names
-    featured_media_id: z.number().optional(), // ID of an existing image
+    featured_media_id: z.number().optional().nullable(), // ID of an existing image
     featured_image_src: z.string().url().optional(), // URL of a new image to upload
     metaDescription: z.string().optional(),
     focusKeyword: z.string().optional(),

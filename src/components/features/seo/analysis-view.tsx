@@ -6,7 +6,7 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { BrainCircuit, CheckCircle, XCircle, Image as ImageIcon, Heading1, ListTree, Edit, History, Printer } from "lucide-react";
+import { BrainCircuit, CheckCircle, XCircle, Image as ImageIcon, Heading1, ListTree, Edit, History, Printer, RefreshCw } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import type { ContentItem } from '@/app/(app)/seo-optimizer/page';
 import type { SeoAnalysisRecord } from '@/lib/types';
@@ -33,9 +33,10 @@ interface AnalysisViewProps {
   item: ContentItem;
   history: SeoAnalysisRecord[];
   onEdit: (item: ContentItem) => void;
+  onReanalyze: () => void;
 }
 
-export function AnalysisView({ analysis, item, history, onEdit }: AnalysisViewProps) {
+export function AnalysisView({ analysis, item, history, onEdit, onReanalyze }: AnalysisViewProps) {
   const imagesWithoutAlt = analysis.images.filter(img => !img.alt).length;
   const totalImages = analysis.images.length;
   const scoreColor = analysis.aiAnalysis.score >= 80 ? 'text-green-500' : analysis.aiAnalysis.score >= 50 ? 'text-amber-500' : 'text-destructive';
@@ -52,6 +53,10 @@ export function AnalysisView({ analysis, item, history, onEdit }: AnalysisViewPr
                 <CardTitle>Análisis con IA</CardTitle>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button onClick={onReanalyze} variant="secondary">
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Volver a Analizar
+              </Button>
               <Button onClick={() => onEdit(item)}>
                   <Edit className="mr-2 h-4 w-4" />
                   Editar y Optimizar
@@ -185,5 +190,4 @@ export function AnalysisView({ analysis, item, history, onEdit }: AnalysisViewPr
     </div>
   );
 }
-
     

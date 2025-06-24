@@ -273,6 +273,7 @@ export default function SeoOptimizerPage() {
                         analysis={analysis} 
                         item={selectedPage} 
                         onEdit={handleEditContent} 
+                        onReanalyze={() => handleAnalyze(selectedPage)}
                         history={analysisHistory}
                     />
                 )}
