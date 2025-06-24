@@ -18,23 +18,36 @@ export async function GET(req: NextRequest) {
     }
 
     try {
+        // Query only by user ID to avoid needing a composite index with orderBy.
         const analysesSnapshot = await adminDb.collection('seo_analyses')
             .where('userId', '==', uid)
-            .orderBy('createdAt', 'desc')
             .get();
 
-        const latestScores: Record<string, number> = {};
+        // Process in memory to find the latest score for each URL.
+        const latestScoresMap: Record<string, { score: number; date: Date }> = {};
 
         analysesSnapshot.forEach(doc => {
             const data = doc.data();
-            // Since docs are ordered by date descending, the first time we see a URL,
-            // it's the most recent analysis for that URL.
-            if (data.url && !latestScores[data.url]) {
-                latestScores[data.url] = data.score;
+            // Safety check for data integrity
+            if (data.url && data.score !== undefined && data.createdAt?.toDate) {
+                const recordDate = data.createdAt.toDate();
+                // If we haven't seen this URL, or if the current record is newer, update it.
+                if (!latestScoresMap[data.url] || recordDate > latestScoresMap[data.url].date) {
+                    latestScoresMap[data.url] = {
+                        score: data.score,
+                        date: recordDate,
+                    };
+                }
             }
         });
 
-        return NextResponse.json({ scores: latestScores });
+        // Convert the map to the final format: { url: score }
+        const finalScores: Record<string, number> = {};
+        for (const url in latestScoresMap) {
+            finalScores[url] = latestScoresMap[url].score;
+        }
+
+        return NextResponse.json({ scores: finalScores });
 
     } catch (error: any) {
         console.error('Error fetching latest scores:', error);

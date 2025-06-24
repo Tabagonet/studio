@@ -25,15 +25,15 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        // Query only by user to avoid needing a composite index.
-        // We will sort and filter in memory on the server.
+        // This query is more efficient and less likely to fail than fetching all user documents.
+        // It may require a composite index, but Firestore will provide a link to create it in the error log if needed.
         const historySnapshot = await adminDb.collection('seo_analyses')
             .where('userId', '==', uid)
+            .where('url', '==', url)
             .get();
         
-        let allUserHistory = historySnapshot.docs.map(doc => {
+        let historyForUrl = historySnapshot.docs.map(doc => {
             const data = doc.data();
-            // Safety check for malformed data to prevent crashes
             if (!data || !data.createdAt || typeof data.createdAt.toDate !== 'function') {
                 return null;
             }
@@ -42,20 +42,21 @@ export async function GET(req: NextRequest) {
                 ...data,
                 createdAt: data.createdAt.toDate().toISOString(),
             };
-        }).filter(Boolean as any as (value: any) => value is NonNullable<any>); // Remove nulls and type guard
+        }).filter(Boolean as any as (value: any) => value is NonNullable<any>>);
 
-        // Sort in code to ensure descending order by date
-        allUserHistory.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        // Sort in memory after fetching
+        historyForUrl.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        
+        // Limit results after sorting
+        const limitedHistory = historyForUrl.slice(0, 10);
 
-        // Filter for the specific URL and limit the results
-        const historyForUrl = allUserHistory.filter(record => record.url === url).slice(0, 10);
-
-        return NextResponse.json({ history: historyForUrl });
+        return NextResponse.json({ history: limitedHistory });
 
     } catch (error: any) {
         console.error("Error fetching SEO analysis history:", error);
-        if ((error as any).code) {
-             console.error(`Firestore error code: ${(error as any).code}`);
+        if ((error as any).code === 'FAILED_PRECONDITION') {
+             console.error("Firestore query requires a composite index. Please create it using the link in the Firebase console logs.");
+             return NextResponse.json({ error: 'Error de base de datos: Se requiere una configuración de índice. Por favor, contacta al soporte.', details: (error as any).details }, { status: 500 });
         }
         return NextResponse.json({ error: 'Fallo al obtener el historial de análisis', details: error.message }, { status: 500 });
     }
