@@ -11,10 +11,10 @@ const analyzeUrlSchema = z.object({
 });
 
 const aiResponseSchema = z.object({
-  score: z.number().describe("An estimated SEO score from 0 to 100."),
-  summary: z.string().describe("A brief summary of what the page is about."),
-  positives: z.array(z.string()).describe("A list of 2-3 positive SEO aspects found."),
-  improvements: z.array(z.string()).describe("A list of the top 2-3 actionable improvement suggestions."),
+  score: z.number().describe("Una puntuación SEO estimada de 0 a 100."),
+  summary: z.string().describe("Un breve resumen sobre de qué trata la página."),
+  positives: z.array(z.string()).describe("Una lista de 2-3 aspectos SEO positivos encontrados."),
+  improvements: z.array(z.string()).describe("Una lista de las 2-3 sugerencias de mejora más importantes y accionables."),
 });
 
 // Helper function to fetch and parse the URL content
