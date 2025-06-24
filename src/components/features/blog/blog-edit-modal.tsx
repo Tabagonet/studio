@@ -26,6 +26,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 interface BlogEditModalProps {
   postId: number;
+  postType: 'Post' | 'Page';
   translations?: Record<string, number>;
   onClose: (refresh: boolean) => void;
 }
@@ -69,7 +70,7 @@ const ContentToolbar = ({ onInsertTag, onInsertLink, onInsertImage }: { onInsert
 );
 
 
-export function BlogEditModal({ postId, translations, onClose }: BlogEditModalProps) {
+export function BlogEditModal({ postId, postType, translations, onClose }: BlogEditModalProps) {
   const [post, setPost] = useState<PostEditState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -177,11 +178,15 @@ export function BlogEditModal({ postId, translations, onClose }: BlogEditModalPr
             content: post.content,
             status: post.status,
             author: post.author,
-            categories: post.category ? [post.category] : [],
-            tags: post.tags,
             metaDescription: post.metaDescription,
             focusKeyword: post.focusKeyword,
         };
+        
+        // Add post-specific fields
+        if (postType === 'Post') {
+            payload.categories = post.category ? [post.category] : [];
+            payload.tags = post.tags;
+        }
 
         const newPhoto = post.featured_media?.file ? post.featured_media : null;
 
@@ -200,10 +205,12 @@ export function BlogEditModal({ postId, translations, onClose }: BlogEditModalPr
         } else if (post.featured_media?.id) {
             payload.featured_media_id = post.featured_media.id;
         } else {
-            payload.featured_media_id = 0;
+            payload.featured_media_id = 0; // This removes the featured image
         }
         
-        const response = await fetch(`/api/wordpress/posts/${postId}`, {
+        const apiPath = postType === 'Post' ? `/api/wordpress/posts/${postId}` : `/api/wordpress/pages/${postId}`;
+
+        const response = await fetch(apiPath, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(payload)
@@ -259,13 +266,22 @@ export function BlogEditModal({ postId, translations, onClose }: BlogEditModalPr
       }
       try {
         const token = await user.getIdToken();
+        const apiPath = postType === 'Post' ? `/api/wordpress/posts/${postId}` : `/api/wordpress/pages/${postId}`;
+
+        const postResponsePromise = fetch(`${apiPath}?_embed=true`, { headers: { 'Authorization': `Bearer ${token}` }});
+        const categoriesResponsePromise = fetch('/api/wordpress/post-categories', { headers: { 'Authorization': `Bearer ${token}` }});
+        const authorsResponsePromise = fetch('/api/wordpress/users', { headers: { 'Authorization': `Bearer ${token}` }});
+        
         const [postResponse, categoriesResponse, authorsResponse] = await Promise.all([
-           fetch(`/api/wordpress/posts/${postId}?_embed=true`, { headers: { 'Authorization': `Bearer ${token}` }}),
-           fetch('/api/wordpress/post-categories', { headers: { 'Authorization': `Bearer ${token}` }}),
-           fetch('/api/wordpress/users', { headers: { 'Authorization': `Bearer ${token}` }})
+          postResponsePromise,
+          categoriesResponsePromise,
+          authorsResponsePromise
         ]);
 
-        if (!postResponse.ok) throw new Error('Failed to fetch post data.');
+        if (!postResponse.ok) {
+          const errorData = await postResponse.json();
+          throw new Error(errorData.error || `Failed to fetch ${postType} data.`);
+        }
         const postData = await postResponse.json();
         
         if (categoriesResponse.ok) setCategories(await categoriesResponse.json());
@@ -289,8 +305,8 @@ export function BlogEditModal({ postId, translations, onClose }: BlogEditModalPr
           category: postData.categories?.[0] || null,
           tags: postData._embedded?.['wp:term']?.[1]?.map((t: any) => t.name).join(', ') || '',
           featured_media: featuredImage,
-          metaDescription: postData.meta?._yoast_wpseo_metadesc || '', // Attempt to load, will be empty if not there
-          focusKeyword: postData.meta?._yoast_wpseo_focuskw || '', // Attempt to load
+          metaDescription: postData.meta?._yoast_wpseo_metadesc || '',
+          focusKeyword: postData.meta?._yoast_wpseo_focuskw || '',
         });
 
       } catch (e: any) {
@@ -300,7 +316,7 @@ export function BlogEditModal({ postId, translations, onClose }: BlogEditModalPr
       }
     };
     fetchInitialData();
-  }, [postId]);
+  }, [postId, postType, toast]);
 
   const handleInsertTag = (tag: 'h2' | 'ul' | 'ol' | 'strong' | 'em') => {
       const textarea = contentRef.current;
@@ -411,7 +427,7 @@ export function BlogEditModal({ postId, translations, onClose }: BlogEditModalPr
     <Dialog open={true} onOpenChange={() => onClose(false)}>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-            <DialogTitle>Editar Entrada: {post?.title || "Cargando..."}</DialogTitle>
+            <DialogTitle>Editar {postType === 'Post' ? 'Entrada' : 'Página'}: {post?.title || "Cargando..."}</DialogTitle>
             <DialogDescription>Realiza cambios, usa la IA para mejorar y previsualiza el resultado.</DialogDescription>
         </DialogHeader>
         
@@ -438,10 +454,12 @@ export function BlogEditModal({ postId, translations, onClose }: BlogEditModalPr
                         <div><Label>Autor</Label><Select name="author" value={post.author?.toString() || ''} onValueChange={(v) => handleSelectChange('author', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{authors.map(a => <SelectItem key={a.id} value={a.id.toString()}>{a.name}</SelectItem>)}</SelectContent></Select></div>
                         <div><Label>Estado</Label><Select name="status" value={post.status} onValueChange={(v) => handleSelectChange('status', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="publish">Publicado</SelectItem><SelectItem value="draft">Borrador</SelectItem><SelectItem value="pending">Pendiente</SelectItem><SelectItem value="private">Privado</SelectItem><SelectItem value="future">Programado</SelectItem></SelectContent></Select></div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><Label>Categoría</Label><Select name="category" value={post.category?.toString() || ''} onValueChange={(v) => handleSelectChange('category', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{categories.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent></Select></div>
-                        <div><Label>Etiquetas (separadas por comas)</Label><Input name="tags" value={post.tags} onChange={handleInputChange} /></div>
-                    </div>
+                    {postType === 'Post' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div><Label>Categoría</Label><Select name="category" value={post.category?.toString() || ''} onValueChange={(v) => handleSelectChange('category', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{categories.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent></Select></div>
+                            <div><Label>Etiquetas (separadas por comas)</Label><Input name="tags" value={post.tags} onChange={handleInputChange} /></div>
+                        </div>
+                    )}
                     <div><Label>Imagen Destacada</Label><ImageUploader photos={post.featured_media ? [post.featured_media] : []} onPhotosChange={handlePhotosChange} isProcessing={isSaving} /></div>
                     
                     <Card>
@@ -459,10 +477,12 @@ export function BlogEditModal({ postId, translations, onClose }: BlogEditModalPr
                                             {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                                             Mejorar Contenido
                                         </Button>
-                                        <Button onClick={() => handleAIGeneration('suggest_keywords')} disabled={isAiLoading || !post.content} className="w-full" variant="outline">
-                                            {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tags className="mr-2 h-4 w-4" />}
-                                            Sugerir Etiquetas
-                                        </Button>
+                                        {postType === 'Post' && (
+                                            <Button onClick={() => handleAIGeneration('suggest_keywords')} disabled={isAiLoading || !post.content} className="w-full" variant="outline">
+                                                {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tags className="mr-2 h-4 w-4" />}
+                                                Sugerir Etiquetas
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
                             </div>

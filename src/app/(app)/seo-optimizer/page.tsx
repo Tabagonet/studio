@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { SearchCheck, Loader2, BrainCircuit, ArrowLeft, Package, Newspaper, FileText, FileCheck2, Edit, AlertTriangle } from "lucide-react";
+import { SearchCheck, Loader2, BrainCircuit, ArrowLeft, Package, Newspaper, FileText, FileCheck2, Edit, AlertTriangle, Printer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { SeoPageListTable } from '@/components/features/seo/page-list-table';
@@ -46,7 +46,7 @@ export default function SeoOptimizerPage() {
   const [activeConnectionUrl, setActiveConnectionUrl] = useState('');
 
   const [scores, setScores] = useState<Record<number, number>>({});
-  const [editingContent, setEditingContent] = useState<{ id: number; translations?: Record<string, number> } | null>(null);
+  const [editingContent, setEditingContent] = useState<{ id: number; type: 'Post' | 'Page'; translations?: Record<string, number> } | null>(null);
   
   const { toast } = useToast();
   
@@ -199,7 +199,7 @@ export default function SeoOptimizerPage() {
   }
   
   const handleEditContent = (item: ContentItem) => {
-    setEditingContent({ id: item.id, translations: item.translations });
+    setEditingContent({ id: item.id, type: item.type, translations: item.translations });
   };
   
   const handleCloseModal = (refresh: boolean) => {
@@ -333,7 +333,11 @@ export default function SeoOptimizerPage() {
   return (
     <div className="container mx-auto py-8 space-y-6">
        {editingContent && (
-        <BlogEditModal postId={editingContent.id} translations={editingContent.translations} onClose={handleCloseModal} />
+        <BlogEditModal 
+            postId={editingContent.id} 
+            postType={editingContent.type} 
+            translations={editingContent.translations} 
+            onClose={handleCloseModal} />
       )}
       <Card>
         <CardHeader>
@@ -359,5 +363,3 @@ export default function SeoOptimizerPage() {
     </div>
   );
 }
-
-    
