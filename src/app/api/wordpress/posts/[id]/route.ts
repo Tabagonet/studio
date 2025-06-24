@@ -42,9 +42,15 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const response = await wpApi.get(`/posts/${postId}`, { params: { _embed: true, context: 'edit' } });
     
     const postData = response.data;
+    const isElementor = !!postData.meta?._elementor_version;
+    const adminUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '/wp-admin/');
+    const elementorEditLink = isElementor ? `${adminUrl}post.php?post=${postId}&action=elementor` : null;
+
     const transformed = {
       ...postData,
       featured_image_url: postData._embedded?.['wp:featuredmedia']?.[0]?.source_url || null,
+      isElementor,
+      elementorEditLink,
     };
     return NextResponse.json(transformed);
   } catch (error: any) {

@@ -4,13 +4,14 @@
 import React, { useEffect, useState, useRef, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
+import Link from 'next/link';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Sparkles, Wand2, Tags, Pilcrow, Heading2, List, ListOrdered, Link as LinkIcon, Image as ImageIcon, Check, ArrowLeft } from 'lucide-react';
+import { Loader2, Sparkles, Wand2, Tags, Pilcrow, Heading2, List, ListOrdered, Link as LinkIcon, Image as ImageIcon, Check, ArrowLeft, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -35,6 +36,8 @@ interface PostEditState {
   featured_media: ProductPhoto | null;
   metaDescription: string;
   focusKeyword: string;
+  isElementor: boolean;
+  elementorEditLink: string | null;
 }
 
 const ContentToolbar = ({ onInsertTag, onInsertLink, onInsertImage }: { onInsertTag: (tag: 'h2' | 'ul' | 'ol' | 'strong' | 'em') => void; onInsertLink: () => void; onInsertImage: () => void; }) => (
@@ -177,13 +180,17 @@ function EditPageContent() {
         const translations = JSON.parse(searchParams.get('translations') || '{}');
         const payload: any = {
             title: post.title,
-            content: post.content,
             status: post.status,
             author: post.author,
             metaDescription: post.metaDescription,
             focusKeyword: post.focusKeyword,
         };
         
+        // Only include content if it's not an Elementor page
+        if (!post.isElementor) {
+            payload.content = post.content;
+        }
+
         if (postType === 'Post') {
             payload.categories = post.category ? [post.category] : [];
             payload.tags = post.tags;
@@ -308,6 +315,8 @@ function EditPageContent() {
           featured_media: featuredImage,
           metaDescription: postData.meta?._yoast_wpseo_metadesc || '',
           focusKeyword: postData.meta?._yoast_wpseo_focuskw || '',
+          isElementor: postData.isElementor || false,
+          elementorEditLink: postData.elementorEditLink || null,
         });
 
       } catch (e: any) {
@@ -473,8 +482,26 @@ function EditPageContent() {
                         </div>
                         <div>
                             <Label htmlFor="content">Contenido</Label>
-                            <ContentToolbar onInsertTag={handleInsertTag} onInsertLink={() => openActionDialog('link')} onInsertImage={() => openActionDialog('image')} />
-                            <Textarea id="content" name="content" ref={contentRef} value={post.content} onChange={handleInputChange} rows={15} className="rounded-t-none" />
+                            {post.isElementor && post.elementorEditLink ? (
+                                <Alert className="mt-2">
+                                    <ExternalLink className="h-4 w-4" />
+                                    <AlertTitle>Página gestionada con Elementor</AlertTitle>
+                                    <AlertDescription>
+                                        El contenido de esta página se gestiona con el editor visual. Para evitar conflictos, la edición del cuerpo está desactivada aquí.
+                                    </AlertDescription>
+                                    <Button asChild className="mt-4">
+                                        <Link href={post.elementorEditLink} target="_blank" rel="noopener noreferrer">
+                                            <ExternalLink className="mr-2 h-4 w-4" />
+                                            Abrir con Elementor
+                                        </Link>
+                                    </Button>
+                                </Alert>
+                            ) : (
+                                <>
+                                    <ContentToolbar onInsertTag={handleInsertTag} onInsertLink={() => openActionDialog('link')} onInsertImage={() => openActionDialog('image')} />
+                                    <Textarea id="content" name="content" ref={contentRef} value={post.content} onChange={handleInputChange} rows={15} className="rounded-t-none" />
+                                </>
+                            )}
                         </div>
                     </TabsContent>
                     <TabsContent value="preview" className="flex-1 overflow-y-auto p-4 border rounded-md min-h-[300px]">
@@ -525,7 +552,7 @@ function EditPageContent() {
                             <div className="p-4 border rounded-lg space-y-3 bg-card">
                                 <Label>Mejorar o etiquetar contenido existente</Label>
                                 <div className="flex flex-col sm:flex-row gap-2">
-                                    <Button onClick={() => handleAIGeneration('enhance_content')} disabled={isAiLoading || !post.content} className="w-full">
+                                    <Button onClick={() => handleAIGeneration('enhance_content')} disabled={isAiLoading || !post.content || post.isElementor} className="w-full">
                                         {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                                         Mejorar Contenido
                                     </Button>
