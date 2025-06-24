@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { SearchCheck, Loader2, BrainCircuit, ArrowLeft, Package, Newspaper, FileText, FileCheck2 } from "lucide-react";
+import { SearchCheck, Loader2, BrainCircuit, ArrowLeft, Package, Newspaper, FileText, FileCheck2, Edit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { SeoPageListTable } from '@/components/features/seo/page-list-table';
@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ContentStats } from '@/lib/types';
+import { BlogEditModal } from '@/components/features/blog/blog-edit-modal';
 
 
 export interface ContentItem {
@@ -38,8 +39,10 @@ export default function SeoOptimizerPage() {
   const [error, setError] = useState<string | null>(null);
   
   const [manualUrl, setManualUrl] = useState('');
-
   const [activeConnectionUrl, setActiveConnectionUrl] = useState('');
+
+  const [scores, setScores] = useState<Record<number, number>>({});
+  const [editingContentId, setEditingContentId] = useState<number | null>(null);
   
   const { toast } = useToast();
   
@@ -61,7 +64,7 @@ export default function SeoOptimizerPage() {
         const statsPromise = fetch('/api/wordpress/content-stats', { headers: { 'Authorization': `Bearer ${token}` } });
         const configPromise = fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` } });
         
-        const [listResponse, statsResponse, configResponse] = await Promise.all([listPromise, statsPromise, configPromise]);
+        const [listResponse, statsResponse, configResponse] = await Promise.all([listPromise, statsPromise, configResponse]);
 
         if (listResponse.ok) {
             setContentList((await listResponse.json()).content);
@@ -142,6 +145,7 @@ export default function SeoOptimizerPage() {
       }
 
       setAnalysis(result);
+      setScores(prev => ({...prev, [page.id]: result.aiAnalysis.score}));
     } catch (err: any) {
       setError(err.message);
       toast({ title: "Error en el Análisis", description: err.message, variant: "destructive" });
@@ -173,9 +177,22 @@ export default function SeoOptimizerPage() {
       setSelectedPage(null);
       setAnalysis(null);
       setError(null);
-      fetchContentData();
   }
   
+  const handleEditContent = (item: ContentItem) => {
+    setEditingContentId(item.id);
+  };
+  
+  const handleCloseModal = (refresh: boolean) => {
+    setEditingContentId(null);
+    if (refresh) {
+        // Refetch analysis data after editing
+        if (selectedPage) {
+            handleAnalyze(selectedPage);
+        }
+    }
+  };
+
   const renderStats = () => {
       return (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -224,7 +241,7 @@ export default function SeoOptimizerPage() {
                     </div>
                 )}
                 {analysis && !isLoadingAnalysis && (
-                    <AnalysisView analysis={analysis} />
+                    <AnalysisView analysis={analysis} item={selectedPage} onEdit={handleEditContent} />
                 )}
                 {error && !isLoadingAnalysis && (
                     <Alert variant="destructive">
@@ -271,6 +288,7 @@ export default function SeoOptimizerPage() {
               <SeoPageListTable 
                 data={contentList}
                 onAnalyze={handleAnalyze} 
+                scores={scores}
               />
             )}
         </CardContent>
@@ -280,6 +298,9 @@ export default function SeoOptimizerPage() {
 
   return (
     <div className="container mx-auto py-8 space-y-6">
+       {editingContentId && (
+        <BlogEditModal postId={editingContentId} onClose={handleCloseModal} />
+      )}
       <Card>
         <CardHeader>
           <div className="flex items-center space-x-3">

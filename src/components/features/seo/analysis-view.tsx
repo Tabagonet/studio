@@ -5,7 +5,9 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { BrainCircuit, CheckCircle, XCircle, Image as ImageIcon, Heading1, ListTree } from "lucide-react";
+import { BrainCircuit, CheckCircle, XCircle, Image as ImageIcon, Heading1, ListTree, Edit } from "lucide-react";
+import { Button } from '@/components/ui/button';
+import type { ContentItem } from '@/app/(app)/seo-optimizer/page';
 
 export interface AnalysisResult {
   title: string;
@@ -23,9 +25,11 @@ export interface AnalysisResult {
 
 interface AnalysisViewProps {
   analysis: AnalysisResult;
+  item: ContentItem;
+  onEdit: (item: ContentItem) => void;
 }
 
-export function AnalysisView({ analysis }: AnalysisViewProps) {
+export function AnalysisView({ analysis, item, onEdit }: AnalysisViewProps) {
   const imagesWithoutAlt = analysis.images.filter(img => !img.alt).length;
   const totalImages = analysis.images.length;
   const scoreColor = analysis.aiAnalysis.score >= 80 ? 'text-green-500' : analysis.aiAnalysis.score >= 50 ? 'text-amber-500' : 'text-destructive';
@@ -35,8 +39,15 @@ export function AnalysisView({ analysis }: AnalysisViewProps) {
       {/* Columna Izquierda: Análisis IA */}
       <div className="lg:col-span-2 space-y-6">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><BrainCircuit className="h-6 w-6 text-primary" /> Análisis con IA</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+                <BrainCircuit className="h-6 w-6 text-primary" /> 
+                <CardTitle>Análisis con IA</CardTitle>
+            </div>
+            <Button onClick={() => onEdit(item)}>
+                <Edit className="mr-2 h-4 w-4" />
+                Editar y Optimizar
+            </Button>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="text-center">

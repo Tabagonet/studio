@@ -35,6 +35,7 @@ type ContentItem = RawContentItem & {
 
 interface SeoPageListTableProps {
   data: ContentItem[];
+  scores: Record<number, number>;
   onAnalyze: (page: ContentItem) => void;
 }
 
@@ -49,7 +50,17 @@ const getStatusText = (status: ContentItem['status']) => {
     return statusMap[status] || status;
 };
 
-export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
+const ScoreBadge = ({ score }: { score: number | undefined }) => {
+    if (score === undefined) return null;
+    
+    const scoreColor = score >= 80 ? 'bg-green-500' : score >= 50 ? 'bg-amber-500' : 'bg-destructive';
+
+    return (
+        <Badge className={cn("text-white", scoreColor)}>{score}</Badge>
+    );
+};
+
+export function SeoPageListTable({ data, scores, onAnalyze }: SeoPageListTableProps) {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
   
@@ -118,6 +129,11 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
         cell: ({ getValue }) => <Badge variant={getValue<string>() === 'publish' ? 'default' : 'secondary'}>{getStatusText(getValue<ContentItem['status']>())}</Badge>
       },
       {
+        id: 'score',
+        header: 'Score SEO',
+        cell: ({ row }) => <ScoreBadge score={scores[row.original.id]} />,
+      },
+      {
         id: 'actions',
         header: () => <div className="text-right">Acción</div>,
         cell: ({ row }) => (
@@ -130,7 +146,7 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
         ),
       },
     ],
-    [onAnalyze]
+    [onAnalyze, scores]
   );
 
   const table = useReactTable({
