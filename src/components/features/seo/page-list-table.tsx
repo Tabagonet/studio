@@ -3,15 +3,6 @@
 
 import * as React from "react";
 import {
-  ColumnDef,
-  ColumnFiltersState,
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  useReactTable,
-} from "@tanstack/react-table";
-import {
   Table,
   TableBody,
   TableCell,
@@ -25,11 +16,11 @@ import { Badge } from "@/components/ui/badge";
 import { SearchCheck } from "lucide-react";
 import type { ContentItem } from "@/app/(app)/seo-optimizer/page";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { cn } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
-interface TreeItem {
-  item: ContentItem;
-  depth: number;
-}
 
 interface SeoPageListTableProps {
   data: ContentItem[];
@@ -40,6 +31,40 @@ interface SeoPageListTableProps {
   onStatusFilterChange: (value: string) => void;
 }
 
+const getStatusText = (status: ContentItem['status']) => {
+    const statusMap: { [key: string]: string } = {
+        publish: 'Publicado',
+        draft: 'Borrador',
+        pending: 'Pendiente',
+        private: 'Privado',
+        future: 'Programado',
+    };
+    return statusMap[status] || status;
+};
+
+const ContentRow = ({ item, onAnalyze, isChild = false }: { item: ContentItem; onAnalyze: (item: ContentItem) => void; isChild?: boolean }) => (
+    <div className={cn(
+        "flex items-center gap-4 p-2 rounded-md w-full",
+        isChild && "ml-6 border-l-2 border-primary/20 pl-4"
+    )}>
+        <div className="flex-1 flex items-center gap-2 min-w-0">
+            {isChild && <span className="text-muted-foreground">↳</span>}
+            <span className="font-medium truncate">{item.title}</span>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+            <Badge variant={item.type === 'Post' ? "secondary" : "outline"} className="hidden sm:inline-flex">{item.type}</Badge>
+            <Badge variant={item.status === 'publish' ? 'default' : 'secondary'} className="hidden sm:inline-flex">
+                {getStatusText(item.status)}
+            </Badge>
+            <Button onClick={(e) => { e.stopPropagation(); onAnalyze(item); }} size="sm">
+                <SearchCheck className="mr-0 md:mr-2 h-4 w-4" />
+                <span className="hidden md:inline">Analizar</span>
+            </Button>
+        </div>
+    </div>
+);
+
+
 export function SeoPageListTable({ 
     data, 
     onAnalyze, 
@@ -48,120 +73,50 @@ export function SeoPageListTable({
     statusFilter, 
     onStatusFilterChange 
 }: SeoPageListTableProps) {
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [titleFilter, setTitleFilter] = React.useState('');
 
-  const contentTree = React.useMemo(() => {
-    const posts = data
-      .filter((item) => item.type === 'Post')
-      .sort((a, b) => a.title.localeCompare(b.title))
-      .map((item) => ({ item, depth: 0 }));
+  const { pageTree, posts } = React.useMemo(() => {
+    const filteredData = data.filter(item => {
+        const typeMatch = typeFilter === 'all' || item.type.toLowerCase() === typeFilter;
+        const statusMatch = statusFilter === 'all' || item.status === statusFilter;
+        const titleMatch = !titleFilter || item.title.toLowerCase().includes(titleFilter.toLowerCase());
+        return typeMatch && statusMatch && titleMatch;
+    });
 
-    const pages = data.filter((item) => item.type === 'Page');
-    const pageMap = new Map(pages.map((p) => [p.id, { ...p, children: [] as (ContentItem & {children: any[]})[] }]));
+    const pages = filteredData.filter((item) => item.type === 'Page');
+    const posts = filteredData.filter((item) => item.type === 'Post').sort((a,b) => a.title.localeCompare(b.title));
     
-    const rootPages: (ContentItem & {children: any[]})[] = [];
+    const pageMap = new Map(pages.map(p => [p.id, { ...p, children: [] as ContentItem[] }]));
+    const rootPages: {item: ContentItem, children: ContentItem[]}[] = [];
+
     pageMap.forEach((page) => {
         if (page.parent && pageMap.has(page.parent)) {
             const parent = pageMap.get(page.parent);
-            if (parent) {
-                parent.children.push(page);
-            }
+            parent?.children.push(page);
         } else {
-            rootPages.push(page);
+            rootPages.push({ item: page, children: page.children });
         }
     });
 
-    const flattenedPages: TreeItem[] = [];
-    const flatten = (nodes: (ContentItem & {children: any[]})[], depth: number) => {
-        nodes.sort((a,b) => a.title.localeCompare(b.title));
-        
-        for (const node of nodes) {
-            flattenedPages.push({ item: node, depth });
-            if (node.children.length > 0) {
-                flatten(node.children, depth + 1);
-            }
-        }
-    };
-    
-    flatten(rootPages, 0);
+    rootPages.sort((a,b) => a.item.title.localeCompare(b.item.title));
+    rootPages.forEach(p => p.children.sort((a,b) => a.title.localeCompare(b.title)));
 
-    return [...posts, ...flattenedPages];
-  }, [data]);
+    return { pageTree: rootPages, posts };
+  }, [data, typeFilter, statusFilter, titleFilter]);
 
-
-  const columns: ColumnDef<TreeItem>[] = [
-    {
-      accessorFn: row => row.item.title,
-      id: "title",
-      header: "Título",
-      cell: ({ row }) => {
-        const { item, depth } = row.original;
-        return (
-            <span style={{ paddingLeft: `${depth * 1.5}rem` }} className="font-medium flex items-center">
-              {depth > 0 && <span className="text-muted-foreground mr-1">↳</span>}
-              {item.title}
-            </span>
-        );
-      },
-    },
-    {
-      accessorFn: row => row.item.type,
-      id: 'type',
-      header: "Tipo",
-      cell: ({ row }) => (
-        <Badge variant={row.original.item.type === 'Post' ? "secondary" : "outline"}>
-          {row.original.item.type}
-        </Badge>
-      ),
-    },
-    {
-      accessorFn: row => row.original.item.status,
-      id: 'status',
-      header: "Estado",
-      cell: ({ row }) => {
-        const status = row.original.item.status;
-        const statusText: { [key: string]: string } = {
-            publish: 'Publicado',
-            draft: 'Borrador',
-            pending: 'Pendiente',
-            private: 'Privado',
-            future: 'Programado',
-        };
-        return <Badge variant={status === 'publish' ? 'default' : 'secondary'}>{statusText[status] || status}</Badge>
-      }
-    },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <Button onClick={() => onAnalyze(row.original.item)} size="sm">
-          <SearchCheck className="mr-2 h-4 w-4" />
-          Analizar
-        </Button>
-      ),
-    },
-  ];
-
-  const table = useReactTable({
-    data: contentTree,
-    columns,
-    onColumnFiltersChange: setColumnFilters,
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    state: {
-      columnFilters,
-    },
-  });
+  const NoResults = ({type}: {type: 'page' | 'post'}) => (
+    <div className="text-center text-sm text-muted-foreground p-6">
+        No se encontraron {type === 'page' ? 'páginas' : 'entradas'} con los filtros actuales.
+    </div>
+  );
 
   return (
-    <div className="w-full">
+    <div className="w-full space-y-4">
       <div className="flex flex-col sm:flex-row gap-2 py-4">
         <Input
           placeholder="Filtrar por título..."
-          value={(table.getColumn("title")?.getFilterValue() as string) ?? ""}
-          onChange={(event) =>
-            table.getColumn("title")?.setFilterValue(event.target.value)
-          }
+          value={titleFilter}
+          onChange={(event) => setTitleFilter(event.target.value)}
           className="max-w-sm"
         />
         <Select value={typeFilter} onValueChange={onTypeFilterChange}>
@@ -187,65 +142,53 @@ export function SeoPageListTable({
             </SelectContent>
         </Select>
       </div>
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.original.item.id}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No se encontraron resultados para los filtros seleccionados.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <div className="flex items-center justify-end space-x-2 py-4">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
-        >
-          Anterior
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
-        >
-          Siguiente
-        </Button>
-      </div>
+
+       {typeFilter !== 'post' && (
+        <Card>
+            <CardHeader><CardTitle>Páginas</CardTitle></CardHeader>
+            <CardContent>
+                {pageTree.length === 0 ? <NoResults type="page"/> : (
+                    <Accordion type="multiple" className="w-full">
+                        {pageTree.map(({ item: page, children }) => {
+                            if (children.length === 0) {
+                                return (
+                                    <div key={page.id} className="border-b">
+                                        <ContentRow item={page} onAnalyze={onAnalyze} />
+                                    </div>
+                                );
+                            }
+                            return (
+                                <AccordionItem value={`page-${page.id}`} key={page.id}>
+                                    <AccordionTrigger className="hover:no-underline p-0">
+                                        <ContentRow item={page} onAnalyze={onAnalyze} />
+                                    </AccordionTrigger>
+                                    <AccordionContent className="pl-4">
+                                        {children.map(child => (
+                                            <ContentRow key={child.id} item={child} onAnalyze={onAnalyze} isChild={true} />
+                                        ))}
+                                    </AccordionContent>
+                                </AccordionItem>
+                            );
+                        })}
+                    </Accordion>
+                )}
+            </CardContent>
+        </Card>
+      )}
+
+      {typeFilter !== 'page' && (
+        <Card>
+            <CardHeader><CardTitle>Entradas (Posts)</CardTitle></CardHeader>
+            <CardContent>
+                <ScrollArea className="max-h-96">
+                    <div className="space-y-1">
+                        {posts.length === 0 ? <NoResults type="post"/> : posts.map(post => <div key={post.id} className="border-b"><ContentRow item={post} onAnalyze={onAnalyze} /></div>)}
+                    </div>
+                </ScrollArea>
+            </CardContent>
+        </Card>
+      )}
+
     </div>
   );
 }
