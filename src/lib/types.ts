@@ -195,6 +195,16 @@ export type BlogStats = {
   };
 };
 
+export type ContentStats = {
+  totalPosts: number;
+  totalPages: number;
+  totalContent: number;
+  status: {
+      publish: number;
+      draft: number;
+  };
+};
+
 export interface UserNotification {
   id: string;
   recipientUid: string;

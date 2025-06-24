@@ -5,13 +5,16 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { SearchCheck, Loader2, BrainCircuit, ArrowLeft } from "lucide-react";
+import { SearchCheck, Loader2, BrainCircuit, ArrowLeft, Package, Newspaper, FileText, FileCheck2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { SeoPageListTable } from '@/components/features/seo/page-list-table';
 import { AnalysisView, type AnalysisResult } from '@/components/features/seo/analysis-view';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import type { ContentStats } from '@/lib/types';
+
 
 export interface ContentItem {
   id: number;
@@ -24,6 +27,9 @@ export interface ContentItem {
 export default function SeoOptimizerPage() {
   const [contentList, setContentList] = useState<ContentItem[]>([]);
   const [isLoadingList, setIsLoadingList] = useState(true);
+
+  const [stats, setStats] = useState<ContentStats | null>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
 
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
@@ -38,62 +44,80 @@ export default function SeoOptimizerPage() {
   
   const { toast } = useToast();
   
-  const fetchContentList = useCallback(async () => {
+  const fetchContentData = useCallback(async () => {
     setIsLoadingList(true);
+    setIsLoadingStats(true);
     setError(null);
     const user = auth.currentUser;
     if (!user) {
         setError("Debes iniciar sesión para usar esta función.");
         setIsLoadingList(false);
+        setIsLoadingStats(false);
         return;
     };
     try {
         const token = await user.getIdToken();
         
-        const params = new URLSearchParams({
-            type: typeFilter,
-            status: statusFilter,
-        });
-        
-        const response = await fetch(`/api/wordpress/content-list?${params.toString()}`, {
+        // Fetch List
+        const listParams = new URLSearchParams({ type: typeFilter, status: statusFilter });
+        const listPromise = fetch(`/api/wordpress/content-list?${listParams.toString()}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
+        
+        // Fetch Stats
+        const statsPromise = fetch('/api/wordpress/content-stats', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        const [listResponse, statsResponse] = await Promise.all([listPromise, statsPromise]);
 
-        if (response.ok) {
-            const data = await response.json();
+        // Process List Response
+        if (listResponse.ok) {
+            const data = await listResponse.json();
             setContentList(data.content);
         } else {
-            const errorData = await response.json();
+            const errorData = await listResponse.json();
             setError(errorData.error || 'No se pudo cargar el contenido del sitio.');
-            setContentList([]); // Clear list on error
+            setContentList([]);
         }
+        
+        // Process Stats Response
+        if (statsResponse.ok) {
+            setStats(await statsResponse.json());
+        } else {
+             setStats(null);
+        }
+
     } catch (err: any) {
         setError(err.message);
-        setContentList([]); // Clear list on error
+        setContentList([]);
+        setStats(null);
     } finally {
         setIsLoadingList(false);
+        setIsLoadingStats(false);
     }
   }, [typeFilter, statusFilter]);
 
   useEffect(() => {
     const handleAuth = (user: import('firebase/auth').User | null) => {
         if (user) {
-            fetchContentList();
+            fetchContentData();
         } else {
             setIsLoadingList(false);
+            setIsLoadingStats(false);
             setError("Debes iniciar sesión para usar esta función.");
         }
     };
     
     const unsubscribe = onAuthStateChanged(auth, handleAuth);
     // Listen for connection changes and refetch
-    window.addEventListener('connections-updated', fetchContentList);
+    window.addEventListener('connections-updated', fetchContentData);
     
     return () => {
         unsubscribe();
-        window.removeEventListener('connections-updated', fetchContentList);
+        window.removeEventListener('connections-updated', fetchContentData);
     }
-  }, [fetchContentList]);
+  }, [fetchContentData]);
 
 
   const handleAnalyze = async (page: ContentItem) => {
@@ -155,8 +179,31 @@ export default function SeoOptimizerPage() {
   const handleBackToList = () => {
       setSelectedPage(null);
       setAnalysis(null);
-      setError(null); // Clear analysis-specific errors
-      fetchContentList(); // Re-fetch the list
+      setError(null);
+      fetchContentData();
+  }
+  
+  const renderStats = () => {
+      return (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Contenido Total</CardTitle><Package className="h-4 w-4 text-muted-foreground" /></CardHeader>
+                  <CardContent>{isLoadingStats ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{stats?.totalContent ?? 'N/A'}</div>}</CardContent>
+              </Card>
+              <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Entradas (Posts)</CardTitle><Newspaper className="h-4 w-4 text-muted-foreground" /></CardHeader>
+                  <CardContent>{isLoadingStats ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{stats?.totalPosts ?? 'N/A'}</div>}</CardContent>
+              </Card>
+               <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Páginas</CardTitle><FileText className="h-4 w-4 text-muted-foreground" /></CardHeader>
+                  <CardContent>{isLoadingStats ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{stats?.totalPages ?? 'N/A'}</div>}</CardContent>
+              </Card>
+              <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Publicado / Borrador</CardTitle><FileCheck2 className="h-4 w-4 text-muted-foreground" /></CardHeader>
+                  <CardContent>{isLoadingStats ? <Skeleton className="h-8 w-24" /> : <div className="text-2xl font-bold">{`${stats?.status.publish ?? 'N/A'} / ${stats?.status.draft ?? 'N/A'}`}</div>}</CardContent>
+              </Card>
+          </div>
+      )
   }
 
   const renderContent = () => {
@@ -249,14 +296,23 @@ export default function SeoOptimizerPage() {
           <div className="flex items-center space-x-3">
             <SearchCheck className="h-8 w-8 text-primary" />
             <div>
-              <CardTitle>Optimizador SEO</CardTitle>
-              <CardDescription>Selecciona una página o entrada de tu sitio para obtener un informe técnico y sugerencias de mejora con IA.</CardDescription>
+              <CardTitle>
+                {selectedPage ? `Análisis de: ${selectedPage.title}` : 'Optimizador SEO'}
+              </CardTitle>
+              <CardDescription>
+                 {selectedPage
+                  ? 'Revisa el informe técnico y las sugerencias de la IA para mejorar esta página.'
+                  : 'Selecciona una página o entrada de tu sitio para obtener un informe técnico y sugerencias de mejora con IA.'}
+              </CardDescription>
             </div>
           </div>
         </CardHeader>
       </Card>
+
+      {!selectedPage && renderStats()}
       
       {renderContent()}
     </div>
   );
 }
+
