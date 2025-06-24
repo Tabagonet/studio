@@ -8,6 +8,8 @@ import {
   getExpandedRowModel,
   getFilteredRowModel,
   useReactTable,
+  type ColumnDef,
+  type ColumnFiltersState,
   type ExpandedState,
 } from "@tanstack/react-table";
 import {
@@ -22,10 +24,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { SearchCheck, ChevronRight } from "lucide-react";
-import type { ContentItem } from "@/app/(app)/seo-optimizer/page";
+import type { ContentItem as RawContentItem } from "@/app/(app)/seo-optimizer/page";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
+// Define a new type for the table that includes the optional subRows
+type ContentItem = RawContentItem & {
+    subRows?: ContentItem[];
+};
 
 interface SeoPageListTableProps {
   data: ContentItem[];
@@ -44,76 +50,72 @@ const getStatusText = (status: ContentItem['status']) => {
 };
 
 export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
-  const [titleFilter, setTitleFilter] = React.useState('');
-  const [typeFilter, setTypeFilter] = React.useState('all');
-  const [statusFilter, setStatusFilter] = React.useState('all');
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
 
   const tableData = React.useMemo(() => {
-    const filteredData = data.filter(item => {
-      const typeMatch = typeFilter === 'all' || item.type.toLowerCase() === typeFilter;
-      const statusMatch = statusFilter === 'all' || item.status === statusFilter;
-      const titleMatch = !titleFilter || item.title.toLowerCase().includes(titleFilter.toLowerCase());
-      return typeMatch && statusMatch && titleMatch;
-    });
+    const pages = data.filter(item => item.type === 'Page');
+    const posts = data.filter(item => item.type === 'Post');
 
-    const posts = filteredData.filter((item) => item.type === 'Post');
-    const pages = filteredData.filter((item) => item.type === 'Page');
+    const pageItems: ContentItem[] = pages.map(p => ({ ...p, subRows: [] }));
+    const pageMap = new Map(pageItems.map(p => [p.id, p]));
     
-    const pageMap = new Map(pages.map(p => [p.id, { ...p, subRows: [] as ContentItem[] }]));
     const rootPages: ContentItem[] = [];
 
-    pages.forEach((page) => {
+    pageItems.forEach(page => {
       if (page.parent && pageMap.has(page.parent)) {
-        pageMap.get(page.parent)?.subRows.push(page);
+        pageMap.get(page.parent)?.subRows?.push(page);
       } else {
-        rootPages.push(pageMap.get(page.id)!);
+        rootPages.push(page);
       }
     });
+    
+    const sortAlphabetically = (a: ContentItem, b: ContentItem) => a.title.localeCompare(b.title);
+    rootPages.sort(sortAlphabetically);
+    posts.sort(sortAlphabetically);
 
     return [...rootPages, ...posts];
-  }, [data, titleFilter, typeFilter, statusFilter]);
+  }, [data]);
 
-  const columns = React.useMemo(
+
+  const columns = React.useMemo<ColumnDef<ContentItem>[]>(
     () => [
       {
         accessorKey: 'title',
         header: 'Título',
-        cell: ({ row, getValue }: { row: any, getValue: any }) => {
-          const isPage = row.original.type === 'Page';
-          return (
-            <div style={{ paddingLeft: `${row.depth * 1.5}rem` }} className="flex items-center gap-2">
-              {row.getCanExpand() ? (
-                <button
-                  {...{
-                    onClick: row.getToggleExpandedHandler(),
-                    style: { cursor: 'pointer' },
-                  }}
-                >
-                  <ChevronRight className={cn("h-4 w-4 transition-transform", row.getIsExpanded() && 'rotate-90')} />
-                </button>
-              ) : (
-                isPage && <div className="w-4 h-4" /> // Placeholder for alignment
-              )}
-              <span className="font-medium">{getValue()}</span>
+        cell: ({ row, getValue }) => (
+            <div
+                style={{ paddingLeft: `${row.depth * 1.5}rem` }}
+                className="flex items-center gap-2"
+            >
+                {row.getCanExpand() ? (
+                    <button
+                        onClick={row.getToggleExpandedHandler()}
+                        className="cursor-pointer p-1 -ml-1"
+                    >
+                        <ChevronRight className={cn("h-4 w-4 transition-transform", row.getIsExpanded() && 'rotate-90')} />
+                    </button>
+                ) : (
+                   row.depth > 0 && <span className="w-4 h-4 mr-2 text-muted-foreground">↳</span>
+                )}
+                <span className="font-medium">{getValue<string>()}</span>
             </div>
-          );
-        },
+        ),
       },
       {
         accessorKey: 'type',
         header: 'Tipo',
-        cell: ({ getValue }: { getValue: any }) => <Badge variant={getValue() === 'Post' ? "secondary" : "outline"}>{getValue()}</Badge>
+        cell: ({ getValue }) => <Badge variant={getValue<string>() === 'Post' ? "secondary" : "outline"}>{getValue<string>()}</Badge>
       },
       {
         accessorKey: 'status',
         header: 'Estado',
-        cell: ({ getValue }: { getValue: any }) => <Badge variant={getValue() === 'publish' ? 'default' : 'secondary'}>{getStatusText(getValue())}</Badge>
+        cell: ({ getValue }) => <Badge variant={getValue<string>() === 'publish' ? 'default' : 'secondary'}>{getStatusText(getValue<ContentItem['status']>())}</Badge>
       },
       {
         id: 'actions',
         header: () => <div className="text-right">Acción</div>,
-        cell: ({ row }: { row: any }) => (
+        cell: ({ row }) => (
           <div className="text-right">
             <Button onClick={() => onAnalyze(row.original)} size="sm">
               <SearchCheck className="mr-0 md:mr-2 h-4 w-4" />
@@ -131,8 +133,10 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
     columns,
     state: {
       expanded,
+      columnFilters,
     },
     onExpandedChange: setExpanded,
+    onColumnFiltersChange: setColumnFilters,
     getSubRows: (row) => row.subRows,
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
@@ -144,21 +148,29 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
       <div className="flex flex-col sm:flex-row gap-2 py-4">
         <Input
           placeholder="Filtrar por título..."
-          value={titleFilter}
-          onChange={(event) => setTitleFilter(event.target.value)}
+          value={(table.getColumn('title')?.getFilterValue() as string) ?? ''}
+          onChange={(event) =>
+            table.getColumn('title')?.setFilterValue(event.target.value)
+          }
           className="max-w-sm"
         />
-        <Select value={typeFilter} onValueChange={setTypeFilter}>
+        <Select
+            value={(table.getColumn('type')?.getFilterValue() as string) ?? 'all'}
+            onValueChange={(value) => table.getColumn('type')?.setFilterValue(value === 'all' ? null : value)}
+        >
             <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Filtrar por tipo" />
             </SelectTrigger>
             <SelectContent>
                 <SelectItem value="all">Todos los Tipos</SelectItem>
-                <SelectItem value="post">Entradas (Posts)</SelectItem>
-                <SelectItem value="page">Páginas</SelectItem>
+                <SelectItem value="Post">Entradas (Posts)</SelectItem>
+                <SelectItem value="Page">Páginas</SelectItem>
             </SelectContent>
         </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select
+            value={(table.getColumn('status')?.getFilterValue() as string) ?? 'all'}
+            onValueChange={(value) => table.getColumn('status')?.setFilterValue(value === 'all' ? null : value)}
+        >
             <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Filtrar por estado" />
             </SelectTrigger>
@@ -188,7 +200,7 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                <TableRow key={row.id}>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -199,7 +211,7 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No se encontraron resultados.
+                  No se encontraron resultados para los filtros seleccionados.
                 </TableCell>
               </TableRow>
             )}
