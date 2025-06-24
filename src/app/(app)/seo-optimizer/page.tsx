@@ -22,6 +22,7 @@ export interface ContentItem {
   type: 'Post' | 'Page';
   link: string;
   status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
+  parent: number | null;
 }
 
 export default function SeoOptimizerPage() {
@@ -135,13 +136,19 @@ export default function SeoOptimizerPage() {
 
     try {
       const token = await user.getIdToken();
+      
+      let urlToAnalyze = page.link;
+      if (!urlToAnalyze.startsWith('http')) {
+        urlToAnalyze = `https://${urlToAnalyze}`;
+      }
+
       const response = await fetch('/api/seo/analyze-url', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ url: page.link })
+        body: JSON.stringify({ url: urlToAnalyze })
       });
 
       const result = await response.json();
@@ -164,7 +171,7 @@ export default function SeoOptimizerPage() {
           toast({ title: "Introduce una URL para analizar", variant: "destructive" });
           return;
       }
-      // Add https if missing
+      
       const fullUrl = manualUrl.startsWith('http') ? manualUrl : `https://${manualUrl}`;
       const dummyItem: ContentItem = {
           id: Date.now(),
@@ -172,6 +179,7 @@ export default function SeoOptimizerPage() {
           type: 'Page',
           link: fullUrl,
           status: 'publish',
+          parent: null
       };
       handleAnalyze(dummyItem);
   };
@@ -315,4 +323,3 @@ export default function SeoOptimizerPage() {
     </div>
   );
 }
-

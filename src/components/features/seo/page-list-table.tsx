@@ -27,7 +27,12 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowUpDown, SearchCheck } from "lucide-react";
 import type { ContentItem } from "@/app/(app)/seo-optimizer/page";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
+interface TreeItem {
+  item: ContentItem;
+  depth: number;
+}
 
 interface SeoPageListTableProps {
   data: ContentItem[];
@@ -49,9 +54,40 @@ export function SeoPageListTable({
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
 
-  const columns: ColumnDef<ContentItem>[] = [
+  const contentTree = React.useMemo(() => {
+    const posts = data.filter(item => item.type === 'Post').map(item => ({ item, depth: 0 }));
+    const pages = data.filter(item => item.type === 'Page');
+    const tree: TreeItem[] = [];
+
+    const buildTree = (parentId: number | null, depth: number) => {
+        pages
+            .filter(p => p.parent === parentId)
+            .sort((a,b) => a.title.localeCompare(b.title))
+            .forEach(page => {
+                tree.push({ item: page, depth });
+                buildTree(page.id, depth + 1);
+            });
+    };
+    
+    // Start with top-level pages (parent is 0 in WordPress)
+    buildTree(0, 0); 
+    
+    // It's possible some top-level pages have parent=null, handle that case too.
+    const topLevelIds = new Set(tree.map(t => t.item.id));
+    pages.forEach(p => {
+        if (!p.parent && !topLevelIds.has(p.id)) {
+            tree.push({ item: p, depth: 0 });
+            buildTree(p.id, 1);
+        }
+    });
+
+    return [...posts, ...tree];
+  }, [data]);
+
+  const columns: ColumnDef<TreeItem>[] = [
     {
-      accessorKey: "title",
+      accessorFn: row => row.item.title,
+      id: "title",
       header: ({ column }) => (
         <Button
           variant="ghost"
@@ -61,21 +97,29 @@ export function SeoPageListTable({
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       ),
-      cell: ({ row }) => (
-        <span className="font-medium">{row.original.title}</span>
-      ),
+      cell: ({ row }) => {
+        const { item, depth } = row.original;
+        return (
+            <span style={{ paddingLeft: `${depth * 1.5}rem` }} className="font-medium">
+              {depth > 0 && <span className="text-muted-foreground mr-1">↳</span>}
+              {item.title}
+            </span>
+        );
+      },
     },
     {
-      accessorKey: "type",
+      accessorFn: row => row.item.type,
+      id: 'type',
       header: "Tipo",
       cell: ({ row }) => (
-        <Badge variant={row.original.type === 'Post' ? "secondary" : "outline"}>
-          {row.original.type}
+        <Badge variant={row.original.item.type === 'Post' ? "secondary" : "outline"}>
+          {row.original.item.type}
         </Badge>
       ),
     },
     {
-      accessorKey: "status",
+      accessorFn: row => row.item.status,
+      id: 'status',
       header: ({ column }) => (
          <Button
           variant="ghost"
@@ -86,7 +130,7 @@ export function SeoPageListTable({
         </Button>
       ),
       cell: ({ row }) => {
-        const status = row.original.status;
+        const status = row.original.item.status;
         const statusText: { [key: string]: string } = {
             publish: 'Publicado',
             draft: 'Borrador',
@@ -100,7 +144,7 @@ export function SeoPageListTable({
     {
       id: "actions",
       cell: ({ row }) => (
-        <Button onClick={() => onAnalyze(row.original)} size="sm">
+        <Button onClick={() => onAnalyze(row.original.item)} size="sm">
           <SearchCheck className="mr-2 h-4 w-4" />
           Analizar
         </Button>
@@ -109,7 +153,7 @@ export function SeoPageListTable({
   ];
 
   const table = useReactTable({
-    data,
+    data: contentTree,
     columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
@@ -179,7 +223,7 @@ export function SeoPageListTable({
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
-                  key={row.original.id}
+                  key={row.original.item.id}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
