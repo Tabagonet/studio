@@ -1,6 +1,6 @@
 
 
-import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList } from 'lucide-react';
+import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList, SearchCheck } from 'lucide-react';
 import type { NavItem, ProductType, ProductData, BlogPostData, NavGroup } from '@/lib/types';
 
 export const APP_NAME = "AutoPress AI";
@@ -27,6 +27,12 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
        { title: 'Creador de Entradas', href: '/blog-creator', icon: Newspaper },
        { title: 'Gestión de Entradas', href: '/blog', icon: ClipboardList },
+    ]
+  },
+  {
+    title: 'Herramientas SEO',
+    items: [
+       { title: 'Optimizador SEO', href: '/seo-optimizer', icon: SearchCheck },
     ]
   },
    {
@@ -70,7 +76,7 @@ export const INITIAL_PRODUCT_DATA: ProductData = {
   keywords: "",
   shortDescription: "",
   longDescription: "",
-  attributes: [{ name: "", value: "", forVariations: false, visible: true }],
+  attributes: [{ name: '', value: '', forVariations: false, visible: true }],
   photos: [],
   variations: [],
   language: 'Spanish',
