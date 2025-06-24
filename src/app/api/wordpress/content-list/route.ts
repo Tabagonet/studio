@@ -10,6 +10,8 @@ export interface ContentItem {
   link: string;
   status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
   parent: number | null;
+  lang: string;
+  translations: Record<string, number>;
 }
 
 export async function GET(req: NextRequest) {
@@ -29,7 +31,7 @@ export async function GET(req: NextRequest) {
     const params = {
       per_page: 100, // Fetch up to 100 items per type
       status: 'publish,draft,pending,private,future', // Fetch all statuses
-      _fields: 'id,title.rendered,link,type,status,parent', // Add parent field
+      _fields: 'id,title.rendered,link,type,status,parent,lang,translations', // Add lang and translations
       orderby: 'title', // Order by title alphabetically
       order: 'asc',
     };
@@ -39,23 +41,19 @@ export async function GET(req: NextRequest) {
       wpApi.get('/pages', { params })
     ]);
    
-    const posts: ContentItem[] = postsResponse.data.map((post: any) => ({
-        id: post.id,
-        title: post.title.rendered,
-        type: 'Post',
-        link: post.link,
-        status: post.status,
-        parent: post.parent || null,
-    }));
+    const mapContent = (item: any): ContentItem => ({
+        id: item.id,
+        title: item.title.rendered,
+        type: item.type === 'post' ? 'Post' : 'Page',
+        link: item.link,
+        status: item.status,
+        parent: item.parent || null,
+        lang: item.lang || 'default',
+        translations: item.translations || {},
+    });
 
-    const pages: ContentItem[] = pagesResponse.data.map((page: any) => ({
-        id: page.id,
-        title: page.title.rendered,
-        type: 'Page',
-        link: page.link,
-        status: page.status,
-        parent: page.parent || null,
-    }));
+    const posts: ContentItem[] = postsResponse.data.map(mapContent);
+    const pages: ContentItem[] = pagesResponse.data.map(mapContent);
     
     const combinedContent = [...posts, ...pages]; 
         

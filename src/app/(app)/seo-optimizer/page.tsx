@@ -24,6 +24,8 @@ export interface ContentItem {
   status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
   parent: number | null;
   subRows?: ContentItem[]; // For tanstack-table hierarchy
+  lang: string;
+  translations: Record<string, number>;
 }
 
 export default function SeoOptimizerPage() {
@@ -180,7 +182,9 @@ export default function SeoOptimizerPage() {
           type: 'Page',
           link: fullUrl,
           status: 'publish',
-          parent: null
+          parent: null,
+          lang: 'default',
+          translations: {},
       };
       handleAnalyze(dummyItem);
   };

@@ -53,6 +53,11 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
 
+  const languages = React.useMemo(() => {
+    const langSet = new Set(data.map(item => item.lang));
+    return Array.from(langSet).sort();
+  }, [data]);
+
   const tableData = React.useMemo(() => {
     const pages = data.filter(item => item.type === 'Page');
     const posts = data.filter(item => item.type === 'Post');
@@ -106,6 +111,11 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
         accessorKey: 'type',
         header: 'Tipo',
         cell: ({ getValue }) => <Badge variant={getValue<string>() === 'Post' ? "secondary" : "outline"}>{getValue<string>()}</Badge>
+      },
+       {
+        accessorKey: 'lang',
+        header: 'Idioma',
+        cell: ({ getValue }) => <Badge variant="outline">{getValue<string>().toUpperCase()}</Badge>
       },
       {
         accessorKey: 'status',
@@ -180,6 +190,20 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
                 <SelectItem value="draft">Borrador</SelectItem>
                 <SelectItem value="pending">Pendiente</SelectItem>
                 <SelectItem value="private">Privado</SelectItem>
+            </SelectContent>
+        </Select>
+        <Select
+            value={(table.getColumn('lang')?.getFilterValue() as string) ?? 'all'}
+            onValueChange={(value) => table.getColumn('lang')?.setFilterValue(value === 'all' ? null : value)}
+        >
+            <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Filtrar por idioma" />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="all">Todos los Idiomas</SelectItem>
+                {languages.map(lang => (
+                    <SelectItem key={lang} value={lang}>{lang.toUpperCase()}</SelectItem>
+                ))}
             </SelectContent>
         </Select>
       </div>
