@@ -1,16 +1,17 @@
 
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SearchCheck, Loader2, BrainCircuit, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { auth } from "@/lib/firebase";
+import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { SeoPageListTable } from '@/components/features/seo/page-list-table';
 import { AnalysisView, type AnalysisResult } from '@/components/features/seo/analysis-view';
-
+import Link from 'next/link';
+import { Input } from '@/components/ui/input';
 
 export interface ContentItem {
   id: number;
@@ -28,43 +29,59 @@ export default function SeoOptimizerPage() {
   const [selectedPage, setSelectedPage] = useState<ContentItem | null>(null);
   const [error, setError] = useState<string | null>(null);
   
+  const [manualUrl, setManualUrl] = useState('');
+  
   const { toast } = useToast();
   
+  const fetchContentList = useCallback(async () => {
+    setIsLoadingList(true);
+    setError(null);
+    const user = auth.currentUser;
+    if (!user) {
+        setError("Debes iniciar sesión para usar esta función.");
+        setIsLoadingList(false);
+        return;
+    };
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/wordpress/content-list', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+            const data = await response.json();
+            setContentList(data.content);
+        } else {
+            const errorData = await response.json();
+            setError(errorData.error || 'No se pudo cargar el contenido del sitio.');
+        }
+    } catch (err: any) {
+        setError(err.message);
+    } finally {
+        setIsLoadingList(false);
+    }
+  }, []);
+
   useEffect(() => {
-    const fetchContentList = async () => {
-        const user = auth.currentUser;
-        if (!user) {
+    const handleAuth = (user: import('firebase/auth').User | null) => {
+        if (user) {
+            fetchContentList();
+        } else {
             setIsLoadingList(false);
-            return;
-        };
-        try {
-            const token = await user.getIdToken();
-            const response = await fetch('/api/wordpress/content-list', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (response.ok) {
-                const data = await response.json();
-                setContentList(data.content);
-            } else {
-                const errorData = await response.json();
-                setError(errorData.error || 'No se pudo cargar el contenido del sitio.');
-            }
-        } catch (err: any) {
-            setError(err.message);
-        } finally {
-            setIsLoadingList(false);
+            setError("Debes iniciar sesión para usar esta función.");
         }
     };
-    fetchContentList();
-  }, []);
+    
+    const unsubscribe = onAuthStateChanged(auth, handleAuth);
+    window.addEventListener('connections-updated', fetchContentList);
+    
+    return () => {
+        unsubscribe();
+        window.removeEventListener('connections-updated', fetchContentList);
+    }
+  }, [fetchContentList]);
 
 
   const handleAnalyze = async (page: ContentItem) => {
-    let fullUrl = page.link.trim();
-    if (!/^https?:\/\//i.test(fullUrl)) {
-        fullUrl = 'https://' + fullUrl;
-    }
-
     setIsLoadingAnalysis(true);
     setError(null);
     setAnalysis(null);
@@ -85,7 +102,7 @@ export default function SeoOptimizerPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ url: fullUrl })
+        body: JSON.stringify({ url: page.link })
       });
 
       const result = await response.json();
@@ -102,11 +119,26 @@ export default function SeoOptimizerPage() {
       setIsLoadingAnalysis(false);
     }
   };
+  
+  const handleManualAnalyze = () => {
+      if (!manualUrl) {
+          toast({ title: "Introduce una URL para analizar", variant: "destructive" });
+          return;
+      }
+      const dummyItem: ContentItem = {
+          id: Date.now(),
+          title: manualUrl,
+          type: 'Page',
+          link: manualUrl
+      };
+      handleAnalyze(dummyItem);
+  };
 
   const handleBackToList = () => {
       setSelectedPage(null);
       setAnalysis(null);
-      setError(null);
+      setError(null); // Clear analysis-specific errors
+      fetchContentList(); // Re-fetch the list
   }
 
   const renderContent = () => {
@@ -124,7 +156,7 @@ export default function SeoOptimizerPage() {
             <div className="space-y-4">
                 <Button variant="outline" onClick={handleBackToList}>
                     <ArrowLeft className="mr-2 h-4 w-4" />
-                    Volver al listado
+                    Volver
                 </Button>
                 {isLoadingAnalysis && (
                      <div className="flex flex-col items-center justify-center text-center p-12 border border-dashed rounded-lg">
@@ -133,20 +165,54 @@ export default function SeoOptimizerPage() {
                         <p className="text-sm text-muted-foreground">Estamos leyendo el contenido y consultando a la IA.</p>
                     </div>
                 )}
+                {analysis && !isLoadingAnalysis && (
+                    <AnalysisView analysis={analysis} />
+                )}
                 {error && !isLoadingAnalysis && (
                     <Alert variant="destructive">
                       <AlertTitle>Error en el Análisis</AlertTitle>
                       <AlertDescription>{error}</AlertDescription>
                     </Alert>
                 )}
-                {analysis && !isLoadingAnalysis && (
-                    <AnalysisView analysis={analysis} />
-                )}
             </div>
         )
     }
 
-    return <SeoPageListTable data={contentList} onAnalyze={handleAnalyze} />;
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Analizar Contenido</CardTitle>
+          <CardDescription>
+            Selecciona una página o entrada de tu sitio para analizar, o introduce una URL manualmente.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+            {error && !isLoadingList && (
+                 <Alert variant="destructive" className="mb-4">
+                    <AlertTitle>No se pudo cargar la lista de contenido</AlertTitle>
+                    <AlertDescription>
+                        {error} Revisa que la API de WordPress esté configurada en <Link href="/settings/connections" className="underline font-semibold">Ajustes</Link>.
+                    </AlertDescription>
+                </Alert>
+            )}
+             <div className="flex flex-col sm:flex-row gap-2 items-center mb-6">
+                <Input 
+                    type="url"
+                    placeholder="O introduce cualquier URL pública..."
+                    value={manualUrl}
+                    onChange={(e) => setManualUrl(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleManualAnalyze()}
+                    className="flex-grow"
+                />
+                <Button onClick={handleManualAnalyze} disabled={isLoadingAnalysis} className="w-full sm:w-auto">
+                    {isLoadingAnalysis ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SearchCheck className="mr-2 h-4 w-4" />}
+                    Analizar URL
+                </Button>
+            </div>
+            {!error && <SeoPageListTable data={contentList} onAnalyze={handleAnalyze} />}
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
