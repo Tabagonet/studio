@@ -25,14 +25,13 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        // This query is more efficient and less likely to fail than fetching all user documents.
-        // It may require a composite index, but Firestore will provide a link to create it in the error log if needed.
-        const historySnapshot = await adminDb.collection('seo_analyses')
+        // More robust query: Fetch all documents for the user.
+        const userAnalysesSnapshot = await adminDb.collection('seo_analyses')
             .where('userId', '==', uid)
-            .where('url', '==', url)
             .get();
         
-        let historyForUrl = historySnapshot.docs.map(doc => {
+        // Filter in-memory by the requested URL.
+        const allHistoryForUser = userAnalysesSnapshot.docs.map(doc => {
             const data = doc.data();
             if (!data || !data.createdAt || typeof data.createdAt.toDate !== 'function') {
                 return null;
@@ -42,9 +41,11 @@ export async function GET(req: NextRequest) {
                 ...data,
                 createdAt: data.createdAt.toDate().toISOString(),
             };
-        }).filter(Boolean as any as (value: any) => value is NonNullable<any>>);
+        }).filter(Boolean as any as (value: any) => value is NonNullable<any>);
 
-        // Sort in memory after fetching
+        const historyForUrl = allHistoryForUser.filter(record => record.url === url);
+        
+        // Sort by date descending
         historyForUrl.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         
         // Limit results after sorting
@@ -54,10 +55,6 @@ export async function GET(req: NextRequest) {
 
     } catch (error: any) {
         console.error("Error fetching SEO analysis history:", error);
-        if ((error as any).code === 'FAILED_PRECONDITION') {
-             console.error("Firestore query requires a composite index. Please create it using the link in the Firebase console logs.");
-             return NextResponse.json({ error: 'Error de base de datos: Se requiere una configuración de índice. Por favor, contacta al soporte.', details: (error as any).details }, { status: 500 });
-        }
         return NextResponse.json({ error: 'Fallo al obtener el historial de análisis', details: error.message }, { status: 500 });
     }
 }
