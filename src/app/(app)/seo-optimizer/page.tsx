@@ -67,12 +67,15 @@ export default function SeoOptimizerPage() {
         const listPromise = fetch(`/api/wordpress/content-list`, { headers: { 'Authorization': `Bearer ${token}` } });
         const statsPromise = fetch('/api/wordpress/content-stats', { headers: { 'Authorization': `Bearer ${token}` } });
         const configPromise = fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` } });
+        const scoresPromise = fetch('/api/seo/latest-scores', { headers: { 'Authorization': `Bearer ${token}` } });
         
-        const [listResponse, statsResponse, configResponse] = await Promise.all([listPromise, statsPromise, configPromise]);
+        const [listResponse, statsResponse, configResponse, scoresResponse] = await Promise.all([listPromise, statsPromise, configPromise, scoresPromise]);
 
+        let localContentList: ContentItem[] = [];
         if (listResponse.ok) {
             const listData = await listResponse.json();
-            setContentList(listData.content);
+            localContentList = listData.content;
+            setContentList(localContentList);
         } else {
             const errorData = await listResponse.json();
             setError(errorData.error || 'No se pudo cargar el contenido del sitio.');
@@ -82,10 +85,39 @@ export default function SeoOptimizerPage() {
         if (statsResponse.ok) setStats(await statsResponse.json()); else setStats(null);
         if (configResponse.ok) setActiveConnectionUrl((await configResponse.json()).activeStoreUrl || '');
 
+        if (scoresResponse.ok && localContentList.length > 0) {
+            const scoresData = await scoresResponse.json();
+            const scoresByUrl: Record<string, number> = scoresData.scores || {};
+            const scoresById: Record<number, number> = {};
+
+            const normalizeUrl = (url: string) => {
+                try {
+                    const parsed = new URL(url);
+                    return `${parsed.protocol}//${parsed.hostname}${parsed.pathname.replace(/\/$/, '')}`;
+                } catch { return url; }
+            };
+            
+            const normalizedScoresMap = new Map<string, number>();
+            for (const [url, score] of Object.entries(scoresByUrl)) {
+                normalizedScoresMap.set(normalizeUrl(url), score);
+            }
+
+            localContentList.forEach(item => {
+                const normalizedItemLink = normalizeUrl(item.link);
+                if (normalizedScoresMap.has(normalizedItemLink)) {
+                    scoresById[item.id] = normalizedScoresMap.get(normalizedItemLink)!;
+                }
+            });
+            setScores(scoresById);
+        } else {
+            setScores({});
+        }
+
     } catch (err: any) {
         setError(err.message);
         setContentList([]);
         setStats(null);
+        setScores({});
     } finally {
         setIsLoading(false);
         setIsLoadingStats(false);
@@ -148,7 +180,6 @@ export default function SeoOptimizerPage() {
         setAnalysisHistory(historyData.history);
         setScores(prev => ({ ...prev, [page.id]: historyData.history[0].score }));
       } else {
-        // If no history, perform a new analysis automatically
         await handleAnalyze(page);
       }
     } catch (err: any) {
@@ -201,7 +232,6 @@ export default function SeoOptimizerPage() {
         setAnalysis(result);
         setScores(prev => ({...prev, [page.id]: result.aiAnalysis.score}));
 
-        // Fetch history again to include the new record we just created.
         const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(urlToAnalyze)}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
