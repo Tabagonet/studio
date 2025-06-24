@@ -29,7 +29,7 @@ import type { ContentItem } from "@/app/(app)/seo-optimizer/page";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface TreeItem {
-  item: ContentItem;
+  item: ContentItem & { children?: TreeItem[] }; // Allow children for tree building
   depth: number;
 }
 
@@ -54,34 +54,45 @@ export function SeoPageListTable({
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
 
   const contentTree = React.useMemo(() => {
+    // 1. Separate Posts (which have no hierarchy)
     const posts = data.filter(item => item.type === 'Post').map(item => ({ item, depth: 0 }));
+    
+    // 2. Process Pages to build a tree
     const pages = data.filter(item => item.type === 'Page');
     
-    const pageMap = new Map<number, ContentItem[]>();
-    pages.forEach(page => {
-        const parentId = page.parent || 0; // Treat null parent as root (0)
-        if (!pageMap.has(parentId)) {
-            pageMap.set(parentId, []);
+    // Create a map for easy lookup and to attach children
+    const pageMap = new Map(pages.map(p => [p.id, { ...p, children: [] as (ContentItem & { children: any[] })[] }]));
+    
+    const rootPages: (ContentItem & { children: (ContentItem & { children: any[] })[] })[] = [];
+
+    // Populate the tree structure
+    pageMap.forEach(page => {
+      if (page.parent && pageMap.has(page.parent)) {
+        const parent = pageMap.get(page.parent);
+        if (parent) {
+          parent.children.push(page);
         }
-        pageMap.get(parentId)!.push(page);
+      } else {
+        rootPages.push(page);
+      }
     });
 
-    // Sort children alphabetically within the map
-    pageMap.forEach(children => children.sort((a, b) => a.title.localeCompare(b.title)));
-
+    // 3. Flatten the tree into a list with depth for rendering
     const tree: TreeItem[] = [];
-    const buildTreeRecursive = (parentId: number, depth: number) => {
-        const children = pageMap.get(parentId);
-        if (children) {
-            children.forEach(child => {
-                tree.push({ item: child, depth });
-                buildTreeRecursive(child.id, depth + 1);
-            });
+    const flattenTree = (nodes: (ContentItem & { children: any[] })[], depth: number) => {
+      nodes.sort((a, b) => a.title.localeCompare(b.title));
+      
+      for (const node of nodes) {
+        tree.push({ item: node, depth });
+        if (node.children && node.children.length > 0) {
+          flattenTree(node.children, depth + 1);
         }
+      }
     };
 
-    buildTreeRecursive(0, 0); // Start building from root pages
+    flattenTree(rootPages, 0); // Start with root pages at depth 0
 
+    // 4. Combine posts and the flattened page tree
     return [...posts, ...tree];
   }, [data]);
 
@@ -101,7 +112,7 @@ export function SeoPageListTable({
       cell: ({ row }) => {
         const { item, depth } = row.original;
         return (
-            <span style={{ paddingLeft: `${depth * 1.5}rem` }} className="font-medium">
+            <span style={{ paddingLeft: `${depth * 1.5}rem` }} className="font-medium flex items-center">
               {depth > 0 && <span className="text-muted-foreground mr-1">↳</span>}
               {item.title}
             </span>
