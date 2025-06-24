@@ -18,6 +18,7 @@ export interface ContentItem {
   title: string;
   type: 'Post' | 'Page';
   link: string;
+  status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
 }
 
 export default function SeoOptimizerPage() {
@@ -30,6 +31,10 @@ export default function SeoOptimizerPage() {
   const [error, setError] = useState<string | null>(null);
   
   const [manualUrl, setManualUrl] = useState('');
+
+  // New filter states
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   
   const { toast } = useToast();
   
@@ -44,22 +49,31 @@ export default function SeoOptimizerPage() {
     };
     try {
         const token = await user.getIdToken();
-        const response = await fetch('/api/wordpress/content-list', {
+        
+        const params = new URLSearchParams({
+            type: typeFilter,
+            status: statusFilter,
+        });
+        
+        const response = await fetch(`/api/wordpress/content-list?${params.toString()}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
+
         if (response.ok) {
             const data = await response.json();
             setContentList(data.content);
         } else {
             const errorData = await response.json();
             setError(errorData.error || 'No se pudo cargar el contenido del sitio.');
+            setContentList([]); // Clear list on error
         }
     } catch (err: any) {
         setError(err.message);
+        setContentList([]); // Clear list on error
     } finally {
         setIsLoadingList(false);
     }
-  }, []);
+  }, [typeFilter, statusFilter]);
 
   useEffect(() => {
     const handleAuth = (user: import('firebase/auth').User | null) => {
@@ -72,6 +86,7 @@ export default function SeoOptimizerPage() {
     };
     
     const unsubscribe = onAuthStateChanged(auth, handleAuth);
+    // Listen for connection changes and refetch
     window.addEventListener('connections-updated', fetchContentList);
     
     return () => {
@@ -125,11 +140,14 @@ export default function SeoOptimizerPage() {
           toast({ title: "Introduce una URL para analizar", variant: "destructive" });
           return;
       }
+      // Add https if missing
+      const fullUrl = manualUrl.startsWith('http') ? manualUrl : `https://${manualUrl}`;
       const dummyItem: ContentItem = {
           id: Date.now(),
-          title: manualUrl,
+          title: fullUrl,
           type: 'Page',
-          link: manualUrl
+          link: fullUrl,
+          status: 'publish',
       };
       handleAnalyze(dummyItem);
   };
@@ -156,7 +174,7 @@ export default function SeoOptimizerPage() {
             <div className="space-y-4">
                 <Button variant="outline" onClick={handleBackToList}>
                     <ArrowLeft className="mr-2 h-4 w-4" />
-                    Volver
+                    Volver a la lista
                 </Button>
                 {isLoadingAnalysis && (
                      <div className="flex flex-col items-center justify-center text-center p-12 border border-dashed rounded-lg">
@@ -181,9 +199,9 @@ export default function SeoOptimizerPage() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Analizar Contenido</CardTitle>
+          <CardTitle>Selecciona Contenido para Analizar</CardTitle>
           <CardDescription>
-            Selecciona una página o entrada de tu sitio para analizar, o introduce una URL manualmente.
+            Usa los filtros para encontrar una página o entrada específica de tu sitio, o introduce una URL manualmente.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -209,7 +227,16 @@ export default function SeoOptimizerPage() {
                     Analizar URL
                 </Button>
             </div>
-            {!error && <SeoPageListTable data={contentList} onAnalyze={handleAnalyze} />}
+            {!error && (
+              <SeoPageListTable 
+                data={contentList} 
+                onAnalyze={handleAnalyze} 
+                typeFilter={typeFilter}
+                onTypeFilterChange={setTypeFilter}
+                statusFilter={statusFilter}
+                onStatusFilterChange={setStatusFilter}
+              />
+            )}
         </CardContent>
       </Card>
     );

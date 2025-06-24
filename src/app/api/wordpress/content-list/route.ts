@@ -8,6 +8,7 @@ interface ContentItem {
   title: string;
   type: 'Post' | 'Page';
   link: string;
+  status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
 }
 
 export async function GET(req: NextRequest) {
@@ -23,31 +24,41 @@ export async function GET(req: NextRequest) {
     if (!wpApi) {
         throw new Error('WordPress API is not configured for the active connection.');
     }
+    
+    const { searchParams } = new URL(req.url);
+    const typeFilter = searchParams.get('type') || 'all'; // 'all', 'post', 'page'
+    const statusFilter = searchParams.get('status') || 'all'; // 'all', 'publish', 'draft'
 
     const params = {
-      per_page: 100, // Fetch up to 100 of each, adjust if needed
-      status: 'publish', // Only fetch published content
-      _fields: 'id,title.rendered,link,type', // Optimize by fetching only needed fields
+      per_page: 100,
+      status: statusFilter === 'all' ? 'publish,draft,pending,private' : statusFilter,
+      _fields: 'id,title.rendered,link,type,status', // Add status
     };
 
-    const [postsResponse, pagesResponse] = await Promise.all([
-      wpApi.get('/posts', { params }),
-      wpApi.get('/pages', { params })
-    ]);
+    let posts: ContentItem[] = [];
+    let pages: ContentItem[] = [];
 
-    const posts: ContentItem[] = postsResponse.data.map((post: any) => ({
-      id: post.id,
-      title: post.title.rendered,
-      type: 'Post',
-      link: post.link,
-    }));
+    if (typeFilter === 'all' || typeFilter === 'post') {
+        const postsResponse = await wpApi.get('/posts', { params });
+        posts = postsResponse.data.map((post: any) => ({
+            id: post.id,
+            title: post.title.rendered,
+            type: 'Post',
+            link: post.link,
+            status: post.status,
+        }));
+    }
 
-    const pages: ContentItem[] = pagesResponse.data.map((page: any) => ({
-      id: page.id,
-      title: page.title.rendered,
-      type: 'Page',
-      link: page.link,
-    }));
+    if (typeFilter === 'all' || typeFilter === 'page') {
+         const pagesResponse = await wpApi.get('/pages', { params });
+         pages = pagesResponse.data.map((page: any) => ({
+            id: page.id,
+            title: page.title.rendered,
+            type: 'Page',
+            link: page.link,
+            status: page.status,
+        }));
+    }
     
     const combinedContent = [...posts, ...pages].sort((a, b) => a.title.localeCompare(b.title));
         

@@ -26,13 +26,26 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ArrowUpDown, SearchCheck } from "lucide-react";
 import type { ContentItem } from "@/app/(app)/seo-optimizer/page";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 
 interface SeoPageListTableProps {
   data: ContentItem[];
   onAnalyze: (page: ContentItem) => void;
+  typeFilter: string;
+  onTypeFilterChange: (value: string) => void;
+  statusFilter: string;
+  onStatusFilterChange: (value: string) => void;
 }
 
-export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
+export function SeoPageListTable({ 
+    data, 
+    onAnalyze, 
+    typeFilter, 
+    onTypeFilterChange, 
+    statusFilter, 
+    onStatusFilterChange 
+}: SeoPageListTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
 
@@ -62,6 +75,29 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
       ),
     },
     {
+      accessorKey: "status",
+      header: ({ column }) => (
+         <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Estado
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => {
+        const status = row.original.status;
+        const statusText: { [key: string]: string } = {
+            publish: 'Publicado',
+            draft: 'Borrador',
+            pending: 'Pendiente',
+            private: 'Privado',
+            future: 'Programado',
+        };
+        return <Badge variant={status === 'publish' ? 'default' : 'secondary'}>{statusText[status] || status}</Badge>
+      }
+    },
+    {
       id: "actions",
       cell: ({ row }) => (
         <Button onClick={() => onAnalyze(row.original)} size="sm">
@@ -89,7 +125,7 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
 
   return (
     <div className="w-full">
-      <div className="flex items-center py-4">
+      <div className="flex flex-col sm:flex-row gap-2 py-4">
         <Input
           placeholder="Filtrar por título..."
           value={(table.getColumn("title")?.getFilterValue() as string) ?? ""}
@@ -98,6 +134,28 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
           }
           className="max-w-sm"
         />
+        <Select value={typeFilter} onValueChange={onTypeFilterChange}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Filtrar por tipo" />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="all">Todos los Tipos</SelectItem>
+                <SelectItem value="post">Entradas (Posts)</SelectItem>
+                <SelectItem value="page">Páginas</SelectItem>
+            </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={onStatusFilterChange}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Filtrar por estado" />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="all">Todos los Estados</SelectItem>
+                <SelectItem value="publish">Publicado</SelectItem>
+                <SelectItem value="draft">Borrador</SelectItem>
+                <SelectItem value="pending">Pendiente</SelectItem>
+                <SelectItem value="private">Privado</SelectItem>
+            </SelectContent>
+        </Select>
       </div>
       <div className="rounded-md border">
         <Table>
@@ -133,7 +191,7 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No se encontraron resultados.
+                  No se encontraron resultados para los filtros seleccionados.
                 </TableCell>
               </TableRow>
             )}
