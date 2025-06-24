@@ -280,6 +280,13 @@ export default function SeoOptimizerPage() {
     router.push(url);
   };
   
+  const handleSelectHistoryItem = (record: SeoAnalysisRecord) => {
+    setAnalysis(record.analysis);
+    toast({
+      title: "Informe Histórico Cargado",
+      description: `Mostrando el análisis del ${new Date(record.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}.`,
+    });
+  };
 
   const renderStats = () => {
       return (
@@ -345,6 +352,7 @@ export default function SeoOptimizerPage() {
                         onEdit={handleEditContent} 
                         onReanalyze={() => handleAnalyze(selectedPage)}
                         history={analysisHistory}
+                        onSelectHistoryItem={handleSelectHistoryItem}
                     />
                 )}
                 {error && !isLoadingAnalysis && (

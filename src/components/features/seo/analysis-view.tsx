@@ -13,6 +13,7 @@ import type { SeoAnalysisRecord } from '@/lib/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 export interface AnalysisResult {
   title: string;
@@ -34,14 +35,22 @@ interface AnalysisViewProps {
   history: SeoAnalysisRecord[];
   onEdit: (item: ContentItem) => void;
   onReanalyze: () => void;
+  onSelectHistoryItem: (record: SeoAnalysisRecord) => void;
 }
 
-export function AnalysisView({ analysis, item, history, onEdit, onReanalyze }: AnalysisViewProps) {
+export function AnalysisView({ analysis, item, history, onEdit, onReanalyze, onSelectHistoryItem }: AnalysisViewProps) {
   const imagesWithoutAlt = analysis.images.filter(img => !img.alt).length;
   const totalImages = analysis.images.length;
   const scoreColor = analysis.aiAnalysis.score >= 80 ? 'text-green-500' : analysis.aiAnalysis.score >= 50 ? 'text-amber-500' : 'text-destructive';
 
   const latestAnalysisId = history[0]?.id;
+
+  // Find the currently displayed record in the history list to highlight it.
+  const currentRecord = history.find(record => 
+      record.analysis.aiAnalysis.score === analysis.aiAnalysis.score &&
+      record.analysis.aiAnalysis.summary === analysis.aiAnalysis.summary &&
+      record.analysis.title === analysis.title
+  );
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -165,19 +174,31 @@ export function AnalysisView({ analysis, item, history, onEdit, onReanalyze }: A
         <Card>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2"><History className="h-5 w-5 text-primary"/> Historial de Análisis</CardTitle>
-                <CardDescription>Compara la evolución de la puntuación SEO de esta página.</CardDescription>
+                <CardDescription>Selecciona un análisis anterior para ver sus detalles.</CardDescription>
             </CardHeader>
             <CardContent>
                 {history.length > 0 ? (
                     <ul className="space-y-2">
                         {history.map(record => (
-                            <li key={record.id} className="flex justify-between items-center text-sm p-2 bg-muted rounded-md">
-                                <span className="text-muted-foreground">
-                                    {format(new Date(record.createdAt), "d 'de' LLLL, yyyy", { locale: es })}
-                                </span>
-                                <Badge className={record.score >= 80 ? 'bg-green-500' : record.score >= 50 ? 'bg-amber-500' : 'bg-destructive'}>
-                                    {record.score}
-                                </Badge>
+                            <li key={record.id}>
+                                <button
+                                    onClick={() => onSelectHistoryItem(record)}
+                                    className={cn(
+                                        "flex justify-between items-center text-sm p-2 bg-muted rounded-md w-full text-left hover:bg-accent transition-colors",
+                                        currentRecord?.id === record.id && "ring-2 ring-primary bg-primary/10"
+                                    )}
+                                    aria-current={currentRecord?.id === record.id}
+                                >
+                                    <span className="text-muted-foreground">
+                                        {format(new Date(record.createdAt), "d 'de' LLLL, yyyy 'a las' HH:mm", { locale: es })}
+                                    </span>
+                                    <Badge className={
+                                        record.score >= 80 ? 'bg-green-500' : 
+                                        record.score >= 50 ? 'bg-amber-500' : 'bg-destructive'
+                                    }>
+                                        {record.score}
+                                    </Badge>
+                                </button>
                             </li>
                         ))}
                     </ul>
