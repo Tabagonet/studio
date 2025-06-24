@@ -69,28 +69,28 @@ export function SeoPageListTable({ data, scores, onAnalyze }: SeoPageListTablePr
     const dataMap = new Map(data.map(item => [item.id, { ...item, subRows: [] as ContentItem[] }]));
     const tree: ContentItem[] = [];
 
-    data.forEach(item => {
-      // Use parent > 0 check to correctly identify child pages
-      if (item.parent > 0 && dataMap.has(item.parent)) {
-        const parent = dataMap.get(item.parent);
-        parent?.subRows?.push(dataMap.get(item.id)!);
-      } else {
-        tree.push(dataMap.get(item.id)!);
-      }
-    });
+    // Helper to build hierarchy from a flat list based on parent IDs
+    const buildHierarchy = (items: ContentItem[]): ContentItem[] => {
+        const itemMap = new Map(items.map(item => [item.id, { ...item, subRows: [] as ContentItem[] }]));
+        const roots: ContentItem[] = [];
+        
+        items.forEach(item => {
+            if (item.parent && itemMap.has(item.parent)) {
+                const parent = itemMap.get(item.parent);
+                parent?.subRows.push(itemMap.get(item.id)!);
+            } else {
+                roots.push(itemMap.get(item.id)!);
+            }
+        });
 
-    const sortAlphabetically = (a: ContentItem, b: ContentItem) => a.title.localeCompare(b.title);
-    const sortSubRows = (items: ContentItem[]) => {
-      items.sort(sortAlphabetically);
-      items.forEach(item => {
-        if (item.subRows && item.subRows.length > 0) {
-          sortSubRows(item.subRows);
-        }
-      });
+        return roots;
     };
-    sortSubRows(tree);
+    
+    // Sort flat list first
+    const sortedData = [...data].sort((a, b) => a.title.localeCompare(b.title));
+    // Then build hierarchy
+    return buildHierarchy(sortedData);
 
-    return tree;
   }, [data]);
 
 
@@ -132,9 +132,16 @@ export function SeoPageListTable({ data, scores, onAnalyze }: SeoPageListTablePr
        {
         accessorKey: 'lang',
         header: 'Idioma',
-        cell: ({ getValue }) => <Badge variant="outline" className="uppercase">{getValue<string>() || 'N/A'}</Badge>,
+        cell: ({ getValue }) => {
+            const lang = getValue<string>();
+            if (!lang || lang === 'default') {
+                return <Badge variant="outline" className="opacity-60">N/A</Badge>
+            }
+            return <Badge variant="outline" className="uppercase">{lang}</Badge>;
+        },
         filterFn: (row, id, value) => {
-            return value.includes(row.getValue(id))
+            const lang = row.getValue(id) as string;
+            return value.includes(lang)
         },
       },
       {
@@ -174,7 +181,7 @@ export function SeoPageListTable({ data, scores, onAnalyze }: SeoPageListTablePr
   });
   
   const languages = React.useMemo(() => {
-    const langSet = new Set(data.map(item => item.lang).filter(Boolean));
+    const langSet = new Set(data.map(item => item.lang).filter(lang => lang && lang !== 'default'));
     return Array.from(langSet) as string[];
   }, [data]);
 

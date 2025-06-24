@@ -29,26 +29,39 @@ export async function GET(req: NextRequest) {
         throw new Error('WordPress API is not configured for the active connection.');
     }
 
-    // Fetch sequentially to avoid overloading the user's server
-    const postsResponse = await wpApi.get('/posts', { params: { per_page: 100, status: 'publish,draft,pending,private,future', orderby: 'title', order: 'asc' } });
-    const pagesResponse = await wpApi.get('/pages', { params: { per_page: 100, status: 'publish,draft,pending,private,future', orderby: 'title', order: 'asc' } });
+    let languageDataMissing = false;
 
-    const mapContent = (item: any): ContentItem => ({
-        id: item.id,
-        title: item.title?.rendered || 'No Title',
-        type: item.type === 'post' ? 'Post' : 'Page',
-        link: item.link,
-        status: item.status,
-        parent: item.parent || 0,
-        lang: item.lang || 'default', // Read the 'lang' property provided by the user's plugin
-    });
+    // Fetch pages and posts sequentially to avoid overloading the user's server
+    const postsResponse = await wpApi.get('/posts', { params: { per_page: 100, status: 'publish,draft,pending,private,future', orderby: 'title', order: 'asc', context: 'edit' } });
+    const pagesResponse = await wpApi.get('/pages', { params: { per_page: 100, status: 'publish,draft,pending,private,future', orderby: 'title', order: 'asc', context: 'edit' } });
+
+    const mapContent = (item: any): ContentItem => {
+        // Check for the 'lang' field provided by the user's custom plugin.
+        // If it's missing for any item, we flag it.
+        if (item.lang === undefined) {
+          languageDataMissing = true;
+        }
+
+        return {
+            id: item.id,
+            title: item.title?.rendered || 'No Title',
+            type: item.type === 'post' ? 'Post' : 'Page',
+            link: item.link,
+            status: item.status,
+            parent: item.parent || 0,
+            lang: item.lang || 'default', // Fallback to 'default' if missing
+        };
+    };
     
     const posts = postsResponse.data.map(mapContent);
     const pages = pagesResponse.data.map(mapContent);
     
     const finalContent = [...posts, ...pages];
         
-    return NextResponse.json({ content: finalContent });
+    return NextResponse.json({ 
+        content: finalContent,
+        languageDataMissing: languageDataMissing
+    });
 
   } catch (error: any) {
     const errorMessage = error.response?.data?.message || 'Failed to fetch content list.';

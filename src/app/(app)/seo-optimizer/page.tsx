@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { SearchCheck, Loader2, BrainCircuit, ArrowLeft, Package, Newspaper, FileText, FileCheck2, Edit } from "lucide-react";
+import { SearchCheck, Loader2, BrainCircuit, ArrowLeft, Package, Newspaper, FileText, FileCheck2, Edit, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { SeoPageListTable } from '@/components/features/seo/page-list-table';
@@ -39,6 +39,7 @@ export default function SeoOptimizerPage() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [selectedPage, setSelectedPage] = useState<ContentItem | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showLanguageWarning, setShowLanguageWarning] = useState(false);
   
   const [manualUrl, setManualUrl] = useState('');
   const [activeConnectionUrl, setActiveConnectionUrl] = useState('');
@@ -52,6 +53,7 @@ export default function SeoOptimizerPage() {
     setIsLoading(true);
     setIsLoadingStats(true);
     setError(null);
+    setShowLanguageWarning(false);
     const user = auth.currentUser;
     if (!user) {
         setError("Debes iniciar sesión para usar esta función.");
@@ -69,7 +71,9 @@ export default function SeoOptimizerPage() {
         const [listResponse, statsResponse, configResponse] = await Promise.all([listPromise, statsPromise, configPromise]);
 
         if (listResponse.ok) {
-            setContentList((await listResponse.json()).content);
+            const listData = await listResponse.json();
+            setContentList(listData.content);
+            setShowLanguageWarning(listData.languageDataMissing);
         } else {
             const errorData = await listResponse.json();
             setError(errorData.error || 'No se pudo cargar el contenido del sitio.');
@@ -269,6 +273,30 @@ export default function SeoOptimizerPage() {
                     <AlertTitle>No se pudo cargar la lista de contenido</AlertTitle>
                     <AlertDescription>
                         {error} Revisa que la API de WordPress esté configurada en <Link href="/settings/connections" className="underline font-semibold">Ajustes</Link>.
+                    </AlertDescription>
+                </Alert>
+            )}
+            {showLanguageWarning && (
+                <Alert variant="destructive" className="mb-4">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>No se detectan los idiomas</AlertTitle>
+                    <AlertDescription>
+                        <p>Tu sitio de WordPress no está devolviendo la información de idioma (probablemente por usar la versión gratuita de Polylang). Para activarlo, añade el siguiente código a tu sitio.</p>
+                        <p className="mt-2">La forma más segura es usar un plugin como <a href="https://wordpress.org/plugins/code-snippets/" target="_blank" rel="noopener noreferrer" className="font-semibold underline">Code Snippets</a> y crear un nuevo snippet con este código:</p>
+                        <pre className="mt-2 p-2 bg-muted rounded-md text-xs overflow-x-auto">
+                            <code>
+{`add_action('rest_api_init', function () {
+    $types = get_post_types(['public' => true], 'names');
+    foreach ($types as $type) {
+        register_rest_field($type, 'lang', [
+            'get_callback' => function ($post_arr) {
+                return function_exists('pll_get_post_language') ? pll_get_post_language($post_arr['id'], 'slug') : null;
+            }, 'schema' => null,
+        ]);
+    }
+});`}
+                            </code>
+                        </pre>
                     </AlertDescription>
                 </Alert>
             )}
