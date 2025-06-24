@@ -37,7 +37,8 @@ type ContentItem = RawContentItem & {
 interface SeoPageListTableProps {
   data: ContentItem[];
   scores: Record<number, number>;
-  onSelectPage: (page: ContentItem) => void;
+  onAnalyzePage: (page: ContentItem) => void;
+  onViewReport: (page: ContentItem) => void;
 }
 
 const getStatusText = (status: ContentItem['status']) => {
@@ -61,7 +62,7 @@ const ScoreBadge = ({ score }: { score: number | undefined }) => {
     );
 };
 
-export function SeoPageListTable({ data, scores, onSelectPage }: SeoPageListTableProps) {
+export function SeoPageListTable({ data, scores, onAnalyzePage, onViewReport }: SeoPageListTableProps) {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
   const [languageFilter, setLanguageFilter] = React.useState('es'); // Default to Spanish
@@ -162,12 +163,12 @@ export function SeoPageListTable({ data, scores, onSelectPage }: SeoPageListTabl
             return (
                 <div className="text-right">
                     {hasScore ? (
-                        <Button onClick={() => onSelectPage(row.original)} size="sm" variant="outline">
+                        <Button onClick={() => onViewReport(row.original)} size="sm" variant="outline">
                             <FileText className="mr-0 md:mr-2 h-4 w-4" />
                             <span className="hidden md:inline">Ver Informe</span>
                         </Button>
                     ) : (
-                        <Button onClick={() => onSelectPage(row.original)} size="sm">
+                        <Button onClick={() => onAnalyzePage(row.original)} size="sm">
                             <SearchCheck className="mr-0 md:mr-2 h-4 w-4" />
                             <span className="hidden md:inline">Analizar</span>
                         </Button>
@@ -177,7 +178,7 @@ export function SeoPageListTable({ data, scores, onSelectPage }: SeoPageListTabl
         },
       },
     ],
-    [onSelectPage, scores]
+    [onAnalyzePage, onViewReport, scores]
   );
 
   const table = useReactTable({

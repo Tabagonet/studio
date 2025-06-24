@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { SearchCheck, Loader2, BrainCircuit, ArrowLeft, Package, Newspaper, FileText, FileCheck2, Edit, AlertTriangle, Printer } from "lucide-react";
+import { SearchCheck, Loader2, BrainCircuit, ArrowLeft, Package, Newspaper, FileText, FileCheck2, Edit, AlertTriangle, Printer, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { SeoPageListTable } from '@/components/features/seo/page-list-table';
@@ -113,7 +113,7 @@ export default function SeoOptimizerPage() {
   }, [fetchContentData]);
 
 
-  const handleAnalyze = async (page: ContentItem) => {
+  const handleAnalyze = async (page: ContentItem, force: boolean = false) => {
     setIsLoadingAnalysis(true);
     setError(null);
     setAnalysis(null);
@@ -128,42 +128,61 @@ export default function SeoOptimizerPage() {
     }
 
     try {
-      const token = await user.getIdToken();
-      
-      let urlToAnalyze = page.link;
-      if (!urlToAnalyze.startsWith('http')) {
-        urlToAnalyze = `https://${urlToAnalyze}`;
-      }
+        const token = await user.getIdToken();
+        let urlToAnalyze = page.link;
+        if (!urlToAnalyze.startsWith('http')) {
+            urlToAnalyze = `https://${urlToAnalyze}`;
+        }
+        
+        // If not forcing a new analysis, try to fetch the latest from history first.
+        if (!force) {
+            try {
+                const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(urlToAnalyze)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (historyResponse.ok) {
+                    const historyData = await historyResponse.json();
+                    if (historyData.history && historyData.history.length > 0) {
+                        setAnalysis(historyData.history[0].analysis);
+                        setAnalysisHistory(historyData.history);
+                        setIsLoadingAnalysis(false);
+                        // Update score just in case it wasn't set
+                        setScores(prev => ({...prev, [page.id]: historyData.history[0].score}));
+                        return; // Exit here, we have our data.
+                    }
+                }
+            } catch (historyError) {
+                 console.warn("Could not fetch history, proceeding with new analysis:", historyError);
+            }
+        }
+        
+        // This part runs if force=true or if fetching from history failed/returned empty.
+        toast({ title: "Analizando con IA...", description: "Estamos leyendo la página y generando el informe SEO."});
+        const response = await fetch('/api/seo/analyze-url', {
+            method: 'POST',
+            headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ url: urlToAnalyze })
+        });
 
-      // We start fetching history while the main analysis runs
-      const historyPromise = fetch(`/api/seo/history?url=${encodeURIComponent(urlToAnalyze)}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      const response = await fetch('/api/seo/analyze-url', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ url: urlToAnalyze })
-      });
+        const result = await response.json();
 
-      const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || 'Ocurrió un error desconocido');
+        }
 
-      if (!response.ok) {
-        throw new Error(result.error || 'Ocurrió un error desconocido');
-      }
+        setAnalysis(result);
+        setScores(prev => ({...prev, [page.id]: result.aiAnalysis.score}));
 
-      setAnalysis(result);
-      setScores(prev => ({...prev, [page.id]: result.aiAnalysis.score}));
-
-      // Now we await the history result
-      const historyResponse = await historyPromise;
-      if (historyResponse.ok) {
-          const historyData = await historyResponse.json();
-          setAnalysisHistory(historyData.history);
-      }
+        // Fetch history again to include the new record we just created.
+        const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(urlToAnalyze)}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (historyResponse.ok) {
+            setAnalysisHistory((await historyResponse.json()).history);
+        }
 
     } catch (err: any) {
       setError(err.message);
@@ -189,7 +208,7 @@ export default function SeoOptimizerPage() {
           status: 'publish',
           parent: 0,
       };
-      handleAnalyze(dummyItem);
+      handleAnalyze(dummyItem, true); // Always force analysis for manual URLs
   };
 
   const handleBackToList = () => {
@@ -206,7 +225,8 @@ export default function SeoOptimizerPage() {
     setEditingContent(null);
     if (refresh) {
         if (selectedPage) {
-            handleAnalyze(selectedPage);
+            // Force re-analysis after saving changes
+            handleAnalyze(selectedPage, true);
         }
     }
   };
@@ -273,7 +293,7 @@ export default function SeoOptimizerPage() {
                         analysis={analysis} 
                         item={selectedPage} 
                         onEdit={handleEditContent} 
-                        onReanalyze={() => handleAnalyze(selectedPage)}
+                        onReanalyze={() => handleAnalyze(selectedPage, true)}
                         history={analysisHistory}
                     />
                 )}
@@ -322,7 +342,8 @@ export default function SeoOptimizerPage() {
             {!error && (
               <SeoPageListTable 
                 data={contentList}
-                onSelectPage={handleAnalyze} 
+                onAnalyzePage={(item) => handleAnalyze(item, true)} 
+                onViewReport={(item) => handleAnalyze(item, false)}
                 scores={scores}
               />
             )}
