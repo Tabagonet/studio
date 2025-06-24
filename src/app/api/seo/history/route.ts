@@ -25,17 +25,16 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        // More resilient query: Query by user and order by date, then filter by URL in memory.
-        // This is less likely to fail due to missing composite indexes.
+        // Query only by user to avoid needing a composite index.
+        // We will sort and filter in memory on the server.
         const historySnapshot = await adminDb.collection('seo_analyses')
             .where('userId', '==', uid)
-            .orderBy('createdAt', 'desc')
             .get();
         
-        const allUserHistory = historySnapshot.docs.map(doc => {
+        let allUserHistory = historySnapshot.docs.map(doc => {
             const data = doc.data();
-            // Safety check for malformed data
-            if (!data.createdAt || typeof data.createdAt.toDate !== 'function') {
+            // Safety check for malformed data to prevent crashes
+            if (!data || !data.createdAt || typeof data.createdAt.toDate !== 'function') {
                 return null;
             }
             return {
@@ -45,6 +44,9 @@ export async function GET(req: NextRequest) {
             };
         }).filter(Boolean as any as (value: any) => value is NonNullable<any>); // Remove nulls and type guard
 
+        // Sort in code to ensure descending order by date
+        allUserHistory.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
         // Filter for the specific URL and limit the results
         const historyForUrl = allUserHistory.filter(record => record.url === url).slice(0, 10);
 
@@ -52,8 +54,7 @@ export async function GET(req: NextRequest) {
 
     } catch (error: any) {
         console.error("Error fetching SEO analysis history:", error);
-        // Add more specific logging for Firestore errors
-        if ((error as any).code) { // Firestore errors have a 'code' property
+        if ((error as any).code) {
              console.error(`Firestore error code: ${(error as any).code}`);
         }
         return NextResponse.json({ error: 'Fallo al obtener el historial de análisis', details: error.message }, { status: 500 });
