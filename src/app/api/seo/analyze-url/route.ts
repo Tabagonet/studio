@@ -33,7 +33,8 @@ async function getPageContentFromApi(postId: number, postType: 'Post' | 'Page', 
     }
 
     const endpoint = postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
-    const response = await wpApi.get(endpoint, { params: { context: 'edit' } });
+    // Add a cache-busting parameter to ensure fresh data is fetched
+    const response = await wpApi.get(endpoint, { params: { context: 'edit', _: new Date().getTime() } });
     const rawData = response.data;
     
     if (!rawData || !rawData.content || !rawData.title) {

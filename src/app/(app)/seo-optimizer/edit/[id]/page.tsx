@@ -297,9 +297,9 @@ function EditPageContent() {
                         <CardDescription>Editando: {post.title}</CardDescription>
                     </div>
                     <div className="flex gap-2">
-                        <Button variant="outline" onClick={() => router.back()}>
+                        <Button variant="outline" onClick={() => router.push('/seo-optimizer')}>
                             <ArrowLeft className="mr-2 h-4 w-4" />
-                            Volver
+                            Volver al Optimizador
                         </Button>
                         <Button onClick={handleSaveChanges} disabled={isSaving}>
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

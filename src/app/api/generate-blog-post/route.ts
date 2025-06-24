@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
                 ---
             `;
         } else if (mode === 'generate_meta_description') {
-            systemInstruction = `You are a professional SEO copywriter. Your task is to write a compelling meta description (maximum 160 characters) for the given blog post. The description should be engaging, encourage clicks, and ideally contain the main keywords from the title and content. Return a single, valid JSON object with one key: 'metaDescription'. Do not include markdown or the word 'json' in your output.`;
+            systemInstruction = `You are an expert SEO copywriter. Your task is to write a compelling meta description for the given blog post. **It is absolutely critical that the meta description is no more than 160 characters long.** Do not go over this limit. The description should be engaging and encourage clicks. Return a single, valid JSON object with one key: 'metaDescription'. Do not include markdown or the word 'json' in your output.`;
             prompt = `
                 Generate a meta description in ${language}.
                 Title: "${existingTitle}"
