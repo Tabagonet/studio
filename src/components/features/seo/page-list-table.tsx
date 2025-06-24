@@ -58,6 +58,7 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
     const tree: ContentItem[] = [];
 
     data.forEach(item => {
+      // Use parent > 0 check to correctly identify child pages
       if (item.parent > 0 && dataMap.has(item.parent)) {
         const parent = dataMap.get(item.parent);
         parent?.subRows?.push(dataMap.get(item.id)!);

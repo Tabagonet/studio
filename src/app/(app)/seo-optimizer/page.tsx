@@ -23,9 +23,6 @@ export interface ContentItem {
   link: string;
   status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
   parent: number;
-  subRows?: ContentItem[]; // For tanstack-table hierarchy
-  lang: string;
-  translations: Record<string, number>;
 }
 
 export default function SeoOptimizerPage() {
@@ -168,8 +165,6 @@ export default function SeoOptimizerPage() {
           link: fullUrl,
           status: 'publish',
           parent: 0,
-          lang: 'default',
-          translations: {},
       };
       handleAnalyze(dummyItem);
   };
@@ -209,7 +204,7 @@ export default function SeoOptimizerPage() {
       return (
         <div className="flex flex-col items-center justify-center text-center p-12 border border-dashed rounded-lg">
           <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-          <p className="text-lg font-semibold text-muted-foreground">Cargando contenido y estructura del menú...</p>
+          <p className="text-lg font-semibold text-muted-foreground">Cargando contenido del sitio...</p>
         </div>
       );
     }
