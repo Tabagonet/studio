@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import Image from 'next/image';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,6 +17,9 @@ import type { WordPressPostCategory, WordPressUser, ProductPhoto } from '@/lib/t
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Card, CardContent } from '@/components/ui/card';
+import { SeoAnalyzer } from '@/components/features/blog/seo-analyzer';
+
 
 interface BlogEditModalProps {
   postId: number;
@@ -76,6 +79,7 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
   const [imageUrl, setImageUrl] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [focusKeyword, setFocusKeyword] = useState('');
   
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const selectionRef = useRef<{ start: number; end: number } | null>(null);
@@ -369,10 +373,13 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
   return (
     <Dialog open={true} onOpenChange={() => onClose(false)}>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
-        <DialogHeader><DialogTitle>Editar Entrada: {post?.title || "Cargando..."}</DialogTitle></DialogHeader>
+        <DialogHeader>
+            <DialogTitle>Editar Entrada: {post?.title || "Cargando..."}</DialogTitle>
+            <DialogDescription>Realiza cambios, usa la IA para mejorar y previsualiza el resultado.</DialogDescription>
+        </DialogHeader>
         
-        {isLoading && <div className="flex items-center justify-center min-h-[300px]"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}
-        {error && <Alert variant="destructive"><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
+        {isLoading && <div className="flex items-center justify-center min-h-[300px] flex-1"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}
+        {error && <div className="flex items-center justify-center min-h-[300px] flex-1"><Alert variant="destructive"><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert></div>}
         
         {!isLoading && !error && post && (
             <Tabs defaultValue="edit" className="flex-1 flex flex-col min-h-0">
@@ -380,8 +387,8 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
                     <TabsTrigger value="edit">Editor</TabsTrigger>
                     <TabsTrigger value="preview">Vista Previa</TabsTrigger>
                 </TabsList>
-                <TabsContent value="edit" className="flex-1 overflow-y-auto p-4 space-y-4">
-                    <div>
+                <TabsContent value="edit" className="flex-1 overflow-y-auto p-1 pr-4 space-y-4">
+                    <div className="mt-4">
                     <Label htmlFor="title">Título</Label>
                     <Input id="title" name="title" value={post.title} onChange={handleInputChange} />
                     </div>
@@ -399,22 +406,46 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
                         <div><Label>Etiquetas (separadas por comas)</Label><Input name="tags" value={post.tags} onChange={handleInputChange} /></div>
                     </div>
                     <div><Label>Imagen Destacada</Label><ImageUploader photos={post.featured_media ? [post.featured_media] : []} onPhotosChange={handlePhotosChange} isProcessing={isSaving} /></div>
-                    <div className="space-y-4 pt-6 border-t">
-                        <h3 className="text-sm font-medium text-muted-foreground">Asistente IA</h3>
-                        <div className="p-4 border rounded-lg space-y-3 bg-card">
-                            <Label>Mejorar o etiquetar contenido existente</Label>
-                            <div className="flex flex-col sm:flex-row gap-2">
-                                <Button onClick={() => handleAIGeneration('enhance_content')} disabled={isAiLoading || !post.content} className="w-full">
-                                    {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                                    Mejorar Contenido
-                                </Button>
-                                <Button onClick={() => handleAIGeneration('suggest_keywords')} disabled={isAiLoading || !post.content} className="w-full" variant="outline">
-                                    {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tags className="mr-2 h-4 w-4" />}
-                                    Sugerir Etiquetas
-                                </Button>
+                    
+                    <Card>
+                        <CardContent className="pt-6 space-y-4">
+                             <div className="space-y-4">
+                                <h3 className="text-sm font-medium text-muted-foreground">Asistente IA</h3>
+                                <div className="p-4 border rounded-lg space-y-3 bg-card">
+                                    <Label>Mejorar o etiquetar contenido existente</Label>
+                                    <div className="flex flex-col sm:flex-row gap-2">
+                                        <Button onClick={() => handleAIGeneration('enhance_content')} disabled={isAiLoading || !post.content} className="w-full">
+                                            {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                            Mejorar Contenido
+                                        </Button>
+                                        <Button onClick={() => handleAIGeneration('suggest_keywords')} disabled={isAiLoading || !post.content} className="w-full" variant="outline">
+                                            {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tags className="mr-2 h-4 w-4" />}
+                                            Sugerir Etiquetas
+                                        </Button>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    </div>
+                             <div className="space-y-4 pt-4 border-t">
+                                <h3 className="text-sm font-medium text-muted-foreground">Análisis SEO</h3>
+                                <div className="p-4 border rounded-lg space-y-3 bg-card">
+                                    <Label htmlFor="focusKeyword">Palabra Clave Principal</Label>
+                                    <Input 
+                                        id="focusKeyword" 
+                                        name="focusKeyword" 
+                                        value={focusKeyword} 
+                                        onChange={(e) => setFocusKeyword(e.target.value)} 
+                                        placeholder="Ej: Jardinería sostenible" 
+                                    />
+                                    <SeoAnalyzer 
+                                        title={post.title}
+                                        content={post.content}
+                                        focusKeyword={focusKeyword}
+                                    />
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
                 </TabsContent>
                 <TabsContent value="preview" className="flex-1 overflow-y-auto p-4 border rounded-md">
                     {post.featured_media?.previewUrl && (

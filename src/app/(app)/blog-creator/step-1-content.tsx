@@ -20,6 +20,7 @@ import { es } from 'date-fns/locale';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { SeoAnalyzer } from '@/components/features/blog/seo-analyzer';
 
 
 const ALL_LANGUAGES = [
@@ -208,8 +209,8 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
         let newText;
 
         if (tag === 'ul' || tag === 'ol') {
-            const listItems = selectedText.split('\n').map(line => `  <li>${line}</li>`).join('\n');
-            newText = `${textarea.value.substring(0, start)}<${tag}>\n${listItems}\n</${tag}>${textarea.value.substring(end)}`;
+            const listItems = selectedText.split('\\n').map(line => `  <li>${line}</li>`).join('\\n');
+            newText = `${textarea.value.substring(0, start)}<${tag}>\\n${listItems}\\n</${tag}>${textarea.value.substring(end)}`;
         } else {
             newText = `${textarea.value.substring(0, start)}<${tag}>${selectedText}</${tag}>${textarea.value.substring(end)}`;
         }
@@ -292,7 +293,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
         if (!textarea || !selection) return;
 
         const { start } = selection;
-        const newText = `${textarea.value.substring(0, start)}\n<img src="${finalImageUrl}" alt="${postData.title || 'Imagen insertada'}" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px;" />\n${textarea.value.substring(start)}`;
+        const newText = `${textarea.value.substring(0, start)}\\n<img src="${finalImageUrl}" alt="${postData.title || 'Imagen insertada'}" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px;" />\\n${textarea.value.substring(start)}`;
         
         updatePostData({ content: newText });
 
@@ -400,6 +401,30 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                                     ))}
                                 </div>
                             </div>
+                        </CardContent>
+                    </Card>
+
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Análisis SEO</CardTitle>
+                            <CardDescription>Introduce una palabra clave para ver recomendaciones.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div>
+                                <Label htmlFor="focusKeyword">Palabra Clave Principal</Label>
+                                <Input 
+                                    id="focusKeyword" 
+                                    name="focusKeyword" 
+                                    value={postData.focusKeyword} 
+                                    onChange={handleInputChange} 
+                                    placeholder="Ej: Jardinería sostenible" 
+                                />
+                            </div>
+                            <SeoAnalyzer 
+                                title={postData.title}
+                                content={postData.content}
+                                focusKeyword={postData.focusKeyword}
+                            />
                         </CardContent>
                     </Card>
 

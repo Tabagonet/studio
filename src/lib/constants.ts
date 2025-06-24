@@ -87,6 +87,7 @@ export const INITIAL_BLOG_DATA: BlogPostData = {
   content: '',
   topic: '',
   keywords: '',
+  focusKeyword: '',
   category: null,
   status: 'draft',
   featuredImage: null,
