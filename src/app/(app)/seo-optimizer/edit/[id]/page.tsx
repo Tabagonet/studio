@@ -110,19 +110,19 @@ function EditPageContent() {
             const aiContent = await response.json();
 
             if (mode === 'enhance_content') {
-                setPost({ ...post, title: aiContent.title });
+                setPost(prev => prev ? { ...prev, title: aiContent.title } : null);
                 toast({ title: "Título mejorado", description: "Se ha actualizado el título de la entrada." });
             } else if (mode === 'generate_meta_description') {
-                setPost({ ...post, metaDescription: aiContent.metaDescription });
+                setPost(prev => prev ? { ...prev, metaDescription: aiContent.metaDescription } : null);
                 toast({ title: "Meta descripción generada", description: "El campo para buscadores ha sido actualizado." });
             } else if (mode === 'generate_image_meta') {
                 setSuggestedImageMeta({ title: aiContent.imageTitle, altText: aiContent.imageAltText });
                 toast({ title: "Metadatos de imagen sugeridos", description: "Copia y pega los resultados en tu biblioteca de medios." });
             } else if (mode === 'generate_focus_keyword') {
-                 setPost({ ...post, focusKeyword: aiContent.focusKeyword });
+                 setPost(prev => prev ? { ...prev, focusKeyword: aiContent.focusKeyword } : null);
                 toast({ title: "Palabra clave sugerida", description: "Se ha rellenado el campo de palabra clave principal." });
             } else { // suggest_keywords
-                setPost({ ...post, tags: aiContent.suggestedKeywords });
+                setPost(prev => prev ? { ...prev, tags: aiContent.suggestedKeywords } : null);
                 toast({ title: "Etiquetas sugeridas", description: "Se han actualizado las etiquetas." });
             }
 

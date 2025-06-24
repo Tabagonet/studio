@@ -44,32 +44,44 @@ export function SeoAnalyzer({ title, content, focusKeyword, metaDescription }: S
       {
         id: 'titleLength',
         pass: title.length >= 30 && title.length <= 65,
-        text: <>La longitud del título SEO es óptima ({title.length} caracteres).</>,
+        text: title.length >= 30 && title.length <= 65
+          ? <>La longitud del título ({title.length}) es buena (entre 30-65 caracteres).</>
+          : <>La longitud del título ({title.length}) debería estar entre 30 y 65 caracteres.</>,
       },
       {
         id: 'keywordInTitle',
         pass: title.trim().toLowerCase().includes(keyword),
-        text: <>La palabra clave <strong className="text-foreground">{`"${focusKeyword}"`}</strong> está en el título.</>,
+        text: title.trim().toLowerCase().includes(keyword)
+          ? <>La palabra clave <strong className="text-foreground">{`"${focusKeyword}"`}</strong> aparece en el título.</>
+          : <>La palabra clave <strong className="text-foreground">{`"${focusKeyword}"`}</strong> no está en el título.</>,
       },
       {
         id: 'metaDescLength',
         pass: metaDescription.length >= 50 && metaDescription.length <= 160,
-        text: <>La longitud de la meta descripción es óptima ({metaDescription.length} caracteres).</>,
+        text: metaDescription.length >= 50 && metaDescription.length <= 160
+          ? <>La longitud de la meta descripción ({metaDescription.length}) es buena (entre 50-160).</>
+          : <>La longitud de la meta descripción ({metaDescription.length}) debería estar entre 50 y 160 caracteres.</>,
       },
       {
         id: 'keywordInMetaDesc',
         pass: metaDescription.trim().toLowerCase().includes(keyword),
-        text: <>La palabra clave aparece en la meta descripción.</>,
+        text: metaDescription.trim().toLowerCase().includes(keyword)
+          ? <>La palabra clave aparece en la meta descripción.</>
+          : <>La palabra clave no se encontró en la meta descripción.</>,
       },
       {
         id: 'keywordInIntro',
         pass: firstParagraph.includes(keyword),
-        text: <>La palabra clave aparece en la introducción (primeros párrafos).</>,
+        text: firstParagraph.includes(keyword)
+          ? <>La palabra clave aparece en la introducción.</>
+          : <>La palabra clave no se encontró en la introducción (primeros párrafos).</>,
       },
       {
         id: 'contentLength',
         pass: wordCount >= 300,
-        text: <>El contenido tiene más de 300 palabras ({wordCount} palabras).</>,
+        text: wordCount >= 300
+          ? <>El contenido tiene más de 300 palabras ({wordCount} palabras).</>
+          : <>El contenido tiene {wordCount} palabras. Se recomienda un mínimo de 300.</>,
       },
     ];
 

@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -57,13 +58,13 @@ export async function POST(req: NextRequest) {
                 Language: ${language}
             `;
         } else if (mode === 'enhance_content') {
-             systemInstruction = `You are an expert SEO copywriter. Enhance the following blog post for better readability, engagement, and search engine optimization. Correct any grammatical errors. Return a valid JSON object with two keys: 'title' (an improved, SEO-friendly title) and 'content' (the enhanced content with HTML formatting). Do not include markdown or the word 'json' in your output.`;
+             systemInstruction = `You are an expert SEO copywriter. Your task is to analyze a blog post's title and content and suggest a better, more engaging, and SEO-optimized title. Return a single, valid JSON object with one key: 'title'. Do not include markdown or the word 'json' in your output.`;
              prompt = `
-                Enhance this blog post in ${language}.
+                Suggest a new, improved title in ${language} for this blog post.
                 Original Title: "${existingTitle}"
-                Original Content:
+                Content Summary:
                 ---
-                ${existingContent}
+                ${existingContent?.substring(0, 1000)}...
                 ---
             `;
         } else if (mode === 'generate_meta_description') {
@@ -128,8 +129,8 @@ export async function POST(req: NextRequest) {
         if (mode === 'generate_from_topic' && (!parsedJson.title || !parsedJson.content)) {
              throw new Error("AI returned an invalid JSON structure for topic generation.");
         }
-        if (mode === 'enhance_content' && (!parsedJson.title || !parsedJson.content)) {
-            throw new Error("AI returned an invalid JSON structure for content enhancement.");
+        if (mode === 'enhance_content' && (!parsedJson.title || typeof parsedJson.title !== 'string')) {
+            throw new Error("AI returned an invalid JSON structure for title enhancement.");
         }
         if (mode === 'suggest_keywords' && !parsedJson.suggestedKeywords) {
             throw new Error("AI returned an invalid JSON structure for keyword suggestion.");
