@@ -83,10 +83,27 @@ async function getAiAnalysis(content: string) {
   const model = genAI.getGenerativeModel({
     model: "gemini-1.5-flash-latest",
     generationConfig: { responseMimeType: "application/json" },
+    safetySettings: [
+        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+    ]
   });
 
   try {
     const result = await model.generateContent(prompt);
+
+    if (result.response.promptFeedback?.blockReason) {
+        const blockReason = result.response.promptFeedback.blockReason;
+        console.error(`AI generation blocked due to: ${blockReason}`);
+        let userMessage = "La IA no pudo procesar el contenido de esta página por motivos de seguridad.";
+        if (blockReason === 'SAFETY') {
+            userMessage += " Es posible que el contenido haya sido identificado como potencialmente dañino."
+        }
+        throw new Error(userMessage);
+    }
+    
     const responseText = result.response.text();
     const parsedJson = JSON.parse(responseText);
     const validation = aiResponseSchema.safeParse(parsedJson);
@@ -98,6 +115,9 @@ async function getAiAnalysis(content: string) {
     return validation.data;
   } catch (error) {
     console.error("Error communicating with Google AI:", error);
+    if (error instanceof Error && (error.message.includes("La IA no pudo procesar") || error.message.includes("formato inesperado"))) {
+        throw error;
+    }
     throw new Error("Hubo un error al procesar el contenido con la IA.");
   }
 }
