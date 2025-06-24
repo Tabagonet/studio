@@ -14,7 +14,7 @@ import { AnalysisView, type AnalysisResult } from '@/components/features/seo/ana
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { ContentStats } from '@/lib/types';
+import type { ContentStats, SeoAnalysisRecord } from '@/lib/types';
 import { BlogEditModal } from '@/components/features/blog/blog-edit-modal';
 
 
@@ -38,9 +38,9 @@ export default function SeoOptimizerPage() {
 
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [analysisHistory, setAnalysisHistory] = useState<SeoAnalysisRecord[]>([]);
   const [selectedPage, setSelectedPage] = useState<ContentItem | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showLanguageWarning, setShowLanguageWarning] = useState(false);
   
   const [manualUrl, setManualUrl] = useState('');
   const [activeConnectionUrl, setActiveConnectionUrl] = useState('');
@@ -54,7 +54,6 @@ export default function SeoOptimizerPage() {
     setIsLoading(true);
     setIsLoadingStats(true);
     setError(null);
-    setShowLanguageWarning(false);
     const user = auth.currentUser;
     if (!user) {
         setError("Debes iniciar sesión para usar esta función.");
@@ -74,7 +73,6 @@ export default function SeoOptimizerPage() {
         if (listResponse.ok) {
             const listData = await listResponse.json();
             setContentList(listData.content);
-            setShowLanguageWarning(listData.languageDataMissing);
         } else {
             const errorData = await listResponse.json();
             setError(errorData.error || 'No se pudo cargar el contenido del sitio.');
@@ -119,6 +117,7 @@ export default function SeoOptimizerPage() {
     setIsLoadingAnalysis(true);
     setError(null);
     setAnalysis(null);
+    setAnalysisHistory([]);
     setSelectedPage(page);
 
     const user = auth.currentUser;
@@ -136,6 +135,11 @@ export default function SeoOptimizerPage() {
         urlToAnalyze = `https://${urlToAnalyze}`;
       }
 
+      // We start fetching history while the main analysis runs
+      const historyPromise = fetch(`/api/seo/history?url=${encodeURIComponent(urlToAnalyze)}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
       const response = await fetch('/api/seo/analyze-url', {
         method: 'POST',
         headers: {
@@ -153,6 +157,14 @@ export default function SeoOptimizerPage() {
 
       setAnalysis(result);
       setScores(prev => ({...prev, [page.id]: result.aiAnalysis.score}));
+
+      // Now we await the history result
+      const historyResponse = await historyPromise;
+      if (historyResponse.ok) {
+          const historyData = await historyResponse.json();
+          setAnalysisHistory(historyData.history);
+      }
+
     } catch (err: any) {
       setError(err.message);
       toast({ title: "Error en el Análisis", description: err.message, variant: "destructive" });
@@ -215,8 +227,18 @@ export default function SeoOptimizerPage() {
                   <CardContent>{isLoadingStats ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{stats?.totalPages ?? 'N/A'}</div>}</CardContent>
               </Card>
               <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Publicado / Borrador</CardTitle><FileCheck2 className="h-4 w-4 text-muted-foreground" /></CardHeader>
-                  <CardContent>{isLoadingStats ? <Skeleton className="h-8 w-24" /> : <div className="text-2xl font-bold">{`${stats?.status.publish ?? 'N/A'} / ${stats?.status.draft ?? 'N/A'}`}</div>}</CardContent>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Contenido por Idioma</CardTitle><FileCheck2 className="h-4 w-4 text-muted-foreground" /></CardHeader>
+                  <CardContent>
+                      {isLoadingStats ? <Skeleton className="h-8 w-24" /> : 
+                       (stats && stats.languages && Object.keys(stats.languages).length > 0) ? (
+                          <div className="text-sm font-bold flex flex-wrap gap-x-3 gap-y-1">
+                             {Object.entries(stats.languages).map(([lang, count]) => (
+                                <span key={lang} className="uppercase">{lang}: {count}</span>
+                             ))}
+                          </div>
+                        ) : <div className="text-sm font-bold">N/A</div>
+                      }
+                  </CardContent>
               </Card>
           </div>
       )
@@ -247,7 +269,12 @@ export default function SeoOptimizerPage() {
                     </div>
                 )}
                 {analysis && !isLoadingAnalysis && (
-                    <AnalysisView analysis={analysis} item={selectedPage} onEdit={handleEditContent} />
+                    <AnalysisView 
+                        analysis={analysis} 
+                        item={selectedPage} 
+                        onEdit={handleEditContent} 
+                        history={analysisHistory}
+                    />
                 )}
                 {error && !isLoadingAnalysis && (
                     <Alert variant="destructive">
@@ -276,36 +303,7 @@ export default function SeoOptimizerPage() {
                     </AlertDescription>
                 </Alert>
             )}
-            {showLanguageWarning && (
-                <Alert variant="destructive" className="mb-4">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>No se detectan los idiomas</AlertTitle>
-                    <AlertDescription>
-                        <p>Tu sitio de WordPress no está devolviendo la información de idioma (probablemente por usar la versión gratuita de Polylang). Para activarlo, añade el siguiente código a tu sitio.</p>
-                        <p className="mt-2">La forma más segura es usar un plugin como <a href="https://wordpress.org/plugins/code-snippets/" target="_blank" rel="noopener noreferrer" className="font-semibold underline">Code Snippets</a> y crear un nuevo snippet con este código:</p>
-                        <pre className="mt-2 p-2 bg-muted rounded-md text-xs overflow-x-auto">
-                            <code>
-{`add_action('rest_api_init', function () {
-    $types = get_post_types(['public' => true], 'names');
-    foreach ($types as $type) {
-        register_rest_field($type, 'lang', [
-            'get_callback' => function ($post_arr) {
-                return function_exists('pll_get_post_language') ? pll_get_post_language($post_arr['id']) : null;
-            }, 'schema' => null,
-        ]);
-        register_rest_field($type, 'translations', [
-            'get_callback' => function ($post_arr) {
-                return function_exists('pll_get_post_translations') ? pll_get_post_translations($post_arr['id']) : null;
-            },
-            'schema' => null,
-        ]);
-    }
-});`}
-                            </code>
-                        </pre>
-                    </AlertDescription>
-                </Alert>
-            )}
+            
              <div className="flex flex-col sm:flex-row gap-2 items-center mb-6">
                 <Input 
                     type="url"
@@ -361,3 +359,5 @@ export default function SeoOptimizerPage() {
     </div>
   );
 }
+
+    

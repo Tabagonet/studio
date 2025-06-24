@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
@@ -17,42 +18,40 @@ export async function GET(req: NextRequest) {
       throw new Error('WordPress API is not configured for the active connection.');
     }
 
-    const getCount = async (endpoint: string, params: any = {}): Promise<number> => {
+    // Fetch all posts and pages to get language data
+    const postsResponse = await wpApi.get('/posts', { params: { per_page: 100, context: 'view', _fields: 'id,lang' }});
+    const pagesResponse = await wpApi.get('/pages', { params: { per_page: 100, context: 'view', _fields: 'id,lang' }});
+    
+    const allContent = [...postsResponse.data, ...pagesResponse.data];
+    
+    const languageCounts: { [key: string]: number } = {};
+    allContent.forEach(item => {
+        const lang = item.lang || 'unknown';
+        languageCounts[lang] = (languageCounts[lang] || 0) + 1;
+    });
+
+    const getCount = async (endpoint: string): Promise<number> => {
       try {
-        const response = await wpApi.get(endpoint, { params: { ...params, per_page: 1, context: 'view' } });
+        const response = await wpApi.get(endpoint, { params: { per_page: 1, context: 'view' } });
         return response.headers['x-wp-total'] ? parseInt(response.headers['x-wp-total'], 10) : 0;
       } catch (e) {
-        console.error(`Failed to get count for ${endpoint} with params: ${JSON.stringify(params)}`, e);
+        console.error(`Failed to get count for ${endpoint}`, e);
         return 0;
       }
     };
-
-    const allStatuses = 'publish,draft,pending,private,future';
-
-    const [
-      totalPosts,
-      publishedPosts,
-      draftPosts,
-      totalPages,
-      publishedPages,
-      draftPages,
-    ] = await Promise.all([
-      getCount('/posts', { status: allStatuses }),
-      getCount('/posts', { status: 'publish' }),
-      getCount('/posts', { status: 'draft' }),
-      getCount('/pages', { status: allStatuses }),
-      getCount('/pages', { status: 'publish' }),
-      getCount('/pages', { status: 'draft' }),
-    ]);
     
+    const [totalPosts, totalPages] = await Promise.all([
+        getCount('/posts'),
+        getCount('/pages')
+    ]);
+
     const stats = {
       totalPosts,
       totalPages,
       totalContent: totalPosts + totalPages,
-      status: {
-          publish: publishedPosts + publishedPages,
-          draft: draftPosts + draftPages,
-      }
+      languages: languageCounts,
+      // Status stats are removed as language stats are more valuable here
+      status: {}
     };
 
     return NextResponse.json(stats);
@@ -64,3 +63,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: errorMessage }, { status });
   }
 }
+
+    

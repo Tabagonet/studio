@@ -1,6 +1,7 @@
 
 
 import type { LucideIcon } from 'lucide-react';
+import type { AnalysisResult } from '@/components/features/seo/analysis-view';
 
 // Core navigation type, kept for UI layout
 export interface NavItem {
@@ -200,6 +201,7 @@ export type ContentStats = {
   totalPosts: number;
   totalPages: number;
   totalContent: number;
+  languages: { [key: string]: number };
   status: {
       publish: number;
       draft: number;
@@ -246,3 +248,14 @@ export interface ContentItem {
   lang?: string;
   translations?: Record<string, number>;
 }
+
+export interface SeoAnalysisRecord {
+  id: string;
+  userId: string;
+  url: string;
+  createdAt: string; // ISO string date
+  analysis: AnalysisResult;
+  score: number;
+}
+
+    

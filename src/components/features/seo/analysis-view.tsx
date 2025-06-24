@@ -1,13 +1,17 @@
 
+
 "use client";
 
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { BrainCircuit, CheckCircle, XCircle, Image as ImageIcon, Heading1, ListTree, Edit } from "lucide-react";
+import { BrainCircuit, CheckCircle, XCircle, Image as ImageIcon, Heading1, ListTree, Edit, History } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import type { ContentItem } from '@/app/(app)/seo-optimizer/page';
+import type { SeoAnalysisRecord } from '@/lib/types';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export interface AnalysisResult {
   title: string;
@@ -26,17 +30,17 @@ export interface AnalysisResult {
 interface AnalysisViewProps {
   analysis: AnalysisResult;
   item: ContentItem;
+  history: SeoAnalysisRecord[];
   onEdit: (item: ContentItem) => void;
 }
 
-export function AnalysisView({ analysis, item, onEdit }: AnalysisViewProps) {
+export function AnalysisView({ analysis, item, history, onEdit }: AnalysisViewProps) {
   const imagesWithoutAlt = analysis.images.filter(img => !img.alt).length;
   const totalImages = analysis.images.length;
   const scoreColor = analysis.aiAnalysis.score >= 80 ? 'text-green-500' : analysis.aiAnalysis.score >= 50 ? 'text-amber-500' : 'text-destructive';
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Columna Izquierda: Análisis IA */}
       <div className="lg:col-span-2 space-y-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
@@ -91,10 +95,8 @@ export function AnalysisView({ analysis, item, onEdit }: AnalysisViewProps) {
             </ScrollArea>
           </CardContent>
         </Card>
-
       </div>
 
-      {/* Columna Derecha: SEO Técnico */}
       <div className="space-y-6">
         <Card>
           <CardHeader>
@@ -141,7 +143,34 @@ export function AnalysisView({ analysis, item, onEdit }: AnalysisViewProps) {
              </div>
           </CardContent>
         </Card>
+        
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><History className="h-5 w-5 text-primary"/> Historial de Análisis</CardTitle>
+                <CardDescription>Compara la evolución de la puntuación SEO de esta página.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {history.length > 0 ? (
+                    <ul className="space-y-2">
+                        {history.map(record => (
+                            <li key={record.id} className="flex justify-between items-center text-sm p-2 bg-muted rounded-md">
+                                <span className="text-muted-foreground">
+                                    {format(new Date(record.createdAt), "d 'de' LLLL, yyyy", { locale: es })}
+                                </span>
+                                <Badge className={record.score >= 80 ? 'bg-green-500' : record.score >= 50 ? 'bg-amber-500' : 'bg-destructive'}>
+                                    {record.score}
+                                </Badge>
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">No hay análisis anteriores para esta URL.</p>
+                )}
+            </CardContent>
+        </Card>
       </div>
     </div>
   );
 }
+
+    
