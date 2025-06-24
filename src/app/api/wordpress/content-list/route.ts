@@ -10,8 +10,8 @@ export interface ContentItem {
   link: string;
   status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
   parent: number;
-  lang: string; // Will be default
-  translations: Record<string, number>; // Will be empty
+  lang: string; // e.g., 'es', 'en'
+  translations: Record<string, number>;
 }
 
 export async function GET(req: NextRequest) {
@@ -30,39 +30,50 @@ export async function GET(req: NextRequest) {
         throw new Error('WordPress API is not configured for the active connection.');
     }
 
-    const fetchParams = {
-        per_page: 100, 
-        status: 'publish,draft,pending,private,future',
-        orderby: 'title',
-        order: 'asc',
-        context: 'view',
-    };
-
-    const [postsResponse, pagesResponse] = await Promise.all([
-        wpApi.get('/posts', { params: fetchParams }).catch(e => { console.error(`Failed to fetch posts`, e.response?.data); return { data: [] }; }),
-        wpApi.get('/pages', { params: fetchParams }).catch(e => { console.error(`Failed to fetch pages`, e.response?.data); return { data: [] }; })
-    ]);
-
+    const languagesToFetch = ['es', 'en', 'fr', 'de', 'pt']; // Check for common languages
     const allContent: ContentItem[] = [];
 
-    const mapContent = (item: any): ContentItem => {
-        return {
+    const fetchContentForLang = async (lang: string): Promise<ContentItem[]> => {
+      const fetchParams = {
+          per_page: 100, 
+          status: 'publish,draft,pending,private,future',
+          orderby: 'title',
+          order: 'asc',
+          context: 'view',
+          lang: lang,
+      };
+
+      try {
+        const [postsResponse, pagesResponse] = await Promise.all([
+            wpApi.get('/posts', { params: fetchParams }),
+            wpApi.get('/pages', { params: fetchParams })
+        ]);
+
+        const mapContent = (item: any): ContentItem => ({
             id: item.id,
             title: item.title?.rendered || 'No Title',
             type: item.type === 'post' ? 'Post' : 'Page',
             link: item.link,
             status: item.status,
             parent: item.parent || 0,
-            // We cannot detect language, so we fall back to a default value.
-            lang: 'default', 
+            lang: lang.toUpperCase(), // Assign the language we requested
             translations: item.translations || {},
-        };
+        });
+
+        const posts: ContentItem[] = postsResponse.data.map(mapContent);
+        const pages: ContentItem[] = pagesResponse.data.map(mapContent);
+        
+        return [...posts, ...pages];
+      } catch (error) {
+        // This is expected if a language doesn't exist on the site, so we just log and ignore.
+        // console.log(`No content found for language '${lang}' or error fetching it.`);
+        return [];
+      }
     };
-
-    const posts: ContentItem[] = postsResponse.data.map(mapContent);
-    const pages: ContentItem[] = pagesResponse.data.map(mapContent);
-
-    allContent.push(...posts, ...pages);
+    
+    const promises = languagesToFetch.map(lang => fetchContentForLang(lang));
+    const results = await Promise.all(promises);
+    results.forEach(contentArray => allContent.push(...contentArray));
         
     return NextResponse.json({ content: allContent });
   } catch (error: any) {
