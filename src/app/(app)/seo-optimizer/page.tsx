@@ -23,6 +23,7 @@ export interface ContentItem {
   link: string;
   status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
   parent: number | null;
+  subRows?: ContentItem[]; // For tanstack-table hierarchy
 }
 
 export default function SeoOptimizerPage() {
@@ -39,9 +40,7 @@ export default function SeoOptimizerPage() {
   
   const [manualUrl, setManualUrl] = useState('');
 
-  // New filter states
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [activeConnectionUrl, setActiveConnectionUrl] = useState('');
   
   const { toast } = useToast();
   
@@ -59,18 +58,12 @@ export default function SeoOptimizerPage() {
     try {
         const token = await user.getIdToken();
         
-        // Fetch List
-        const listParams = new URLSearchParams({ type: typeFilter, status: statusFilter });
-        const listPromise = fetch(`/api/wordpress/content-list?${listParams.toString()}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        // Fetch List, Stats, and active URL in parallel
+        const listPromise = fetch(`/api/wordpress/content-list`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const statsPromise = fetch('/api/wordpress/content-stats', { headers: { 'Authorization': `Bearer ${token}` } });
+        const configPromise = fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` } });
         
-        // Fetch Stats
-        const statsPromise = fetch('/api/wordpress/content-stats', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        const [listResponse, statsResponse] = await Promise.all([listPromise, statsPromise]);
+        const [listResponse, statsResponse, configResponse] = await Promise.all([listPromise, statsPromise, configPromise]);
 
         // Process List Response
         if (listResponse.ok) {
@@ -88,6 +81,13 @@ export default function SeoOptimizerPage() {
         } else {
              setStats(null);
         }
+        
+        // Process Config Response to get active URL
+        if (configResponse.ok) {
+            const configData = await configResponse.json();
+            setActiveConnectionUrl(configData.activeStoreUrl || '');
+        }
+
 
     } catch (err: any) {
         setError(err.message);
@@ -97,7 +97,7 @@ export default function SeoOptimizerPage() {
         setIsLoadingList(false);
         setIsLoadingStats(false);
     }
-  }, [typeFilter, statusFilter]);
+  }, []);
 
   useEffect(() => {
     const handleAuth = (user: import('firebase/auth').User | null) => {
@@ -167,12 +167,13 @@ export default function SeoOptimizerPage() {
   };
   
   const handleManualAnalyze = () => {
-      if (!manualUrl) {
-          toast({ title: "Introduce una URL para analizar", variant: "destructive" });
+      let urlToUse = manualUrl || activeConnectionUrl;
+      if (!urlToUse) {
+          toast({ title: "Introduce una URL para analizar", description: "O conecta un sitio en los ajustes.", variant: "destructive" });
           return;
       }
       
-      const fullUrl = manualUrl.startsWith('http') ? manualUrl : `https://${manualUrl}`;
+      const fullUrl = urlToUse.startsWith('http') ? urlToUse : `https://${urlToUse}`;
       const dummyItem: ContentItem = {
           id: Date.now(),
           title: fullUrl,
@@ -256,7 +257,7 @@ export default function SeoOptimizerPage() {
         <CardHeader>
           <CardTitle>Selecciona Contenido para Analizar</CardTitle>
           <CardDescription>
-            Usa los filtros para encontrar una página o entrada específica de tu sitio, o introduce una URL manualmente.
+            Elige una página o entrada de tu sitio, o introduce una URL externa para analizar.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -271,7 +272,7 @@ export default function SeoOptimizerPage() {
              <div className="flex flex-col sm:flex-row gap-2 items-center mb-6">
                 <Input 
                     type="url"
-                    placeholder="O introduce cualquier URL pública..."
+                    placeholder={activeConnectionUrl ? `Analizar URL externa (por defecto: ${activeConnectionUrl})` : "Introduce cualquier URL pública..."}
                     value={manualUrl}
                     onChange={(e) => setManualUrl(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleManualAnalyze()}
@@ -286,10 +287,6 @@ export default function SeoOptimizerPage() {
               <SeoPageListTable 
                 data={contentList} 
                 onAnalyze={handleAnalyze} 
-                typeFilter={typeFilter}
-                onTypeFilterChange={setTypeFilter}
-                statusFilter={statusFilter}
-                onStatusFilterChange={setStatusFilter}
               />
             )}
         </CardContent>

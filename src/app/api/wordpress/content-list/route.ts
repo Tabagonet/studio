@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 
-interface ContentItem {
+export interface ContentItem {
   id: number;
   title: string;
   type: 'Post' | 'Page';
@@ -25,45 +25,39 @@ export async function GET(req: NextRequest) {
     if (!wpApi) {
         throw new Error('WordPress API is not configured for the active connection.');
     }
-    
-    const { searchParams } = new URL(req.url);
-    const typeFilter = searchParams.get('type') || 'all'; // 'all', 'post', 'page'
-    const statusFilter = searchParams.get('status') || 'all'; // 'all', 'publish', 'draft'
 
     const params = {
-      per_page: 100,
-      status: statusFilter === 'all' ? 'publish,draft,pending,private,future' : statusFilter,
+      per_page: 100, // Fetch up to 100 items per type
+      status: 'publish,draft,pending,private,future', // Fetch all statuses
       _fields: 'id,title.rendered,link,type,status,parent', // Add parent field
+      orderby: 'title', // Order by title alphabetically
+      order: 'asc',
     };
 
-    let posts: ContentItem[] = [];
-    let pages: ContentItem[] = [];
+    const [postsResponse, pagesResponse] = await Promise.all([
+      wpApi.get('/posts', { params }),
+      wpApi.get('/pages', { params })
+    ]);
+   
+    const posts: ContentItem[] = postsResponse.data.map((post: any) => ({
+        id: post.id,
+        title: post.title.rendered,
+        type: 'Post',
+        link: post.link,
+        status: post.status,
+        parent: post.parent || null,
+    }));
 
-    if (typeFilter === 'all' || typeFilter === 'post') {
-        const postsResponse = await wpApi.get('/posts', { params });
-        posts = postsResponse.data.map((post: any) => ({
-            id: post.id,
-            title: post.title.rendered,
-            type: 'Post',
-            link: post.link,
-            status: post.status,
-            parent: post.parent || null,
-        }));
-    }
-
-    if (typeFilter === 'all' || typeFilter === 'page') {
-         const pagesResponse = await wpApi.get('/pages', { params });
-         pages = pagesResponse.data.map((page: any) => ({
-            id: page.id,
-            title: page.title.rendered,
-            type: 'Page',
-            link: page.link,
-            status: page.status,
-            parent: page.parent || null,
-        }));
-    }
+    const pages: ContentItem[] = pagesResponse.data.map((page: any) => ({
+        id: page.id,
+        title: page.title.rendered,
+        type: 'Page',
+        link: page.link,
+        status: page.status,
+        parent: page.parent || null,
+    }));
     
-    const combinedContent = [...posts, ...pages]; // No sorting here, let frontend handle it after building tree
+    const combinedContent = [...posts, ...pages]; 
         
     return NextResponse.json({ content: combinedContent });
   } catch (error: any) {
