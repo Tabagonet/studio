@@ -2,6 +2,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import {
   ColumnFiltersState,
   RowSelectionState,
@@ -31,7 +32,6 @@ import type { BlogPostSearchResult, WordPressPostCategory, BlogStats } from "@/l
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { BlogEditModal } from "@/components/features/blog/blog-edit-modal"
 import { BookOpen, FileCheck2, FileClock, FileText, Loader2, Lock, Trash2, ChevronDown } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
@@ -65,8 +65,7 @@ export function BlogDataTable() {
     pageSize: 10, 
   })
   
-  const [editingPostId, setEditingPostId] = React.useState<number | null>(null);
-
+  const router = useRouter();
   const { toast } = useToast()
 
   const fetchStats = React.useCallback(async () => {
@@ -244,14 +243,8 @@ export function BlogDataTable() {
     }
   }, [toast, fetchData, fetchStats]);
 
-  const handleEditPost = (postId: number) => setEditingPostId(postId);
-  
-  const handleCloseModal = (refresh: boolean) => {
-    setEditingPostId(null);
-    if (refresh) {
-      fetchData();
-      fetchStats();
-    }
+  const handleEditPost = (postId: number) => {
+    router.push(`/seo-optimizer/edit/${postId}?type=Post`);
   };
 
   const columns = React.useMemo(() => getColumns(handleStatusUpdate, handleEditPost, handleDeletePost), [handleStatusUpdate, handleDeletePost]);
@@ -339,9 +332,6 @@ export function BlogDataTable() {
 
   return (
     <div className="w-full space-y-4">
-      {editingPostId && (
-        <BlogEditModal postId={editingPostId} onClose={handleCloseModal} />
-      )}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total de Entradas</CardTitle><BookOpen className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent>{isLoadingStats ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{stats?.total ?? 'N/A'}</div>}</CardContent></Card>
         <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Publicadas</CardTitle><FileCheck2 className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent>{isLoadingStats ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{stats?.status?.publish ?? 'N/A'}</div>}</CardContent></Card>

@@ -3,6 +3,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -15,7 +16,6 @@ import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ContentStats, SeoAnalysisRecord } from '@/lib/types';
-import { BlogEditModal } from '@/components/features/blog/blog-edit-modal';
 
 
 export interface ContentItem {
@@ -46,8 +46,8 @@ export default function SeoOptimizerPage() {
   const [activeConnectionUrl, setActiveConnectionUrl] = useState('');
 
   const [scores, setScores] = useState<Record<number, number>>({});
-  const [editingContent, setEditingContent] = useState<{ id: number; type: 'Post' | 'Page'; translations?: Record<string, number> } | null>(null);
   
+  const router = useRouter();
   const { toast } = useToast();
   
   const fetchContentData = useCallback(async () => {
@@ -148,7 +148,8 @@ export default function SeoOptimizerPage() {
         setAnalysisHistory(historyData.history);
         setScores(prev => ({ ...prev, [page.id]: historyData.history[0].score }));
       } else {
-        throw new Error("No se encontró ningún informe guardado para esta URL. Por favor, analice de nuevo.");
+        // If no history, perform a new analysis automatically
+        await handleAnalyze(page);
       }
     } catch (err: any) {
       setError(err.message);
@@ -242,18 +243,10 @@ export default function SeoOptimizerPage() {
   }
   
   const handleEditContent = (item: ContentItem) => {
-    setEditingContent({ id: item.id, type: item.type, translations: item.translations });
+    const url = `/seo-optimizer/edit/${item.id}?type=${item.type}`;
+    router.push(url);
   };
   
-  const handleCloseModal = (refresh: boolean) => {
-    setEditingContent(null);
-    if (refresh) {
-        if (selectedPage) {
-            // Force re-analysis after saving changes
-            handleAnalyze(selectedPage);
-        }
-    }
-  };
 
   const renderStats = () => {
       return (
@@ -378,13 +371,6 @@ export default function SeoOptimizerPage() {
 
   return (
     <div className="container mx-auto py-8 space-y-6">
-       {editingContent && (
-        <BlogEditModal 
-            postId={editingContent.id} 
-            postType={editingContent.type} 
-            translations={editingContent.translations} 
-            onClose={handleCloseModal} />
-      )}
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
