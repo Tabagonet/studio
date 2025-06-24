@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { SearchCheck, ChevronRight } from "lucide-react";
-import type { ContentItem as RawContentItem, MenuItem } from "@/app/(app)/seo-optimizer/page";
+import type { ContentItem as RawContentItem } from "@/app/(app)/seo-optimizer/page";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
@@ -35,7 +35,6 @@ type ContentItem = RawContentItem & {
 
 interface SeoPageListTableProps {
   data: ContentItem[];
-  menu: MenuItem[];
   onAnalyze: (page: ContentItem) => void;
 }
 
@@ -50,7 +49,7 @@ const getStatusText = (status: ContentItem['status']) => {
     return statusMap[status] || status;
 };
 
-export function SeoPageListTable({ data, menu, onAnalyze }: SeoPageListTableProps) {
+export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
 
@@ -60,44 +59,70 @@ export function SeoPageListTable({ data, menu, onAnalyze }: SeoPageListTableProp
   }, [data]);
   
   const tableData = React.useMemo(() => {
-    // If a menu structure is provided, use it as the source of truth for hierarchy
-    if (menu && menu.length > 0) {
-        const contentMap = new Map(data.map(item => [item.id.toString(), { ...item, subRows: [] as ContentItem[] }]));
-        
-        const buildTreeFromMenu = (menuItems: MenuItem[]): ContentItem[] => {
-            const tree: ContentItem[] = [];
-            menuItems.forEach(menuItem => {
-                const contentItem = contentMap.get(menuItem.object_id);
-                if (contentItem) {
-                    if (menuItem.children && menuItem.children.length > 0) {
-                        contentItem.subRows = buildTreeFromMenu(menuItem.children);
-                    }
-                    tree.push(contentItem);
-                }
-            });
-            return tree;
-        };
-        return buildTreeFromMenu(menu);
-    }
+    const posts = data.filter(item => item.type === 'Post');
+    const pages = data.filter(item => item.type === 'Page');
+    const sortAlphabetically = (a: ContentItem, b: ContentItem) => a.title.localeCompare(b.title);
 
-    // Fallback to original parent/child logic if no menu is available
-    const items = data.map(item => ({ ...item, subRows: [] as ContentItem[] }));
-    const itemMap = new Map(items.map(item => [item.id, item]));
-    const roots: ContentItem[] = [];
+    if (pages.length === 0) {
+        return posts.sort(sortAlphabetically);
+    }
     
-    items.forEach(item => {
-        if (item.parent && item.parent > 0 && itemMap.has(item.parent)) {
-            const parent = itemMap.get(item.parent);
-            parent?.subRows?.push(item);
-        } else {
-            roots.push(item);
+    // --- URL-based Hierarchy Logic ---
+    const pageMap = new Map(pages.map(p => [p.id, { ...p, subRows: [] as ContentItem[] }]));
+    const rootPages: ContentItem[] = [];
+    const childIds = new Set<number>();
+
+    // Sort pages by URL length, shortest first. This helps find parents before children.
+    const sortedPages = [...pages].sort((a, b) => a.link.length - b.link.length);
+
+    for (const p1 of sortedPages) {
+        let parentId: number | null = null;
+        let longestPrefixLength = -1;
+
+        for (const p2 of sortedPages) {
+            if (p1.id === p2.id) continue;
+            
+            // Check for a clean prefix (e.g. `.../parent/` is a prefix of `.../parent/child/`)
+            // This avoids `.../page-a` matching `.../page-ab`
+            const potentialParentLink = p2.link.endsWith('/') ? p2.link : `${p2.link}/`;
+            if (p1.link.startsWith(potentialParentLink) && p2.link.length > longestPrefixLength) {
+                longestPrefixLength = p2.link.length;
+                parentId = p2.id;
+            }
+        }
+
+        if (parentId) {
+            const parentNode = pageMap.get(parentId);
+            const childNode = pageMap.get(p1.id);
+            if (parentNode && childNode) {
+                parentNode.subRows.push(childNode);
+                childIds.add(p1.id);
+            }
+        }
+    }
+    
+    // Any page that wasn't identified as a child is a root page
+    pageMap.forEach((page, id) => {
+        if (!childIds.has(id)) {
+            rootPages.push(page);
         }
     });
+    
+    // Sort all levels alphabetically
+    const sortSubRows = (items: ContentItem[]) => {
+      items.sort(sortAlphabetically);
+      items.forEach(item => {
+        if (item.subRows && item.subRows.length > 0) {
+          sortSubRows(item.subRows);
+        }
+      });
+    };
+    
+    sortSubRows(rootPages);
 
-    const sortAlphabetically = (a: ContentItem, b: ContentItem) => a.title.localeCompare(b.title);
-    return roots.sort(sortAlphabetically);
+    return [...rootPages, ...posts.sort(sortAlphabetically)];
 
-  }, [data, menu]);
+  }, [data]);
 
 
   const columns = React.useMemo<ColumnDef<ContentItem>[]>(

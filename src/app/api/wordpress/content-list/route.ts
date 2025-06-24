@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
       orderby: 'title',
       order: 'asc',
       context: 'view',
+      _embed: true, // Ensure we get embedded data which might include language info from some plugins
     };
 
     const [postsResponse, pagesResponse] = await Promise.all([

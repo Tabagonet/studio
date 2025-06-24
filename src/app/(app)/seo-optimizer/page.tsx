@@ -13,7 +13,7 @@ import { AnalysisView, type AnalysisResult } from '@/components/features/seo/ana
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { ContentStats, MenuItem } from '@/lib/types';
+import type { ContentStats } from '@/lib/types';
 
 
 export interface ContentItem {
@@ -30,7 +30,6 @@ export interface ContentItem {
 
 export default function SeoOptimizerPage() {
   const [contentList, setContentList] = useState<ContentItem[]>([]);
-  const [menu, setMenu] = useState<MenuItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const [stats, setStats] = useState<ContentStats | null>(null);
@@ -47,7 +46,7 @@ export default function SeoOptimizerPage() {
   
   const { toast } = useToast();
   
-  const fetchContentAndMenuData = useCallback(async () => {
+  const fetchContentData = useCallback(async () => {
     setIsLoading(true);
     setIsLoadingStats(true);
     setError(null);
@@ -62,11 +61,10 @@ export default function SeoOptimizerPage() {
         const token = await user.getIdToken();
         
         const listPromise = fetch(`/api/wordpress/content-list`, { headers: { 'Authorization': `Bearer ${token}` } });
-        const menuPromise = fetch(`/api/wordpress/menu`, { headers: { 'Authorization': `Bearer ${token}` } });
         const statsPromise = fetch('/api/wordpress/content-stats', { headers: { 'Authorization': `Bearer ${token}` } });
         const configPromise = fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` } });
         
-        const [listResponse, menuResponse, statsResponse, configResponse] = await Promise.all([listPromise, menuPromise, statsPromise, configPromise]);
+        const [listResponse, statsResponse, configResponse] = await Promise.all([listPromise, statsPromise, configPromise]);
 
         if (listResponse.ok) {
             setContentList((await listResponse.json()).content);
@@ -76,13 +74,6 @@ export default function SeoOptimizerPage() {
             setContentList([]);
         }
         
-        if (menuResponse.ok) {
-            setMenu(await menuResponse.json());
-        } else {
-             console.warn('Could not fetch menu structure. Hierarchy will fall back to page parent/child relationships.');
-            setMenu([]);
-        }
-        
         if (statsResponse.ok) setStats(await statsResponse.json()); else setStats(null);
         if (configResponse.ok) setActiveConnectionUrl((await configResponse.json()).activeStoreUrl || '');
 
@@ -90,7 +81,6 @@ export default function SeoOptimizerPage() {
         setError(err.message);
         setContentList([]);
         setStats(null);
-        setMenu([]);
     } finally {
         setIsLoading(false);
         setIsLoadingStats(false);
@@ -100,7 +90,7 @@ export default function SeoOptimizerPage() {
   useEffect(() => {
     const handleAuth = (user: import('firebase/auth').User | null) => {
         if (user) {
-            fetchContentAndMenuData();
+            fetchContentData();
         } else {
             setIsLoading(false);
             setIsLoadingStats(false);
@@ -109,13 +99,13 @@ export default function SeoOptimizerPage() {
     };
     
     const unsubscribe = onAuthStateChanged(auth, handleAuth);
-    window.addEventListener('connections-updated', fetchContentAndMenuData);
+    window.addEventListener('connections-updated', fetchContentData);
     
     return () => {
         unsubscribe();
-        window.removeEventListener('connections-updated', fetchContentAndMenuData);
+        window.removeEventListener('connections-updated', fetchContentData);
     }
-  }, [fetchContentAndMenuData]);
+  }, [fetchContentData]);
 
 
   const handleAnalyze = async (page: ContentItem) => {
@@ -188,7 +178,7 @@ export default function SeoOptimizerPage() {
       setSelectedPage(null);
       setAnalysis(null);
       setError(null);
-      fetchContentAndMenuData();
+      fetchContentData();
   }
   
   const renderStats = () => {
@@ -285,7 +275,6 @@ export default function SeoOptimizerPage() {
             {!error && (
               <SeoPageListTable 
                 data={contentList}
-                menu={menu} 
                 onAnalyze={handleAnalyze} 
               />
             )}

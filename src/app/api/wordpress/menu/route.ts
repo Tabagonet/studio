@@ -3,6 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 
+// This custom endpoint is not part of the standard WordPress REST API.
+// It requires a custom function to be added to the theme's functions.php file.
+// If it's not present, this endpoint will gracefully fail, and the UI will fall back
+// to another method of determining page hierarchy.
+
 export async function GET(req: NextRequest) {
   try {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
@@ -38,9 +43,13 @@ export async function GET(req: NextRequest) {
     let status = error.response?.status || 500;
     
     if (error.response?.status === 404) {
-        errorMessage = "Menu not found. Please ensure a menu with the slug 'primary' exists, and that you have added the provided PHP snippet to your theme's functions.php file.";
-        status = 404;
-    } else if (error.response?.data?.message) {
+        // This is an expected "error" if the user hasn't added the custom PHP snippet.
+        // We return an empty array so the UI can gracefully fall back to the next hierarchy method.
+        console.log("Menu endpoint not found (404), returning empty array for fallback.");
+        return NextResponse.json([]);
+    } 
+    
+    if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
     } else if (error.message) {
         errorMessage = error.message;
@@ -50,6 +59,7 @@ export async function GET(req: NextRequest) {
         status = 400;
     }
     
+    console.error(`Menu API Error (${status}): ${errorMessage}`);
     return NextResponse.json({ error: errorMessage }, { status });
   }
 }
