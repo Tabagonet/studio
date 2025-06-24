@@ -144,7 +144,6 @@ export default function SeoOptimizerPage() {
     }
   }, [fetchContentData]);
 
-  // Fetches a saved report from history
   const handleViewReport = async (page: ContentItem) => {
     setIsLoadingAnalysis(true);
     setError(null);
@@ -178,20 +177,24 @@ export default function SeoOptimizerPage() {
       if (historyData.history && historyData.history.length > 0) {
         setAnalysis(historyData.history[0].analysis);
         setAnalysisHistory(historyData.history);
-        setScores(prev => ({ ...prev, [page.id]: historyData.history[0].score }));
       } else {
-        await handleAnalyze(page);
+        toast({
+          title: "Informe no encontrado",
+          description: "No hay informes guardados para esta página. Por favor, analícela primero.",
+          variant: "destructive"
+        });
+        setSelectedPage(null);
       }
     } catch (err: any) {
       setError(err.message);
       toast({ title: "Error al cargar informe", description: err.message, variant: "destructive" });
+      setSelectedPage(null);
     } finally {
       setIsLoadingAnalysis(false);
     }
   };
 
 
-  // Performs a new analysis using the AI
   const handleAnalyze = async (page: ContentItem) => {
     setIsLoadingAnalysis(true);
     setError(null);
