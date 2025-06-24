@@ -17,7 +17,7 @@ import type { WordPressPostCategory, WordPressUser, ProductPhoto } from '@/lib/t
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { SeoAnalyzer } from '@/components/features/blog/seo-analyzer';
 import { GoogleSnippetPreview } from '@/components/features/blog/google-snippet-preview';
 
@@ -176,6 +176,7 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
             categories: post.category ? [post.category] : [],
             tags: post.tags,
             metaDescription: post.metaDescription,
+            focusKeyword: post.focusKeyword,
         };
 
         const newPhoto = post.featured_media?.file ? post.featured_media : null;

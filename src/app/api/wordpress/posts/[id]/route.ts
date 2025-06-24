@@ -77,7 +77,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const { tags, featured_image_src, metaDescription, focusKeyword, ...postPayload } = validation.data;
     
     // Handle tags by finding or creating them
-    if (tags) {
+    if (tags !== undefined) { // Check for undefined to allow clearing tags with empty string
         const tagNames = tags.split(',').map(t => t.trim()).filter(Boolean);
         (postPayload as any).tags = await findOrCreateTags(tagNames, wpApi);
     }
@@ -96,12 +96,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         (postPayload as any).featured_media = postPayload.featured_media_id;
     }
     
-    // Add meta fields for SEO
-    const meta: { [key: string]: string } = {};
-    if (metaDescription) {
+    // Add meta fields for SEO, allowing them to be cleared
+    const meta: { [key: string]: string | undefined } = {};
+    if (metaDescription !== undefined) {
         meta._yoast_wpseo_metadesc = metaDescription;
     }
-    if (focusKeyword) {
+    if (focusKeyword !== undefined) {
         meta._yoast_wpseo_focuskw = focusKeyword;
     }
     if (Object.keys(meta).length > 0) {
