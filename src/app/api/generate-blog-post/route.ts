@@ -5,7 +5,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { z } from 'zod';
 
 const GenerateBlogPostInputSchema = z.object({
-  mode: z.enum(['generate_from_topic', 'enhance_content', 'suggest_keywords']),
+  mode: z.enum(['generate_from_topic', 'enhance_content', 'suggest_keywords', 'generate_meta_description']),
   language: z.string().optional().default('Spanish'),
   topic: z.string().optional(),
   keywords: z.string().optional(),
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
 
         if (mode === 'generate_from_topic') {
             systemInstruction = `You are a professional blog writer and SEO specialist. Your task is to generate a blog post based on a given topic. If a specific 'Focus Keyword' is provided, the entire article (title, content) must be optimized around it. If no 'Focus Keyword' is provided, you must first determine the best possible primary SEO keyword for the given topic, and then write the article optimized for that keyword.
-The response must be a single, valid JSON object with four keys: 'title' (an engaging, SEO-friendly headline), 'content' (a well-structured blog post of at least 400 words, using HTML tags like <h2>, <p>, <ul>, <li>, and <strong> for formatting), 'suggestedKeywords' (a comma-separated string of 5-7 relevant, SEO-focused keywords), and 'focusKeyword' (the primary SEO keyword you either used or determined). Do not include markdown or the word 'json' in your output.`;
+The response must be a single, valid JSON object with five keys: 'title' (an engaging, SEO-friendly headline), 'content' (a well-structured blog post of at least 400 words, using HTML tags like <h2>, <p>, <ul>, <li>, and <strong> for formatting), 'suggestedKeywords' (a comma-separated string of 5-7 relevant, SEO-focused keywords), 'focusKeyword' (the primary SEO keyword you either used or determined), and 'metaDescription' (a compelling summary of around 150 characters for search engines). Do not include markdown or the word 'json' in your output.`;
             prompt = `
                 Generate a blog post.
                 Topic: "${topic}"
@@ -64,6 +64,16 @@ The response must be a single, valid JSON object with four keys: 'title' (an eng
                 Enhance this blog post in ${language}.
                 Original Title: "${existingTitle}"
                 Original Content:
+                ---
+                ${existingContent}
+                ---
+            `;
+        } else if (mode === 'generate_meta_description') {
+            systemInstruction = `You are a professional SEO copywriter. Your task is to write a compelling meta description (maximum 160 characters) for the given blog post. The description should be engaging, encourage clicks, and ideally contain the main keywords from the title and content. Return a single, valid JSON object with one key: 'metaDescription'. Do not include markdown or the word 'json' in your output.`;
+            prompt = `
+                Generate a meta description in ${language}.
+                Title: "${existingTitle}"
+                Content:
                 ---
                 ${existingContent}
                 ---
@@ -91,16 +101,20 @@ The response must be a single, valid JSON object with four keys: 'title' (an eng
         const result = await model.generateContent(prompt);
         const responseText = result.response.text();
         const parsedJson = JSON.parse(responseText);
-
-        // Validate the response based on the mode
-        if (mode === 'generate_from_topic' && (!parsedJson.title || !parsedJson.content || !parsedJson.focusKeyword)) {
-             throw new Error("AI returned an invalid JSON structure for topic generation.");
+        
+        if (mode === 'generate_from_topic') {
+            if (!parsedJson.title || !parsedJson.content || !parsedJson.focusKeyword || !parsedJson.metaDescription) {
+                 throw new Error("AI returned an invalid JSON structure for topic generation.");
+            }
         }
         if (mode === 'enhance_content' && (!parsedJson.title || !parsedJson.content)) {
             throw new Error("AI returned an invalid JSON structure for content enhancement.");
         }
         if (mode === 'suggest_keywords' && !parsedJson.suggestedKeywords) {
             throw new Error("AI returned an invalid JSON structure for keyword suggestion.");
+        }
+        if (mode === 'generate_meta_description' && !parsedJson.metaDescription) {
+            throw new Error("AI returned an invalid JSON structure for meta description generation.");
         }
         
         return NextResponse.json(parsedJson);

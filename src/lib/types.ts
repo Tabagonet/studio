@@ -94,6 +94,7 @@ export interface BlogPostData {
   topic: string; // for AI
   keywords: string; // for AI and tags
   focusKeyword: string;
+  metaDescription: string;
   category: WordPressPostCategory | null;
   status: 'publish' | 'draft' | 'pending';
   featuredImage: ProductPhoto | null;

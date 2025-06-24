@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { SeoAnalyzer } from '@/components/features/blog/seo-analyzer';
+import { GoogleSnippetPreview } from '@/components/features/blog/google-snippet-preview';
 
 
 interface BlogEditModalProps {
@@ -34,6 +35,8 @@ interface PostEditState {
   category: number | null;
   tags: string;
   featured_media: ProductPhoto | null;
+  metaDescription: string;
+  focusKeyword: string;
 }
 
 const ContentToolbar = ({ onInsertTag, onInsertLink, onInsertImage }: { onInsertTag: (tag: 'h2' | 'ul' | 'ol' | 'strong' | 'em') => void; onInsertLink: () => void; onInsertImage: () => void; }) => (
@@ -79,7 +82,6 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
   const [imageUrl, setImageUrl] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [focusKeyword, setFocusKeyword] = useState('');
   
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const selectionRef = useRef<{ start: number; end: number } | null>(null);
@@ -102,7 +104,7 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
       setPost({ ...post, featured_media: updatedPhotos[0] || null });
   };
 
-  const handleAIGeneration = async (mode: 'enhance_content' | 'suggest_keywords') => {
+  const handleAIGeneration = async (mode: 'enhance_content' | 'suggest_keywords' | 'generate_meta_description') => {
         setIsAiLoading(true);
         if (!post) {
             setIsAiLoading(false);
@@ -140,6 +142,9 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
             if (mode === 'enhance_content') {
                 setPost({ ...post, title: aiContent.title, content: aiContent.content });
                 toast({ title: "Contenido mejorado", description: "Se han actualizado el título y el contenido." });
+            } else if (mode === 'generate_meta_description') {
+                setPost({ ...post, metaDescription: aiContent.metaDescription });
+                toast({ title: "Meta descripción generada", description: "El campo para buscadores ha sido actualizado." });
             } else { // suggest_keywords
                 setPost({ ...post, tags: aiContent.suggestedKeywords });
                 toast({ title: "Etiquetas sugeridas", description: "Se han actualizado las etiquetas." });
@@ -170,6 +175,7 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
             author: post.author,
             categories: post.category ? [post.category] : [],
             tags: post.tags,
+            metaDescription: post.metaDescription,
         };
 
         const newPhoto = post.featured_media?.file ? post.featured_media : null;
@@ -254,6 +260,8 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
           category: postData.categories?.[0] || null,
           tags: postData._embedded?.['wp:term']?.[1]?.map((t: any) => t.name).join(', ') || '',
           featured_media: featuredImage,
+          metaDescription: postData.meta?._yoast_wpseo_metadesc || '', // Attempt to load, will be empty if not there
+          focusKeyword: postData.meta?._yoast_wpseo_focuskw || '', // Attempt to load
         });
 
       } catch (e: any) {
@@ -408,7 +416,11 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
                     <div><Label>Imagen Destacada</Label><ImageUploader photos={post.featured_media ? [post.featured_media] : []} onPhotosChange={handlePhotosChange} isProcessing={isSaving} /></div>
                     
                     <Card>
-                        <CardContent className="pt-6 space-y-4">
+                        <CardHeader>
+                             <CardTitle>Optimización para Buscadores (SEO)</CardTitle>
+                             <CardDescription>Configura cómo aparecerá tu entrada en Google.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="pt-6 space-y-6">
                              <div className="space-y-4">
                                 <h3 className="text-sm font-medium text-muted-foreground">Asistente IA</h3>
                                 <div className="p-4 border rounded-lg space-y-3 bg-card">
@@ -426,20 +438,51 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
                                 </div>
                             </div>
                              <div className="space-y-4 pt-4 border-t">
-                                <h3 className="text-sm font-medium text-muted-foreground">Análisis SEO</h3>
-                                <div className="p-4 border rounded-lg space-y-3 bg-card">
-                                    <Label htmlFor="focusKeyword">Palabra Clave Principal</Label>
-                                    <Input 
-                                        id="focusKeyword" 
-                                        name="focusKeyword" 
-                                        value={focusKeyword} 
-                                        onChange={(e) => setFocusKeyword(e.target.value)} 
-                                        placeholder="Ej: Jardinería sostenible" 
+                                <h3 className="text-sm font-medium text-muted-foreground">Análisis y Vista Previa SEO</h3>
+                                <div className="p-4 border rounded-lg space-y-4 bg-card">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="focusKeyword">Palabra Clave Principal</Label>
+                                        <Input 
+                                            id="focusKeyword" 
+                                            name="focusKeyword" 
+                                            value={post.focusKeyword} 
+                                            onChange={handleInputChange} 
+                                            placeholder="Ej: Jardinería sostenible" 
+                                        />
+                                    </div>
+                                     <div className="space-y-2">
+                                        <Label htmlFor="metaDescription">Meta Descripción</Label>
+                                        <Textarea 
+                                            id="metaDescription" 
+                                            name="metaDescription" 
+                                            value={post.metaDescription} 
+                                            onChange={handleInputChange} 
+                                            placeholder="Un resumen atractivo para Google (máx. 160 caracteres)."
+                                            maxLength={165}
+                                            rows={3}
+                                        />
+                                        <div className="flex justify-end">
+                                            <Button 
+                                                type="button" 
+                                                variant="outline" 
+                                                size="sm"
+                                                onClick={() => handleAIGeneration('generate_meta_description')}
+                                                disabled={isAiLoading || !post.content}
+                                            >
+                                                {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                                Generar con IA
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    <GoogleSnippetPreview 
+                                        title={post.title}
+                                        description={post.metaDescription}
+                                        url={''}
                                     />
                                     <SeoAnalyzer 
                                         title={post.title}
                                         content={post.content}
-                                        focusKeyword={focusKeyword}
+                                        focusKeyword={post.focusKeyword}
                                     />
                                 </div>
                             </div>

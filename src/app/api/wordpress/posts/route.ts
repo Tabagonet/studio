@@ -25,6 +25,8 @@ const postSchema = z.object({
   keywords: z.string().optional(),
   featuredImage: z.object({ uploadedUrl: z.string().url().optional() }).nullable(),
   publishDate: z.string().nullable().or(z.date().nullable()),
+  metaDescription: z.string().optional(),
+  focusKeyword: z.string().optional(),
 });
 
 const payloadSchema = z.object({
@@ -83,7 +85,11 @@ export async function POST(request: NextRequest) {
             title: postData.title,
             content: postData.content,
             status: postData.status || 'draft',
-            meta: { translation_group_id: translationGroupId }
+            meta: { 
+                translation_group_id: translationGroupId,
+                ...(postData.metaDescription && { _yoast_wpseo_metadesc: postData.metaDescription }),
+                ...(postData.focusKeyword && { _yoast_wpseo_focuskw: postData.focusKeyword }),
+             }
         };
         if (featuredMediaId) postPayload.featured_media = featuredMediaId;
         if (postData.category?.id) postPayload.categories = [postData.category.id];

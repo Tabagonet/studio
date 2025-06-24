@@ -19,6 +19,8 @@ const postUpdateSchema = z.object({
     tags: z.string().optional(), // Comma-separated string of tag names
     featured_media_id: z.number().optional(), // ID of an existing image
     featured_image_src: z.string().url().optional(), // URL of a new image to upload
+    metaDescription: z.string().optional(),
+    focusKeyword: z.string().optional(),
 });
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -37,7 +39,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     if (!postId) return NextResponse.json({ error: 'Post ID is required.' }, { status: 400 });
 
     // Use _embed to get related data like featured image URL and author name
-    const response = await wpApi.get(`/posts/${postId}`, { params: { _embed: true } });
+    const response = await wpApi.get(`/posts/${postId}`, { params: { _embed: true, context: 'edit' } });
     
     const postData = response.data;
     const transformed = {
@@ -72,7 +74,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const validation = postUpdateSchema.safeParse(body);
     if (!validation.success) return NextResponse.json({ error: 'Invalid data.', details: validation.error.flatten() }, { status: 400 });
     
-    const { tags, featured_image_src, ...postPayload } = validation.data;
+    const { tags, featured_image_src, metaDescription, focusKeyword, ...postPayload } = validation.data;
     
     // Handle tags by finding or creating them
     if (tags) {
@@ -93,6 +95,19 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         // Handle setting an existing image or removing it
         (postPayload as any).featured_media = postPayload.featured_media_id;
     }
+    
+    // Add meta fields for SEO
+    const meta: { [key: string]: string } = {};
+    if (metaDescription) {
+        meta._yoast_wpseo_metadesc = metaDescription;
+    }
+    if (focusKeyword) {
+        meta._yoast_wpseo_focuskw = focusKeyword;
+    }
+    if (Object.keys(meta).length > 0) {
+        (postPayload as any).meta = meta;
+    }
+
 
     // WordPress API uses POST for updates
     const response = await wpApi.post(`/posts/${postId}`, postPayload);

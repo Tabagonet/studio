@@ -21,6 +21,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { SeoAnalyzer } from '@/components/features/blog/seo-analyzer';
+import { GoogleSnippetPreview } from '@/components/features/blog/google-snippet-preview';
 
 
 const ALL_LANGUAGES = [
@@ -139,7 +140,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
         updatePostData({ targetLanguages: newLangs });
     };
 
-    const handleAIGeneration = async (mode: 'generate_from_topic' | 'enhance_content' | 'suggest_keywords') => {
+    const handleAIGeneration = async (mode: 'generate_from_topic' | 'enhance_content' | 'suggest_keywords' | 'generate_meta_description') => {
         setIsLoading(prev => ({ ...prev, ai: true }));
         try {
             const user = auth.currentUser;
@@ -152,8 +153,8 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                 payload.topic = postData.topic;
                 payload.keywords = postData.keywords;
                 payload.focusKeyword = postData.focusKeyword;
-            } else { // enhance_content or suggest_keywords
-                if (!postData.title || !postData.content) throw new Error("El título y el contenido son necesarios para esta acción.");
+            } else { // enhance_content, suggest_keywords, or generate_meta_description
+                if (!postData.title && (mode !== 'generate_from_topic')) throw new Error("El título es necesario para esta acción.");
                 payload.existingTitle = postData.title;
                 payload.existingContent = postData.content;
             }
@@ -170,22 +171,25 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
             }
 
             const aiContent = await response.json();
-
-            // Handle different response structures
+            
             if (mode === 'generate_from_topic') {
                 updatePostData({
                     title: aiContent.title,
                     content: aiContent.content,
+                    metaDescription: aiContent.metaDescription,
                     ...(aiContent.suggestedKeywords && { keywords: aiContent.suggestedKeywords }),
                     ...(aiContent.focusKeyword && { focusKeyword: aiContent.focusKeyword })
                 });
-                toast({ title: "Contenido generado por la IA", description: "Se han rellenado título, contenido, palabra clave principal y etiquetas." });
+                toast({ title: "Contenido generado por la IA", description: "Se han rellenado todos los campos de contenido y SEO." });
             } else if (mode === 'enhance_content') {
                 updatePostData({
                     title: aiContent.title,
                     content: aiContent.content
                 });
                 toast({ title: "Contenido mejorado", description: "Se han actualizado el título y el contenido." });
+            } else if (mode === 'generate_meta_description') {
+                 updatePostData({ metaDescription: aiContent.metaDescription });
+                toast({ title: "Meta descripción generada", description: "El campo para buscadores ha sido actualizado." });
             } else { // suggest_keywords
                 updatePostData({
                     ...(aiContent.suggestedKeywords && { keywords: aiContent.suggestedKeywords })
@@ -408,11 +412,11 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
 
                      <Card>
                         <CardHeader>
-                            <CardTitle>Análisis SEO</CardTitle>
-                            <CardDescription>Introduce una palabra clave para ver recomendaciones.</CardDescription>
+                            <CardTitle>Optimización para Buscadores (SEO)</CardTitle>
+                            <CardDescription>Configura cómo aparecerá tu entrada en Google.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div>
+                            <div className="space-y-2">
                                 <Label htmlFor="focusKeyword">Palabra Clave Principal</Label>
                                 <Input 
                                     id="focusKeyword" 
@@ -422,6 +426,35 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                                     placeholder="Ej: Jardinería sostenible" 
                                 />
                             </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="metaDescription">Meta Descripción</Label>
+                                <Textarea 
+                                    id="metaDescription" 
+                                    name="metaDescription" 
+                                    value={postData.metaDescription} 
+                                    onChange={handleInputChange} 
+                                    placeholder="Un resumen atractivo para Google (máx. 160 caracteres)."
+                                    maxLength={165}
+                                    rows={4}
+                                />
+                                <div className="flex justify-end">
+                                    <Button 
+                                        type="button" 
+                                        variant="outline" 
+                                        size="sm"
+                                        onClick={() => handleAIGeneration('generate_meta_description')}
+                                        disabled={isLoading.ai || !postData.content}
+                                    >
+                                        {isLoading.ai ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                        Generar con IA
+                                    </Button>
+                                </div>
+                            </div>
+                             <GoogleSnippetPreview 
+                                title={postData.title}
+                                description={postData.metaDescription}
+                                url={''}
+                            />
                             <SeoAnalyzer 
                                 title={postData.title}
                                 content={postData.content}
