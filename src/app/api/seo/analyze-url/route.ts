@@ -11,7 +11,10 @@ const analyzeUrlSchema = z.object({
 });
 
 const aiResponseSchema = z.object({
-  score: z.number().describe("Una puntuación SEO estimada de 0 a 100."),
+  score: z.union([z.number(), z.string()]).transform(val => {
+    const num = Number(val);
+    return isNaN(num) ? 0 : num; // Safely convert to number, defaulting to 0 if invalid
+  }).describe("Una puntuación SEO estimada de 0 a 100."),
   summary: z.string().describe("Un breve resumen sobre de qué trata la página."),
   positives: z.array(z.string()).describe("Una lista de 2-3 aspectos SEO positivos encontrados."),
   improvements: z.array(z.string()).describe("Una lista de las 2-3 sugerencias de mejora más importantes y accionables."),
