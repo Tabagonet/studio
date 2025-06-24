@@ -112,8 +112,55 @@ export default function SeoOptimizerPage() {
     }
   }, [fetchContentData]);
 
+  // Fetches a saved report from history
+  const handleViewReport = async (page: ContentItem) => {
+    setIsLoadingAnalysis(true);
+    setError(null);
+    setAnalysis(null);
+    setAnalysisHistory([]);
+    setSelectedPage(page);
 
-  const handleAnalyze = async (page: ContentItem, force: boolean = false) => {
+    const user = auth.currentUser;
+    if (!user) {
+      toast({ title: "Autenticación Requerida", variant: "destructive" });
+      setIsLoadingAnalysis(false);
+      return;
+    }
+
+    try {
+      const token = await user.getIdToken();
+      let urlToAnalyze = page.link;
+      if (!urlToAnalyze.startsWith('http')) {
+        urlToAnalyze = `https://${urlToAnalyze}`;
+      }
+
+      const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(urlToAnalyze)}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!historyResponse.ok) {
+        throw new Error("No se pudo cargar el historial de análisis.");
+      }
+
+      const historyData = await historyResponse.json();
+      if (historyData.history && historyData.history.length > 0) {
+        setAnalysis(historyData.history[0].analysis);
+        setAnalysisHistory(historyData.history);
+        setScores(prev => ({ ...prev, [page.id]: historyData.history[0].score }));
+      } else {
+        throw new Error("No se encontró ningún informe guardado para esta URL. Por favor, analice de nuevo.");
+      }
+    } catch (err: any) {
+      setError(err.message);
+      toast({ title: "Error al cargar informe", description: err.message, variant: "destructive" });
+    } finally {
+      setIsLoadingAnalysis(false);
+    }
+  };
+
+
+  // Performs a new analysis using the AI
+  const handleAnalyze = async (page: ContentItem) => {
     setIsLoadingAnalysis(true);
     setError(null);
     setAnalysis(null);
@@ -134,29 +181,6 @@ export default function SeoOptimizerPage() {
             urlToAnalyze = `https://${urlToAnalyze}`;
         }
         
-        // If not forcing a new analysis, try to fetch the latest from history first.
-        if (!force) {
-            try {
-                const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(urlToAnalyze)}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (historyResponse.ok) {
-                    const historyData = await historyResponse.json();
-                    if (historyData.history && historyData.history.length > 0) {
-                        setAnalysis(historyData.history[0].analysis);
-                        setAnalysisHistory(historyData.history);
-                        setIsLoadingAnalysis(false);
-                        // Update score just in case it wasn't set
-                        setScores(prev => ({...prev, [page.id]: historyData.history[0].score}));
-                        return; // Exit here, we have our data.
-                    }
-                }
-            } catch (historyError) {
-                 console.warn("Could not fetch history, proceeding with new analysis:", historyError);
-            }
-        }
-        
-        // This part runs if force=true or if fetching from history failed/returned empty.
         toast({ title: "Analizando con IA...", description: "Estamos leyendo la página y generando el informe SEO."});
         const response = await fetch('/api/seo/analyze-url', {
             method: 'POST',
@@ -208,7 +232,7 @@ export default function SeoOptimizerPage() {
           status: 'publish',
           parent: 0,
       };
-      handleAnalyze(dummyItem, true); // Always force analysis for manual URLs
+      handleAnalyze(dummyItem); 
   };
 
   const handleBackToList = () => {
@@ -226,7 +250,7 @@ export default function SeoOptimizerPage() {
     if (refresh) {
         if (selectedPage) {
             // Force re-analysis after saving changes
-            handleAnalyze(selectedPage, true);
+            handleAnalyze(selectedPage);
         }
     }
   };
@@ -293,7 +317,7 @@ export default function SeoOptimizerPage() {
                         analysis={analysis} 
                         item={selectedPage} 
                         onEdit={handleEditContent} 
-                        onReanalyze={() => handleAnalyze(selectedPage, true)}
+                        onReanalyze={() => handleAnalyze(selectedPage)}
                         history={analysisHistory}
                     />
                 )}
@@ -342,8 +366,8 @@ export default function SeoOptimizerPage() {
             {!error && (
               <SeoPageListTable 
                 data={contentList}
-                onAnalyzePage={(item) => handleAnalyze(item, true)} 
-                onViewReport={(item) => handleAnalyze(item, false)}
+                onAnalyzePage={handleAnalyze} 
+                onViewReport={handleViewReport}
                 scores={scores}
               />
             )}
