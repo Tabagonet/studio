@@ -5,12 +5,10 @@ import * as React from "react";
 import {
   ColumnDef,
   ColumnFiltersState,
-  SortingState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
-  getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
 import {
@@ -24,12 +22,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ArrowUpDown, SearchCheck } from "lucide-react";
+import { SearchCheck } from "lucide-react";
 import type { ContentItem } from "@/app/(app)/seo-optimizer/page";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface TreeItem {
-  item: ContentItem & { children?: TreeItem[] }; // Allow children for tree building
+  item: ContentItem;
   depth: number;
 }
 
@@ -50,65 +48,52 @@ export function SeoPageListTable({
     statusFilter, 
     onStatusFilterChange 
 }: SeoPageListTableProps) {
-  const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
 
   const contentTree = React.useMemo(() => {
-    // 1. Separate Posts (which have no hierarchy)
-    const posts = data.filter(item => item.type === 'Post').map(item => ({ item, depth: 0 }));
-    
-    // 2. Process Pages to build a tree
-    const pages = data.filter(item => item.type === 'Page');
-    
-    // Create a map for easy lookup and to attach children
-    const pageMap = new Map(pages.map(p => [p.id, { ...p, children: [] as (ContentItem & { children: any[] })[] }]));
-    
-    const rootPages: (ContentItem & { children: (ContentItem & { children: any[] })[] })[] = [];
+    const posts = data
+      .filter((item) => item.type === 'Post')
+      .sort((a, b) => a.title.localeCompare(b.title))
+      .map((item) => ({ item, depth: 0 }));
 
-    // Populate the tree structure
-    pageMap.forEach(page => {
-      if (page.parent && pageMap.has(page.parent)) {
-        const parent = pageMap.get(page.parent);
-        if (parent) {
-          parent.children.push(page);
+    const pages = data.filter((item) => item.type === 'Page');
+    const pageMap = new Map(pages.map((p) => [p.id, { ...p, children: [] as (ContentItem & {children: any[]})[] }]));
+    
+    const rootPages: (ContentItem & {children: any[]})[] = [];
+    pageMap.forEach((page) => {
+        if (page.parent && pageMap.has(page.parent)) {
+            const parent = pageMap.get(page.parent);
+            if (parent) {
+                parent.children.push(page);
+            }
+        } else {
+            rootPages.push(page);
         }
-      } else {
-        rootPages.push(page);
-      }
     });
 
-    // 3. Flatten the tree into a list with depth for rendering
-    const tree: TreeItem[] = [];
-    const flattenTree = (nodes: (ContentItem & { children: any[] })[], depth: number) => {
-      nodes.sort((a, b) => a.title.localeCompare(b.title));
-      
-      for (const node of nodes) {
-        tree.push({ item: node, depth });
-        if (node.children && node.children.length > 0) {
-          flattenTree(node.children, depth + 1);
+    const flattenedPages: TreeItem[] = [];
+    const flatten = (nodes: (ContentItem & {children: any[]})[], depth: number) => {
+        nodes.sort((a,b) => a.title.localeCompare(b.title));
+        
+        for (const node of nodes) {
+            flattenedPages.push({ item: node, depth });
+            if (node.children.length > 0) {
+                flatten(node.children, depth + 1);
+            }
         }
-      }
     };
+    
+    flatten(rootPages, 0);
 
-    flattenTree(rootPages, 0); // Start with root pages at depth 0
-
-    // 4. Combine posts and the flattened page tree
-    return [...posts, ...tree];
+    return [...posts, ...flattenedPages];
   }, [data]);
+
 
   const columns: ColumnDef<TreeItem>[] = [
     {
       accessorFn: row => row.item.title,
       id: "title",
-      header: ({ column }) => (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Título
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      ),
+      header: "Título",
       cell: ({ row }) => {
         const { item, depth } = row.original;
         return (
@@ -132,15 +117,7 @@ export function SeoPageListTable({
     {
       accessorFn: row => row.original.item.status,
       id: 'status',
-      header: ({ column }) => (
-         <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Estado
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      ),
+      header: "Estado",
       cell: ({ row }) => {
         const status = row.original.item.status;
         const statusText: { [key: string]: string } = {
@@ -167,14 +144,11 @@ export function SeoPageListTable({
   const table = useReactTable({
     data: contentTree,
     columns,
-    onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     state: {
-      sorting,
       columnFilters,
     },
   });
