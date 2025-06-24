@@ -151,6 +151,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                 if (!postData.topic) throw new Error("Por favor, introduce un tema para la IA.");
                 payload.topic = postData.topic;
                 payload.keywords = postData.keywords;
+                payload.focusKeyword = postData.focusKeyword;
             } else { // enhance_content or suggest_keywords
                 if (!postData.title || !postData.content) throw new Error("El título y el contenido son necesarios para esta acción.");
                 payload.existingTitle = postData.title;
@@ -175,9 +176,10 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                 updatePostData({
                     title: aiContent.title,
                     content: aiContent.content,
-                    ...(aiContent.suggestedKeywords && { keywords: aiContent.suggestedKeywords })
+                    ...(aiContent.suggestedKeywords && { keywords: aiContent.suggestedKeywords }),
+                    ...(aiContent.focusKeyword && { focusKeyword: aiContent.focusKeyword })
                 });
-                toast({ title: "Contenido generado por la IA", description: "Se han rellenado título, contenido y etiquetas." });
+                toast({ title: "Contenido generado por la IA", description: "Se han rellenado título, contenido, palabra clave principal y etiquetas." });
             } else if (mode === 'enhance_content') {
                 updatePostData({
                     title: aiContent.title,
