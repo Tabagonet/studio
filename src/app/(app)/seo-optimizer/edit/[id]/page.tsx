@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useState, Suspense } from 'react';
+import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -9,13 +9,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Sparkles, Wand2, Tags, ArrowLeft, ExternalLink } from 'lucide-react';
+import { Loader2, Sparkles, Wand2, Tags, ArrowLeft, ExternalLink, Image as ImageIcon, Copy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { WordPressPostCategory, WordPressUser, ProductPhoto } from '@/lib/types';
-import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { SeoAnalyzer } from '@/components/features/blog/seo-analyzer';
 import { GoogleSnippetPreview } from '@/components/features/blog/google-snippet-preview';
@@ -24,16 +23,20 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 interface PostEditState {
   title: string;
-  content: string; // Keep for analysis, but don't show an editor for it
+  content: string; 
   status: 'publish' | 'draft' | 'pending' | 'future' | 'private';
   author: number | null;
   category: number | null;
   tags: string;
-  featured_media: ProductPhoto | null;
   metaDescription: string;
   focusKeyword: string;
   isElementor: boolean;
   elementorEditLink: string | null;
+}
+
+interface ParsedImage {
+  src: string;
+  alt: string;
 }
 
 function EditPageContent() {
@@ -45,9 +48,11 @@ function EditPageContent() {
   const postType = searchParams.get('type') as 'Post' | 'Page';
     
   const [post, setPost] = useState<PostEditState | null>(null);
+  const [imagesInContent, setImagesInContent] = useState<ParsedImage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [suggestedImageMeta, setSuggestedImageMeta] = useState<{title: string, altText: string} | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [categories, setCategories] = useState<WordPressPostCategory[]>([]);
@@ -66,13 +71,8 @@ function EditPageContent() {
     const finalValue = (name === 'category' || name === 'author') ? (value ? parseInt(value, 10) : null) : value;
     setPost({ ...post, [name]: finalValue as any });
   };
-
-  const handlePhotosChange = (updatedPhotos: ProductPhoto[]) => {
-      if (!post) return;
-      setPost({ ...post, featured_media: updatedPhotos[0] || null });
-  };
-
-  const handleAIGeneration = async (mode: 'enhance_content' | 'suggest_keywords' | 'generate_meta_description') => {
+  
+  const handleAiGeneration = useCallback(async (mode: 'enhance_content' | 'suggest_keywords' | 'generate_meta_description' | 'generate_image_meta') => {
         setIsAiLoading(true);
         if (!post) {
             setIsAiLoading(false);
@@ -113,6 +113,9 @@ function EditPageContent() {
             } else if (mode === 'generate_meta_description') {
                 setPost({ ...post, metaDescription: aiContent.metaDescription });
                 toast({ title: "Meta descripción generada", description: "El campo para buscadores ha sido actualizado." });
+            } else if (mode === 'generate_image_meta') {
+                setSuggestedImageMeta({ title: aiContent.imageTitle, altText: aiContent.imageAltText });
+                toast({ title: "Metadatos de imagen sugeridos", description: "Copia y pega los resultados en tu biblioteca de medios." });
             } else { // suggest_keywords
                 setPost({ ...post, tags: aiContent.suggestedKeywords });
                 toast({ title: "Etiquetas sugeridas", description: "Se han actualizado las etiquetas." });
@@ -123,7 +126,7 @@ function EditPageContent() {
         } finally {
             setIsAiLoading(false);
         }
-    };
+    }, [post, toast]);
 
     const handleSaveChanges = async () => {
     setIsSaving(true);
@@ -145,32 +148,13 @@ function EditPageContent() {
             focusKeyword: post.focusKeyword,
         };
         
-        // This tool does not edit content directly. Content is fetched for analysis only.
-        
         if (postType === 'Post') {
             payload.categories = post.category ? [post.category] : [];
             payload.tags = post.tags;
         }
 
-        const newPhoto = post.featured_media?.file ? post.featured_media : null;
-
-        if (newPhoto) {
-            const formData = new FormData();
-            formData.append('imagen', newPhoto.file);
-            const uploadResponse = await fetch('/api/upload-image', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` },
-                body: formData,
-            });
-            const uploadData = await uploadResponse.json();
-            if (!uploadResponse.ok) throw new Error(uploadData.error || 'Failed to upload new image.');
-            payload.featured_image_src = uploadData.url;
-
-        } else if (post.featured_media?.id) {
-            payload.featured_media_id = post.featured_media.id;
-        } else {
-            payload.featured_media_id = 0; // Remove featured image
-        }
+        // NOTE: This tool no longer uploads or changes the featured image.
+        // It focuses purely on on-page SEO metadata.
         
         const apiPath = postType === 'Post' ? `/api/wordpress/posts/${postId}` : `/api/wordpress/pages/${postId}`;
 
@@ -251,16 +235,6 @@ function EditPageContent() {
         if (categoriesResponse.ok) setCategories(await categoriesResponse.json());
         if (authorsResponse.ok) setAuthors(await authorsResponse.json());
         
-        const featuredImage: ProductPhoto | null = postData.featured_image_url
-          ? {
-              id: postData.featured_media,
-              previewUrl: postData.featured_image_url,
-              name: 'Imagen destacada',
-              status: 'completed',
-              progress: 100,
-            }
-          : null;
-          
         setPost({
           title: postData.title.rendered || '',
           content: postData.content.rendered || '',
@@ -268,7 +242,6 @@ function EditPageContent() {
           author: postData.author || null,
           category: postData.categories?.[0] || null,
           tags: postData._embedded?.['wp:term']?.[1]?.map((t: any) => t.name).join(', ') || '',
-          featured_media: featuredImage,
           metaDescription: postData.meta?._yoast_wpseo_metadesc || '',
           focusKeyword: postData.meta?._yoast_wpseo_focuskw || '',
           isElementor: postData.isElementor || false,
@@ -283,6 +256,18 @@ function EditPageContent() {
     };
     if(postId && postType) fetchInitialData();
   }, [postId, postType, toast]);
+
+  useEffect(() => {
+    if (post?.content) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(post.content, 'text/html');
+      const images = Array.from(doc.querySelectorAll('img')).map(img => ({
+        src: img.getAttribute('src') || '',
+        alt: img.getAttribute('alt') || '',
+      }));
+      setImagesInContent(images);
+    }
+  }, [post?.content]);
   
 
   if (isLoading) {
@@ -296,6 +281,8 @@ function EditPageContent() {
   if (!post) {
        return <div className="container mx-auto py-8"><Alert variant="destructive"><AlertTitle>Error</AlertTitle><AlertDescription>No se pudo cargar la información del contenido.</AlertDescription></Alert></div>;
   }
+  
+  const imagesWithoutAlt = imagesInContent.filter(img => !img.alt);
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -341,27 +328,84 @@ function EditPageContent() {
                     <Label htmlFor="metaDescription">Meta Descripción (para Google)</Label>
                     <Textarea id="metaDescription" name="metaDescription" value={post.metaDescription} onChange={handleInputChange} maxLength={165} rows={4} />
                 </div>
+                 {post.isElementor && post.elementorEditLink && (
+                        <Alert className="mt-4">
+                            <ExternalLink className="h-4 w-4" />
+                            <AlertTitle>Página de Elementor</AlertTitle>
+                            <AlertDescription>
+                                El contenido de esta página se edita con Elementor. Usa este botón para abrir el editor visual y modificar el contenido y los textos alternativos de las imágenes.
+                            </AlertDescription>
+                            <Button asChild className="mt-4" size="sm">
+                                <Link href={post.elementorEditLink} target="_blank" rel="noopener noreferrer">
+                                    <ExternalLink className="mr-2 h-4 w-4" />
+                                    Abrir con Elementor
+                                </Link>
+                            </Button>
+                        </Alert>
+                    )}
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>Vista Previa de Google</CardTitle>
+                <CardTitle>Análisis y Auditoría SEO</CardTitle>
+                <CardDescription>Recomendaciones basadas en el contenido y los metadatos actuales.</CardDescription>
               </CardHeader>
               <CardContent>
                 <GoogleSnippetPreview title={post.title} description={post.metaDescription} url={''} />
+                <SeoAnalyzer title={post.title} content={post.content} focusKeyword={post.focusKeyword} metaDescription={post.metaDescription} />
               </CardContent>
             </Card>
             
             <Card>
-              <CardHeader>
-                <CardTitle>Análisis SEO</CardTitle>
-                <CardDescription>Recomendaciones basadas en el contenido actual de la página.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <SeoAnalyzer title={post.title} content={post.content} focusKeyword={post.focusKeyword} />
-              </CardContent>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><ImageIcon /> Optimización de Imágenes</CardTitle>
+                    <CardDescription>El texto alternativo es crucial. Aquí puedes identificar imágenes sin él y generar sugerencias con IA.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                     <Button onClick={() => handleAiGeneration('generate_image_meta')} disabled={isAiLoading || !post.content}>
+                        {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                        Sugerir Metadatos con IA
+                    </Button>
+                     {suggestedImageMeta && (
+                        <Alert>
+                            <AlertTitle>Sugerencias de la IA</AlertTitle>
+                            <AlertDescription>
+                                <div className="space-y-2 mt-2">
+                                    <div>
+                                        <Label className="text-xs">Título de Imagen Sugerido</Label>
+                                        <p className="text-sm p-2 bg-muted rounded-md">{suggestedImageMeta.title}</p>
+                                    </div>
+                                     <div>
+                                        <Label className="text-xs">Texto Alternativo (Alt) Sugerido</Label>
+                                        <p className="text-sm p-2 bg-muted rounded-md">{suggestedImageMeta.altText}</p>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">Usa estas sugerencias como base en tu biblioteca de medios de WordPress.</p>
+                                </div>
+                            </AlertDescription>
+                        </Alert>
+                     )}
+                     {imagesWithoutAlt.length > 0 && (
+                        <div>
+                            <h4 className="font-semibold mb-2">Imágenes sin `alt` text:</h4>
+                            <div className="max-h-48 overflow-y-auto space-y-2 p-2 border rounded-md">
+                                {imagesWithoutAlt.map((img, i) => (
+                                    <div key={i} className="text-xs text-destructive truncate">
+                                       <span className="font-mono">{img.src}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                     )}
+                     {imagesInContent.length > 0 && imagesWithoutAlt.length === 0 && (
+                        <Alert variant="default" className="border-green-500/50">
+                            <AlertTitle className="text-green-600">¡Buen trabajo!</AlertTitle>
+                            <AlertDescription>Todas las {imagesInContent.length} imágenes encontradas en el contenido tienen texto alternativo.</AlertDescription>
+                        </Alert>
+                     )}
+                </CardContent>
             </Card>
+
           </div>
           
           {/* Sidebar Column */}
@@ -369,19 +413,19 @@ function EditPageContent() {
             <Card>
                 <CardHeader>
                 <CardTitle>Asistente IA</CardTitle>
-                <CardDescription>Usa la IA para acelerar la optimización.</CardDescription>
+                <CardDescription>Usa la IA para acelerar la optimización de los campos de texto.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-2">
-                  <Button onClick={() => handleAIGeneration('enhance_content')} disabled={isAiLoading || !post.content}>
+                  <Button onClick={() => handleAiGeneration('enhance_content')} disabled={isAiLoading || !post.content}>
                       {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                      Mejorar Título con IA
+                      Mejorar Título
                   </Button>
-                  <Button onClick={() => handleAIGeneration('generate_meta_description')} disabled={isAiLoading || !post.content} variant="outline">
+                  <Button onClick={() => handleAiGeneration('generate_meta_description')} disabled={isAiLoading || !post.content} variant="outline">
                       {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                       Generar Meta Descripción
                   </Button>
                    {postType === 'Post' && (
-                        <Button onClick={() => handleAIGeneration('suggest_keywords')} disabled={isAiLoading || !post.content} variant="outline">
+                        <Button onClick={() => handleAiGeneration('suggest_keywords')} disabled={isAiLoading || !post.content} variant="outline">
                             {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tags className="mr-2 h-4 w-4" />}
                             Sugerir Etiquetas
                         </Button>
@@ -412,26 +456,7 @@ function EditPageContent() {
                           </Label>
                       </div>
                   )}
-                   {post.isElementor && post.elementorEditLink && (
-                        <Alert className="mt-4">
-                            <ExternalLink className="h-4 w-4" />
-                            <AlertTitle>Página de Elementor</AlertTitle>
-                            <AlertDescription>
-                                El contenido se edita con Elementor. Usa este botón para abrir el editor visual.
-                            </AlertDescription>
-                            <Button asChild className="mt-4" size="sm">
-                                <Link href={post.elementorEditLink} target="_blank" rel="noopener noreferrer">
-                                    <ExternalLink className="mr-2 h-4 w-4" />
-                                    Abrir con Elementor
-                                </Link>
-                            </Button>
-                        </Alert>
-                    )}
               </CardContent>
-            </Card>
-            <Card>
-                <CardHeader><CardTitle>Imagen Destacada</CardTitle></CardHeader>
-                <CardContent><ImageUploader photos={post.featured_media ? [post.featured_media] : []} onPhotosChange={handlePhotosChange} isProcessing={isSaving} /></CardContent>
             </Card>
           </div>
         </div>
@@ -446,5 +471,3 @@ export default function SeoEditPage() {
         </Suspense>
     )
 }
-
-    

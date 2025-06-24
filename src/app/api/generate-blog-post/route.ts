@@ -5,7 +5,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { z } from 'zod';
 
 const GenerateBlogPostInputSchema = z.object({
-  mode: z.enum(['generate_from_topic', 'enhance_content', 'suggest_keywords', 'generate_meta_description', 'suggest_titles']),
+  mode: z.enum(['generate_from_topic', 'enhance_content', 'suggest_keywords', 'generate_meta_description', 'suggest_titles', 'generate_image_meta']),
   language: z.string().optional().default('Spanish'),
   topic: z.string().optional(),
   keywords: z.string().optional(),
@@ -76,6 +76,16 @@ export async function POST(req: NextRequest) {
                 ${existingContent}
                 ---
             `;
+        } else if (mode === 'generate_image_meta') {
+            systemInstruction = `You are an expert SEO specialist. Your task is to generate generic but descriptive SEO metadata for images that could appear in a blog post, based on its title and content. The response must be a single, valid JSON object with two keys: 'imageTitle' and 'imageAltText'. Do not include markdown or the word 'json' in your output.`;
+            prompt = `
+                Generate generic image metadata in ${language} for a blog post with the following details:
+                Title: "${existingTitle}"
+                Content Summary:
+                ---
+                ${existingContent?.substring(0, 500)}...
+                ---
+            `;
         } else if (mode === 'suggest_titles') {
              systemInstruction = `You are an expert SEO and content strategist. Based on the provided keyword, generate 5 creative, engaging, and SEO-friendly blog post titles. Return a single, valid JSON object with one key: 'titles', which is an array of 5 string titles. Do not include markdown or the word 'json' in your output.`;
              prompt = `
@@ -116,6 +126,9 @@ export async function POST(req: NextRequest) {
         }
         if (mode === 'generate_meta_description' && !parsedJson.metaDescription) {
             throw new Error("AI returned an invalid JSON structure for meta description generation.");
+        }
+        if (mode === 'generate_image_meta' && (!parsedJson.imageTitle || !parsedJson.imageAltText)) {
+            throw new Error("AI returned an invalid JSON structure for image metadata generation.");
         }
          if (mode === 'suggest_titles' && !Array.isArray(parsedJson.titles)) {
             throw new Error("AI returned an invalid JSON structure for title suggestion.");
