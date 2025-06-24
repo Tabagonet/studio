@@ -52,34 +52,21 @@ const getStatusText = (status: ContentItem['status']) => {
 export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
-
-  const languages = React.useMemo(() => {
-    const langSet = new Set(data.map(item => item.lang));
-    return Array.from(langSet).sort();
-  }, [data]);
   
   const tableData = React.useMemo(() => {
-    const posts = data.filter(item => item.type === 'Post');
-    const pages = data.filter(item => item.type === 'Page');
-    const sortAlphabetically = (a: ContentItem, b: ContentItem) => a.title.localeCompare(b.title);
+    const dataMap = new Map(data.map(item => [item.id, { ...item, subRows: [] as ContentItem[] }]));
+    const tree: ContentItem[] = [];
 
-    if (pages.length === 0) {
-        return posts.sort(sortAlphabetically);
-    }
-    
-    // --- Parent ID-based Hierarchy Logic ---
-    const pageMap = new Map(pages.map(p => [p.id, { ...p, subRows: [] as ContentItem[] }]));
-    const rootPages: ContentItem[] = [];
-
-    pageMap.forEach((page) => {
-        if (page.parent > 0 && pageMap.has(page.parent)) {
-            pageMap.get(page.parent)!.subRows.push(page);
-        } else {
-            rootPages.push(page);
-        }
+    data.forEach(item => {
+      if (item.parent > 0 && dataMap.has(item.parent)) {
+        const parent = dataMap.get(item.parent);
+        parent?.subRows?.push(dataMap.get(item.id)!);
+      } else {
+        tree.push(dataMap.get(item.id)!);
+      }
     });
 
-    // Sort all levels alphabetically
+    const sortAlphabetically = (a: ContentItem, b: ContentItem) => a.title.localeCompare(b.title);
     const sortSubRows = (items: ContentItem[]) => {
       items.sort(sortAlphabetically);
       items.forEach(item => {
@@ -88,11 +75,9 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
         }
       });
     };
-    
-    sortSubRows(rootPages);
+    sortSubRows(tree);
 
-    return [...rootPages, ...posts.sort(sortAlphabetically)];
-
+    return tree;
   }, [data]);
 
 
@@ -125,11 +110,6 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
         accessorKey: 'type',
         header: 'Tipo',
         cell: ({ getValue }) => <Badge variant={getValue<string>() === 'Post' ? "secondary" : "outline"}>{getValue<string>()}</Badge>
-      },
-       {
-        accessorKey: 'lang',
-        header: 'Idioma',
-        cell: ({ getValue }) => <Badge variant="outline">{getValue<string>()?.toUpperCase() || 'N/A'}</Badge>
       },
       {
         accessorKey: 'status',
@@ -204,20 +184,6 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
                 <SelectItem value="draft">Borrador</SelectItem>
                 <SelectItem value="pending">Pendiente</SelectItem>
                 <SelectItem value="private">Privado</SelectItem>
-            </SelectContent>
-        </Select>
-        <Select
-            value={(table.getColumn('lang')?.getFilterValue() as string) ?? 'all'}
-            onValueChange={(value) => table.getColumn('lang')?.setFilterValue(value === 'all' ? null : value)}
-        >
-            <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filtrar por idioma" />
-            </SelectTrigger>
-            <SelectContent>
-                <SelectItem value="all">Todos los Idiomas</SelectItem>
-                {languages.map(lang => (
-                    <SelectItem key={lang} value={lang}>{lang.toUpperCase()}</SelectItem>
-                ))}
             </SelectContent>
         </Select>
       </div>

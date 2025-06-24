@@ -10,8 +10,8 @@ export interface ContentItem {
   link: string;
   status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
   parent: number;
-  lang: string;
-  translations: Record<string, number>;
+  lang: string; // Will be default
+  translations: Record<string, number>; // Will be empty
 }
 
 export async function GET(req: NextRequest) {
@@ -30,61 +30,39 @@ export async function GET(req: NextRequest) {
         throw new Error('WordPress API is not configured for the active connection.');
     }
 
-    // Step 1: Fetch all available languages from the Polylang REST API
-    let languages: { slug: string }[] = [];
-    try {
-        const languagesResponse = await wpApi.get('/polylang/v1/languages');
-        if (languagesResponse.data && Array.isArray(languagesResponse.data) && languagesResponse.data.length > 0) {
-            languages = languagesResponse.data;
-        } else {
-            // Fallback for when no languages are returned or endpoint fails
-            languages.push({ slug: '' }); // An empty slug fetches default language content
-        }
-    } catch (langError) {
-        console.warn("Could not fetch languages from Polylang endpoint, falling back to default.", langError);
-        languages.push({ slug: '' });
-    }
+    const fetchParams = {
+        per_page: 100, 
+        status: 'publish,draft,pending,private,future',
+        orderby: 'title',
+        order: 'asc',
+        context: 'view',
+    };
+
+    const [postsResponse, pagesResponse] = await Promise.all([
+        wpApi.get('/posts', { params: fetchParams }).catch(e => { console.error(`Failed to fetch posts`, e.response?.data); return { data: [] }; }),
+        wpApi.get('/pages', { params: fetchParams }).catch(e => { console.error(`Failed to fetch pages`, e.response?.data); return { data: [] }; })
+    ]);
 
     const allContent: ContentItem[] = [];
 
-    // Step 2: For each language, fetch all posts and pages
-    for (const lang of languages) {
-        const langSlug = lang.slug;
-
-        const fetchParams = {
-            per_page: 100, 
-            status: 'publish,draft,pending,private,future',
-            orderby: 'title',
-            order: 'asc',
-            context: 'view',
-            // If langSlug is empty, this parameter is omitted, fetching default language content
-            ...(langSlug && { lang: langSlug }),
+    const mapContent = (item: any): ContentItem => {
+        return {
+            id: item.id,
+            title: item.title?.rendered || 'No Title',
+            type: item.type === 'post' ? 'Post' : 'Page',
+            link: item.link,
+            status: item.status,
+            parent: item.parent || 0,
+            // We cannot detect language, so we fall back to a default value.
+            lang: 'default', 
+            translations: item.translations || {},
         };
+    };
 
-        const [postsResponse, pagesResponse] = await Promise.all([
-            wpApi.get('/posts', { params: fetchParams }).catch(e => { console.error(`Failed to fetch posts for lang ${langSlug}`, e.response?.data); return { data: [] }; }),
-            wpApi.get('/pages', { params: fetchParams }).catch(e => { console.error(`Failed to fetch pages for lang ${langSlug}`, e.response?.data); return { data: [] }; })
-        ]);
-   
-        const mapContent = (item: any): ContentItem => {
-            return {
-                id: item.id,
-                title: item.title?.rendered || 'No Title',
-                type: item.type === 'post' ? 'Post' : 'Page',
-                link: item.link,
-                status: item.status,
-                parent: item.parent || 0, // Using 0 for consistency for root items
-                // Manually assign the language slug we used for the fetch
-                lang: langSlug || 'default', 
-                translations: item.translations || {},
-            };
-        };
+    const posts: ContentItem[] = postsResponse.data.map(mapContent);
+    const pages: ContentItem[] = pagesResponse.data.map(mapContent);
 
-        const posts: ContentItem[] = postsResponse.data.map(mapContent);
-        const pages: ContentItem[] = pagesResponse.data.map(mapContent);
-    
-        allContent.push(...posts, ...pages);
-    }
+    allContent.push(...posts, ...pages);
         
     return NextResponse.json({ content: allContent });
   } catch (error: any) {
