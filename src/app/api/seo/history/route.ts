@@ -25,28 +25,37 @@ export async function GET(req: NextRequest) {
     }
 
     try {
+        // More resilient query: Query by user and order by date, then filter by URL in memory.
+        // This is less likely to fail due to missing composite indexes.
         const historySnapshot = await adminDb.collection('seo_analyses')
             .where('userId', '==', uid)
-            .where('url', '==', url)
             .orderBy('createdAt', 'desc')
-            .limit(10)
             .get();
         
-        const history = historySnapshot.docs.map(doc => {
+        const allUserHistory = historySnapshot.docs.map(doc => {
             const data = doc.data();
+            // Safety check for malformed data
+            if (!data.createdAt || typeof data.createdAt.toDate !== 'function') {
+                return null;
+            }
             return {
                 id: doc.id,
                 ...data,
                 createdAt: data.createdAt.toDate().toISOString(),
             };
-        });
+        }).filter(Boolean as any as (value: any) => value is NonNullable<any>); // Remove nulls and type guard
 
-        return NextResponse.json({ history });
+        // Filter for the specific URL and limit the results
+        const historyForUrl = allUserHistory.filter(record => record.url === url).slice(0, 10);
+
+        return NextResponse.json({ history: historyForUrl });
 
     } catch (error: any) {
         console.error("Error fetching SEO analysis history:", error);
+        // Add more specific logging for Firestore errors
+        if ((error as any).code) { // Firestore errors have a 'code' property
+             console.error(`Firestore error code: ${(error as any).code}`);
+        }
         return NextResponse.json({ error: 'Fallo al obtener el historial de análisis', details: error.message }, { status: 500 });
     }
 }
-
-    
