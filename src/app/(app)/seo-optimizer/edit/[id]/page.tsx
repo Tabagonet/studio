@@ -32,6 +32,7 @@ interface PostEditState {
   focusKeyword: string;
   isElementor: boolean;
   elementorEditLink: string | null;
+  translations?: Record<string, number>;
 }
 
 interface ParsedImage {
@@ -139,7 +140,7 @@ function EditPageContent() {
 
     try {
         const token = await user.getIdToken();
-        const translations = JSON.parse(searchParams.get('translations') || '{}');
+        
         const payload: any = {
             title: post.title,
             status: post.status,
@@ -171,11 +172,11 @@ function EditPageContent() {
         
         toast({ title: '¡Éxito!', description: 'La entrada ha sido actualizada.' });
         
-        if (syncSeo && translations && Object.keys(translations).length > 1) {
+        if (syncSeo && post.translations && Object.keys(post.translations).length > 1) {
             toast({ title: "Sincronizando SEO...", description: "Aplicando mejoras a las traducciones. Esto puede tardar." });
             const syncPayload = {
                 sourcePostId: postId,
-                translations,
+                translations: post.translations,
                 metaDescription: post.metaDescription,
                 focusKeyword: post.focusKeyword
             };
@@ -194,7 +195,8 @@ function EditPageContent() {
             });
         }
         
-        router.back();
+        // No redirigir, permitir que el usuario siga trabajando
+        // router.back();
     } catch (e: any) {
         toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
     } finally {
@@ -246,6 +248,7 @@ function EditPageContent() {
           focusKeyword: postData.meta?._yoast_wpseo_focuskw || '',
           isElementor: postData.isElementor || false,
           elementorEditLink: postData.elementorEditLink || null,
+          translations: postData.translations || {},
         });
 
       } catch (e: any) {
@@ -373,11 +376,17 @@ function EditPageContent() {
                             <AlertDescription>
                                 <div className="space-y-2 mt-2">
                                     <div>
-                                        <Label className="text-xs">Título de Imagen Sugerido</Label>
+                                        <div className="flex justify-between items-center">
+                                            <Label className="text-xs">Título de Imagen Sugerido</Label>
+                                            <Button variant="ghost" size="icon-sm" onClick={() => navigator.clipboard.writeText(suggestedImageMeta.title)}><Copy className="h-3 w-3" /></Button>
+                                        </div>
                                         <p className="text-sm p-2 bg-muted rounded-md">{suggestedImageMeta.title}</p>
                                     </div>
                                      <div>
-                                        <Label className="text-xs">Texto Alternativo (Alt) Sugerido</Label>
+                                        <div className="flex justify-between items-center">
+                                            <Label className="text-xs">Texto Alternativo (Alt) Sugerido</Label>
+                                            <Button variant="ghost" size="icon-sm" onClick={() => navigator.clipboard.writeText(suggestedImageMeta.altText)}><Copy className="h-3 w-3" /></Button>
+                                        </div>
                                         <p className="text-sm p-2 bg-muted rounded-md">{suggestedImageMeta.altText}</p>
                                     </div>
                                     <p className="text-xs text-muted-foreground">Usa estas sugerencias como base en tu biblioteca de medios de WordPress.</p>
@@ -418,16 +427,16 @@ function EditPageContent() {
                 <CardContent className="flex flex-col gap-2">
                   <Button onClick={() => handleAiGeneration('enhance_content')} disabled={isAiLoading || !post.content}>
                       {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                      Mejorar Título
+                      Mejorar Título con IA
                   </Button>
                   <Button onClick={() => handleAiGeneration('generate_meta_description')} disabled={isAiLoading || !post.content} variant="outline">
                       {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                      Generar Meta Descripción
+                      Generar Meta Descripción con IA
                   </Button>
                    {postType === 'Post' && (
                         <Button onClick={() => handleAiGeneration('suggest_keywords')} disabled={isAiLoading || !post.content} variant="outline">
                             {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tags className="mr-2 h-4 w-4" />}
-                            Sugerir Etiquetas
+                            Sugerir Etiquetas con IA
                         </Button>
                     )}
                 </CardContent>
@@ -448,7 +457,7 @@ function EditPageContent() {
                       <div><Label>Etiquetas (separadas por comas)</Label><Input name="tags" value={post.tags} onChange={handleInputChange} /></div>
                     </>
                   )}
-                  {searchParams.get('translations') && (
+                  {post.translations && Object.keys(post.translations).length > 1 && (
                       <div className="flex items-center space-x-2 pt-4 border-t">
                           <Checkbox id="sync-seo" checked={syncSeo} onCheckedChange={(checked) => setSyncSeo(!!checked)} />
                           <Label htmlFor="sync-seo" className="font-normal text-sm cursor-pointer">
