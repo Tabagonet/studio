@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const analyzeUrlSchema = z.object({
-  url: z.string().url({ message: "Por favor, introduce una URL válida." }),
+  url: z.string().min(1, "La URL no puede estar vacía."),
 });
 
 const aiResponseSchema = z.object({
@@ -115,7 +115,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: validation.error.flatten().fieldErrors.url?.[0] || 'URL inválida' }, { status: 400 });
     }
 
-    const { url } = validation.data;
+    let { url } = validation.data;
+    
+    // Robust URL formatting on the backend
+    url = url.trim();
+    if (!url.startsWith('http')) {
+        url = `https://${url}`;
+    }
     
     // 1. Scrape and parse the page
     const pageData = await getPageContent(url);

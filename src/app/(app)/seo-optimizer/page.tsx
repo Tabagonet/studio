@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase";
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
+
 
 interface AnalysisResult {
   title: string;
@@ -30,14 +32,48 @@ interface AnalysisResult {
 export default function SeoOptimizerPage() {
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isPreloading, setIsPreloading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const { toast } = useToast();
+  
+  useEffect(() => {
+    const fetchActiveUrl = async () => {
+        const user = auth.currentUser;
+        if (!user) {
+            setIsPreloading(false);
+            return;
+        };
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/check-config', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                if (data.activeStoreUrl) {
+                    setUrl(data.activeStoreUrl);
+                }
+            }
+        } catch (err) {
+            console.error("Failed to fetch active URL", err);
+        } finally {
+            setIsPreloading(false);
+        }
+    };
+    fetchActiveUrl();
+  }, []);
+
 
   const handleAnalyze = async () => {
     if (!url) {
       toast({ title: "URL Requerida", description: "Por favor, introduce una URL para analizar.", variant: "destructive" });
       return;
+    }
+    
+    let fullUrl = url.trim();
+    if (!/^https?:\/\//i.test(fullUrl)) {
+        fullUrl = 'https://' + fullUrl;
     }
 
     setIsLoading(true);
@@ -59,7 +95,7 @@ export default function SeoOptimizerPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ url })
+        body: JSON.stringify({ url: fullUrl })
       });
 
       const result = await response.json();
@@ -95,17 +131,21 @@ export default function SeoOptimizerPage() {
         <CardContent className="flex flex-col sm:flex-row items-end gap-2">
           <div className="flex-grow w-full">
             <Label htmlFor="url-input">URL de la página a analizar</Label>
-            <Input 
-              id="url-input"
-              type="url"
-              placeholder="https://tu-sitio-web.com/tu-pagina-o-entrada/"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              disabled={isLoading}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleAnalyze(); }}
-            />
+            {isPreloading ? (
+                 <Skeleton className="h-10 w-full" />
+            ) : (
+                <Input 
+                  id="url-input"
+                  type="url"
+                  placeholder="https://tu-sitio-web.com/tu-pagina-o-entrada/"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  disabled={isLoading}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleAnalyze(); }}
+                />
+            )}
           </div>
-          <Button onClick={handleAnalyze} disabled={isLoading || !url} className="w-full sm:w-auto">
+          <Button onClick={handleAnalyze} disabled={isLoading || isPreloading || !url} className="w-full sm:w-auto">
             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LinkIcon className="mr-2 h-4 w-4" />}
             {isLoading ? "Analizando..." : "Analizar URL"}
           </Button>
