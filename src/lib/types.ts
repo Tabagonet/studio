@@ -234,3 +234,12 @@ export interface ActivityLog {
     photoURL: string;
   };
 }
+
+export interface MenuItem {
+  ID: number;
+  title: string;
+  url: string;
+  object_id: string; // The ID of the post/page as a string
+  menu_item_parent: string; // The ID of the parent menu item as a string
+  children: MenuItem[];
+}

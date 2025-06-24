@@ -1,0 +1,55 @@
+
+import { NextRequest, NextResponse } from 'next/server';
+import { adminAuth } from '@/lib/firebase-admin';
+import { getApiClientsForUser } from '@/lib/api-helpers';
+
+export async function GET(req: NextRequest) {
+  try {
+    const token = req.headers.get('Authorization')?.split('Bearer ')[1];
+    if (!token) {
+      return NextResponse.json({ error: 'No auth token provided.' }, { status: 401 });
+    }
+    if (!adminAuth) {
+      throw new Error("Firebase Admin Auth is not initialized.");
+    }
+    const uid = (await adminAuth.verifyIdToken(token)).uid;
+    
+    const { wpApi } = await getApiClientsForUser(uid);
+    if (!wpApi) {
+      throw new Error('WordPress API is not configured for the active connection.');
+    }
+
+    // We assume the main menu has the slug 'primary'. This might need to be configurable later.
+    const menuSlug = 'primary';
+    
+    // The custom endpoint is at the root of the site, not under /wp-json/wp/v2
+    const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
+
+    if (!siteUrl) {
+        throw new Error("Could not determine the base site URL from the WordPress API configuration.");
+    }
+    
+    const menuResponse = await wpApi.get(`${siteUrl}/wp-json/custom/v1/menu/${menuSlug}`);
+    
+    return NextResponse.json(menuResponse.data);
+
+  } catch (error: any) {
+    let errorMessage = 'Failed to fetch menu structure.';
+    let status = error.response?.status || 500;
+    
+    if (error.response?.status === 404) {
+        errorMessage = "Menu not found. Please ensure a menu with the slug 'primary' exists, and that you have added the provided PHP snippet to your theme's functions.php file.";
+        status = 404;
+    } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+    } else if (error.message) {
+        errorMessage = error.message;
+    }
+
+    if (error.message && error.message.includes('not configured')) {
+        status = 400;
+    }
+    
+    return NextResponse.json({ error: errorMessage }, { status });
+  }
+}

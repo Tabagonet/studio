@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
       status: 'publish,draft,pending,private,future',
       orderby: 'title',
       order: 'asc',
-      context: 'view', // Use 'view' to ensure all fields are returned
+      context: 'view',
     };
 
     const [postsResponse, pagesResponse] = await Promise.all([
@@ -44,11 +44,6 @@ export async function GET(req: NextRequest) {
     ]);
    
     const mapContent = (item: any): ContentItem => {
-        // New diagnostic log to inspect taxonomy links for language info
-        if (item._links && item._links['wp:term']) {
-             console.log(`[API /content-list] DIAGNOSTIC: Terms for item ${item.id} ('${item.title?.rendered}'): `, JSON.stringify(item._links['wp:term']));
-        }
-
         return {
             id: item.id,
             title: item.title?.rendered || 'No Title',

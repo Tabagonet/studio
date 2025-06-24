@@ -13,7 +13,7 @@ import { AnalysisView, type AnalysisResult } from '@/components/features/seo/ana
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { ContentStats } from '@/lib/types';
+import type { ContentStats, MenuItem } from '@/lib/types';
 
 
 export interface ContentItem {
@@ -30,7 +30,8 @@ export interface ContentItem {
 
 export default function SeoOptimizerPage() {
   const [contentList, setContentList] = useState<ContentItem[]>([]);
-  const [isLoadingList, setIsLoadingList] = useState(true);
+  const [menu, setMenu] = useState<MenuItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [stats, setStats] = useState<ContentStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
@@ -46,57 +47,52 @@ export default function SeoOptimizerPage() {
   
   const { toast } = useToast();
   
-  const fetchContentData = useCallback(async () => {
-    setIsLoadingList(true);
+  const fetchContentAndMenuData = useCallback(async () => {
+    setIsLoading(true);
     setIsLoadingStats(true);
     setError(null);
     const user = auth.currentUser;
     if (!user) {
         setError("Debes iniciar sesión para usar esta función.");
-        setIsLoadingList(false);
+        setIsLoading(false);
         setIsLoadingStats(false);
         return;
     };
     try {
         const token = await user.getIdToken();
         
-        // Fetch List, Stats, and active URL in parallel
         const listPromise = fetch(`/api/wordpress/content-list`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const menuPromise = fetch(`/api/wordpress/menu`, { headers: { 'Authorization': `Bearer ${token}` } });
         const statsPromise = fetch('/api/wordpress/content-stats', { headers: { 'Authorization': `Bearer ${token}` } });
         const configPromise = fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` } });
         
-        const [listResponse, statsResponse, configResponse] = await Promise.all([listPromise, statsPromise, configPromise]);
+        const [listResponse, menuResponse, statsResponse, configResponse] = await Promise.all([listPromise, menuPromise, statsPromise, configPromise]);
 
-        // Process List Response
         if (listResponse.ok) {
-            const data = await listResponse.json();
-            setContentList(data.content);
+            setContentList((await listResponse.json()).content);
         } else {
             const errorData = await listResponse.json();
             setError(errorData.error || 'No se pudo cargar el contenido del sitio.');
             setContentList([]);
         }
         
-        // Process Stats Response
-        if (statsResponse.ok) {
-            setStats(await statsResponse.json());
+        if (menuResponse.ok) {
+            setMenu(await menuResponse.json());
         } else {
-             setStats(null);
+             console.warn('Could not fetch menu structure. Hierarchy will fall back to page parent/child relationships.');
+            setMenu([]);
         }
         
-        // Process Config Response to get active URL
-        if (configResponse.ok) {
-            const configData = await configResponse.json();
-            setActiveConnectionUrl(configData.activeStoreUrl || '');
-        }
-
+        if (statsResponse.ok) setStats(await statsResponse.json()); else setStats(null);
+        if (configResponse.ok) setActiveConnectionUrl((await configResponse.json()).activeStoreUrl || '');
 
     } catch (err: any) {
         setError(err.message);
         setContentList([]);
         setStats(null);
+        setMenu([]);
     } finally {
-        setIsLoadingList(false);
+        setIsLoading(false);
         setIsLoadingStats(false);
     }
   }, []);
@@ -104,23 +100,22 @@ export default function SeoOptimizerPage() {
   useEffect(() => {
     const handleAuth = (user: import('firebase/auth').User | null) => {
         if (user) {
-            fetchContentData();
+            fetchContentAndMenuData();
         } else {
-            setIsLoadingList(false);
+            setIsLoading(false);
             setIsLoadingStats(false);
             setError("Debes iniciar sesión para usar esta función.");
         }
     };
     
     const unsubscribe = onAuthStateChanged(auth, handleAuth);
-    // Listen for connection changes and refetch
-    window.addEventListener('connections-updated', fetchContentData);
+    window.addEventListener('connections-updated', fetchContentAndMenuData);
     
     return () => {
         unsubscribe();
-        window.removeEventListener('connections-updated', fetchContentData);
+        window.removeEventListener('connections-updated', fetchContentAndMenuData);
     }
-  }, [fetchContentData]);
+  }, [fetchContentAndMenuData]);
 
 
   const handleAnalyze = async (page: ContentItem) => {
@@ -193,7 +188,7 @@ export default function SeoOptimizerPage() {
       setSelectedPage(null);
       setAnalysis(null);
       setError(null);
-      fetchContentData();
+      fetchContentAndMenuData();
   }
   
   const renderStats = () => {
@@ -220,11 +215,11 @@ export default function SeoOptimizerPage() {
   }
 
   const renderContent = () => {
-    if (isLoadingList) {
+    if (isLoading) {
       return (
         <div className="flex flex-col items-center justify-center text-center p-12 border border-dashed rounded-lg">
           <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-          <p className="text-lg font-semibold text-muted-foreground">Cargando páginas y entradas de tu sitio...</p>
+          <p className="text-lg font-semibold text-muted-foreground">Cargando contenido y estructura del menú...</p>
         </div>
       );
     }
@@ -265,7 +260,7 @@ export default function SeoOptimizerPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-            {error && !isLoadingList && (
+            {error && !isLoading && (
                  <Alert variant="destructive" className="mb-4">
                     <AlertTitle>No se pudo cargar la lista de contenido</AlertTitle>
                     <AlertDescription>
@@ -289,7 +284,8 @@ export default function SeoOptimizerPage() {
             </div>
             {!error && (
               <SeoPageListTable 
-                data={contentList} 
+                data={contentList}
+                menu={menu} 
                 onAnalyze={handleAnalyze} 
               />
             )}

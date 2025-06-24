@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { SearchCheck, ChevronRight } from "lucide-react";
-import type { ContentItem as RawContentItem } from "@/app/(app)/seo-optimizer/page";
+import type { ContentItem as RawContentItem, MenuItem } from "@/app/(app)/seo-optimizer/page";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +35,7 @@ type ContentItem = RawContentItem & {
 
 interface SeoPageListTableProps {
   data: ContentItem[];
+  menu: MenuItem[];
   onAnalyze: (page: ContentItem) => void;
 }
 
@@ -49,7 +50,7 @@ const getStatusText = (status: ContentItem['status']) => {
     return statusMap[status] || status;
 };
 
-export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
+export function SeoPageListTable({ data, menu, onAnalyze }: SeoPageListTableProps) {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
 
@@ -57,25 +58,46 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
     const langSet = new Set(data.map(item => item.lang));
     return Array.from(langSet).sort();
   }, [data]);
-
+  
   const tableData = React.useMemo(() => {
+    // If a menu structure is provided, use it as the source of truth for hierarchy
+    if (menu && menu.length > 0) {
+        const contentMap = new Map(data.map(item => [item.id.toString(), { ...item, subRows: [] as ContentItem[] }]));
+        
+        const buildTreeFromMenu = (menuItems: MenuItem[]): ContentItem[] => {
+            const tree: ContentItem[] = [];
+            menuItems.forEach(menuItem => {
+                const contentItem = contentMap.get(menuItem.object_id);
+                if (contentItem) {
+                    if (menuItem.children && menuItem.children.length > 0) {
+                        contentItem.subRows = buildTreeFromMenu(menuItem.children);
+                    }
+                    tree.push(contentItem);
+                }
+            });
+            return tree;
+        };
+        return buildTreeFromMenu(menu);
+    }
+
+    // Fallback to original parent/child logic if no menu is available
     const items = data.map(item => ({ ...item, subRows: [] as ContentItem[] }));
     const itemMap = new Map(items.map(item => [item.id, item]));
     const roots: ContentItem[] = [];
-
+    
     items.forEach(item => {
-      // THIS IS THE CORRECTED LOGIC
-      if (item.parent > 0 && itemMap.has(item.parent)) {
-        const parent = itemMap.get(item.parent);
-        parent?.subRows?.push(item);
-      } else {
-        roots.push(item);
-      }
+        if (item.parent && item.parent > 0 && itemMap.has(item.parent)) {
+            const parent = itemMap.get(item.parent);
+            parent?.subRows?.push(item);
+        } else {
+            roots.push(item);
+        }
     });
 
     const sortAlphabetically = (a: ContentItem, b: ContentItem) => a.title.localeCompare(b.title);
     return roots.sort(sortAlphabetically);
-  }, [data]);
+
+  }, [data, menu]);
 
 
   const columns = React.useMemo<ColumnDef<ContentItem>[]>(
@@ -111,7 +133,7 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
        {
         accessorKey: 'lang',
         header: 'Idioma',
-        cell: ({ getValue }) => <Badge variant="outline">{getValue<string>().toUpperCase()}</Badge>
+        cell: ({ getValue }) => <Badge variant="outline">{getValue<string>()?.toUpperCase() || 'N/A'}</Badge>
       },
       {
         accessorKey: 'status',
