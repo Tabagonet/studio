@@ -7,7 +7,7 @@ import axios from 'axios';
 
 const slugify = (text: string) => {
     if (!text) return '';
-    return text.toString().toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-').replace(/^-+/, '').replace(/-+$/, '');
+    return text.toString().toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-').replace(/^-+$/, '');
 };
 
 const postUpdateSchema = z.object({

@@ -20,8 +20,6 @@ import { es } from 'date-fns/locale';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { SeoAnalyzer } from '@/components/features/blog/seo-analyzer';
-import { GoogleSnippetPreview } from '@/components/features/blog/google-snippet-preview';
 
 
 const ALL_LANGUAGES = [
@@ -190,8 +188,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                 if (!postData.topic) throw new Error("Por favor, introduce un tema para la IA.");
                 payload.topic = postData.topic;
                 payload.keywords = postData.keywords;
-                payload.focusKeyword = postData.focusKeyword;
-            } else { // enhance_content, suggest_keywords, or generate_meta_description
+            } else { // enhance_content or suggest_keywords
                 if (!postData.title && (mode !== 'generate_from_topic')) throw new Error("El título es necesario para esta acción.");
                 payload.existingTitle = postData.title;
                 payload.existingContent = postData.content;
@@ -215,10 +212,9 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                     title: aiContent.title,
                     content: aiContent.content,
                     metaDescription: aiContent.metaDescription,
-                    ...(aiContent.suggestedKeywords && { keywords: aiContent.suggestedKeywords }),
-                    ...(aiContent.focusKeyword && { focusKeyword: aiContent.focusKeyword })
+                    ...(aiContent.suggestedKeywords && { keywords: aiContent.suggestedKeywords })
                 });
-                toast({ title: "Contenido generado por la IA", description: "Se han rellenado todos los campos de contenido y SEO." });
+                toast({ title: "Contenido generado por la IA", description: "Se han rellenado los campos de contenido." });
             } else if (mode === 'enhance_content') {
                 updatePostData({
                     title: aiContent.title,
@@ -253,8 +249,8 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
         let newText;
 
         if (tag === 'ul' || tag === 'ol') {
-            const listItems = selectedText.split('\\n').map(line => `  <li>${line}</li>`).join('\\n');
-            newText = `${textarea.value.substring(0, start)}<${tag}>\\n${listItems}\\n</${tag}>${textarea.value.substring(end)}`;
+            const listItems = selectedText.split('\n').map(line => `  <li>${line}</li>`).join('\n');
+            newText = `${textarea.value.substring(0, start)}<${tag}>\n${listItems}\n</${tag}>${textarea.value.substring(end)}`;
         } else {
             newText = `${textarea.value.substring(0, start)}<${tag}>${selectedText}</${tag}>${textarea.value.substring(end)}`;
         }
@@ -337,7 +333,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
         if (!textarea || !selection) return;
 
         const { start } = selection;
-        const newText = `${textarea.value.substring(0, start)}\\n<img src="${finalImageUrl}" alt="${postData.title || 'Imagen insertada'}" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px;" />\\n${textarea.value.substring(start)}`;
+        const newText = `${textarea.value.substring(0, start)}\n<img src="${finalImageUrl}" alt="${postData.title || 'Imagen insertada'}" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px;" />\n${textarea.value.substring(start)}`;
         
         updatePostData({ content: newText });
 
@@ -477,22 +473,11 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                         </CardContent>
                     </Card>
 
-                     <Card>
+                    <Card>
                         <CardHeader>
-                            <CardTitle>Optimización para Buscadores (SEO)</CardTitle>
-                            <CardDescription>Configura cómo aparecerá tu entrada en Google.</CardDescription>
+                            <CardTitle>SEO</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="focusKeyword">Palabra Clave Principal</Label>
-                                <Input 
-                                    id="focusKeyword" 
-                                    name="focusKeyword" 
-                                    value={postData.focusKeyword} 
-                                    onChange={handleInputChange} 
-                                    placeholder="Ej: Jardinería sostenible" 
-                                />
-                            </div>
                             <div className="space-y-2">
                                 <Label htmlFor="metaDescription">Meta Descripción</Label>
                                 <Textarea 
@@ -501,8 +486,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                                     value={postData.metaDescription} 
                                     onChange={handleInputChange} 
                                     placeholder="Un resumen atractivo para Google (máx. 160 caracteres)."
-                                    maxLength={165}
-                                    rows={4}
+                                    maxLength={160}
                                 />
                                 <div className="flex justify-end">
                                     <Button 
@@ -517,16 +501,6 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                                     </Button>
                                 </div>
                             </div>
-                             <GoogleSnippetPreview 
-                                title={postData.title}
-                                description={postData.metaDescription}
-                                url={''}
-                            />
-                            <SeoAnalyzer 
-                                title={postData.title}
-                                content={postData.content}
-                                focusKeyword={postData.focusKeyword}
-                            />
                         </CardContent>
                     </Card>
 

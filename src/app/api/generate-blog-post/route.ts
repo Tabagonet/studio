@@ -12,7 +12,6 @@ const GenerateBlogPostInputSchema = z.object({
   ideaKeyword: z.string().optional(),
   existingTitle: z.string().optional(),
   existingContent: z.string().optional(),
-  focusKeyword: z.string().optional(),
 });
 
 
@@ -41,7 +40,7 @@ export async function POST(req: NextRequest) {
         if (!validationResult.success) {
             return NextResponse.json({ error: 'Invalid input', details: validationResult.error.flatten() }, { status: 400 });
         }
-        const { mode, language, topic, keywords, ideaKeyword, existingTitle, existingContent, focusKeyword } = validationResult.data;
+        const { mode, language, topic, keywords, ideaKeyword, existingTitle, existingContent } = validationResult.data;
 
         const genAI = new GoogleGenerativeAI(apiKey);
         
@@ -50,12 +49,10 @@ export async function POST(req: NextRequest) {
         let model;
 
         if (mode === 'generate_from_topic') {
-            systemInstruction = `You are a professional blog writer and SEO specialist. Your task is to generate a blog post based on a given topic. If a specific 'Focus Keyword' is provided, the entire article (title, content) must be optimized around it. If no 'Focus Keyword' is provided, you must first determine the best possible primary SEO keyword for the given topic, and then write the article optimized for that keyword.
-The response must be a single, valid JSON object with five keys: 'title' (an engaging, SEO-friendly headline), 'content' (a well-structured blog post of at least 400 words, using HTML tags like <h2>, <p>, <ul>, <li>, and <strong> for formatting), 'suggestedKeywords' (a comma-separated string of 5-7 relevant, SEO-focused keywords), 'focusKeyword' (the primary SEO keyword you either used or determined), and 'metaDescription' (a compelling summary of around 150 characters for search engines). Do not include markdown or the word 'json' in your output.`;
+            systemInstruction = `You are a professional blog writer and SEO specialist. Your task is to generate a blog post based on a given topic. The response must be a single, valid JSON object with four keys: 'title' (an engaging, SEO-friendly headline), 'content' (a well-structured blog post of at least 400 words, using HTML tags like <h2>, <p>, <ul>, <li>, and <strong> for formatting), 'suggestedKeywords' (a comma-separated string of 5-7 relevant, SEO-focused keywords), and 'metaDescription' (a compelling summary of around 150 characters for search engines). Do not include markdown or the word 'json' in your output.`;
             prompt = `
                 Generate a blog post.
                 Topic: "${topic}"
-                ${focusKeyword ? `User-provided Focus Keyword (prioritize this): "${focusKeyword}"` : ''}
                 Inspiration Keywords: "${keywords || 'none'}"
                 Language: ${language}
             `;
@@ -108,10 +105,8 @@ The response must be a single, valid JSON object with five keys: 'title' (an eng
         const responseText = result.response.text();
         const parsedJson = JSON.parse(responseText);
         
-        if (mode === 'generate_from_topic') {
-            if (!parsedJson.title || !parsedJson.content || !parsedJson.focusKeyword || !parsedJson.metaDescription) {
-                 throw new Error("AI returned an invalid JSON structure for topic generation.");
-            }
+        if (mode === 'generate_from_topic' && (!parsedJson.title || !parsedJson.content)) {
+             throw new Error("AI returned an invalid JSON structure for topic generation.");
         }
         if (mode === 'enhance_content' && (!parsedJson.title || !parsedJson.content)) {
             throw new Error("AI returned an invalid JSON structure for content enhancement.");

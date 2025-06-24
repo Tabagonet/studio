@@ -266,7 +266,7 @@ export async function translateContent(
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
     model: 'gemini-1.5-flash-latest',
-    systemInstruction: `You are an expert translator. Translate the user-provided JSON content into the specified target language. It is crucial that you maintain the original JSON structure with 'title' and 'content' keys. You must also preserve all HTML tags (e.g., <h2>, <p>, <strong>) in their correct positions within the 'content' field. Your output must be only the translated JSON object, without any extra text or markdown formatting.`,
+    systemInstruction: `You are an expert translator. Translate the user-provided JSON content into the specified target language. It is crucial that you maintain the original JSON structure with 'title' and 'content' keys. You must also preserve all HTML tags (e.g., <h2>, <p>, <strong>) in their correct positions within the 'content' field. Your output must be only the translated JSON object, without any extra text or comments or markdown formatting.`,
     generationConfig: {
       responseMimeType: 'application/json',
     },
