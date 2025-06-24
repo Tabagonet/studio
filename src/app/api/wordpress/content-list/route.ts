@@ -1,17 +1,10 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
+import type { ContentItem } from '@/lib/types';
 
-export interface ContentItem {
-  id: number;
-  title: string;
-  type: 'Post' | 'Page';
-  link: string;
-  status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
-  parent: number;
-  lang: string;
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -38,7 +31,7 @@ export async function GET(req: NextRequest) {
     const mapContent = (item: any): ContentItem => {
         // Check for the 'lang' field provided by the user's custom plugin.
         // If it's missing for any item, we flag it.
-        if (item.lang === undefined) {
+        if (item.lang === undefined || item.translations === undefined) {
           languageDataMissing = true;
         }
 
@@ -50,6 +43,7 @@ export async function GET(req: NextRequest) {
             status: item.status,
             parent: item.parent || 0,
             lang: item.lang || 'default', // Fallback to 'default' if missing
+            translations: item.translations || {},
         };
     };
     

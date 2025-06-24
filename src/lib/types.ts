@@ -114,6 +114,7 @@ export interface BlogPostSearchResult {
   featured_image_url: string | null;
   categories: { id: number; name: string }[];
   tags: { id: number; name: string }[];
+  translations?: Record<string, number>;
 }
 
 export interface ProductData {
@@ -233,4 +234,15 @@ export interface ActivityLog {
     email: string;
     photoURL: string;
   };
+}
+
+export interface ContentItem {
+  id: number;
+  title: string;
+  type: 'Post' | 'Page';
+  link: string;
+  status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
+  parent: number;
+  lang?: string;
+  translations?: Record<string, number>;
 }

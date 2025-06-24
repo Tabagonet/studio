@@ -26,6 +26,7 @@ export interface ContentItem {
   status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
   parent: number;
   lang?: string;
+  translations?: Record<string, number>;
 }
 
 export default function SeoOptimizerPage() {
@@ -45,7 +46,7 @@ export default function SeoOptimizerPage() {
   const [activeConnectionUrl, setActiveConnectionUrl] = useState('');
 
   const [scores, setScores] = useState<Record<number, number>>({});
-  const [editingContentId, setEditingContentId] = useState<number | null>(null);
+  const [editingContent, setEditingContent] = useState<{ id: number; translations?: Record<string, number> } | null>(null);
   
   const { toast } = useToast();
   
@@ -186,13 +187,12 @@ export default function SeoOptimizerPage() {
   }
   
   const handleEditContent = (item: ContentItem) => {
-    setEditingContentId(item.id);
+    setEditingContent({ id: item.id, translations: item.translations });
   };
   
   const handleCloseModal = (refresh: boolean) => {
-    setEditingContentId(null);
+    setEditingContent(null);
     if (refresh) {
-        // Refetch analysis data after editing
         if (selectedPage) {
             handleAnalyze(selectedPage);
         }
@@ -290,8 +290,14 @@ export default function SeoOptimizerPage() {
     foreach ($types as $type) {
         register_rest_field($type, 'lang', [
             'get_callback' => function ($post_arr) {
-                return function_exists('pll_get_post_language') ? pll_get_post_language($post_arr['id'], 'slug') : null;
+                return function_exists('pll_get_post_language') ? pll_get_post_language($post_arr['id']) : null;
             }, 'schema' => null,
+        ]);
+        register_rest_field($type, 'translations', [
+            'get_callback' => function ($post_arr) {
+                return function_exists('pll_get_post_translations') ? pll_get_post_translations($post_arr['id']) : null;
+            },
+            'schema' => null,
         ]);
     }
 });`}
@@ -328,8 +334,8 @@ export default function SeoOptimizerPage() {
 
   return (
     <div className="container mx-auto py-8 space-y-6">
-       {editingContentId && (
-        <BlogEditModal postId={editingContentId} onClose={handleCloseModal} />
+       {editingContent && (
+        <BlogEditModal postId={editingContent.id} translations={editingContent.translations} onClose={handleCloseModal} />
       )}
       <Card>
         <CardHeader>

@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -8,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Sparkles, Wand2, Tags, Pilcrow, Heading2, List, ListOrdered, Link as LinkIcon, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Sparkles, Wand2, Tags, Pilcrow, Heading2, List, ListOrdered, Link as LinkIcon, Image as ImageIcon, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -17,13 +18,15 @@ import type { WordPressPostCategory, WordPressUser, ProductPhoto } from '@/lib/t
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription as CardDescriptionComponent } from '@/components/ui/card';
 import { SeoAnalyzer } from '@/components/features/blog/seo-analyzer';
 import { GoogleSnippetPreview } from '@/components/features/blog/google-snippet-preview';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 interface BlogEditModalProps {
   postId: number;
+  translations?: Record<string, number>;
   onClose: (refresh: boolean) => void;
 }
 
@@ -66,7 +69,7 @@ const ContentToolbar = ({ onInsertTag, onInsertLink, onInsertImage }: { onInsert
 );
 
 
-export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
+export function BlogEditModal({ postId, translations, onClose }: BlogEditModalProps) {
   const [post, setPost] = useState<PostEditState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -82,6 +85,7 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
   const [imageUrl, setImageUrl] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [syncSeo, setSyncSeo] = useState(true);
   
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const selectionRef = useRef<{ start: number; end: number } | null>(null);
@@ -211,6 +215,30 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
         }
         
         toast({ title: '¡Éxito!', description: 'La entrada ha sido actualizada.' });
+        
+        if (syncSeo && translations && Object.keys(translations).length > 1) {
+            toast({ title: "Sincronizando SEO...", description: "Aplicando mejoras a las traducciones. Esto puede tardar." });
+            const syncPayload = {
+                sourcePostId: postId,
+                translations,
+                metaDescription: post.metaDescription,
+                focusKeyword: post.focusKeyword
+            };
+            
+            fetch('/api/seo/sync-translations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(syncPayload)
+            }).then(async (syncResponse) => {
+                const syncResult = await syncResponse.json();
+                if (syncResponse.ok) {
+                    toast({ title: "Sincronización SEO completada", description: syncResult.message });
+                } else {
+                     toast({ title: "Error en la sincronización SEO", description: syncResult.message || "No se pudieron actualizar todas las traducciones.", variant: "destructive" });
+                }
+            });
+        }
+        
         onClose(true);
     } catch (e: any) {
         toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
@@ -419,7 +447,7 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
                     <Card>
                         <CardHeader>
                              <CardTitle>Optimización para Buscadores (SEO)</CardTitle>
-                             <CardDescription>Configura cómo aparecerá tu entrada en Google.</CardDescription>
+                             <CardDescriptionComponent>Configura cómo aparecerá tu entrada en Google.</CardDescriptionComponent>
                         </CardHeader>
                         <CardContent className="pt-6 space-y-6">
                              <div className="space-y-4">
@@ -485,6 +513,14 @@ export function BlogEditModal({ postId, onClose }: BlogEditModalProps) {
                                         content={post.content}
                                         focusKeyword={post.focusKeyword}
                                     />
+                                    {translations && Object.keys(translations).length > 1 && (
+                                        <div className="flex items-center space-x-2 pt-4 border-t">
+                                            <Checkbox id="sync-seo" checked={syncSeo} onCheckedChange={(checked) => setSyncSeo(!!checked)} />
+                                            <Label htmlFor="sync-seo" className="font-normal text-sm cursor-pointer">
+                                                Sincronizar estas mejoras SEO con todas las traducciones
+                                            </Label>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </CardContent>

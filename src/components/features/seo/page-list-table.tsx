@@ -64,11 +64,11 @@ const ScoreBadge = ({ score }: { score: number | undefined }) => {
 export function SeoPageListTable({ data, scores, onAnalyze }: SeoPageListTableProps) {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
-  
+  const [languageFilter, setLanguageFilter] = React.useState('es'); // Default to Spanish
+
   const tableData = React.useMemo(() => {
     const dataMap = new Map(data.map(item => [item.id, { ...item, subRows: [] as ContentItem[] }]));
-    const tree: ContentItem[] = [];
-
+    
     // Helper to build hierarchy from a flat list based on parent IDs
     const buildHierarchy = (items: ContentItem[]): ContentItem[] => {
         const itemMap = new Map(items.map(item => [item.id, { ...item, subRows: [] as ContentItem[] }]));
@@ -86,12 +86,17 @@ export function SeoPageListTable({ data, scores, onAnalyze }: SeoPageListTablePr
         return roots;
     };
     
-    // Sort flat list first
-    const sortedData = [...data].sort((a, b) => a.title.localeCompare(b.title));
-    // Then build hierarchy
+    // Filter data by language first
+    const filteredData = languageFilter === 'all' 
+      ? data 
+      : data.filter(item => item.lang === languageFilter);
+
+    // Sort flat list
+    const sortedData = [...filteredData].sort((a, b) => a.title.localeCompare(b.title));
+    // Then build hierarchy from the filtered & sorted list
     return buildHierarchy(sortedData);
 
-  }, [data]);
+  }, [data, languageFilter]);
 
 
   const columns = React.useMemo<ColumnDef<ContentItem>[]>(
@@ -225,8 +230,8 @@ export function SeoPageListTable({ data, scores, onAnalyze }: SeoPageListTablePr
             </SelectContent>
         </Select>
          <Select
-            value={(table.getColumn('lang')?.getFilterValue() as string) ?? 'all'}
-            onValueChange={(value) => table.getColumn('lang')?.setFilterValue(value === 'all' ? null : value)}
+            value={languageFilter}
+            onValueChange={setLanguageFilter}
             disabled={languages.length === 0}
         >
             <SelectTrigger className="w-full sm:w-[180px]">
