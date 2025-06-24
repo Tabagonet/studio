@@ -59,25 +59,22 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
   }, [data]);
 
   const tableData = React.useMemo(() => {
-    const itemMap = new Map(data.map(item => [item.id, { ...item, subRows: [] as ContentItem[] }]));
+    const items = data.map(item => ({ ...item, subRows: [] as ContentItem[] }));
+    const itemMap = new Map(items.map(item => [item.id, item]));
     const roots: ContentItem[] = [];
 
-    itemMap.forEach(item => {
-        if (item.parent && itemMap.has(item.parent)) {
-            const parent = itemMap.get(item.parent);
-            if (parent) {
-                parent.subRows.push(item);
-            } else {
-                roots.push(item);
-            }
-        } else {
-            roots.push(item);
-        }
+    items.forEach(item => {
+      // THIS IS THE CORRECTED LOGIC
+      if (item.parent > 0 && itemMap.has(item.parent)) {
+        const parent = itemMap.get(item.parent);
+        parent?.subRows?.push(item);
+      } else {
+        roots.push(item);
+      }
     });
 
     const sortAlphabetically = (a: ContentItem, b: ContentItem) => a.title.localeCompare(b.title);
     return roots.sort(sortAlphabetically);
-
   }, [data]);
 
 
@@ -89,17 +86,18 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
         cell: ({ row, getValue }) => (
             <div
                 style={{ paddingLeft: `${row.depth * 1.5}rem` }}
-                className="flex items-center gap-2"
+                className="flex items-center gap-1"
             >
                 {row.getCanExpand() ? (
                     <button
                         onClick={row.getToggleExpandedHandler()}
                         className="cursor-pointer p-1 -ml-1"
+                        aria-label={row.getIsExpanded() ? 'Contraer fila' : 'Expandir fila'}
                     >
                         <ChevronRight className={cn("h-4 w-4 transition-transform", row.getIsExpanded() && 'rotate-90')} />
                     </button>
                 ) : (
-                   row.depth > 0 && <span className="w-4 h-4 mr-2 text-muted-foreground">↳</span>
+                   row.depth > 0 && <span className="w-4 h-4 text-muted-foreground ml-1">↳</span>
                 )}
                 <span className="font-medium">{getValue<string>()}</span>
             </div>

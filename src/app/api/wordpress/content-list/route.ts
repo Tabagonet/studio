@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
       status: 'publish,draft,pending,private,future',
       orderby: 'title',
       order: 'asc',
+      context: 'view', // Use 'view' to ensure all fields are returned
     };
 
     const [postsResponse, pagesResponse] = await Promise.all([
@@ -42,17 +43,23 @@ export async function GET(req: NextRequest) {
       wpApi.get('/pages', { params })
     ]);
    
-    const mapContent = (item: any): ContentItem => ({
-        id: item.id,
-        title: item.title?.rendered || 'No Title',
-        type: item.type === 'post' ? 'Post' : 'Page',
-        link: item.link,
-        status: item.status,
-        parent: item.parent || null,
-        // The crucial part: checking if `item.lang` exists. If not, it falls back to 'default'.
-        lang: item.lang || 'default', 
-        translations: item.translations || {},
-    });
+    const mapContent = (item: any): ContentItem => {
+        // New diagnostic log to inspect taxonomy links for language info
+        if (item._links && item._links['wp:term']) {
+             console.log(`[API /content-list] DIAGNOSTIC: Terms for item ${item.id} ('${item.title?.rendered}'): `, JSON.stringify(item._links['wp:term']));
+        }
+
+        return {
+            id: item.id,
+            title: item.title?.rendered || 'No Title',
+            type: item.type === 'post' ? 'Post' : 'Page',
+            link: item.link,
+            status: item.status,
+            parent: item.parent || null,
+            lang: item.lang || 'default', 
+            translations: item.translations || {},
+        };
+    };
 
     const posts: ContentItem[] = postsResponse.data.map(mapContent);
     const pages: ContentItem[] = pagesResponse.data.map(mapContent);
