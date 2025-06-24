@@ -28,10 +28,10 @@ export async function GET(req: NextRequest) {
         throw new Error('WordPress API is not configured for the active connection.');
     }
 
+    // Removing the '_fields' parameter to ensure all data, including Polylang's, is fetched.
     const params = {
-      per_page: 100, // Fetch up to 100 items per type
-      status: 'publish,draft,pending,private,future', // Fetch all statuses
-      _fields: 'id,title.rendered,link,type,status,parent,lang,translations', // Correctly request lang and translations
+      per_page: 100, 
+      status: 'publish,draft,pending,private,future',
       orderby: 'title',
       order: 'asc',
     };
