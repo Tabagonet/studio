@@ -31,7 +31,7 @@ import type { BlogPostSearchResult, WordPressPostCategory, BlogStats } from "@/l
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { BlogEditModal } from "./blog-edit-modal"
+import { BlogEditModal } from "@/components/features/blog/blog-edit-modal"
 import { BookOpen, FileCheck2, FileClock, FileText, Loader2, Lock, Trash2, ChevronDown } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
