@@ -22,7 +22,7 @@ export interface ContentItem {
   type: 'Post' | 'Page';
   link: string;
   status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
-  parent: number | null;
+  parent: number;
   subRows?: ContentItem[]; // For tanstack-table hierarchy
   lang: string;
   translations: Record<string, number>;
@@ -167,7 +167,7 @@ export default function SeoOptimizerPage() {
           type: 'Page',
           link: fullUrl,
           status: 'publish',
-          parent: null,
+          parent: 0,
           lang: 'default',
           translations: {},
       };

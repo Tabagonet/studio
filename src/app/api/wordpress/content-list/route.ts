@@ -9,7 +9,7 @@ export interface ContentItem {
   type: 'Post' | 'Page';
   link: string;
   status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
-  parent: number | null;
+  parent: number;
   lang: string;
   translations: Record<string, number>;
 }
@@ -30,39 +30,63 @@ export async function GET(req: NextRequest) {
         throw new Error('WordPress API is not configured for the active connection.');
     }
 
-    const params = {
-      per_page: 100, 
-      status: 'publish,draft,pending,private,future',
-      orderby: 'title',
-      order: 'asc',
-      context: 'view',
-      _embed: true, // Ensure we get embedded data which might include language info from some plugins
-    };
+    // Step 1: Fetch all available languages from the Polylang REST API
+    let languages: { slug: string }[] = [];
+    try {
+        const languagesResponse = await wpApi.get('/polylang/v1/languages');
+        if (languagesResponse.data && Array.isArray(languagesResponse.data) && languagesResponse.data.length > 0) {
+            languages = languagesResponse.data;
+        } else {
+            // Fallback for when no languages are returned or endpoint fails
+            languages.push({ slug: '' }); // An empty slug fetches default language content
+        }
+    } catch (langError) {
+        console.warn("Could not fetch languages from Polylang endpoint, falling back to default.", langError);
+        languages.push({ slug: '' });
+    }
 
-    const [postsResponse, pagesResponse] = await Promise.all([
-      wpApi.get('/posts', { params }),
-      wpApi.get('/pages', { params })
-    ]);
-   
-    const mapContent = (item: any): ContentItem => {
-        return {
-            id: item.id,
-            title: item.title?.rendered || 'No Title',
-            type: item.type === 'post' ? 'Post' : 'Page',
-            link: item.link,
-            status: item.status,
-            parent: item.parent || null,
-            lang: item.lang || 'default', 
-            translations: item.translations || {},
+    const allContent: ContentItem[] = [];
+
+    // Step 2: For each language, fetch all posts and pages
+    for (const lang of languages) {
+        const langSlug = lang.slug;
+
+        const fetchParams = {
+            per_page: 100, 
+            status: 'publish,draft,pending,private,future',
+            orderby: 'title',
+            order: 'asc',
+            context: 'view',
+            // If langSlug is empty, this parameter is omitted, fetching default language content
+            ...(langSlug && { lang: langSlug }),
         };
-    };
 
-    const posts: ContentItem[] = postsResponse.data.map(mapContent);
-    const pages: ContentItem[] = pagesResponse.data.map(mapContent);
+        const [postsResponse, pagesResponse] = await Promise.all([
+            wpApi.get('/posts', { params: fetchParams }).catch(e => { console.error(`Failed to fetch posts for lang ${langSlug}`, e.response?.data); return { data: [] }; }),
+            wpApi.get('/pages', { params: fetchParams }).catch(e => { console.error(`Failed to fetch pages for lang ${langSlug}`, e.response?.data); return { data: [] }; })
+        ]);
+   
+        const mapContent = (item: any): ContentItem => {
+            return {
+                id: item.id,
+                title: item.title?.rendered || 'No Title',
+                type: item.type === 'post' ? 'Post' : 'Page',
+                link: item.link,
+                status: item.status,
+                parent: item.parent || 0, // Using 0 for consistency for root items
+                // Manually assign the language slug we used for the fetch
+                lang: langSlug || 'default', 
+                translations: item.translations || {},
+            };
+        };
+
+        const posts: ContentItem[] = postsResponse.data.map(mapContent);
+        const pages: ContentItem[] = pagesResponse.data.map(mapContent);
     
-    const combinedContent = [...posts, ...pages]; 
+        allContent.push(...posts, ...pages);
+    }
         
-    return NextResponse.json({ content: combinedContent });
+    return NextResponse.json({ content: allContent });
   } catch (error: any) {
     const errorMessage = error.response?.data?.message || 'Failed to fetch content list.';
     const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);

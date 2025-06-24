@@ -67,47 +67,18 @@ export function SeoPageListTable({ data, onAnalyze }: SeoPageListTableProps) {
         return posts.sort(sortAlphabetically);
     }
     
-    // --- URL-based Hierarchy Logic ---
+    // --- Parent ID-based Hierarchy Logic ---
     const pageMap = new Map(pages.map(p => [p.id, { ...p, subRows: [] as ContentItem[] }]));
     const rootPages: ContentItem[] = [];
-    const childIds = new Set<number>();
 
-    // Sort pages by URL length, shortest first. This helps find parents before children.
-    const sortedPages = [...pages].sort((a, b) => a.link.length - b.link.length);
-
-    for (const p1 of sortedPages) {
-        let parentId: number | null = null;
-        let longestPrefixLength = -1;
-
-        for (const p2 of sortedPages) {
-            if (p1.id === p2.id) continue;
-            
-            // Check for a clean prefix (e.g. `.../parent/` is a prefix of `.../parent/child/`)
-            // This avoids `.../page-a` matching `.../page-ab`
-            const potentialParentLink = p2.link.endsWith('/') ? p2.link : `${p2.link}/`;
-            if (p1.link.startsWith(potentialParentLink) && p2.link.length > longestPrefixLength) {
-                longestPrefixLength = p2.link.length;
-                parentId = p2.id;
-            }
-        }
-
-        if (parentId) {
-            const parentNode = pageMap.get(parentId);
-            const childNode = pageMap.get(p1.id);
-            if (parentNode && childNode) {
-                parentNode.subRows.push(childNode);
-                childIds.add(p1.id);
-            }
-        }
-    }
-    
-    // Any page that wasn't identified as a child is a root page
-    pageMap.forEach((page, id) => {
-        if (!childIds.has(id)) {
+    pageMap.forEach((page) => {
+        if (page.parent > 0 && pageMap.has(page.parent)) {
+            pageMap.get(page.parent)!.subRows.push(page);
+        } else {
             rootPages.push(page);
         }
     });
-    
+
     // Sort all levels alphabetically
     const sortSubRows = (items: ContentItem[]) => {
       items.sort(sortAlphabetically);
