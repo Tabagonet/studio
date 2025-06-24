@@ -56,27 +56,31 @@ export function SeoPageListTable({
   const contentTree = React.useMemo(() => {
     const posts = data.filter(item => item.type === 'Post').map(item => ({ item, depth: 0 }));
     const pages = data.filter(item => item.type === 'Page');
-    const tree: TreeItem[] = [];
-
-    const buildTree = (parentId: number | null, depth: number) => {
-        pages
-            .filter(p => p.parent === parentId)
-            .sort((a,b) => a.title.localeCompare(b.title))
-            .forEach(page => {
-                tree.push({ item: page, depth });
-                buildTree(page.id, depth + 1);
-            });
-    };
     
-    buildTree(0, 0); 
-    
-    const topLevelIds = new Set(tree.map(t => t.item.id));
-    pages.forEach(p => {
-        if (!p.parent && !topLevelIds.has(p.id)) {
-            tree.push({ item: p, depth: 0 });
-            buildTree(p.id, 1);
+    const pageMap = new Map<number, ContentItem[]>();
+    pages.forEach(page => {
+        const parentId = page.parent || 0; // Treat null parent as root (0)
+        if (!pageMap.has(parentId)) {
+            pageMap.set(parentId, []);
         }
+        pageMap.get(parentId)!.push(page);
     });
+
+    // Sort children alphabetically within the map
+    pageMap.forEach(children => children.sort((a, b) => a.title.localeCompare(b.title)));
+
+    const tree: TreeItem[] = [];
+    const buildTreeRecursive = (parentId: number, depth: number) => {
+        const children = pageMap.get(parentId);
+        if (children) {
+            children.forEach(child => {
+                tree.push({ item: child, depth });
+                buildTreeRecursive(child.id, depth + 1);
+            });
+        }
+    };
+
+    buildTreeRecursive(0, 0); // Start building from root pages
 
     return [...posts, ...tree];
   }, [data]);
