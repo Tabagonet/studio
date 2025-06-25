@@ -64,6 +64,7 @@ function EditPageContent() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!post) return;
+    const { name, value } = e.target;
     setPost({ ...post, [name]: value });
   };
   
@@ -321,7 +322,6 @@ function EditPageContent() {
         }
 
         toast({ title: '¡Éxito!', description: `La entrada ha sido actualizada en WordPress.` });
-        router.push('/blog');
         
     } catch (e: any) {
         toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
@@ -579,3 +579,5 @@ export default function BlogEditPage() {
         </Suspense>
     )
 }
+
+    
