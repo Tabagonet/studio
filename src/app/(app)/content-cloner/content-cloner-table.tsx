@@ -4,12 +4,9 @@
 import * as React from "react";
 import {
   ColumnFiltersState,
-  SortingState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
   useReactTable,
   getExpandedRowModel,
   type ExpandedState,
@@ -26,29 +23,41 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getColumns } from "./columns"; 
 import type { ContentItem as RawContentItem } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ChevronDown, Copy } from "lucide-react";
+import { Loader2, ChevronDown, Copy, Languages } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useRouter } from "next/navigation";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 type ContentItem = RawContentItem & { subRows?: ContentItem[] };
+
+const ALL_LANGUAGES = [
+    { code: 'es', name: 'Español' },
+    { code: 'en', name: 'Inglés' },
+    { code: 'fr', name: 'Francés' },
+    { code: 'de', name: 'Alemán' },
+    { code: 'pt', name: 'Portugués' },
+];
+
 
 export function ContentClonerTable() {
   const [data, setData] = React.useState<ContentItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [isCloning, setIsCloning] = React.useState<number | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
 
+  const [isCloneDialogOpen, setIsCloneDialogOpen] = React.useState(false);
+  const [targetLang, setTargetLang] = React.useState<string>("");
+  const [isCloning, setIsCloning] = React.useState(false);
+
+
   const { toast } = useToast();
-  const router = useRouter();
 
   const fetchData = React.useCallback(async () => {
     setIsLoading(true);
@@ -83,7 +92,6 @@ export function ContentClonerTable() {
             roots.push(mainPost);
           }
         } else if (!Object.values(item.translations || {}).some(id => id < item.id)) {
-          // It's a root or has no translations
           roots.push(dataMap.get(item.id)!);
         }
       });
@@ -108,23 +116,32 @@ export function ContentClonerTable() {
     };
   }, [fetchData]);
 
- const handleClone = async (item: ContentItem) => {
-    setIsCloning(item.id);
+  const handleBatchClone = async () => {
+    setIsCloning(true);
+    const selectedRows = table.getSelectedRowModel().rows;
+    const post_ids = selectedRows.map(row => row.original.id);
+    
+    if (post_ids.length === 0 || !targetLang) {
+      toast({ title: "Datos incompletos", description: "Selecciona contenido y un idioma de destino.", variant: "destructive" });
+      setIsCloning(false);
+      return;
+    }
+    
     const user = auth.currentUser;
     if (!user) {
         toast({ title: "No autenticado", variant: "destructive" });
-        setIsCloning(null);
+        setIsCloning(false);
         return;
     }
 
     try {
         const token = await user.getIdToken();
-        toast({ title: `Clonando y traduciendo "${item.title}"...`, description: "Esto puede tardar unos minutos." });
+        toast({ title: `Iniciando clonación y traducción...`, description: `Procesando ${post_ids.length} elemento(s). Esto puede tardar.` });
 
         const response = await fetch('/api/wordpress/content-cloner/clone', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ sourceId: item.id, sourceType: item.type })
+            body: JSON.stringify({ post_ids, target_lang })
         });
 
         const result = await response.json();
@@ -132,20 +149,26 @@ export function ContentClonerTable() {
             throw new Error(result.message || 'Error en el servidor al clonar.');
         }
 
+        const successCount = result.data?.success?.length || 0;
+        const failedCount = result.data?.failed?.length || 0;
+
         toast({
-            title: "¡Clonación Exitosa!",
-            description: `Se ha creado "${result.newPost.title}" como borrador.`,
+            title: "¡Clonación en Lote Exitosa!",
+            description: `${successCount} elemento(s) clonado(s) y ${failedCount} fallido(s).`,
+            variant: failedCount > 0 ? "destructive" : "default"
         });
 
-        fetchData(); // Refresh the table to show the new content
+        fetchData(); // Refresh the table
+        table.resetRowSelection();
+        setIsCloneDialogOpen(false);
     } catch (error: any) {
         toast({ title: 'Error al Clonar', description: error.message, variant: 'destructive' });
     } finally {
-        setIsCloning(null);
+        setIsCloning(false);
     }
   };
 
-  const columns = React.useMemo(() => getColumns(handleClone, isCloning), [handleClone, isCloning]);
+  const columns = React.useMemo(() => getColumns(), []);
 
   const table = useReactTable({
     data,
@@ -168,6 +191,37 @@ export function ContentClonerTable() {
 
   return (
     <div className="space-y-4">
+        <AlertDialog open={isCloneDialogOpen} onOpenChange={setIsCloneDialogOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Clonar y Traducir Contenido</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Has seleccionado {selectedRowCount} elemento(s). Por favor, elige el idioma al que deseas clonar y traducir este contenido.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="py-4">
+                    <Label htmlFor="language-select">Idioma de Destino</Label>
+                     <Select value={targetLang} onValueChange={setTargetLang}>
+                        <SelectTrigger id="language-select">
+                           <SelectValue placeholder="Selecciona un idioma..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                             {ALL_LANGUAGES.map(lang => (
+                                <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setIsCloneDialogOpen(false)}>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleBatchClone} disabled={!targetLang || isCloning}>
+                        {isCloning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {isCloning ? 'Procesando...' : 'Iniciar Clonación'}
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
         <div className="flex items-center justify-between">
             <div className="flex flex-col sm:flex-row gap-2">
                 <Input
@@ -190,15 +244,15 @@ export function ContentClonerTable() {
                     </SelectContent>
                 </Select>
             </div>
-             <DropdownMenu>
+            <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="outline" disabled={selectedRowCount === 0}>
+                    <Button variant="outline" disabled={selectedRowCount === 0 || isCloning}>
                         <ChevronDown className="mr-2 h-4 w-4" />
                         Acciones ({selectedRowCount})
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => toast({ title: "Funcionalidad en Desarrollo", description: "La clonación y traducción por lotes se implementará en la Fase 3." })}>
+                    <DropdownMenuItem onSelect={() => setIsCloneDialogOpen(true)}>
                         <Copy className="mr-2 h-4 w-4" /> Clonar y Traducir
                     </DropdownMenuItem>
                 </DropdownMenuContent>
