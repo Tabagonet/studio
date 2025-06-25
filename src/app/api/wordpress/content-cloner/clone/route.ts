@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
         const cloneEndpoint = `${siteUrl}/wp-json/custom/v1/batch-clone-posts`;
         const cloneResponse = await wpApi.post(cloneEndpoint, { post_ids, target_lang });
         
-        if (cloneResponse.status !== 200 || !cloneResponse.data.success) {
+        if (cloneResponse.status !== 200 || !cloneResponse.data) {
             throw new Error('Batch cloning via custom endpoint failed: ' + (cloneResponse.data.failed?.[0]?.reason || 'Unknown error from plugin.'));
         }
 
