@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { SubmissionStatus, SubmissionStep } from "@/lib/types";
 import { CheckCircle, Circle, Loader2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Progress } from "@/components/ui/progress";
+
 
 interface Step4ProcessingProps {
   status: SubmissionStatus;
@@ -52,8 +54,11 @@ export function Step4Processing({ status, steps }: Step4ProcessingProps) {
                      {steps.map(step => (
                         <div key={step.id} className="flex items-start gap-3">
                             <StatusIcon status={step.status} />
-                            <div className="flex-1">
+                            <div className="flex-1 space-y-1">
                                 <p className={cn("font-medium", step.status === 'error' && 'text-destructive')}>{step.name}</p>
+                                {step.status === 'processing' && step.progress !== undefined && (
+                                    <Progress value={step.progress} className="h-2" />
+                                )}
                                 {step.status === 'error' && step.error && (
                                      <p className="text-xs text-destructive">{step.error}</p>
                                 )}

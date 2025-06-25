@@ -5,8 +5,7 @@ import { translateContent } from '@/lib/api-helpers';
 import { z } from 'zod';
 
 const translateSchema = z.object({
-  title: z.string(),
-  content: z.string(),
+  content: z.record(z.string()),
   targetLanguage: z.string(),
 });
 
@@ -26,9 +25,9 @@ export async function POST(req: NextRequest) {
         if (!validation.success) {
             return NextResponse.json({ error: 'Invalid input', details: validation.error.flatten() }, { status: 400 });
         }
-        const { title, content, targetLanguage } = validation.data;
-        const translated = await translateContent({ title, content }, targetLanguage);
-        return NextResponse.json(translated);
+        const { content, targetLanguage } = validation.data;
+        const translated = await translateContent(content, targetLanguage);
+        return NextResponse.json({ content: translated });
     } catch (error: any) {
         console.error('Error in translation API:', error);
         return NextResponse.json({ error: 'Failed to translate content', message: error.message }, { status: 500 });

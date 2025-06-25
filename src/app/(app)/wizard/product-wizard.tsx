@@ -1,13 +1,13 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
 import { Step2Preview } from './step-2-preview'; 
 import { Step3Confirm } from './step-3-confirm';
 import { Step4Processing } from './step-4-processing';
-import type { ProductData, SubmissionStep, SubmissionStatus } from '@/lib/types';
-import { INITIAL_PRODUCT_DATA } from '@/lib/constants';
+import type { ProductData, SubmissionStep, SubmissionStatus, ProductPhoto } from '@/lib/types';
+import { INITIAL_PRODUCT_DATA, ALL_LANGUAGES } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
@@ -30,89 +30,138 @@ export function ProductWizard() {
     setProductData(prev => ({ ...prev, ...data }));
   }, []);
   
-  const updateStepStatus = (id: string, status: SubmissionStep['status'], error?: string) => {
+  const updateStepStatus = (id: string, status: SubmissionStep['status'], error?: string, progress?: number) => {
     setSteps(prevSteps => 
       prevSteps.map(step => 
-        step.id === id ? { ...step, status, error } : step
+        step.id === id ? { ...step, status, error, progress } : step
       )
     );
   };
 
   const handleCreateProduct = useCallback(async () => {
     setCurrentStep(4); // Move to the processing screen
-
-    const user = auth.currentUser;
-    if (!user) {
-        toast({ title: "Error de autenticación", description: "Debes iniciar sesión.", variant: "destructive" });
-        setSubmissionStatus('error');
-        return;
-    }
-
-    // Build the dynamic list of steps
+    
     const initialSteps: SubmissionStep[] = [];
     if (productData.photos.some(p => p.file)) {
-      initialSteps.push({ id: 'upload_images', name: 'Subiendo imágenes', status: 'pending' });
+      initialSteps.push({ id: 'upload_images', name: 'Subiendo imágenes', status: 'pending', progress: 0 });
     }
-    initialSteps.push({ id: 'create_product', name: `Creando producto original (${productData.language})`, status: 'pending' });
+    const sourceLangName = ALL_LANGUAGES.find(l => l.code === productData.language)?.name || productData.language;
+    initialSteps.push({ id: 'create_original', name: `Creando producto original (${sourceLangName})`, status: 'pending', progress: 0 });
+    
     productData.targetLanguages?.forEach(lang => {
-        initialSteps.push({ id: `translate_${lang}`, name: `Traduciendo a ${lang}`, status: 'pending' });
-        initialSteps.push({ id: `create_${lang}`, name: `Creando producto en ${lang}`, status: 'pending' });
+        const targetLangName = ALL_LANGUAGES.find(l => l.code === lang)?.name || lang;
+        initialSteps.push({ id: `translate_${lang}`, name: `Traduciendo a ${targetLangName}`, status: 'pending', progress: 0 });
+        initialSteps.push({ id: `create_${lang}`, name: `Creando producto en ${targetLangName}`, status: 'pending', progress: 0 });
     });
      if (productData.targetLanguages && productData.targetLanguages.length > 0) {
-        initialSteps.push({ id: 'sync_translations', name: 'Sincronizando enlaces de traducción', status: 'pending' });
+        initialSteps.push({ id: 'sync_translations', name: 'Sincronizando enlaces de traducción', status: 'pending', progress: 0 });
     }
     setSteps(initialSteps);
     setFinalLinks([]);
     setSubmissionStatus('processing');
     
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: 'Error', description: 'No autenticado.', variant: 'destructive' });
+        setSubmissionStatus('error');
+        return;
+    }
+    
     try {
         const token = await user.getIdToken();
+        let finalProductData = { ...productData };
+        let createdPostUrls: { url: string; title: string }[] = [];
+        const allTranslations: { [key: string]: number } = {};
 
-        // The single API call that handles everything now
-        const response = await fetch('/api/woocommerce/products', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify(productData),
-        });
+        // --- Step 1: Upload Images (if necessary) ---
+        if (productData.photos.some(p => p.file)) {
+            updateStepStatus('upload_images', 'processing', undefined, 10);
+            const photosToUpload = productData.photos.filter(p => p.file);
+            const uploadedPhotosInfo: { id: string | number; uploadedUrl: string; uploadedFilename: string }[] = [];
+            
+            for (const [index, photo] of photosToUpload.entries()) {
+                 const formData = new FormData();
+                 formData.append('imagen', photo.file!);
+                 const response = await fetch('/api/upload-image', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData });
+                 if (!response.ok) throw new Error(`Error subiendo ${photo.name}`);
+                 const imageData = await response.json();
+                 uploadedPhotosInfo.push({ id: photo.id, uploadedUrl: imageData.url, uploadedFilename: imageData.filename_saved_on_server });
+                 updateStepStatus('upload_images', 'processing', undefined, 10 + (80 * (index + 1) / photosToUpload.length));
+            }
+            
+            finalProductData.photos = productData.photos.map(p => {
+                const uploaded = uploadedPhotosInfo.find(u => u.id === p.id);
+                return uploaded ? { ...p, file: undefined, uploadedUrl: uploaded.uploadedUrl, uploadedFilename: uploaded.uploadedFilename } : p;
+            });
+            updateStepStatus('upload_images', 'success', undefined, 100);
+        }
 
-        const result = await response.json();
+        // --- Step 2: Create Original Product ---
+        updateStepStatus('create_original', 'processing', undefined, 50);
+        const sourceLangSlug = ALL_LANGUAGES.find(l => l.code === finalProductData.language)?.slug || 'es';
+        const originalPayload = { productData: { ...finalProductData, targetLanguages: [] }, lang: sourceLangSlug };
         
-        if (!response.ok) {
-          throw new Error(result.error || 'Error desconocido al crear el producto.');
+        const originalResponse = await fetch('/api/woocommerce/products', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(originalPayload) });
+        if (!originalResponse.ok) { const errorData = await originalResponse.json(); throw new Error(errorData.error || `Error creando producto original`); }
+        const originalResult = await originalResponse.json();
+        createdPostUrls.push({ url: originalResult.data.url, title: originalResult.data.title });
+        allTranslations[sourceLangSlug] = originalResult.data.id;
+        updateStepStatus('create_original', 'success', undefined, 100);
+
+        // --- Step 3: Create Translations ---
+        if (finalProductData.targetLanguages) {
+            for (const lang of finalProductData.targetLanguages) {
+                updateStepStatus(`translate_${lang}`, 'processing', undefined, 50);
+                const translationPayload = {
+                    name: finalProductData.name,
+                    short_description: finalProductData.shortDescription,
+                    long_description: finalProductData.longDescription,
+                };
+                const translateResponse = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ content: translationPayload, targetLanguage: lang }) });
+                if (!translateResponse.ok) throw new Error(`Error traduciendo a ${lang}`);
+                const translatedContent = (await translateResponse.json()).content;
+                updateStepStatus(`translate_${lang}`, 'success', undefined, 100);
+
+                updateStepStatus(`create_${lang}`, 'processing', undefined, 50);
+                const translatedProductData = {
+                  ...finalProductData,
+                  name: translatedContent.name,
+                  shortDescription: translatedContent.short_description,
+                  longDescription: translatedContent.long_description,
+                  sku: `${finalProductData.sku}-${lang.toLowerCase().substring(0, 2)}` // Append lang to SKU
+                };
+                const targetLangSlug = ALL_LANGUAGES.find(l => l.code === lang)?.slug || lang.toLowerCase().substring(0, 2);
+                
+                const translatedPayload = { productData: translatedProductData, lang: targetLangSlug };
+                const translatedResponse = await fetch('/api/woocommerce/products', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(translatedPayload) });
+                if (!translatedResponse.ok) { const errorData = await translatedResponse.json(); throw new Error(errorData.error || `Error creando producto en ${lang}`); }
+                const translatedResult = await translatedResponse.json();
+                createdPostUrls.push({ url: translatedResult.data.url, title: translatedResult.data.title });
+                allTranslations[targetLangSlug] = translatedResult.data.id;
+                updateStepStatus(`create_${lang}`, 'success', undefined, 100);
+            }
         }
         
-        toast({
-          title: "¡Producto(s) Creado(s)!",
-          description: `El proceso ha finalizado correctamente.`,
-        });
-        
-        setFinalLinks(result.data); // Assuming API returns an array of {url, title}
-        // Mark all steps as successful
-        setSteps(prev => prev.map(s => ({...s, status: 'success'})));
+        // --- Step 4: Final Sync of all translation links ---
+        if (Object.keys(allTranslations).length > 1) {
+            updateStepStatus('sync_translations', 'processing', undefined, 50);
+            const linkResponse = await fetch('/api/wordpress/posts/link-translations', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ translations: allTranslations }) });
+            if (!linkResponse.ok) { const errorResult = await linkResponse.json(); throw new Error(errorResult.message || 'Error al enlazar las traducciones.'); }
+            updateStepStatus('sync_translations', 'success', undefined, 100);
+        }
+
+        setFinalLinks(createdPostUrls);
         setSubmissionStatus('success');
 
     } catch (error: any) {
-        const errorMessage = error.message || "No se pudo crear el producto.";
-        toast({
-            title: "Error al Crear Producto",
-            description: errorMessage,
-            variant: "destructive",
-        });
-        // Find the first non-successful step and mark it as error
-        setSteps(prev => {
-            let errorShown = false;
-            return prev.map(s => {
-                if (s.status === 'pending' && !errorShown) {
-                    errorShown = true;
-                    return { ...s, status: 'error', error: errorMessage };
-                }
-                return s;
-            });
-        });
+        const failedStep = steps.find(s => s.status === 'processing');
+        if (failedStep) {
+            updateStepStatus(failedStep.id, 'error', error.message);
+        }
+        toast({ title: 'Proceso Interrumpido', description: error.message, variant: 'destructive' });
         setSubmissionStatus('error');
-        console.error("Full error object when creating product:", error);
     }
-  }, [productData, toast]);
+  }, [productData, toast, steps]);
 
 
   const nextStep = () => {

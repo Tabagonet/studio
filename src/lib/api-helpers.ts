@@ -1,5 +1,4 @@
 
-
 // src/lib/api-helpers.ts
 import { adminDb } from '@/lib/firebase-admin';
 import { createWooCommerceApi } from '@/lib/woocommerce';
@@ -251,14 +250,14 @@ export async function generateProductContent(
 
 /**
  * Translates content using Google AI.
- * @param contentToTranslate An object with title and content strings.
+ * @param contentToTranslate An object with string key-value pairs.
  * @param targetLanguage The language to translate to.
- * @returns A promise that resolves to the translated title and content.
+ * @returns A promise that resolves to an object with the same keys but translated values.
  */
 export async function translateContent(
-  contentToTranslate: { title: string; content: string },
+  contentToTranslate: { [key: string]: string },
   targetLanguage: string
-): Promise<{ title: string; content: string }> {
+): Promise<{ [key: string]: string }> {
   const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) {
     throw new Error('La clave API de Google AI no está configurada en el servidor.');
@@ -267,7 +266,7 @@ export async function translateContent(
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
     model: 'gemini-1.5-flash-latest',
-    systemInstruction: `You are an expert translator. Translate the user-provided JSON content into the specified target language. It is crucial that you maintain the original JSON structure with 'title' and 'content' keys. You must also preserve all HTML tags (e.g., <h2>, <p>, <strong>) and special separators like '|||' in their correct positions within the 'content' field. Your output must be only the translated JSON object, without any extra text or comments or markdown formatting.`,
+    systemInstruction: `You are an expert translator. Translate the values of the user-provided JSON object into the specified target language. It is crucial that you maintain the original JSON structure and keys. You must also preserve all HTML tags (e.g., <h2>, <p>, <strong>) and special separators like '|||' in their correct positions within the string values. Your output must be only the translated JSON object, without any extra text, comments, or markdown formatting.`,
     generationConfig: {
       responseMimeType: 'application/json',
     },
@@ -280,10 +279,11 @@ export async function translateContent(
   
   try {
     const parsedJson = JSON.parse(responseText);
-    if (typeof parsedJson.title === 'string' && typeof parsedJson.content === 'string') {
+    // Basic validation to ensure it's an object with string values
+    if (typeof parsedJson === 'object' && parsedJson !== null) {
       return parsedJson;
     }
-    throw new Error('AI returned JSON with incorrect schema.');
+    throw new Error('AI returned a non-object response.');
   } catch (error) {
     console.error('Error parsing translated content from AI:', responseText, error);
     throw new Error('Failed to parse translation from AI.');
@@ -546,5 +546,3 @@ export async function findOrCreateTags(tagNames: string[], wpApi: AxiosInstance)
   }
   return tagIds;
 }
-
-

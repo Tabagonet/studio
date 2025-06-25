@@ -172,6 +172,7 @@ export interface SubmissionStep {
   id: string;
   name: string;
   status: SubmissionStepStatus;
+  progress?: number;
   error?: string;
 }
 
