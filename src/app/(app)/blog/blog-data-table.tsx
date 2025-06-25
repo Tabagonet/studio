@@ -13,6 +13,8 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
+  getExpandedRowModel,
+  type ExpandedState,
 } from "@tanstack/react-table"
 import { useToast } from "@/hooks/use-toast"
 import { auth } from "@/lib/firebase"
@@ -32,7 +34,7 @@ import type { BlogPostSearchResult, WordPressPostCategory, BlogStats } from "@/l
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { BookOpen, FileCheck2, FileClock, FileText, Loader2, Lock, Trash2, ChevronDown, Languages } from "lucide-react"
+import { BookOpen, FileCheck2, FileText, Loader2, Lock, Trash2, ChevronDown, Languages } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 
@@ -44,8 +46,10 @@ const LANGUAGES = [
     { code: 'pt', name: 'Portugués' },
 ];
 
+type HierarchicalBlogPost = BlogPostSearchResult & { subRows?: HierarchicalBlogPost[] };
+
 export function BlogDataTable() {
-  const [data, setData] = React.useState<BlogPostSearchResult[]>([])
+  const [data, setData] = React.useState<HierarchicalBlogPost[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [totalPages, setTotalPages] = React.useState(1)
   
@@ -60,13 +64,14 @@ export function BlogDataTable() {
   // Filter states
   const [selectedCategory, setSelectedCategory] = React.useState('all');
   const [selectedStatus, setSelectedStatus] = React.useState('all');
-  const [selectedLanguage, setSelectedLanguage] = React.useState('all');
+  const [selectedLanguage, setSelectedLanguage] = React.useState('es');
 
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: 'date_created', desc: true }
   ]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
+  const [expanded, setExpanded] = React.useState<ExpandedState>({});
   
   const [pagination, setPagination] = React.useState({
     pageIndex: 0, 
@@ -122,7 +127,7 @@ export function BlogDataTable() {
         per_page: pagination.pageSize.toString(),
         category: selectedCategory,
         status: selectedStatus,
-        lang: selectedLanguage,
+        lang: 'all', // Fetch all languages to build the hierarchy
       });
 
       if (titleFilter?.value) {
@@ -144,7 +149,42 @@ export function BlogDataTable() {
       }
 
       const { posts, totalPages } = await response.json();
-      setData(posts);
+      
+      const postsById = new Map(posts.map((p: BlogPostSearchResult) => [p.id, { ...p, subRows: [] }]));
+      const roots: HierarchicalBlogPost[] = [];
+
+      posts.forEach((post: BlogPostSearchResult) => {
+        if (!post.translations || Object.values(post.translations).length <= 1) {
+          // It's a standalone post, or we can't determine its group, treat as a root
+          roots.push(postsById.get(post.id)!);
+          return;
+        }
+
+        const translationIds = Object.values(post.translations);
+        const firstIdInGroup = Math.min(...translationIds);
+
+        if (post.id === firstIdInGroup) {
+          // This is the "main" post of the translation group, make it a root
+          roots.push(postsById.get(post.id)!);
+        } else {
+          // This is a translation, find its main post and add it as a subRow
+          const mainPost = postsById.get(firstIdInGroup);
+          if (mainPost) {
+            mainPost.subRows.push(postsById.get(post.id)!);
+          } else {
+            // Main post not in this page, treat as root for now.
+            // This can happen with pagination. A full solution requires fetching all posts.
+            roots.push(postsById.get(post.id)!);
+          }
+        }
+      });
+      
+      // Filter the roots by the selected language
+      const languageFilteredRoots = selectedLanguage === 'all' 
+        ? roots
+        : roots.filter(p => p.lang === selectedLanguage);
+      
+      setData(languageFilteredRoots);
       setTotalPages(totalPages);
     } catch (error) {
       console.error(error);
@@ -264,10 +304,13 @@ export function BlogDataTable() {
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onRowSelectionChange: setRowSelection,
+    onExpandedChange: setExpanded,
+    getSubRows: (row) => row.subRows,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
     manualPagination: true,
     manualFiltering: true,
     manualSorting: true,
@@ -278,6 +321,7 @@ export function BlogDataTable() {
       columnFilters,
       pagination,
       rowSelection,
+      expanded,
     },
   });
 

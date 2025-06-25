@@ -4,7 +4,7 @@
 import { ColumnDef } from "@tanstack/react-table"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowUpDown, MoreHorizontal, Eye, EyeOff, Pencil, ExternalLink, Trash2 } from "lucide-react"
+import { ArrowUpDown, MoreHorizontal, Eye, EyeOff, Pencil, ExternalLink, Trash2, ChevronRight } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -25,6 +25,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 
 
 export const getColumns = (
@@ -64,7 +65,17 @@ export const getColumns = (
     cell: ({ row }) => {
       const post = row.original
       return (
-        <div className="flex items-center gap-3">
+        <div style={{ paddingLeft: `${row.depth * 2}rem` }} className="flex items-center gap-3">
+          {row.getCanExpand() && (
+             <button
+                {...{
+                  onClick: row.getToggleExpandedHandler(),
+                  style: { cursor: 'pointer' },
+                }}
+              >
+               <ChevronRight className={cn("h-4 w-4 transition-transform", row.getIsExpanded() && 'rotate-90')} />
+            </button>
+          )}
           <Image
             src={post.featured_image_url || "https://placehold.co/64x64.png"}
             alt={post.title}
