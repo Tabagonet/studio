@@ -1,3 +1,4 @@
+
 {
   "name": "nextn",
   "version": "0.1.0",
@@ -43,7 +44,6 @@
     "firebase": "^11.9.1",
     "firebase-admin": "^12.3.0",
     "form-data": "^4.0.0",
-    "lodash": "^4.17.21",
     "lucide-react": "^0.475.0",
     "next": "14.2.4",
     "papaparse": "^5.4.1",
@@ -59,7 +59,6 @@
   "devDependencies": {
     "@types/cheerio": "^0.22.35",
     "@types/form-data": "^2.5.0",
-    "@types/lodash": "^4.17.5",
     "@types/node": "^20",
     "@types/papaparse": "^5.3.14",
     "@types/react": "^18",
