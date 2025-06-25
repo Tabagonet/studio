@@ -143,11 +143,22 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const postId = params.id;
     if (!postId) return NextResponse.json({ error: 'Post ID is required.' }, { status: 400 });
 
-    const response = await wpApi.delete(`/posts/${postId}`); // No force: true, move to trash
+    const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
+    if (!siteUrl) {
+      throw new Error("Could not determine base site URL from WordPress API configuration.");
+    }
+    
+    // Use the new custom endpoint for trashing
+    const customEndpointUrl = `${siteUrl}/wp-json/custom/v1/trash-post/${postId}`;
+    const response = await wpApi.post(customEndpointUrl);
+    
     return NextResponse.json({ success: true, data: response.data });
   } catch (error: any) {
     console.error(`Error deleting post ${params.id}:`, error.response?.data || error.message);
-    const errorMessage = error.response?.data?.message || 'Failed to delete post.';
+    let errorMessage = error.response?.data?.message || 'Failed to move post to trash.';
+    if (error.response?.status === 404) {
+      errorMessage = 'Endpoint de borrado no encontrado. Asegúrate de que el plugin personalizado está activo y actualizado en WordPress.';
+    }
     const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     return NextResponse.json({ error: errorMessage }, { status });
   }

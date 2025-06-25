@@ -40,13 +40,23 @@ export async function POST(req: NextRequest) {
         };
 
         if (action === 'delete') {
+            const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
+            if (!siteUrl) {
+                throw new Error("Could not determine base site URL.");
+            }
+
             for (const postId of postIds) {
                 try {
-                    // Move to trash by default. No `force: true`.
-                    await wpApi.delete(`/posts/${postId}`);
+                    // Use the new custom endpoint for trashing
+                    const customEndpointUrl = `${siteUrl}/wp-json/custom/v1/trash-post/${postId}`;
+                    await wpApi.post(customEndpointUrl);
                     results.success.push(postId);
                 } catch (error: any) {
-                    results.failed.push({ id: postId, reason: error.response?.data?.message || error.message || 'Unknown error' });
+                    let reason = error.response?.data?.message || error.message || 'Unknown error';
+                     if (error.response?.status === 404) {
+                        reason = 'Endpoint de borrado no encontrado. Asegúrate de que el plugin personalizado está activo y actualizado en WordPress.';
+                    }
+                    results.failed.push({ id: postId, reason });
                 }
             }
         }
