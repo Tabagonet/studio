@@ -1,6 +1,6 @@
 
 
-import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList, SearchCheck } from 'lucide-react';
+import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList, SearchCheck, Copy } from 'lucide-react';
 import type { NavItem, ProductType, ProductData, BlogPostData, NavGroup } from '@/lib/types';
 
 export const APP_NAME = "AutoPress AI";
@@ -30,9 +30,10 @@ export const NAV_GROUPS: NavGroup[] = [
     ]
   },
   {
-    title: 'Herramientas SEO',
+    title: 'Herramientas',
     items: [
        { title: 'Optimizador SEO', href: '/seo-optimizer', icon: SearchCheck },
+       { title: 'Clonador de Contenido', href: '/content-cloner', icon: Copy },
     ]
   },
    {
