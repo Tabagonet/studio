@@ -6,13 +6,12 @@ import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
 import { Step2Preview } from './step-2-preview'; 
 import { Step3Confirm } from './step-3-confirm';
 import { Step4Processing } from './step-4-processing';
-import type { ProductData, ProductPhoto, WizardProcessingState } from '@/lib/types';
+import type { ProductData, SubmissionStep, WizardProcessingState } from '@/lib/types';
 import { INITIAL_PRODUCT_DATA } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { ArrowLeft, ArrowRight, Rocket, ExternalLink } from 'lucide-react';
-import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 
@@ -20,8 +19,9 @@ export function ProductWizard() {
   const [currentStep, setCurrentStep] = useState(1);
   const [productData, setProductData] = useState<ProductData>(INITIAL_PRODUCT_DATA);
   const [processingState, setProcessingState] = useState<WizardProcessingState>('idle');
-  const [progress, setProgress] = useState({ images: 0, product: 0 });
-  const [productAdminUrl, setProductAdminUrl] = useState<string | null>(null);
+  const [steps, setSteps] = useState<SubmissionStep[]>([]);
+  const [finalLinks, setFinalLinks] = useState<{ url: string; title: string }[]>([]);
+
   const { toast } = useToast();
 
   const isProcessing = processingState === 'processing';
@@ -29,108 +29,82 @@ export function ProductWizard() {
   const updateProductData = useCallback((data: Partial<ProductData>) => {
     setProductData(prev => ({ ...prev, ...data }));
   }, []);
+  
+  const updateStepStatus = (id: string, status: SubmissionStep['status'], error?: string) => {
+    setSteps(prevSteps => 
+      prevSteps.map(step => 
+        step.id === id ? { ...step, status, error } : step
+      )
+    );
+  };
 
   const handleCreateProduct = useCallback(async () => {
+    setCurrentStep(4); // Move to the processing screen
+
     const user = auth.currentUser;
     if (!user) {
         toast({ title: "Error de autenticación", description: "Debes iniciar sesión.", variant: "destructive" });
         setProcessingState('error');
         return;
     }
-    
-    setProcessingState('processing');
-    setProgress({ images: 0, product: 0 });
 
+    // Build the dynamic list of steps
+    const initialSteps: SubmissionStep[] = [];
+    if (productData.photos.some(p => p.file)) {
+      initialSteps.push({ id: 'upload_images', name: 'Subiendo imágenes', status: 'pending' });
+    }
+    initialSteps.push({ id: 'create_product', name: `Creando producto(s) y traducciones`, status: 'pending' });
+    setSteps(initialSteps);
+    setFinalLinks([]);
+    setProcessingState('processing');
+    
     try {
         const token = await user.getIdToken();
 
-        // Step 1: Upload images to the temporary server (quefoto.es)
-        const photosToUpload = productData.photos.filter(p => p.file);
-        const uploadedPhotosInfo: { id: string; uploadedUrl: string; uploadedFilename: string }[] = [];
+        // The single API call that handles everything
+        updateStepStatus('create_product', 'processing');
 
-        if (photosToUpload.length > 0) {
-          for (const [index, photo] of photosToUpload.entries()) {
-              const formData = new FormData();
-              formData.append('imagen', photo.file!);
-              
-              const uploadResponse = await axios.post('/api/upload-image', formData, {
-                  headers: { 'Authorization': `Bearer ${token}` }
-              });
-
-              if (!uploadResponse.data.success) {
-                  throw new Error(`Error subiendo ${photo.name}: ${uploadResponse.data.error}`);
-              }
-              
-              uploadedPhotosInfo.push({
-                  id: photo.id,
-                  uploadedUrl: uploadResponse.data.url,
-                  uploadedFilename: uploadResponse.data.filename_saved_on_server,
-              });
-              
-              setProgress(prev => ({ ...prev, images: Math.round(((index + 1) / photosToUpload.length) * 100) }));
-          }
-        }
-        setProgress({ images: 100, product: 10 });
-
-        // Update productData with the new uploaded URLs before sending to final API
-        const finalPhotosForApi = productData.photos.map(p => {
-            const uploadedInfo = uploadedPhotosInfo.find(info => info.id === p.id);
-            if (uploadedInfo) {
-              return { ...p, file: undefined, uploadedUrl: uploadedInfo.uploadedUrl, uploadedFilename: uploadedInfo.uploadedFilename };
-            }
-            return { ...p, file: undefined };
+        const response = await fetch('/api/woocommerce/products', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(productData),
         });
 
-        const finalProductData = {
-          ...productData,
-          photos: finalPhotosForApi,
-          source: 'wizard'
-        };
+        const result = await response.json();
         
-        // Step 2: Create product in WooCommerce, which will fetch images from the temp URL
-        const createResponse = await axios.post('/api/woocommerce/products', finalProductData, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        setProgress(prev => ({ ...prev, product: 80 }));
-
-        if (createResponse.data.success) {
-            toast({
-              title: "¡Producto Creado!",
-              description: `"${createResponse.data.data.name}" se ha creado en WooCommerce.`,
-            });
-            
-            setProductAdminUrl(createResponse.data.admin_url);
-
-            setProgress({ images: 100, product: 100 });
-            setProcessingState('finished');
-        } else {
-            throw new Error(createResponse.data.error || 'Error desconocido al crear el producto.');
+        if (!response.ok) {
+          throw new Error(result.error || 'Error desconocido al crear el producto.');
         }
+        
+        toast({
+          title: "¡Producto(s) Creado(s)!",
+          description: `El proceso ha finalizado correctamente.`,
+        });
+        
+        setFinalLinks(result.data); // Assuming API returns an array of {url, title}
+        updateStepStatus('create_product', 'success');
+        setProcessingState('finished');
 
     } catch (error: any) {
-        const errorMessage = error.response?.data?.error || error.message || "No se pudo crear el producto.";
+        const errorMessage = error.message || "No se pudo crear el producto.";
         toast({
             title: "Error al Crear Producto",
             description: errorMessage,
             variant: "destructive",
         });
+        updateStepStatus('create_product', 'error', errorMessage);
         setProcessingState('error');
-        console.error("Full error object when creating product:", error.response?.data || error);
+        console.error("Full error object when creating product:", error);
     }
   }, [productData, toast]);
 
 
-  useEffect(() => {
-    if (currentStep === 4 && processingState === 'idle') {
-      handleCreateProduct();
-    }
-  }, [currentStep, processingState, handleCreateProduct]);
-
   const nextStep = () => {
-    if (currentStep < 4) {
+    if (currentStep < 3) {
       setCurrentStep(prev => prev + 1);
       window.scrollTo(0, 0);
+    } else if (currentStep === 3) {
+      handleCreateProduct();
     }
   };
   
@@ -150,7 +124,7 @@ export function ProductWizard() {
       case 3:
         return <Step3Confirm productData={productData} />;
       case 4:
-        return <Step4Processing processingState={processingState} progress={progress} />;
+        return <Step4Processing processingState={processingState} steps={steps} />;
       default:
         return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} />;
     }
@@ -158,9 +132,9 @@ export function ProductWizard() {
   
   const startOver = () => {
     setProductData(INITIAL_PRODUCT_DATA);
-    setProgress({ images: 0, product: 0 });
+    setSteps([]);
+    setFinalLinks([]);
     setProcessingState('idle');
-    setProductAdminUrl(null);
     setCurrentStep(1);
     window.scrollTo(0, 0);
   }
@@ -182,9 +156,9 @@ export function ProductWizard() {
                 <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
             ) : (
-            <Button onClick={() => setCurrentStep(4)}>
+            <Button onClick={handleCreateProduct}>
                 <Rocket className="mr-2 h-4 w-4" />
-                Crear Producto
+                Crear Producto(s)
             </Button>
             )}
         </div>
@@ -195,16 +169,20 @@ export function ProductWizard() {
             <CardHeader>
                 <CardTitle>{processingState === 'finished' ? 'Proceso Completado' : 'Proceso Interrumpido'}</CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-wrap gap-4">
-                <Button onClick={startOver}>Crear otro producto</Button>
-                {processingState === 'finished' && productAdminUrl && (
-                  <Button asChild variant="outline">
-                    <Link href={productAdminUrl} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      Ver producto en WooCommerce
-                    </Link>
-                  </Button>
+            <CardContent className="flex flex-col items-start gap-4">
+                {finalLinks.length > 0 && (
+                    <div className="space-y-2">
+                        <h3 className="font-semibold">Productos Creados:</h3>
+                        {finalLinks.map((link, index) => (
+                           <Button variant="link" asChild key={index}>
+                             <Link href={link.url} target="_blank" rel="noopener noreferrer">
+                               <ExternalLink className="mr-2 h-4 w-4" /> Ver "{link.title}"
+                             </Link>
+                           </Button>
+                        ))}
+                    </div>
                 )}
+                <Button onClick={startOver}>Crear otro producto</Button>
             </CardContent>
         </Card>
       )}

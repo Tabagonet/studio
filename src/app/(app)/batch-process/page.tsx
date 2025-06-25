@@ -73,14 +73,10 @@ export default function BatchProcessPage() {
   const { toast } = useToast();
 
   const onImagesDrop = useCallback((acceptedFiles: File[]) => {
-    // This replaces existing images, allowing the user to correct their selection.
-    // It no longer clears the CSV file.
     setImageFiles(acceptedFiles);
   }, []);
 
   const onCsvDrop = useCallback((acceptedFiles: File[]) => {
-    // A new CSV file always replaces the old one.
-    // This no longer clears the image files.
     if (acceptedFiles.length > 0) {
       setCsvFile(acceptedFiles[0]);
     }
@@ -108,20 +104,20 @@ export default function BatchProcessPage() {
 
   const handleDownloadTemplate = () => {
     const headers = [
-      'sku', 'nombre', 'tipo', 'categorias', 'etiquetas', 
+      'sku', 'nombre', 'tipo', 'categorias', 'etiquetas', 'traducir_a',
       'precio_regular', 'precio_oferta', 'stock_inicial',
       'atributo_1_nombre', 'atributo_1_valores', 'atributo_1_variacion', 'atributo_1_visible',
       'atributo_2_nombre', 'atributo_2_valores', 'atributo_2_variacion', 'atributo_2_visible',
     ];
     const exampleData = [
       [
-        'SKU-PALA-ACERO', 'Pala de Jardín de Acero', 'simple', 'Herramientas', 'jardineria, pala, acero',
+        'SKU-PALA-ACERO', 'Pala de Jardín de Acero', 'simple', 'Herramientas', 'jardineria, pala, acero', 'English,French',
         '12.50', '9.99', '200',
         '', '', '', '',
         '', '', '', ''
       ],
       [
-        'TSHIRT-COOL', 'Camiseta Molona', 'variable', 'Ropa > Camisetas', 'ropa, camiseta, verano',
+        'TSHIRT-COOL', 'Camiseta Molona', 'variable', 'Ropa > Camisetas', 'ropa, camiseta, verano', '',
         '', '', '0',
         'Color', 'Rojo | Verde | Azul', '1', '1',
         'Talla', 'S | M | L', '1', '1'
@@ -137,7 +133,7 @@ export default function BatchProcessPage() {
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", "plantilla_productos_wooautomate.csv");
+    link.setAttribute("download", "plantilla_productos_autopress.csv");
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -319,24 +315,29 @@ export default function BatchProcessPage() {
     let failures = 0;
 
     for (const product of productsToProcess) {
-        const currentProductState = stagedProducts.find(p => p.id === product.id);
         try {
             updateProductProcessingStatus(product.id, 'processing', 'Generando contenido con IA...', 10);
+            
+            const targetLangs = product.csvData.traducir_a ? product.csvData.traducir_a.split(',').map((l: string) => l.trim()).filter(Boolean) : [];
+
             const aiPayload = {
                 productName: product.name,
                 productType: product.csvData.tipo || 'simple',
                 keywords: product.csvData.etiquetas || '',
-                language: 'Spanish' // Or make this configurable
+                language: 'Spanish',
             };
+            
             const aiResponse = await fetch('/api/generate-description', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`},
                 body: JSON.stringify(aiPayload)
             });
+
             if (!aiResponse.ok) throw new Error(`La IA falló: ${await aiResponse.text()}`);
             const aiContent = await aiResponse.json();
 
             updateProductProcessingStatus(product.id, 'processing', 'Subiendo imágenes...', 20);
+            
             const uploadedPhotos: ProductPhoto[] = [];
             if (product.images.length > 0) {
                 for (const [index, imageFile] of product.images.entries()) {
@@ -362,10 +363,11 @@ export default function BatchProcessPage() {
                     updateProductProcessingStatus(product.id, 'processing', `Subiendo imagen ${index + 1} de ${product.images.length}...`, imageProgress);
                 }
             } else {
-                updateProductProcessingStatus(product.id, 'processing', 'Creando producto (sin imágenes)...', 80);
+                updateProductProcessingStatus(product.id, 'processing', 'Creando producto(s)...', 80);
             }
 
-            updateProductProcessingStatus(product.id, 'processing', 'Creando producto en WooCommerce...', 95);
+            updateProductProcessingStatus(product.id, 'processing', 'Creando producto(s) en WooCommerce...', 95);
+            
             const productPayload: Partial<ProductData> = {
                 name: product.name,
                 sku: product.id,
@@ -384,12 +386,13 @@ export default function BatchProcessPage() {
                 categoryPath: product.csvData.categorias || '',
                 attributes: [],
                 source: 'batch',
+                language: 'Spanish',
+                targetLanguages: targetLangs,
             };
 
             for (let i = 1; i <= 2; i++) {
                 if (product.csvData[`atributo_${i}_nombre`]) {
                     const isVariationAttr = product.csvData[`atributo_${i}_variacion`] === '1';
-                    // The attribute should be visible by default unless explicitly set to '0'
                     const isVisibleAttr = product.csvData[`atributo_${i}_visible`] !== '0';
             
                     productPayload.attributes?.push({
@@ -412,12 +415,13 @@ export default function BatchProcessPage() {
                 throw new Error(`Error al crear en Woo: ${errorData.error || 'Error desconocido'}`);
             }
 
-            updateProductProcessingStatus(product.id, 'completed', '¡Producto creado con éxito!', 100);
+            updateProductProcessingStatus(product.id, 'completed', '¡Producto(s) creado(s) con éxito!', 100);
             successes++;
 
         } catch (error: any) {
             failures++;
-            updateProductProcessingStatus(product.id, 'error', error.message, currentProductState?.progress);
+            const productState = stagedProducts.find(p => p.id === product.id);
+            updateProductProcessingStatus(product.id, 'error', error.message, productState?.progress);
         }
     }
 
@@ -456,6 +460,7 @@ export default function BatchProcessPage() {
               <strong>Prepara tu archivo CSV:</strong> Descarga nuestra plantilla. Contiene todas las columnas necesarias para crear productos <strong>simples</strong> y <strong>variables</strong>.
               <ul className="list-disc list-inside pl-6 mt-2 text-sm space-y-1">
                   <li><strong>Columnas Clave:</strong> <code>sku</code> y <code>nombre</code> son obligatorios. El <code>nombre</code> se usará para la IA.</li>
+                   <li><strong>(Nuevo) Traducciones:</strong> Usa la columna <code>traducir_a</code> para indicar los idiomas de destino, separados por coma. Ej: <code>English,French</code>.</li>
                   <li><strong>Categorías:</strong> Usa <code>&gt;</code> para indicar jerarquía. Ej: <code>Ropa &gt; Camisetas</code>.</li>
                   <li><strong>Productos Variables:</strong>
                       <ul className="list-['-_'] list-inside pl-4">

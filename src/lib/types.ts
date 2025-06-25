@@ -135,7 +135,8 @@ export interface ProductData {
   photos: ProductPhoto[]; // Unified to always use ProductPhoto type
   variations?: ProductVariation[];
   groupedProductIds?: number[];
-  language: 'Spanish' | 'English';
+  language: 'Spanish' | 'English' | 'French' | 'German' | 'Portuguese';
+  targetLanguages?: string[];
   // AI-generated image metadata
   imageTitle?: string;
   imageAltText?: string;

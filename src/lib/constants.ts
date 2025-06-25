@@ -81,6 +81,7 @@ export const INITIAL_PRODUCT_DATA: ProductData = {
   photos: [],
   variations: [],
   language: 'Spanish',
+  targetLanguages: [],
   imageTitle: '',
   imageAltText: '',
   imageCaption: '',
@@ -104,3 +105,11 @@ export const INITIAL_BLOG_DATA: BlogPostData = {
   author: null,
   publishDate: null,
 };
+
+export const ALL_LANGUAGES = [
+    { code: 'Spanish', name: 'Español' },
+    { code: 'English', name: 'Inglés' },
+    { code: 'French', name: 'Francés' },
+    { code: 'German', name: 'Alemán' },
+    { code: 'Portuguese', name: 'Portugués' },
+];
