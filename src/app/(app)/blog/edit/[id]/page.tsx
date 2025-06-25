@@ -4,9 +4,8 @@
 import React, { useEffect, useState, Suspense, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import axios from 'axios';
 
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -64,7 +63,14 @@ function EditPageContent() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!post) return;
-    setPost({ ...post, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+
+    // A bit of a hack to get the textarea ref to update for selection logic
+    if (name === 'content' && contentRef.current) {
+        contentRef.current.value = value;
+    }
+    
+    setPost({ ...post, [name]: value });
   };
   
   // Handlers for ContentToolbar
@@ -243,9 +249,15 @@ function EditPageContent() {
         if (newImage) {
             const formData = new FormData();
             formData.append('imagen', newImage.file!);
-            const uploadResponse = await axios.post('/api/upload-image', formData, { headers: { 'Authorization': `Bearer ${token}` }});
-            if (!uploadResponse.data.success) throw new Error('Failed to upload new featured image.');
-            payload.featured_image_src = uploadResponse.data.url;
+            const uploadResponse = await fetch('/api/upload-image', { 
+                method: 'POST', 
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+            });
+
+            if (!uploadResponse.ok) throw new Error('Failed to upload new featured image.');
+            const imageData = await uploadResponse.json();
+            payload.featured_image_src = imageData.url;
         } else if (!post.featuredImage) {
             // Image was removed
             payload.featured_media_id = 0;
@@ -479,7 +491,9 @@ function EditPageContent() {
              <Card>
                 <CardHeader><CardTitle>Imagen Destacada</CardTitle></CardHeader>
                 <CardContent>
-                    <ImageUploader photos={post.featuredImage ? [post.featuredImage] : []} onPhotosChange={(photos) => setPost(p => p ? {...p, featuredImage: photos[0] || null} : null)} isProcessing={isSaving} />
+                    <div className="aspect-square w-full relative">
+                        <ImageUploader photos={post.featuredImage ? [post.featuredImage] : []} onPhotosChange={(photos) => setPost(p => p ? {...p, featuredImage: photos[0] || null} : null)} isProcessing={isSaving} />
+                    </div>
                 </CardContent>
             </Card>
              <Card>
