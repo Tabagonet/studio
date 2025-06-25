@@ -266,7 +266,7 @@ export async function translateContent(
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
     model: 'gemini-1.5-flash-latest',
-    systemInstruction: `You are an expert translator. Translate the user-provided JSON content into the specified target language. It is crucial that you maintain the original JSON structure with 'title' and 'content' keys. You must also preserve all HTML tags (e.g., <h2>, <p>, <strong>) in their correct positions within the 'content' field. Your output must be only the translated JSON object, without any extra text or comments or markdown formatting.`,
+    systemInstruction: `You are an expert translator. Translate the user-provided JSON content into the specified target language. It is crucial that you maintain the original JSON structure with 'title' and 'content' keys. You must also preserve all HTML tags (e.g., <h2>, <p>, <strong>) and special separators like '|||' in their correct positions within the 'content' field. Your output must be only the translated JSON object, without any extra text or comments or markdown formatting.`,
     generationConfig: {
       responseMimeType: 'application/json',
     },
@@ -287,6 +287,66 @@ export async function translateContent(
     console.error('Error parsing translated content from AI:', responseText, error);
     throw new Error('Failed to parse translation from AI.');
   }
+}
+
+/**
+ * Recursively traverses Elementor's data structure to collect all user-visible text content.
+ * @param elements The 'elements' array from Elementor's data.
+ * @returns An array of strings to be translated.
+ */
+export function collectElementorTexts(elements: any[]): string[] {
+    let texts: string[] = [];
+    const textKeys = ['title', 'editor', 'text', 'button_text', 'header_title', 'header_subtitle', 'description', 'cta_text', 'label', 'placeholder'];
+
+    function traverse(els: any[]) {
+        for (const element of els) {
+            if (element.elType === 'widget' && element.settings) {
+                for (const key of textKeys) {
+                    if (element.settings[key] && typeof element.settings[key] === 'string' && element.settings[key].trim() !== '') {
+                        texts.push(element.settings[key]);
+                    }
+                }
+            }
+            if (element.elements && Array.isArray(element.elements) && element.elements.length > 0) {
+                traverse(element.elements);
+            }
+        }
+    }
+    
+    traverse(elements);
+    return texts;
+}
+
+/**
+ * Recursively traverses a deep copy of Elementor's data structure and replaces text content
+ * with items from an array of translated strings.
+ * @param originalElements A deep copy of the original 'elements' array.
+ * @param translatedTexts An array of translated strings, in the same order they were collected.
+ * @returns The Elementor data structure with translated text.
+ */
+export function replaceElementorTexts(originalElements: any[], translatedTexts: string[]): any[] {
+    const texts = [...translatedTexts]; // Create a mutable copy
+    const textKeys = ['title', 'editor', 'text', 'button_text', 'header_title', 'header_subtitle', 'description', 'cta_text', 'label', 'placeholder'];
+
+    function traverse(els: any[]) {
+        for (const element of els) {
+             if (element.elType === 'widget' && element.settings) {
+                for (const key of textKeys) {
+                    if (element.settings[key] && typeof element.settings[key] === 'string' && element.settings[key].trim() !== '') {
+                        if (texts.length > 0) {
+                           element.settings[key] = texts.shift();
+                        }
+                    }
+                }
+            }
+            if (element.elements && Array.isArray(element.elements) && element.elements.length > 0) {
+                traverse(element.elements);
+            }
+        }
+    }
+
+    traverse(originalElements);
+    return originalElements;
 }
 
 
