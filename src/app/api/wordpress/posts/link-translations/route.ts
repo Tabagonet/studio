@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import { z } from 'zod';
-import { v4 as uuidv4 } from 'uuid';
 
 const linkSchema = z.object({
   translations: z.record(z.string(), z.number()), // e.g. { "en": 123, "es": 456 }
@@ -39,23 +38,18 @@ export async function POST(req: NextRequest) {
             throw new Error('WordPress API is not configured for the active connection.');
         }
 
-        // Generate a new, single group ID for all posts being linked.
-        const translationGroupId = uuidv4();
-
-        // Create an array of promises to update each post.
+        // The key is to update EACH post with the full list of all other translations.
+        // Polylang will then create the term in its hidden taxonomy and assign it.
         const updatePromises = Object.entries(translations).map(([lang, postId]) => {
             const payload = {
-                meta: {
-                    translation_group_id: translationGroupId,
-                },
-                // Also ensure the language is correctly set on the post, just in case.
-                lang: lang,
+                // The 'translations' property is what Polylang uses.
+                translations: translations, 
             };
-            console.log(`[link-translations] Updating post ID ${postId} with lang '${lang}' and group ID '${translationGroupId}'`);
+            console.log(`[link-translations] Updating post ID ${postId} with translations object:`, JSON.stringify(payload));
+            // WordPress uses POST to the ID endpoint for updates.
             return wpApi.post(`/posts/${postId}`, payload);
         });
-
-        // Use Promise.allSettled to wait for all updates and handle individual failures.
+        
         const results = await Promise.allSettled(updatePromises);
         
         let successCount = 0;
@@ -74,8 +68,14 @@ export async function POST(req: NextRequest) {
         });
         
         if (errors.length > 0) {
+            // Check for a specific Polylang error
+            const commonError = errors[0];
+            if (commonError.includes('rest_invalid_param') && commonError.includes('translations')) {
+                throw new Error("Failed to link translations. Your WordPress site might be missing the Polylang REST API support. Please ensure Polylang is active and correctly configured.");
+            }
             throw new Error(`Failed to link some translations. Errors: ${errors.join(', ')}`);
         }
+
 
         return NextResponse.json({
             success: true,
