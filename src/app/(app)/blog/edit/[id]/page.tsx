@@ -33,6 +33,7 @@ interface PostEditState {
   isElementor: boolean;
   elementorEditLink: string | null;
   link: string;
+  lang: string;
 }
 
 function EditPageContent() {
@@ -63,7 +64,6 @@ function EditPageContent() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!post) return;
-    const { name, value } = e.target;
     setPost({ ...post, [name]: value });
   };
   
@@ -223,9 +223,17 @@ function EditPageContent() {
             if (!user) throw new Error("No autenticado.");
             const token = await user.getIdToken();
             
+            const languageMap: { [key: string]: string } = {
+                es: 'Spanish',
+                en: 'English',
+                fr: 'French',
+                de: 'German',
+                pt: 'Portuguese'
+            };
+
             const payload = { 
                 mode, 
-                language: 'Spanish',
+                language: languageMap[post.lang] || 'Spanish',
                 existingTitle: post.title,
                 existingContent: post.content
             };
@@ -391,6 +399,7 @@ function EditPageContent() {
           isElementor: postData.isElementor || false,
           elementorEditLink: postData.elementorEditLink || null,
           link: postData.link,
+          lang: postData.lang || 'es',
         });
 
       } catch (e: any) {
@@ -529,9 +538,12 @@ function EditPageContent() {
              <Card>
                 <CardHeader><CardTitle>Imagen Destacada</CardTitle></CardHeader>
                 <CardContent>
-                    <div className="aspect-square w-full relative">
-                        <ImageUploader photos={post.featuredImage ? [post.featuredImage] : []} onPhotosChange={(photos) => setPost(p => p ? {...p, featuredImage: photos[0] || null} : null)} isProcessing={isSaving} />
-                    </div>
+                    <ImageUploader 
+                        photos={post.featuredImage ? [post.featuredImage] : []} 
+                        onPhotosChange={(photos) => setPost(p => p ? {...p, featuredImage: photos[0] || null} : null)} 
+                        isProcessing={isSaving}
+                        maxPhotos={1}
+                    />
                 </CardContent>
             </Card>
              <Card>

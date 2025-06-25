@@ -568,7 +568,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                     <Card>
                         <CardHeader><CardTitle>Imagen Destacada</CardTitle></CardHeader>
                         <CardContent>
-                            <ImageUploader photos={postData.featuredImage ? [postData.featuredImage] : []} onPhotosChange={handlePhotoChange} isProcessing={false} />
+                            <ImageUploader photos={postData.featuredImage ? [postData.featuredImage] : []} onPhotosChange={handlePhotoChange} isProcessing={false} maxPhotos={1} />
                         </CardContent>
                     </Card>
                 </div>

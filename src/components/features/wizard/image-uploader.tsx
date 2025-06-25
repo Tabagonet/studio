@@ -17,9 +17,10 @@ interface ImageUploaderProps {
   photos: ProductPhoto[];
   onPhotosChange: (photos: ProductPhoto[]) => void;
   isProcessing: boolean;
+  maxPhotos?: number;
 }
 
-export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing }: ImageUploaderProps) {
+export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing, maxPhotos = 10 }: ImageUploaderProps) {
   const { toast } = useToast();
 
   const photos = useMemo(() => (Array.isArray(photosProp) ? photosProp : []), [photosProp]);
@@ -35,13 +36,15 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
       progress: 0,
     }));
 
-    const combinedPhotos = [...photos, ...newPhotos];
+    const currentPhotos = maxPhotos === 1 ? [] : photos; // If single mode, new file replaces old one
+    const combinedPhotos = [...currentPhotos, ...newPhotos].slice(0, maxPhotos);
+
     if (combinedPhotos.filter(p => p.isPrimary).length === 0 && combinedPhotos.length > 0) {
         combinedPhotos[0].isPrimary = true;
     }
 
     onPhotosChange(combinedPhotos);
-  }, [photos, onPhotosChange]);
+  }, [photos, onPhotosChange, maxPhotos]);
 
   const handleDelete = useCallback((photoToDelete: ProductPhoto) => {
     // Revoke object URL to prevent memory leaks
@@ -78,32 +81,41 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
 
   return (
     <div className="space-y-4">
-      <div
-        {...getRootProps()}
-        className={cn(
-          "flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg transition-colors",
-          isDragActive ? "border-primary bg-primary/10" : "border-border",
-          isProcessing ? "cursor-not-allowed bg-muted/50" : "cursor-pointer hover:border-primary/50"
-        )}
-      >
-        <input {...getInputProps()} />
-        <UploadCloud className="h-12 w-12 text-muted-foreground" />
-        <p className="mt-4 text-lg font-semibold">
-          {isProcessing ? 'Procesando imágenes...' : isDragActive ? 'Suelta las imágenes aquí' : 'Arrastra y suelta imágenes, o haz clic'}
-        </p>
-        <p className="text-sm text-muted-foreground">Admitidos: JPG, PNG, GIF, WEBP</p>
-      </div>
+      {photos.length < maxPhotos && (
+        <div
+            {...getRootProps()}
+            className={cn(
+            "flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg transition-colors",
+            isDragActive ? "border-primary bg-primary/10" : "border-border",
+            isProcessing ? "cursor-not-allowed bg-muted/50" : "cursor-pointer hover:border-primary/50"
+            )}
+        >
+            <input {...getInputProps()} />
+            <UploadCloud className="h-12 w-12 text-muted-foreground" />
+            <p className="mt-4 text-lg font-semibold">
+            {isProcessing ? 'Procesando imágenes...' : isDragActive ? 'Suelta las imágenes aquí' : 'Arrastra y suelta imágenes, o haz clic'}
+            </p>
+            <p className="text-sm text-muted-foreground">Admitidos: JPG, PNG, GIF, WEBP</p>
+        </div>
+      )}
+
 
       {photos.length > 0 && (
         <TooltipProvider>
-          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          <div className={cn(
+            "gap-4",
+            maxPhotos > 1 && "grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
+          )}>
             {photos.map((photo) => (
-              <div key={photo.id} className="relative group border rounded-lg overflow-hidden shadow-sm aspect-square">
+              <div key={photo.id} className={cn(
+                "relative group border rounded-lg overflow-hidden shadow-sm",
+                maxPhotos === 1 ? "w-full aspect-[16/9]" : "aspect-square"
+              )}>
                 <Image
                   src={photo.previewUrl}
                   alt={`Vista previa de ${photo.name}`}
                   fill
-                  sizes="(max-width: 768px) 33vw, (max-width: 1024px) 25vw, 17vw"
+                  sizes={maxPhotos === 1 ? "400px" : "(max-width: 768px) 33vw, (max-width: 1024px) 25vw, 17vw"}
                   className="object-cover"
                 />
 
