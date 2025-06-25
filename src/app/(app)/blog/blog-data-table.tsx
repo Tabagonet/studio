@@ -32,10 +32,17 @@ import type { BlogPostSearchResult, WordPressPostCategory, BlogStats } from "@/l
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { BookOpen, FileCheck2, FileClock, FileText, Loader2, Lock, Trash2, ChevronDown } from "lucide-react"
+import { BookOpen, FileCheck2, FileClock, FileText, Loader2, Lock, Trash2, ChevronDown, Languages } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 
+const LANGUAGES = [
+    { code: 'es', name: 'Español' },
+    { code: 'en', name: 'Inglés' },
+    { code: 'fr', name: 'Francés' },
+    { code: 'de', name: 'Alemán' },
+    { code: 'pt', name: 'Portugués' },
+];
 
 export function BlogDataTable() {
   const [data, setData] = React.useState<BlogPostSearchResult[]>([])
@@ -53,6 +60,7 @@ export function BlogDataTable() {
   // Filter states
   const [selectedCategory, setSelectedCategory] = React.useState('all');
   const [selectedStatus, setSelectedStatus] = React.useState('all');
+  const [selectedLanguage, setSelectedLanguage] = React.useState('all');
 
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: 'date_created', desc: true }
@@ -114,6 +122,7 @@ export function BlogDataTable() {
         per_page: pagination.pageSize.toString(),
         category: selectedCategory,
         status: selectedStatus,
+        lang: selectedLanguage,
       });
 
       if (titleFilter?.value) {
@@ -143,7 +152,7 @@ export function BlogDataTable() {
     } finally {
       setIsLoading(false);
     }
-  }, [pagination, columnFilters, selectedCategory, selectedStatus, sorting, toast]); 
+  }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedLanguage, sorting, toast]); 
 
   React.useEffect(() => {
     const fetchCats = async (token: string) => {
@@ -371,6 +380,18 @@ export function BlogDataTable() {
                 <SelectItem value="private">Privado</SelectItem>
                 <SelectItem value="future">Programado</SelectItem>
               </SelectContent>
+            </Select>
+             <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+                <SelectTrigger className="w-full sm:w-auto sm:min-w-[150px] flex-grow">
+                    <Languages className="mr-2 h-4 w-4" />
+                    <SelectValue placeholder="Idioma..." />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">Todos los idiomas</SelectItem>
+                    {LANGUAGES.map(lang => (
+                        <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>
+                    ))}
+                </SelectContent>
             </Select>
         </div>
          <AlertDialog>

@@ -115,6 +115,7 @@ export interface BlogPostSearchResult {
   featured_image_url: string | null;
   categories: { id: number; name: string }[];
   tags: { id: number; name: string }[];
+  lang?: string;
   translations?: Record<string, number>;
 }
 

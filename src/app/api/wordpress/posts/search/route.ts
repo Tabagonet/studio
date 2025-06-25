@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status');
     const orderby = searchParams.get('orderby') || 'date';
     const order = searchParams.get('order') || 'desc';
+    const lang = searchParams.get('lang');
 
     const params: any = {
       per_page: parseInt(perPage, 10),
@@ -47,6 +48,8 @@ export async function GET(req: NextRequest) {
     }
     
     if (category && category !== 'all') params.categories = [category];
+    if (lang && lang !== 'all') params.lang = lang;
+
 
     const response = await wpApi.get("posts", { params });
     
@@ -60,6 +63,8 @@ export async function GET(req: NextRequest) {
         featured_image_url: post._embedded?.['wp:featuredmedia']?.[0]?.source_url || null,
         categories: post._embedded?.['wp:term']?.[0]?.map((cat: any) => ({ id: cat.id, name: cat.name })) || [],
         tags: post._embedded?.['wp:term']?.[1]?.map((tag: any) => ({ id: tag.id, name: tag.name })) || [],
+        lang: post.lang || 'N/A',
+        translations: post.translations || {},
     }));
 
     const totalPages = response.headers['x-wp-totalpages'] ? parseInt(response.headers['x-wp-totalpages'], 10) : 1;

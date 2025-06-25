@@ -19,6 +19,13 @@ import {
 import { Badge } from "@/components/ui/badge"
 import type { BlogPostSearchResult } from "@/lib/types"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+
 
 export const getColumns = (
   handleStatusUpdate: (postId: number, newStatus: 'publish' | 'draft') => void,
@@ -88,6 +95,36 @@ export const getColumns = (
       };
       
       return <Badge variant={status === 'publish' ? 'default' : 'secondary'}>{statusText[status] || status}</Badge>
+    }
+  },
+  {
+    accessorKey: "lang",
+    header: "Idioma",
+    cell: ({ row }) => {
+      const lang = row.original.lang;
+      const translations = row.original.translations || {};
+      const translationCount = Object.keys(translations).length - 1; // -1 for the current post itself
+
+      const badge = <Badge variant="outline" className="uppercase">{lang || 'N/A'}</Badge>;
+
+      if (translationCount > 0) {
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1.5 cursor-help">
+                  {badge}
+                  <span className="text-muted-foreground text-xs font-bold">+{translationCount}</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Enlazado con {translationCount} otra(s) traducción(es).</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      }
+      return badge;
     }
   },
   {
