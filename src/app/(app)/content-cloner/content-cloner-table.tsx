@@ -29,20 +29,11 @@ import { Label } from "@/components/ui/label";
 import { getColumns } from "./columns"; 
 import type { ContentItem as RawContentItem } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ChevronDown, Copy, Languages } from "lucide-react";
+import { Loader2, ChevronDown, Copy } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 type ContentItem = RawContentItem & { subRows?: ContentItem[] };
-
-const ALL_LANGUAGES = [
-    { code: 'es', name: 'Español' },
-    { code: 'en', name: 'Inglés' },
-    { code: 'fr', name: 'Francés' },
-    { code: 'de', name: 'Alemán' },
-    { code: 'pt', name: 'Portugués' },
-];
-
 
 export function ContentClonerTable() {
   const [data, setData] = React.useState<ContentItem[]>([]);
@@ -59,6 +50,27 @@ export function ContentClonerTable() {
 
 
   const { toast } = useToast();
+
+  const availableTargetLanguages = React.useMemo(() => {
+    const langSet = new Set<string>();
+    data.forEach(item => {
+        if (item.lang && item.lang !== 'default') langSet.add(item.lang);
+        item.subRows?.forEach(sub => {
+            if (sub.lang && sub.lang !== 'default') langSet.add(sub.lang);
+        })
+    });
+
+    const langMap: { [key: string]: string } = {
+        es: 'Español',
+        en: 'Inglés',
+        fr: 'Francés',
+        de: 'Alemán',
+        pt: 'Portugués',
+        it: 'Italiano',
+    };
+
+    return Array.from(langSet).map(code => ({ code, name: langMap[code] || code.toUpperCase() }));
+  }, [data]);
 
   const fetchData = React.useCallback(async () => {
     setIsLoading(true);
@@ -142,7 +154,7 @@ export function ContentClonerTable() {
         const response = await fetch('/api/wordpress/content-cloner/clone', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ post_ids, target_lang })
+            body: JSON.stringify({ post_ids, target_lang: targetLang })
         });
 
         const result = await response.json();
@@ -207,7 +219,7 @@ export function ContentClonerTable() {
                            <SelectValue placeholder="Selecciona un idioma..." />
                         </SelectTrigger>
                         <SelectContent>
-                             {ALL_LANGUAGES.map(lang => (
+                             {availableTargetLanguages.map(lang => (
                                 <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>
                             ))}
                         </SelectContent>
