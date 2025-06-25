@@ -33,12 +33,14 @@ import type { ContentItem as RawContentItem } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, ChevronDown, Copy } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useRouter } from "next/navigation";
 
 type ContentItem = RawContentItem & { subRows?: ContentItem[] };
 
 export function ContentClonerTable() {
   const [data, setData] = React.useState<ContentItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [isCloning, setIsCloning] = React.useState<number | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -46,6 +48,7 @@ export function ContentClonerTable() {
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
 
   const { toast } = useToast();
+  const router = useRouter();
 
   const fetchData = React.useCallback(async () => {
     setIsLoading(true);
@@ -105,14 +108,44 @@ export function ContentClonerTable() {
     };
   }, [fetchData]);
 
-  const handleCloneAndTranslate = () => {
-    toast({
-        title: "Funcionalidad en Desarrollo",
-        description: "La clonación y traducción por lotes se implementará en la Fase 3.",
-    });
+ const handleClone = async (item: ContentItem) => {
+    setIsCloning(item.id);
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: "No autenticado", variant: "destructive" });
+        setIsCloning(null);
+        return;
+    }
+
+    try {
+        const token = await user.getIdToken();
+        toast({ title: `Clonando y traduciendo "${item.title}"...`, description: "Esto puede tardar unos minutos." });
+
+        const response = await fetch('/api/wordpress/content-cloner/clone', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ sourceId: item.id, sourceType: item.type })
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.message || 'Error en el servidor al clonar.');
+        }
+
+        toast({
+            title: "¡Clonación Exitosa!",
+            description: `Se ha creado "${result.newPost.title}" como borrador.`,
+        });
+
+        fetchData(); // Refresh the table to show the new content
+    } catch (error: any) {
+        toast({ title: 'Error al Clonar', description: error.message, variant: 'destructive' });
+    } finally {
+        setIsCloning(null);
+    }
   };
 
-  const columns = React.useMemo(() => getColumns(handleCloneAndTranslate), [handleCloneAndTranslate]);
+  const columns = React.useMemo(() => getColumns(handleClone, isCloning), [handleClone, isCloning]);
 
   const table = useReactTable({
     data,
@@ -165,7 +198,7 @@ export function ContentClonerTable() {
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={handleCloneAndTranslate}>
+                    <DropdownMenuItem onSelect={() => toast({ title: "Funcionalidad en Desarrollo", description: "La clonación y traducción por lotes se implementará en la Fase 3." })}>
                         <Copy className="mr-2 h-4 w-4" /> Clonar y Traducir
                     </DropdownMenuItem>
                 </DropdownMenuContent>

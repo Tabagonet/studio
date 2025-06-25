@@ -5,7 +5,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, Copy } from "lucide-react";
+import { ChevronRight, Copy, Loader2 } from "lucide-react";
 import type { ContentItem as RawContentItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +23,8 @@ const getStatusText = (status: ContentItem['status']) => {
 };
 
 export const getColumns = (
-  handleClone: (item: ContentItem) => void
+  handleClone: (item: ContentItem) => void,
+  cloningId: number | null
 ): ColumnDef<ContentItem>[] => [
   {
     id: "select",
@@ -90,9 +91,13 @@ export const getColumns = (
     header: () => <div className="text-right">Acción</div>,
     cell: ({ row }) => (
       <div className="text-right">
-        <Button onClick={() => handleClone(row.original)} size="sm">
-          <Copy className="mr-2 h-4 w-4" />
-          Clonar
+        <Button 
+          onClick={() => handleClone(row.original)} 
+          size="sm"
+          disabled={cloningId === row.original.id}
+        >
+          {cloningId === row.original.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Copy className="mr-2 h-4 w-4" />}
+          {cloningId === row.original.id ? 'Clonando...' : 'Clonar'}
         </Button>
       </div>
     ),
