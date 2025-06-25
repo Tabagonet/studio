@@ -34,45 +34,38 @@ export async function POST(req: NextRequest) {
             throw new Error('WordPress API is not configured for the active connection.');
         }
 
-        const results = {
-            success: [] as number[],
-            failed: [] as { id: number; reason: string }[],
-        };
-
         if (action === 'delete') {
             const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
             if (!siteUrl) {
                 throw new Error("Could not determine base site URL.");
             }
 
-            for (const postId of postIds) {
-                try {
-                    // Use the new custom endpoint for trashing
-                    const customEndpointUrl = `${siteUrl}/wp-json/custom/v1/trash-post/${postId}`;
-                    await wpApi.post(customEndpointUrl);
-                    results.success.push(postId);
-                } catch (error: any) {
-                    let reason = error.response?.data?.message || error.message || 'Unknown error';
-                     if (error.response?.status === 404) {
-                        reason = 'Endpoint de borrado no encontrado. Asegúrate de que el plugin personalizado está activo y actualizado en WordPress.';
-                    }
-                    results.failed.push({ id: postId, reason });
-                }
-            }
-        }
-        
-        const successCount = results.success.length;
-        const failedCount = results.failed.length;
-        let message = `Proceso completado. ${successCount} entrada(s) movida(s) a la papelera.`;
-        if (failedCount > 0) {
-            message += ` ${failedCount} fallida(s).`;
-        }
+            // Use the new, more reliable batch trash endpoint
+            const customEndpointUrl = `${siteUrl}/wp-json/custom/v1/batch-trash-posts`;
+            
+            const response = await wpApi.post(customEndpointUrl, { post_ids: postIds });
+            const resultData = response.data.data; // The actual results are in the 'data' property
 
-        return NextResponse.json({ message, results });
+            const successCount = resultData.success?.length || 0;
+            const failedCount = resultData.failed?.length || 0;
+            let message = `Proceso completado. ${successCount} entrada(s) movida(s) a la papelera.`;
+            if (failedCount > 0) {
+                message += ` ${failedCount} fallida(s).`;
+            }
+
+            return NextResponse.json({ message, results: resultData });
+
+        } else {
+            return NextResponse.json({ error: 'Action not implemented' }, { status: 400 });
+        }
 
     } catch (error: any) {
-        console.error('Error in blog batch action API:', error);
+        console.error('Error in blog batch action API:', error.response?.data || error.message);
+        let errorMessage = error.response?.data?.message || error.message || 'An unexpected error occurred during batch processing.';
+        if (error.response?.status === 404) {
+             errorMessage = 'Endpoint de borrado en lote no encontrado. Por favor, actualiza el plugin personalizado en WordPress con la última versión.';
+        }
         const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
-        return NextResponse.json({ error: 'An unexpected error occurred during batch processing.', message: error.message }, { status });
+        return NextResponse.json({ error: errorMessage }, { status });
     }
 }
