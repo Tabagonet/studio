@@ -304,27 +304,27 @@ function collectElementorTextsRecursive(data: any, texts: string[]): void {
     }
 
     if (typeof data === 'object') {
-        const textKeys = ['title', 'editor', 'text', 'button_text', 'header_title', 'header_subtitle', 'description', 'cta_text', 'label', 'placeholder', 'heading', 'sub_heading', 'alert_title', 'alert_description'];
-        
+        const keysToTranslate = [
+            'title', 'editor', 'text', 'button_text', 'header_title', 'header_subtitle',
+            'description', 'cta_text', 'label', 'placeholder', 'heading', 'sub_heading',
+            'alert_title', 'alert_description',
+            // Added based on user's JSON from theme "The7"
+            'title_text', 'description_text', 'list_title'
+        ];
+
         for (const key in data) {
             if (Object.prototype.hasOwnProperty.call(data, key)) {
                 const value = data[key];
 
-                if (typeof value === 'string' && textKeys.includes(key) && value.trim() !== '' && !value.includes('</')) {
-                     // Push simple text fields (avoiding HTML content which is handled by 'editor')
-                     texts.push(value);
-                } else if (key === 'editor' && typeof value === 'string' && value.trim() !== '') {
-                    // Handle the main Text Editor widget content
+                if (keysToTranslate.includes(key) && typeof value === 'string' && value.trim() !== '') {
                     texts.push(value);
                 } else if (typeof value === 'object' && value !== null) {
-                    // Recurse into nested objects and arrays (for repeaters etc.)
                     collectElementorTextsRecursive(value, texts);
                 }
             }
         }
     }
 }
-
 
 export function collectElementorTexts(elements: any[]): string[] {
     const texts: string[] = [];
@@ -348,17 +348,19 @@ function replaceElementorTextsRecursive(data: any, translatedTexts: string[]): a
 
     if (typeof data === 'object') {
         const newData = { ...data };
-        const textKeys = ['title', 'editor', 'text', 'button_text', 'header_title', 'header_subtitle', 'description', 'cta_text', 'label', 'placeholder', 'heading', 'sub_heading', 'alert_title', 'alert_description'];
-        
+        const keysToTranslate = [
+            'title', 'editor', 'text', 'button_text', 'header_title', 'header_subtitle',
+            'description', 'cta_text', 'label', 'placeholder', 'heading', 'sub_heading',
+            'alert_title', 'alert_description',
+            // Added based on user's JSON from theme "The7"
+            'title_text', 'description_text', 'list_title'
+        ];
+
         for (const key in newData) {
             if (Object.prototype.hasOwnProperty.call(newData, key)) {
                 const value = newData[key];
 
-                if (typeof value === 'string' && textKeys.includes(key) && value.trim() !== '' && !value.includes('</')) {
-                     if (translatedTexts.length > 0) {
-                         newData[key] = translatedTexts.shift();
-                     }
-                } else if (key === 'editor' && typeof value === 'string' && value.trim() !== '') {
+                if (keysToTranslate.includes(key) && typeof value === 'string' && value.trim() !== '') {
                     if (translatedTexts.length > 0) {
                         newData[key] = translatedTexts.shift();
                     }
@@ -544,4 +546,5 @@ export async function findOrCreateTags(tagNames: string[], wpApi: AxiosInstance)
   }
   return tagIds;
 }
+
 
