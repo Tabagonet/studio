@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { ContentToolbar } from '@/components/features/editor/content-toolbar';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 interface PostEditState {
@@ -34,6 +35,7 @@ interface PostEditState {
   elementorEditLink: string | null;
   link: string;
   lang: string;
+  translations?: Record<string, number>;
 }
 
 function EditPageContent() {
@@ -50,6 +52,8 @@ function EditPageContent() {
 
   const [allCategories, setAllCategories] = useState<WordPressPostCategory[]>([]);
   const [authors, setAuthors] = useState<WordPressUser[]>([]);
+  
+  const [syncFullContent, setSyncFullContent] = useState(false);
 
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
@@ -320,8 +324,35 @@ function EditPageContent() {
             const errorData = await response.json();
             throw new Error(errorData.error || 'Fallo al guardar los cambios');
         }
-
+        
         toast({ title: '¡Éxito!', description: `La entrada ha sido actualizada en WordPress.` });
+
+        // Fire-and-forget full content sync if checked
+        if (syncFullContent && post.translations && Object.keys(post.translations).length > 1) {
+            toast({ title: "Sincronizando contenido...", description: "Traduciendo y actualizando el contenido en las otras versiones. Esto puede tardar." });
+            
+            const syncPayload = {
+                sourcePostId: postId,
+                postType: 'Post',
+                translations: post.translations,
+                title: post.title,
+                content: post.content,
+            };
+            
+            // No need to await this
+            fetch('/api/blog/sync-full-content', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(syncPayload)
+            }).then(async (syncResponse) => {
+                const syncResult = await syncResponse.json();
+                if (syncResponse.ok) {
+                    toast({ title: "Sincronización de contenido completada", description: syncResult.message });
+                } else {
+                     toast({ title: "Error en la sincronización de contenido", description: syncResult.message || "No se pudo actualizar todas las traducciones.", variant: "destructive" });
+                }
+            });
+        }
         
     } catch (e: any) {
         toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
@@ -400,6 +431,7 @@ function EditPageContent() {
           elementorEditLink: postData.elementorEditLink || null,
           link: postData.link,
           lang: postData.lang || 'es',
+          translations: postData.translations || {},
         });
 
       } catch (e: any) {
@@ -511,6 +543,21 @@ function EditPageContent() {
                 <CardContent className="space-y-4">
                   <div><Label>Autor</Label><Select name="author" value={post.author?.toString() || ''} onValueChange={(v) => setPost(prev => prev ? {...prev, author: Number(v)} : null)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{authors.map(a => <SelectItem key={a.id} value={a.id.toString()}>{a.name}</SelectItem>)}</SelectContent></Select></div>
                   <div><Label>Estado</Label><Select name="status" value={post.status} onValueChange={(v) => setPost(prev => prev ? {...prev, status: v as any} : null)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="publish">Publicado</SelectItem><SelectItem value="draft">Borrador</SelectItem><SelectItem value="pending">Pendiente</SelectItem><SelectItem value="private">Privado</SelectItem></SelectContent></Select></div>
+                  
+                  {post.translations && Object.keys(post.translations).length > 1 && (
+                      <div className="flex items-start space-x-2 pt-4 border-t">
+                          <Checkbox id="sync-full-content" checked={syncFullContent} onCheckedChange={(checked) => setSyncFullContent(!!checked)} />
+                          <div className="grid gap-1.5 leading-none">
+                              <Label htmlFor="sync-full-content" className="font-normal text-sm cursor-pointer">
+                                  Sincronizar y sobrescribir contenido en todas las traducciones
+                              </Label>
+                              <p className="text-xs text-destructive">
+                                  ¡Atención! Esto reemplazará el título y el contenido de todas las traducciones con una nueva versión traducida de esta entrada.
+                              </p>
+                          </div>
+                      </div>
+                  )}
+
                 </CardContent>
             </Card>
             <Card>
@@ -579,5 +626,3 @@ export default function BlogEditPage() {
         </Suspense>
     )
 }
-
-    

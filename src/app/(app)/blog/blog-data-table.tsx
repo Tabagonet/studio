@@ -64,7 +64,7 @@ export function BlogDataTable() {
   // Filter states
   const [selectedCategory, setSelectedCategory] = React.useState('all');
   const [selectedStatus, setSelectedStatus] = React.useState('all');
-  const [selectedLanguage, setSelectedLanguage] = React.useState('es');
+  const [selectedLanguage, setSelectedLanguage] = React.useState('all');
 
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: 'date_created', desc: true }
@@ -150,39 +150,37 @@ export function BlogDataTable() {
 
       const { posts, totalPages } = await response.json();
       
-      const postsById = new Map(posts.map((p: BlogPostSearchResult) => [p.id, { ...p, subRows: [] }]));
+      const postsById = new Map(posts.map((p: BlogPostSearchResult) => [p.id, { ...p, subRows: [] as HierarchicalBlogPost[] }]));
+      const processedIds = new Set<number>();
       const roots: HierarchicalBlogPost[] = [];
 
       posts.forEach((post: BlogPostSearchResult) => {
-        if (!post.translations || Object.values(post.translations).length <= 1) {
-          // It's a standalone post, or we can't determine its group, treat as a root
-          roots.push(postsById.get(post.id)!);
-          return;
-        }
-
-        const translationIds = Object.values(post.translations);
-        const firstIdInGroup = Math.min(...translationIds);
-
-        if (post.id === firstIdInGroup) {
-          // This is the "main" post of the translation group, make it a root
-          roots.push(postsById.get(post.id)!);
-        } else {
-          // This is a translation, find its main post and add it as a subRow
-          const mainPost = postsById.get(firstIdInGroup);
-          if (mainPost) {
-            mainPost.subRows.push(postsById.get(post.id)!);
-          } else {
-            // Main post not in this page, treat as root for now.
-            // This can happen with pagination. A full solution requires fetching all posts.
-            roots.push(postsById.get(post.id)!);
+          if (processedIds.has(post.id)) {
+              return; // Already processed as a child
           }
-        }
+
+          const rootCandidate = postsById.get(post.id)!;
+          
+          if (post.translations && Object.values(post.translations).length > 1) {
+              Object.values(post.translations).forEach(transId => {
+                  if (transId !== post.id && postsById.has(transId)) {
+                      rootCandidate.subRows.push(postsById.get(transId)!);
+                      processedIds.add(transId);
+                  }
+              });
+          }
+          
+          roots.push(rootCandidate);
+          processedIds.add(post.id);
       });
+      
+      // Filter out sub-rows that became roots because their "parent" was on another page.
+      const finalRoots = roots.filter(root => !processedIds.has(root.id) || root.id === [...processedIds].find(id => id === root.id));
       
       // Filter the roots by the selected language
       const languageFilteredRoots = selectedLanguage === 'all' 
-        ? roots
-        : roots.filter(p => p.lang === selectedLanguage);
+        ? finalRoots 
+        : finalRoots.filter(p => p.lang === selectedLanguage);
       
       setData(languageFilteredRoots);
       setTotalPages(totalPages);
