@@ -61,12 +61,16 @@ export async function POST(req: NextRequest) {
 
         // === 2. TRANSLATE AND UPDATE EACH CLONE ===
         for (const pair of successfullyClonedPairs) {
-            const { original_id, clone_id } = pair;
+            const { original_id, clone_id, post_type } = pair;
             try {
-                // Fetch full data of the original post
-                const { data: originalPost } = await wpApi.get(`/posts/${original_id}?context=edit`);
-                const postTypeEndpoint = originalPost.type === 'page' ? 'pages' : 'posts';
+                if (!post_type) {
+                    throw new Error('Plugin did not return a post_type for the cloned item.');
+                }
+                const postTypeEndpoint = post_type === 'page' ? 'pages' : 'posts';
 
+                // Fetch full data of the original post
+                const { data: originalPost } = await wpApi.get(`/${postTypeEndpoint}/${original_id}?context=edit`);
+                
                 let textsToTranslate: { title: string, content: string };
                 let elementorData = null;
                 const isElementor = originalPost.meta && originalPost.meta._elementor_data;
@@ -74,7 +78,6 @@ export async function POST(req: NextRequest) {
                 if (isElementor) {
                     elementorData = JSON.parse(originalPost.meta._elementor_data);
                     const elementorTexts = collectElementorTexts(elementorData);
-                    // Join with a rare separator to ensure clean splitting after translation
                     textsToTranslate = { title: originalPost.title.rendered, content: elementorTexts.join('|||') };
                 } else {
                     textsToTranslate = { title: originalPost.title.rendered, content: originalPost.content.rendered };
@@ -93,7 +96,7 @@ export async function POST(req: NextRequest) {
                 };
                 if (isElementor) {
                     const translatedTexts = translatedContentString.split('|||');
-                    const newElementorData = replaceElementorTexts(elementorData, translatedTexts);
+                    const newElementorData = replaceElementorTexts(JSON.parse(JSON.stringify(elementorData)), translatedTexts);
                     updatePayload.meta = { _elementor_data: JSON.stringify(newElementorData) };
                 } else {
                     updatePayload.content = translatedContentString;

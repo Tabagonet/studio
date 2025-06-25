@@ -2,7 +2,7 @@
 /*
 Plugin Name: AutoPress AI Helper
 Description: Añade endpoints a la REST API para gestionar traducciones con Polylang y otras funciones personalizadas para AutoPress AI.
-Version: 1.9
+Version: 1.10
 Author: intelvisual@intelvisual.es
 */
 
@@ -12,42 +12,42 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 add_action( 'plugins_loaded', function () {
     if ( ! function_exists( 'pll_get_post_language' ) ) return;
 
-    add_filter( 'rest_post_query', 'pll_rest_filter_by_language', 10, 2 );
-    add_filter( 'rest_page_query', 'pll_rest_filter_by_language', 10, 2 );
-
-    function pll_rest_filter_by_language( $args, $request ) {
-        $lang = $request->get_param( 'lang' );
-        if ( $lang && function_exists( 'pll_get_language' ) ) {
-            $lang_obj = pll_get_language( $lang );
-            if ( $lang_obj ) { $args['lang'] = $lang; }
-        }
-        return $args;
-    }
-
     add_action( 'rest_api_init', function () {
-        $post_types = get_post_types( [ 'public' => true ], 'names' );
-        foreach ( $post_types as $type ) {
-            register_rest_field( $type, 'lang', ['get_callback' => function ($p) { return pll_get_post_language($p['id'], 'slug'); }, 'schema' => null,] );
-            register_rest_field( $type, 'translations', ['get_callback' => function ($p) { return pll_get_post_translations($p['id']); }, 'schema' => null,] );
-        }
-        
+        // Endpoints personalizados
         register_rest_route( 'custom/v1', '/link-translations', ['methods' => 'POST', 'callback' => 'custom_api_link_translations', 'permission_callback' => function () { return current_user_can( 'edit_posts' ); }]);
         register_rest_route( 'custom/v1', '/batch-trash-posts', ['methods' => 'POST', 'callback' => 'custom_api_batch_trash_posts', 'permission_callback' => function () { return current_user_can( 'edit_posts' ); }]);
         register_rest_route( 'custom/v1', '/batch-clone-posts', ['methods'  => 'POST', 'callback' => 'custom_api_batch_clone_posts', 'permission_callback' => function () { return current_user_can( 'edit_posts' ); }]);
         register_rest_route( 'custom/v1', '/content-list', ['methods'  => 'GET', 'callback' => 'custom_api_get_content_list', 'permission_callback' => function () { return current_user_can( 'edit_posts' ); }]);
     });
 
-    function custom_api_link_translations( $request ) { if ( ! function_exists( 'pll_save_post_translations' ) ) { return new WP_Error( 'polylang_not_found', 'Polylang no está activo.', [ 'status' => 501 ] ); } $translations = $request->get_param( 'translations' ); if ( empty( $translations ) || ! is_array( $translations ) ) { return new WP_Error( 'invalid_payload', 'Se requiere un array asociativo de traducciones.', [ 'status' => 400 ] ); } $sanitized = []; foreach ( $translations as $lang => $post_id ) { $sanitized[ sanitize_key( $lang ) ] = absint( $post_id ); } pll_save_post_translations( $sanitized ); return new WP_REST_Response( ['success' => true, 'message' => 'Traducciones enlazadas.'], 200 ); }
-    function custom_api_batch_trash_posts( $request ) { $post_ids = $request->get_param( 'post_ids' ); if ( empty( $post_ids ) || ! is_array( $post_ids ) ) { return new WP_Error( 'invalid_payload', 'Se requiere un array de IDs de entradas.', ['status' => 400] ); } $results = [ 'success' => [], 'failed' => [] ]; foreach ( $post_ids as $post_id ) { $id = absint($post_id); if ( $id && current_user_can('delete_post', $id) && function_exists('wp_trash_post') ) { if ( wp_trash_post( $id ) ) { $results['success'][] = $id; } else { $results['failed'][] = ['id' => $id, 'reason' => 'Fallo en wp_trash_post.']; } } else { $results['failed'][] = ['id' => $id, 'reason' => 'Permiso denegado o ID inválido.']; } } return new WP_REST_Response( ['success' => true, 'data' => $results], 200 ); }
+    function custom_api_link_translations( $request ) {
+        if ( ! function_exists( 'pll_save_post_translations' ) ) { return new WP_Error( 'polylang_not_found', 'Polylang no está activo.', [ 'status' => 501 ] ); }
+        $translations = $request->get_param( 'translations' );
+        if ( empty( $translations ) || ! is_array( $translations ) ) { return new WP_Error( 'invalid_payload', 'Se requiere un array asociativo de traducciones.', [ 'status' => 400 ] ); }
+        $sanitized = [];
+        foreach ( $translations as $lang => $post_id ) { $sanitized[ sanitize_key( $lang ) ] = absint( $post_id ); }
+        pll_save_post_translations( $sanitized );
+        return new WP_REST_Response( ['success' => true, 'message' => 'Traducciones enlazadas.'], 200 );
+    }
+
+    function custom_api_batch_trash_posts( $request ) {
+        $post_ids = $request->get_param( 'post_ids' );
+        if ( empty( $post_ids ) || ! is_array( $post_ids ) ) { return new WP_Error( 'invalid_payload', 'Se requiere un array de IDs de entradas.', ['status' => 400] ); }
+        $results = [ 'success' => [], 'failed' => [] ];
+        foreach ( $post_ids as $post_id ) {
+            $id = absint($post_id);
+            if ( $id && current_user_can('delete_post', $id) && function_exists('wp_trash_post') ) {
+                if ( wp_trash_post( $id ) ) { $results['success'][] = $id; } else { $results['failed'][] = ['id' => $id, 'reason' => 'Fallo en wp_trash_post.']; }
+            } else { $results['failed'][] = ['id' => $id, 'reason' => 'Permiso denegado o ID inválido.']; }
+        }
+        return new WP_REST_Response( ['success' => true, 'data' => $results], 200 );
+    }
     
     function custom_api_batch_clone_posts( $request ) {
-        $post_ids = $request->get_param( 'post_ids' );
-        $target_lang = sanitize_key( $request->get_param( 'target_lang' ) );
+        $post_ids = $request->get_param( 'post_ids' ); $target_lang = sanitize_key( $request->get_param( 'target_lang' ) );
         if ( empty( $post_ids ) || ! is_array( $post_ids ) ) { return new WP_Error( 'invalid_payload', 'Se requiere un array de IDs de posts.', [ 'status' => 400 ] ); }
         if ( ! $target_lang ) { return new WP_Error( 'no_target_lang', 'Debes indicar el idioma destino.', [ 'status' => 400 ] ); }
-        
         $results = [ 'success' => [], 'failed' => [] ];
-        
         foreach ( $post_ids as $source_id ) {
             $source_id = absint( $source_id );
             if ( ! $source_id || ! current_user_can( 'edit_post', $source_id ) ) { $results['failed'][] = ['id' => $source_id, 'reason' => 'Permiso denegado o ID inválido.']; continue; }
@@ -55,45 +55,21 @@ add_action( 'plugins_loaded', function () {
             if ( ! $source_post ) { $results['failed'][] = ['id' => $source_id, 'reason' => 'Post no encontrado.']; continue; }
             $original_lang = pll_get_post_language( $source_id, 'slug' );
             if ( ! $original_lang || $original_lang === $target_lang ) { $results['failed'][] = ['id' => $source_id, 'reason' => 'Idioma inválido o ya coincide.']; continue; }
-
             $new_post_args = [ 'post_author' => $source_post->post_author, 'post_content' => $source_post->post_content, 'post_title' => $source_post->post_title, 'post_excerpt' => $source_post->post_excerpt, 'post_status' => 'draft', 'post_type' => $source_post->post_type ];
             $new_post_id = wp_insert_post( wp_slash( $new_post_args ), true );
             if ( is_wp_error( $new_post_id ) ) { $results['failed'][] = ['id' => $source_id, 'reason' => 'Error al clonar.']; continue; }
-
-            // Copiar metacampos importantes, incluyendo los privados de Elementor y Yoast.
             $source_meta = get_post_meta( $source_id );
             $allowed_private_meta = ['_elementor_data', '_elementor_version', '_elementor_page_settings', '_yoast_wpseo_title', '_yoast_wpseo_metadesc', '_yoast_wpseo_focuskw' ];
-            foreach ( $source_meta as $meta_key => $meta_values ) {
-                if ( '_' === $meta_key[0] && ! in_array( $meta_key, $allowed_private_meta ) ) continue;
-                foreach ( $meta_values as $meta_value ) { add_post_meta( $new_post_id, $meta_key, maybe_unserialize( $meta_value ) ); }
-            }
-            
-            // Forzar el modo de edición de Elementor para el clon.
+            foreach ( $source_meta as $meta_key => $meta_values ) { if ( '_' === $meta_key[0] && ! in_array( $meta_key, $allowed_private_meta ) ) continue; foreach ( $meta_values as $meta_value ) { add_post_meta( $new_post_id, $meta_key, maybe_unserialize( $meta_value ) ); } }
             update_post_meta( $new_post_id, '_elementor_edit_mode', 'builder' );
-            $post_type = get_post_type($source_post->ID);
-            if ($post_type) {
-                update_post_meta( $new_post_id, '_elementor_template_type', 'wp-' . $post_type );
-            }
-
-            // Copiar taxonomías (categorías, etiquetas).
+            $post_type = get_post_type($source_post->ID); if ($post_type) { update_post_meta( $new_post_id, '_elementor_template_type', 'wp-' . $post_type ); }
             $taxonomies = get_object_taxonomies( $source_post->post_type );
-            foreach ( $taxonomies as $taxonomy ) {
-                if ($taxonomy == 'language' || $taxonomy == 'post_translations') continue;
-                $terms = wp_get_object_terms( $source_id, $taxonomy, [ 'fields' => 'ids' ] );
-                if ( ! is_wp_error( $terms ) ) { wp_set_object_terms( $new_post_id, $terms, $taxonomy ); }
-            }
-            
-            // Copiar imagen destacada.
-            $thumbnail_id = get_post_thumbnail_id( $source_id );
-            if ( $thumbnail_id ) { set_post_thumbnail( $new_post_id, $thumbnail_id ); }
-            
-            // Asignar idioma y enlazar traducción.
+            foreach ( $taxonomies as $taxonomy ) { if ($taxonomy == 'language' || $taxonomy == 'post_translations') continue; $terms = wp_get_object_terms( $source_id, $taxonomy, [ 'fields' => 'ids' ] ); if ( ! is_wp_error( $terms ) ) { wp_set_object_terms( $new_post_id, $terms, $taxonomy ); } }
+            $thumbnail_id = get_post_thumbnail_id( $source_id ); if ( $thumbnail_id ) { set_post_thumbnail( $new_post_id, $thumbnail_id ); }
             pll_set_post_language( $new_post_id, $target_lang );
-            $existing_translations = pll_get_post_translations( $source_id );
-            $new_translations = array_merge($existing_translations, [$target_lang => $new_post_id]);
+            $existing_translations = pll_get_post_translations( $source_id ); $new_translations = array_merge($existing_translations, [$target_lang => $new_post_id]);
             pll_save_post_translations( $new_translations );
-            
-            $results['success'][] = [ 'original_id' => $source_id, 'clone_id' => $new_post_id ];
+            $results['success'][] = [ 'original_id' => $source_id, 'clone_id' => $new_post_id, 'post_type' => $source_post->post_type ];
         }
         return new WP_REST_Response( $results, 200 );
     }
@@ -101,25 +77,8 @@ add_action( 'plugins_loaded', function () {
     function custom_api_get_content_list( $request ) {
         $post_types = get_post_types( [ 'public' => true ], 'names' );
         $args = [ 'post_type' => array_keys($post_types), 'posts_per_page' => -1, 'post_status' => ['publish', 'draft', 'pending', 'private', 'future'], 'fields' => 'ids' ];
-        $query = new WP_Query( $args );
-        $posts = $query->posts;
-        $content_list = [];
-        if ( ! empty( $posts ) ) {
-            foreach ( $posts as $post_id ) {
-                $post_obj = get_post( $post_id );
-                if ( ! $post_obj ) continue;
-                $content_list[] = [
-                    'id'           => $post_obj->ID,
-                    'title'        => $post_obj->post_title,
-                    'type'         => get_post_type($post_obj->ID) === 'post' ? 'Post' : 'Page',
-                    'link'         => get_permalink( $post_obj->ID ),
-                    'status'       => $post_obj->post_status,
-                    'parent'       => $post_obj->post_parent,
-                    'lang'         => pll_get_post_language( $post_obj->ID, 'slug' ),
-                    'translations' => pll_get_post_translations( $post_obj->ID ),
-                ];
-            }
-        }
-        return new WP_REST_Response( [ 'content' => $content_list, 'languageDataMissing' => false ], 200 );
+        $query = new WP_Query( $args ); $posts = $query->posts; $content_list = [];
+        if ( ! empty( $posts ) ) { foreach ( $posts as $post_id ) { $post_obj = get_post( $post_id ); if ( ! $post_obj ) continue; $content_list[] = [ 'id' => $post_obj->ID, 'title' => $post_obj->post_title, 'type' => get_post_type($post_obj->ID) === 'post' ? 'Post' : 'Page', 'link' => get_permalink( $post_obj->ID ), 'status' => $post_obj->post_status, 'parent' => $post_obj->post_parent, 'lang' => pll_get_post_language( $post_obj->ID, 'slug' ), 'translations' => pll_get_post_translations( $post_obj->ID ), ]; } }
+        return new WP_REST_Response( [ 'content' => $content_list ], 200 );
     }
 });
