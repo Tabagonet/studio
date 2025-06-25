@@ -14,10 +14,12 @@ import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { auth } from '@/lib/firebase';
-import type { ProductData, ProductPhoto } from '@/lib/types';
+import type { ProductData, ProductPhoto, ProductVariation } from '@/lib/types';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { ALL_LANGUAGES } from '@/lib/constants';
+import { v4 as uuidv4 } from 'uuid';
 
 // Staged product type
 interface StagedProduct {
@@ -60,6 +62,23 @@ const getStatusInfo = (product: StagedProduct) => {
     }
 }
 
+// Helper function to compute the Cartesian product of arrays
+function cartesian(...args: string[][]): string[][] {
+    const r: string[][] = [];
+    const max = args.length - 1;
+    function helper(arr: string[], i: number) {
+        for (let j = 0, l = args[i].length; j < l; j++) {
+            const a = [...arr, args[i][j]];
+            if (i === max) {
+                r.push(a);
+            } else {
+                helper(a, i + 1);
+            }
+        }
+    }
+    helper([], 0);
+    return r;
+}
 
 export default function BatchProcessPage() {
   const [imageFiles, setImageFiles] = useState<File[]>([]);
@@ -300,7 +319,6 @@ export default function BatchProcessPage() {
         toast({ title: 'No autenticado', description: 'Por favor, inicia sesión de nuevo.', variant: 'destructive'});
         return;
     }
-    const token = await user.getIdToken();
     const productsToProcess = stagedProducts.filter(p => p.status === 'ready' && p.processingStatus === 'pending');
     
     if (productsToProcess.length === 0) {
@@ -316,28 +334,28 @@ export default function BatchProcessPage() {
 
     for (const product of productsToProcess) {
         try {
-            updateProductProcessingStatus(product.id, 'processing', 'Generando contenido con IA...', 10);
-            
-            const targetLangs = product.csvData.traducir_a ? product.csvData.traducir_a.split(',').map((l: string) => l.trim()).filter(Boolean) : [];
+            const token = await user.getIdToken();
+            const allTranslations: { [key: string]: number } = {};
+            const sourceLang = 'Spanish'; // Assuming source is always Spanish for batch
 
+            // 1. AI Content Generation
+            updateProductProcessingStatus(product.id, 'processing', 'Generando contenido con IA...', 5);
             const aiPayload = {
                 productName: product.name,
                 productType: product.csvData.tipo || 'simple',
                 keywords: product.csvData.etiquetas || '',
-                language: 'Spanish',
+                language: sourceLang,
             };
-            
             const aiResponse = await fetch('/api/generate-description', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`},
                 body: JSON.stringify(aiPayload)
             });
-
             if (!aiResponse.ok) throw new Error(`La IA falló: ${await aiResponse.text()}`);
             const aiContent = await aiResponse.json();
-
-            updateProductProcessingStatus(product.id, 'processing', 'Subiendo imágenes...', 20);
             
+            // 2. Image Uploading
+            updateProductProcessingStatus(product.id, 'processing', 'Subiendo imágenes...', 15);
             const uploadedPhotos: ProductPhoto[] = [];
             if (product.images.length > 0) {
                 for (const [index, imageFile] of product.images.entries()) {
@@ -359,62 +377,107 @@ export default function BatchProcessPage() {
                         status: 'completed',
                         progress: 100
                     });
-                     const imageProgress = 20 + (60 * (index + 1) / product.images.length);
-                    updateProductProcessingStatus(product.id, 'processing', `Subiendo imagen ${index + 1} de ${product.images.length}...`, imageProgress);
+                    const imageProgress = 15 + (25 * (index + 1) / product.images.length);
+                    updateProductProcessingStatus(product.id, 'processing', `Subiendo imagen ${index + 1}/${product.images.length}...`, imageProgress);
                 }
-            } else {
-                updateProductProcessingStatus(product.id, 'processing', 'Creando producto(s)...', 80);
             }
 
-            updateProductProcessingStatus(product.id, 'processing', 'Creando producto(s) en WooCommerce...', 95);
-            
-            const productPayload: Partial<ProductData> = {
-                name: product.name,
-                sku: product.id,
-                shouldSaveSku: saveSkuInWoo,
-                productType: product.csvData.tipo || 'simple',
-                regularPrice: product.csvData.precio_regular || '',
-                salePrice: product.csvData.precio_oferta || '',
-                keywords: aiContent.keywords,
-                shortDescription: aiContent.shortDescription,
-                longDescription: aiContent.longDescription,
-                photos: uploadedPhotos,
-                imageTitle: aiContent.imageTitle,
-                imageAltText: aiContent.imageAltText,
-                imageCaption: aiContent.imageCaption,
-                imageDescription: aiContent.imageDescription,
-                categoryPath: product.csvData.categorias || '',
-                attributes: [],
-                source: 'batch',
-                language: 'Spanish',
-                targetLanguages: targetLangs,
+            // 3. Prepare base product payload
+            const createBasePayload = (pData: ProductData): any => {
+                const payload: Partial<ProductData> = {
+                    name: pData.name, sku: pData.sku, shouldSaveSku: saveSkuInWoo,
+                    productType: pData.productType,
+                    regularPrice: pData.regularPrice, salePrice: pData.salePrice, stockQuantity: pData.stockQuantity,
+                    keywords: pData.keywords,
+                    shortDescription: pData.shortDescription, longDescription: pData.longDescription,
+                    photos: uploadedPhotos,
+                    imageTitle: aiContent.imageTitle, imageAltText: aiContent.imageAltText, imageCaption: aiContent.imageCaption, imageDescription: aiContent.imageDescription,
+                    categoryPath: product.csvData.categorias || '',
+                    attributes: [], source: 'batch',
+                };
+                for (let i = 1; i <= 2; i++) {
+                    if (product.csvData[`atributo_${i}_nombre`]) {
+                        payload.attributes?.push({
+                            name: product.csvData[`atributo_${i}_nombre`],
+                            value: product.csvData[`atributo_${i}_valores`],
+                            forVariations: product.csvData[`atributo_${i}_variacion`] === '1',
+                            visible: product.csvData[`atributo_${i}_visible`] !== '0'
+                        });
+                    }
+                }
+                
+                let variations: ProductVariation[] = [];
+                if (payload.productType === 'variable') {
+                    const variationAttributes = (payload.attributes || []).filter(attr => attr.forVariations);
+                    if (variationAttributes.length > 0) {
+                        const attributeValueSets = variationAttributes.map(attr => attr.value.split('|').map(v => v.trim()).filter(Boolean));
+                        const combinations = cartesian(...attributeValueSets);
+                        variations = combinations.map(combo => {
+                            const attrs = combo.map((value, index) => ({ name: variationAttributes[index].name, value }));
+                            const skuSuffix = attrs.map(a => a.value.substring(0,3).toUpperCase()).join('-');
+                            return { id: uuidv4(), attributes: attrs, sku: `${payload.sku || 'VAR'}-${skuSuffix}`, regularPrice: '', salePrice: '', stockQuantity: '' };
+                        });
+                    }
+                }
+                payload.variations = variations;
+                return payload;
             };
 
-            for (let i = 1; i <= 2; i++) {
-                if (product.csvData[`atributo_${i}_nombre`]) {
-                    const isVariationAttr = product.csvData[`atributo_${i}_variacion`] === '1';
-                    const isVisibleAttr = product.csvData[`atributo_${i}_visible`] !== '0';
+            // 4. Create Original Product
+            updateProductProcessingStatus(product.id, 'processing', 'Creando producto original...', 50);
+            const sourceLangSlug = ALL_LANGUAGES.find(l => l.code === sourceLang)?.slug || 'es';
+            const originalProductData: ProductData = {
+                name: product.name, sku: product.id, productType: product.csvData.tipo || 'simple',
+                regularPrice: product.csvData.precio_regular || '', salePrice: product.csvData.precio_oferta || '',
+                stockQuantity: product.csvData.stock_inicial || '', shortDescription: aiContent.shortDescription, longDescription: aiContent.longDescription, keywords: aiContent.keywords,
+                attributes: [], photos: [], language: sourceLang
+            };
+            const originalApiPayload = { productData: createBasePayload(originalProductData), lang: sourceLangSlug };
+
+            const createOriginalResponse = await fetch('/api/woocommerce/products', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(originalApiPayload) });
+            if (!createOriginalResponse.ok) throw new Error(`Error creando producto original: ${await createOriginalResponse.text()}`);
+            const originalResult = await createOriginalResponse.json();
+            allTranslations[sourceLangSlug] = originalResult.data.id;
             
-                    productPayload.attributes?.push({
-                        name: product.csvData[`atributo_${i}_nombre`],
-                        value: product.csvData[`atributo_${i}_valores`],
-                        forVariations: isVariationAttr,
-                        visible: isVisibleAttr
-                    });
-                }
+            // 5. Handle Translations
+            const targetLangs = product.csvData.traducir_a ? product.csvData.traducir_a.split(',').map((l: string) => l.trim()).filter(Boolean) : [];
+            let langProgress = 0;
+            const totalLangSteps = targetLangs.length;
+            
+            for (const lang of targetLangs) {
+                const stepProgress = 60 + (30 * (langProgress / totalLangSteps));
+                updateProductProcessingStatus(product.id, 'processing', `Traduciendo a ${lang}...`, stepProgress);
+                const translateResponse = await fetch('/api/translate', { 
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+                    body: JSON.stringify({ content: { name: originalProductData.name, short_description: originalProductData.shortDescription, long_description: originalProductData.longDescription }, targetLanguage: lang })
+                });
+                if (!translateResponse.ok) throw new Error(`Error al traducir a ${lang}`);
+                const translatedContent = (await translateResponse.json()).content;
+
+                updateProductProcessingStatus(product.id, 'processing', `Creando producto en ${lang}...`, stepProgress + (15 / totalLangSteps));
+                const targetLangInfo = ALL_LANGUAGES.find(l => l.name === lang || l.code === lang);
+                if (!targetLangInfo) throw new Error(`Idioma desconocido: ${lang}`);
+                
+                const translatedProductData: ProductData = {
+                    ...originalProductData,
+                    name: translatedContent.name, shortDescription: translatedContent.short_description, longDescription: translatedContent.long_description,
+                    sku: `${originalProductData.sku}-${targetLangInfo.slug.toUpperCase()}`
+                };
+                const translatedApiPayload = { productData: createBasePayload(translatedProductData), lang: targetLangInfo.slug };
+
+                const createTranslatedResponse = await fetch('/api/woocommerce/products', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(translatedApiPayload) });
+                if (!createTranslatedResponse.ok) throw new Error(`Error creando producto en ${lang}: ${await createTranslatedResponse.text()}`);
+                const translatedResult = await createTranslatedResponse.json();
+                allTranslations[targetLangInfo.slug] = translatedResult.data.id;
+                langProgress++;
             }
             
-            const createResponse = await fetch('/api/woocommerce/products', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify(productPayload)
-            });
-
-            if (!createResponse.ok) {
-                const errorData = await createResponse.json();
-                throw new Error(`Error al crear en Woo: ${errorData.error || 'Error desconocido'}`);
+            // 6. Link Translations
+            if (Object.keys(allTranslations).length > 1) {
+                updateProductProcessingStatus(product.id, 'processing', 'Enlazando traducciones...', 95);
+                await fetch('/api/wordpress/posts/link-translations', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ translations: allTranslations }) });
             }
-
+            
             updateProductProcessingStatus(product.id, 'completed', '¡Producto(s) creado(s) con éxito!', 100);
             successes++;
 
@@ -427,7 +490,7 @@ export default function BatchProcessPage() {
 
     toast({
         title: 'Proceso de lote finalizado',
-        description: `${successes} productos creados, ${failures} fallaron.`,
+        description: `${successes} productos procesados, ${failures} fallaron.`,
     });
     setIsBatchProcessing(false);
   };
@@ -460,7 +523,7 @@ export default function BatchProcessPage() {
               <strong>Prepara tu archivo CSV:</strong> Descarga nuestra plantilla. Contiene todas las columnas necesarias para crear productos <strong>simples</strong> y <strong>variables</strong>.
               <ul className="list-disc list-inside pl-6 mt-2 text-sm space-y-1">
                   <li><strong>Columnas Clave:</strong> <code>sku</code> y <code>nombre</code> son obligatorios. El <code>nombre</code> se usará para la IA.</li>
-                   <li><strong>(Nuevo) Traducciones:</strong> Usa la columna <code>traducir_a</code> para indicar los idiomas de destino, separados por coma. Ej: <code>English,French</code>.</li>
+                   <li><strong>Traducciones:</strong> Usa la columna <code>traducir_a</code> para indicar los idiomas de destino, separados por coma. Ej: <code>English,French</code>.</li>
                   <li><strong>Categorías:</strong> Usa <code>&gt;</code> para indicar jerarquía. Ej: <code>Ropa &gt; Camisetas</code>.</li>
                   <li><strong>Productos Variables:</strong>
                       <ul className="list-['-_'] list-inside pl-4">
@@ -648,9 +711,6 @@ export default function BatchProcessPage() {
             )}
         </CardContent>
       </Card>
-
     </div>
   );
 }
-
-    
