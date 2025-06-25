@@ -4,6 +4,7 @@ import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
 import { getApiClientsForUser, findOrCreateCategoryByPath, uploadImageToWordPress, findOrCreateTags, translateContent } from '@/lib/api-helpers';
 import type { ProductData, ProductVariation } from '@/lib/types';
 import axios from 'axios';
+import { ALL_LANGUAGES } from '@/lib/constants';
 
 const slugify = (text: string) => {
     if (!text) return '';
