@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import { z } from 'zod';
+import { v4 as uuidv4 } from 'uuid';
 
 const linkSchema = z.object({
   translations: z.record(z.string(), z.number()), // e.g. { "en": 123, "es": 456 }
@@ -28,9 +29,8 @@ export async function POST(req: NextRequest) {
         }
         
         const { translations } = validation.data;
-        const postIds = Object.values(translations);
 
-        if (postIds.length < 2) {
+        if (Object.keys(translations).length < 2) {
             return NextResponse.json({ error: 'At least two posts are required to link.' }, { status: 400 });
         }
 
@@ -39,47 +39,47 @@ export async function POST(req: NextRequest) {
             throw new Error('WordPress API is not configured for the active connection.');
         }
 
-        const updatePromises = postIds.map(postId => {
+        // Generate a new, single group ID for all posts being linked.
+        const translationGroupId = uuidv4();
+
+        // Create an array of promises to update each post.
+        const updatePromises = Object.entries(translations).map(([lang, postId]) => {
             const payload = {
-                translations: translations,
+                meta: {
+                    translation_group_id: translationGroupId,
+                },
+                // Also ensure the language is correctly set on the post, just in case.
+                lang: lang,
             };
-            console.log(`[link-translations] Updating post ID ${postId} with payload:`, JSON.stringify(payload));
+            console.log(`[link-translations] Updating post ID ${postId} with lang '${lang}' and group ID '${translationGroupId}'`);
             return wpApi.post(`/posts/${postId}`, payload);
         });
 
-        // Use Promise.allSettled to see all results, even if some fail
+        // Use Promise.allSettled to wait for all updates and handle individual failures.
         const results = await Promise.allSettled(updatePromises);
         
-        let allSucceeded = true;
+        let successCount = 0;
+        const errors: string[] = [];
+
         results.forEach((result, index) => {
-            const postId = postIds[index];
+            const postId = Object.values(translations)[index];
             if (result.status === 'fulfilled') {
-                const updatedPost = result.value.data;
-                // CRUCIAL CHECK: Verify that WordPress actually applied the change.
-                const updatedTranslations = updatedPost.translations || {};
-                const sentKeys = Object.keys(translations);
-                const receivedKeys = Object.keys(updatedTranslations);
-                
-                // A simple length check is a good indicator of success.
-                if (receivedKeys.length < sentKeys.length) {
-                    console.error(`[link-translations] Mismatch for post ${postId}. WP may have ignored the field. Sent:`, translations, "Received:", updatedTranslations);
-                    allSucceeded = false;
-                } else {
-                    console.log(`[link-translations] Successfully updated post ${postId}.`);
-                }
+                console.log(`[link-translations] Successfully updated post ${postId}.`);
+                successCount++;
             } else {
-                console.error(`[link-translations] Failed to update post ${postId}:`, result.reason.response?.data || result.reason.message);
-                allSucceeded = false;
+                const errorReason = result.reason.response?.data?.message || result.reason.message || 'Unknown error';
+                console.error(`[link-translations] Failed to update post ${postId}:`, errorReason);
+                errors.push(`Post ${postId}: ${errorReason}`);
             }
         });
         
-        if (!allSucceeded) {
-            throw new Error('Algunas traducciones no se pudieron enlazar. Esto puede deberse a la configuración de Polylang en tu WordPress o a un problema de permisos del usuario de la API.');
+        if (errors.length > 0) {
+            throw new Error(`Failed to link some translations. Errors: ${errors.join(', ')}`);
         }
 
         return NextResponse.json({
             success: true,
-            message: `${postIds.length} entradas han sido enlazadas correctamente como traducciones.`,
+            message: `${successCount} entradas han sido enlazadas correctamente como traducciones.`,
         });
 
     } catch (error: any) {
