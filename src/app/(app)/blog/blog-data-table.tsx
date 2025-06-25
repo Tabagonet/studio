@@ -272,7 +272,7 @@ export function BlogDataTable() {
       toast({ title: "No autenticado", variant: "destructive" });
       return;
     }
-    toast({ title: `Eliminando entrada...` });
+    toast({ title: `Moviendo entrada a la papelera...` });
     try {
       const token = await user.getIdToken();
       const response = await fetch(`/api/wordpress/posts/${postId}`, {
@@ -280,8 +280,8 @@ export function BlogDataTable() {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Error al eliminar la entrada.');
-      toast({ title: "¡Entrada Eliminada!", description: "La entrada se ha eliminado permanentemente." });
+      if (!response.ok) throw new Error(result.error || 'Error al mover a la papelera.');
+      toast({ title: "¡Entrada movida a la papelera!", description: "Podrás restaurarla o eliminarla desde WordPress." });
       fetchData();
       fetchStats();
     } catch (error) {
@@ -341,7 +341,7 @@ export function BlogDataTable() {
         return;
     }
 
-    toast({ title: `Eliminando ${postIds.length} entrada(s)...` });
+    toast({ title: `Moviendo ${postIds.length} entrada(s) a la papelera...` });
 
     try {
         const token = await user.getIdToken();
@@ -513,22 +513,22 @@ export function BlogDataTable() {
               <DropdownMenuSeparator />
               <AlertDialogTrigger asChild>
                 <DropdownMenuItem className="text-destructive focus:text-destructive">
-                  <Trash2 className="mr-2 h-4 w-4" /> Eliminar Entradas
+                  <Trash2 className="mr-2 h-4 w-4" /> Mover a la Papelera
                 </DropdownMenuItem>
               </AlertDialogTrigger>
             </DropdownMenuContent>
           </DropdownMenu>
           <AlertDialogContent>
               <AlertDialogHeader>
-                  <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                  <AlertDialogTitle>¿Mover a la papelera?</AlertDialogTitle>
                   <AlertDialogDescription>
-                      Esta acción no se puede deshacer. Se eliminarán permanentemente {selectedRowCount} entrada(s).
+                      Se moverán {selectedRowCount} entrada(s) a la papelera de WordPress. Podrás restaurarlas o eliminarlas permanentemente desde allí.
                   </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                   <AlertDialogCancel onClick={() => setIsBatchActionLoading(false)}>Cancelar</AlertDialogCancel>
                   <AlertDialogAction onClick={handleBatchDelete} className={buttonVariants({ variant: "destructive" })}>
-                      Sí, eliminar entradas
+                      Sí, mover a la papelera
                   </AlertDialogAction>
               </AlertDialogFooter>
           </AlertDialogContent>

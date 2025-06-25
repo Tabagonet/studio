@@ -42,8 +42,8 @@ export async function POST(req: NextRequest) {
         if (action === 'delete') {
             for (const postId of postIds) {
                 try {
-                    // force: true permanently deletes
-                    await wpApi.delete(`/posts/${postId}`, { params: { force: true } });
+                    // Move to trash by default. No `force: true`.
+                    await wpApi.delete(`/posts/${postId}`);
                     results.success.push(postId);
                 } catch (error: any) {
                     results.failed.push({ id: postId, reason: error.response?.data?.message || error.message || 'Unknown error' });
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
         
         const successCount = results.success.length;
         const failedCount = results.failed.length;
-        let message = `Proceso completado. ${successCount} entrada(s) eliminada(s).`;
+        let message = `Proceso completado. ${successCount} entrada(s) movida(s) a la papelera.`;
         if (failedCount > 0) {
             message += ` ${failedCount} fallida(s).`;
         }

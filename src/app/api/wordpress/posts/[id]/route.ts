@@ -143,7 +143,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const postId = params.id;
     if (!postId) return NextResponse.json({ error: 'Post ID is required.' }, { status: 400 });
 
-    const response = await wpApi.delete(`/posts/${postId}`, { params: { force: true } });
+    const response = await wpApi.delete(`/posts/${postId}`); // No force: true, move to trash
     return NextResponse.json({ success: true, data: response.data });
   } catch (error: any) {
     console.error(`Error deleting post ${params.id}:`, error.response?.data || error.message);

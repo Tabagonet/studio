@@ -186,18 +186,18 @@ export const getColumns = (
               <DropdownMenuItem asChild disabled={!post.link}><Link href={post.link || ''} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-2 h-4 w-4" /> Ver en la web</Link></DropdownMenuItem>
               <DropdownMenuSeparator />
               <AlertDialogTrigger asChild>
-                <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Eliminar permanentemente</DropdownMenuItem>
+                <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Mover a la papelera</DropdownMenuItem>
               </AlertDialogTrigger>
             </DropdownMenuContent>
           </DropdownMenu>
           <AlertDialogContent>
               <AlertDialogHeader>
-                  <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
-                  <AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente la entrada <strong className="mx-1">{post.title}</strong>.</AlertDialogDescription>
+                  <AlertDialogTitle>¿Mover a la papelera?</AlertDialogTitle>
+                  <AlertDialogDescription>La entrada <strong className="mx-1">{post.title}</strong> se moverá a la papelera de WordPress. Podrás restaurarla o eliminarla permanentemente desde allí.</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={() => handleDelete(post.id)}>Sí, eliminar entrada</AlertDialogAction>
+                  <AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={() => handleDelete(post.id)}>Sí, mover a la papelera</AlertDialogAction>
               </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
