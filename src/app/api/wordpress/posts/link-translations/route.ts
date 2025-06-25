@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import { z } from 'zod';
-import { v4 as uuidv4 } from 'uuid';
 
 const linkSchema = z.object({
   translations: z.record(z.string(), z.number()), // e.g. { "en": 123, "es": 456 }
@@ -40,53 +39,45 @@ export async function POST(req: NextRequest) {
             throw new Error('WordPress API is not configured for the active connection.');
         }
 
-        // Generate a single, unique group ID for this new linkage.
-        const translationGroupId = uuidv4();
-
-        // Update each post with the same group ID via meta field, which the custom plugin will use.
-        const updatePromises = postIds.map(postId => {
-            const payload = {
-                meta: { 
-                    translation_group_id: translationGroupId,
-                }
-            };
-            console.log(`[link-translations] Updating post ID ${postId} with translation_group_id: ${translationGroupId}`);
-            // WordPress uses POST to the ID endpoint for updates.
-            return wpApi.post(`/posts/${postId}`, payload);
-        });
-        
-        const results = await Promise.allSettled(updatePromises);
-        
-        let successCount = 0;
-        const errors: string[] = [];
-
-        results.forEach((result, index) => {
-            const postId = postIds[index];
-            if (result.status === 'fulfilled') {
-                console.log(`[link-translations] Successfully updated post ${postId}.`);
-                successCount++;
-            } else {
-                const errorReason = result.reason.response?.data?.message || result.reason.message || 'Unknown error';
-                console.error(`[link-translations] Failed to update post ${postId}:`, errorReason);
-                errors.push(`Post ${postId}: ${errorReason}`);
-            }
-        });
-        
-        if (errors.length > 0) {
-            throw new Error(`Failed to link some translations. Errors: ${errors.join(', ')}`);
+        // This requires the user to have added the custom PHP code to their functions.php
+        const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
+        if (!siteUrl) {
+            throw new Error("Could not determine base site URL from WordPress API configuration.");
         }
+        const customEndpointUrl = `${siteUrl}/wp-json/custom/v1/link-translations`;
 
-        return NextResponse.json({
-            success: true,
-            message: `${successCount} entradas han sido enlazadas correctamente como traducciones.`,
-        });
+        console.log(`[link-translations] Calling custom endpoint: ${customEndpointUrl}`);
+        
+        // The custom endpoint will handle calling pll_save_post_translations
+        const response = await wpApi.post(customEndpointUrl, { translations });
+        
+        if (response.data.success) {
+            return NextResponse.json({
+                success: true,
+                message: response.data.message || `${postIds.length} entradas han sido enlazadas correctamente.`,
+            });
+        } else {
+            throw new Error(response.data.message || 'The custom WordPress endpoint reported an error.');
+        }
 
     } catch (error: any) {
         console.error('Error linking translations:', error.response?.data || error.message);
+        let errorMessage = 'An unexpected error occurred during the linking process.';
+        if (error.response?.data?.message) {
+            errorMessage = `WordPress Error: ${error.response.data.message}`;
+        } else if (error.message) {
+            errorMessage = error.message;
+        }
+
+        if (error.response?.status === 404) {
+            errorMessage = 'Endpoint /custom/v1/link-translations no encontrado en tu WordPress. Por favor, asegúrate de haber añadido el código PHP a tu archivo functions.php.';
+        }
+
         const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
+
         return NextResponse.json({ 
-            error: 'An unexpected error occurred during the linking process.', 
-            message: error.message 
+            error: 'Failed to link translations.', 
+            message: errorMessage
         }, { status });
     }
 }

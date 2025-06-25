@@ -8,7 +8,6 @@ import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { ArrowLeft, ArrowRight, Rocket } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { v4 as uuidv4 } from 'uuid';
 
 import { Step1Content } from './step-1-content';
 import { Step2Preview } from './step-2-preview';
@@ -71,7 +70,6 @@ export function BlogCreator() {
         return;
     }
     const token = await user.getIdToken();
-    const translationGroupId = uuidv4();
     let finalPostData = { ...postData };
     let createdPostUrls: { url: string; title: string }[] = [];
     const allTranslations: { [key: string]: number } = {};
@@ -97,7 +95,6 @@ export function BlogCreator() {
         const sourceLangSlug = LANG_CODE_MAP[postData.sourceLanguage] || 'en';
         const originalPayload = { 
             postData: finalPostData, 
-            translationGroupId,
             lang: sourceLangSlug,
         };
         const originalResponse = await fetch('/api/wordpress/posts', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(originalPayload) });
@@ -126,9 +123,7 @@ export function BlogCreator() {
             
             const translatedPayload = { 
                 postData: translatedPostData, 
-                translationGroupId,
                 lang: targetLangSlug,
-                // Do not link yet, we will do a final sync at the end
             };
             const translatedResponse = await fetch('/api/wordpress/posts', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(translatedPayload) });
             if (!translatedResponse.ok) {
@@ -137,27 +132,26 @@ export function BlogCreator() {
             }
             const translatedResult = await translatedResponse.json();
             createdPostUrls.push({ url: translatedResult.url, title: translatedResult.title });
-            allTranslations[targetLangSlug] = translatedResult.id; // Add new translation to the group for the next iteration
+            allTranslations[targetLangSlug] = translatedResult.id;
             updateStepStatus(`create_${lang}`, 'success');
         }
         
         // --- Step 4: Final Sync of all translation links ---
         if (Object.keys(allTranslations).length > 1) {
             updateStepStatus('sync_translations', 'processing');
-            const updatePromises = Object.values(allTranslations).map(postId => {
-                return fetch(`/api/wordpress/posts/${postId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ translations: allTranslations })
-                });
+            
+            const linkResponse = await fetch('/api/wordpress/posts/link-translations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ translations: allTranslations })
             });
 
-            const updateResults = await Promise.all(updatePromises);
-            const failedUpdates = updateResults.filter(res => !res.ok);
-
-            if (failedUpdates.length > 0) {
-                console.warn(`${failedUpdates.length} posts failed to sync translation links.`);
-                throw new Error('Algunos enlaces de traducción no se pudieron sincronizar.');
+            if (!linkResponse.ok) {
+                const errorResult = await linkResponse.json();
+                throw new Error(errorResult.message || 'Error al enlazar las traducciones.');
             }
             updateStepStatus('sync_translations', 'success');
         }

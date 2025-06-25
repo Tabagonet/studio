@@ -30,12 +30,10 @@ const postSchema = z.object({
   focusKeyword: z.string().optional(),
 });
 
-// Updated payload to support Polylang
+// The payload for creating a single post. Linking is now handled separately.
 const payloadSchema = z.object({
     postData: postSchema,
-    translationGroupId: z.string().uuid(),
     lang: z.string(), // e.g. 'en', 'es'
-    translations: z.record(z.string(), z.number()).optional() // e.g. { en: 123, fr: 456 }
 });
 
 export async function POST(request: NextRequest) {
@@ -60,7 +58,7 @@ export async function POST(request: NextRequest) {
              return NextResponse.json({ success: false, error: 'Invalid data provided', details: validation.error.flatten() }, { status: 400 });
         }
         
-        const { postData, translationGroupId, lang, translations } = validation.data;
+        const { postData, lang } = validation.data;
 
         // 1. Upload featured image once, if it exists
         let featuredMediaId: number | null = null;
@@ -98,9 +96,7 @@ export async function POST(request: NextRequest) {
             content: postData.content,
             status: postData.status || 'draft',
             lang: lang,
-            translations: translations,
             meta: { 
-                translation_group_id: translationGroupId,
                 ...(postData.metaDescription && { _yoast_wpseo_metadesc: postData.metaDescription }),
                 ...(postData.focusKeyword && { _yoast_wpseo_focuskw: postData.focusKeyword }),
              }
