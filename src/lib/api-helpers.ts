@@ -1,4 +1,5 @@
 
+
 // src/lib/api-helpers.ts
 import { adminDb } from '@/lib/firebase-admin';
 import { createWooCommerceApi } from '@/lib/woocommerce';
@@ -291,62 +292,90 @@ export async function translateContent(
 
 /**
  * Recursively traverses Elementor's data structure to collect all user-visible text content.
- * @param elements The 'elements' array from Elementor's data.
- * @returns An array of strings to be translated.
+ * @param data The 'elements' array or any nested object/array from Elementor's data.
+ * @param texts The array to push found texts into.
  */
-export function collectElementorTexts(elements: any[]): string[] {
-    let texts: string[] = [];
-    const textKeys = ['title', 'editor', 'text', 'button_text', 'header_title', 'header_subtitle', 'description', 'cta_text', 'label', 'placeholder'];
+function collectElementorTextsRecursive(data: any, texts: string[]): void {
+    if (!data) return;
 
-    function traverse(els: any[]) {
-        for (const element of els) {
-            if (element.elType === 'widget' && element.settings) {
-                for (const key of textKeys) {
-                    if (element.settings[key] && typeof element.settings[key] === 'string' && element.settings[key].trim() !== '') {
-                        texts.push(element.settings[key]);
-                    }
+    if (Array.isArray(data)) {
+        data.forEach(item => collectElementorTextsRecursive(item, texts));
+        return;
+    }
+
+    if (typeof data === 'object') {
+        const textKeys = ['title', 'editor', 'text', 'button_text', 'header_title', 'header_subtitle', 'description', 'cta_text', 'label', 'placeholder', 'heading', 'sub_heading', 'alert_title', 'alert_description'];
+        
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                const value = data[key];
+
+                if (typeof value === 'string' && textKeys.includes(key) && value.trim() !== '' && !value.includes('</')) {
+                     // Push simple text fields (avoiding HTML content which is handled by 'editor')
+                     texts.push(value);
+                } else if (key === 'editor' && typeof value === 'string' && value.trim() !== '') {
+                    // Handle the main Text Editor widget content
+                    texts.push(value);
+                } else if (typeof value === 'object' && value !== null) {
+                    // Recurse into nested objects and arrays (for repeaters etc.)
+                    collectElementorTextsRecursive(value, texts);
                 }
-            }
-            if (element.elements && Array.isArray(element.elements) && element.elements.length > 0) {
-                traverse(element.elements);
             }
         }
     }
-    
-    traverse(elements);
+}
+
+
+export function collectElementorTexts(elements: any[]): string[] {
+    const texts: string[] = [];
+    collectElementorTextsRecursive(elements, texts);
     return texts;
 }
 
 /**
  * Recursively traverses a deep copy of Elementor's data structure and replaces text content
  * with items from an array of translated strings.
- * @param originalElements A deep copy of the original 'elements' array.
- * @param translatedTexts An array of translated strings, in the same order they were collected.
+ * @param data A deep copy of the original 'elements' array or nested object/array.
+ * @param translatedTexts A mutable array of translated strings.
  * @returns The Elementor data structure with translated text.
  */
-export function replaceElementorTexts(originalElements: any[], translatedTexts: string[]): any[] {
-    const texts = [...translatedTexts]; // Create a mutable copy
-    const textKeys = ['title', 'editor', 'text', 'button_text', 'header_title', 'header_subtitle', 'description', 'cta_text', 'label', 'placeholder'];
+function replaceElementorTextsRecursive(data: any, translatedTexts: string[]): any {
+    if (!data) return data;
 
-    function traverse(els: any[]) {
-        for (const element of els) {
-             if (element.elType === 'widget' && element.settings) {
-                for (const key of textKeys) {
-                    if (element.settings[key] && typeof element.settings[key] === 'string' && element.settings[key].trim() !== '') {
-                        if (texts.length > 0) {
-                           element.settings[key] = texts.shift();
-                        }
-                    }
-                }
-            }
-            if (element.elements && Array.isArray(element.elements) && element.elements.length > 0) {
-                traverse(element.elements);
-            }
-        }
+    if (Array.isArray(data)) {
+        return data.map(item => replaceElementorTextsRecursive(item, translatedTexts));
     }
 
-    traverse(originalElements);
-    return originalElements;
+    if (typeof data === 'object') {
+        const newData = { ...data };
+        const textKeys = ['title', 'editor', 'text', 'button_text', 'header_title', 'header_subtitle', 'description', 'cta_text', 'label', 'placeholder', 'heading', 'sub_heading', 'alert_title', 'alert_description'];
+        
+        for (const key in newData) {
+            if (Object.prototype.hasOwnProperty.call(newData, key)) {
+                const value = newData[key];
+
+                if (typeof value === 'string' && textKeys.includes(key) && value.trim() !== '' && !value.includes('</')) {
+                     if (translatedTexts.length > 0) {
+                         newData[key] = translatedTexts.shift();
+                     }
+                } else if (key === 'editor' && typeof value === 'string' && value.trim() !== '') {
+                    if (translatedTexts.length > 0) {
+                        newData[key] = translatedTexts.shift();
+                    }
+                } else if (typeof value === 'object' && value !== null) {
+                    newData[key] = replaceElementorTextsRecursive(value, translatedTexts);
+                }
+            }
+        }
+        return newData;
+    }
+
+    return data;
+}
+
+export function replaceElementorTexts(originalElements: any[], translatedTexts: string[]): any[] {
+    const textsCopy = [...translatedTexts]; // Use a mutable copy so we can shift() from it
+    return replaceElementorTextsRecursive(originalElements, textsCopy);
 }
 
 
@@ -515,3 +544,4 @@ export async function findOrCreateTags(tagNames: string[], wpApi: AxiosInstance)
   }
   return tagIds;
 }
+
