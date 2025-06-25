@@ -1,8 +1,8 @@
 <?php
 /*
 Plugin Name: AutoPress AI Helper
-Description: Añade endpoints a la REST API para gestionar traducciones con Polylang y otras funciones personalizadas para AutoPress AI.
-Version: 1.9
+Description: Añade endpoints a la REST API para gestionar traducciones, stock y otras funciones personalizadas para AutoPress AI.
+Version: 1.11
 Author: intelvisual@intelvisual.es
 */
 
@@ -34,6 +34,8 @@ add_action( 'plugins_loaded', function () {
         register_rest_route( 'custom/v1', '/link-translations', ['methods' => 'POST', 'callback' => 'custom_api_link_translations', 'permission_callback' => function () { return current_user_can( 'edit_posts' ); }]);
         register_rest_route( 'custom/v1', '/batch-trash-posts', ['methods' => 'POST', 'callback' => 'custom_api_batch_trash_posts', 'permission_callback' => function () { return current_user_can( 'edit_posts' ); }]);
         register_rest_route( 'custom/v1', '/batch-clone-posts', ['methods'  => 'POST', 'callback' => 'custom_api_batch_clone_posts', 'permission_callback' => function () { return current_user_can( 'edit_posts' ); }]);
+        register_rest_route( 'custom/v1', '/content-list', ['methods'  => 'GET', 'callback' => 'custom_api_get_content_list', 'permission_callback' => function () { return current_user_can( 'edit_posts' ); }]);
+        register_rest_route('custom/v1', '/sync-stock', ['methods' => 'POST', 'callback' => 'custom_sync_product_stock', 'permission_callback' => function () { return current_user_can('edit_posts'); }]);
     });
 
     function custom_api_link_translations( $request ) { if ( ! function_exists( 'pll_save_post_translations' ) ) { return new WP_Error( 'polylang_not_found', 'Polylang no está activo.', [ 'status' => 501 ] ); } $translations = $request->get_param( 'translations' ); if ( empty( $translations ) || ! is_array( $translations ) ) { return new WP_Error( 'invalid_payload', 'Se requiere un array asociativo de traducciones.', [ 'status' => 400 ] ); } $sanitized = []; foreach ( $translations as $lang => $post_id ) { $sanitized[ sanitize_key( $lang ) ] = absint( $post_id ); } pll_save_post_translations( $sanitized ); return new WP_REST_Response( ['success' => true, 'message' => 'Traducciones enlazadas.'], 200 ); }
@@ -63,11 +65,55 @@ add_action( 'plugins_loaded', function () {
             foreach ( $taxonomies as $taxonomy ) { if ($taxonomy == 'language' || $taxonomy == 'post_translations') continue; $terms = wp_get_object_terms( $source_id, $taxonomy, [ 'fields' => 'ids' ] ); if ( ! is_wp_error( $terms ) ) { wp_set_object_terms( $new_post_id, $terms, $taxonomy ); } }
             $thumbnail_id = get_post_thumbnail_id( $source_id ); if ( $thumbnail_id ) { set_post_thumbnail( $new_post_id, $thumbnail_id ); }
             pll_set_post_language( $new_post_id, $target_lang );
-            $existing_translations = pll_get_post_translations( $source_id );
-            $new_translations = array_merge($existing_translations, [$target_lang => $new_post_id]);
+            $existing_translations = pll_get_post_translations( $source_id ); $new_translations = array_merge($existing_translations, [$target_lang => $new_post_id]);
             pll_save_post_translations( $new_translations );
             $results['success'][] = [ 'original_id' => $source_id, 'clone_id' => $new_post_id, 'post_type' => $source_post->post_type ];
         }
         return new WP_REST_Response( $results, 200 );
+    }
+
+    function custom_api_get_content_list( $request ) {
+        $post_types = get_post_types( [ 'public' => true ], 'names' );
+        $args = [ 'post_type' => array_keys($post_types), 'posts_per_page' => -1, 'post_status' => ['publish', 'draft', 'pending', 'private', 'future'], 'fields' => 'ids' ];
+        $query = new WP_Query( $args ); $posts = $query->posts; $content_list = [];
+        if ( ! empty( $posts ) ) { foreach ( $posts as $post_id ) { $post_obj = get_post( $post_id ); if ( ! $post_obj ) continue; $content_list[] = [ 'id' => $post_obj->ID, 'title' => $post_obj->post_title, 'type' => get_post_type($post_obj->ID) === 'post' ? 'Post' : 'Page', 'link' => get_permalink( $post_obj->ID ), 'status' => $post_obj->post_status, 'parent' => $post_obj->post_parent, 'lang' => pll_get_post_language( $post_obj->ID, 'slug' ), 'translations' => pll_get_post_translations( $post_obj->ID ), ]; } }
+        return new WP_REST_Response( [ 'content' => $content_list ], 200 );
+    }
+
+    function custom_sync_product_stock($request) {
+        $product_id = absint($request->get_param('product_id'));
+        $stock_quantity = intval($request->get_param('stock_quantity'));
+
+        if (!$product_id || $stock_quantity < 0) {
+            return new WP_Error('invalid_input', 'Parámetros inválidos.', ['status' => 400]);
+        }
+
+        if (!function_exists('pll_get_post_translations')) {
+            return new WP_Error('missing_polylang', 'Polylang no está activo.', ['status' => 500]);
+        }
+
+        $translations = pll_get_post_translations($product_id);
+        if (empty($translations)) {
+            return new WP_Error('no_translations', 'No se encontraron traducciones para este producto.', ['status' => 404]);
+        }
+
+        $updated = [];
+
+        foreach ($translations as $lang => $post_id) {
+            $product = wc_get_product($post_id);
+            if ($product) {
+            $product->set_stock_quantity($stock_quantity);
+            $product->save();
+            $updated[$lang] = [
+                'id' => $post_id,
+                'stock' => $product->get_stock_quantity()
+            ];
+            }
+        }
+
+        return rest_ensure_response([
+            'success' => true,
+            'updated_products' => $updated
+        ]);
     }
 });
