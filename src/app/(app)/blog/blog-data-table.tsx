@@ -294,7 +294,7 @@ export function BlogDataTable() {
     router.push(`/blog/edit/${postId}`);
   };
 
-  const columns = React.useMemo(() => getColumns(handleStatusUpdate, handleEditPost, handleDeletePost), [handleStatusUpdate, handleDeletePost]);
+  const columns = React.useMemo(() => getColumns(handleStatusUpdate, handleEditPost, handleDeletePost), [handleStatusUpdate, handleEditPost, handleDeletePost]);
 
   const table = useReactTable({
     data,
@@ -326,7 +326,12 @@ export function BlogDataTable() {
   const handleBatchDelete = async () => {
     setIsBatchActionLoading(true);
     const selectedRows = table.getSelectedRowModel().rows;
-    const postIds = selectedRows.map(row => row.original.id);
+    
+    const postIdsWithDuplicates = selectedRows.flatMap(row => [
+        row.original.id,
+        ...(row.original.subRows?.map(subRow => subRow.id) || [])
+    ]);
+    const postIds = [...new Set(postIdsWithDuplicates)];
 
     if (postIds.length === 0) {
         toast({ title: "No hay entradas seleccionadas", variant: "destructive" });
@@ -522,7 +527,7 @@ export function BlogDataTable() {
               <AlertDialogHeader>
                   <AlertDialogTitle>¿Mover a la papelera?</AlertDialogTitle>
                   <AlertDialogDescription>
-                      Se moverán {selectedRowCount} entrada(s) a la papelera de WordPress. Podrás restaurarlas o eliminarlas permanentemente desde allí.
+                      Las entradas seleccionadas y todas sus traducciones enlazadas se moverán a la papelera de WordPress. Podrás restaurarlas o eliminarlas permanentemente desde allí.
                   </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
