@@ -64,12 +64,6 @@ function EditPageContent() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!post) return;
     const { name, value } = e.target;
-
-    // A bit of a hack to get the textarea ref to update for selection logic
-    if (name === 'content' && contentRef.current) {
-        contentRef.current.value = value;
-    }
-    
     setPost({ ...post, [name]: value });
   };
   
@@ -94,19 +88,63 @@ function EditPageContent() {
   };
 
   const handleAlignment = (align: 'left' | 'center' | 'right' | 'justify') => {
-      const textarea = contentRef.current;
-      if (!textarea || !post) return;
+    const textarea = contentRef.current;
+    if (!textarea || !post) return;
 
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const selectedText = textarea.value.substring(start, end);
+    const { selectionStart, selectionEnd, value: fullText } = textarea;
 
-      if (!selectedText) {
-          toast({ title: "Selecciona texto primero", description: "Debes seleccionar el párrafo al que quieres aplicar la alineación.", variant: "destructive" });
-          return;
+    const lineStart = fullText.lastIndexOf('\n', selectionStart - 1) + 1;
+    let lineEnd = fullText.indexOf('\n', selectionEnd);
+    if (lineEnd === -1) {
+      lineEnd = fullText.length;
+    }
+
+    const blockToFormat = fullText.substring(lineStart, lineEnd);
+    const lines = blockToFormat.split('\n');
+
+    const formattedLines = lines.map(line => {
+      const trimmedLine = line.trim();
+      if (trimmedLine.length === 0) return line;
+
+      if (/^<(h[1-6]|ul|ol|li)/.test(trimmedLine)) {
+        return line;
       }
-      const newText = `${textarea.value.substring(0, start)}<p style="text-align: ${align};">${selectedText}</p>${textarea.value.substring(end)}`;
-      setPost({ ...post, content: newText });
+      
+      const pTagRegex = /<p([^>]*)>/i;
+      const match = trimmedLine.match(pTagRegex);
+
+      if (match) {
+        const existingAttrs = match[1];
+        const styleRegex = /style="([^"]*)"/i;
+        const styleMatch = existingAttrs.match(styleRegex);
+
+        let newAttrs;
+        if (styleMatch) {
+            let styles = styleMatch[1].replace(/text-align:\s*[^;]+;?/gi, '').trim();
+            if (styles.length > 0 && !styles.endsWith(';')) styles += ';';
+            const newStyleAttr = `style="${styles} text-align: ${align};"`;
+            newAttrs = existingAttrs.replace(styleRegex, newStyleAttr);
+        } else {
+            newAttrs = `${existingAttrs} style="text-align: ${align};"`;
+        }
+        return trimmedLine.replace(pTagRegex, `<p${newAttrs}>`);
+      } else {
+        return `<p style="text-align: ${align};">${trimmedLine}</p>`;
+      }
+    });
+
+    const newContent =
+      fullText.substring(0, lineStart) +
+      formattedLines.join('\n') +
+      fullText.substring(lineEnd);
+    
+    setPost({ ...post, content: newContent });
+
+    setTimeout(() => {
+      textarea.focus();
+      const newSelectionEnd = lineStart + formattedLines.join('\n').length;
+      textarea.setSelectionRange(lineStart, newSelectionEnd);
+    }, 0);
   };
 
   const openActionDialog = (action: 'link' | 'image') => {
