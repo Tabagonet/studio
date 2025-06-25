@@ -9,8 +9,11 @@ import {
   getFilteredRowModel,
   useReactTable,
   getExpandedRowModel,
+  getSortedRowModel,
+  getPaginationRowModel,
   type ExpandedState,
-  RowSelectionState,
+  type RowSelectionState,
+  type SortingState,
 } from "@tanstack/react-table";
 import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
@@ -40,9 +43,12 @@ export function ContentClonerTable() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
+  const [sorting, setSorting] = React.useState<SortingState>([{ id: 'title', desc: false }]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
+  const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: 10 });
+
 
   const [isCloneDialogOpen, setIsCloneDialogOpen] = React.useState(false);
   const [targetLang, setTargetLang] = React.useState<string>("");
@@ -187,17 +193,23 @@ export function ContentClonerTable() {
     data,
     columns,
     state: {
+      sorting,
       expanded,
       columnFilters,
       rowSelection,
+      pagination,
     },
+    onSortingChange: setSorting,
     onExpandedChange: setExpanded,
     onColumnFiltersChange: setColumnFilters,
     onRowSelectionChange: setRowSelection,
+    onPaginationChange: setPagination,
     getSubRows: (row) => row.subRows,
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
   });
 
   const selectedRowCount = table.getFilteredSelectedRowModel().rows.length;
@@ -310,6 +322,34 @@ export function ContentClonerTable() {
             )}
           </TableBody>
         </Table>
+      </div>
+      <div className="flex items-center justify-between space-x-2 py-4">
+        <div className="flex-1 text-sm text-muted-foreground">
+          {table.getFilteredSelectedRowModel().rows.length} de{" "}
+          {table.getFilteredRowModel().rows.length} fila(s) seleccionadas.
+        </div>
+        <div className="flex items-center space-x-2">
+            <span className="text-sm font-medium">
+                Página {table.getState().pagination.pageIndex + 1} de{' '}
+                {table.getPageCount()}
+            </span>
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+            >
+                Anterior
+            </Button>
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+            >
+                Siguiente
+            </Button>
+        </div>
       </div>
     </div>
   );

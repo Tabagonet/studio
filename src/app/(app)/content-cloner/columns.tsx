@@ -4,9 +4,10 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronRight } from "lucide-react";
+import { ArrowUpDown, ChevronRight } from "lucide-react";
 import type { ContentItem as RawContentItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 type ContentItem = RawContentItem & { subRows?: ContentItem[] };
 
@@ -46,7 +47,17 @@ export const getColumns = (): ColumnDef<ContentItem>[] => [
   },
   {
     accessorKey: "title",
-    header: 'Título',
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Título
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      )
+    },
     cell: ({ row, getValue }) => (
       <div
         style={{ paddingLeft: `${row.depth * 1.5}rem` }}
