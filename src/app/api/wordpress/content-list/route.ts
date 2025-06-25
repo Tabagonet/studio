@@ -10,13 +10,14 @@ async function fetchAllPaginatedContent(wpApi: AxiosInstance, endpoint: string) 
     const perPage = 100;
     
     while (true) {
-        // The _fields parameter was removed to ensure custom fields like 'lang' and 'translations' are included in the response.
         const response = await wpApi.get(endpoint, {
             params: {
                 per_page: perPage,
                 page: page,
-                context: 'view',
+                context: 'view', // context=view is necessary for register_rest_field
                 status: 'publish,future,draft,pending,private',
+                // Request only necessary fields for performance, including our custom ones.
+                _fields: 'id,title,type,link,status,parent,lang,translations',
             },
         });
 
