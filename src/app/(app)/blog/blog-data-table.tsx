@@ -38,13 +38,13 @@ import { BookOpen, FileCheck2, FileText, Loader2, Lock, Trash2, ChevronDown, Lan
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 
-const LANGUAGES = [
-    { code: 'es', name: 'Español' },
-    { code: 'en', name: 'Inglés' },
-    { code: 'fr', name: 'Francés' },
-    { code: 'de', name: 'Alemán' },
-    { code: 'pt', name: 'Portugués' },
-];
+const LANGUAGE_MAP: { [key: string]: string } = {
+    es: 'Español',
+    en: 'Inglés',
+    fr: 'Francés',
+    de: 'Alemán',
+    pt: 'Portugués',
+};
 
 type HierarchicalBlogPost = BlogPostSearchResult & { subRows?: HierarchicalBlogPost[] };
 
@@ -60,6 +60,7 @@ export function BlogDataTable() {
   const [stats, setStats] = React.useState<BlogStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = React.useState(true);
   const [isBatchActionLoading, setIsBatchActionLoading] = React.useState(false);
+  const [availableLanguages, setAvailableLanguages] = React.useState<{code: string; name: string}[]>([]);
 
   // Filter states
   const [selectedCategory, setSelectedCategory] = React.useState('all');
@@ -122,12 +123,13 @@ export function BlogDataTable() {
       const titleFilter = columnFilters.find(f => f.id === 'title') as { id: string; value: string } | undefined;
       const sort = sorting[0];
 
+      // Always fetch all languages from the API to correctly build hierarchies
       const params = new URLSearchParams({
         page: (pagination.pageIndex + 1).toString(),
         per_page: pagination.pageSize.toString(),
         category: selectedCategory,
         status: selectedStatus,
-        lang: 'all', // Fetch all languages to build the hierarchy
+        lang: 'all', // Fetch all to get translation data
       });
 
       if (titleFilter?.value) {
@@ -150,39 +152,46 @@ export function BlogDataTable() {
 
       const { posts, totalPages } = await response.json();
       
+      // Update available languages for the filter dropdown
+      const langCodes = new Set(posts.map((p: BlogPostSearchResult) => p.lang).filter((l: string | undefined): l is string => l !== undefined && l !== 'N/A'));
+      const dynamicLangs = Array.from(langCodes).map(code => ({ code, name: LANGUAGE_MAP[code] || code.toUpperCase() }));
+      setAvailableLanguages(dynamicLangs);
+
       const postsById = new Map(posts.map((p: BlogPostSearchResult) => [p.id, { ...p, subRows: [] as HierarchicalBlogPost[] }]));
-      const processedIds = new Set<number>();
-      const roots: HierarchicalBlogPost[] = [];
+      let hierarchicalData: HierarchicalBlogPost[] = [];
 
-      posts.forEach((post: BlogPostSearchResult) => {
-          if (processedIds.has(post.id)) {
-              return; // Already processed as a child
-          }
+      if (selectedLanguage === 'all') {
+        const processedIds = new Set<number>();
+        posts.forEach((post: BlogPostSearchResult) => {
+            if (processedIds.has(post.id)) return;
 
-          const rootCandidate = postsById.get(post.id)!;
-          
-          if (post.translations && Object.values(post.translations).length > 1) {
-              Object.values(post.translations).forEach(transId => {
-                  if (transId !== post.id && postsById.has(transId)) {
-                      rootCandidate.subRows.push(postsById.get(transId)!);
-                      processedIds.add(transId);
-                  }
-              });
-          }
-          
-          roots.push(rootCandidate);
-          processedIds.add(post.id);
-      });
+            const rootCandidate = postsById.get(post.id)!;
+            if (post.translations && Object.values(post.translations).length > 1) {
+                Object.values(post.translations).forEach(transId => {
+                    if (transId !== post.id && postsById.has(transId)) {
+                        const childPost = postsById.get(transId)!;
+                        if (!rootCandidate.subRows) rootCandidate.subRows = [];
+                        rootCandidate.subRows.push(childPost);
+                        processedIds.add(transId);
+                    }
+                });
+            }
+            if (!processedIds.has(post.id)) {
+                hierarchicalData.push(rootCandidate);
+                processedIds.add(post.id);
+            }
+        });
+      } else {
+        const roots = posts.filter((p: BlogPostSearchResult) => p.lang === selectedLanguage);
+        hierarchicalData = roots.map((rootPost: HierarchicalBlogPost) => {
+            const subRows = Object.values(rootPost.translations || {})
+                .filter(transId => transId !== rootPost.id && postsById.has(transId))
+                .map(transId => postsById.get(transId)!);
+            return { ...rootPost, subRows };
+        });
+      }
       
-      // Filter out sub-rows that became roots because their "parent" was on another page.
-      const finalRoots = roots.filter(root => !processedIds.has(root.id) || root.id === [...processedIds].find(id => id === root.id));
-      
-      // Filter the roots by the selected language
-      const languageFilteredRoots = selectedLanguage === 'all' 
-        ? finalRoots 
-        : finalRoots.filter(p => p.lang === selectedLanguage);
-      
-      setData(languageFilteredRoots);
+      setData(hierarchicalData);
       setTotalPages(totalPages);
     } catch (error) {
       console.error(error);
@@ -430,7 +439,7 @@ export function BlogDataTable() {
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="all">Todos los idiomas</SelectItem>
-                    {LANGUAGES.map(lang => (
+                    {availableLanguages.map(lang => (
                         <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>
                     ))}
                 </SelectContent>
