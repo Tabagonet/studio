@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProductData } from "@/lib/types";
 import Image from 'next/image';
@@ -5,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Package } from "lucide-react";
 
 interface Step2PreviewProps {
   productData: ProductData;
@@ -12,7 +14,7 @@ interface Step2PreviewProps {
 
 export function Step2Preview({ productData }: Step2PreviewProps) {
   const { 
-    name, sku, productType, regularPrice, salePrice, category, 
+    name, sku, productType, regularPrice, salePrice, stockQuantity, category, 
     keywords, shortDescription, longDescription, attributes, photos,
     variations,
   } = productData;
@@ -59,24 +61,35 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                 />
               </div>
 
-              {productType !== 'grouped' && productType !== 'variable' && (
-                <div>
-                  <h4 className="font-semibold text-lg">Precios</h4>
-                  <p>
-                    <span className={cn("font-bold text-xl", salePrice && "line-through text-muted-foreground")}>
-                      {regularPrice ? `${regularPrice}€` : "No especificado"}
-                    </span>
-                    {salePrice && <span className="ml-2 font-bold text-xl text-primary">{`${salePrice}€`}</span>}
-                  </p>
+              {productType === 'simple' && (
+                 <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <h4 className="font-semibold text-lg">Precios</h4>
+                        <p>
+                            <span className={cn("font-bold text-xl", salePrice && "line-through text-muted-foreground")}>
+                            {regularPrice ? `${regularPrice}€` : "No especificado"}
+                            </span>
+                            {salePrice && <span className="ml-2 font-bold text-xl text-primary">{`${salePrice}€`}</span>}
+                        </p>
+                    </div>
+                     <div>
+                        <h4 className="font-semibold text-lg">Inventario</h4>
+                        <p className="flex items-center gap-2">
+                           <Package className="h-5 w-5 text-muted-foreground" />
+                           <span className="font-bold text-xl">
+                            {stockQuantity || "No gestionado"}
+                           </span>
+                        </p>
+                    </div>
                 </div>
               )}
               {(productType === 'grouped' || productType === 'variable') && (
                  <div>
-                    <h4 className="font-semibold text-lg">Precios</h4>
+                    <h4 className="font-semibold text-lg">Precios e Inventario</h4>
                     <p className="text-muted-foreground italic">
                       {productType === 'grouped' 
-                        ? 'Los productos agrupados no tienen precio.'
-                        : 'El precio se define en cada variación.'}
+                        ? 'Los productos agrupados no tienen precio ni stock propio.'
+                        : 'El precio y stock se definen en cada variación.'}
                     </p>
                 </div>
               )}
@@ -138,6 +151,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                                   <TableHead>SKU</TableHead>
                                   <TableHead>Precio Regular</TableHead>
                                   <TableHead>Precio de Oferta</TableHead>
+                                  <TableHead>Stock</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
@@ -145,6 +159,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                                   <TableCell>{variation.sku || "N/A"}</TableCell>
                                   <TableCell>{variation.regularPrice ? `${variation.regularPrice}€` : 'N/A'}</TableCell>
                                   <TableCell>{variation.salePrice ? `${variation.salePrice}€` : 'N/A'}</TableCell>
+                                  <TableCell>{variation.stockQuantity || "N/A"}</TableCell>
                                 </TableRow>
                               </TableBody>
                             </Table>

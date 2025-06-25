@@ -73,6 +73,7 @@ export const INITIAL_PRODUCT_DATA: ProductData = {
   productType: 'simple',
   regularPrice: "",
   salePrice: "",
+  stockQuantity: "",
   category: null,
   keywords: "",
   shortDescription: "",

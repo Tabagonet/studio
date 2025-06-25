@@ -61,6 +61,7 @@ export interface ProductVariation {
   sku: string;
   regularPrice: string;
   salePrice: string;
+  stockQuantity: string;
 }
 
 
@@ -126,6 +127,7 @@ export interface ProductData {
   productType: ProductType;
   regularPrice: string;
   salePrice: string;
+  stockQuantity: string;
   category: WooCommerceCategory | null; // Store category object
   categoryPath?: string; // Used for batch creation by name/path
   keywords: string;
@@ -174,65 +176,4 @@ export interface SubmissionStep {
   status: SubmissionStepStatus;
   progress?: number;
   error?: string;
-}
-
-export type ContentStats = {
-  totalPosts: number;
-  totalPages: number;
-  totalContent: number;
-  languages: { [key: string]: number };
-  status: {
-      publish: number;
-      draft: number;
-  };
-};
-
-export interface UserNotification {
-  id: string;
-  recipientUid: string;
-  type: 'new_user_pending' | 'generic';
-  title: string;
-  message: string;
-  link?: string;
-  read: boolean;
-  createdAt: string; // ISO string date
-}
-
-export interface ActivityLog {
-  id: string;
-  userId: string;
-  action: string;
-  timestamp: string; // ISO string
-  details: {
-    productId?: number;
-    productName?: string;
-    connectionKey?: string;
-    source?: 'wizard' | 'batch';
-    [key: string]: any;
-  };
-  user: { // Populated on the server
-    displayName: string;
-    email: string;
-    photoURL: string;
-  };
-}
-
-export interface ContentItem {
-  id: number;
-  title: string;
-  type: 'Post' | 'Page';
-  link: string;
-  status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
-  parent: number;
-  lang?: string;
-  translations?: Record<string, number>;
-}
-
-export interface SeoAnalysisRecord {
-  id: string;
-  userId: string;
-  url: string;
-  createdAt: string; // ISO string date
-  analysis: AnalysisResult;
-  score: number;
 }

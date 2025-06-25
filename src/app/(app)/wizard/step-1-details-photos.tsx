@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -338,15 +338,19 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                     </div>
                 </div>
 
-                {productData.productType !== 'grouped' && productData.productType !== 'variable' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {productData.productType === 'simple' && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div>
                       <Label htmlFor="regularPrice">Precio Regular (€)</Label>
                       <Input id="regularPrice" name="regularPrice" type="number" value={productData.regularPrice} onChange={handleInputChange} placeholder="Ej: 29.99" disabled={isProcessing} />
                     </div>
                     <div>
-                      <Label htmlFor="salePrice">Precio de Oferta (€) (Opcional)</Label>
-                      <Input id="salePrice" name="salePrice" type="number" value={productData.salePrice} onChange={handleInputChange} placeholder="Ej: 19.99" disabled={isProcessing} />
+                      <Label htmlFor="salePrice">Precio de Oferta (€)</Label>
+                      <Input id="salePrice" name="salePrice" type="number" value={productData.salePrice} onChange={handleInputChange} placeholder="Opcional" disabled={isProcessing} />
+                    </div>
+                     <div>
+                      <Label htmlFor="stockQuantity">Cantidad en Stock</Label>
+                      <Input id="stockQuantity" name="stockQuantity" type="number" value={productData.stockQuantity} onChange={handleInputChange} placeholder="Ej: 100" disabled={isProcessing} />
                     </div>
                   </div>
                 )}
@@ -418,6 +422,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
               </CardContent>
             </Card>
 
+            {productData.productType !== 'grouped' && (
             <Card>
                 <CardHeader>
                     <CardTitle>Atributos del Producto</CardTitle>
@@ -452,6 +457,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                 </Button>
                 </CardContent>
             </Card>
+            )}
 
              {productData.productType === 'variable' && (
                 <VariableProductManager productData={productData} updateProductData={updateProductData} />
@@ -464,7 +470,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                 <CardDescription>Sube las imágenes para tu producto. La primera imagen se usará como principal.</CardDescription>
               </CardHeader>
               <CardContent>
-                <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} isProcessing={isProcessing || isGenerating} />
+                <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} isProcessing={isProcessing || isGenerating} maxPhotos={15} />
               </CardContent>
             </Card>
 

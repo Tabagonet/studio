@@ -6,7 +6,7 @@ import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
 import { Step2Preview } from './step-2-preview'; 
 import { Step3Confirm } from './step-3-confirm';
 import { Step4Processing } from './step-4-processing';
-import type { ProductData, SubmissionStep, SubmissionStatus, ProductPhoto } from '@/lib/types';
+import type { ProductData, SubmissionStep, SubmissionStatus } from '@/lib/types';
 import { INITIAL_PRODUCT_DATA, ALL_LANGUAGES } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -123,14 +123,14 @@ export function ProductWizard() {
                 updateStepStatus(`translate_${lang}`, 'success', undefined, 100);
 
                 updateStepStatus(`create_${lang}`, 'processing', undefined, 50);
+                const targetLangSlug = ALL_LANGUAGES.find(l => l.code === lang)?.slug || lang.toLowerCase().substring(0, 2);
                 const translatedProductData = {
                   ...finalProductData,
                   name: translatedContent.name,
                   shortDescription: translatedContent.short_description,
                   longDescription: translatedContent.long_description,
-                  sku: `${finalProductData.sku}-${lang.toLowerCase().substring(0, 2)}` // Append lang to SKU
+                  sku: `${finalProductData.sku || 'PROD'}-${targetLangSlug.toUpperCase()}`
                 };
-                const targetLangSlug = ALL_LANGUAGES.find(l => l.code === lang)?.slug || lang.toLowerCase().substring(0, 2);
                 
                 const translatedPayload = { productData: translatedProductData, lang: targetLangSlug };
                 const translatedResponse = await fetch('/api/woocommerce/products', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(translatedPayload) });

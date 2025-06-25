@@ -82,6 +82,7 @@ export function VariableProductManager({ productData, updateProductData }: Varia
                 sku: `${productData.sku || 'SKU'}-${skuSuffix}`,
                 regularPrice: productData.regularPrice || '',
                 salePrice: productData.salePrice || '',
+                stockQuantity: productData.stockQuantity || '',
             };
         });
         
@@ -118,7 +119,7 @@ export function VariableProductManager({ productData, updateProductData }: Varia
                             <li>Define atributos (ej. Color, Talla) en la sección de arriba.</li>
                             <li>Marca la casilla "Para variaciones" en los que quieras usar.</li>
                             <li>Haz clic en "Generar Variaciones" para crear todas las combinaciones.</li>
-                            <li>Edita el SKU y precio de cada variación generada.</li>
+                            <li>Edita el SKU, precio y stock de cada variación generada.</li>
                         </ol>
                     </AlertDescription>
                 </Alert>
@@ -144,15 +145,14 @@ export function VariableProductManager({ productData, updateProductData }: Varia
                                              ))}
                                         </div>
                                     </AccordionTrigger>
-                                    <AccordionContent className="space-y-4">
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <AccordionContent className="space-y-4 pt-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                             <div>
-                                                <Label htmlFor={`sku-${variation.id}`}>SKU de la Variación</Label>
+                                                <Label htmlFor={`sku-${variation.id}`}>SKU</Label>
                                                 <Input 
                                                     id={`sku-${variation.id}`}
                                                     value={variation.sku}
                                                     onChange={(e) => handleVariationChange(variation.id, 'sku', e.target.value)}
-                                                    placeholder="SKU único"
                                                 />
                                             </div>
                                              <div>
@@ -162,17 +162,24 @@ export function VariableProductManager({ productData, updateProductData }: Varia
                                                     type="number"
                                                     value={variation.regularPrice}
                                                     onChange={(e) => handleVariationChange(variation.id, 'regularPrice', e.target.value)}
-                                                    placeholder="Ej: 24.99"
                                                 />
                                             </div>
                                              <div>
-                                                <Label htmlFor={`sale_price-${variation.id}`}>Precio de Oferta</Label>
+                                                <Label htmlFor={`sale_price-${variation.id}`}>Precio Oferta</Label>
                                                 <Input 
                                                     id={`sale_price-${variation.id}`}
                                                     type="number"
                                                     value={variation.salePrice}
                                                     onChange={(e) => handleVariationChange(variation.id, 'salePrice', e.target.value)}
-                                                    placeholder="Opcional"
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label htmlFor={`stock-${variation.id}`}>Stock</Label>
+                                                <Input 
+                                                    id={`stock-${variation.id}`}
+                                                    type="number"
+                                                    value={variation.stockQuantity}
+                                                    onChange={(e) => handleVariationChange(variation.id, 'stockQuantity', e.target.value)}
                                                 />
                                             </div>
                                         </div>

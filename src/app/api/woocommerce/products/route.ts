@@ -73,6 +73,10 @@ export async function POST(request: NextRequest) {
         if (finalProductData.productType === 'simple') {
             wooPayload.regular_price = finalProductData.regularPrice;
             wooPayload.sale_price = finalProductData.salePrice || undefined;
+            if (finalProductData.stockQuantity) {
+                wooPayload.manage_stock = true;
+                wooPayload.stock_quantity = parseInt(finalProductData.stockQuantity, 10);
+            }
         } else if (finalProductData.productType === 'grouped') {
             wooPayload.grouped_products = finalProductData.groupedProductIds || [];
         }
@@ -84,11 +88,21 @@ export async function POST(request: NextRequest) {
 
         // 5. Create variations if applicable
         if (finalProductData.productType === 'variable' && finalProductData.variations && finalProductData.variations.length > 0) {
-            const batchCreatePayload = finalProductData.variations.map(v => ({
-                regular_price: v.regularPrice || undefined, sale_price: v.salePrice || undefined,
-                ...(finalProductData.shouldSaveSku !== false && v.sku && { sku: v.sku }),
-                attributes: v.attributes.map(a => ({ name: a.name, option: a.value })),
-            }));
+            const batchCreatePayload = finalProductData.variations.map(v => {
+                const variationPayload: any = {
+                    regular_price: v.regularPrice || undefined, 
+                    sale_price: v.salePrice || undefined,
+                    attributes: v.attributes.map(a => ({ name: a.name, option: a.value })),
+                };
+                if(finalProductData.shouldSaveSku !== false && v.sku) {
+                    variationPayload.sku = v.sku;
+                }
+                if (v.stockQuantity) {
+                    variationPayload.manage_stock = true;
+                    variationPayload.stock_quantity = parseInt(v.stockQuantity, 10);
+                }
+                return variationPayload;
+            });
             await wooApi.post(`products/${productId}/variations/batch`, { create: batchCreatePayload });
         }
 
