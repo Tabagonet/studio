@@ -120,11 +120,17 @@ export async function POST(req: NextRequest) {
             translatedContent = translationResult.content;
         }
 
-        const { content: translatedMetaDesc } = await translateContent({ title: '', content: sourcePost.meta?._yoast_wpseo_metadesc || '' }, targetLangFullName);
-        const { content: translatedFocusKw } = await translateContent({ title: '', content: sourcePost.meta?._yoast_wpseo_focuskw || '' }, targetLangFullName);
+        const metaDescription = sourcePost.meta?._yoast_wpseo_metadesc || '';
+        const focusKeyword = sourcePost.meta?._yoast_wpseo_focuskw || '';
         
-        if(translatedMetaDesc) translatedMeta._yoast_wpseo_metadesc = translatedMetaDesc;
-        if(translatedFocusKw) translatedMeta._yoast_wpseo_focuskw = translatedFocusKw;
+        if (metaDescription || focusKeyword) {
+            const combinedMeta = `${metaDescription} ||| ${focusKeyword}`;
+            const { content: translatedCombinedMeta } = await translateContent({ title: '', content: combinedMeta }, targetLangFullName);
+            const [translatedMetaDesc, translatedFocusKw] = translatedCombinedMeta.split(' ||| ').map(s => s.trim());
+            
+            if(translatedMetaDesc) translatedMeta._yoast_wpseo_metadesc = translatedMetaDesc;
+            if(translatedFocusKw) translatedMeta._yoast_wpseo_focuskw = translatedFocusKw;
+        }
 
         const newPostPayload: any = {
             title: translatedTitle,

@@ -24,9 +24,20 @@ export async function GET(req: NextRequest) {
 
     let languageDataMissing = false;
 
+    // Define the fields we need to reduce payload size and prevent timeouts/memory issues
+    const fields = ['id', 'title', 'type', 'link', 'status', 'parent', 'lang', 'translations'];
+    const commonParams = {
+        per_page: 100,
+        status: 'publish,draft,pending,private,future',
+        orderby: 'title',
+        order: 'asc',
+        context: 'view', // Use 'view' context which is much lighter
+        _fields: fields.join(','), // Request only these fields
+    };
+
     // Fetch pages and posts sequentially to avoid overloading the user's server
-    const postsResponse = await wpApi.get('/posts', { params: { per_page: 100, status: 'publish,draft,pending,private,future', orderby: 'title', order: 'asc', context: 'edit' } });
-    const pagesResponse = await wpApi.get('/pages', { params: { per_page: 100, status: 'publish,draft,pending,private,future', orderby: 'title', order: 'asc', context: 'edit' } });
+    const postsResponse = await wpApi.get('/posts', { params: commonParams });
+    const pagesResponse = await wpApi.get('/pages', { params: commonParams });
 
     const mapContent = (item: any): ContentItem => {
         // Check for the 'lang' field provided by the user's custom plugin.
