@@ -19,7 +19,7 @@ import type { WordPressPostCategory, WordPressUser, ProductPhoto } from '@/lib/t
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ContentToolbar } from '@/components/features/editor/content-toolbar';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 
 interface PostEditState {
