@@ -20,6 +20,7 @@ import { es } from 'date-fns/locale';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { ContentToolbar } from '@/components/features/editor/content-toolbar';
 
 
 const ALL_LANGUAGES = [
@@ -29,32 +30,6 @@ const ALL_LANGUAGES = [
     { code: 'German', name: 'Alemán' },
     { code: 'Portuguese', name: 'Portugués' },
 ];
-
-const ContentToolbar = ({ onInsertTag, onInsertLink, onInsertImage }: { onInsertTag: (tag: 'h2' | 'ul' | 'ol' | 'strong' | 'em') => void; onInsertLink: () => void; onInsertImage: () => void; }) => (
-    <div className="flex items-center gap-1 mb-1 rounded-t-md border-b bg-muted p-1">
-        <Button type="button" variant="ghost" size="icon" onClick={() => onInsertTag('strong')} title="Negrita" className="h-8 w-8">
-            <Pilcrow className="h-4 w-4" />
-        </Button>
-        <Button type="button" variant="ghost" size="icon" onClick={() => onInsertTag('em')} title="Cursiva" className="h-8 w-8">
-            <span className="italic text-lg font-serif">I</span>
-        </Button>
-         <Button type="button" variant="ghost" size="icon" onClick={() => onInsertTag('h2')} title="Encabezado H2" className="h-8 w-8">
-            <Heading2 className="h-4 w-4" />
-        </Button>
-        <Button type="button" variant="ghost" size="icon" onClick={() => onInsertTag('ul')} title="Lista desordenada" className="h-8 w-8">
-            <List className="h-4 w-4" />
-        </Button>
-         <Button type="button" variant="ghost" size="icon" onClick={() => onInsertTag('ol')} title="Lista ordenada" className="h-8 w-8">
-            <ListOrdered className="h-4 w-4" />
-        </Button>
-        <Button type="button" variant="ghost" size="icon" onClick={onInsertLink} title="Añadir Enlace" className="h-8 w-8">
-            <LinkIcon className="h-4 w-4" />
-        </Button>
-        <Button type="button" variant="ghost" size="icon" onClick={onInsertImage} title="Insertar Imagen" className="h-8 w-8">
-            <ImageIcon className="h-4 w-4" />
-        </Button>
-    </div>
-);
 
 
 export function Step1Content({ postData, updatePostData }: { postData: BlogPostData; updatePostData: (data: Partial<BlogPostData>) => void; }) {
@@ -238,7 +213,6 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
         }
     };
     
-    // --- Toolbar Handlers ---
     const handleInsertTag = (tag: 'h2' | 'ul' | 'ol' | 'strong' | 'em') => {
         const textarea = contentRef.current;
         if (!textarea) return;
@@ -255,6 +229,27 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
             newText = `${textarea.value.substring(0, start)}<${tag}>${selectedText}</${tag}>${textarea.value.substring(end)}`;
         }
         
+        updatePostData({ content: newText });
+    };
+
+    const handleAlignment = (align: 'left' | 'center' | 'right' | 'justify') => {
+        const textarea = contentRef.current;
+        if (!textarea) return;
+
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const selectedText = textarea.value.substring(start, end);
+
+        if (!selectedText) {
+            toast({
+                title: "Selecciona texto primero",
+                description: "Debes seleccionar el párrafo al que quieres aplicar la alineación.",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        const newText = `${textarea.value.substring(0, start)}<p style="text-align: ${align};">${selectedText}</p>${textarea.value.substring(end)}`;
         updatePostData({ content: newText });
     };
 
@@ -412,7 +407,12 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                                 </div>
                                 <div>
                                     <Label htmlFor="content">Contenido</Label>
-                                    <ContentToolbar onInsertTag={handleInsertTag} onInsertLink={() => openActionDialog('link')} onInsertImage={() => openActionDialog('image')} />
+                                    <ContentToolbar 
+                                        onInsertTag={handleInsertTag} 
+                                        onInsertLink={() => openActionDialog('link')} 
+                                        onInsertImage={() => openActionDialog('image')}
+                                        onAlign={handleAlignment}
+                                    />
                                     <Textarea id="content" name="content" ref={contentRef} value={postData.content} onChange={handleInputChange} rows={30} placeholder="El cuerpo de tu entrada de blog..." className="rounded-t-none" />
                                 </div>
                             </div>

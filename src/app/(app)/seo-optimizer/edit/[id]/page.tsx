@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { useEffect, useState, Suspense, useCallback } from 'react';
+import React, { useEffect, useState, Suspense, useCallback, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -20,6 +20,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { SeoAnalyzer } from '@/components/features/blog/seo-analyzer';
 import { GoogleSnippetPreview } from '@/components/features/blog/google-snippet-preview';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ContentToolbar } from '@/components/features/editor/content-toolbar';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 
 interface PostEditState {
@@ -60,6 +62,15 @@ function EditPageContent() {
   const [categories, setCategories] = useState<WordPressPostCategory[]>([]);
   const [authors, setAuthors] = useState<WordPressUser[]>([]);
   const [syncSeo, setSyncSeo] = useState(true);
+  
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+  const selectionRef = useRef<{ start: number; end: number } | null>(null);
+  const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
+  const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const { toast } = useToast();
 
@@ -110,8 +121,8 @@ function EditPageContent() {
             const aiContent = await response.json();
 
             if (mode === 'enhance_content') {
-                setPost(prev => prev ? { ...prev, title: aiContent.title } : null);
-                toast({ title: "Título mejorado", description: "Se ha actualizado el título de la entrada." });
+                setPost(prev => prev ? { ...prev, title: aiContent.title, content: aiContent.content } : null);
+                toast({ title: "Título y contenido mejorados", description: "Se ha actualizado el título y contenido de la entrada." });
             } else if (mode === 'generate_meta_description') {
                 setPost(prev => prev ? { ...prev, metaDescription: aiContent.metaDescription } : null);
                 toast({ title: "Meta descripción generada", description: "El campo para buscadores ha sido actualizado." });
@@ -147,6 +158,7 @@ function EditPageContent() {
         
         const payload: any = {
             title: post.title,
+            content: post.content,
             status: post.status,
             author: post.author,
             metaDescription: post.metaDescription,
@@ -272,6 +284,130 @@ function EditPageContent() {
     }
   }, [post?.content]);
   
+    const handleInsertTag = (tag: 'h2' | 'ul' | 'ol' | 'strong' | 'em') => {
+        const textarea = contentRef.current;
+        if (!textarea || !post) return;
+        
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const selectedText = textarea.value.substring(start, end);
+        let newText;
+
+        if (tag === 'ul' || tag === 'ol') {
+            const listItems = selectedText.split('\n').map(line => `  <li>${line}</li>`).join('\n');
+            newText = `${textarea.value.substring(0, start)}<${tag}>\n${listItems}\n</${tag}>${textarea.value.substring(end)}`;
+        } else {
+            newText = `${textarea.value.substring(0, start)}<${tag}>${selectedText}</${tag}>${textarea.value.substring(end)}`;
+        }
+        
+        setPost({ ...post, content: newText });
+    };
+
+    const handleAlignment = (align: 'left' | 'center' | 'right' | 'justify') => {
+        const textarea = contentRef.current;
+        if (!textarea || !post) return;
+
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const selectedText = textarea.value.substring(start, end);
+
+        if (!selectedText) {
+            toast({
+                title: "Selecciona texto primero",
+                description: "Debes seleccionar el párrafo al que quieres aplicar la alineación.",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        const newText = `${textarea.value.substring(0, start)}<p style="text-align: ${align};">${selectedText}</p>${textarea.value.substring(end)}`;
+        setPost({ ...post, content: newText });
+    };
+
+    const openActionDialog = (action: 'link' | 'image') => {
+        const textarea = contentRef.current;
+        if (textarea) {
+            selectionRef.current = { start: textarea.selectionStart, end: textarea.selectionEnd };
+            if (action === 'link') setIsLinkDialogOpen(true);
+            if (action === 'image') setIsImageDialogOpen(true);
+        }
+    };
+
+    const handleInsertLink = () => {
+        const textarea = contentRef.current;
+        const selection = selectionRef.current;
+        if (!textarea || !selection || !linkUrl || !post) return;
+        
+        const { start, end } = selection;
+        const selectedText = textarea.value.substring(start, end);
+        
+        if (!selectedText) {
+            toast({ title: 'Selecciona texto primero', description: 'Debes seleccionar el texto que quieres convertir en un enlace.', variant: 'destructive' });
+            return;
+        }
+
+        const newText = `${textarea.value.substring(0, start)}<a href="${linkUrl}" target="_blank" rel="noopener noreferrer">${selectedText}</a>${textarea.value.substring(end)}`;
+        
+        setPost({ ...post, content: newText });
+        setLinkUrl('');
+        setIsLinkDialogOpen(false);
+    };
+
+    const handleInsertImage = async () => {
+        let finalImageUrl = imageUrl;
+        if (!post) return;
+
+        if (imageFile) {
+            setIsUploadingImage(true);
+            try {
+                const user = auth.currentUser;
+                if (!user) throw new Error("No autenticado.");
+                const token = await user.getIdToken();
+
+                const formData = new FormData();
+                formData.append('imagen', imageFile);
+
+                const response = await fetch('/api/upload-image', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData,
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Fallo en la subida de imagen.');
+                }
+                
+                const imageData = await response.json();
+                finalImageUrl = imageData.url;
+
+            } catch (err: any) {
+                toast({ title: 'Error al subir imagen', description: err.message, variant: 'destructive' });
+                setIsUploadingImage(false);
+                return;
+            } finally {
+                setIsUploadingImage(false);
+            }
+        }
+
+        if (!finalImageUrl) {
+            toast({ title: 'Falta la imagen', description: 'Por favor, sube un archivo o introduce una URL.', variant: 'destructive' });
+            return;
+        }
+
+        const textarea = contentRef.current;
+        const selection = selectionRef.current;
+        if (!textarea || !selection) return;
+
+        const { start } = selection;
+        const newText = `${textarea.value.substring(0, start)}\n<img src="${finalImageUrl}" alt="${post.title || 'Imagen insertada'}" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px;" />\n${textarea.value.substring(start)}`;
+        
+        setPost({ ...post, content: newText });
+
+        setImageUrl('');
+        setImageFile(null);
+        setIsImageDialogOpen(false);
+    };
 
   if (isLoading) {
     return <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
@@ -288,6 +424,7 @@ function EditPageContent() {
   const imagesWithoutAlt = imagesInContent.filter(img => !img.alt);
 
   return (
+    <>
     <div className="container mx-auto py-8 space-y-6">
         <Card>
             <CardHeader>
@@ -331,23 +468,52 @@ function EditPageContent() {
                     <Label htmlFor="metaDescription">Meta Descripción (para Google)</Label>
                     <Textarea id="metaDescription" name="metaDescription" value={post.metaDescription} onChange={handleInputChange} maxLength={165} rows={4} />
                 </div>
-                 {post.isElementor && post.elementorEditLink && (
-                        <Alert className="mt-4">
+              </CardContent>
+            </Card>
+            
+            <Card>
+                <CardHeader>
+                    <CardTitle>Contenido Principal</CardTitle>
+                    <CardDescription>Edita el contenido de tu entrada o página. Para páginas de Elementor, usa el enlace directo.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {post.isElementor ? (
+                         <Alert>
                             <ExternalLink className="h-4 w-4" />
                             <AlertTitle>Página de Elementor</AlertTitle>
                             <AlertDescription>
-                                El contenido de esta página se edita con Elementor. Usa este botón para abrir el editor visual y modificar el contenido y los textos alternativos de las imágenes.
+                                El contenido de esta página se edita con Elementor. Usa este botón para abrir el editor visual.
                             </AlertDescription>
                             <Button asChild className="mt-4" size="sm">
-                                <Link href={post.elementorEditLink} target="_blank" rel="noopener noreferrer">
+                                <Link href={post.elementorEditLink!} target="_blank" rel="noopener noreferrer">
                                     <ExternalLink className="mr-2 h-4 w-4" />
                                     Abrir con Elementor
                                 </Link>
                             </Button>
                         </Alert>
+                    ) : (
+                        <div>
+                            <ContentToolbar
+                                onInsertTag={handleInsertTag}
+                                onInsertLink={() => openActionDialog('link')}
+                                onInsertImage={() => openActionDialog('image')}
+                                onAlign={handleAlignment}
+                            />
+                            <Textarea
+                                id="content"
+                                name="content"
+                                ref={contentRef}
+                                value={post.content}
+                                onChange={handleInputChange}
+                                rows={20}
+                                className="rounded-t-none"
+                                placeholder="Aquí aparecerá el contenido de tu entrada..."
+                            />
+                        </div>
                     )}
-              </CardContent>
+                </CardContent>
             </Card>
+
 
             <Card>
               <CardHeader>
@@ -427,7 +593,7 @@ function EditPageContent() {
                 <CardContent className="flex flex-col gap-2">
                   <Button onClick={() => handleAiGeneration('enhance_content')} disabled={isAiLoading || !post.content}>
                       {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                      Mejorar Título con IA
+                      Mejorar Título y Contenido
                   </Button>
                   <Button onClick={() => handleAiGeneration('generate_focus_keyword')} disabled={isAiLoading || !post.content} variant="outline">
                       {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
@@ -474,6 +640,60 @@ function EditPageContent() {
           </div>
         </div>
     </div>
+    
+            <AlertDialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Añadir Enlace</AlertDialogTitle>
+                        <AlertDialogDescription>Introduce la URL completa a la que quieres enlazar el texto seleccionado.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <Input 
+                        value={linkUrl} 
+                        onChange={(e) => setLinkUrl(e.target.value)} 
+                        placeholder="https://ejemplo.com" 
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleInsertLink(); } }}
+                    />
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setLinkUrl('')}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleInsertLink}>Añadir Enlace</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Insertar Imagen</AlertDialogTitle>
+                        <AlertDialogDescription>Sube una imagen o introduce una URL para insertarla en el contenido.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="space-y-4">
+                        <div>
+                            <Label htmlFor="image-upload">Subir archivo</Label>
+                            <Input id="image-upload" type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
+                        </div>
+                        <div className="relative">
+                            <div className="absolute inset-0 flex items-center">
+                                <span className="w-full border-t" />
+                            </div>
+                            <div className="relative flex justify-center text-xs uppercase">
+                                <span className="bg-background px-2 text-muted-foreground">O</span>
+                            </div>
+                        </div>
+                        <div>
+                            <Label htmlFor="image-url">Insertar desde URL</Label>
+                            <Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" />
+                        </div>
+                    </div>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => { setImageUrl(''); setImageFile(null); }}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleInsertImage} disabled={isUploadingImage}>
+                            {isUploadingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Insertar Imagen
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+    </>
   );
 }
 
