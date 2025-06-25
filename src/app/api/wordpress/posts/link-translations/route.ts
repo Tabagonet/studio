@@ -39,13 +39,44 @@ export async function POST(req: NextRequest) {
             throw new Error('WordPress API is not configured for the active connection.');
         }
 
-        // We need to update each post in the group with the complete translation mapping.
         const updatePromises = postIds.map(postId => {
-            return wpApi.post(`/posts/${postId}`, { translations });
+            const payload = {
+                translations: translations,
+            };
+            console.log(`[link-translations] Updating post ID ${postId} with payload:`, JSON.stringify(payload));
+            return wpApi.post(`/posts/${postId}`, payload);
         });
 
-        await Promise.all(updatePromises);
+        // Use Promise.allSettled to see all results, even if some fail
+        const results = await Promise.allSettled(updatePromises);
         
+        let allSucceeded = true;
+        results.forEach((result, index) => {
+            const postId = postIds[index];
+            if (result.status === 'fulfilled') {
+                const updatedPost = result.value.data;
+                // CRUCIAL CHECK: Verify that WordPress actually applied the change.
+                const updatedTranslations = updatedPost.translations || {};
+                const sentKeys = Object.keys(translations);
+                const receivedKeys = Object.keys(updatedTranslations);
+                
+                // A simple length check is a good indicator of success.
+                if (receivedKeys.length < sentKeys.length) {
+                    console.error(`[link-translations] Mismatch for post ${postId}. WP may have ignored the field. Sent:`, translations, "Received:", updatedTranslations);
+                    allSucceeded = false;
+                } else {
+                    console.log(`[link-translations] Successfully updated post ${postId}.`);
+                }
+            } else {
+                console.error(`[link-translations] Failed to update post ${postId}:`, result.reason.response?.data || result.reason.message);
+                allSucceeded = false;
+            }
+        });
+        
+        if (!allSucceeded) {
+            throw new Error('Algunas traducciones no se pudieron enlazar. Esto puede deberse a la configuración de Polylang en tu WordPress o a un problema de permisos del usuario de la API.');
+        }
+
         return NextResponse.json({
             success: true,
             message: `${postIds.length} entradas han sido enlazadas correctamente como traducciones.`,
@@ -56,7 +87,7 @@ export async function POST(req: NextRequest) {
         const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
         return NextResponse.json({ 
             error: 'An unexpected error occurred during the linking process.', 
-            message: error.response?.data?.message || error.message 
+            message: error.message 
         }, { status });
     }
 }
