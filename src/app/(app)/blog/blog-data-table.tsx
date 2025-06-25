@@ -34,8 +34,8 @@ import type { BlogPostSearchResult, WordPressPostCategory, BlogStats } from "@/l
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { BookOpen, FileCheck2, FileText, Loader2, Lock, Trash2, ChevronDown, Languages } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { BookOpen, FileCheck2, FileText, Loader2, Lock, Trash2, ChevronDown, Languages, Link2 } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 
 const LANGUAGE_MAP: { [key: string]: string } = {
@@ -60,6 +60,7 @@ export function BlogDataTable() {
   const [stats, setStats] = React.useState<BlogStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = React.useState(true);
   const [isBatchActionLoading, setIsBatchActionLoading] = React.useState(false);
+  const [isLinking, setIsLinking] = React.useState(false);
   const [availableLanguages, setAvailableLanguages] = React.useState<{code: string; name: string}[]>([]);
 
   // Filter states
@@ -152,46 +153,36 @@ export function BlogDataTable() {
 
       const { posts, totalPages } = await response.json();
       
-      // Update available languages for the filter dropdown
-      const langCodes = new Set(posts.map((p: BlogPostSearchResult) => p.lang).filter((l: string | undefined): l is string => l !== undefined && l !== 'N/A'));
-      const dynamicLangs = Array.from(langCodes).map(code => ({ code, name: LANGUAGE_MAP[code] || code.toUpperCase() }));
-      setAvailableLanguages(dynamicLangs);
+      const langCodes = new Set(posts.map((p: BlogPostSearchResult) => p.lang).filter((l: string | undefined): l is string => !!l && l !== 'N/A'));
+      setAvailableLanguages(Array.from(langCodes).map(code => ({ code, name: LANGUAGE_MAP[code] || code.toUpperCase() })));
+
 
       const postsById = new Map(posts.map((p: BlogPostSearchResult) => [p.id, { ...p, subRows: [] as HierarchicalBlogPost[] }]));
-      let hierarchicalData: HierarchicalBlogPost[] = [];
+      const roots: HierarchicalBlogPost[] = [];
+      const processedIds = new Set<number>();
 
-      if (selectedLanguage === 'all') {
-        const processedIds = new Set<number>();
-        posts.forEach((post: BlogPostSearchResult) => {
-            if (processedIds.has(post.id)) return;
+      posts.forEach((post: BlogPostSearchResult) => {
+          if (processedIds.has(post.id)) return;
 
-            const rootCandidate = postsById.get(post.id)!;
-            if (post.translations && Object.values(post.translations).length > 1) {
-                Object.values(post.translations).forEach(transId => {
-                    if (transId !== post.id && postsById.has(transId)) {
-                        const childPost = postsById.get(transId)!;
-                        if (!rootCandidate.subRows) rootCandidate.subRows = [];
-                        rootCandidate.subRows.push(childPost);
-                        processedIds.add(transId);
-                    }
-                });
-            }
-            if (!processedIds.has(post.id)) {
-                hierarchicalData.push(rootCandidate);
-                processedIds.add(post.id);
-            }
-        });
-      } else {
-        const roots = posts.filter((p: BlogPostSearchResult) => p.lang === selectedLanguage);
-        hierarchicalData = roots.map((rootPost: HierarchicalBlogPost) => {
-            const subRows = Object.values(rootPost.translations || {})
-                .filter(transId => transId !== rootPost.id && postsById.has(transId))
-                .map(transId => postsById.get(transId)!);
-            return { ...rootPost, subRows };
-        });
-      }
+          let mainPost: HierarchicalBlogPost;
+          const translationIds = new Set(Object.values(post.translations || {}));
+
+          if (translationIds.size > 1) {
+              const groupPosts = Array.from(translationIds).map(id => postsById.get(id)).filter(Boolean) as HierarchicalBlogPost[];
+              mainPost = groupPosts.find(p => p.lang === selectedLanguage) || groupPosts[0];
+              mainPost.subRows = groupPosts.filter(p => p.id !== mainPost.id);
+              groupPosts.forEach(p => processedIds.add(p.id));
+          } else {
+              mainPost = postsById.get(post.id)!;
+              processedIds.add(post.id);
+          }
+          
+          if (selectedLanguage === 'all' || mainPost.lang === selectedLanguage) {
+              roots.push(mainPost);
+          }
+      });
       
-      setData(hierarchicalData);
+      setData(roots);
       setTotalPages(totalPages);
     } catch (error) {
       console.error(error);
@@ -386,9 +377,70 @@ export function BlogDataTable() {
     } finally {
         setIsBatchActionLoading(false);
     }
-};
+  };
+
+  const handleBatchLinkTranslations = async () => {
+    setIsLinking(true);
+    const selectedRows = table.getSelectedRowModel().rows;
+    
+    if (selectedRows.length < 2) {
+        toast({ title: "Selección insuficiente", description: "Debes seleccionar al menos dos entradas para enlazarlas.", variant: "destructive" });
+        setIsLinking(false);
+        return;
+    }
+
+    const languages = selectedRows.map(row => row.original.lang);
+    if (new Set(languages).size !== languages.length) {
+        toast({ title: "Idiomas duplicados", description: "No puedes enlazar dos entradas del mismo idioma.", variant: "destructive" });
+        setIsLinking(false);
+        return;
+    }
+    
+    const translations: Record<string, number> = {};
+    selectedRows.forEach(row => {
+        if(row.original.lang) {
+            translations[row.original.lang] = row.original.id;
+        }
+    });
+
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: "No autenticado", variant: "destructive" });
+        setIsLinking(false);
+        return;
+    }
+
+    toast({ title: `Enlazando ${selectedRows.length} entrada(s)...` });
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/wordpress/posts/link-translations', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ translations })
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || result.message || 'Fallo el enlace de traducciones.');
+        }
+
+        toast({ title: "¡Traducciones enlazadas!", description: result.message });
+        table.resetRowSelection();
+        fetchData();
+        fetchStats();
+    } catch (error: any) {
+         toast({ title: "Error al enlazar", description: error.message, variant: "destructive" });
+    } finally {
+        setIsLinking(false);
+    }
+  };
+
 
   const selectedRowCount = table.getFilteredSelectedRowModel().rows.length;
+  const isActionLoading = isBatchActionLoading || isLinking;
 
   return (
     <div className="w-full space-y-4">
@@ -448,13 +500,17 @@ export function BlogDataTable() {
          <AlertDialog>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" disabled={selectedRowCount === 0 || isBatchActionLoading} className="w-full md:w-auto mt-2 md:mt-0">
-                {isBatchActionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronDown className="mr-2 h-4 w-4" />}
+              <Button variant="outline" disabled={selectedRowCount === 0 || isActionLoading} className="w-full md:w-auto mt-2 md:mt-0">
+                {isActionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronDown className="mr-2 h-4 w-4" />}
                 Acciones ({selectedRowCount})
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Acciones en Lote</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={handleBatchLinkTranslations} disabled={selectedRowCount < 2}>
+                  <Link2 className="mr-2 h-4 w-4" /> Enlazar Traducciones
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <AlertDialogTrigger asChild>
                 <DropdownMenuItem className="text-destructive focus:text-destructive">
                   <Trash2 className="mr-2 h-4 w-4" /> Eliminar Entradas
