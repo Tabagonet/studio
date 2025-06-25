@@ -168,6 +168,56 @@ function EditPageContent() {
       setIsImageDialogOpen(false);
   };
   
+    const handleAiGeneration = useCallback(async (mode: 'enhance_content' | 'suggest_keywords') => {
+        setIsAiLoading(true);
+        if (!post) {
+            setIsAiLoading(false);
+            return;
+        }
+        try {
+            const user = auth.currentUser;
+            if (!user) throw new Error("No autenticado.");
+            const token = await user.getIdToken();
+            
+            const payload = { 
+                mode, 
+                language: 'Spanish',
+                existingTitle: post.title,
+                existingContent: post.content
+            };
+            
+            if (!payload.existingTitle || !payload.existingContent) {
+                 throw new Error("El título y el contenido son necesarios para esta acción.");
+            }
+
+            const response = await fetch('/api/generate-blog-post', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || "La IA no pudo procesar la solicitud.");
+            }
+
+            const aiContent = await response.json();
+
+            if (mode === 'enhance_content') {
+                setPost(prev => prev ? { ...prev, title: aiContent.title, content: aiContent.content } : null);
+                toast({ title: "Contenido mejorado", description: "Se han actualizado el título y el contenido." });
+            } else if (mode === 'suggest_keywords') {
+                setPost(prev => prev ? { ...prev, tags: aiContent.suggestedKeywords } : null);
+                toast({ title: "Etiquetas sugeridas", description: "Se han actualizado las etiquetas." });
+            }
+
+        } catch (error: any) {
+            toast({ title: "Error de IA", description: error.message, variant: "destructive" });
+        } finally {
+            setIsAiLoading(false);
+        }
+    }, [post, toast]);
+
   const handleSaveChanges = async () => {
     setIsSaving(true);
     const user = auth.currentUser;
@@ -198,14 +248,19 @@ function EditPageContent() {
             payload.featured_image_src = uploadResponse.data.url;
         } else if (!post.featuredImage) {
             // Image was removed
-            payload.featured_media = 0;
+            payload.featured_media_id = 0;
         }
         
-        await fetch(`/api/wordpress/posts/${postId}`, {
+        const response = await fetch(`/api/wordpress/posts/${postId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(payload)
         });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Fallo al guardar los cambios');
+        }
 
         toast({ title: '¡Éxito!', description: `La entrada ha sido actualizada en WordPress.` });
         router.push('/blog');
@@ -255,7 +310,7 @@ function EditPageContent() {
       try {
         const token = await user.getIdToken();
         const [postResponse, categoriesResponse, authorsResponse] = await Promise.all([
-          fetch(`/api/wordpress/posts/${postId}`, { headers: { 'Authorization': `Bearer ${token}` }}),
+          fetch(`/api/wordpress/posts/${postId}?context=edit`, { headers: { 'Authorization': `Bearer ${token}` }}),
           fetch('/api/wordpress/post-categories', { headers: { 'Authorization': `Bearer ${token}` }}),
           fetch('/api/wordpress/users', { headers: { 'Authorization': `Bearer ${token}` }})
         ]);
@@ -377,6 +432,22 @@ function EditPageContent() {
           
           <div className="space-y-6">
             <Card>
+                <CardHeader>
+                    <CardTitle>Asistente de IA</CardTitle>
+                    <CardDescription>Utiliza la IA para mejorar tu contenido.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                    <Button onClick={() => handleAiGeneration('enhance_content')} disabled={isAiLoading || !post.content} className="w-full">
+                        {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                        Mejorar Contenido
+                    </Button>
+                    <Button onClick={() => handleAiGeneration('suggest_keywords')} disabled={isAiLoading || !post.content} className="w-full" variant="outline">
+                        {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tags className="mr-2 h-4 w-4" />}
+                        Sugerir Etiquetas
+                    </Button>
+                </CardContent>
+            </Card>
+            <Card>
                 <CardHeader><CardTitle>Publicación</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div><Label>Autor</Label><Select name="author" value={post.author?.toString() || ''} onValueChange={(v) => setPost(prev => prev ? {...prev, author: Number(v)} : null)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{authors.map(a => <SelectItem key={a.id} value={a.id.toString()}>{a.name}</SelectItem>)}</SelectContent></Select></div>
@@ -422,7 +493,7 @@ function EditPageContent() {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente la entrada.</AlertDialogDescription></AlertDialogHeader>
-                            <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDeletePost}>Sí, eliminar</AlertDialogAction></AlertDialogFooter>
+                            <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDeletePost} className={buttonVariants({ variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
                 </CardContent>

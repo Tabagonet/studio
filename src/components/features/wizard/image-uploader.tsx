@@ -98,7 +98,7 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
         <TooltipProvider>
           <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {photos.map((photo) => (
-              <div key={photo.id} className="relative group border rounded-lg overflow-hidden shadow-sm h-32">
+              <div key={photo.id} className="relative group border rounded-lg overflow-hidden shadow-sm aspect-square">
                 <Image
                   src={photo.previewUrl}
                   alt={`Vista previa de ${photo.name}`}
