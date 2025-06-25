@@ -1,5 +1,4 @@
 
-
 import type { LucideIcon } from 'lucide-react';
 import type { AnalysisResult } from '@/components/features/seo/analysis-view';
 
@@ -97,6 +96,7 @@ export interface BlogPostData {
   focusKeyword: string;
   metaDescription: string;
   category: WordPressPostCategory | null;
+  categoryPath?: string;
   status: 'publish' | 'draft' | 'pending';
   featuredImage: ProductPhoto | null;
   sourceLanguage: string;
@@ -175,29 +175,6 @@ export interface SubmissionStep {
   error?: string;
 }
 
-export type ProductStats = {
-  total: number;
-  status: {
-    publish: number;
-    draft: number;
-  };
-  type: {
-    simple: number;
-    variable: number;
-    grouped: number;
-  };
-};
-
-export type BlogStats = {
-  total: number;
-  status: {
-    publish: number;
-    draft: number;
-    future: number;
-    private: number;
-  };
-};
-
 export type ContentStats = {
   totalPosts: number;
   totalPages: number;
@@ -258,5 +235,3 @@ export interface SeoAnalysisRecord {
   analysis: AnalysisResult;
   score: number;
 }
-
-    

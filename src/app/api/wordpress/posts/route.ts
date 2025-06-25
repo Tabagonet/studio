@@ -1,7 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress, findOrCreateTags } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress, findOrCreateTags, findOrCreateWpCategoryByPath } from '@/lib/api-helpers';
 import { z } from 'zod';
 import type { BlogPostData } from '@/lib/types';
 import axios from 'axios';
@@ -22,6 +22,7 @@ const postSchema = z.object({
   status: z.enum(['publish', 'draft', 'pending']),
   author: z.object({ id: z.number() }).nullable(),
   category: z.object({ id: z.number() }).nullable(),
+  categoryPath: z.string().optional(),
   keywords: z.string().optional(),
   featuredImage: z.object({ uploadedUrl: z.string().url().optional() }).nullable(),
   publishDate: z.string().nullable().or(z.date().nullable()),
@@ -83,7 +84,15 @@ export async function POST(request: NextRequest) {
         const tagNames = postData.keywords ? postData.keywords.split(',').map(t => t.trim()).filter(Boolean) : [];
         const tagIds = await findOrCreateTags(tagNames, wpApi);
         
-        // 3. Create the post
+        // 3. Find or create category
+        let finalCategoryId: number | null = null;
+        if (postData.categoryPath) {
+            finalCategoryId = await findOrCreateWpCategoryByPath(postData.categoryPath, wpApi);
+        } else if (postData.category) {
+            finalCategoryId = postData.category.id;
+        }
+
+        // 4. Create the post
         const postPayload: any = {
             title: postData.title,
             content: postData.content,
@@ -97,7 +106,7 @@ export async function POST(request: NextRequest) {
              }
         };
         if (featuredMediaId) postPayload.featured_media = featuredMediaId;
-        if (postData.category?.id) postPayload.categories = [postData.category.id];
+        if (finalCategoryId) postPayload.categories = [finalCategoryId];
         if (tagIds.length > 0) postPayload.tags = tagIds;
         if (postData.author?.id) postPayload.author = postData.author.id;
         if (postData.publishDate) postPayload.date = new Date(postData.publishDate).toISOString();

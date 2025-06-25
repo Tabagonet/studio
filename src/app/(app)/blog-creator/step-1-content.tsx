@@ -550,7 +550,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                                 <Label>Categoría</Label>
                                 <Select name="category" value={postData.category?.id.toString() || ''} onValueChange={(value) => {
                                     const selectedCategory = categories.find(c => c.id.toString() === value);
-                                    updatePostData({ category: selectedCategory || null });
+                                    updatePostData({ category: selectedCategory || null, categoryPath: '' });
                                 }} disabled={isLoading.categories}>
                                     <SelectTrigger><SelectValue placeholder="Selecciona una categoría..." /></SelectTrigger>
                                     <SelectContent>
@@ -558,7 +558,22 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                                     </SelectContent>
                                 </Select>
                             </div>
+                            <div className="relative">
+                                <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+                                <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">O</span></div>
+                            </div>
                             <div>
+                                <Label htmlFor="categoryPath">Crear Nueva Categoría (Ej: Principal &gt; Subcategoría)</Label>
+                                <Input
+                                    id="categoryPath"
+                                    name="categoryPath"
+                                    value={postData.categoryPath || ''}
+                                    onChange={(e) => updatePostData({ categoryPath: e.target.value, category: null })}
+                                    placeholder="Introduce la ruta de la categoría"
+                                />
+                            </div>
+
+                            <div className="pt-4 border-t">
                                 <Label>Etiquetas (separadas por comas)</Label>
                                 <Input name="keywords" value={postData.keywords} onChange={handleInputChange} placeholder="Ej: SEO, marketing, WordPress" />
                             </div>

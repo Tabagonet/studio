@@ -21,6 +21,7 @@ const postUpdateSchema = z.object({
     featured_image_src: z.string().url().optional(), // URL of a new image to upload
     metaDescription: z.string().optional(),
     focusKeyword: z.string().optional(),
+    translations: z.record(z.string(), z.number()).optional(),
 });
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {

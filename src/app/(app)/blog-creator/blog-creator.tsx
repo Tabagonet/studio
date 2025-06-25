@@ -57,6 +57,9 @@ export function BlogCreator() {
         initialSteps.push({ id: `translate_${lang}`, name: `Traduciendo a ${lang}`, status: 'pending' });
         initialSteps.push({ id: `create_${lang}`, name: `Creando entrada en ${lang}`, status: 'pending' });
     });
+    if (postData.targetLanguages.length > 0) {
+        initialSteps.push({ id: 'sync_translations', name: 'Sincronizando enlaces de traducción', status: 'pending' });
+    }
     setSteps(initialSteps);
     setSubmissionStatus('processing');
     setFinalLinks([]);
@@ -71,6 +74,7 @@ export function BlogCreator() {
     const translationGroupId = uuidv4();
     let finalPostData = { ...postData };
     let createdPostUrls: { url: string; title: string }[] = [];
+    const allTranslations: { [key: string]: number } = {};
 
     try {
         // --- Step 1: Upload Image (if necessary) ---
@@ -103,12 +107,10 @@ export function BlogCreator() {
         }
         const originalResult = await originalResponse.json();
         createdPostUrls.push({ url: originalResult.url, title: originalResult.title });
+        allTranslations[sourceLangSlug] = originalResult.id;
         updateStepStatus('create_original', 'success');
         
         // --- Step 3: Create Translations ---
-        const originalPostId = originalResult.id;
-        const allTranslations = { [sourceLangSlug]: originalPostId };
-
         for (const lang of postData.targetLanguages) {
             // a. Translate content
             updateStepStatus(`translate_${lang}`, 'processing');
@@ -117,7 +119,7 @@ export function BlogCreator() {
             const translatedContent = await translateResponse.json();
             updateStepStatus(`translate_${lang}`, 'success');
 
-            // b. Create translated post, linked to original
+            // b. Create translated post
             updateStepStatus(`create_${lang}`, 'processing');
             const translatedPostData = { ...finalPostData, title: translatedContent.title, content: translatedContent.content };
             const targetLangSlug = LANG_CODE_MAP[lang] || lang.toLowerCase().substring(0, 2);
@@ -126,7 +128,7 @@ export function BlogCreator() {
                 postData: translatedPostData, 
                 translationGroupId,
                 lang: targetLangSlug,
-                translations: allTranslations, // Link to existing translations
+                // Do not link yet, we will do a final sync at the end
             };
             const translatedResponse = await fetch('/api/wordpress/posts', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(translatedPayload) });
             if (!translatedResponse.ok) {
@@ -138,6 +140,28 @@ export function BlogCreator() {
             allTranslations[targetLangSlug] = translatedResult.id; // Add new translation to the group for the next iteration
             updateStepStatus(`create_${lang}`, 'success');
         }
+        
+        // --- Step 4: Final Sync of all translation links ---
+        if (Object.keys(allTranslations).length > 1) {
+            updateStepStatus('sync_translations', 'processing');
+            const updatePromises = Object.values(allTranslations).map(postId => {
+                return fetch(`/api/wordpress/posts/${postId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ translations: allTranslations })
+                });
+            });
+
+            const updateResults = await Promise.all(updatePromises);
+            const failedUpdates = updateResults.filter(res => !res.ok);
+
+            if (failedUpdates.length > 0) {
+                console.warn(`${failedUpdates.length} posts failed to sync translation links.`);
+                throw new Error('Algunos enlaces de traducción no se pudieron sincronizar.');
+            }
+            updateStepStatus('sync_translations', 'success');
+        }
+
 
         setFinalLinks(createdPostUrls);
         setSubmissionStatus('success');
