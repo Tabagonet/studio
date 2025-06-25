@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import { z } from 'zod';
+import { v4 as uuidv4 } from 'uuid';
 
 const linkSchema = z.object({
   translations: z.record(z.string(), z.number()), // e.g. { "en": 123, "es": 456 }
@@ -28,8 +29,9 @@ export async function POST(req: NextRequest) {
         }
         
         const { translations } = validation.data;
+        const postIds = Object.values(translations);
 
-        if (Object.keys(translations).length < 2) {
+        if (postIds.length < 2) {
             return NextResponse.json({ error: 'At least two posts are required to link.' }, { status: 400 });
         }
 
@@ -38,14 +40,17 @@ export async function POST(req: NextRequest) {
             throw new Error('WordPress API is not configured for the active connection.');
         }
 
-        // The key is to update EACH post with the full list of all other translations.
-        // Polylang will then create the term in its hidden taxonomy and assign it.
-        const updatePromises = Object.entries(translations).map(([lang, postId]) => {
+        // Generate a single, unique group ID for this new linkage.
+        const translationGroupId = uuidv4();
+
+        // Update each post with the same group ID via meta field, which the custom plugin will use.
+        const updatePromises = postIds.map(postId => {
             const payload = {
-                // The 'translations' property is what Polylang uses.
-                translations: translations, 
+                meta: { 
+                    translation_group_id: translationGroupId,
+                }
             };
-            console.log(`[link-translations] Updating post ID ${postId} with translations object:`, JSON.stringify(payload));
+            console.log(`[link-translations] Updating post ID ${postId} with translation_group_id: ${translationGroupId}`);
             // WordPress uses POST to the ID endpoint for updates.
             return wpApi.post(`/posts/${postId}`, payload);
         });
@@ -56,7 +61,7 @@ export async function POST(req: NextRequest) {
         const errors: string[] = [];
 
         results.forEach((result, index) => {
-            const postId = Object.values(translations)[index];
+            const postId = postIds[index];
             if (result.status === 'fulfilled') {
                 console.log(`[link-translations] Successfully updated post ${postId}.`);
                 successCount++;
@@ -68,14 +73,8 @@ export async function POST(req: NextRequest) {
         });
         
         if (errors.length > 0) {
-            // Check for a specific Polylang error
-            const commonError = errors[0];
-            if (commonError.includes('rest_invalid_param') && commonError.includes('translations')) {
-                throw new Error("Failed to link translations. Your WordPress site might be missing the Polylang REST API support. Please ensure Polylang is active and correctly configured.");
-            }
             throw new Error(`Failed to link some translations. Errors: ${errors.join(', ')}`);
         }
-
 
         return NextResponse.json({
             success: true,
