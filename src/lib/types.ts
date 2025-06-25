@@ -165,7 +165,6 @@ export interface ParsedNameData {
   normalizedProductName: string;
 }
 
-export type WizardProcessingState = 'idle' | 'processing' | 'finished' | 'error';
 export type SubmissionStatus = 'idle' | 'processing' | 'success' | 'error';
 
 export type SubmissionStepStatus = 'pending' | 'processing' | 'success' | 'error';

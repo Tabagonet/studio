@@ -104,12 +104,12 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
         <TooltipProvider>
           <div className={cn(
             "gap-4",
-            maxPhotos > 1 && "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4"
+            maxPhotos > 1 && "grid grid-cols-2 sm:grid-cols-3"
           )}>
             {photos.map((photo) => (
               <div key={photo.id} className={cn(
                 "relative group border rounded-lg overflow-hidden shadow-sm",
-                maxPhotos === 1 ? "w-full aspect-[16/9]" : "aspect-square"
+                maxPhotos === 1 ? "w-full aspect-video" : "aspect-square"
               )}>
                 <Image
                   src={photo.previewUrl}

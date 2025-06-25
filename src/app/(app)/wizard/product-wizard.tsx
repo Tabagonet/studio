@@ -6,7 +6,7 @@ import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
 import { Step2Preview } from './step-2-preview'; 
 import { Step3Confirm } from './step-3-confirm';
 import { Step4Processing } from './step-4-processing';
-import type { ProductData, SubmissionStep, WizardProcessingState } from '@/lib/types';
+import type { ProductData, SubmissionStep, SubmissionStatus } from '@/lib/types';
 import { INITIAL_PRODUCT_DATA } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -18,13 +18,13 @@ import Link from 'next/link';
 export function ProductWizard() {
   const [currentStep, setCurrentStep] = useState(1);
   const [productData, setProductData] = useState<ProductData>(INITIAL_PRODUCT_DATA);
-  const [processingState, setProcessingState] = useState<WizardProcessingState>('idle');
+  const [submissionStatus, setSubmissionStatus] = useState<SubmissionStatus>('idle');
   const [steps, setSteps] = useState<SubmissionStep[]>([]);
   const [finalLinks, setFinalLinks] = useState<{ url: string; title: string }[]>([]);
 
   const { toast } = useToast();
 
-  const isProcessing = processingState === 'processing';
+  const isProcessing = submissionStatus === 'processing';
 
   const updateProductData = useCallback((data: Partial<ProductData>) => {
     setProductData(prev => ({ ...prev, ...data }));
@@ -44,7 +44,7 @@ export function ProductWizard() {
     const user = auth.currentUser;
     if (!user) {
         toast({ title: "Error de autenticación", description: "Debes iniciar sesión.", variant: "destructive" });
-        setProcessingState('error');
+        setSubmissionStatus('error');
         return;
     }
 
@@ -53,17 +53,22 @@ export function ProductWizard() {
     if (productData.photos.some(p => p.file)) {
       initialSteps.push({ id: 'upload_images', name: 'Subiendo imágenes', status: 'pending' });
     }
-    initialSteps.push({ id: 'create_product', name: `Creando producto(s) y traducciones`, status: 'pending' });
+    initialSteps.push({ id: 'create_product', name: `Creando producto original (${productData.language})`, status: 'pending' });
+    productData.targetLanguages?.forEach(lang => {
+        initialSteps.push({ id: `translate_${lang}`, name: `Traduciendo a ${lang}`, status: 'pending' });
+        initialSteps.push({ id: `create_${lang}`, name: `Creando producto en ${lang}`, status: 'pending' });
+    });
+     if (productData.targetLanguages && productData.targetLanguages.length > 0) {
+        initialSteps.push({ id: 'sync_translations', name: 'Sincronizando enlaces de traducción', status: 'pending' });
+    }
     setSteps(initialSteps);
     setFinalLinks([]);
-    setProcessingState('processing');
+    setSubmissionStatus('processing');
     
     try {
         const token = await user.getIdToken();
 
-        // The single API call that handles everything
-        updateStepStatus('create_product', 'processing');
-
+        // The single API call that handles everything now
         const response = await fetch('/api/woocommerce/products', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -82,8 +87,9 @@ export function ProductWizard() {
         });
         
         setFinalLinks(result.data); // Assuming API returns an array of {url, title}
-        updateStepStatus('create_product', 'success');
-        setProcessingState('finished');
+        // Mark all steps as successful
+        setSteps(prev => prev.map(s => ({...s, status: 'success'})));
+        setSubmissionStatus('success');
 
     } catch (error: any) {
         const errorMessage = error.message || "No se pudo crear el producto.";
@@ -92,8 +98,18 @@ export function ProductWizard() {
             description: errorMessage,
             variant: "destructive",
         });
-        updateStepStatus('create_product', 'error', errorMessage);
-        setProcessingState('error');
+        // Find the first non-successful step and mark it as error
+        setSteps(prev => {
+            let errorShown = false;
+            return prev.map(s => {
+                if (s.status === 'pending' && !errorShown) {
+                    errorShown = true;
+                    return { ...s, status: 'error', error: errorMessage };
+                }
+                return s;
+            });
+        });
+        setSubmissionStatus('error');
         console.error("Full error object when creating product:", error);
     }
   }, [productData, toast]);
@@ -124,7 +140,7 @@ export function ProductWizard() {
       case 3:
         return <Step3Confirm productData={productData} />;
       case 4:
-        return <Step4Processing processingState={processingState} steps={steps} />;
+        return <Step4Processing status={submissionStatus} steps={steps} />;
       default:
         return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} />;
     }
@@ -134,7 +150,7 @@ export function ProductWizard() {
     setProductData(INITIAL_PRODUCT_DATA);
     setSteps([]);
     setFinalLinks([]);
-    setProcessingState('idle');
+    setSubmissionStatus('idle');
     setCurrentStep(1);
     window.scrollTo(0, 0);
   }
@@ -164,10 +180,10 @@ export function ProductWizard() {
         </div>
       )}
 
-      {(processingState === 'finished' || processingState === 'error') && (
+      {(submissionStatus === 'success' || submissionStatus === 'error') && (
          <Card>
             <CardHeader>
-                <CardTitle>{processingState === 'finished' ? 'Proceso Completado' : 'Proceso Interrumpido'}</CardTitle>
+                <CardTitle>{submissionStatus === 'success' ? 'Proceso Completado' : 'Proceso Interrumpido'}</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col items-start gap-4">
                 {finalLinks.length > 0 && (

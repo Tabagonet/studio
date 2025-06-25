@@ -2,12 +2,12 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { WizardProcessingState, SubmissionStep } from "@/lib/types";
-import { CheckCircle, Circle, Loader2, XCircle } from "lucide-react";
+import { SubmissionStatus, SubmissionStep } from "@/lib/types";
+import { CheckCircle, Circle, Loader2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Step4ProcessingProps {
-  processingState: WizardProcessingState;
+  status: SubmissionStatus;
   steps: SubmissionStep[];
 }
 
@@ -16,18 +16,18 @@ const StatusIcon = ({ status }: { status: SubmissionStep['status'] }) => {
         case 'pending': return <Circle className="h-5 w-5 text-muted-foreground" />;
         case 'processing': return <Loader2 className="h-5 w-5 animate-spin text-primary" />;
         case 'success': return <CheckCircle className="h-5 w-5 text-green-500" />;
-        case 'error': return <XCircle className="h-5 w-5 text-destructive" />;
+        case 'error': return <AlertCircle className="h-5 w-5 text-destructive" />;
         default: return null;
     }
 }
 
 
-export function Step4Processing({ processingState, steps }: Step4ProcessingProps) {
+export function Step4Processing({ status, steps }: Step4ProcessingProps) {
     
     const getOverallDescription = () => {
-        switch(processingState) {
+        switch(status) {
             case 'processing': return 'Estamos procesando tu producto. Esto puede tardar unos segundos...';
-            case 'finished': return '¡Proceso completado con éxito!';
+            case 'success': return '¡Proceso completado con éxito!';
             case 'error': return 'Ocurrió un error. Revisa los detalles e inténtalo de nuevo.';
             default: return 'Iniciando proceso de creación...';
         }

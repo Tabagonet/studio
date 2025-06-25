@@ -1,10 +1,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
-import { getApiClientsForUser, findOrCreateCategoryByPath } from '@/lib/api-helpers';
-import type { ProductData } from '@/lib/types';
+import { getApiClientsForUser, findOrCreateCategoryByPath, uploadImageToWordPress, findOrCreateTags, translateContent } from '@/lib/api-helpers';
+import type { ProductData, ProductVariation } from '@/lib/types';
 import axios from 'axios';
-import FormData from 'form-data';
 
 const slugify = (text: string) => {
     if (!text) return '';
@@ -16,222 +15,176 @@ const slugify = (text: string) => {
         .replace(/-+$/, '');
 };
 
-// Helper function to compute the Cartesian product of arrays
-function cartesian(...args: string[][]): string[][] {
+const cartesian = (...args: string[][]): string[][] => {
     const r: string[][] = [];
     const max = args.length - 1;
     function helper(arr: string[], i: number) {
         for (let j = 0, l = args[i].length; j < l; j++) {
             const a = [...arr, args[i][j]];
-            if (i === max) {
-                r.push(a);
-            } else {
-                helper(a, i + 1);
-            }
+            if (i === max) r.push(a);
+            else helper(a, i + 1);
         }
     }
     helper([], 0);
     return r;
-}
+};
 
-export async function POST(request: NextRequest) {
-  let uid, token;
-  try {
-    // 1. Authenticate the user and get API clients
-    token = request.headers.get('Authorization')?.split('Bearer ')[1];
-    if (!token) {
-      return NextResponse.json({ success: false, error: 'Authentication token not provided.' }, { status: 401 });
-    }
-    if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
-    const decodedToken = await adminAuth.verifyIdToken(token);
-    uid = decodedToken.uid;
-    
-    const { wooApi, wpApi, activeConnectionKey } = await getApiClientsForUser(uid);
-    if (!wooApi || !wpApi) {
-        throw new Error('Both WooCommerce and WordPress APIs must be configured for this action.');
-    }
-    const productData: ProductData = await request.json();
-    
-    // 2. Upload images to WordPress via its REST API
+async function createProductInWoo(productData: ProductData, wooApi: any, wpApi: any, finalCategoryId: number | null): Promise<any> {
     const wordpressImageIds = [];
     for (const [index, photo] of productData.photos.entries()) {
-      if (!photo.uploadedUrl) continue;
-
-      try {
-        const imageResponse = await axios.get(photo.uploadedUrl, { responseType: 'arraybuffer' });
-        const imageBuffer = Buffer.from(imageResponse.data);
-
-        // Generate a new SEO-friendly filename, ignoring the original.
-        const baseNameForSeo = productData.imageTitle || productData.name || 'product-image';
-        const filenameSuffix = productData.photos.length > 1 ? `-${index + 1}` : '';
-        const seoFilename = `${slugify(baseNameForSeo)}${filenameSuffix}.jpg`;
-
-        const formData = new FormData();
-        formData.append('file', imageBuffer, seoFilename);
-        formData.append('title', productData.imageTitle || productData.name);
-        formData.append('alt_text', productData.imageAltText || productData.name);
-        formData.append('caption', productData.imageCaption || '');
-        formData.append('description', productData.imageDescription || '');
-
-        const mediaResponse = await wpApi.post('/media', formData, {
-          headers: {
-            ...formData.getHeaders(),
-            'Content-Disposition': `attachment; filename=${seoFilename}`,
-          },
-        });
-
-        wordpressImageIds.push({ id: mediaResponse.data.id });
-
-      } catch (uploadError: any) {
-        let errorMsg = `Error al procesar la imagen '${photo.name}'.`;
-        if (uploadError.response?.data?.message) {
-            errorMsg += ` Razón: ${uploadError.response.data.message}`;
-            if (uploadError.response.status === 401 || uploadError.response.status === 403) {
-              errorMsg += ' Esto es probablemente un problema de permisos. Asegúrate de que el usuario de la Contraseña de Aplicación tiene el rol de "Editor" o "Administrador" en WordPress.';
-            }
-        } else {
-            errorMsg += ` Razón: ${uploadError.message}`;
+        if (photo.uploadedUrl) {
+            const newImageId = await uploadImageToWordPress(
+                photo.uploadedUrl,
+                `${slugify(productData.name)}-${index + 1}.jpg`,
+                { title: productData.imageTitle || productData.name, alt_text: productData.imageAltText || productData.name, caption: productData.imageCaption || '', description: productData.imageDescription || '' },
+                wpApi
+            );
+            wordpressImageIds.push({ id: newImageId });
+        } else if (photo.id && typeof photo.id === 'number') {
+            wordpressImageIds.push({ id: photo.id });
         }
-        console.error(errorMsg, uploadError.response?.data);
-        throw new Error(errorMsg);
-      }
-    }
-    
-    // Handle category
-    let finalCategoryId: number | null = null;
-    if (productData.categoryPath) {
-        finalCategoryId = await findOrCreateCategoryByPath(productData.categoryPath, wooApi);
-    } else if (productData.category) {
-        finalCategoryId = productData.category.id;
     }
 
-
-    // 3. Prepare product data for WooCommerce
     const wooAttributes = productData.attributes
-      .filter(attr => attr.name && attr.value)
-      .map((attr, index) => ({
-        name: attr.name,
-        position: index,
-        visible: attr.visible !== false, // Use the value from data, default to true
-        variation: productData.productType === 'variable' && !!attr.forVariations,
-        options: productData.productType === 'variable' ? attr.value.split('|').map(s => s.trim()) : [attr.value],
-      }));
-    
-    const wooTags = productData.keywords ? productData.keywords.split(',').map(k => ({ name: k.trim() })).filter(k => k.name) : [];
-    
+        .filter(attr => attr.name && attr.value)
+        .map((attr, index) => ({
+            name: attr.name, position: index, visible: attr.visible !== false, variation: productData.productType === 'variable' && !!attr.forVariations,
+            options: productData.productType === 'variable' ? attr.value.split('|').map(s => s.trim()) : [attr.value],
+        }));
+
+    const wooTags = productData.keywords ? await findOrCreateTags(productData.keywords.split(',').map(k => k.trim()).filter(Boolean), wpApi) : [];
+
     const formattedProduct: any = {
-      name: productData.name,
-      ...(productData.shouldSaveSku !== false && productData.sku && { sku: productData.sku }),
-      type: productData.productType,
-      description: productData.longDescription,
-      short_description: productData.shortDescription,
-      categories: finalCategoryId ? [{ id: finalCategoryId }] : [],
-      images: wordpressImageIds,
-      attributes: wooAttributes,
-      tags: wooTags,
-      ...(productData.productType === 'grouped' && { grouped_products: productData.groupedProductIds || [] }),
+        name: productData.name, type: productData.productType,
+        ...(productData.shouldSaveSku !== false && productData.sku && { sku: productData.sku }),
+        description: productData.longDescription, short_description: productData.shortDescription,
+        categories: finalCategoryId ? [{ id: finalCategoryId }] : [],
+        images: wordpressImageIds, attributes: wooAttributes,
+        tags: wooTags.map(id => ({ id })),
+        ...(productData.productType === 'grouped' && { grouped_products: productData.groupedProductIds || [] }),
     };
 
-    // Only add pricing for non-grouped, non-variable products
     if (productData.productType === 'simple') {
         formattedProduct.regular_price = productData.regularPrice;
         formattedProduct.sale_price = productData.salePrice || undefined;
     }
-
-
-    // 4. Send data to WooCommerce to create the product
+    
     const response = await wooApi.post('products', formattedProduct);
     const createdProduct = response.data;
     const productId = createdProduct.id;
 
-    // 5. If it's a variable product, create the variations.
     if (productData.productType === 'variable') {
-        let batchCreatePayload: any[] = [];
-
-        // Case 1: Variations are pre-generated (e.g., from the wizard)
-        if (productData.variations && productData.variations.length > 0) {
-            batchCreatePayload = productData.variations.map(v => ({
-                regular_price: v.regularPrice || undefined,
-                sale_price: v.salePrice || undefined,
-                ...(productData.shouldSaveSku !== false && v.sku && { sku: v.sku }),
-                attributes: v.attributes.map(a => ({
-                    name: a.name,
-                    option: a.value,
-                })),
-            }));
-        } 
-        // Case 2: Variations need to be generated from attributes (e.g., from batch process)
-        else {
-            const variationAttributes = productData.attributes.filter(
-                attr => attr.forVariations && attr.name && attr.value
-            );
-
-            if (variationAttributes.length > 0) {
+        const variations = productData.variations && productData.variations.length > 0
+            ? productData.variations
+            : (() => {
+                const variationAttributes = productData.attributes.filter(attr => attr.forVariations && attr.name && attr.value);
+                if (variationAttributes.length === 0) return [];
                 const attributeNames = variationAttributes.map(attr => attr.name);
-                const attributeValueSets = variationAttributes.map(attr =>
-                    attr.value.split('|').map(v => v.trim()).filter(Boolean)
-                );
+                const attributeValueSets = variationAttributes.map(attr => attr.value.split('|').map(v => v.trim()).filter(Boolean));
+                if (attributeValueSets.some(set => set.length === 0)) return [];
+                return cartesian(...attributeValueSets).map((combo): Omit<ProductVariation, 'id'> => ({
+                    attributes: combo.map((value, index) => ({ name: attributeNames[index], value })),
+                    sku: `${productData.sku || 'SKU'}-${combo.map(v => v.substring(0,3).toUpperCase()).join('-')}`,
+                    regularPrice: '', salePrice: '',
+                }));
+            })();
+
+        if (variations.length > 0) {
+            const batchCreatePayload = variations.map(v => ({
+                regular_price: v.regularPrice || undefined, sale_price: v.salePrice || undefined,
+                ...(productData.shouldSaveSku !== false && v.sku && { sku: v.sku }),
+                attributes: v.attributes.map(a => ({ name: a.name, option: a.value })),
+            }));
+            await wooApi.post(`products/${productId}/variations/batch`, { create: batchCreatePayload });
+        }
+    }
+    return createdProduct;
+}
+
+
+export async function POST(request: NextRequest) {
+    let uid, token;
+    try {
+        token = request.headers.get('Authorization')?.split('Bearer ')[1];
+        if (!token) { return NextResponse.json({ error: 'Authentication token not provided.' }, { status: 401 }); }
+        if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
+        const decodedToken = await adminAuth.verifyIdToken(token);
+        uid = decodedToken.uid;
+        
+        const { wooApi, wpApi, activeConnectionKey } = await getApiClientsForUser(uid);
+        if (!wooApi || !wpApi) { throw new Error('Both WooCommerce and WordPress APIs must be configured.'); }
+        
+        const originalProductData: ProductData = await request.json();
+
+        // 1. Handle category for original and all translations
+        const finalCategoryId = await findOrCreateCategoryByPath(originalProductData.categoryPath || originalProductData.category?.name || '', wooApi);
+
+        // 2. Create the original product
+        const createdProduct = await createProductInWoo(originalProductData, wooApi, wpApi, finalCategoryId);
+        
+        const storeUrl = wooApi.url.endsWith('/') ? wooApi.url.slice(0, -1) : wooApi.url;
+        const allCreatedLinks = [{
+            url: `${storeUrl}/wp-admin/post.php?post=${createdProduct.id}&action=edit`,
+            title: createdProduct.name,
+        }];
+        
+        const sourceLangSlug = (ALL_LANGUAGES.find(l => l.code === originalProductData.language)?.slug || 'es');
+        const allTranslations: { [key: string]: number } = { [sourceLangSlug]: createdProduct.id };
+
+        // 3. Handle translations if any
+        if (originalProductData.targetLanguages && originalProductData.targetLanguages.length > 0) {
+            for (const lang of originalProductData.targetLanguages) {
+                const { title: translatedName, content: translatedShortDesc } = await translateContent({ title: originalProductData.name, content: originalProductData.shortDescription }, lang);
+                const { content: translatedLongDesc } = await translateContent({ title: '', content: originalProductData.longDescription }, lang);
                 
-                if (attributeValueSets.every(set => set.length > 0)) {
-                    const combinations = cartesian(...attributeValueSets);
-                    batchCreatePayload = combinations.map(combo => ({
-                        attributes: combo.map((value, index) => ({
-                            name: attributeNames[index],
-                            option: value,
-                        })),
-                    }));
-                }
+                const translatedData: ProductData = {
+                    ...originalProductData,
+                    name: translatedName,
+                    shortDescription: translatedShortDesc,
+                    longDescription: translatedLongDesc,
+                };
+                
+                const translatedProduct = await createProductInWoo(translatedData, wooApi, wpApi, finalCategoryId);
+                
+                allCreatedLinks.push({
+                    url: `${storeUrl}/wp-admin/post.php?post=${translatedProduct.id}&action=edit`,
+                    title: translatedProduct.name,
+                });
+                
+                const targetLangSlug = ALL_LANGUAGES.find(l => l.code === lang)?.slug || lang.toLowerCase().substring(0, 2);
+                allTranslations[targetLangSlug] = translatedProduct.id;
             }
         }
         
-        if (batchCreatePayload.length > 0) {
-            try {
-                await wooApi.post(`products/${productId}/variations/batch`, { create: batchCreatePayload });
-            } catch (variationError: any) {
-                const errorMessage = variationError.response?.data?.message || variationError.message || 'Error desconocido al crear variaciones.';
-                throw new Error(`Producto principal creado (ID: ${productId}), pero falló la creación de variaciones: ${errorMessage}`);
+        // 4. Link all translations together
+        if (Object.keys(allTranslations).length > 1) {
+            const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
+            if(siteUrl) {
+                await wpApi.post(`${siteUrl}/wp-json/custom/v1/link-translations`, { translations: allTranslations });
             }
         }
-    }
-    
-    // 6. Log the activity
-    if (adminDb && admin.firestore.FieldValue) {
-        const logRef = adminDb.collection('activity_logs').doc();
-        await logRef.set({
-            userId: uid,
-            action: 'PRODUCT_CREATED',
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
-            details: {
-                productId: createdProduct.id,
-                productName: createdProduct.name,
-                connectionKey: activeConnectionKey,
-                source: productData.source || 'unknown'
+
+        // 5. Log the activity
+        if (adminDb && admin.firestore.FieldValue) {
+            await adminDb.collection('activity_logs').add({
+                userId: uid, action: 'PRODUCT_CREATED', timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                details: { productId: createdProduct.id, productName: createdProduct.name, connectionKey: activeConnectionKey, source: originalProductData.source || 'unknown', translationCount: allCreatedLinks.length - 1 }
+            });
+        }
+        
+        // 6. Fire-and-forget deletion of temp images from quefoto.es
+        for (const photo of originalProductData.photos) {
+            if (photo.uploadedFilename) {
+                axios.post(`${request.nextUrl.origin}/api/delete-image`, { filename: photo.uploadedFilename }, { headers: { 'Authorization': `Bearer ${token}` }})
+                     .catch(deleteError => console.warn(`Failed to delete temp image ${photo.uploadedFilename}.`, deleteError));
             }
-        });
+        }
+
+        return NextResponse.json({ success: true, data: allCreatedLinks });
+
+    } catch (error: any) {
+        console.error('Critical Error in POST /api/woocommerce/products:', error.response?.data || error);
+        const errorMessage = error.response?.data?.message || error.message || 'An unknown error occurred.';
+        return NextResponse.json({ error: `Fallo en la creación del producto: ${errorMessage}` }, { status: 500 });
     }
-
-    // 7. Fire-and-forget deletion of temp images from quefoto.es
-    for (const photo of productData.photos) {
-      if (photo.uploadedFilename) {
-        const origin = request.nextUrl.origin;
-        axios.post(`${origin}/api/delete-image`, { filename: photo.uploadedFilename }, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }).catch(deleteError => {
-          console.warn(`Failed to delete temporary image ${photo.uploadedFilename}. Manual cleanup may be required.`, deleteError);
-        });
-      }
-    }
-    
-    const storeUrl = wooApi.url.endsWith('/') ? wooApi.url.slice(0, -1) : wooApi.url;
-    const adminUrl = `${storeUrl}/wp-admin/post.php?post=${createdProduct.id}&action=edit`;
-
-    return NextResponse.json({ success: true, data: createdProduct, admin_url: adminUrl }, { status: response.status });
-
-  } catch (error: any) {
-    console.error('Error creating product in WooCommerce:', error.response?.data || error.message);
-    const errorMessage = error.response?.data?.message || 'An unknown error occurred while creating the product.';
-    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
-    const userFriendlyError = `Error al crear el producto. Razón: ${errorMessage}`;
-    return NextResponse.json({ success: false, error: userFriendlyError, details: error.response?.data }, { status });
-  }
 }

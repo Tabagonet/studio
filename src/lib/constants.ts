@@ -3,7 +3,7 @@
 import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList, SearchCheck, Copy } from 'lucide-react';
 import type { NavItem, ProductType, ProductData, BlogPostData, NavGroup } from '@/lib/types';
 
-export const APP_NAME = "AutoPress AI";
+export const APP_NAME = "WooAutomate";
 export const SUPPORT_EMAIL = "intelvisual@intelvisual.es";
 
 export const NAV_GROUPS: NavGroup[] = [
@@ -107,9 +107,9 @@ export const INITIAL_BLOG_DATA: BlogPostData = {
 };
 
 export const ALL_LANGUAGES = [
-    { code: 'Spanish', name: 'Español' },
-    { code: 'English', name: 'Inglés' },
-    { code: 'French', name: 'Francés' },
-    { code: 'German', name: 'Alemán' },
-    { code: 'Portuguese', name: 'Portugués' },
+    { code: 'Spanish', name: 'Español', slug: 'es' },
+    { code: 'English', name: 'Inglés', slug: 'en' },
+    { code: 'French', name: 'Francés', slug: 'fr' },
+    { code: 'German', name: 'Alemán', slug: 'de' },
+    { code: 'Portuguese', name: 'Portugués', slug: 'pt' },
 ];
