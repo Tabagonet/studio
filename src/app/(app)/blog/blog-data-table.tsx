@@ -244,7 +244,7 @@ export function BlogDataTable() {
   }, [toast, fetchData, fetchStats]);
 
   const handleEditPost = (postId: number) => {
-    router.push(`/seo-optimizer/edit/${postId}?type=Post`);
+    router.push(`/blog/edit/${postId}`);
   };
 
   const columns = React.useMemo(() => getColumns(handleStatusUpdate, handleEditPost, handleDeletePost), [handleStatusUpdate, handleDeletePost]);
