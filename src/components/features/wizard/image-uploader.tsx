@@ -104,7 +104,7 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
         <TooltipProvider>
           <div className={cn(
             "gap-4",
-            maxPhotos > 1 && "grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
+            maxPhotos > 1 && "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4"
           )}>
             {photos.map((photo) => (
               <div key={photo.id} className={cn(
@@ -115,7 +115,7 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
                   src={photo.previewUrl}
                   alt={`Vista previa de ${photo.name}`}
                   fill
-                  sizes={maxPhotos === 1 ? "400px" : "(max-width: 768px) 33vw, (max-width: 1024px) 25vw, 17vw"}
+                  sizes={maxPhotos === 1 ? "400px" : "(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"}
                   className="object-cover"
                 />
 

@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,12 +12,13 @@ import { VariableProductManager } from '@/components/features/wizard/variable-pr
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
 import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory } from '@/lib/types';
 import { PRODUCT_TYPES, ALL_LANGUAGES } from '@/lib/constants';
-import { PlusCircle, Trash2, Loader2, Sparkles, Languages } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
+import { useDebounce } from '@/hooks/use-debounce';
 
 interface Step1DetailsPhotosProps {
   productData: ProductData;
@@ -25,11 +26,25 @@ interface Step1DetailsPhotosProps {
   isProcessing?: boolean;
 }
 
+const StatusIndicator = ({ status, message }: { status: 'checking' | 'exists' | 'available' | 'idle', message: string }) => {
+    if (status === 'idle') return null;
+    if (status === 'checking') return <div className="flex items-center text-xs text-muted-foreground mt-1"><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Verificando...</div>;
+    const color = status === 'exists' ? 'text-destructive' : 'text-green-600';
+    const Icon = status === 'exists' ? AlertCircle : CheckCircle;
+    return <div className={`flex items-center text-xs ${color} mt-1`}><Icon className="h-3 w-3 mr-1" /> {message}</div>;
+};
+
+
 export function Step1DetailsPhotos({ productData, updateProductData, isProcessing = false }: Step1DetailsPhotosProps) {
   const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [skuStatus, setSkuStatus] = useState<{ status: 'idle' | 'checking' | 'exists' | 'available'; message: string }>({ status: 'idle', message: '' });
+  const [nameStatus, setNameStatus] = useState<{ status: 'idle' | 'checking' | 'exists' | 'available'; message: string }>({ status: 'idle', message: '' });
   const { toast } = useToast();
+  
+  const debouncedSku = useDebounce(productData.sku, 500);
+  const debouncedName = useDebounce(productData.name, 500);
 
   useEffect(() => {
     const fetchCategories = async (token: string) => {
@@ -99,6 +114,44 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
     return () => unsubscribe();
   }, [toast]);
+  
+    useEffect(() => {
+    const checkProductExistence = async (field: 'sku' | 'name', value: string) => {
+        if (!value || value.length < 3) {
+            (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'idle', message: '' });
+            return;
+        }
+
+        const user = auth.currentUser;
+        if (!user) return;
+        const token = await user.getIdToken();
+
+        (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'checking', message: '' });
+
+        try {
+            const response = await fetch(`/api/woocommerce/products/check?${field}=${encodeURIComponent(value)}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            if (response.ok) {
+                if (data.exists) {
+                    (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'exists', message: data.message });
+                } else {
+                    (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'available', message: `El ${field.toUpperCase()} está disponible.` });
+                }
+            } else {
+                 (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'idle', message: '' }); // Reset on error
+            }
+        } catch (error) {
+            console.error(`Error checking ${field}:`, error);
+            (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'idle', message: '' });
+        }
+    };
+
+    if (debouncedSku) checkProductExistence('sku', debouncedSku);
+    if (debouncedName) checkProductExistence('name', debouncedName);
+
+  }, [debouncedSku, debouncedName]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     updateProductData({ [e.target.name]: e.target.value });
@@ -231,11 +284,12 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                   <div>
                     <Label htmlFor="name">Nombre del Producto</Label>
                     <Input id="name" name="name" value={productData.name} onChange={handleInputChange} placeholder="Ej: Camiseta de Algodón" disabled={isProcessing} />
-                    <p className="text-xs text-muted-foreground mt-1">Se autocompleta desde el nombre de la imagen.</p>
+                    <StatusIndicator status={nameStatus.status} message={nameStatus.message} />
                   </div>
                   <div>
                     <Label htmlFor="sku">SKU</Label>
                     <Input id="sku" name="sku" value={productData.sku} onChange={handleInputChange} placeholder="Ej: CAM-ALG-AZ-M" disabled={isProcessing} />
+                    <StatusIndicator status={skuStatus.status} message={skuStatus.message} />
                   </div>
                 </div>
 
@@ -281,6 +335,9 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                         />
                     </CardContent>
                 </Card>
+            )}
+             {productData.productType === 'variable' && (
+                <VariableProductManager productData={productData} updateProductData={updateProductData} />
             )}
 
             <Card>
@@ -369,8 +426,6 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                   </CardContent>
               </Card>
             )}
-
-            {productData.productType === 'variable' && <VariableProductManager productData={productData} updateProductData={updateProductData} />}
         </div>
         <div className="lg:col-span-1 space-y-8">
             <Card>
