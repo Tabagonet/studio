@@ -6,16 +6,16 @@
  * when deployed on Firebase or Vercel.
  */
 import * as GenkitCore from '@genkit-ai/core';
-import { googleAI } from '@genkit-ai/googleai';
-import { firebase } from '@genkit-ai/firebase';
-import { googleCloud } from '@genkit-ai/google-cloud';
+import * as GenkitGoogleAI from '@genkit-ai/googleai';
+import * as GenkitFirebase from '@genkit-ai/firebase';
+import * as GenkitGoogleCloud from '@genkit-ai/google-cloud';
 
 // In production environments (like Vercel or Firebase App Hosting),
 // these plugins enable tracing, authentication, and other features.
 const plugins = [
-    googleAI(),
-    firebase(),
-    googleCloud()
+    GenkitGoogleAI.googleAI(),
+    GenkitFirebase.firebase(),
+    GenkitGoogleCloud.googleCloud()
 ];
 
 export const ai = GenkitCore.genkit({
