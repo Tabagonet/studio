@@ -1,6 +1,9 @@
 
 // src/lib/firebase-admin.ts
-import * as admin from 'firebase-admin';
+import type * as admin from 'firebase-admin';
+
+// Use require for the runtime value to prevent Next.js bundling issues
+const admin_sdk = require('firebase-admin');
 
 let adminDb: admin.firestore.Firestore | null = null;
 let adminAuth: admin.auth.Auth | null = null;
@@ -32,11 +35,11 @@ if (serviceAccountJson) {
 }
 
 // Initialize the app only if it hasn't been initialized yet
-if (!admin.apps.length) {
+if (!admin_sdk.apps.length) {
   if (serviceAccount) {
     try {
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
+      admin_sdk.initializeApp({
+        credential: admin_sdk.credential.cert(serviceAccount),
         storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
       });
       console.log('Firebase Admin SDK initialized successfully.');
@@ -50,10 +53,11 @@ if (!admin.apps.length) {
 }
 
 // Assign the services if the app was successfully initialized
-if (admin.apps.length > 0) {
-    adminDb = admin.firestore();
-    adminAuth = admin.auth();
-    adminStorage = admin.storage();
+if (admin_sdk.apps.length > 0) {
+    adminDb = admin_sdk.firestore();
+    adminAuth = admin_sdk.auth();
+    adminStorage = admin_sdk.storage();
 }
 
-export { adminDb, adminAuth, adminStorage, admin };
+// Export the required value as 'admin' to maintain compatibility with other files
+export { adminDb, adminAuth, adminStorage, admin_sdk as admin };
