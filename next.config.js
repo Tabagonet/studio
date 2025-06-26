@@ -7,6 +7,8 @@ const nextConfig = {
         '@genkit-ai/firebase',
         '@genkit-ai/google-cloud',
         'zod',
+        '@opentelemetry/api',
+        '@opentelemetry/sdk-node',
     ],
   },
   images: {
