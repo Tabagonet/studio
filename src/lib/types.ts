@@ -171,7 +171,6 @@ export interface ParsedNameData {
 }
 
 export type SubmissionStatus = 'idle' | 'processing' | 'success' | 'error';
-export type WizardProcessingState = 'idle' | 'processing' | 'finished' | 'error';
 
 
 export type SubmissionStepStatus = 'pending' | 'processing' | 'success' | 'error';
