@@ -10,15 +10,13 @@ import { googleAI } from '@genkit-ai/googleai';
 import { firebase } from '@genkit-ai/firebase';
 import { googleCloud } from '@genkit-ai/google-cloud';
 
-const plugins = [googleAI()];
-
-// Add production plugins only when deploying.
-// VERCEL_ENV is a Vercel-specific environment variable.
-// FIREBASE_APP_HOSTING_SITE_ID is a Firebase App Hosting-specific environment variable.
-if (process.env.VERCEL_ENV || process.env.FIREBASE_APP_HOSTING_SITE_ID) {
-  plugins.push(firebase()); // Enables flow tracing and inspection in Firebase console
-  plugins.push(googleCloud()); // Enables GCP-based authentication
-}
+// In production environments (like Vercel or Firebase App Hosting),
+// these plugins enable tracing, authentication, and other features.
+const plugins = [
+    googleAI(),
+    firebase(),
+    googleCloud()
+];
 
 export const ai = genkit({
   plugins,
