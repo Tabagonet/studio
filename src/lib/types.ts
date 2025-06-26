@@ -168,6 +168,8 @@ export interface ParsedNameData {
 }
 
 export type SubmissionStatus = 'idle' | 'processing' | 'success' | 'error';
+export type WizardProcessingState = 'idle' | 'processing' | 'finished' | 'error';
+
 
 export type SubmissionStepStatus = 'pending' | 'processing' | 'success' | 'error';
 export interface SubmissionStep {
@@ -234,4 +236,17 @@ export interface SeoAnalysisRecord {
     createdAt: string; // ISO String
     analysis: AnalysisResult;
     score: number;
+}
+
+export interface BlogStats {
+  total: number;
+  status: {
+    [key: string]: number;
+  };
+}
+
+export interface ProductStats {
+  total: number;
+  status: { [key: string]: number };
+  type: { [key: string]: number };
 }

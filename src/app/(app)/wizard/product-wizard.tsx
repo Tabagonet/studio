@@ -1,12 +1,12 @@
 
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
 import { Step2Preview } from './step-2-preview'; 
 import { Step3Confirm } from './step-3-confirm';
 import { Step4Processing } from './step-4-processing';
-import type { ProductData, SubmissionStep, SubmissionStatus } from '@/lib/types';
+import type { ProductData, SubmissionStep, SubmissionStatus, WizardProcessingState } from '@/lib/types';
 import { INITIAL_PRODUCT_DATA, ALL_LANGUAGES } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -21,10 +21,12 @@ export function ProductWizard() {
   const [submissionStatus, setSubmissionStatus] = useState<SubmissionStatus>('idle');
   const [steps, setSteps] = useState<SubmissionStep[]>([]);
   const [finalLinks, setFinalLinks] = useState<{ url: string; title: string }[]>([]);
+  const [processingState, setProcessingState] = useState<WizardProcessingState>('idle');
+  const [progress, setProgress] = useState({ images: 0, product: 0 });
 
   const { toast } = useToast();
 
-  const isProcessing = submissionStatus === 'processing';
+  const isProcessing = processingState === 'processing';
 
   const updateProductData = useCallback((data: Partial<ProductData>) => {
     setProductData(prev => ({ ...prev, ...data }));
@@ -40,6 +42,8 @@ export function ProductWizard() {
 
   const handleCreateProduct = useCallback(async () => {
     setCurrentStep(4); // Move to the processing screen
+    setProcessingState('processing');
+    setProgress({ images: 0, product: 0 });
     
     const initialSteps: SubmissionStep[] = [];
     if (productData.photos.some(p => p.file)) {
@@ -63,6 +67,7 @@ export function ProductWizard() {
     const user = auth.currentUser;
     if (!user) {
         toast({ title: 'Error', description: 'No autenticado.', variant: 'destructive' });
+        setProcessingState('error');
         setSubmissionStatus('error');
         return;
     }
@@ -87,6 +92,7 @@ export function ProductWizard() {
                  const imageData = await response.json();
                  uploadedPhotosInfo.push({ id: photo.id, uploadedUrl: imageData.url, uploadedFilename: imageData.filename_saved_on_server });
                  updateStepStatus('upload_images', 'processing', undefined, 10 + (80 * (index + 1) / photosToUpload.length));
+                 setProgress(prev => ({...prev, images: Math.round(((index+1)/photosToUpload.length) * 100)}));
             }
             
             finalProductData.photos = productData.photos.map(p => {
@@ -95,6 +101,8 @@ export function ProductWizard() {
             });
             updateStepStatus('upload_images', 'success', undefined, 100);
         }
+        
+        setProgress(prev => ({...prev, product: 10}));
 
         // --- Step 2: Create Original Product ---
         updateStepStatus('create_original', 'processing', undefined, 50);
@@ -107,6 +115,7 @@ export function ProductWizard() {
         createdPostUrls.push({ url: originalResult.data.url, title: originalResult.data.title });
         allTranslations[sourceLangSlug] = originalResult.data.id;
         updateStepStatus('create_original', 'success', undefined, 100);
+        setProgress(prev => ({...prev, product: 50}));
 
         // --- Step 3: Create Translations ---
         if (finalProductData.targetLanguages) {
@@ -142,6 +151,7 @@ export function ProductWizard() {
             }
         }
         
+        setProgress(prev => ({...prev, product: 80}));
         // --- Step 4: Final Sync of all translation links ---
         if (Object.keys(allTranslations).length > 1) {
             updateStepStatus('sync_translations', 'processing', undefined, 50);
@@ -150,6 +160,8 @@ export function ProductWizard() {
             updateStepStatus('sync_translations', 'success', undefined, 100);
         }
 
+        setProgress({ images: 100, product: 100 });
+        setProcessingState('finished');
         setFinalLinks(createdPostUrls);
         setSubmissionStatus('success');
 
@@ -159,10 +171,17 @@ export function ProductWizard() {
             updateStepStatus(failedStep.id, 'error', error.message);
         }
         toast({ title: 'Proceso Interrumpido', description: error.message, variant: 'destructive' });
+        setProcessingState('error');
         setSubmissionStatus('error');
     }
   }, [productData, toast, steps]);
 
+
+  useEffect(() => {
+    if (currentStep === 4 && processingState === 'idle') {
+      handleCreateProduct();
+    }
+  }, [currentStep, processingState, handleCreateProduct]);
 
   const nextStep = () => {
     if (currentStep < 3) {
@@ -189,7 +208,7 @@ export function ProductWizard() {
       case 3:
         return <Step3Confirm productData={productData} />;
       case 4:
-        return <Step4Processing status={submissionStatus} steps={steps} />;
+        return <Step4Processing processingState={processingState} progress={progress} />;
       default:
         return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} />;
     }
@@ -200,6 +219,7 @@ export function ProductWizard() {
     setSteps([]);
     setFinalLinks([]);
     setSubmissionStatus('idle');
+    setProcessingState('idle');
     setCurrentStep(1);
     window.scrollTo(0, 0);
   }
@@ -221,7 +241,7 @@ export function ProductWizard() {
                 <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
             ) : (
-            <Button onClick={handleCreateProduct}>
+            <Button onClick={() => setCurrentStep(4)}>
                 <Rocket className="mr-2 h-4 w-4" />
                 Crear Producto(s)
             </Button>
@@ -229,10 +249,10 @@ export function ProductWizard() {
         </div>
       )}
 
-      {(submissionStatus === 'success' || submissionStatus === 'error') && (
+      {(processingState === 'finished' || processingState === 'error') && (
          <Card>
             <CardHeader>
-                <CardTitle>{submissionStatus === 'success' ? 'Proceso Completado' : 'Proceso Interrumpido'}</CardTitle>
+                <CardTitle>{processingState === 'finished' ? 'Proceso Completado' : 'Proceso Interrumpido'}</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col items-start gap-4">
                 {finalLinks.length > 0 && (
