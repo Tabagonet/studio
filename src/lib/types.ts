@@ -177,3 +177,61 @@ export interface SubmissionStep {
   progress?: number;
   error?: string;
 }
+
+export interface ActivityLog {
+  id: string;
+  userId: string;
+  action: 'PRODUCT_CREATED' | string;
+  timestamp: string; // ISO date string
+  details: {
+    productId?: number;
+    productName?: string;
+    connectionKey?: string;
+    source?: string;
+    [key: string]: any;
+  };
+  user: {
+    displayName: string;
+    email: string;
+    photoURL: string;
+  };
+}
+
+export interface UserNotification {
+  id: string;
+  recipientUid: string;
+  type: string;
+  title: string;
+  message: string;
+  link?: string;
+  read: boolean;
+  createdAt: string; // ISO date string
+}
+
+export interface ContentItem {
+  id: number;
+  title: string;
+  type: 'Post' | 'Page';
+  link: string;
+  status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
+  parent: number;
+  lang?: string;
+  translations?: Record<string, number>;
+}
+
+export interface ContentStats {
+    totalPosts: number;
+    totalPages: number;
+    totalContent: number;
+    languages: Record<string, number>;
+    status: Record<string, number>;
+}
+
+export interface SeoAnalysisRecord {
+    id: string;
+    userId: string;
+    url: string;
+    createdAt: string; // ISO String
+    analysis: AnalysisResult;
+    score: number;
+}
