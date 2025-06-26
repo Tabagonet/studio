@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
                     await wooApi.put(`products/${productId}`, {
                         short_description: aiContent.shortDescription,
                         description: aiContent.longDescription,
-                        tags: aiContent.keywords.split(',').map((k: string) => ({ name: k.trim() })).filter(k => k.name),
+                        tags: aiContent.keywords.split(',').map((k: string) => ({ name: k.trim() })).filter((k: { name: string }) => k.name),
                     });
                 } else if (action === 'generateImageMetadata') {
                     if (!wpApi) throw new Error('WordPress API client is not available.'); // Should be caught earlier, but for safety.
