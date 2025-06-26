@@ -12,6 +12,9 @@ const nextConfig = {
         '@woocommerce/woocommerce-rest-api',
         'axios',
         'firebase-admin',
+        'form-data',
+        '@google/generative-ai',
+        'cheerio',
     ],
   },
   images: {
