@@ -1,4 +1,3 @@
-
 // src/app/api/user/verify/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
@@ -93,7 +92,7 @@ export async function GET(req: NextRequest) {
           if (!adminsSnapshot.empty) {
               const batch = adminDb.batch();
               adminsSnapshot.forEach(adminDoc => {
-                  const notificationRef = adminDb.collection('notifications').doc();
+                  const notificationRef = adminDb!.collection('notifications').doc();
                   batch.set(notificationRef, {
                       recipientUid: adminDoc.id,
                       type: 'new_user_pending',
