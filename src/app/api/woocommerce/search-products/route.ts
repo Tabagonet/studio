@@ -15,6 +15,9 @@ export async function GET(req: NextRequest) {
     const uid = decodedToken.uid;
 
     const { wooApi } = await getApiClientsForUser(uid);
+    if (!wooApi) {
+        throw new Error('WooCommerce API is not configured for the active connection.');
+    }
     
     const { searchParams } = new URL(req.url);
     const query = searchParams.get('q') || '';

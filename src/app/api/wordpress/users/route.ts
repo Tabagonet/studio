@@ -11,7 +11,6 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'No auth token provided.' }, { status: 401 });
     }
     if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
-    await adminAuth.verifyIdToken(token);
     const uid = (await adminAuth.verifyIdToken(token)).uid;
 
 
