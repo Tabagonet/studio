@@ -76,7 +76,7 @@ export const generateProductFlow = ai.defineFlow(
     inputSchema: GenerateProductInputSchema,
     outputSchema: GenerateProductOutputSchema,
   },
-  async (input: GenerateProductInput) => {
+  async (input) => {
 
     let groupedProductsList = 'N/A';
     if (input.productType === 'grouped' && input.groupedProductIds && input.groupedProductIds.length > 0) {

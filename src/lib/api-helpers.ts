@@ -1,5 +1,6 @@
 
 // src/lib/api-helpers.ts
+'use server';
 import { adminDb } from '@/lib/firebase-admin';
 import { createWooCommerceApi } from '@/lib/woocommerce';
 import { createWordPressApi } from '@/lib/wordpress';

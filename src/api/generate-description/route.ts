@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
     }
     const inputData = validationResult.data;
     
+    // Add the server-side UID to the input for the flow
     const flowInput = { ...inputData, uid };
     
     const generatedContent = await generateProductFlow(flowInput);
