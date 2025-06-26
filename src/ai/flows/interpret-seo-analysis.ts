@@ -71,7 +71,7 @@ const interpretSeoFlow = ai.defineFlow(
     inputSchema: SeoAnalysisInputSchema,
     outputSchema: SeoInterpretationOutputSchema,
   },
-  async (input) => {
+  async (input: SeoAnalysisInput) => {
     const { output } = await prompt(input);
     return output!;
   }
