@@ -21,14 +21,18 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const validationResult = GenerateProductInputSchema.safeParse(body);
+    // We only validate the fields coming from the client, not the uid we add on the server
+    const clientInputSchema = GenerateProductInputSchema.omit({ uid: true });
+    const validationResult = clientInputSchema.safeParse(body);
+
     if (!validationResult.success) {
       return NextResponse.json({ error: 'Invalid input', details: validationResult.error.flatten() }, { status: 400 });
     }
     const inputData = validationResult.data;
     
-    // Call the Genkit flow, passing the authenticated user's UID in the context.
-    const generatedContent = await generateProductFlow(inputData, { auth: { uid } });
+    const flowInput = { ...inputData, uid };
+    
+    const generatedContent = await generateProductFlow(flowInput);
     
     return NextResponse.json(generatedContent);
 

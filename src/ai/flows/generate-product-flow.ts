@@ -11,7 +11,6 @@
 import { ai } from '@/ai/genkit';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import { z } from 'zod';
-import type { FlowContext } from '@genkit-ai/core';
 
 export const GenerateProductInputSchema = z.object({
   productName: z.string().min(1, 'Product name is required.'),
@@ -19,6 +18,7 @@ export const GenerateProductInputSchema = z.object({
   keywords: z.string().optional(),
   language: z.enum(['Spanish', 'English', 'French', 'German', 'Portuguese']).default('Spanish'),
   groupedProductIds: z.array(z.number()).optional(),
+  uid: z.string(),
 });
 export type GenerateProductInput = z.infer<typeof GenerateProductInputSchema>;
 
@@ -76,14 +76,11 @@ export const generateProductFlow = ai.defineFlow(
     inputSchema: GenerateProductInputSchema,
     outputSchema: GenerateProductOutputSchema,
   },
-  async (input: GenerateProductInput, context?: FlowContext) => {
+  async (input: GenerateProductInput) => {
 
     let groupedProductsList = 'N/A';
     if (input.productType === 'grouped' && input.groupedProductIds && input.groupedProductIds.length > 0) {
-        if (!context?.auth?.uid) {
-             throw new Error("User authentication is required to fetch grouped product details.");
-        }
-        const { wooApi } = await getApiClientsForUser(context.auth.uid);
+        const { wooApi } = await getApiClientsForUser(input.uid);
         if (!wooApi) {
             throw new Error("WooCommerce API is not configured. Cannot fetch grouped product details.");
         }
