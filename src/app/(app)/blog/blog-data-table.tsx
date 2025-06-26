@@ -154,7 +154,7 @@ export function BlogDataTable() {
       const { posts, totalPages } = await response.json();
       
       const langCodes = new Set(posts.map((p: BlogPostSearchResult) => p.lang).filter((l: string | undefined): l is string => !!l && l !== 'N/A'));
-      setAvailableLanguages(Array.from(langCodes).map((code: string) => ({ code, name: LANGUAGE_MAP[code] || code.toUpperCase() })));
+      setAvailableLanguages([...langCodes].map((code: string) => ({ code, name: LANGUAGE_MAP[code] || code.toUpperCase() })));
 
 
       const postsById = new Map(posts.map((p: BlogPostSearchResult) => [p.id, { ...p, subRows: [] as HierarchicalBlogPost[] }]));
