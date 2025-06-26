@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
     try {
         const token = req.headers.get('Authorization')?.split('Bearer ')[1];
         if (!token) throw new Error('Auth token missing');
+        if (!adminAuth) throw new Error("Firebase Admin Auth not initialized.");
         uid = (await adminAuth.verifyIdToken(token)).uid;
     } catch (e: any) {
         return NextResponse.json({ error: 'Auth failed', message: e.message }, { status: 401 });
