@@ -7,8 +7,14 @@
  */
 import * as GenkitCore from '@genkit-ai/core';
 import googleAI from '@genkit-ai/googleai';
-import firebase from '@genkit-ai/firebase';
+import { firebase } from '@genkit-ai/firebase';
 import googleCloud from '@genkit-ai/google-cloud';
+import { initializeApp, getApps } from 'firebase-admin/app';
+
+// Initialize Firebase Admin SDK if not already initialized
+if (getApps().length === 0) {
+  initializeApp();
+}
 
 // Configure and export the AI instance with all necessary plugins.
 // This single instance will be used by all flows.
