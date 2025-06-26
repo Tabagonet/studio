@@ -11,6 +11,7 @@ const nextConfig = {
         '@opentelemetry/sdk-node',
         '@woocommerce/woocommerce-rest-api',
         'axios',
+        'firebase-admin',
     ],
   },
   images: {
@@ -51,5 +52,4 @@ const nextConfig = {
   },
 };
 
-// A new trivial change to invalidate cache and force a clean rebuild.
 module.exports = nextConfig;
