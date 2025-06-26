@@ -62,3 +62,37 @@ Once the dependencies are installed and your `.env.local` file is configured, yo
     [http://localhost:9002](http://localhost:9002)
 
 You should now see the application's login page. You can log in and start using it locally. The terminal window in VS Code will now show you all the server-side logs, which is perfect for debugging!
+
+## 5. Deploying with Vercel
+
+To deploy your application to Vercel, you can use the Vercel CLI.
+
+1.  **Install Vercel CLI:** If you don't have it, install it globally.
+    ```bash
+    npm install -g vercel
+    ```
+
+2.  **Log in to Vercel:**
+    ```bash
+    vercel login
+    ```
+
+3.  **Link Your Project:** Navigate to your project's directory in the terminal and link it to a new or existing Vercel project.
+    ```bash
+    vercel link
+    ```
+    Follow the command-line prompts.
+
+4.  **Set Environment Variables:** Go to your project's dashboard on the Vercel website. Navigate to `Settings` > `Environment Variables`. Copy all the variables from your local `.env.local` file and add them here. This is a crucial step for the deployed application to function correctly.
+
+5.  **Deploy:**
+    - To deploy to a preview environment:
+      ```bash
+      vercel
+      ```
+    - To deploy to production:
+      ```bash
+      vercel --prod
+      ```
+
+Vercel will build and deploy your application, providing you with a live URL once it's complete.
