@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { auth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ChromeIcon, Loader2 } from 'lucide-react'; 
+import { Loader2 } from 'lucide-react'; 
 import { useToast } from '@/hooks/use-toast';
 import { APP_NAME } from '@/lib/constants';
 import Image from 'next/image';
