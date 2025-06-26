@@ -1,2 +1,2 @@
-// This file is intentionally left empty to resolve a configuration conflict.
-// Please use next.config.ts at the root for all Next.js configuration.
+// This file is intentionally left empty to avoid configuration conflicts.
+// Please use next.config.js at the project root for all Next.js configuration.
