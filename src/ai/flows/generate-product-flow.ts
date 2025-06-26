@@ -11,6 +11,7 @@
 import { ai } from '@/ai/genkit';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import { z } from 'zod';
+import type { FlowContext } from '@genkit-ai/core';
 
 export const GenerateProductInputSchema = z.object({
   productName: z.string().min(1, 'Product name is required.'),
@@ -75,7 +76,7 @@ export const generateProductFlow = ai.defineFlow(
     inputSchema: GenerateProductInputSchema,
     outputSchema: GenerateProductOutputSchema,
   },
-  async (input, context) => {
+  async (input: GenerateProductInput, context?: FlowContext) => {
 
     let groupedProductsList = 'N/A';
     if (input.productType === 'grouped' && input.groupedProductIds && input.groupedProductIds.length > 0) {
