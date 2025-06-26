@@ -5,7 +5,7 @@
  * It's configured to use Google AI and automatically adds production-ready plugins for tracing and authentication
  * when deployed on Firebase or Vercel.
  */
-import { genkit } from '@genkit-ai/core';
+import * as GenkitCore from '@genkit-ai/core';
 import { googleAI } from '@genkit-ai/googleai';
 import { firebase } from '@genkit-ai/firebase';
 import { googleCloud } from '@genkit-ai/google-cloud';
@@ -18,7 +18,7 @@ const plugins = [
     googleCloud()
 ];
 
-export const ai = genkit({
+export const ai = GenkitCore.genkit({
   plugins,
   enableTracingAndMetrics: true, // Recommended for production observability
 });
