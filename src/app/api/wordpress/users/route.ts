@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
     // Fetch all users. You might want to add role filtering if your setup requires it.
     // For example, roles: ['administrator', 'editor', 'author']
-    const response = await wpApi.get("users", { per_page: 100, roles: ['administrator', 'editor', 'author'] });
+    const response = await wpApi.get("users", { params: { per_page: 100, roles: ['administrator', 'editor', 'author'] } });
     
     const users: WordPressUser[] = response.data
         .map((user: any) => ({

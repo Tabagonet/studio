@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
         throw new Error('WordPress API is not configured for the active connection.');
     }
 
-    const response = await wpApi.get("categories", { per_page: 100 });
+    const response = await wpApi.get("categories", { params: { per_page: 100 } });
     
     const categories: WordPressPostCategory[] = response.data
         .filter((cat: any) => cat.name !== 'Uncategorized') // Standard WP default category
