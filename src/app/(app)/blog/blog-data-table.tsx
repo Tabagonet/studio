@@ -150,9 +150,9 @@ export function BlogDataTable() {
         throw new Error(errorData.error || 'Failed to fetch posts');
       }
 
-      const { posts, totalPages } = await response.json();
+      const { posts, totalPages }: { posts: BlogPostSearchResult[], totalPages: number } = await response.json();
       
-      const stringLangCodes: string[] = Array.from(new Set(posts.map((p: BlogPostSearchResult) => p.lang).filter((l: string | undefined): l is string => !!l && l !== 'N/A')));
+      const stringLangCodes: string[] = [...new Set(posts.map((p: BlogPostSearchResult) => p.lang).filter((l): l is string => !!l && l !== 'N/A'))];
       setAvailableLanguages(stringLangCodes.map(code => ({ code, name: LANGUAGE_MAP[code] || code.toUpperCase() })));
 
 
@@ -163,25 +163,41 @@ export function BlogDataTable() {
       posts.forEach((post: BlogPostSearchResult) => {
           if (processedIds.has(post.id)) return;
 
-          let mainPost: HierarchicalBlogPost;
+          let mainPost: HierarchicalBlogPost | undefined;
           const translationIds = new Set(Object.values(post.translations || {}));
-
+          
           if (translationIds.size > 1) {
-              const groupPosts = Array.from(translationIds).map(id => postsById.get(id)).filter(Boolean) as HierarchicalBlogPost[];
-              mainPost = groupPosts.find(p => p.lang === selectedLanguage) || groupPosts[0];
-              if (mainPost) {
-                mainPost.subRows = groupPosts.filter(p => p.id !== mainPost.id);
-                groupPosts.forEach(p => processedIds.add(p.id));
+              const groupPosts = Array.from(translationIds)
+                  .map(id => postsById.get(id))
+                  .filter((p): p is HierarchicalBlogPost => !!p);
+
+              if (groupPosts.length > 0) {
+                  // Find the post that matches the selected language, or fall back to the first one in the group
+                  mainPost = groupPosts.find(p => p.lang === selectedLanguage) || groupPosts[0];
+                  
+                  // If a main post for the group was determined, process the group
+                  if (mainPost) {
+                      mainPost.subRows = groupPosts.filter(p => p.id !== mainPost!.id);
+                      groupPosts.forEach(p => processedIds.add(p.id));
+                  }
               } else {
-                 mainPost = postsById.get(post.id)!;
-                 processedIds.add(post.id);
+                  // This case happens when a post has translations, but none of them are on the current page of results.
+                  // We treat this post as a standalone root for now.
+                  mainPost = postsById.get(post.id);
+                  if (mainPost) {
+                      processedIds.add(mainPost.id);
+                  }
               }
           } else {
-              mainPost = postsById.get(post.id)!;
-              processedIds.add(post.id);
+              // This is a post with no translations, or the API didn't provide them.
+              mainPost = postsById.get(post.id);
+              if (mainPost) {
+                  processedIds.add(mainPost.id);
+              }
           }
           
-          if ((selectedLanguage === 'all' || mainPost.lang === selectedLanguage) && mainPost) {
+          // Add the determined mainPost to the roots if it exists and matches the language filter
+          if (mainPost && (selectedLanguage === 'all' || mainPost.lang === selectedLanguage)) {
               roots.push(mainPost);
           }
       });
