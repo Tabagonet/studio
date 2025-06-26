@@ -9,6 +9,8 @@ const nextConfig = {
         'zod',
         '@opentelemetry/api',
         '@opentelemetry/sdk-node',
+        '@woocommerce/woocommerce-rest-api',
+        'axios',
     ],
   },
   images: {
