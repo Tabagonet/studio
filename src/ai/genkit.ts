@@ -7,7 +7,7 @@
  */
 import * as GenkitCore from '@genkit-ai/core';
 import googleAI from '@genkit-ai/googleai';
-import { firebase } from '@genkit-ai/firebase';
+import { firebase } from '@genkit-ai/firebase/plugin';
 import googleCloud from '@genkit-ai/google-cloud';
 import { initializeApp, getApps } from 'firebase-admin/app';
 
