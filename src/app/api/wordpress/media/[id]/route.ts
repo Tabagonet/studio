@@ -24,7 +24,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     }
 
     // `force: true` permanently deletes the media item, skipping the trash.
-    const response = await wpApi.delete(`/media/${mediaId}`, { force: true });
+    const response = await wpApi.delete(`/media/${mediaId}`, { params: { force: true } });
 
     // We can also check response.data.deleted, which should be true
     return NextResponse.json({ success: true, data: response.data });
