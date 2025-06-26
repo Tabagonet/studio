@@ -79,7 +79,7 @@ export function BlogCreator() {
         if (postData.featuredImage?.file) {
             updateStepStatus('upload_image', 'processing');
             const formData = new FormData();
-            formData.append('imagen', postData.featuredImage.file);
+            formData.append('imagen', postData.featuredImage.file!);
             const uploadResponse = await fetch('/api/upload-image', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData });
             if (!uploadResponse.ok) {
                 const errorData = await uploadResponse.json();

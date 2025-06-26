@@ -133,7 +133,7 @@ export function ProductEditModal({ productId, onClose }: ProductEditModalProps) 
             });
 
             const formData = new FormData();
-            formData.append('imagen', photo.file);
+            formData.append('imagen', photo.file!);
 
             const response = await axios.post('/api/upload-image', formData, {
                 headers: { 'Authorization': `Bearer ${token}` },
