@@ -157,12 +157,17 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     updateProductData({ [e.target.name]: e.target.value });
   };
 
-  const handleSelectChange = (name: string, value: string) => {
-    if (name === 'category') {
+  const handleSelectChange = (name: 'productType' | 'category', value: string) => {
+    if (name === 'productType') {
+      updateProductData({ 
+        productType: value as ProductType, 
+        // Reset attributes and variations when type changes to avoid inconsistencies
+        attributes: [{ name: '', value: '', forVariations: false, visible: true }], 
+        variations: [] 
+      });
+    } else if (name === 'category') {
       const selectedCat = wooCategories.find(c => c.id.toString() === value);
       updateProductData({ category: selectedCat || null, categoryPath: '' });
-    } else {
-      updateProductData({ [name]: value });
     }
   };
 
@@ -295,7 +300,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
                 <div>
                   <Label htmlFor="productType">Tipo de Producto</Label>
-                  <Select name="productType" value={productData.productType} onValueChange={(value) => updateProductData({ productType: value as ProductType, attributes: [{ name: '', value: '', forVariations: false, visible: true }], variations: [] })} disabled={isProcessing}>
+                  <Select name="productType" value={productData.productType} onValueChange={(value) => handleSelectChange('productType', value)} disabled={isProcessing}>
                     <SelectTrigger id="productType">
                       <SelectValue placeholder="Selecciona un tipo de producto" />
                     </SelectTrigger>
