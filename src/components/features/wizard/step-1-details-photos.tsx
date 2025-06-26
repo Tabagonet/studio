@@ -55,8 +55,17 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     updateProductData({ [e.target.name]: e.target.value });
   };
 
-  const handleSelectChange = (name: string, value: string | ProductType) => {
-    updateProductData({ [name]: value });
+  const handleSelectChange = (name: 'productType' | 'category', value: string) => {
+    if (name === 'productType') {
+      updateProductData({ 
+        productType: value as ProductType, 
+        // Reset attributes and variations when type changes to avoid inconsistencies
+        attributes: [{ name: '', value: '' }], 
+      });
+    } else if (name === 'category') {
+      const selectedCat = wooCategories.find(c => c.id.toString() === value);
+      updateProductData({ category: selectedCat || null });
+    }
   };
 
   const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
@@ -140,7 +149,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
           <div>
             <Label htmlFor="category">Categoría</Label>
-            <Select name="category" value={productData.category} onValueChange={(value) => handleSelectChange('category', value)} disabled={isProcessing || isLoadingCategories}>
+            <Select name="category" value={productData.category?.id.toString() || ''} onValueChange={(value) => handleSelectChange('category', value)} disabled={isProcessing || isLoadingCategories}>
               <SelectTrigger id="category">
                 {isLoadingCategories ? (
                   <div className="flex items-center">
@@ -154,7 +163,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
               <SelectContent>
                 {!isLoadingCategories && wooCategories.length === 0 && <SelectItem value="" disabled>No hay categorías disponibles</SelectItem>}
                 {wooCategories.map(cat => (
-                  <SelectItem key={cat.id} value={cat.slug}>{cat.name}</SelectItem>
+                  <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
