@@ -50,7 +50,7 @@ async function getPageContentFromApi(postId: number, postType: 'Post' | 'Page', 
         metaDescription: rawData.meta?._yoast_wpseo_metadesc || '',
         h1: $('h1').first().text(),
         headings: $('h1, h2, h3, h4, h5, h6').map((i, el) => ({
-            tag: el.tagName,
+            tag: el.name,
             text: $(el).text()
         })).get(),
         images: $('img').map((i, el) => ({
@@ -79,7 +79,7 @@ async function getPageContentFromScraping(url: string) {
             metaDescription: $('meta[name="description"]').attr('content') || '',
             h1: $('h1').first().text(),
             headings: $('h1, h2, h3, h4, h5, h6').map((i, el) => ({
-                tag: el.tagName,
+                tag: el.name,
                 text: $(el).text()
             })).get(),
             images: $('img').map((i, el) => ({
