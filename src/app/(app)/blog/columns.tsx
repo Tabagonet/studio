@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
-import type { BlogPostSearchResult } from "@/lib/types"
+import type { HierarchicalBlogPost } from "@/lib/types"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import {
   Tooltip,
@@ -32,7 +32,7 @@ export const getColumns = (
   handleStatusUpdate: (postId: number, newStatus: 'publish' | 'draft') => void,
   handleEdit: (postId: number) => void,
   handleDelete: (postId: number) => void,
-): ColumnDef<BlogPostSearchResult>[] => [
+): ColumnDef<HierarchicalBlogPost>[] => [
   {
     id: "select",
     header: ({ table }) => (
