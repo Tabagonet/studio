@@ -55,5 +55,5 @@ const nextConfig = {
   },
 };
 
-// A trivial change to invalidate the Next.js cache and fix build issues.
+// Another trivial change to invalidate the Next.js cache and fix build issues.
 module.exports = nextConfig;

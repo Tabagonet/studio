@@ -1,7 +1,6 @@
-
 // src/lib/woocommerce.ts
 const WooCommerceRestApi = require("@woocommerce/woocommerce-rest-api");
-import type WooCommerceRestApi from "@woocommerce/woocommerce-rest-api";
+import type WooCommerceRestApiType from "@woocommerce/woocommerce-rest-api";
 
 interface WooCommerceCredentials {
   url: string;
@@ -13,9 +12,9 @@ interface WooCommerceCredentials {
  * Creates a new WooCommerce REST API instance on-demand.
  * This is used in API routes to create a client with user-specific credentials.
  * @param {WooCommerceCredentials} credentials - The user's WooCommerce API credentials.
- * @returns {WooCommerceRestApi | null} A configured API client or null if credentials are incomplete.
+ * @returns {WooCommerceRestApiType | null} A configured API client or null if credentials are incomplete.
  */
-export function createWooCommerceApi(credentials: WooCommerceCredentials): WooCommerceRestApi | null {
+export function createWooCommerceApi(credentials: WooCommerceCredentials): WooCommerceRestApiType | null {
   let { url, consumerKey, consumerSecret } = credentials;
 
   if (!url || !consumerKey || !consumerSecret) {
