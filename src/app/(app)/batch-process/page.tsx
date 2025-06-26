@@ -430,7 +430,7 @@ export default function BatchProcessPage() {
                 name: product.name, sku: product.id, productType: product.csvData.tipo || 'simple',
                 regularPrice: product.csvData.precio_regular || '', salePrice: product.csvData.precio_oferta || '',
                 stockQuantity: product.csvData.stock_inicial || '', shortDescription: aiContent.shortDescription, longDescription: aiContent.longDescription, keywords: aiContent.keywords,
-                attributes: [], photos: [], language: sourceLang
+                attributes: [], photos: [], language: sourceLang, category: null
             };
             const originalApiPayload = { productData: createBasePayload(originalProductData), lang: sourceLangSlug };
 
