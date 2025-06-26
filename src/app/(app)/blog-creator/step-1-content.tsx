@@ -163,8 +163,8 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                 if (!postData.topic) throw new Error("Por favor, introduce un tema para la IA.");
                 payload.topic = postData.topic;
                 payload.keywords = postData.keywords;
-            } else { // enhance_content or suggest_keywords
-                if (!postData.title && (mode !== 'generate_from_topic')) throw new Error("El título es necesario para esta acción.");
+            } else {
+                if (!postData.title) throw new Error("El título es necesario para esta acción.");
                 payload.existingTitle = postData.title;
                 payload.existingContent = postData.content;
             }
@@ -625,8 +625,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                                 <span className="w-full border-t" />
                             </div>
                             <div className="relative flex justify-center text-xs uppercase">
-                                <span className="bg-background px-2 text-muted-foreground">O</span>
-                            </div>
+                                <span className="bg-background px-2 text-muted-foreground">O</span></div>
                         </div>
                         <div>
                             <Label htmlFor="image-url">Insertar desde URL</Label>
