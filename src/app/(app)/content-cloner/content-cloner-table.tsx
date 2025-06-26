@@ -94,24 +94,32 @@ export function ContentClonerTable() {
         const errorData = await response.json();
         throw new Error(errorData.error || 'No se pudo cargar el contenido del sitio.');
       }
-      const { content } = await response.json();
+      const { content }: { content: RawContentItem[] } = await response.json();
 
-      const dataMap = new Map(content.map((item: ContentItem) => [item.id, { ...item, subRows: [] as ContentItem[] }]));
+      const dataMap = new Map<number, ContentItem>(
+        content.map((item) => [item.id, { ...item, subRows: [] }])
+      );
+      
       const roots: ContentItem[] = [];
 
-      content.forEach((item: ContentItem) => {
+      content.forEach((item) => {
         if (item.translations && Object.keys(item.translations).length > 1) {
           const mainPostId = Math.min(...Object.values(item.translations));
           if (item.id === mainPostId) {
-            const mainPost = dataMap.get(item.id)!;
-            mainPost.subRows = Object.values(item.translations)
-              .filter(id => id !== mainPostId)
-              .map(id => dataMap.get(id))
-              .filter(Boolean) as ContentItem[];
-            roots.push(mainPost);
+            const mainPost = dataMap.get(item.id);
+            if (mainPost) {
+                mainPost.subRows = Object.values(item.translations)
+                .filter(id => id !== mainPostId)
+                .map(id => dataMap.get(id))
+                .filter((p): p is ContentItem => !!p);
+              roots.push(mainPost);
+            }
           }
         } else if (!Object.values(item.translations || {}).some(id => id < item.id)) {
-          roots.push(dataMap.get(item.id)!);
+            const rootPost = dataMap.get(item.id);
+            if (rootPost) {
+              roots.push(rootPost);
+            }
         }
       });
       setData(roots);
