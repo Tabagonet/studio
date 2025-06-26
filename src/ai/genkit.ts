@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileoverview This file initializes the Genkit AI instance with plugins
@@ -6,9 +5,9 @@
  * it only runs on the server, preventing Next.js bundling issues.
  */
 import * as GenkitCore from '@genkit-ai/core';
-import googleAI from '@genkit-ai/googleai';
-import { firebase } from '@genkit-ai/firebase/plugin';
-import googleCloud from '@genkit-ai/google-cloud';
+import * as googleAI from '@genkit-ai/googleai';
+import * as firebase from '@genkit-ai/firebase';
+import * as googleCloud from '@genkit-ai/google-cloud';
 import { initializeApp, getApps } from 'firebase-admin/app';
 
 // Initialize Firebase Admin SDK if not already initialized
@@ -17,11 +16,12 @@ if (getApps().length === 0) {
 }
 
 // Configure and export the AI instance with all necessary plugins.
-// This single instance will be used by all flows.
+// We use a type cast `(plugin as any).default()` because of a known issue with Next.js's
+// module resolution for these specific server-side packages.
 export const ai = GenkitCore.genkit({
   plugins: [
-    googleAI(),
-    firebase(),
-    googleCloud()
+    (googleAI as any).default(),
+    (firebase as any).default(),
+    (googleCloud as any).default(),
   ],
 });
