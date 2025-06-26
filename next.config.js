@@ -49,5 +49,5 @@ const nextConfig = {
   },
 };
 
-// A trivial change to invalidate cache and force rebuild.
+// Another trivial change to invalidate cache and force a complete rebuild.
 module.exports = nextConfig;
