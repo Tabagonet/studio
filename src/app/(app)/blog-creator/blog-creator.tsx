@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useCallback } from 'react';
-import type { BlogPostData, SubmissionStep, SubmissionStatus } from '@/lib/types';
+import type { BlogPostData, SubmissionStep, SubmissionStatus, ProductPhoto } from '@/lib/types';
 import { INITIAL_BLOG_DATA } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
@@ -86,7 +86,18 @@ export function BlogCreator() {
                 throw new Error(errorData.error || 'Error al subir la imagen destacada');
             }
             const imageData = await uploadResponse.json();
-            finalPostData = { ...finalPostData, featuredImage: { ...finalPostData.featuredImage, uploadedUrl: imageData.url, uploadedFilename: imageData.filename_saved_on_server, file: undefined }};
+            
+            const currentImage = finalPostData.featuredImage;
+            if (currentImage) {
+                 const updatedImage: ProductPhoto = {
+                    ...currentImage,
+                    uploadedUrl: imageData.url,
+                    uploadedFilename: imageData.filename_saved_on_server,
+                    file: undefined // Clear the file object after upload
+                 };
+                 finalPostData = { ...finalPostData, featuredImage: updatedImage };
+            }
+
             updateStepStatus('upload_image', 'success');
         }
 

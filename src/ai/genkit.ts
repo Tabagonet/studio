@@ -4,7 +4,9 @@
  * for use throughout the application. It is marked as 'use server' to ensure
  * it only runs on the server, preventing Next.js bundling issues.
  */
-import * as GenkitCore from '@genkit-ai/core';
+// Using require() for the core library to bypass module resolution issues in Next.js.
+const { genkit } = require('@genkit-ai/core');
+
 import * as googleAI from '@genkit-ai/googleai';
 import * as firebase from '@genkit-ai/firebase';
 import * as googleCloud from '@genkit-ai/google-cloud';
@@ -18,7 +20,7 @@ if (getApps().length === 0) {
 // Configure and export the AI instance with all necessary plugins.
 // We use a type cast `(plugin as any).default()` because of a known issue with Next.js's
 // module resolution for these specific server-side packages.
-export const ai = (GenkitCore as any).default({
+export const ai = genkit({
   plugins: [
     (googleAI as any).default(),
     (firebase as any).default(),
