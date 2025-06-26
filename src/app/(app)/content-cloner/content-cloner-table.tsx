@@ -36,7 +36,7 @@ import { Loader2, ChevronDown, Copy } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
-type ContentItem = RawContentItem & { subRows?: ContentItem[] };
+type ContentItem = RawContentItem & { subRows: ContentItem[] };
 
 export function ContentClonerTable() {
   const [data, setData] = React.useState<ContentItem[]>([]);

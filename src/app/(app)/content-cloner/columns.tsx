@@ -9,7 +9,7 @@ import type { ContentItem as RawContentItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
-type ContentItem = RawContentItem & { subRows?: ContentItem[] };
+type ContentItem = RawContentItem & { subRows: ContentItem[] };
 
 const getStatusText = (status: ContentItem['status']) => {
     const statusMap: { [key: string]: string } = {

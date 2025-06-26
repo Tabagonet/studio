@@ -120,7 +120,7 @@ export interface BlogPostSearchResult {
   translations?: Record<string, number>;
 }
 
-export type HierarchicalBlogPost = BlogPostSearchResult & { subRows?: HierarchicalBlogPost[] };
+export type HierarchicalBlogPost = BlogPostSearchResult & { subRows: HierarchicalBlogPost[] };
 
 
 export interface ProductData {
