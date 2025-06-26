@@ -15,6 +15,7 @@ import {
   useReactTable,
   getExpandedRowModel,
   type ExpandedState,
+  type Row,
 } from "@tanstack/react-table"
 import { useToast } from "@/hooks/use-toast"
 import { auth } from "@/lib/firebase"
@@ -30,7 +31,7 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { getColumns } from "./columns" 
-import type { BlogPostSearchResult, WordPressPostCategory, BlogStats } from "@/lib/types"
+import type { BlogPostSearchResult, WordPressPostCategory, BlogStats, HierarchicalBlogPost } from "@/lib/types"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -45,8 +46,6 @@ const LANGUAGE_MAP: { [key: string]: string } = {
     de: 'Alemán',
     pt: 'Portugués',
 };
-
-type HierarchicalBlogPost = BlogPostSearchResult & { subRows?: HierarchicalBlogPost[] };
 
 export function BlogDataTable() {
   const [data, setData] = React.useState<HierarchicalBlogPost[]>([])
@@ -153,7 +152,7 @@ export function BlogDataTable() {
 
       const { posts, totalPages } = await response.json();
       
-      const stringLangCodes: string[] = Array.from(new Set(posts.map((p: BlogPostSearchResult) => p.lang).filter((l): l is string => !!l && l !== 'N/A')));
+      const stringLangCodes: string[] = Array.from(new Set(posts.map((p: BlogPostSearchResult) => p.lang).filter((l: string | undefined): l is string => !!l && l !== 'N/A')));
       setAvailableLanguages(stringLangCodes.map(code => ({ code, name: LANGUAGE_MAP[code] || code.toUpperCase() })));
 
 
@@ -170,14 +169,19 @@ export function BlogDataTable() {
           if (translationIds.size > 1) {
               const groupPosts = Array.from(translationIds).map(id => postsById.get(id)).filter(Boolean) as HierarchicalBlogPost[];
               mainPost = groupPosts.find(p => p.lang === selectedLanguage) || groupPosts[0];
-              mainPost.subRows = groupPosts.filter(p => p.id !== mainPost.id);
-              groupPosts.forEach(p => processedIds.add(p.id));
+              if (mainPost) {
+                mainPost.subRows = groupPosts.filter(p => p.id !== mainPost.id);
+                groupPosts.forEach(p => processedIds.add(p.id));
+              } else {
+                 mainPost = postsById.get(post.id)!;
+                 processedIds.add(post.id);
+              }
           } else {
               mainPost = postsById.get(post.id)!;
               processedIds.add(post.id);
           }
           
-          if (selectedLanguage === 'all' || mainPost.lang === selectedLanguage) {
+          if ((selectedLanguage === 'all' || mainPost.lang === selectedLanguage) && mainPost) {
               roots.push(mainPost);
           }
       });
@@ -327,9 +331,9 @@ export function BlogDataTable() {
     setIsBatchActionLoading(true);
     const selectedRows = table.getSelectedRowModel().rows;
     
-    const postIdsWithDuplicates = selectedRows.flatMap(row => [
+    const postIdsWithDuplicates = selectedRows.flatMap((row: Row<HierarchicalBlogPost>) => [
         row.original.id,
-        ...(row.original.subRows?.map(subRow => subRow.id) || [])
+        ...(row.original.subRows?.map((subRow: HierarchicalBlogPost) => subRow.id) || [])
     ]);
     const postIds = [...new Set(postIdsWithDuplicates)];
 
@@ -394,7 +398,7 @@ export function BlogDataTable() {
         return;
     }
 
-    const languages = selectedRows.map(row => row.original.lang);
+    const languages = selectedRows.map((row: Row<HierarchicalBlogPost>) => row.original.lang);
     if (new Set(languages).size !== languages.length) {
         toast({ title: "Idiomas duplicados", description: "No puedes enlazar dos entradas del mismo idioma.", variant: "destructive" });
         setIsLinking(false);
@@ -402,7 +406,7 @@ export function BlogDataTable() {
     }
     
     const translations: Record<string, number> = {};
-    selectedRows.forEach(row => {
+    selectedRows.forEach((row: Row<HierarchicalBlogPost>) => {
         if(row.original.lang) {
             translations[row.original.lang] = row.original.id;
         }
