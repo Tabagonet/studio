@@ -97,31 +97,42 @@ export function ContentClonerTable() {
       const { content }: { content: RawContentItem[] } = await response.json();
 
       const dataMap = new Map<number, ContentItem>(
-        content.map((item) => [item.id, { ...item, subRows: [] }])
+        content.map((item: RawContentItem) => [item.id, { ...item, subRows: [] }])
       );
       
       const roots: ContentItem[] = [];
+      const processedIds = new Set<number>();
 
       content.forEach((item) => {
+        if (processedIds.has(item.id)) {
+          return; // Skip if already part of another group
+        }
+
         if (item.translations && Object.keys(item.translations).length > 1) {
-          const mainPostId = Math.min(...Object.values(item.translations));
-          if (item.id === mainPostId) {
-            const mainPost = dataMap.get(item.id);
-            if (mainPost) {
-                mainPost.subRows = Object.values(item.translations)
-                .filter(id => id !== mainPostId)
-                .map(id => dataMap.get(id))
-                .filter((p): p is ContentItem => !!p);
-              roots.push(mainPost);
-            }
+          const translationIds = Object.values(item.translations);
+          const mainPostId = Math.min(...translationIds);
+          
+          const mainPost = dataMap.get(mainPostId);
+
+          if (mainPost) {
+            mainPost.subRows = translationIds
+              .filter(id => id !== mainPostId)
+              .map(id => dataMap.get(id))
+              .filter((p): p is ContentItem => !!p);
+            
+            roots.push(mainPost);
+            translationIds.forEach(id => processedIds.add(id));
           }
-        } else if (!Object.values(item.translations || {}).some(id => id < item.id)) {
+        } else {
+            // It's a standalone post
             const rootPost = dataMap.get(item.id);
             if (rootPost) {
               roots.push(rootPost);
+              processedIds.add(item.id);
             }
         }
       });
+
       setData(roots);
 
     } catch (err: any) {
