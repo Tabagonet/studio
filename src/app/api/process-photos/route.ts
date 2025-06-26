@@ -3,7 +3,8 @@
 // NOTE: This endpoint has been repurposed for batch product updates via AI.
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser, generateProductContent } from '@/lib/api-helpers';
+import { getApiClientsForUser } from '@/lib/api-helpers';
+import { generateProductFlow } from '@/ai/flows/generate-product-flow';
 import { z } from 'zod';
 
 const BatchUpdateInputSchema = z.object({
@@ -85,14 +86,15 @@ export async function POST(req: NextRequest) {
                 const productResponse = await wooApi.get(`products/${productId}`);
                 const product = productResponse.data;
 
-                // 2. Call AI content generator
-                const aiContent = await generateProductContent({
+                // 2. Call AI content generator flow
+                const aiContent = await generateProductFlow({
                     productName: product.name,
                     productType: product.type,
                     language: 'Spanish', 
                     keywords: product.tags?.map((t: any) => t.name).join(', ') || '',
                     groupedProductIds: [], // Not supported in batch mode for now
-                }, uid, wooApi);
+                    uid: uid,
+                });
 
                 // 3. Perform action based on input
                 if (action === 'generateDescriptions') {

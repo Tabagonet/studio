@@ -18,6 +18,4 @@ export const ai = GenkitCore.genkit({
     firebase(),
     googleCloud()
   ],
-  logLevel: 'warn', // Set to 'warn' or 'error' for production
-  enableTracingAndMetrics: true,
 });

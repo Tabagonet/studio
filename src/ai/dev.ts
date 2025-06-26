@@ -1,4 +1,4 @@
 // This file is obsolete.
-// The Genkit plugin configuration has been consolidated into /src/ai/genkit.ts
-// to resolve Next.js compilation issues. This file can be safely deleted.
-export {};
+// Genkit plugin configuration has been moved to /src/ai/genkit.ts
+// to align with Next.js server-side component best practices.
+// This file is intentionally left blank and can be removed in the future.
