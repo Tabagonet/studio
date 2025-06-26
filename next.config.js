@@ -1,6 +1,14 @@
 /** @type {import('next').NextConfig} */
-// Force cache invalidation by adding a comment.
 const nextConfig = {
+  experimental: {
+    serverComponentsExternalPackages: [
+        '@genkit-ai/core',
+        '@genkit-ai/googleai',
+        '@genkit-ai/firebase',
+        '@genkit-ai/google-cloud',
+        'zod',
+    ],
+  },
   images: {
     remotePatterns: [
       {
