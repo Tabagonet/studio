@@ -3,7 +3,7 @@
 import { adminDb } from '@/lib/firebase-admin';
 import { createWooCommerceApi } from '@/lib/woocommerce';
 import { createWordPressApi } from '@/lib/wordpress';
-import type WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
+import type WooCommerceRestApiType from '@woocommerce/woocommerce-rest-api';
 import type { AxiosInstance } from 'axios';
 import { z } from 'zod';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -34,7 +34,7 @@ export const GenerateProductDescriptionOutputSchema = z.object({
 
 
 interface ApiClients {
-  wooApi: WooCommerceRestApi | null;
+  wooApi: WooCommerceRestApiType | null;
   wpApi: AxiosInstance | null;
   activeConnectionKey: string;
 }
@@ -277,7 +277,7 @@ export async function uploadImageToWordPress(
  * @param wooApi An initialized WooCommerce API client.
  * @returns The ID of the final category in the path.
  */
-export async function findOrCreateCategoryByPath(pathString: string, wooApi: WooCommerceRestApi): Promise<number | null> {
+export async function findOrCreateCategoryByPath(pathString: string, wooApi: WooCommerceRestApiType): Promise<number | null> {
     if (!pathString || !pathString.trim()) {
         return null;
     }

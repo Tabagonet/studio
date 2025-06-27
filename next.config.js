@@ -21,6 +21,8 @@ const nextConfig = {
       'cheerio',
       'handlebars',
       'dotprompt',
+      'debug',
+      'supports-color',
     ],
   },
   images: {
