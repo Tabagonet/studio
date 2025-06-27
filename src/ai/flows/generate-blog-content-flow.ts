@@ -90,7 +90,7 @@ function getPromptForMode(mode: BlogContentInput['mode']) {
             break;
         case 'generate_focus_keyword':
             systemInstruction = `You are an expert SEO analyst. Your task is to identify the primary focus keyword (a short phrase of 2-4 words) from a blog post title and content. Return a single, valid JSON object with one key: 'focusKeyword'. The keyword should be in the same language as the content. Do not include markdown or the word 'json' in your output.`;
-            userPrompt = `
+            prompt = `
                 Identify the focus keyword in {{language}} for this blog post:
                 Title: "{{existingTitle}}"
                 Content:
@@ -115,7 +115,7 @@ function getPromptForMode(mode: BlogContentInput['mode']) {
 }
 
 
-const _generateBlogContentFlow = ai.defineFlow(
+export const generateBlogContent = ai.defineFlow(
   {
     name: 'generateBlogContentFlow',
     inputSchema: BlogContentInputSchema,
@@ -144,7 +144,3 @@ const _generateBlogContentFlow = ai.defineFlow(
     return output;
   }
 );
-
-export async function generateBlogContent(input: BlogContentInput): Promise<BlogContentOutput> {
-  return _generateBlogContentFlow(input);
-}

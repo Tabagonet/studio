@@ -59,7 +59,7 @@ Generate the complete JSON object based on your research of "{{{productName}}}".
   },
 );
 
-const _generateProductFlow = ai.defineFlow(
+export const generateProductFlow = ai.defineFlow(
   {
     name: 'generateProductFlow',
     inputSchema: GenerateProductInputSchema,
@@ -95,8 +95,3 @@ const _generateProductFlow = ai.defineFlow(
     return output;
   }
 );
-
-
-export async function generateProductFlow(input: GenerateProductInput): Promise<GenerateProductOutput> {
-  return _generateProductFlow(input);
-}

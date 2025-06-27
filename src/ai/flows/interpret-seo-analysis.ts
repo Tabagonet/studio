@@ -61,7 +61,7 @@ Based on all the data above, generate a JSON object with two keys:
 `,
 });
 
-const _interpretSeoAnalysisFlow = ai.defineFlow(
+export const interpretSeoAnalysis = ai.defineFlow(
   {
     name: 'interpretSeoAnalysisFlow',
     inputSchema: SeoAnalysisInputSchema,
@@ -78,8 +78,3 @@ const _interpretSeoAnalysisFlow = ai.defineFlow(
     return output;
   }
 );
-
-
-export async function interpretSeoAnalysis(input: SeoAnalysisInput): Promise<SeoInterpretationOutput> {
-    return _interpretSeoAnalysisFlow(input);
-}

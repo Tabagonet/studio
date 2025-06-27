@@ -7,7 +7,6 @@
 // Use require for core and import * for plugins: this is the most stable approach in Next.js with Genkit 1.13
 const { genkit } = require('@genkit-ai/core');
 import * as googleAI from '@genkit-ai/googleai';
-import * as firebase from '@genkit-ai/firebase';
 import { initializeApp, getApps } from 'firebase-admin/app';
 
 // Initialize Firebase Admin SDK if not already initialized
@@ -20,6 +19,5 @@ if (getApps().length === 0) {
 export const ai = genkit({
   plugins: [
     (googleAI as any).default(),
-    (firebase as any).default(),
   ],
 });

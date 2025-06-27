@@ -21,7 +21,7 @@ export const TranslateOutputSchema = z.record(z.string());
 export type TranslateOutput = z.infer<typeof TranslateOutputSchema>;
 
 
-const _translateFlow = ai.defineFlow(
+export const translate = ai.defineFlow(
   {
     name: 'translateFlow',
     inputSchema: TranslateInputSchema,
@@ -49,7 +49,3 @@ const _translateFlow = ai.defineFlow(
     throw new Error('AI returned a non-object response.');
   }
 );
-
-export async function translate(input: TranslateInput): Promise<TranslateOutput> {
-  return _translateFlow(input);
-}
