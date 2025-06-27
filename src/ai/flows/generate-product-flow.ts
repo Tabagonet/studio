@@ -37,75 +37,70 @@ const stripHtml = (html: string | null | undefined): string => {
     return html ? html.replace(/<[^>]*>?/gm, '') : '';
 };
 
-
+// This is the wrapper function that will be called by the API
 export async function generateProductFlow(input: GenerateProductInput): Promise<GenerateProductOutput> {
-  
-  let groupedProductsList = 'N/A';
-  if (input.productType === 'grouped' && input.groupedProductIds && input.groupedProductIds.length > 0) {
-      const { wooApi } = await getApiClientsForUser(input.uid);
-      if (!wooApi) {
-          throw new Error("WooCommerce API is not configured. Cannot fetch grouped product details.");
-      }
-      try {
-        const response = await wooApi.get("products", { include: input.groupedProductIds, per_page: 100 });
-        if (response.data && response.data.length > 0) {
-          groupedProductsList = response.data.map((product: any) => {
-            const name = product.name;
-            const desc = stripHtml(product.short_description) || stripHtml(product.description)?.substring(0, 150) + '...' || 'No description available.';
-            return `* Product: ${name}\n* Details: ${desc}`;
-          }).join('\n\n');
-        }
-      } catch (e) {
-        console.error("Failed to fetch details for grouped products:", e);
-        groupedProductsList = 'Error fetching product details.';
-      }
-  }
-  
-  const promptText = `You are an expert e-commerce copywriter and SEO specialist.
-Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
-The response must be a single, valid JSON object that conforms to the following schema. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
-
-**Required JSON Schema:**
-{
-  "shortDescription": "A brief, catchy, and SEO-friendly summary of the product (1-2 sentences). Must use HTML for formatting.",
-  "longDescription": "A detailed, persuasive, and comprehensive description of the product. Must use HTML for formatting.",
-  "keywords": "A comma-separated list of 5 to 10 relevant SEO keywords/tags for the product, in English.",
-  "imageTitle": "A concise, SEO-friendly title for the product images.",
-  "imageAltText": "A descriptive alt text for SEO, describing the image for visually impaired users.",
-  "imageCaption": "An engaging caption for the image, suitable for the media library.",
-  "imageDescription": "A detailed description for the image media library entry."
+  return generateProductFlowInternal(input);
 }
+
+
+const generateProductPrompt = ai.definePrompt(
+  {
+    name: 'generateProductPrompt',
+    // We'll define a custom input schema for the prompt that includes the fetched product list
+    input: { schema: GenerateProductInputSchema.extend({ groupedProductsList: z.string() }) },
+    output: { schema: GenerateProductOutputSchema },
+    prompt: `You are an expert e-commerce copywriter and SEO specialist.
+Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
+The response must be a single, valid JSON object that conforms to the output schema. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
 
 **Input Information:**
-- **Product Name:** ${input.productName}
-- **Language for output:** ${input.language}
-- **Product Type:** ${input.productType}
-- **User-provided Keywords (for inspiration):** ${input.keywords || 'none'}
+- **Product Name:** {{{productName}}}
+- **Language for output:** {{{language}}}
+- **Product Type:** {{{productType}}}
+- **User-provided Keywords (for inspiration):** {{{keywords}}}
 - **Contained Products (for "Grouped" type only):**
-${groupedProductsList}
+{{{groupedProductsList}}}
 
-Generate the complete JSON object based on your research of "${input.productName}".`;
-  
-  const response = await ai.generate({
-    model: 'googleai/gemini-1.5-flash-latest',
-    prompt: promptText,
-    config: {
-      responseMimeType: 'application/json',
-    },
-  });
+Generate the complete JSON object based on your research of "{{{productName}}}".`,
+  },
+);
 
-  const responseText = response.text;
-  if (!responseText) {
-    throw new Error('AI returned an empty response.');
+
+// Renamed to Internal and defined as a Genkit flow
+const generateProductFlowInternal = ai.defineFlow(
+  {
+    name: 'generateProductFlow',
+    inputSchema: GenerateProductInputSchema,
+    outputSchema: GenerateProductOutputSchema,
+  },
+  async (input) => {
+    let groupedProductsList = 'N/A';
+    if (input.productType === 'grouped' && input.groupedProductIds && input.groupedProductIds.length > 0) {
+        const { wooApi } = await getApiClientsForUser(input.uid);
+        if (!wooApi) {
+            throw new Error("WooCommerce API is not configured. Cannot fetch grouped product details.");
+        }
+        try {
+          const response = await wooApi.get("products", { include: input.groupedProductIds, per_page: 100 });
+          if (response.data && response.data.length > 0) {
+            groupedProductsList = response.data.map((product: any) => {
+              const name = product.name;
+              const desc = stripHtml(product.short_description) || stripHtml(product.description)?.substring(0, 150) + '...' || 'No description available.';
+              return `* Product: ${name}\n* Details: ${desc}`;
+            }).join('\n\n');
+          }
+        } catch (e) {
+          console.error("Failed to fetch details for grouped products:", e);
+          groupedProductsList = 'Error fetching product details.';
+        }
+    }
+    
+    // Pass the fetched data along with the original input to the prompt
+    const { output } = await generateProductPrompt({ ...input, groupedProductsList });
+    if (!output) {
+      throw new Error('AI returned an empty response.');
+    }
+
+    return output;
   }
-  
-  const output = JSON.parse(responseText);
-  
-  const validationResult = GenerateProductOutputSchema.safeParse(output);
-  if (!validationResult.success) {
-      console.error("AI output validation failed:", validationResult.error);
-      throw new Error("AI returned data in an unexpected format.");
-  }
-
-  return validationResult.data;
-}
+);
