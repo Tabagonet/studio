@@ -8,7 +8,6 @@
 const { genkit } = require('@genkit-ai/core');
 import * as googleAI from '@genkit-ai/googleai';
 import * as firebase from '@genkit-ai/firebase';
-import * as googleCloud from '@genkit-ai/google-cloud';
 import { initializeApp, getApps } from 'firebase-admin/app';
 
 // Initialize Firebase Admin SDK if not already initialized
@@ -22,6 +21,5 @@ export const ai = genkit({
   plugins: [
     (googleAI as any).default(),
     (firebase as any).default(),
-    (googleCloud as any).default(),
   ],
 });
