@@ -32,11 +32,6 @@ export const SeoInterpretationOutputSchema = z.object({
 export type SeoInterpretationOutput = z.infer<typeof SeoInterpretationOutputSchema>;
 
 
-export async function interpretSeoAnalysis(input: SeoAnalysisInput): Promise<SeoInterpretationOutput> {
-  return interpretSeoAnalysisFlow(input);
-}
-
-
 const interpretSeoPrompt = ai.definePrompt({
     name: 'interpretSeoPrompt',
     input: { schema: SeoAnalysisInputSchema.extend({ positivesList: z.string(), improvementsList: z.string() }) },
@@ -66,13 +61,13 @@ Based on all the data above, generate a JSON object with two keys:
 `,
 });
 
-const interpretSeoAnalysisFlow = ai.defineFlow(
+export const interpretSeoAnalysis = ai.defineFlow(
   {
     name: 'interpretSeoAnalysisFlow',
     inputSchema: SeoAnalysisInputSchema,
     outputSchema: SeoInterpretationOutputSchema,
   },
-  async (input: SeoAnalysisInput) => {
+  async (input: SeoAnalysisInput): Promise<SeoInterpretationOutput> => {
     const positivesList = input.aiAnalysis.positives.map(p => `- ${p}`).join('\n');
     const improvementsList = input.aiAnalysis.improvements.map(i => `- ${i}`).join('\n');
     

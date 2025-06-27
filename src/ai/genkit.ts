@@ -1,12 +1,13 @@
 'use server';
 /**
- * @fileoverview This file initializes the Genkit AI instance with plugins
+ * @fileoverview This file initializes Genkit globally with plugins
  * for use throughout the application. It is marked as 'use server' to ensure
  * it only runs on the server, preventing Next.js bundling issues.
+ * This module is imported for its side effects.
  */
-import { genkit } from '@genkit-ai/core';
-import { googleAI } from '@genkit-ai/googleai';
 import { firebasePlugin } from '@genkit-ai/firebase';
+import { googleAI } from '@genkit-ai/googleai';
+import { genkit } from '@genkit-ai/core';
 import { initializeApp, getApps } from 'firebase-admin/app';
 
 // Initialize Firebase Admin SDK if not already initialized

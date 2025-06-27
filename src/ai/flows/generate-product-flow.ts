@@ -37,16 +37,10 @@ const stripHtml = (html: string | null | undefined): string => {
     return html ? html.replace(/<[^>]*>?/gm, '') : '';
 };
 
-// This is the wrapper function that will be called by the API
-export async function generateProductFlow(input: GenerateProductInput): Promise<GenerateProductOutput> {
-  return generateProductFlowInternal(input);
-}
-
 
 const generateProductPrompt = ai.definePrompt(
   {
     name: 'generateProductPrompt',
-    // We'll define a custom input schema for the prompt that includes the fetched product list
     input: { schema: GenerateProductInputSchema.extend({ groupedProductsList: z.string() }) },
     output: { schema: GenerateProductOutputSchema },
     prompt: `You are an expert e-commerce copywriter and SEO specialist.
@@ -66,14 +60,13 @@ Generate the complete JSON object based on your research of "{{{productName}}}".
 );
 
 
-// Renamed to Internal and defined as a Genkit flow
-const generateProductFlowInternal = ai.defineFlow(
+export const generateProductFlow = ai.defineFlow(
   {
     name: 'generateProductFlow',
     inputSchema: GenerateProductInputSchema,
     outputSchema: GenerateProductOutputSchema,
   },
-  async (input: GenerateProductInput) => {
+  async (input: GenerateProductInput): Promise<GenerateProductOutput> => {
     let groupedProductsList = 'N/A';
     if (input.productType === 'grouped' && input.groupedProductIds && input.groupedProductIds.length > 0) {
         const { wooApi } = await getApiClientsForUser(input.uid);
@@ -95,7 +88,6 @@ const generateProductFlowInternal = ai.defineFlow(
         }
     }
     
-    // Pass the fetched data along with the original input to the prompt
     const { output } = await generateProductPrompt({ ...input, groupedProductsList });
     if (!output) {
       throw new Error('AI returned an empty response.');
