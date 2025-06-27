@@ -5,7 +5,7 @@ import { createWordPressApi } from '@/lib/wordpress';
 import type WooCommerceRestApiType from '@woocommerce/woocommerce-rest-api';
 import type { AxiosInstance } from 'axios';
 import { z } from 'zod';
-import { translate } from '@/ai/flows/translate-flow';
+import { ai } from '@/ai/genkit';
 import axios from 'axios';
 import FormData from 'form-data';
 
@@ -89,7 +89,7 @@ export async function generateProductContent() {
 
 
 /**
- * Translates content using the centralized Genkit translate flow.
+ * Translates content using a direct call to the Genkit AI generate function.
  * @param contentToTranslate An object with string key-value pairs.
  * @param targetLanguage The language to translate to.
  * @returns A promise that resolves to an object with the same keys but translated values.
@@ -98,13 +98,32 @@ export async function translateContent(
   contentToTranslate: { [key: string]: string },
   targetLanguage: string
 ): Promise<{ [key: string]: string }> {
+  const TranslateOutputSchema = z.record(z.string());
+
   try {
-    const result = await translate({ content: contentToTranslate, targetLanguage });
-    return result;
+     const { output } = await ai.generate({
+        model: 'googleai/gemini-1.5-flash-latest',
+        system: `You are an expert translator. Translate the values of the user-provided JSON object into the specified target language. It is crucial that you maintain the original JSON structure and keys. You must also preserve all HTML tags (e.g., <h2>, <p>, <strong>) and special separators like '|||' in their correct positions within the string values. Your output must be only the translated JSON object, without any extra text, comments, or markdown formatting.`,
+        prompt: `Translate the following content to ${targetLanguage}:\n\n${JSON.stringify(contentToTranslate)}`,
+        output: {
+            schema: TranslateOutputSchema
+        }
+    });
+
+    if (!output) {
+      throw new Error('AI returned an empty response for translation.');
+    }
+    
+    if (typeof output === 'object' && output !== null) {
+      return output as { [key: string]: string };
+    }
+    
+    throw new Error('AI returned a non-object response for translation.');
+
   } catch (error) {
-    console.error('Error calling translate flow:', error);
+    console.error('Error calling translate generation:', error);
     // Re-throw to be caught by the calling function
-    throw new Error('Failed to translate content via AI flow.');
+    throw new Error('Failed to translate content via AI.');
   }
 }
 
