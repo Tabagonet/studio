@@ -1,4 +1,3 @@
-
 // src/lib/api-helpers.ts
 import { adminDb } from '@/lib/firebase-admin';
 import { createWooCommerceApi } from '@/lib/woocommerce';
@@ -6,7 +5,7 @@ import { createWordPressApi } from '@/lib/wordpress';
 import type WooCommerceRestApiType from '@woocommerce/woocommerce-rest-api';
 import type { AxiosInstance } from 'axios';
 import { z } from 'zod';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { translate } from '@/ai/flows/translate-flow';
 import axios from 'axios';
 import FormData from 'form-data';
 
@@ -90,7 +89,7 @@ export async function generateProductContent() {
 
 
 /**
- * Translates content using Google AI.
+ * Translates content using the centralized Genkit translate flow.
  * @param contentToTranslate An object with string key-value pairs.
  * @param targetLanguage The language to translate to.
  * @returns A promise that resolves to an object with the same keys but translated values.
@@ -99,35 +98,13 @@ export async function translateContent(
   contentToTranslate: { [key: string]: string },
   targetLanguage: string
 ): Promise<{ [key: string]: string }> {
-  const apiKey = process.env.GOOGLE_API_KEY;
-  if (!apiKey) {
-    throw new Error('La clave API de Google AI no está configurada en el servidor.');
-  }
-
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-1.5-flash-latest',
-    systemInstruction: `You are an expert translator. Translate the values of the user-provided JSON object into the specified target language. It is crucial that you maintain the original JSON structure and keys. You must also preserve all HTML tags (e.g., <h2>, <p>, <strong>) and special separators like '|||' in their correct positions within the string values. Your output must be only the translated JSON object, without any extra text, comments, or markdown formatting.`,
-    generationConfig: {
-      responseMimeType: 'application/json',
-    },
-  });
-
-  const prompt = `Translate the following content to ${targetLanguage}:\n\n${JSON.stringify(contentToTranslate)}`;
-  
-  const result = await model.generateContent(prompt);
-  const responseText = result.response.text();
-  
   try {
-    const parsedJson = JSON.parse(responseText);
-    // Basic validation to ensure it's an object with string values
-    if (typeof parsedJson === 'object' && parsedJson !== null) {
-      return parsedJson;
-    }
-    throw new Error('AI returned a non-object response.');
+    const result = await translate({ content: contentToTranslate, targetLanguage });
+    return result;
   } catch (error) {
-    console.error('Error parsing translated content from AI:', responseText, error);
-    throw new Error('Failed to parse translation from AI.');
+    console.error('Error calling translate flow:', error);
+    // Re-throw to be caught by the calling function
+    throw new Error('Failed to translate content via AI flow.');
   }
 }
 
