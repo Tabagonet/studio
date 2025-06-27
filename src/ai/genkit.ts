@@ -6,7 +6,7 @@
  */
 import * as core from '@genkit-ai/core';
 import * as googleAIPlugin from '@genkit-ai/googleai';
-import * as firebasePlugin from '@genkit-ai/firebase';
+import firebasePlugin from '@genkit-ai/firebase';
 import { initializeApp, getApps } from 'firebase-admin/app';
 
 // Initialize Firebase Admin SDK if not already initialized
@@ -15,10 +15,9 @@ if (getApps().length === 0) {
 }
 
 // Configure and export the AI instance with all necessary plugins.
-// Note: Using .default() on the core import based on user feedback for v1.13.0
-export const ai = core.default({
+export const ai = core.genkit({
   plugins: [
-    googleAIPlugin.default(),
-    firebasePlugin.default(),
+    googleAIPlugin.googleAI(),
+    firebasePlugin(),
   ],
 });
