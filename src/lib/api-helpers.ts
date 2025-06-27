@@ -5,7 +5,7 @@ import { createWordPressApi } from '@/lib/wordpress';
 import type WooCommerceRestApiType from '@woocommerce/woocommerce-rest-api';
 import type { AxiosInstance } from 'axios';
 import { z } from 'zod';
-import { translate } from '@/ai/flows/translate-flow';
+import { ai } from '@/ai/genkit';
 import axios from 'axios';
 import FormData from 'form-data';
 
@@ -89,7 +89,8 @@ export async function generateProductContent() {
 
 
 /**
- * Translates content using the centralized Genkit translate flow.
+ * Translates content using a direct AI call. This is centralized here to avoid build issues
+ * with separate flow files in Next.js.
  * @param contentToTranslate An object with string key-value pairs.
  * @param targetLanguage The language to translate to.
  * @returns A promise that resolves to an object with the same keys but translated values.
@@ -99,12 +100,29 @@ export async function translateContent(
   targetLanguage: string
 ): Promise<{ [key: string]: string }> {
   try {
-    const result = await translate({ content: contentToTranslate, targetLanguage });
-    return result;
+    const systemInstruction = `You are an expert translator. Translate the values of the user-provided JSON object into the specified target language. It is crucial that you maintain the original JSON structure and keys. You must also preserve all HTML tags (e.g., <h2>, <p>, <strong>) and special separators like '|||' in their correct positions within the string values. Your output must be only the translated JSON object, without any extra text, comments, or markdown formatting.`;
+
+    const prompt = `Translate the following content to ${targetLanguage}:\n\n${JSON.stringify(contentToTranslate)}`;
+
+    const { output } = await ai.generate({
+        model: 'googleai/gemini-1.5-flash-latest',
+        system: systemInstruction,
+        prompt: prompt,
+        output: {
+            schema: z.record(z.string())
+        }
+    });
+
+    if (!output || typeof output !== 'object') {
+        throw new Error('AI returned a non-object or empty response for translation.');
+    }
+    
+    return output;
+
   } catch (error) {
-    console.error('Error calling translate flow:', error);
-    // Re-throw to be caught by the calling function
-    throw new Error('Failed to translate content via AI flow.');
+    console.error('Error in translateContent helper:', error);
+    // Re-throw to be caught by the calling API route
+    throw new Error('Failed to translate content via AI.');
   }
 }
 

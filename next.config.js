@@ -1,10 +1,10 @@
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: [
       '@genkit-ai/core',
       '@genkit-ai/googleai',
-      '@genkit-ai/firebase',
       'zod',
       '@woocommerce/woocommerce-rest-api',
       'axios',
