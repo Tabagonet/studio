@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
+import type * as admin from 'firebase-admin';
+import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
 
 // Helper function to get user UID and user settings document from request
