@@ -3,8 +3,8 @@
  * @fileOverview An AI flow to generate comprehensive product details for e-commerce.
  *
  * - generateProductFlow - A function that takes product details and generates descriptions, SEO data, and more.
- * - GenerateProductInputSchema - The Zod schema for the flow's input.
- * - GenerateProductOutputSchema - The Zod schema for the flow's output.
+ * - GenerateProductInput - The Zod schema for the flow's input.
+ * - GenerateProductOutput - The Zod schema for the flow's output.
  */
 
 import { ai } from '@/ai/genkit';
@@ -59,8 +59,7 @@ Generate the complete JSON object based on your research of "{{{productName}}}".
   },
 );
 
-
-export const generateProductFlow = ai.defineFlow(
+const _generateProductFlow = ai.defineFlow(
   {
     name: 'generateProductFlow',
     inputSchema: GenerateProductInputSchema,
@@ -96,3 +95,8 @@ export const generateProductFlow = ai.defineFlow(
     return output;
   }
 );
+
+
+export async function generateProductFlow(input: GenerateProductInput): Promise<GenerateProductOutput> {
+  return _generateProductFlow(input);
+}
