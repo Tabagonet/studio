@@ -59,13 +59,13 @@ Generate the complete JSON object based on your research of "{{{productName}}}".
   },
 );
 
-export const generateProductFlow = ai.defineFlow(
+const generateProductFlowInternal = ai.defineFlow(
   {
     name: 'generateProductFlow',
     inputSchema: GenerateProductInputSchema,
     outputSchema: GenerateProductOutputSchema,
   },
-  async (input: GenerateProductInput): Promise<GenerateProductOutput> => {
+  async (input: GenerateProductInput) => {
     let groupedProductsList = 'N/A';
     if (input.productType === 'grouped' && input.groupedProductIds && input.groupedProductIds.length > 0) {
         const { wooApi } = await getApiClientsForUser(input.uid);
@@ -95,3 +95,8 @@ export const generateProductFlow = ai.defineFlow(
     return output;
   }
 );
+
+
+export async function generateProductFlow(input: GenerateProductInput): Promise<GenerateProductOutput> {
+  return generateProductFlowInternal(input);
+}

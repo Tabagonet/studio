@@ -21,13 +21,13 @@ export const TranslateOutputSchema = z.record(z.string());
 export type TranslateOutput = z.infer<typeof TranslateOutputSchema>;
 
 
-export const translate = ai.defineFlow(
+const translateFlow = ai.defineFlow(
   {
     name: 'translateFlow',
     inputSchema: TranslateInputSchema,
     outputSchema: TranslateOutputSchema,
   },
-  async (input: TranslateInput): Promise<TranslateOutput> => {
+  async (input: TranslateInput) => {
     const { output } = await ai.generate({
         model: 'googleai/gemini-1.5-flash-latest',
         system: `You are an expert translator. Translate the values of the user-provided JSON object into the specified target language. It is crucial that you maintain the original JSON structure and keys. You must also preserve all HTML tags (e.g., <h2>, <p>, <strong>) and special separators like '|||' in their correct positions within the string values. Your output must be only the translated JSON object, without any extra text, comments, or markdown formatting.`,
@@ -49,3 +49,7 @@ export const translate = ai.defineFlow(
     throw new Error('AI returned a non-object response.');
   }
 );
+
+export async function translate(input: TranslateInput): Promise<TranslateOutput> {
+    return translateFlow(input);
+}

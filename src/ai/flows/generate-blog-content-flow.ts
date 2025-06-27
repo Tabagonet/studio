@@ -115,13 +115,13 @@ function getPromptForMode(mode: BlogContentInput['mode']) {
 }
 
 
-export const generateBlogContent = ai.defineFlow(
+const generateBlogContentFlow = ai.defineFlow(
   {
     name: 'generateBlogContentFlow',
     inputSchema: BlogContentInputSchema,
     outputSchema: BlogContentOutputSchema,
   },
-  async (input: BlogContentInput): Promise<BlogContentOutput> => {
+  async (input: BlogContentInput) => {
     const { systemInstruction, userPrompt } = getPromptForMode(input.mode);
 
     if (!systemInstruction || !userPrompt) {
@@ -144,3 +144,8 @@ export const generateBlogContent = ai.defineFlow(
     return output;
   }
 );
+
+
+export async function generateBlogContent(input: BlogContentInput): Promise<BlogContentOutput> {
+    return generateBlogContentFlow(input);
+}
