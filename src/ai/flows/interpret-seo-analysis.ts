@@ -72,7 +72,7 @@ const interpretSeoAnalysisFlow = ai.defineFlow(
     inputSchema: SeoAnalysisInputSchema,
     outputSchema: SeoInterpretationOutputSchema,
   },
-  async (input) => {
+  async (input: SeoAnalysisInput) => {
     const positivesList = input.aiAnalysis.positives.map(p => `- ${p}`).join('\n');
     const improvementsList = input.aiAnalysis.improvements.map(i => `- ${i}`).join('\n');
     

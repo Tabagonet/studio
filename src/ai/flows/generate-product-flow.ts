@@ -73,7 +73,7 @@ const generateProductFlowInternal = ai.defineFlow(
     inputSchema: GenerateProductInputSchema,
     outputSchema: GenerateProductOutputSchema,
   },
-  async (input) => {
+  async (input: GenerateProductInput) => {
     let groupedProductsList = 'N/A';
     if (input.productType === 'grouped' && input.groupedProductIds && input.groupedProductIds.length > 0) {
         const { wooApi } = await getApiClientsForUser(input.uid);
