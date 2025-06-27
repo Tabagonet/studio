@@ -15,6 +15,8 @@ const nextConfig = {
         'form-data',
         '@google/generative-ai',
         'cheerio',
+        '@opentelemetry/instrumentation',
+        '@opentelemetry/instrumentation-winston',
     ],
   },
   images: {
