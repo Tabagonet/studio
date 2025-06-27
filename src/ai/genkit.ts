@@ -17,7 +17,7 @@ if (getApps().length === 0) {
 // Configure and export the AI instance with all necessary plugins.
 export const ai = genkit({
   plugins: [
-    googleAIPlugin.googleAI(),
+    googleAIPlugin.default(),
     firebasePlugin.default(),
   ],
 });
