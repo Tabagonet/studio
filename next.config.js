@@ -9,14 +9,18 @@ const nextConfig = {
         'zod',
         '@opentelemetry/api',
         '@opentelemetry/sdk-node',
+        '@opentelemetry/instrumentation',
+        '@opentelemetry/instrumentation-winston',
+        '@opentelemetry/exporter-jaeger', // Added to resolve build warnings
+        '@opentelemetry/winston-transport', // Added to resolve build warnings
         '@woocommerce/woocommerce-rest-api',
         'axios',
         'firebase-admin',
         'form-data',
         '@google/generative-ai',
         'cheerio',
-        '@opentelemetry/instrumentation',
-        '@opentelemetry/instrumentation-winston',
+        'handlebars', // Added to resolve require.extensions build warning
+        'dotprompt', // Added as it depends on handlebars
     ],
   },
   images: {
