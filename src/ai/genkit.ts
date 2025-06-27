@@ -5,7 +5,7 @@
  * it only runs on the server, preventing Next.js bundling issues.
  */
 import { genkit } from '@genkit-ai/core';
-import { googleAI } from '@genkit-ai/googleai';
+import * as googleAIPlugin from '@genkit-ai/googleai';
 import * as firebasePlugin from '@genkit-ai/firebase';
 import { initializeApp, getApps } from 'firebase-admin/app';
 
@@ -17,7 +17,7 @@ if (getApps().length === 0) {
 // Configure and export the AI instance with all necessary plugins.
 export const ai = genkit({
   plugins: [
-    googleAI(),
+    googleAIPlugin.googleAI(),
     firebasePlugin.default(),
   ],
 });
