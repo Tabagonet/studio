@@ -1,5 +1,6 @@
 // src/lib/woocommerce.ts
-const WooCommerceRestApi = require("@woocommerce/woocommerce-rest-api");
+const WooCommerceRestApiModule = require("@woocommerce/woocommerce-rest-api");
+const WooCommerceRestApi = WooCommerceRestApiModule.default || WooCommerceRestApiModule;
 import type WooCommerceRestApiType from "@woocommerce/woocommerce-rest-api";
 
 interface WooCommerceCredentials {
