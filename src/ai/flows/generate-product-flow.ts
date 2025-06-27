@@ -70,13 +70,13 @@ Generate the complete JSON object based on your research of "{{productName}}".`
 });
 
 
-const _generateProductFlow = ai.defineFlow(
+export const generateProductFlow = ai.defineFlow(
   {
     name: 'generateProductFlow',
     inputSchema: GenerateProductInputSchema,
     outputSchema: GenerateProductOutputSchema,
   },
-  async (input: GenerateProductInput) => {
+  async (input: GenerateProductInput): Promise<GenerateProductOutput> => {
 
     let groupedProductsList = 'N/A';
     if (input.productType === 'grouped' && input.groupedProductIds && input.groupedProductIds.length > 0) {
@@ -107,8 +107,3 @@ const _generateProductFlow = ai.defineFlow(
     return output!;
   }
 );
-
-
-export async function generateProductFlow(input: GenerateProductInput): Promise<GenerateProductOutput> {
-  return _generateProductFlow(input);
-}
