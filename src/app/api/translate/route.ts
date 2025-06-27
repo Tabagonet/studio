@@ -1,7 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { translateContent } from '@/lib/api-helpers';
+import { translate } from '@/ai/flows/translate-flow';
 import { z } from 'zod';
 
 const translateSchema = z.object({
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid input', details: validation.error.flatten() }, { status: 400 });
         }
         const { content, targetLanguage } = validation.data;
-        const translated = await translateContent(content, targetLanguage);
+        const translated = await translate({ content, targetLanguage });
         return NextResponse.json({ content: translated });
     } catch (error: any) {
         console.error('Error in translation API:', error);
