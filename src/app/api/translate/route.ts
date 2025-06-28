@@ -1,21 +1,9 @@
-
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-
-// Schema for the translation input
-const TranslateContentInputSchema = z.object({
-  contentToTranslate: z.record(z.string()),
-  targetLanguage: z.string(),
-});
-export type TranslateContentInput = z.infer<typeof TranslateContentInputSchema>;
-
-// Schema for the translation output
-const TranslateContentOutputSchema = z.record(z.string());
-export type TranslateContentOutput = z.infer<typeof TranslateContentOutputSchema>;
+import { translateContent, TranslateContentInputSchema } from '@/ai/flows/translate-content-flow';
 
 
 export async function POST(req: NextRequest) {
@@ -32,31 +20,17 @@ export async function POST(req: NextRequest) {
     // 2. Validate the request body and perform the translation
     try {
         const body = await req.json();
+        // The API route receives the full input object for the flow
         const validation = TranslateContentInputSchema.safeParse(body);
 
         if (!validation.success) {
             return NextResponse.json({ error: 'Invalid input', details: validation.error.flatten() }, { status: 400 });
         }
         
-        const { contentToTranslate, targetLanguage } = validation.data;
-  
-        const systemInstruction = `You are an expert translator. Translate the values of the user-provided JSON object into the specified target language. It is crucial that you maintain the original JSON structure and keys. You must also preserve all HTML tags (e.g., <h2>, <p>, <strong>) and special separators like '|||' in their correct positions within the string values. Your output must be only the translated JSON object, without any extra text, comments, or markdown formatting.`;
-        const prompt = `Translate the following content to ${targetLanguage}:\n\n${JSON.stringify(contentToTranslate)}`;
+        // Call the centralized translation flow
+        const output = await translateContent(validation.data);
         
-        const { output } = await ai.generate({
-            model: 'googleai/gemini-1.5-flash-latest',
-            system: systemInstruction,
-            prompt: prompt,
-            output: {
-                schema: TranslateContentOutputSchema,
-            },
-        });
-
-        if (!output || typeof output !== 'object') {
-            throw new Error('AI returned a non-object or empty response for translation.');
-        }
-        
-        // Return only the translated content object
+        // The flow already handles errors, so we just return the output
         return NextResponse.json(output);
 
     } catch (error: any) {

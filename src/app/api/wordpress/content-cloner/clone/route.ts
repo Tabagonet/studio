@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser, collectElementorTexts, replaceElementorTexts } from '@/lib/api-helpers';
 import { z } from 'zod';
+import { translateContent } from '@/ai/flows/translate-content-flow';
 
 const batchCloneSchema = z.object({
   post_ids: z.array(z.number()),
@@ -20,13 +21,11 @@ const LANG_CODE_MAP: { [key: string]: string } = {
 
 export async function POST(req: NextRequest) {
     let uid: string;
-    let token: string;
     try {
         const authToken = req.headers.get('Authorization')?.split('Bearer ')[1];
         if (!authToken) throw new Error('Auth token missing');
-        token = authToken; // Keep token for sub-requests
         if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
-        uid = (await adminAuth.verifyIdToken(token)).uid;
+        uid = (await adminAuth.verifyIdToken(authToken)).uid;
     } catch (e: any) {
         return NextResponse.json({ error: 'Auth failed', message: e.message }, { status: 401 });
     }
@@ -63,8 +62,6 @@ export async function POST(req: NextRequest) {
         const successfullyClonedPairs = cloneResponse.data.success || [];
 
         // === 2. TRANSLATE AND UPDATE EACH CLONE ===
-        const translationApiUrl = `${req.nextUrl.origin}/api/translate`;
-
         for (const pair of successfullyClonedPairs) {
             const { original_id, clone_id, post_type } = pair;
             try {
@@ -87,17 +84,10 @@ export async function POST(req: NextRequest) {
                     textsToTranslate = { title: originalPost.title.rendered, content: originalPost.content.rendered };
                 }
                 
-                const translateResponse = await fetch(translationApiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ contentToTranslate: textsToTranslate, targetLanguage: target_lang_name })
+                const translated = await translateContent({
+                    contentToTranslate: textsToTranslate,
+                    targetLanguage: target_lang_name,
                 });
-
-                if (!translateResponse.ok) {
-                    const errData = await translateResponse.json();
-                    throw new Error(errData.message || 'Translation API call failed.');
-                }
-                const translated = await translateResponse.json();
 
                 if (!translated) throw new Error("AI failed to translate content.");
                 const { title: translatedTitle, content: translatedContentString } = translated;
