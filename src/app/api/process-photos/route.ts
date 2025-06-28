@@ -4,7 +4,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
-import { generateProductFlow } from '@/ai/flows/generate-product-flow';
 import { z } from 'zod';
 
 const BatchUpdateInputSchema = z.object({
@@ -15,11 +14,12 @@ const BatchUpdateInputSchema = z.object({
 
 export async function POST(req: NextRequest) {
     let uid: string;
+    let authToken: string | undefined;
     try {
-        const token = req.headers.get('Authorization')?.split('Bearer ')[1];
-        if (!token) throw new Error('Authentication token not provided.');
+        authToken = req.headers.get('Authorization')?.split('Bearer ')[1];
+        if (!authToken) throw new Error('Authentication token not provided.');
         if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
-        const decodedToken = await adminAuth.verifyIdToken(token);
+        const decodedToken = await adminAuth.verifyIdToken(authToken);
         uid = decodedToken.uid;
     } catch (error: any) {
         return NextResponse.json({ error: 'Authentication failed', message: error.message }, { status: 401 });
@@ -79,6 +79,9 @@ export async function POST(req: NextRequest) {
             success: [] as number[],
             failed: [] as { id: number; reason: string }[],
         };
+        
+        // Get the base URL for internal fetch calls
+        const baseUrl = req.nextUrl.origin;
 
         for (const productId of productIds) {
             try {
@@ -86,15 +89,28 @@ export async function POST(req: NextRequest) {
                 const productResponse = await wooApi.get(`products/${productId}`);
                 const product = productResponse.data;
 
-                // 2. Call AI content generator flow
-                const aiContent = await generateProductFlow({
-                    productName: product.name,
-                    productType: product.type,
-                    language: 'Spanish', 
-                    keywords: product.tags?.map((t: any) => t.name).join(', ') || '',
-                    groupedProductIds: [], // Not supported in batch mode for now
-                    uid: uid,
+                // 2. Call AI content generator via INTERNAL API call
+                 const aiResponse = await fetch(`${baseUrl}/api/generate-description`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        productName: product.name,
+                        productType: product.type,
+                        language: 'Spanish', 
+                        keywords: product.tags?.map((t: any) => t.name).join(', ') || '',
+                        groupedProductIds: [],
+                    })
                 });
+
+                if (!aiResponse.ok) {
+                    const errorJson = await aiResponse.json();
+                    throw new Error(errorJson.message || `AI service failed for product ${productId}`);
+                }
+                const aiContent = await aiResponse.json();
+
 
                 // 3. Perform action based on input
                 if (action === 'generateDescriptions') {
