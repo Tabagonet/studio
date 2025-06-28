@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser, collectElementorTexts, replaceElementorTexts } from '@/lib/api-helpers';
 import { z } from 'zod';
-import { ai } from '@/ai/genkit';
+import { translateContent } from '@/ai/flows/translate-content-flow';
+
 
 const batchCloneSchema = z.object({
   post_ids: z.array(z.number()),
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
     try {
         const token = req.headers.get('Authorization')?.split('Bearer ')[1];
         if (!token) throw new Error('Auth token missing');
-        if (!adminAuth) throw new Error("Firebase Admin Auth not initialized.");
+        if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
         uid = (await adminAuth.verifyIdToken(token)).uid;
     } catch (e: any) {
         return NextResponse.json({ error: 'Auth failed', message: e.message }, { status: 401 });
@@ -85,18 +86,14 @@ export async function POST(req: NextRequest) {
                     textsToTranslate = { title: originalPost.title.rendered, content: originalPost.content.rendered };
                 }
                 
-                // Translate directly here
-                const systemInstruction = `You are an expert translator. Translate the values of the user-provided JSON object into the specified target language. It is crucial that you maintain the original JSON structure and keys. You must also preserve all HTML tags (e.g., <h2>, <p>, <strong>) and special separators like '|||' in their correct positions within the string values. Your output must be only the translated JSON object, without any extra text, comments, or markdown formatting.`;
-                const prompt = `Translate the following content to ${target_lang_name}:\n\n${JSON.stringify(textsToTranslate)}`;
-                const { output: translatedContent } = await ai.generate({
-                    model: 'googleai/gemini-1.5-flash-latest',
-                    system: systemInstruction,
-                    prompt: prompt,
-                    output: { schema: z.object({ title: z.string(), content: z.string() }) }
+                // Use the new centralized flow
+                const translated = await translateContent({
+                    contentToTranslate: textsToTranslate,
+                    targetLanguage: target_lang_name,
                 });
-
-                if (!translatedContent) throw new Error("AI failed to translate content.");
-                const { title: translatedTitle, content: translatedContentString } = translatedContent;
+                
+                if (!translated) throw new Error("AI failed to translate content.");
+                const { title: translatedTitle, content: translatedContentString } = translated;
 
                 // Prepare update payload
                 const updatePayload: any = {

@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import { z } from 'zod';
-import { ai } from '@/ai/genkit';
+import { translateContent } from '@/ai/flows/translate-content-flow';
+
 
 const syncSchema = z.object({
   sourcePostId: z.number(),
@@ -55,26 +56,19 @@ export async function POST(req: NextRequest) {
             if (lang === sourceLang) continue; // Skip the source post
 
             try {
-                // Translate the entire content and title directly here
-                const systemInstruction = `You are an expert translator. Translate the values of the user-provided JSON object into the specified target language. It is crucial that you maintain the original JSON structure and keys. You must also preserve all HTML tags (e.g., <h2>, <p>, <strong>) and special separators like '|||' in their correct positions within the string values. Your output must be only the translated JSON object, without any extra text, comments, or markdown formatting.`;
-                const prompt = `Translate the following content to ${lang}:\n\n${JSON.stringify({ title, content })}`;
-                const { output } = await ai.generate({
-                    model: 'googleai/gemini-1.5-flash-latest',
-                    system: systemInstruction,
-                    prompt: prompt,
-                    output: { schema: z.object({ title: z.string(), content: z.string() }) }
+                // Use the new centralized translation flow
+                const translated = await translateContent({
+                    contentToTranslate: { title, content },
+                    targetLanguage: lang,
                 });
                 
-                if (!output || !output.title || !output.content) {
+                if (!translated.title || !translated.content) {
                     throw new Error(`AI returned invalid structure for lang ${lang}`);
                 }
-                const translatedTitle = output.title;
-                const translatedContent = output.content;
                 
-                // Update the translated post with the new content
                 const payload = {
-                    title: translatedTitle,
-                    content: translatedContent,
+                    title: translated.title,
+                    content: translated.content,
                 };
                 
                 await wpApi.post(`/${endpoint}/${postId}`, payload);
