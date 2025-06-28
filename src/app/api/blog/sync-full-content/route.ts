@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import { z } from 'zod';
-import { translateContent } from '@/ai/flows/translate-content-flow';
 
 const syncSchema = z.object({
   sourcePostId: z.number(),
@@ -15,8 +14,9 @@ const syncSchema = z.object({
 
 export async function POST(req: NextRequest) {
     let uid: string;
+    let authToken: string | undefined;
     try {
-        const authToken = req.headers.get('Authorization')?.split('Bearer ')[1];
+        authToken = req.headers.get('Authorization')?.split('Bearer ')[1];
         if (!authToken) throw new Error('Auth token missing');
         if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
         const decodedToken = await adminAuth.verifyIdToken(authToken);
@@ -51,14 +51,32 @@ export async function POST(req: NextRequest) {
             failed: [] as { lang: string; reason: string }[],
         };
 
+        // Get the base URL for internal fetch calls
+        const baseUrl = req.nextUrl.origin;
+
         for (const [lang, postId] of Object.entries(translations)) {
             if (lang === sourceLang) continue; // Skip the source post
 
             try {
-                const translated = await translateContent({
-                    contentToTranslate: { title, content },
-                    targetLanguage: lang,
+                // Use internal fetch to call the translation API
+                const translateResponse = await fetch(`${baseUrl}/api/translate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`,
+                    },
+                    body: JSON.stringify({
+                        contentToTranslate: { title, content },
+                        targetLanguage: lang,
+                    }),
                 });
+
+                if (!translateResponse.ok) {
+                    const errorData = await translateResponse.json();
+                    throw new Error(errorData.message || `AI translation failed for lang ${lang}`);
+                }
+
+                const translated = await translateResponse.json();
                 
                 if (!translated.title || !translated.content) {
                     throw new Error(`AI returned invalid structure for lang ${lang}`);

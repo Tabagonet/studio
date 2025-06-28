@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser, collectElementorTexts, replaceElementorTexts } from '@/lib/api-helpers';
 import { z } from 'zod';
-import { translateContent } from '@/ai/flows/translate-content-flow';
 
 const batchCloneSchema = z.object({
   post_ids: z.array(z.number()),
@@ -21,8 +20,9 @@ const LANG_CODE_MAP: { [key: string]: string } = {
 
 export async function POST(req: NextRequest) {
     let uid: string;
+    let authToken: string | undefined;
     try {
-        const authToken = req.headers.get('Authorization')?.split('Bearer ')[1];
+        authToken = req.headers.get('Authorization')?.split('Bearer ')[1];
         if (!authToken) throw new Error('Auth token missing');
         if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
         uid = (await adminAuth.verifyIdToken(authToken)).uid;
@@ -61,6 +61,9 @@ export async function POST(req: NextRequest) {
 
         const successfullyClonedPairs = cloneResponse.data.success || [];
 
+        // Get the base URL for internal fetch calls
+        const baseUrl = req.nextUrl.origin;
+
         // === 2. TRANSLATE AND UPDATE EACH CLONE ===
         for (const pair of successfullyClonedPairs) {
             const { original_id, clone_id, post_type } = pair;
@@ -84,10 +87,23 @@ export async function POST(req: NextRequest) {
                     textsToTranslate = { title: originalPost.title.rendered, content: originalPost.content.rendered };
                 }
                 
-                const translated = await translateContent({
-                    contentToTranslate: textsToTranslate,
-                    targetLanguage: target_lang_name,
+                const translateResponse = await fetch(`${baseUrl}/api/translate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`,
+                    },
+                    body: JSON.stringify({
+                        contentToTranslate: textsToTranslate,
+                        targetLanguage: target_lang_name,
+                    }),
                 });
+
+                if (!translateResponse.ok) {
+                    const errorData = await translateResponse.json();
+                    throw new Error(errorData.message || `AI translation failed for clone of ${original_id}`);
+                }
+                const translated = await translateResponse.json();
 
                 if (!translated) throw new Error("AI failed to translate content.");
                 const { title: translatedTitle, content: translatedContentString } = translated;
