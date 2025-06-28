@@ -22,7 +22,6 @@ export const BlogContentInputSchema = z.object({
 });
 export type BlogContentInput = z.infer<typeof BlogContentInputSchema>;
 
-// The output schema needs to be flexible enough for all modes.
 export const BlogContentOutputSchema = z.object({
   title: z.string().optional(),
   content: z.string().optional(),
@@ -35,12 +34,18 @@ export const BlogContentOutputSchema = z.object({
 });
 export type BlogContentOutput = z.infer<typeof BlogContentOutputSchema>;
 
-
-function getPromptForMode(mode: BlogContentInput['mode']) {
+// This internal constant is not exported.
+const generateBlogContentFlowInternal = ai.defineFlow(
+  {
+    name: 'generateBlogContentFlow',
+    inputSchema: BlogContentInputSchema,
+    outputSchema: BlogContentOutputSchema,
+  },
+  async (input: BlogContentInput) => {
     let systemInstruction = '';
     let userPrompt = '';
 
-    switch (mode) {
+    switch (input.mode) {
         case 'generate_from_topic':
             systemInstruction = `You are a professional blog writer and SEO specialist. Your task is to generate a blog post based on a given topic. The response must be a single, valid JSON object with four keys: 'title' (an engaging, SEO-friendly headline), 'content' (a well-structured blog post of at least 400 words, using HTML tags like <h2>, <p>, <ul>, <li>, and <strong> for formatting. All paragraphs (<p> tags) MUST be styled with text-align: justify; for example: <p style="text-align: justify;">Your paragraph here.</p>), 'suggestedKeywords' (a comma-separated string of 5-7 relevant, SEO-focused keywords), and 'metaDescription' (a compelling summary of around 150 characters for search engines). Do not include markdown or the word 'json' in your output.`;
             userPrompt = `
@@ -112,19 +117,7 @@ function getPromptForMode(mode: BlogContentInput['mode']) {
             `;
             break;
     }
-    return { systemInstruction, userPrompt };
-}
-
-
-const generateBlogContentFlow = ai.defineFlow(
-  {
-    name: 'generateBlogContentFlow',
-    inputSchema: BlogContentInputSchema,
-    outputSchema: BlogContentOutputSchema,
-  },
-  async (input: BlogContentInput) => {
-    const { systemInstruction, userPrompt } = getPromptForMode(input.mode);
-
+    
     if (!systemInstruction || !userPrompt) {
         throw new Error(`Invalid mode provided to blog content flow: ${input.mode}`);
     }
@@ -146,7 +139,7 @@ const generateBlogContentFlow = ai.defineFlow(
   }
 );
 
-
+// This is the only exported function. It's a simple async wrapper.
 export async function generateBlogContent(input: BlogContentInput): Promise<BlogContentOutput> {
-    return generateBlogContentFlow(input);
+    return generateBlogContentFlowInternal(input);
 }

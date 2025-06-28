@@ -33,33 +33,7 @@ export const GenerateProductOutputSchema = z.object({
 });
 export type GenerateProductOutput = z.infer<typeof GenerateProductOutputSchema>;
 
-
-const stripHtml = (html: string | null | undefined): string => {
-    return html ? html.replace(/<[^>]*>?/gm, '') : '';
-};
-
-
-const generateProductPrompt = ai.definePrompt(
-  {
-    name: 'generateProductPrompt',
-    input: { schema: GenerateProductInputSchema.extend({ groupedProductsList: z.string() }) },
-    output: { schema: GenerateProductOutputSchema },
-    prompt: `You are an expert e-commerce copywriter and SEO specialist.
-Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
-The response must be a single, valid JSON object that conforms to the output schema. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
-
-**Input Information:**
-- **Product Name:** {{{productName}}}
-- **Language for output:** {{{language}}}
-- **Product Type:** {{{productType}}}
-- **User-provided Keywords (for inspiration):** {{{keywords}}}
-- **Contained Products (for "Grouped" type only):**
-{{{groupedProductsList}}}
-
-Generate the complete JSON object based on your research of "{{{productName}}}".`,
-  },
-);
-
+// This internal constant is not exported.
 const generateProductFlowInternal = ai.defineFlow(
   {
     name: 'generateProductFlow',
@@ -77,6 +51,7 @@ const generateProductFlowInternal = ai.defineFlow(
           const response = await wooApi.get("products", { include: input.groupedProductIds, per_page: 100 });
           if (response.data && response.data.length > 0) {
             groupedProductsList = response.data.map((product: any) => {
+              const stripHtml = (html: string | null | undefined): string => html ? html.replace(/<[^>]*>?/gm, '') : '';
               const name = product.name;
               const desc = stripHtml(product.short_description) || stripHtml(product.description)?.substring(0, 150) + '...' || 'No description available.';
               return `* Product: ${name}\n* Details: ${desc}`;
@@ -88,6 +63,27 @@ const generateProductFlowInternal = ai.defineFlow(
         }
     }
     
+    const generateProductPrompt = ai.definePrompt(
+      {
+        name: 'generateProductPrompt',
+        input: { schema: GenerateProductInputSchema.extend({ groupedProductsList: z.string() }) },
+        output: { schema: GenerateProductOutputSchema },
+        prompt: `You are an expert e-commerce copywriter and SEO specialist.
+    Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
+    The response must be a single, valid JSON object that conforms to the output schema. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
+
+    **Input Information:**
+    - **Product Name:** {{{productName}}}
+    - **Language for output:** {{{language}}}
+    - **Product Type:** {{{productType}}}
+    - **User-provided Keywords (for inspiration):** {{{keywords}}}
+    - **Contained Products (for "Grouped" type only):**
+    {{{groupedProductsList}}}
+
+    Generate the complete JSON object based on your research of "{{{productName}}}".`,
+      },
+    );
+
     const { output } = await generateProductPrompt({ ...input, groupedProductsList });
     if (!output) {
       throw new Error('AI returned an empty response.');
@@ -97,7 +93,7 @@ const generateProductFlowInternal = ai.defineFlow(
   }
 );
 
-
+// This is the only exported function. It's a simple async wrapper.
 export async function generateProductFlow(input: GenerateProductInput): Promise<GenerateProductOutput> {
   return generateProductFlowInternal(input);
 }

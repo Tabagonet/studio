@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A centralized flow for translating structured content using Genkit.
@@ -21,8 +22,8 @@ export type TranslateContentInput = z.infer<typeof TranslateContentInputSchema>;
 export const TranslateContentOutputSchema = z.record(z.string());
 export type TranslateContentOutput = z.infer<typeof TranslateContentOutputSchema>;
 
-
-const translateContentFlow = ai.defineFlow(
+// This internal constant is not exported.
+const translateContentFlowInternal = ai.defineFlow(
     {
         name: 'translateContentFlow',
         inputSchema: TranslateContentInputSchema,
@@ -51,6 +52,7 @@ const translateContentFlow = ai.defineFlow(
     }
 );
 
+// This is the only exported function. It's a simple async wrapper.
 export async function translateContent(input: TranslateContentInput): Promise<TranslateContentOutput> {
-    return translateContentFlow(input);
+    return translateContentFlowInternal(input);
 }
