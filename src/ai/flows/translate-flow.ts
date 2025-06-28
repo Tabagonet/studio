@@ -1,3 +1,4 @@
+
 // This file is obsolete.
 // The logic for translation has been moved directly into /src/lib/api-helpers.ts
 // in the `translateContent` function to resolve a persistent Next.js build error.
