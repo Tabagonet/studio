@@ -5,8 +5,8 @@ import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 
-// Define schemas directly in the route file
-export const GenerateProductInputSchema = z.object({
+// Schemas and types are now internal to this file (no 'export' keyword).
+const GenerateProductInputSchema = z.object({
   productName: z.string().min(1, 'Product name is required.'),
   productType: z.string(),
   keywords: z.string().optional(),
@@ -14,9 +14,9 @@ export const GenerateProductInputSchema = z.object({
   groupedProductIds: z.array(z.number()).optional(),
   uid: z.string(), // This will be added on the server
 });
-export type GenerateProductInput = z.infer<typeof GenerateProductInputSchema>;
+type GenerateProductInput = z.infer<typeof GenerateProductInputSchema>;
 
-export const GenerateProductOutputSchema = z.object({
+const GenerateProductOutputSchema = z.object({
   shortDescription: z.string().describe('A brief, catchy, and SEO-friendly summary of the product (1-2 sentences). Must use HTML for formatting.'),
   longDescription: z.string().describe('A detailed, persuasive, and comprehensive description of the product. Must use HTML for formatting.'),
   keywords: z.string().describe('A comma-separated list of 5 to 10 relevant SEO keywords/tags for the product, in English.'),
@@ -25,7 +25,7 @@ export const GenerateProductOutputSchema = z.object({
   imageCaption: z.string().describe('An engaging caption for the image, suitable for the media library.'),
   imageDescription: z.string().describe('A detailed description for the image media library entry.'),
 });
-export type GenerateProductOutput = z.infer<typeof GenerateProductOutputSchema>;
+type GenerateProductOutput = z.infer<typeof GenerateProductOutputSchema>;
 
 
 // The core Genkit flow logic now lives inside this helper function
