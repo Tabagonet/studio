@@ -1,8 +1,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser, translateContent } from '@/lib/api-helpers';
+import { getApiClientsForUser } from '@/lib/api-helpers';
 import { z } from 'zod';
+import { translateContent } from '@/ai/flows/translate-content-flow';
 
 
 const syncSchema = z.object({
