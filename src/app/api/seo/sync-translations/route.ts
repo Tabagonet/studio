@@ -1,8 +1,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser, translateContent } from '@/lib/api-helpers';
+import { getApiClientsForUser } from '@/lib/api-helpers';
 import { z } from 'zod';
+import { translateContent } from '@/ai/flows/translate-content-flow';
+
 
 const syncSchema = z.object({
   sourcePostId: z.number(),
@@ -54,16 +56,22 @@ export async function POST(req: NextRequest) {
             if (lang === sourceLang) continue; // Skip the source post
 
             try {
-                // Translate SEO fields if they exist
-                const translatedMetaDescription = metaDescription
-                    ? (await translateContent({ title: '', content: metaDescription }, lang)).content
-                    : undefined;
+                const contentToTranslate: { [key: string]: string } = {};
+                if (metaDescription) contentToTranslate.metaDescription = metaDescription;
+                if (focusKeyword) contentToTranslate.focusKeyword = focusKeyword;
+                
+                let translatedMetaDescription: string | undefined;
+                let translatedFocusKeyword: string | undefined;
 
-                const translatedFocusKeyword = focusKeyword
-                    ? (await translateContent({ title: '', content: focusKeyword }, lang)).content
-                    : undefined;
+                if (Object.keys(contentToTranslate).length > 0) {
+                    const translatedResult = await translateContent({
+                        contentToTranslate,
+                        targetLanguage: lang,
+                    });
+                    translatedMetaDescription = translatedResult.metaDescription;
+                    translatedFocusKeyword = translatedResult.focusKeyword;
+                }
 
-                // Update the translated post
                 const payload: { meta: { [key: string]: string | undefined } } = { meta: {} };
                 
                 if (translatedMetaDescription !== undefined) {
