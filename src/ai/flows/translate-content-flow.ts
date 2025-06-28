@@ -28,7 +28,7 @@ const translateFlow = ai.defineFlow(
         inputSchema: TranslateContentInputSchema,
         outputSchema: TranslateContentOutputSchema,
     },
-    async (input) => {
+    async (input: TranslateContentInput) => {
         const { contentToTranslate, targetLanguage } = input;
   
         const systemInstruction = `You are an expert translator. Translate the values of the user-provided JSON object into the specified target language. It is crucial that you maintain the original JSON structure and keys. You must also preserve all HTML tags (e.g., <h2>, <p>, <strong>) and special separators like '|||' in their correct positions within the string values. Your output must be only the translated JSON object, without any extra text, comments, or markdown formatting.`;
