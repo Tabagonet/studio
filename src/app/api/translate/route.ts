@@ -2,7 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { z } from 'zod';
-import { translateContent, TranslateContentInputSchema } from '@/ai/flows/translate-content-flow';
+import { translateContent } from '@/lib/api-helpers';
+import { TranslateContentInputSchema } from '@/ai/flows/translate-content-flow';
 
 
 export async function POST(req: NextRequest) {

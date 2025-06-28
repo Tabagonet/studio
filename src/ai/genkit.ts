@@ -1,13 +1,11 @@
-
 'use server';
 /**
  * @fileoverview This file initializes the Genkit AI instance with plugins
  * for use throughout the application. It is marked as 'use server' to ensure
  * it only runs on the server, preventing Next.js bundling issues.
  */
-// Use require for core and import * for plugins: this is the most stable approach in Next.js with Genkit 1.13
-const { genkit } = require('@genkit-ai/core');
-import * as googleAI from '@genkit-ai/googleai';
+import { genkit } from '@genkit-ai/core';
+import { googleAI } from '@genkit-ai/googleai';
 import { initializeApp, getApps } from 'firebase-admin/app';
 
 // Initialize Firebase Admin SDK if not already initialized
@@ -16,9 +14,8 @@ if (getApps().length === 0) {
 }
 
 // Configure and export the AI instance with all necessary plugins.
-// Cast to `any` to avoid build-time type errors in this environment.
 export const ai = genkit({
   plugins: [
-    (googleAI as any).default(),
+    googleAI(),
   ],
 });

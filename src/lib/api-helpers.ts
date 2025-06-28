@@ -1,4 +1,3 @@
-
 // src/lib/api-helpers.ts
 import { adminDb } from '@/lib/firebase-admin';
 import { createWooCommerceApi } from '@/lib/woocommerce';
@@ -9,6 +8,7 @@ import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import axios from 'axios';
 import FormData from 'form-data';
+import { TranslateContentInputSchema, TranslateContentOutputSchema, type TranslateContentInput, type TranslateContentOutput } from '@/ai/flows/translate-content-flow';
 
 
 // --- Schemas for AI Content Generation ---
@@ -89,9 +89,45 @@ export async function generateProductContent() {
 }
 
 
-// NOTE: translateContent has been removed from here and implemented as a dedicated Genkit Flow
-// in /src/ai/flows/translate-content-flow.ts to resolve build issues.
-// API routes should now import and call the flow from there.
+/**
+ * Translates structured content using the Genkit AI library.
+ * This is implemented here directly to avoid Next.js build issues with importing Genkit flows.
+ * @param {TranslateContentInput} input - An object containing contentToTranslate and targetLanguage.
+ * @returns {Promise<TranslateContentOutput>} A promise resolving to the translated content object.
+ */
+export async function translateContent(input: TranslateContentInput): Promise<TranslateContentOutput> {
+  // Validate input with Zod schema to be safe
+  const validation = TranslateContentInputSchema.safeParse(input);
+  if (!validation.success) {
+    throw new Error('Invalid input for translateContent function.');
+  }
+  
+  const { contentToTranslate, targetLanguage } = validation.data;
+  
+  const systemInstruction = `You are an expert translator. Translate the values of the user-provided JSON object into the specified target language. It is crucial that you maintain the original JSON structure and keys. You must also preserve all HTML tags (e.g., <h2>, <p>, <strong>) and special separators like '|||' in their correct positions within the string values. Your output must be only the translated JSON object, without any extra text, comments, or markdown formatting.`;
+  const prompt = `Translate the following content to ${targetLanguage}:\n\n${JSON.stringify(contentToTranslate)}`;
+  
+  try {
+    const { output } = await ai.generate({
+        model: 'googleai/gemini-1.5-flash-latest',
+        system: systemInstruction,
+        prompt: prompt,
+        output: {
+            schema: TranslateContentOutputSchema
+        }
+    });
+
+    if (!output || typeof output !== 'object') {
+      throw new Error('AI returned a non-object or empty response for translation.');
+    }
+    
+    return output;
+    
+  } catch (error) {
+    console.error('Error during AI translation in api-helper:', error);
+    throw new Error('Failed to translate content via AI.');
+  }
+}
 
 
 /**
