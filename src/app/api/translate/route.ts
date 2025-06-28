@@ -1,8 +1,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { translateContent } from '@/lib/api-helpers';
 import { z } from 'zod';
+import { ai } from '@/ai/genkit';
 
 const translateSchema = z.object({
   content: z.record(z.string()),
@@ -26,12 +26,26 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid input', details: validation.error.flatten() }, { status: 400 });
         }
         
-        const { content, targetLanguage } = validation.data;
+        const { content: contentToTranslate, targetLanguage } = validation.data;
         
-        // Use the centralized helper function instead of a direct flow call
-        const translated = await translateContent(content, targetLanguage);
+        // AI translation logic is now directly in the endpoint
+        const systemInstruction = `You are an expert translator. Translate the values of the user-provided JSON object into the specified target language. It is crucial that you maintain the original JSON structure and keys. You must also preserve all HTML tags (e.g., <h2>, <p>, <strong>) and special separators like '|||' in their correct positions within the string values. Your output must be only the translated JSON object, without any extra text, comments, or markdown formatting.`;
+        const prompt = `Translate the following content to ${targetLanguage}:\n\n${JSON.stringify(contentToTranslate)}`;
+        
+        const { output } = await ai.generate({
+            model: 'googleai/gemini-1.5-flash-latest',
+            system: systemInstruction,
+            prompt: prompt,
+            output: {
+                schema: z.record(z.string())
+            }
+        });
 
-        return NextResponse.json({ content: translated });
+        if (!output || typeof output !== 'object') {
+            throw new Error('AI returned a non-object or empty response for translation.');
+        }
+
+        return NextResponse.json({ content: output });
 
     } catch (error: any) {
         console.error('Error in translation API:', error);
