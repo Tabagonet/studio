@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/api-helpers';
 import { z } from 'zod';
+import * as cheerio from 'cheerio';
 
 const slugify = (text: string) => {
     if (!text) return '';
@@ -23,6 +24,10 @@ const pageUpdateSchema = z.object({
         title: z.string(),
         alt_text: z.string(),
     }).optional(),
+    imageMetas: z.array(z.object({
+        src: z.string(),
+        alt: z.string(),
+    })).optional(),
 });
 
 
@@ -83,7 +88,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const validation = pageUpdateSchema.safeParse(body);
     if (!validation.success) return NextResponse.json({ error: 'Invalid data.', details: validation.error.flatten() }, { status: 400 });
     
-    const { featured_image_src, metaDescription, focusKeyword, featured_image_metadata, ...pagePayload } = validation.data;
+    const { featured_image_src, metaDescription, focusKeyword, featured_image_metadata, imageMetas, ...pagePayload } = validation.data;
     
     if (featured_image_src) {
         const seoFilename = `${slugify(pagePayload.title || 'page')}-${pageId}.jpg`;
@@ -101,6 +106,16 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (metaDescription !== undefined) meta._yoast_wpseo_metadesc = metaDescription;
     if (focusKeyword !== undefined) meta._yoast_wpseo_focuskw = focusKeyword;
     if (Object.keys(meta).length > 0) (pagePayload as any).meta = meta;
+
+    // Process image alt texts using Cheerio
+    if (imageMetas && pagePayload.content) {
+        const $ = cheerio.load(pagePayload.content);
+        imageMetas.forEach(meta => {
+            // Find img tag by src and update its alt attribute
+            $(`img[src="${meta.src}"]`).attr('alt', meta.alt);
+        });
+        pagePayload.content = $.html();
+    }
 
     const response = await wpApi.post(`/pages/${pageId}`, pagePayload);
     

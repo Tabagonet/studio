@@ -5,6 +5,7 @@ import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser, uploadImageToWordPress, findOrCreateTags } from '@/lib/api-helpers';
 import { z } from 'zod';
 import axios from 'axios';
+import * as cheerio from 'cheerio';
 
 const slugify = (text: string) => {
     if (!text) return '';
@@ -27,6 +28,10 @@ const postUpdateSchema = z.object({
         alt_text: z.string(),
     }).optional(),
     translations: z.record(z.string(), z.number()).optional(),
+    imageMetas: z.array(z.object({
+        src: z.string(),
+        alt: z.string(),
+    })).optional(),
 });
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -86,7 +91,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const validation = postUpdateSchema.safeParse(body);
     if (!validation.success) return NextResponse.json({ error: 'Invalid data.', details: validation.error.flatten() }, { status: 400 });
     
-    const { tags, featured_image_src, metaDescription, focusKeyword, featured_image_metadata, ...postPayload } = validation.data;
+    const { tags, featured_image_src, metaDescription, focusKeyword, featured_image_metadata, imageMetas, ...postPayload } = validation.data;
     
     if (tags !== undefined) {
         const tagNames = tags.split(',').map(t => t.trim()).filter(Boolean);
@@ -109,6 +114,16 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (metaDescription !== undefined) meta._yoast_wpseo_metadesc = metaDescription;
     if (focusKeyword !== undefined) meta._yoast_wpseo_focuskw = focusKeyword;
     if (Object.keys(meta).length > 0) (postPayload as any).meta = meta;
+
+    // Process image alt texts using Cheerio
+    if (imageMetas && postPayload.content) {
+        const $ = cheerio.load(postPayload.content);
+        imageMetas.forEach(meta => {
+            // Find img tag by src and update its alt attribute
+            $(`img[src="${meta.src}"]`).attr('alt', meta.alt);
+        });
+        postPayload.content = $.html();
+    }
 
     const response = await wpApi.post(`/posts/${postId}`, postPayload);
     

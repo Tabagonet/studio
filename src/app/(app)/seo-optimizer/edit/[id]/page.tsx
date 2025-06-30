@@ -5,12 +5,13 @@
 import React, { useEffect, useState, Suspense, useCallback, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Sparkles, Wand2, Tags, ArrowLeft, ExternalLink, Image as ImageIcon, Copy, Check } from 'lucide-react';
+import { Loader2, Sparkles, Wand2, Tags, ArrowLeft, ExternalLink, ImageIcon, Copy, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -54,7 +55,7 @@ function EditPageContent() {
   const postType = searchParams.get('type') as 'Post' | 'Page';
     
   const [post, setPost] = useState<PostEditState | null>(null);
-  const [imagesInContent, setImagesInContent] = useState<ParsedImage[]>([]);
+  const [imageMetas, setImageMetas] = useState<ParsedImage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -161,6 +162,7 @@ function EditPageContent() {
             author: post.author,
             metaDescription: post.metaDescription,
             focusKeyword: post.focusKeyword,
+            imageMetas: imageMetas, // Send updated image metadata
         };
         
         if (postType === 'Post') {
@@ -280,9 +282,24 @@ function EditPageContent() {
         src: img.getAttribute('src') || '',
         alt: img.getAttribute('alt') || '',
       }));
-      setImagesInContent(images);
+      setImageMetas(images);
     }
   }, [post?.content]);
+
+    const handleImageMetaChange = (src: string, newAlt: string) => {
+        setImageMetas(prevMetas => 
+            prevMetas.map(meta => 
+                meta.src === src ? { ...meta, alt: newAlt } : meta
+            )
+        );
+    };
+
+    const handleCopyText = (textToCopy: string) => {
+        navigator.clipboard.writeText(textToCopy);
+        toast({
+            title: "Copiado al portapapeles",
+        });
+    };
   
 
   if (isLoading) {
@@ -293,7 +310,6 @@ function EditPageContent() {
      return <div className="container mx-auto py-8"><Alert variant="destructive"><AlertTitle>Error</AlertTitle><AlertDescription>{error || `No se pudo cargar la información del ${postType}.`}</AlertDescription></Alert></div>;
   }
   
-  const imagesWithoutAlt = imagesInContent.filter(img => !img.alt);
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -343,14 +359,13 @@ function EditPageContent() {
             </Card>
             
             <Card>
-                <CardHeader><CardTitle className="flex items-center gap-2"><ImageIcon /> Optimización de Imágenes</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><ImageIcon /> Editor de Metadatos de Imágenes</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                      {suggestedImageMeta && (
                         <Alert>
                             <AlertTitle>Sugerencias de la IA</AlertTitle>
                             <AlertDescription className="space-y-2 mt-2">
-                                <div><Label className="text-xs">Título de Imagen</Label><p className="text-sm p-2 bg-muted rounded-md">{suggestedImageMeta.title}</p></div>
-                                <div><Label className="text-xs">Texto Alternativo (Alt)</Label><p className="text-sm p-2 bg-muted rounded-md">{suggestedImageMeta.altText}</p></div>
+                                <div className="flex justify-between items-center"><p className="text-sm p-2 bg-muted rounded-md flex-1">{suggestedImageMeta.altText}</p><Button variant="ghost" size="icon" onClick={() => handleCopyText(suggestedImageMeta.altText)}><Copy className="h-4 w-4" /></Button></div>
                                 <div className="flex items-center space-x-2 pt-2">
                                   <Checkbox id="apply-meta" checked={applyMetaToFeatured} onCheckedChange={(checked) => setApplyMetaToFeatured(!!checked)} disabled={!post.featuredMediaId} />
                                   <Label htmlFor="apply-meta" className="text-sm font-normal cursor-pointer">Aplicar a la imagen destacada al guardar</Label>
@@ -359,12 +374,26 @@ function EditPageContent() {
                             </AlertDescription>
                         </Alert>
                      )}
-                     {imagesWithoutAlt.length > 0 && (
-                        <div><h4 className="font-semibold mb-2">Imágenes sin `alt` text:</h4><div className="max-h-48 overflow-y-auto space-y-2 p-2 border rounded-md">{imagesWithoutAlt.map((img, i) => (<div key={i} className="text-xs text-destructive truncate"><span className="font-mono">{img.src}</span></div>))}</div></div>
-                     )}
-                     {imagesInContent.length > 0 && imagesWithoutAlt.length === 0 && (
-                        <Alert variant="default" className="border-green-500/50"><AlertTitle className="text-green-600">¡Buen trabajo!</AlertTitle><AlertDescription>Todas las {imagesInContent.length} imágenes encontradas en el contenido tienen texto alternativo.</AlertDescription></Alert>
-                     )}
+                    {imageMetas.length > 0 ? (
+                        <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                            {imageMetas.map((image, index) => (
+                                <div key={index} className="flex flex-col sm:flex-row items-center gap-3 p-2 border rounded-md">
+                                    <Image src={image.src} alt="Vista previa" width={64} height={64} className="w-16 h-16 object-cover rounded-md flex-shrink-0" />
+                                    <div className="w-full space-y-1">
+                                        <p className="text-xs text-muted-foreground truncate" title={image.src}>{image.src}</p>
+                                        <Input
+                                            aria-label={`Texto alternativo para ${image.src}`}
+                                            placeholder="Introduce el texto alternativo..."
+                                            value={image.alt}
+                                            onChange={(e) => handleImageMetaChange(image.src, e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-sm text-muted-foreground text-center py-4">No se encontraron imágenes en el contenido.</p>
+                    )}
                 </CardContent>
             </Card>
           </div>
