@@ -112,12 +112,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         }, wpApi);
     }
     
-    if (imageMetas && pagePayload.content) {
-        const $ = cheerio.load(pagePayload.content, null, false); // { decodeEntities: false } -> null, false
+    if (imageMetas && postPayload.content) {
+        const $ = cheerio.load(postPayload.content, null, false);
         imageMetas.forEach(meta => {
             $(`img[src="${meta.src}"]`).attr('alt', meta.alt);
         });
-        pagePayload.content = $('body').html() || $.html(); // Prefer body's inner HTML to avoid extra tags
+        postPayload.content = $('body').html() || postPayload.content;
     }
 
     const response = await wpApi.post(`/posts/${postId}`, postPayload);

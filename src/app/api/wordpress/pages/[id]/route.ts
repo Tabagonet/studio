@@ -106,11 +106,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
     
     if (imageMetas && pagePayload.content) {
-        const $ = cheerio.load(pagePayload.content, null, false); // { decodeEntities: false } -> null, false
+        const $ = cheerio.load(pagePayload.content, null, false);
         imageMetas.forEach(meta => {
             $(`img[src="${meta.src}"]`).attr('alt', meta.alt);
         });
-        pagePayload.content = $('body').html() || $.html(); // Prefer body's inner HTML to avoid extra tags
+        pagePayload.content = $('body').html() || pagePayload.content;
     }
 
     const response = await wpApi.post(`/pages/${pageId}`, pagePayload);
