@@ -19,6 +19,7 @@ import type { SeoAnalysisRecord } from '@/lib/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ContentToolbar } from '@/components/features/editor/content-toolbar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
+import { GoogleSnippetPreview } from '@/components/features/blog/google-snippet-preview';
 
 
 interface PostEditState {
