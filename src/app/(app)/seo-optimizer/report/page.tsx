@@ -87,13 +87,13 @@ function ReportContent() {
     return <Alert variant="destructive"><AlertTitle>Error al cargar el informe</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>;
   }
 
-  if (!analysisRecord || !interpretation) {
+  if (!analysisRecord) {
     return <Alert>No se encontraron datos de análisis válidos para generar el informe.</Alert>;
   }
 
   const { analysis } = analysisRecord;
   const scoreColor = analysis.aiAnalysis.score >= 80 ? 'text-green-500' : analysis.aiAnalysis.score >= 50 ? 'text-amber-500' : 'text-destructive';
-  const imagesWithoutAlt = analysis.images.filter(img => !img.alt).length;
+  const imagesWithoutAlt = analysis.images?.filter(img => !img.alt).length ?? 0;
 
   return (
     <div className="report-container bg-background text-foreground font-sans">
@@ -117,8 +117,14 @@ function ReportContent() {
                 <p className={`text-8xl font-bold ${scoreColor}`}>{analysis.aiAnalysis.score}<span className="text-4xl">/100</span></p>
               </div>
               <div className="max-w-xl">
-                <h3 className="text-xl font-semibold mb-2 flex items-center gap-2"><BrainCircuit className="h-6 w-6 text-primary" /> Interpretación del Experto IA</h3>
-                <p className="text-base text-muted-foreground italic">"{interpretation.interpretation}"</p>
+                 {interpretation ? (
+                  <>
+                    <h3 className="text-xl font-semibold mb-2 flex items-center gap-2"><BrainCircuit className="h-6 w-6 text-primary" /> Interpretación del Experto IA</h3>
+                    <p className="text-base text-muted-foreground italic">"{interpretation.interpretation}"</p>
+                  </>
+                 ) : (
+                    <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Cargando interpretación...</div>
+                 )}
               </div>
             </CardContent>
           </Card>
@@ -129,11 +135,15 @@ function ReportContent() {
                 <CardDescription>Estos son los pasos más importantes para mejorar el SEO de esta página.</CardDescription>
              </CardHeader>
              <CardContent>
-                <ul className="list-decimal list-inside space-y-4 text-lg">
-                    {interpretation.actionPlan.map((action, i) => (
-                        <li key={i} className="pl-2">{action}</li>
-                    ))}
-                </ul>
+                {interpretation ? (
+                  <ul className="list-decimal list-inside space-y-4 text-lg">
+                      {interpretation.actionPlan.map((action, i) => (
+                          <li key={i} className="pl-2">{action}</li>
+                      ))}
+                  </ul>
+                ) : (
+                   <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Cargando plan de acción...</div>
+                )}
              </CardContent>
            </Card>
         </section>
@@ -179,11 +189,23 @@ function ReportContent() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card className="border-green-500/50">
                   <CardHeader><CardTitle className="text-lg text-green-600">Puntos Fuertes</CardTitle></CardHeader>
-                  <CardContent><ul className="list-disc list-inside space-y-2">{interpretation.positives.map((item, i) => <li key={i}>{item}</li>)}</ul></CardContent>
+                   <CardContent>
+                    {interpretation ? (
+                        <ul className="list-disc list-inside space-y-2">{interpretation.positives.map((item, i) => <li key={i}>{item}</li>)}</ul>
+                    ) : (
+                        <p className="text-sm text-muted-foreground">Cargando...</p>
+                    )}
+                  </CardContent>
               </Card>
                <Card className="border-amber-500/50">
                   <CardHeader><CardTitle className="text-lg text-amber-600">Áreas de Mejora</CardTitle></CardHeader>
-                  <CardContent><ul className="list-disc list-inside space-y-2">{interpretation.improvements.map((item, i) => <li key={i}>{item}</li>)}</ul></CardContent>
+                  <CardContent>
+                    {interpretation ? (
+                        <ul className="list-disc list-inside space-y-2">{interpretation.improvements.map((item, i) => <li key={i}>{item}</li>)}</ul>
+                    ) : (
+                        <p className="text-sm text-muted-foreground">Cargando...</p>
+                    )}
+                  </CardContent>
               </Card>
           </div>
         </section>
