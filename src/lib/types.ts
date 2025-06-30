@@ -178,7 +178,11 @@ export interface ProductSearchResult {
   categories: { id: number; name: string }[];
   date_created: string | null;
   permalink: string;
+  lang?: string;
+  translations?: Record<string, number>;
 }
+
+export type HierarchicalProduct = ProductSearchResult & { subRows: HierarchicalProduct[] };
 
 export interface ParsedNameData {
   extractedProductName: string;

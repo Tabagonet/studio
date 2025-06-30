@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
     const stock_status = searchParams.get('stock_status');
     const orderby = searchParams.get('orderby') || 'date';
     const order = searchParams.get('order') || 'desc';
+    const lang = searchParams.get('lang');
 
     const params: any = {
       per_page: parseInt(perPage, 10),
@@ -52,6 +53,9 @@ export async function GET(req: NextRequest) {
       }
       if (status && status !== 'all') {
         params.status = status;
+      }
+       if (lang && lang !== 'all') {
+        params.lang = lang;
       }
       if (stock_status && stock_status !== 'all') {
         params.stock_status = stock_status;
@@ -91,6 +95,8 @@ export async function GET(req: NextRequest) {
             categories: product.categories.map((c: any) => ({ id: c.id, name: c.name })),
             date_created: product.date_created,
             permalink: product.permalink,
+            lang: product.lang || null,
+            translations: product.translations || {},
         };
     });
 

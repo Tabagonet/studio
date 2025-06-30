@@ -5,6 +5,7 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import {
   ColumnFiltersState,
+  RowSelectionState,
   SortingState,
   flexRender,
   getCoreRowModel,
@@ -12,6 +13,9 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
+  getExpandedRowModel,
+  type ExpandedState,
+  type Row,
 } from "@tanstack/react-table"
 import { useToast } from "@/hooks/use-toast"
 import { auth } from "@/lib/firebase"
@@ -27,9 +31,9 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { getColumns } from "./columns" 
-import type { ProductSearchResult, WooCommerceCategory, ProductStats } from "@/lib/types"
+import type { ProductSearchResult, WooCommerceCategory, ProductStats, HierarchicalProduct } from "@/lib/types"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { BrainCircuit, ChevronDown, Loader2, Box, FileCheck2, FileText, BarChart3, Eye, EyeOff, Image as ImageIcon, Trash2, BadgeDollarSign } from "lucide-react"
+import { BrainCircuit, ChevronDown, Loader2, Box, FileCheck2, FileText, BarChart3, Eye, EyeOff, Image as ImageIcon, Trash2, BadgeDollarSign, Languages } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -38,8 +42,17 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Label } from "@/components/ui/label"
 
 
+const LANGUAGE_MAP: { [key: string]: string } = {
+    es: 'Español',
+    en: 'Inglés',
+    fr: 'Francés',
+    de: 'Alemán',
+    pt: 'Portugués',
+};
+
+
 export function ProductDataTable() {
-  const [data, setData] = React.useState<ProductSearchResult[]>([])
+  const [data, setData] = React.useState<HierarchicalProduct[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [isActionRunning, setIsActionRunning] = React.useState(false);
   const [actionText, setActionText] = React.useState('');
@@ -56,13 +69,17 @@ export function ProductDataTable() {
   const [selectedCategory, setSelectedCategory] = React.useState('all');
   const [selectedStatus, setSelectedStatus] = React.useState('all');
   const [selectedStockStatus, setSelectedStockStatus] = React.useState('all');
+  const [selectedLanguage, setSelectedLanguage] = React.useState('all');
+  const [availableLanguages, setAvailableLanguages] = React.useState<{code: string; name: string}[]>([]);
+
 
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: 'date_created', desc: true }
   ]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
-  const [rowSelection, setRowSelection] = React.useState({})
-  
+  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
+  const [expanded, setExpanded] = React.useState<ExpandedState>({});
+
   const [pagination, setPagination] = React.useState({
     pageIndex: 0, 
     pageSize: 10, 
@@ -133,6 +150,7 @@ export function ProductDataTable() {
         category: selectedCategory,
         status: selectedStatus,
         stock_status: selectedStockStatus,
+        lang: 'all', // Fetch all to build hierarchy
       });
 
       if (nameFilter?.value) {
@@ -155,7 +173,47 @@ export function ProductDataTable() {
       }
 
       const { products, totalPages } = await response.json();
-      setData(products);
+      
+      const stringLangCodes: string[] = [...new Set(products.map((p: ProductSearchResult) => p.lang).filter((l): l is string => !!l && l !== 'N/A'))];
+      setAvailableLanguages(stringLangCodes.map(code => ({ code, name: LANGUAGE_MAP[code] || code.toUpperCase() })));
+
+
+      const productsById = new Map(products.map((p: ProductSearchResult) => [p.id, { ...p, subRows: [] as HierarchicalProduct[] }]));
+      const roots: HierarchicalProduct[] = [];
+      const processedIds = new Set<number>();
+
+      products.forEach((product: ProductSearchResult) => {
+          if (processedIds.has(product.id)) return;
+
+          let mainPost: HierarchicalProduct | undefined;
+          const translationIds = new Set(Object.values(product.translations || {}));
+          
+          if (translationIds.size > 1) {
+              const groupPosts = Array.from(translationIds)
+                  .map(id => productsById.get(id))
+                  .filter((p): p is HierarchicalProduct => !!p);
+
+              if (groupPosts.length > 0) {
+                  mainPost = groupPosts.find(p => p.lang === selectedLanguage) || groupPosts[0];
+                  if (mainPost) {
+                      mainPost.subRows = groupPosts.filter(p => p.id !== mainPost!.id);
+                      groupPosts.forEach(p => processedIds.add(p.id));
+                  }
+              } else {
+                  mainPost = productsById.get(product.id);
+                  if (mainPost) processedIds.add(mainPost.id);
+              }
+          } else {
+              mainPost = productsById.get(product.id);
+              if (mainPost) processedIds.add(mainPost.id);
+          }
+          
+          if (mainPost && (selectedLanguage === 'all' || mainPost.lang === selectedLanguage)) {
+              roots.push(mainPost);
+          }
+      });
+      
+      setData(roots);
       setTotalPages(totalPages);
     } catch (error) {
       console.error(error);
@@ -163,7 +221,7 @@ export function ProductDataTable() {
     } finally {
       setIsLoading(false);
     }
-  }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedStockStatus, sorting, toast]); 
+  }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedStockStatus, selectedLanguage, sorting, toast]); 
 
   React.useEffect(() => {
     const fetchCats = async (token: string) => {
@@ -291,6 +349,9 @@ export function ProductDataTable() {
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onRowSelectionChange: setRowSelection,
+    onExpandedChange: setExpanded,
+    getSubRows: (row) => row.subRows,
+    getExpandedRowModel: getExpandedRowModel(),
     manualPagination: true,
     manualFiltering: true,
     manualSorting: true,
@@ -301,12 +362,16 @@ export function ProductDataTable() {
       columnFilters,
       rowSelection,
       pagination,
+      expanded,
     },
   })
 
   const handleAiAction = async (action: 'generateDescriptions' | 'generateImageMetadata', force = false) => {
     const selectedRows = table.getSelectedRowModel().rows;
-    const productIds = force && confirmationData ? confirmationData.productIds : selectedRows.map(row => row.original.id);
+    const productIds = force && confirmationData ? confirmationData.productIds : selectedRows.flatMap((row: Row<HierarchicalProduct>) => [
+        row.original.id,
+        ...(row.original.subRows?.map((subRow: HierarchicalProduct) => subRow.id) || [])
+    ]);
 
     if (productIds.length === 0) {
       toast({ title: "No hay productos seleccionados", variant: "destructive" });
@@ -388,7 +453,11 @@ export function ProductDataTable() {
     
     setIsActionRunning(true);
     setActionText('Actualizando...');
-    const productIds = selectedRows.map(row => row.original.id);
+    const productIds = selectedRows.flatMap((row: Row<HierarchicalProduct>) => [
+        row.original.id,
+        ...(row.original.subRows?.map((subRow: HierarchicalProduct) => subRow.id) || [])
+    ]);
+
     const user = auth.currentUser;
     if (!user) {
         toast({ title: "No autenticado", variant: "destructive" });
@@ -443,7 +512,10 @@ export function ProductDataTable() {
         setIsActionRunning(true);
         setActionText('Eliminando...');
         const selectedRows = table.getSelectedRowModel().rows;
-        const productIds = selectedRows.map(row => row.original.id);
+        const productIds = selectedRows.flatMap((row: Row<HierarchicalProduct>) => [
+            row.original.id,
+            ...(row.original.subRows?.map((subRow: HierarchicalProduct) => subRow.id) || [])
+        ]);
     
         if (productIds.length === 0) {
             toast({ title: "No hay productos seleccionados", variant: "destructive" });
@@ -690,16 +762,17 @@ export function ProductDataTable() {
                 <SelectItem value="private">Privado</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={selectedStockStatus} onValueChange={setSelectedStockStatus}>
-              <SelectTrigger className="w-full sm:w-auto sm:min-w-[150px] flex-grow">
-                <SelectValue placeholder="Stock..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todo el stock</SelectItem>
-                <SelectItem value="instock">En Stock</SelectItem>
-                <SelectItem value="outofstock">Agotado</SelectItem>
-                <SelectItem value="onbackorder">En Reserva</SelectItem>
-              </SelectContent>
+             <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+                <SelectTrigger className="w-full sm:w-auto sm:min-w-[150px] flex-grow">
+                    <Languages className="mr-2 h-4 w-4" />
+                    <SelectValue placeholder="Idioma..." />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">Todos los idiomas</SelectItem>
+                    {availableLanguages.map(lang => (
+                        <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>
+                    ))}
+                </SelectContent>
             </Select>
         </div>
         <AlertDialog>
@@ -744,7 +817,7 @@ export function ProductDataTable() {
               <AlertDialogHeader>
                   <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
                   <AlertDialogDescription>
-                      Esta acción no se puede deshacer. Se eliminarán permanentemente {selectedRowCount} producto(s) y todos sus datos.
+                      Esta acción no se puede deshacer. Se eliminarán permanentemente los {selectedRowCount} productos seleccionados y todas sus traducciones.
                   </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

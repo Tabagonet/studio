@@ -4,7 +4,7 @@
 import { ColumnDef } from "@tanstack/react-table"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowUpDown, MoreHorizontal, Eye, EyeOff, Pencil, CheckCircle2, XCircle, ExternalLink, Trash2 } from "lucide-react"
+import { ArrowUpDown, MoreHorizontal, Eye, EyeOff, Pencil, CheckCircle2, XCircle, ExternalLink, Trash2, ChevronRight, Languages } from "lucide-react"
 
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -17,16 +17,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
-import type { ProductSearchResult } from "@/lib/types"
+import type { HierarchicalProduct } from "@/lib/types"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { cn } from "@/lib/utils"
 
 
 export const getColumns = (
   handleStatusUpdate: (productId: number, newStatus: 'publish' | 'draft') => void,
   handleEdit: (productId: number) => void,
   handleDelete: (productId: number) => void,
-): ColumnDef<ProductSearchResult>[] => [
+): ColumnDef<HierarchicalProduct>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -63,9 +64,19 @@ export const getColumns = (
       )
     },
     cell: ({ row }) => {
-      const product = row.original
+      const product = row.original;
       return (
-        <div className="flex items-center gap-3">
+        <div style={{ paddingLeft: `${row.depth * 2}rem` }} className="flex items-center gap-3">
+           {row.getCanExpand() && (
+             <button
+                {...{
+                  onClick: row.getToggleExpandedHandler(),
+                  style: { cursor: 'pointer' },
+                }}
+              >
+               <ChevronRight className={cn("h-4 w-4 transition-transform", row.getIsExpanded() && 'rotate-90')} />
+            </button>
+          )}
           <Image
             src={product.image || "https://placehold.co/64x64.png"}
             alt={product.name}
@@ -107,73 +118,34 @@ export const getColumns = (
     }
   },
   {
-    accessorKey: "type",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Tipo
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
+    accessorKey: "lang",
+    header: "Idioma",
     cell: ({ row }) => {
-      const type = row.getValue("type") as string;
-      const typeText = {
-        simple: 'Simple',
-        variable: 'Variable',
-        grouped: 'Agrupado',
-        external: 'Externo',
-      }[type] || type;
+      const lang = row.original.lang;
+      const translations = row.original.translations || {};
+      const translationCount = Object.keys(translations).length - 1; // -1 for the current post itself
 
-      return <span className="capitalize">{typeText}</span>;
-    },
-  },
-  {
-    accessorKey: "stock_status",
-    header: () => <div className="text-center">Stock</div>,
-    cell: ({ row }) => {
-      const stock_status = row.getValue("stock_status") as string;
-      const centeredDiv = (child: React.ReactNode) => <div className="flex justify-center">{child}</div>;
+      const badge = <Badge variant="outline" className="uppercase">{lang || 'N/A'}</Badge>;
 
-      if (stock_status === 'instock') {
-        return centeredDiv(
-          <TooltipProvider delayDuration={100}>
+      if (translationCount > 0) {
+        return (
+          <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger>
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1.5 cursor-help">
+                  {badge}
+                  <span className="text-muted-foreground text-xs font-bold">+{translationCount}</span>
+                </div>
               </TooltipTrigger>
               <TooltipContent>
-                <p>En Stock</p>
+                <p>Enlazado con {translationCount} otra(s) traducción(es).</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-        )
+        );
       }
-
-      if (stock_status === 'outofstock') {
-        return centeredDiv(
-          <TooltipProvider delayDuration={100}>
-            <Tooltip>
-              <TooltipTrigger>
-                <XCircle className="h-5 w-5 text-destructive" />
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Agotado</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )
-      }
-      
-      if (stock_status === 'onbackorder') {
-          return centeredDiv(<Badge variant="secondary">En Reserva</Badge>)
-      }
-
-      return centeredDiv(<span className="text-muted-foreground text-sm">N/A</span>)
-    },
+      return badge;
+    }
   },
   {
     accessorKey: "price",
