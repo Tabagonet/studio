@@ -124,13 +124,32 @@ function EditPageContent() {
       
       setPost(loadedPost);
       
-      if (loadedPost.content) {
+      if (loadedPost.content && loadedPost.link) {
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = loadedPost.content;
-        const images = Array.from(tempDiv.querySelectorAll('img')).map(img => ({
-            src: img.getAttribute('src') || '',
-            alt: img.getAttribute('alt') || '',
-        })).filter(img => img.src);
+        const siteUrl = new URL(loadedPost.link);
+
+        const images = Array.from(tempDiv.querySelectorAll('img')).map(img => {
+            let src = img.getAttribute('src') || '';
+            // If src is relative (starts with '/'), make it absolute
+            if (src && src.startsWith('/')) {
+                src = `${siteUrl.origin}${src}`;
+            }
+            return {
+                src: src,
+                alt: img.getAttribute('alt') || '',
+            };
+        }).filter(img => {
+            // Also filter out invalid or non-http URLs before passing to next/image
+            if (!img.src) return false;
+            try {
+                const url = new URL(img.src);
+                return url.protocol === 'http:' || url.protocol === 'https:';
+            } catch (e) {
+                return false; // Invalid URL format
+            }
+        });
+        
         setContentImages(images);
       } else {
         setContentImages([]);
@@ -141,7 +160,7 @@ function EditPageContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [postId, postType]);
+  }, [postId, postType, toast]);
 
 
   useEffect(() => {
@@ -272,7 +291,7 @@ function EditPageContent() {
             <Edit className="h-4 w-4" />
             <AlertTitle>Editar Contenido Completo</AlertTitle>
             <AlertDescription>
-              Para modificar los encabezados (H1, H2, etc.) o el cuerpo del texto, puedes usar el editor correspondiente.
+              Para modificar los encabezados (H1, H2, etc.) o el cuerpo del texto, puedes usar el editor de WordPress.
             </AlertDescription>
              <Button asChild className="mt-4" size="sm">
                 <Link href={post.adminEditLink || '#'} target="_blank" rel="noopener noreferrer">
