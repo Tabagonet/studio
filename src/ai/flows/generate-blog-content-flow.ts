@@ -7,9 +7,7 @@
  * - BlogContentOutput - The Zod schema for the flow's output.
  */
 
-import {defineFlow} from '@genkit-ai/core';
-import {generate} from '@genkit-ai/ai';
-import {googleAI} from '@genkit-ai/googleai';
+import {ai} from '@/ai/genkit';
 import {z} from 'zod';
 import Handlebars from 'handlebars';
 
@@ -45,10 +43,9 @@ export const BlogContentOutputSchema = z.object({
 });
 export type BlogContentOutput = z.infer<typeof BlogContentOutputSchema>;
 
-// This internal constant is not exported.
-export const generateBlogContent = defineFlow(
+const blogContentFlow = ai.defineFlow(
   {
-    name: 'generateBlogContentFlow',
+    name: 'blogContentFlow',
     inputSchema: BlogContentInputSchema,
     outputSchema: BlogContentOutputSchema,
   },
@@ -97,7 +94,7 @@ export const generateBlogContent = defineFlow(
         promptText += `\nOriginal Title: "{{existingTitle}}"\nContent for context:\n---\n{{{existingContent}}}\n---`;
         userPromptTemplate = promptText;
 
-        localOutputSchema = z.object({title: z.string()});
+        localOutputSchema = z.object({title: z.string()}) as any;
         break;
       }
       case 'generate_meta_description':
@@ -110,7 +107,7 @@ export const generateBlogContent = defineFlow(
                 {{{existingContent}}}
                 ---
             `;
-        localOutputSchema = z.object({metaDescription: z.string()});
+        localOutputSchema = z.object({metaDescription: z.string()}) as any;
         break;
       case 'generate_image_meta':
         systemInstruction = `You are an expert SEO specialist. Your task is to generate generic but descriptive SEO metadata for images that could appear in a blog post, based on its title and content. The response must be a single, valid JSON object with two keys: 'imageTitle' and 'imageAltText'. Do not include markdown or the word 'json' in your output.`;
@@ -125,14 +122,14 @@ export const generateBlogContent = defineFlow(
         localOutputSchema = z.object({
           imageTitle: z.string(),
           imageAltText: z.string(),
-        });
+        }) as any;
         break;
       case 'suggest_titles':
         systemInstruction = `You are an expert SEO and content strategist. Based on the provided keyword, generate 5 creative, engaging, and SEO-friendly blog post titles. Return a single, valid JSON object with one key: 'titles', which is an array of 5 string titles. Do not include markdown or the word 'json' in your output.`;
         userPromptTemplate = `
                 Generate 5 blog post titles in {{language}} for the keyword: "{{ideaKeyword}}"
             `;
-        localOutputSchema = z.object({titles: z.array(z.string())});
+        localOutputSchema = z.object({titles: z.array(z.string())}) as any;
         break;
       case 'generate_focus_keyword':
         systemInstruction = `You are an expert SEO analyst. Your task is to identify the primary focus keyword (a short phrase of 2-4 words) from a blog post title and content. Return a single, valid JSON object with one key: 'focusKeyword'. The keyword should be in the same language as the content. Do not include markdown or the word 'json' in your output.`;
@@ -144,7 +141,7 @@ export const generateBlogContent = defineFlow(
                 {{{existingContent}}}
                 ---
             `;
-        localOutputSchema = z.object({focusKeyword: z.string()});
+        localOutputSchema = z.object({focusKeyword: z.string()}) as any;
         break;
       case 'suggest_keywords':
         systemInstruction = `You are an expert SEO specialist. Based on the following blog post title and content, generate a list of relevant, SEO-focused keywords. Return a single, valid JSON object with one key: 'suggestedKeywords' (a comma-separated string of 5-7 relevant keywords). Do not include markdown or the word 'json' in your output.`;
@@ -156,7 +153,7 @@ export const generateBlogContent = defineFlow(
                 {{{existingContent}}}
                 ---
             `;
-        localOutputSchema = z.object({suggestedKeywords: z.string()});
+        localOutputSchema = z.object({suggestedKeywords: z.string()}) as any;
         break;
     }
 
@@ -169,8 +166,8 @@ export const generateBlogContent = defineFlow(
     const template = Handlebars.compile(userPromptTemplate, {noEscape: true});
     const finalPrompt = template(modelInput);
 
-    const {output} = await generate({
-      model: googleAI('gemini-1.5-flash-latest'),
+    const {output} = await ai.generate({
+      model: 'googleai/gemini-1.5-flash-latest',
       system: systemInstruction,
       prompt: finalPrompt,
       output: {
@@ -184,3 +181,9 @@ export const generateBlogContent = defineFlow(
     return output as BlogContentOutput;
   }
 );
+
+export async function generateBlogContent(
+  input: BlogContentInput
+): Promise<BlogContentOutput> {
+  return await blogContentFlow(input);
+}

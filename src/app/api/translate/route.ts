@@ -2,12 +2,10 @@
 
 import {NextRequest, NextResponse} from 'next/server';
 import {adminAuth} from '@/lib/firebase-admin';
-import {z} from 'zod';
 import {
   translateContent,
   TranslateContentInputSchema,
 } from '@/ai/flows/translate-content-flow';
-import {runFlow} from '@genkit-ai/core';
 
 export async function POST(req: NextRequest) {
   // 1. Authenticate the request
@@ -37,7 +35,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Call the centralized translation flow
-    const output = await runFlow(translateContent, validation.data);
+    const output = await translateContent(validation.data);
 
     // The flow already handles errors, so we just return the output
     return NextResponse.json(output);

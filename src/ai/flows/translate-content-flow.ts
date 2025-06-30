@@ -7,9 +7,7 @@
  * - TranslateContentOutput - The Zod schema for the flow's output.
  */
 
-import {defineFlow} from '@genkit-ai/core';
-import {generate} from '@genkit-ai/ai';
-import {googleAI} from '@genkit-ai/googleai';
+import {ai} from '@/ai/genkit';
 import {z} from 'zod';
 
 // Schema for the translation input
@@ -23,8 +21,7 @@ export type TranslateContentInput = z.infer<typeof TranslateContentInputSchema>;
 export const TranslateContentOutputSchema = z.record(z.string());
 export type TranslateContentOutput = z.infer<typeof TranslateContentOutputSchema>;
 
-// This internal constant is not exported.
-export const translateContent = defineFlow(
+const translationFlow = ai.defineFlow(
   {
     name: 'translateContentFlow',
     inputSchema: TranslateContentInputSchema,
@@ -38,8 +35,8 @@ export const translateContent = defineFlow(
       contentToTranslate
     )}`;
 
-    const {output} = await generate({
-      model: googleAI('gemini-1.5-flash-latest'),
+    const {output} = await ai.generate({
+      model: 'googleai/gemini-1.5-flash-latest',
       system: systemInstruction,
       prompt: prompt,
       output: {
@@ -57,3 +54,9 @@ export const translateContent = defineFlow(
     return output;
   }
 );
+
+export async function translateContent(
+  input: TranslateContentInput
+): Promise<TranslateContentOutput> {
+  return await translationFlow(input);
+}

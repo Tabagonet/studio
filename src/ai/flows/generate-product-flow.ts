@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview A flow for generating all AI content for a new product.
@@ -9,9 +8,7 @@
  */
 import {z} from 'zod';
 import {getApiClientsForUser} from '@/lib/api-helpers';
-import {defineFlow, runFlow} from '@genkit-ai/core';
-import {generate} from '@genkit-ai/ai';
-import {googleAI} from '@genkit-ai/googleai';
+import {ai} from '@/ai/genkit';
 
 export const GenerateProductInputSchema = z.object({
   productName: z.string().min(1, 'Product name is required.'),
@@ -58,8 +55,7 @@ export const GenerateProductOutputSchema = z.object({
 });
 export type GenerateProductOutput = z.infer<typeof GenerateProductOutputSchema>;
 
-// This is the internal flow, not exported directly to the API route.
-export const generateProductFlow = defineFlow(
+const productGenerationFlow = ai.defineFlow(
   {
     name: 'generateProductFlow',
     inputSchema: GenerateProductInputSchema,
@@ -103,8 +99,8 @@ export const generateProductFlow = defineFlow(
       }
     }
 
-    const {output} = await generate({
-      model: googleAI('gemini-1.5-flash-latest'),
+    const {output} = await ai.generate({
+      model: 'googleai/gemini-1.5-flash-latest',
       output: {
         format: 'json',
         schema: GenerateProductOutputSchema,
@@ -130,3 +126,9 @@ export const generateProductFlow = defineFlow(
     return output;
   }
 );
+
+export async function generateProductFlow(
+  input: GenerateProductInput
+): Promise<GenerateProductOutput> {
+  return await productGenerationFlow(input);
+}

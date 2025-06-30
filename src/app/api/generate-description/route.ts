@@ -5,7 +5,6 @@ import {
   generateProductFlow,
   GenerateProductInputSchema,
 } from '@/ai/flows/generate-product-flow';
-import {runFlow} from '@genkit-ai/core';
 
 export async function POST(req: NextRequest) {
   let uid: string;
@@ -47,7 +46,7 @@ export async function POST(req: NextRequest) {
     // Add the server-side UID to the input for the flow
     const flowInput = {...inputData, uid};
 
-    const generatedContent = await runFlow(generateProductFlow, flowInput);
+    const generatedContent = await generateProductFlow(flowInput);
 
     return NextResponse.json(generatedContent);
   } catch (error: any) {

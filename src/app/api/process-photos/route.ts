@@ -5,7 +5,6 @@ import {adminAuth} from '@/lib/firebase-admin';
 import {getApiClientsForUser} from '@/lib/api-helpers';
 import {generateProductFlow} from '@/ai/flows/generate-product-flow';
 import {z} from 'zod';
-import {runFlow} from '@genkit-ai/core';
 
 const BatchUpdateInputSchema = z.object({
   productIds: z.array(z.number()).min(1, 'At least one product ID is required.'),
@@ -107,7 +106,7 @@ export async function POST(req: NextRequest) {
         const product = productResponse.data;
 
         // 2. Call AI content generator flow
-        const aiContent = await runFlow(generateProductFlow, {
+        const aiContent = await generateProductFlow({
           productName: product.name,
           productType: product.type,
           language: 'Spanish',
