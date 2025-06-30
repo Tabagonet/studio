@@ -191,7 +191,7 @@ function ReportContent() {
           </div>
         </section>
 
-        <section>
+        <section className="page-break-after">
             <CardTitle className="text-2xl mb-6 flex items-center gap-2"><BrainCircuit className="h-6 w-6 text-primary" />Checklist SEO Técnico</CardTitle>
             <Card className="shadow-none border-none">
                 <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
@@ -204,6 +204,36 @@ function ReportContent() {
                     {!analysis.aiAnalysis.checks && <p className="text-muted-foreground">No hay datos del checklist disponibles para este análisis.</p>}
                 </CardContent>
             </Card>
+        </section>
+
+        <section>
+          <CardTitle className="text-2xl mb-6 flex items-center gap-2"><BrainCircuit className="h-6 w-6 text-primary" />Resumen del Experto IA</CardTitle>
+           {interpretation ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Card className="border-green-500/50">
+                        <CardHeader><CardTitle className="text-lg text-green-600">Puntos Fuertes</CardTitle></CardHeader>
+                        <CardContent>
+                            {interpretation.positives && interpretation.positives.length > 0 ? (
+                                <ul className="list-disc list-inside space-y-2">{interpretation.positives.map((item, i) => <li key={i}>{item}</li>)}</ul>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">La IA no identificó puntos fuertes específicos.</p>
+                            )}
+                        </CardContent>
+                    </Card>
+                    <Card className="border-amber-500/50">
+                        <CardHeader><CardTitle className="text-lg text-amber-600">Áreas de Mejora</CardTitle></CardHeader>
+                        <CardContent>
+                            {interpretation.improvements && interpretation.improvements.length > 0 ? (
+                                <ul className="list-disc list-inside space-y-2">{interpretation.improvements.map((item, i) => <li key={i}>{item}</li>)}</ul>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">La IA no identificó áreas de mejora generales.</p>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
+            ) : (
+                <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Cargando resumen de la IA...</div>
+            )}
         </section>
       </main>
       
