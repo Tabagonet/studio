@@ -65,7 +65,8 @@ export default function SeoOptimizerPage() {
         const response = await fetch('/api/seo/analyze-url', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ url: page.link, postId: page.id, postType: page.type })
+            body: JSON.stringify({ url: page.link, postId: page.id, postType: page.type }),
+            cache: 'no-store', // Force re-fetching from the server, bypassing cache
         });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Ocurrió un error desconocido');
@@ -73,7 +74,10 @@ export default function SeoOptimizerPage() {
         setAnalysis(result);
         setScores(prev => ({...prev, [page.id]: result.aiAnalysis.score}));
 
-        const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(page.link)}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(page.link)}`, { 
+            headers: { 'Authorization': `Bearer ${token}` },
+            cache: 'no-store', // Also disable cache for history
+        });
         if (historyResponse.ok) setAnalysisHistory((await historyResponse.json()).history);
     } catch (err: any) {
         setError(err.message);
@@ -92,7 +96,10 @@ export default function SeoOptimizerPage() {
     setSelectedPage(page);
 
     try {
-      const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(page.link)}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(page.link)}`, { 
+          headers: { 'Authorization': `Bearer ${token}` },
+          cache: 'no-store', // Disable cache here too
+      });
       if (!historyResponse.ok) throw new Error("No se pudo cargar el historial de análisis.");
       
       const historyData = await historyResponse.json();

@@ -72,21 +72,19 @@ const generateBlogContentFlowInternal = ai.defineFlow(
                 ---
             `;
             break;
-        case 'enhance_title':
+        case 'enhance_title': { // Block scope for let
             systemInstruction = `You are an expert SEO copywriter. Your task is to rewrite a blog post title to be more engaging, clear, and SEO-optimized. The title must be under 60 characters. Respond with a single, valid JSON object containing only one key: "title". Do not include markdown or the word 'json' in your output.`;
-            userPromptTemplate = `
-                Rewrite and improve ONLY the title for this blog post in {{language}}.
-                {{#if keywords}}
-                It is crucial that the new title includes the focus keyword: "{{keywords}}".
-                {{/if}}
-                Original Title: "{{existingTitle}}"
-                Content for context:
-                ---
-                {{{existingContent}}}
-                ---
-            `;
+            
+            let promptText = `Rewrite and improve ONLY the title for this blog post in {{language}}.`;
+            if (modelInput.keywords) {
+              promptText += `\nIt is crucial that the new title includes the focus keyword: "{{keywords}}".`;
+            }
+            promptText += `\nOriginal Title: "{{existingTitle}}"\nContent for context:\n---\n{{{existingContent}}}\n---`;
+            userPromptTemplate = promptText;
+
             localOutputSchema = z.object({ title: z.string() });
             break;
+        }
         case 'generate_meta_description':
             systemInstruction = `You are an expert SEO copywriter. Your task is to write a compelling meta description for the given blog post. The meta description must be no more than 160 characters long. The description should be engaging and encourage clicks. Return a single, valid JSON object with one key: 'metaDescription'. Do not include markdown or the word 'json' in your output.`;
             userPromptTemplate = `
