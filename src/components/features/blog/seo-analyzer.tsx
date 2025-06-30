@@ -3,7 +3,7 @@
 "use client";
 
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import { CheckCircle, XCircle, Sparkles } from 'lucide-react';
+import { CheckCircle, XCircle, Sparkles, ExternalLink, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,7 @@ interface SeoAnalyzerPost {
 interface SeoAnalyzerProps {
   post: SeoAnalyzerPost | null;
   setPost: React.Dispatch<React.SetStateAction<SeoAnalyzerPost | null>>;
+  onMetaChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   isLoading: boolean;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
   contentImages: ContentImage[];
@@ -46,9 +47,12 @@ interface SeoCheck {
   id: string;
   pass: boolean;
   text: React.ReactNode;
+  fixable?: boolean;
+  aiMode?: 'enhance_title' | 'generate_meta_description';
+  editLink?: string | null;
 }
 
-const CheckItem = ({ check }: { check: SeoCheck }) => {
+const CheckItem = ({ check, onFix, isAiLoading }: { check: SeoCheck, onFix: (mode: SeoCheck['aiMode'], editLink?: string | null) => void; isAiLoading: boolean; }) => {
   const Icon = check.pass ? CheckCircle : XCircle;
   const color = check.pass ? 'text-green-600' : 'text-amber-600';
 
@@ -58,6 +62,13 @@ const CheckItem = ({ check }: { check: SeoCheck }) => {
         <Icon className={cn("h-5 w-5 flex-shrink-0 mt-0.5", color)} />
         <span className="text-sm text-muted-foreground">{check.text}</span>
       </div>
+      {!check.pass && check.fixable && (
+         <Button size="sm" variant="outline" onClick={() => onFix(check.aiMode, check.editLink)} disabled={isAiLoading}>
+           {isAiLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+           {!isAiLoading && (check.aiMode ? <Sparkles className="mr-2 h-4 w-4" /> : <ExternalLink className="mr-2 h-4 w-4" />)}
+           {check.aiMode ? "Arreglar con IA" : "Editar"}
+         </Button>
+      )}
     </li>
   );
 };
@@ -65,6 +76,7 @@ const CheckItem = ({ check }: { check: SeoCheck }) => {
 export function SeoAnalyzer({ 
     post, 
     setPost, 
+    onMetaChange, 
     isLoading, 
     setIsLoading,
     contentImages,
@@ -78,23 +90,74 @@ export function SeoAnalyzer({
   const handleImageAltChange = useCallback((imageId: string, newAlt: string) => {
     if (!post) return;
 
+    // Update the visual list of images
     setContentImages(prevImages => 
         prevImages.map((img) => img.id === imageId ? { ...img, alt: newAlt } : img)
     );
     
+    // Update the master HTML content string in the parent component's state
     setPost(prevPost => {
         if (!prevPost) return null;
+        
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = prevPost.content;
+        
+        // Find the specific image by its original `src` attribute (which we use as an ID)
+        // Use querySelector with attribute selector for reliability
         const imageToUpdate = tempDiv.querySelector(`img[src="${CSS.escape(imageId)}"]`);
+        
         if (imageToUpdate) {
             imageToUpdate.setAttribute('alt', newAlt);
         } else {
              console.warn(`Could not find image with src="${imageId}" to update alt text.`);
         }
+        
         return { ...prevPost, content: tempDiv.innerHTML };
     });
   }, [post, setContentImages, setPost]);
+
+
+  const handleFixWithAI = useCallback(async (mode: SeoCheck['aiMode'], editLink?: string | null) => {
+    if (editLink) {
+        window.open(editLink, '_blank');
+        return;
+    }
+    if (!mode || !post) return;
+    setIsLoading(true);
+
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("No autenticado.");
+        const token = await user.getIdToken();
+        
+        const payload: any = { 
+            mode, 
+            language: 'Spanish',
+            existingTitle: post.meta._yoast_wpseo_title || post.title,
+            existingContent: post.content,
+            keywords: post.meta._yoast_wpseo_focuskw || '',
+        };
+        const response = await fetch('/api/generate-blog-post', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) throw new Error((await response.json()).error || "La IA falló.");
+        const aiContent = await response.json();
+        
+        if (mode === 'enhance_title' && aiContent.title) {
+            setPost(prev => prev ? {...prev, meta: {...prev.meta, _yoast_wpseo_title: aiContent.title}} : null);
+            toast({ title: "Título mejorado con IA" });
+        } else if (mode === 'generate_meta_description' && aiContent.metaDescription) {
+            setPost(prev => prev ? {...prev, meta: {...prev.meta, _yoast_wpseo_metadesc: aiContent.metaDescription}} : null);
+            toast({ title: "Meta descripción generada con IA" });
+        }
+    } catch (e: any) {
+        toast({ title: "Error de IA", description: e.message, variant: "destructive" });
+    } finally {
+        setIsLoading(false);
+    }
+  }, [post, setPost, toast, setIsLoading]);
 
   const autoGenerateKeyword = useCallback(async () => {
     if (post && !post.meta._yoast_wpseo_focuskw && post.content && !hasTriggeredAutoKeyword.current) {
@@ -103,6 +166,7 @@ export function SeoAnalyzer({
         try {
             const user = auth.currentUser; if (!user) return;
             const token = await user.getIdToken();
+
             const payload = { mode: 'generate_focus_keyword', language: 'Spanish', existingTitle: post.title, existingContent: post.content };
             const response = await fetch('/api/generate-blog-post', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload) });
             if (response.ok) {
@@ -114,54 +178,107 @@ export function SeoAnalyzer({
     }
   }, [post, setPost, toast, setIsLoading]);
 
-  useEffect(() => { autoGenerateKeyword(); }, [autoGenerateKeyword]);
+  useEffect(() => {
+    autoGenerateKeyword();
+  }, [autoGenerateKeyword]);
 
   const handleGenerateImageAlts = useCallback(async () => {
     if (!post) return;
     setIsLoading(true);
     try {
-        const user = auth.currentUser; if (!user) throw new Error("No autenticado.");
+        const user = auth.currentUser;
+        if (!user) throw new Error("No autenticado.");
         const token = await user.getIdToken();
-        const payload = { mode: 'generate_image_meta', language: 'Spanish', existingTitle: post.title, existingContent: post.content };
-        const response = await fetch('/api/generate-blog-post', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload) });
+        const payload = {
+            mode: 'generate_image_meta',
+            language: 'Spanish',
+            existingTitle: post.title,
+            existingContent: post.content,
+        };
+        const response = await fetch('/api/generate-blog-post', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(payload),
+        });
         if (!response.ok) throw new Error((await response.json()).error || 'La IA falló al generar metadatos.');
+        
         const aiContent = await response.json();
-        const newImages = contentImages.map(img => !img.alt ? { ...img, alt: aiContent.imageAltText } : img);
-        const tempDiv = document.createElement('div'); tempDiv.innerHTML = post.content;
+        
+        const newImages = contentImages.map(img => 
+            !img.alt ? { ...img, alt: aiContent.imageAltText } : img
+        );
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = post.content;
+
         newImages.forEach((updatedImage) => {
            if (!updatedImage.alt) return;
            const imageElement = tempDiv.querySelector(`img[src="${CSS.escape(updatedImage.id)}"]`);
-           if (imageElement && !imageElement.hasAttribute('alt')) imageElement.setAttribute('alt', updatedImage.alt);
+           if (imageElement && !imageElement.hasAttribute('alt')) {
+               imageElement.setAttribute('alt', updatedImage.alt);
+           }
         });
+        
         setPost(p => p ? { ...p, content: tempDiv.innerHTML } : null);
         setContentImages(newImages);
+
         toast({ title: 'Textos alternativos generados', description: "Se ha añadido 'alt text' a las imágenes que no lo tenían." });
     } catch (e: any) {
         toast({ title: 'Error de IA', description: e.message, variant: "destructive" });
-    } finally { setIsLoading(false); }
+    } finally {
+        setIsLoading(false);
+    }
   }, [post, toast, setIsLoading, setPost, setContentImages, contentImages]);
-
-  const handleMetaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!post) return;
-    const { name, value } = e.target;
-    setPost(prev => prev ? { ...prev, meta: { ...prev.meta, [name]: value } } : null);
-  };
 
 
   const checks = useMemo<SeoCheck[]>(() => {
     if (!post || !post.meta) return [];
+    
     const keyword = (post.meta._yoast_wpseo_focuskw || '').trim().toLowerCase();
     if (!keyword) return [];
+    
     const seoTitle = (post.meta._yoast_wpseo_title || '').trim();
     const metaDescription = (post.meta._yoast_wpseo_metadesc || '').trim();
     const plainContent = (post.content || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     const firstParagraph = plainContent.substring(0, 600).toLowerCase();
+    const editLink = post.isElementor ? post.elementorEditLink : post.adminEditLink;
+
     return [
-      { id: 'keywordInTitle', pass: seoTitle.toLowerCase().includes(keyword), text: <>La palabra clave (<strong>{keyword}</strong>) aparece en el <strong>título SEO</strong>.</> },
-      { id: 'titleLength', pass: seoTitle.length >= 30 && seoTitle.length <= 65, text: <>El título SEO tiene una longitud adecuada ({seoTitle.length} de 30-65 caracteres).</> },
-      { id: 'keywordInMetaDesc', pass: metaDescription.toLowerCase().includes(keyword), text: <>La palabra clave aparece en la <strong>meta descripción</strong>.</> },
-      { id: 'metaDescLength', pass: metaDescription.length >= 50 && metaDescription.length <= 160, text: <>La meta descripción tiene una longitud adecuada ({metaDescription.length} de 50-160 caracteres).</> },
-      { id: 'keywordInIntro', pass: firstParagraph.includes(keyword), text: <>La palabra clave se encuentra en la <strong>introducción</strong> (primeros párrafos).</> },
+      {
+        id: 'keywordInTitle',
+        pass: seoTitle.toLowerCase().includes(keyword),
+        text: <>La palabra clave (<strong>{keyword}</strong>) aparece en el <strong>título SEO</strong>.</>,
+        fixable: true,
+        aiMode: 'enhance_title'
+      },
+      {
+        id: 'titleLength',
+        pass: seoTitle.length >= 30 && seoTitle.length <= 65,
+        text: <>El título SEO tiene una longitud adecuada ({seoTitle.length} de 30-65 caracteres).</>,
+        fixable: true,
+        aiMode: 'enhance_title'
+      },
+      {
+        id: 'keywordInMetaDesc',
+        pass: metaDescription.toLowerCase().includes(keyword),
+        text: <>La palabra clave aparece en la <strong>meta descripción</strong>.</>,
+        fixable: true,
+        aiMode: 'generate_meta_description'
+      },
+      {
+        id: 'metaDescLength',
+        pass: metaDescription.length >= 50 && metaDescription.length <= 160,
+        text: <>La meta descripción tiene una longitud adecuada ({metaDescription.length} de 50-160 caracteres).</>,
+        fixable: true,
+        aiMode: 'generate_meta_description'
+      },
+      {
+        id: 'keywordInIntro',
+        pass: firstParagraph.includes(keyword),
+        text: <>La palabra clave se encuentra en la <strong>introducción</strong> (primeros párrafos).</>,
+        fixable: true,
+        editLink: editLink
+      },
     ];
   }, [post]);
 
@@ -177,7 +294,7 @@ export function SeoAnalyzer({
   const keyword = post.meta?._yoast_wpseo_focuskw || '';
 
   return (
-    <>
+    <div className="space-y-6">
         <Card>
             <CardHeader>
                 <CardTitle>Checklist SEO Accionable</CardTitle>
@@ -186,12 +303,14 @@ export function SeoAnalyzer({
             <CardContent>
                 <div className="mb-4">
                     <Label htmlFor="focusKeyword">Palabra Clave Principal</Label>
-                    <Input id="focusKeyword" name="_yoast_wpseo_focuskw" value={keyword} onChange={handleMetaChange} />
+                    <Input id="focusKeyword" name="_yoast_wpseo_focuskw" value={keyword} onChange={onMetaChange} />
                 </div>
                 {isLoading && !keyword ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin mr-2" /> Sugiriendo palabra clave...</div> :
                 !keyword ? <p className="text-sm text-muted-foreground p-4 text-center border-dashed border rounded-md">Introduce una palabra clave principal para empezar.</p> :
                 <ul className="space-y-3">
-                    {checks.map(check => ( <CheckItem key={check.id} check={check}/> ))}
+                    {checks.map(check => (
+                        <CheckItem key={check.id} check={check} onFix={handleFixWithAI} isAiLoading={isLoading}/>
+                    ))}
                 </ul>
                 }
             </CardContent>
@@ -241,6 +360,6 @@ export function SeoAnalyzer({
                 </div>
             </CardContent>
         </Card>
-    </>
+    </div>
   );
 }
