@@ -147,6 +147,11 @@ export const getColumns = (
       return badge;
     }
   },
+   {
+    accessorKey: "type",
+    header: "Tipo",
+    cell: ({ row }) => <Badge variant="secondary">{row.original.type}</Badge>
+  },
   {
     accessorKey: "price",
     header: () => <div className="text-right">Precio</div>,

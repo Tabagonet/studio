@@ -366,12 +366,23 @@ export function ProductDataTable() {
     },
   })
 
+  const getProductIdsForAction = () => {
+    const productIdsSet = new Set<number>();
+    table.getSelectedRowModel().rows.forEach((row) => {
+      // Find the root parent of this row to get the full product group
+      let current = row;
+      while (current.getParentRow()) {
+        current = current.getParentRow() as Row<HierarchicalProduct>;
+      }
+      // Now 'current' is the root row of the group. Add it and all its children.
+      productIdsSet.add(current.original.id);
+      current.original.subRows?.forEach(subRow => productIdsSet.add(subRow.id));
+    });
+    return Array.from(productIdsSet);
+  };
+
   const handleAiAction = async (action: 'generateDescriptions' | 'generateImageMetadata', force = false) => {
-    const selectedRows = table.getSelectedRowModel().rows;
-    const productIds = force && confirmationData ? confirmationData.productIds : selectedRows.flatMap((row: Row<HierarchicalProduct>) => [
-        row.original.id,
-        ...(row.original.subRows?.map((subRow: HierarchicalProduct) => subRow.id) || [])
-    ]);
+    const productIds = force && confirmationData ? confirmationData.productIds : getProductIdsForAction();
 
     if (productIds.length === 0) {
       toast({ title: "No hay productos seleccionados", variant: "destructive" });
@@ -445,18 +456,14 @@ export function ProductDataTable() {
   }
 
   const handleBatchUpdate = async (updates: any) => {
-    const selectedRows = table.getSelectedRowModel().rows;
-    if (selectedRows.length === 0) {
+    const productIds = getProductIdsForAction();
+    if (productIds.length === 0) {
       toast({ title: "No hay productos seleccionados", variant: "destructive" });
       return;
     }
     
     setIsActionRunning(true);
     setActionText('Actualizando...');
-    const productIds = selectedRows.flatMap((row: Row<HierarchicalProduct>) => [
-        row.original.id,
-        ...(row.original.subRows?.map((subRow: HierarchicalProduct) => subRow.id) || [])
-    ]);
 
     const user = auth.currentUser;
     if (!user) {
@@ -511,11 +518,7 @@ export function ProductDataTable() {
     const handleBatchDelete = async () => {
         setIsActionRunning(true);
         setActionText('Eliminando...');
-        const selectedRows = table.getSelectedRowModel().rows;
-        const productIds = selectedRows.flatMap((row: Row<HierarchicalProduct>) => [
-            row.original.id,
-            ...(row.original.subRows?.map((subRow: HierarchicalProduct) => subRow.id) || [])
-        ]);
+        const productIds = getProductIdsForAction();
     
         if (productIds.length === 0) {
             toast({ title: "No hay productos seleccionados", variant: "destructive" });
