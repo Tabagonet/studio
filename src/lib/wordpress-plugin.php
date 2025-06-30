@@ -2,12 +2,39 @@
 /*
 Plugin Name: AutoPress AI Helper
 Description: Añade endpoints a la REST API para gestionar traducciones, stock y otras funciones personalizadas para AutoPress AI.
-Version: 1.11
+Version: 1.12
 Author: intelvisual@intelvisual.es
 */
 
 // Evita la ejecución directa del archivo
 if ( ! defined( 'ABSPATH' ) ) exit;
+
+// Registra los campos meta de Yoast para que sean visibles y editables en la REST API
+function custom_api_register_yoast_meta_fields() {
+    $post_types = get_post_types( [ 'public' => true ], 'names' );
+    $yoast_meta_keys = [
+        '_yoast_wpseo_title',
+        '_yoast_wpseo_metadesc',
+        '_yoast_wpseo_focuskw',
+    ];
+
+    foreach ( $post_types as $post_type ) {
+        foreach ( $yoast_meta_keys as $meta_key ) {
+            register_post_meta( $post_type, $meta_key, [
+                'show_in_rest' => true,
+                'single'       => true,
+                'type'         => 'string',
+                'auth_callback' => function() {
+                    return current_user_can( 'edit_posts' );
+                }
+            ] );
+        }
+    }
+}
+
+// Hook para ejecutar el registro de campos
+add_action( 'init', 'custom_api_register_yoast_meta_fields' );
+
 
 add_action( 'plugins_loaded', function () {
     if ( ! function_exists( 'pll_get_post_language' ) ) return;

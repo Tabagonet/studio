@@ -21,6 +21,7 @@ const postUpdateSchema = z.object({
     featured_media: z.number().optional().nullable(),
     featured_image_src: z.string().url().optional(),
     meta: z.object({
+        _yoast_wpseo_title: z.string().optional(),
         _yoast_wpseo_metadesc: z.string().optional(),
         _yoast_wpseo_focuskw: z.string().optional(),
     }).optional(),
@@ -55,6 +56,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const isElementor = !!postData.meta?._elementor_version;
     const adminUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '/wp-admin/');
     const elementorEditLink = isElementor ? `${adminUrl}post.php?post=${postId}&action=elementor` : null;
+    const adminEditLink = `${adminUrl}post.php?post=${postId}&action=edit`;
+
 
     const transformed = {
       ...postData,
@@ -62,6 +65,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       featured_media: postData.featured_media,
       isElementor,
       elementorEditLink,
+      adminEditLink,
     };
     return NextResponse.json(transformed);
   } catch (error: any) {
@@ -108,12 +112,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         }, wpApi);
     }
     
-    if (imageMetas && postPayload.content) {
-        const $ = cheerio.load(postPayload.content, null, false);
+    if (imageMetas && pagePayload.content) {
+        const $ = cheerio.load(pagePayload.content, null, false); // { decodeEntities: false } -> null, false
         imageMetas.forEach(meta => {
             $(`img[src="${meta.src}"]`).attr('alt', meta.alt);
         });
-        postPayload.content = $.html();
+        pagePayload.content = $('body').html() || $.html(); // Prefer body's inner HTML to avoid extra tags
     }
 
     const response = await wpApi.post(`/posts/${postId}`, postPayload);
@@ -173,5 +177,3 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     return NextResponse.json({ error: errorMessage }, { status });
   }
 }
-
-    

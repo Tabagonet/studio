@@ -13,7 +13,7 @@ interface GoogleSnippetPreviewProps {
   url: string | null;
 }
 
-const TITLE_MAX_LENGTH = 60;
+const TITLE_MAX_LENGTH = 65;
 const DESC_MAX_LENGTH = 160;
 
 const LengthIndicator = ({ value, maxValue }: { value: number, maxValue: number }) => {
@@ -34,12 +34,14 @@ const LengthIndicator = ({ value, maxValue }: { value: number, maxValue: number 
 export function GoogleSnippetPreview({ title, description, url }: GoogleSnippetPreviewProps) {
   let displayUrl = `www.${APP_NAME.toLowerCase().replace(/\s/g, '')}.com > blog > mi-entrada`;
   let faviconUrl = `https://placehold.co/32x32.png`;
+  let displayHostname = APP_NAME;
 
   if (url) {
     try {
       const parsedUrl = new URL(url);
-      displayUrl = parsedUrl.hostname + parsedUrl.pathname.replace(/\/$/, '');
+      displayUrl = parsedUrl.hostname.replace(/^www\./, '') + parsedUrl.pathname.replace(/\/$/, '');
       faviconUrl = `https://www.google.com/s2/favicons?sz=64&domain_url=${parsedUrl.hostname}`;
+      displayHostname = parsedUrl.hostname.replace(/^www\./, '');
     } catch (e) {
       console.warn("Invalid URL for snippet preview:", url);
     }
@@ -53,9 +55,9 @@ export function GoogleSnippetPreview({ title, description, url }: GoogleSnippetP
       <CardContent>
         <div className="p-4 rounded-md shadow-sm bg-background border">
             <div className="flex items-center gap-2">
-                <Image src={faviconUrl} alt="Favicon" width={24} height={24} className="h-6 w-6" />
+                <Image src={faviconUrl} alt="Favicon" width={24} height={24} className="h-6 w-6 object-contain" />
                 <div>
-                    <p className="text-sm font-semibold">{APP_NAME}</p>
+                    <p className="text-sm font-semibold">{displayHostname}</p>
                     <p className="text-xs text-muted-foreground truncate">{displayUrl}</p>
                 </div>
             </div>

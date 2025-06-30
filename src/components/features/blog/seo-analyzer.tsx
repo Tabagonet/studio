@@ -3,7 +3,7 @@
 "use client";
 
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import { CheckCircle, XCircle, Edit, Sparkles } from 'lucide-react';
+import { CheckCircle, XCircle, Edit, Sparkles, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,12 +14,14 @@ import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { GoogleSnippetPreview } from './google-snippet-preview';
 import { Loader2 } from 'lucide-react';
+import Link from 'next/link';
 
 // Define the shape of the post object this component expects
 interface SeoAnalyzerPost {
   title: string;
   content: string; 
   meta: {
+      _yoast_wpseo_title: string;
       _yoast_wpseo_metadesc: string;
       _yoast_wpseo_focuskw: string;
   };
@@ -59,8 +61,8 @@ const CheckItem = ({ check, onFix, isAiLoading }: { check: SeoCheck, onFix: (mod
       {!check.pass && check.fixable && (
          <Button size="sm" variant="outline" onClick={() => onFix(check.aiMode, check.editLink)} disabled={isAiLoading}>
            {isAiLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-           {!isAiLoading && (check.aiMode ? <Sparkles className="mr-2 h-4 w-4" /> : <Edit className="mr-2 h-4 w-4" />)}
-           Arreglar
+           {!isAiLoading && (check.aiMode ? <Sparkles className="mr-2 h-4 w-4" /> : <ExternalLink className="mr-2 h-4 w-4" />)}
+           {check.aiMode ? "Arreglar con IA" : "Editar"}
          </Button>
       )}
     </li>
@@ -77,7 +79,7 @@ export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnaly
     setPost(prev => {
         if (!prev) return null;
         if (name === 'title') {
-            return { ...prev, title: value };
+            return { ...prev, title: value, meta: { ...prev.meta, _yoast_wpseo_title: value } };
         }
         if (name === 'focusKeyword') {
             return { ...prev, meta: { ...prev.meta, _yoast_wpseo_focuskw: value } };
@@ -102,15 +104,11 @@ export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnaly
         if (!user) throw new Error("No autenticado.");
         const token = await user.getIdToken();
         
-        // Clean and truncate content for context, preventing overload errors.
-        const plainContent = (post.content || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        const contentForContext = plainContent.substring(0, 1000);
-
         const payload = { 
             mode, 
             language: 'Spanish',
             existingTitle: post.title,
-            existingContent: contentForContext,
+            existingContent: post.content, // Pass full content, let the flow handle it
         };
         const response = await fetch('/api/generate-blog-post', {
             method: 'POST',
@@ -120,10 +118,10 @@ export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnaly
         if (!response.ok) throw new Error((await response.json()).error || "La IA falló.");
         const aiContent = await response.json();
         
-        if (mode === 'enhance_title') {
-            setPost(prev => prev ? {...prev, title: aiContent.title} : null);
+        if (mode === 'enhance_title' && aiContent.title) {
+            setPost(prev => prev ? {...prev, title: aiContent.title, meta: {...prev.meta, _yoast_wpseo_title: aiContent.title}} : null);
             toast({ title: "Título mejorado con IA" });
-        } else if (mode === 'generate_meta_description') {
+        } else if (mode === 'generate_meta_description' && aiContent.metaDescription) {
             setPost(prev => prev ? {...prev, meta: {...prev.meta, _yoast_wpseo_metadesc: aiContent.metaDescription}} : null);
             toast({ title: "Meta descripción generada con IA" });
         }
@@ -142,10 +140,7 @@ export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnaly
             const user = auth.currentUser; if (!user) return;
             const token = await user.getIdToken();
 
-            const plainContent = (post.content || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-            const contentForContext = plainContent.substring(0, 1000);
-
-            const payload = { mode: 'generate_focus_keyword', language: 'Spanish', existingTitle: post.title, existingContent: contentForContext };
+            const payload = { mode: 'generate_focus_keyword', language: 'Spanish', existingTitle: post.title, existingContent: post.content };
             const response = await fetch('/api/generate-blog-post', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload) });
             if (response.ok) {
                 const aiContent = await response.json();
@@ -166,29 +161,29 @@ export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnaly
     const keyword = (post.meta._yoast_wpseo_focuskw || '').trim().toLowerCase();
     if (!keyword) return [];
     
-    const title = post.title || '';
-    const metaDescription = post.meta._yoast_wpseo_metadesc || '';
+    const seoTitle = (post.meta._yoast_wpseo_title || post.title || '').trim();
+    const metaDescription = (post.meta._yoast_wpseo_metadesc || '').trim();
     const plainContent = (post.content || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     const firstParagraph = plainContent.substring(0, 600).toLowerCase();
 
     return [
       {
         id: 'keywordInTitle',
-        pass: title.trim().toLowerCase().includes(keyword),
+        pass: seoTitle.toLowerCase().includes(keyword),
         text: <>La palabra clave (<strong>{keyword}</strong>) aparece en el <strong>título SEO</strong>.</>,
         fixable: true,
         aiMode: 'enhance_title'
       },
       {
         id: 'titleLength',
-        pass: title.length >= 30 && title.length <= 65,
-        text: <>El título SEO tiene una longitud adecuada ({title.length} de 30-65 caracteres).</>,
+        pass: seoTitle.length >= 30 && seoTitle.length <= 65,
+        text: <>El título SEO tiene una longitud adecuada ({seoTitle.length} de 30-65 caracteres).</>,
         fixable: true,
         aiMode: 'enhance_title'
       },
       {
         id: 'keywordInMetaDesc',
-        pass: metaDescription.trim().toLowerCase().includes(keyword),
+        pass: metaDescription.toLowerCase().includes(keyword),
         text: <>La palabra clave aparece en la <strong>meta descripción</strong>.</>,
         fixable: true,
         aiMode: 'generate_meta_description'
@@ -220,6 +215,8 @@ export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnaly
   }
 
   const keyword = (post.meta?._yoast_wpseo_focuskw || '').trim();
+  const seoTitle = (post.meta?._yoast_wpseo_title || post.title || '').trim();
+  const metaDescription = (post.meta?._yoast_wpseo_metadesc || '').trim();
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -234,7 +231,7 @@ export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnaly
                         <Label htmlFor="focusKeyword">Palabra Clave Principal</Label>
                         <Input id="focusKeyword" name="focusKeyword" value={keyword} onChange={handleInputChange} />
                     </div>
-                    {isAiLoading && !keyword ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin mr-2" /> Sugiriendo palabra clave...</div> :
+                    {isLoading && !keyword ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin mr-2" /> Sugiriendo palabra clave...</div> :
                     !keyword ? <p className="text-sm text-muted-foreground p-4 text-center border-dashed border rounded-md">Introduce una palabra clave principal para empezar.</p> :
                     <ul className="space-y-3">
                         {checks.map(check => (
@@ -250,14 +247,12 @@ export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnaly
              <Card>
               <CardHeader><CardTitle>Edición SEO</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                <div><Label htmlFor="title">Título SEO</Label><Input id="title" name="title" value={post.title} onChange={handleInputChange} /></div>
-                <div><Label htmlFor="metaDescription">Meta Descripción (para Google)</Label><Textarea id="metaDescription" name="metaDescription" value={post.meta._yoast_wpseo_metadesc || ''} onChange={handleInputChange} maxLength={165} rows={3} /></div>
+                <div><Label htmlFor="title">Título SEO (Yoast)</Label><Input id="title" name="title" value={seoTitle} onChange={handleInputChange} /></div>
+                <div><Label htmlFor="metaDescription">Meta Descripción (Yoast)</Label><Textarea id="metaDescription" name="metaDescription" value={metaDescription} onChange={handleInputChange} maxLength={165} rows={3} /></div>
               </CardContent>
             </Card>
-            <GoogleSnippetPreview title={post.title} description={post.meta._yoast_wpseo_metadesc || ''} url={post.link || null} />
+            <GoogleSnippetPreview title={seoTitle} description={metaDescription} url={post.link || null} />
         </div>
     </div>
   );
 }
-
-    

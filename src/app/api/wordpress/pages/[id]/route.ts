@@ -19,6 +19,7 @@ const pageUpdateSchema = z.object({
     featured_media: z.number().optional().nullable(),
     featured_image_src: z.string().url().optional(),
     meta: z.object({
+        _yoast_wpseo_title: z.string().optional(),
         _yoast_wpseo_metadesc: z.string().optional(),
         _yoast_wpseo_focuskw: z.string().optional(),
     }).optional(),
@@ -105,11 +106,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
     
     if (imageMetas && pagePayload.content) {
-        const $ = cheerio.load(pagePayload.content, null, false);
+        const $ = cheerio.load(pagePayload.content, null, false); // { decodeEntities: false } -> null, false
         imageMetas.forEach(meta => {
             $(`img[src="${meta.src}"]`).attr('alt', meta.alt);
         });
-        pagePayload.content = $.html();
+        pagePayload.content = $('body').html() || $.html(); // Prefer body's inner HTML to avoid extra tags
     }
 
     const response = await wpApi.post(`/pages/${pageId}`, pagePayload);
@@ -133,5 +134,3 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: errorMessage }, { status });
   }
 }
-
-    

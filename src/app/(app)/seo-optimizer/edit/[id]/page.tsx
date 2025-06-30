@@ -22,6 +22,7 @@ interface PostEditState {
   title: string;
   content: string; 
   meta: {
+      _yoast_wpseo_title: string;
       _yoast_wpseo_metadesc: string;
       _yoast_wpseo_focuskw: string;
   };
@@ -82,9 +83,10 @@ function EditPageContent() {
       
       const postData = await postResponse.json();
       const loadedPost: PostEditState = {
-        title: postData.title.rendered || '',
+        title: postData.meta?._yoast_wpseo_title || postData.title.rendered || '',
         content: postData.content.rendered || '',
         meta: {
+            _yoast_wpseo_title: postData.meta?._yoast_wpseo_title || '',
             _yoast_wpseo_metadesc: postData.meta?._yoast_wpseo_metadesc || '',
             _yoast_wpseo_focuskw: postData.meta?._yoast_wpseo_focuskw || '',
         },
@@ -107,7 +109,8 @@ function EditPageContent() {
                 const latestAnalysis = historyData.history[0].analysis;
                 
                 // Only overwrite if the current field is empty
-                if (!loadedPost.title && latestAnalysis.aiAnalysis.suggested?.title) {
+                if (!loadedPost.meta._yoast_wpseo_title && latestAnalysis.aiAnalysis.suggested?.title) {
+                    loadedPost.meta._yoast_wpseo_title = latestAnalysis.aiAnalysis.suggested.title;
                     loadedPost.title = latestAnalysis.aiAnalysis.suggested.title;
                 }
                 if (!loadedPost.meta._yoast_wpseo_metadesc && latestAnalysis.aiAnalysis.suggested?.metaDescription) {
@@ -181,7 +184,7 @@ function EditPageContent() {
         if (!response.ok) throw new Error((await response.json()).error || 'Fallo al guardar.');
         toast({ title: '¡Éxito!', description: "Los cambios SEO, incluyendo los textos 'alt' de las imágenes, han sido guardados." });
     } catch (e: any) {
-        toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
+        toast({ title: 'Error al Guardar', description: e.message, variant: "destructive" });
     } finally {
         setIsSaving(false);
     }
@@ -198,7 +201,7 @@ function EditPageContent() {
             mode: 'generate_image_meta',
             language: 'Spanish',
             existingTitle: post.title,
-            existingContent: post.content.substring(0, 1000), // Send a summary
+            existingContent: post.content,
         };
         const response = await fetch('/api/generate-blog-post', {
             method: 'POST',
@@ -216,7 +219,7 @@ function EditPageContent() {
         );
         toast({ title: 'Textos alternativos generados', description: "Se ha añadido 'alt text' a las imágenes que no lo tenían." });
     } catch (e: any) {
-        toast({ title: 'Error de IA', description: e.message, variant: 'destructive' });
+        toast({ title: 'Error de IA', description: e.message, variant: "destructive" });
     } finally {
         setIsAiLoading(false);
     }
@@ -240,7 +243,6 @@ function EditPageContent() {
                         <CardDescription>Editando: {post.title}</CardDescription>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2">
-                        {/* This onClick now correctly sends the user back to the previous page in history, which should be the report view. */}
                         <Button variant="outline" onClick={() => router.back()}>
                             <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Informe
                         </Button>
@@ -276,9 +278,9 @@ function EditPageContent() {
               Para modificar los encabezados (H1, H2, etc.) o el cuerpo del texto, puedes usar el editor correspondiente.
             </AlertDescription>
              <Button asChild className="mt-4" size="sm">
-                <Link href={postType === 'Post' ? `/blog/edit/${postId}` : post.adminEditLink || '#'} target={postType === 'Post' ? '_self' : '_blank'} rel="noopener noreferrer">
+                <Link href={post.adminEditLink || '#'} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="mr-2 h-4 w-4" />
-                    {postType === 'Post' ? 'Abrir Editor de Contenido' : 'Abrir Editor de WordPress'}
+                    Abrir Editor de WordPress
                 </Link>
             </Button>
           </Alert>
