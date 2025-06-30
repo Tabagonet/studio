@@ -2,8 +2,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { z } from 'zod';
-import { ai } from '@/ai/genkit';
 import { getApiClientsForUser } from '@/lib/api-helpers';
+
+// Direct import and initialization of Genkit to solve Next.js bundling issues.
+import { genkit } from '@genkit-ai/core';
+import { googleAI } from '@genkit-ai/googleai';
+const ai = genkit({
+  plugins: [googleAI()],
+});
+
 
 // Schemas and types are now internal to this file (no 'export' keyword).
 const GenerateProductInputSchema = z.object({
