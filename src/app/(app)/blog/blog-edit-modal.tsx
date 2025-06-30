@@ -1,3 +1,3 @@
-// This file has been moved to /src/components/features/blog/blog-edit-modal.tsx
-// to be a reusable component across different pages like SEO Optimizer and Blog Management.
+// This file is obsolete. The functionality has been moved to a full page editor
+// at /src/app/(app)/seo-optimizer/edit/[id]/page.tsx
 export {};
