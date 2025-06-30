@@ -12,7 +12,7 @@ import { VariableProductManager } from '@/components/features/wizard/variable-pr
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
 import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory } from '@/lib/types';
 import { PRODUCT_TYPES, ALL_LANGUAGES } from '@/lib/constants';
-import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
@@ -243,8 +243,17 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || "La IA no pudo generar el contenido.");
+            let errorToastDescription = `El servidor respondió con un error ${response.status}. Revisa la consola del servidor.`;
+            try {
+                // Attempt to parse the error response as JSON
+                const errorData = await response.json();
+                // Use the specific error message from the API if available
+                errorToastDescription = errorData.error || errorData.message || errorToastDescription;
+            } catch (e) {
+                // If parsing fails, it's likely the raw HTML error page
+                errorToastDescription = `Error interno del servidor (${response.status}). La respuesta no es un JSON válido.`;
+            }
+            throw new Error(errorToastDescription);
         }
 
         const aiContent = await response.json();
@@ -262,7 +271,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         toast({ title: "¡Contenido generado!", description: "La IA ha rellenado las descripciones, palabras clave y metadatos de imagen." });
 
     } catch (error: any) {
-        toast({ title: "Error de IA", description: error.message, variant: "destructive" });
+        toast({ title: "Error de IA", description: error.message, variant: "destructive", duration: 10000 });
     } finally {
         setIsGenerating(false);
     }
