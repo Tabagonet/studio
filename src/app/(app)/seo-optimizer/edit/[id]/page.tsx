@@ -81,7 +81,7 @@ function EditPageContent() {
         title: postData.title.rendered || '',
         content: postData.content.rendered || '',
         meta: {
-            _yoast_wpseo_title: postData.meta?._yoast_wpseo_title || postData.title.rendered || '',
+            _yoast_wpseo_title: postData.meta?._yoast_wpseo_title || '',
             _yoast_wpseo_metadesc: postData.meta?._yoast_wpseo_metadesc || '',
             _yoast_wpseo_focuskw: postData.meta?._yoast_wpseo_focuskw || '',
         },
