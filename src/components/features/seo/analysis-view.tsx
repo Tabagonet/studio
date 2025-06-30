@@ -92,7 +92,7 @@ export function AnalysisView({ analysis, item, history, onEdit, onReanalyze, onS
                 <p className={`text-6xl font-bold ${scoreColor}`}>{analysis.aiAnalysis.score}/100</p>
             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 pt-4 border-t">
-                {Object.entries(analysis.aiAnalysis.checks).map(([key, passed]) => (
+                {analysis.aiAnalysis?.checks && Object.entries(analysis.aiAnalysis.checks).map(([key, passed]) => (
                     <div key={key} className="flex items-center gap-2 text-sm">
                         {passed ? <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" /> : <XCircle className="h-4 w-4 text-amber-500 flex-shrink-0" />}
                         <span className="text-muted-foreground">{checkLabels[key as keyof typeof checkLabels]}</span>
