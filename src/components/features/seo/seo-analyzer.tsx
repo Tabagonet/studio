@@ -9,10 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
-import { GoogleSnippetPreview } from './google-snippet-preview';
 import { Loader2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 
@@ -299,62 +297,30 @@ export function SeoAnalyzer({
   }
 
   const keyword = post.meta?._yoast_wpseo_focuskw || '';
-  const seoTitle = post.meta?._yoast_wpseo_title || '';
-  const metaDescription = post.meta?._yoast_wpseo_metadesc || '';
 
   return (
-    <>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-            <div className="space-y-6">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Checklist SEO Accionable</CardTitle>
-                        <CardDescription>Completa estas tareas para mejorar el SEO on-page de tu contenido.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="mb-4">
-                            <Label htmlFor="focusKeyword">Palabra Clave Principal</Label>
-                            <Input id="focusKeyword" name="_yoast_wpseo_focuskw" value={keyword} onChange={onMetaChange} />
-                        </div>
-                        {isLoading && !keyword ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin mr-2" /> Sugiriendo palabra clave...</div> :
-                        !keyword ? <p className="text-sm text-muted-foreground p-4 text-center border-dashed border rounded-md">Introduce una palabra clave principal para empezar.</p> :
-                        <ul className="space-y-3">
-                            {checks.map(check => (
-                                <CheckItem key={check.id} check={check} onFix={handleFixWithAI} isAiLoading={isLoading}/>
-                            ))}
-                        </ul>
-                        }
-                    </CardContent>
-                </Card>
+    <div className="space-y-6">
+        <Card>
+            <CardHeader>
+                <CardTitle>Checklist SEO Accionable</CardTitle>
+                <CardDescription>Completa estas tareas para mejorar el SEO on-page de tu contenido.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="mb-4">
+                    <Label htmlFor="focusKeyword">Palabra Clave Principal</Label>
+                    <Input id="focusKeyword" name="_yoast_wpseo_focuskw" value={keyword} onChange={onMetaChange} />
+                </div>
+                {isLoading && !keyword ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin mr-2" /> Sugiriendo palabra clave...</div> :
+                !keyword ? <p className="text-sm text-muted-foreground p-4 text-center border-dashed border rounded-md">Introduce una palabra clave principal para empezar.</p> :
+                <ul className="space-y-3">
+                    {checks.map(check => (
+                        <CheckItem key={check.id} check={check} onFix={handleFixWithAI} isAiLoading={isLoading}/>
+                    ))}
+                </ul>
+                }
+            </CardContent>
+        </Card>
 
-            </div>
-            <div className="sticky top-20 space-y-6">
-                 <Card>
-                  <CardHeader><CardTitle>Edición SEO</CardTitle></CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-1">
-                        <Label htmlFor="yoastTitle">Título SEO (Yoast)</Label>
-                        <div className="flex items-center gap-2">
-                           <Input id="yoastTitle" name="_yoast_wpseo_title" value={seoTitle} onChange={onMetaChange} className="flex-grow"/>
-                           <Button variant="ghost" size="icon" onClick={() => handleFixWithAI('enhance_title')} disabled={isLoading} title="Mejorar con IA">
-                               <Sparkles className="h-4 w-4 text-primary"/>
-                           </Button>
-                        </div>
-                    </div>
-                    <div className="space-y-1">
-                        <Label htmlFor="metaDescription">Meta Descripción (Yoast)</Label>
-                        <div className="flex items-start gap-2">
-                            <Textarea id="metaDescription" name="_yoast_wpseo_metadesc" value={metaDescription} onChange={onMetaChange} maxLength={165} rows={3} className="flex-grow"/>
-                            <Button variant="ghost" size="icon" onClick={() => handleFixWithAI('generate_meta_description')} disabled={isLoading} title="Generar con IA">
-                               <Sparkles className="h-4 w-4 text-primary"/>
-                            </Button>
-                        </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                <GoogleSnippetPreview title={seoTitle} description={metaDescription} url={post.link || null} />
-            </div>
-        </div>
         <Card>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2"><ImageIcon className="h-5 w-5 text-primary" /> Optimización de Imágenes</CardTitle>
@@ -399,6 +365,6 @@ export function SeoAnalyzer({
                 </div>
             </CardContent>
         </Card>
-    </>
+    </div>
   );
 }
