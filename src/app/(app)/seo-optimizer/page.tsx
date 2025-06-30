@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -161,10 +160,7 @@ export default function SeoOptimizerPage() {
     try {
       const token = await user.getIdToken();
       let urlToAnalyze = page.link;
-      if (!urlToAnalyze.startsWith('http')) {
-        urlToAnalyze = `https://${urlToAnalyze}`;
-      }
-
+      
       const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(urlToAnalyze)}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -212,9 +208,6 @@ export default function SeoOptimizerPage() {
     try {
         const token = await user.getIdToken();
         let urlToAnalyze = page.link;
-        if (!urlToAnalyze.startsWith('http')) {
-            urlToAnalyze = `https://${urlToAnalyze}`;
-        }
         
         toast({ title: "Analizando con IA...", description: "Estamos leyendo la página y generando el informe SEO."});
         const response = await fetch('/api/seo/analyze-url', {
@@ -270,8 +263,7 @@ export default function SeoOptimizerPage() {
           status: 'publish',
           parent: 0,
       };
-      // For manual analysis, we don't have an ID or type, so we just pass the URL
-      // The API will fall back to scraping.
+      
       setIsLoadingAnalysis(true);
       setError(null);
       setAnalysis(null);
@@ -464,10 +456,14 @@ export default function SeoOptimizerPage() {
                 </CardDescription>
               </div>
             </div>
-            <Button disabled>
-              <Printer className="mr-2 h-4 w-4" />
-              Generar Informe Global (Próximamente)
-            </Button>
+             {latestAnalysisId && !selectedPage && (
+                <Button asChild variant="outline">
+                    <Link href={`/seo-optimizer/report?analysisId=${latestAnalysisId}`} target="_blank">
+                        <Printer className="mr-2 h-4 w-4" />
+                        Ver Último Informe
+                    </Link>
+                </Button>
+              )}
           </div>
         </CardHeader>
       </Card>
@@ -478,3 +474,5 @@ export default function SeoOptimizerPage() {
     </div>
   );
 }
+
+    

@@ -29,7 +29,8 @@ export async function GET(req: NextRequest) {
         try {
             // Using URL constructor is safer for complex URLs
             const parsed = new URL(u);
-            return `${parsed.hostname}${parsed.pathname.replace(/\/$/, '')}`;
+            // Compare only hostname and pathname, ignoring protocol, www, and trailing slashes
+            return `${parsed.hostname.replace(/^www\./, '')}${parsed.pathname.replace(/\/$/, '')}`;
         } catch (e) {
             // Fallback for simple strings that might not have a protocol
             return u.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/$/, '');
@@ -73,3 +74,5 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Fallo al obtener el historial de análisis', details: error.message }, { status: 500 });
     }
 }
+
+    

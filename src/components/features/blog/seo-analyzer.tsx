@@ -103,9 +103,12 @@ export function SeoAnalyzer({ title, content, focusKeyword, metaDescription }: S
 
   if (!focusKeyword || !focusKeyword.trim()) {
     return (
-        <div className="pt-3">
-            <p className="text-sm text-muted-foreground">Introduce una palabra clave principal para ver el análisis.</p>
-        </div>
+        <Card>
+            <CardHeader><CardTitle>Checklist SEO Dinámico</CardTitle></CardHeader>
+            <CardContent>
+                <p className="text-sm text-muted-foreground p-4 text-center">Introduce una palabra clave principal para ver el análisis.</p>
+            </CardContent>
+        </Card>
     );
   }
 
@@ -133,3 +136,5 @@ export function SeoAnalyzer({ title, content, focusKeyword, metaDescription }: S
     </Card>
   );
 }
+
+    
