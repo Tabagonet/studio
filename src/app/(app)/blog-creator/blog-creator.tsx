@@ -122,9 +122,10 @@ export function BlogCreator() {
         for (const lang of postData.targetLanguages) {
             // a. Translate content
             updateStepStatus(`translate_${lang}`, 'processing');
-            const translateResponse = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ title: postData.title, content: postData.content, targetLanguage: lang }) });
+            const contentToTranslate = { title: postData.title, content: postData.content };
+            const translateResponse = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ contentToTranslate, targetLanguage: lang }) });
             if (!translateResponse.ok) throw new Error(`Error al traducir a ${lang}`);
-            const translatedContent = await translateResponse.json();
+            const { content: translatedContent } = await translateResponse.json();
             updateStepStatus(`translate_${lang}`, 'success');
 
             // b. Create translated post
