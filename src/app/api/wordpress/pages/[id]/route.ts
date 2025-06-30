@@ -16,10 +16,12 @@ const pageUpdateSchema = z.object({
     content: z.string().optional(),
     status: z.enum(['publish', 'draft', 'pending', 'private', 'future']).optional(),
     author: z.number().optional().nullable(),
-    featured_media_id: z.number().optional().nullable(),
+    featured_media: z.number().optional().nullable(),
     featured_image_src: z.string().url().optional(),
-    metaDescription: z.string().optional(),
-    focusKeyword: z.string().optional(),
+    meta: z.object({
+        _yoast_wpseo_metadesc: z.string().optional(),
+        _yoast_wpseo_focuskw: z.string().optional(),
+    }).optional(),
     featured_image_metadata: z.object({
         title: z.string(),
         alt_text: z.string(),
@@ -88,7 +90,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const validation = pageUpdateSchema.safeParse(body);
     if (!validation.success) return NextResponse.json({ error: 'Invalid data.', details: validation.error.flatten() }, { status: 400 });
     
-    const { featured_image_src, metaDescription, focusKeyword, featured_image_metadata, imageMetas, ...pagePayload } = validation.data;
+    const { featured_image_src, featured_image_metadata, imageMetas, ...pagePayload } = validation.data;
     
     if (featured_image_src) {
         const seoFilename = `${slugify(pagePayload.title || 'page')}-${pageId}.jpg`;
@@ -98,20 +100,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             caption: '',
             description: pagePayload.content?.substring(0, 100) || '',
         }, wpApi);
-    } else if (pagePayload.featured_media_id !== undefined) {
-        (pagePayload as any).featured_media = pagePayload.featured_media_id;
     }
     
-    const meta: { [key: string]: string | undefined } = {};
-    if (metaDescription !== undefined) meta._yoast_wpseo_metadesc = metaDescription;
-    if (focusKeyword !== undefined) meta._yoast_wpseo_focuskw = focusKeyword;
-    if (Object.keys(meta).length > 0) (pagePayload as any).meta = meta;
-
     // Process image alt texts using Cheerio
     if (imageMetas && pagePayload.content) {
         const $ = cheerio.load(pagePayload.content);
         imageMetas.forEach(meta => {
-            // Find img tag by src and update its alt attribute
             $(`img[src="${meta.src}"]`).attr('alt', meta.alt);
         });
         pagePayload.content = $.html();
@@ -126,7 +120,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
                 alt_text: featured_image_metadata.alt_text,
             });
         } catch (mediaError: any) {
-            console.warn(`Post updated, but failed to update featured image metadata for media ID ${response.data.featured_media}:`, mediaError.response?.data?.message || mediaError.message);
+            console.warn(`Page updated, but failed to update featured image metadata for media ID ${response.data.featured_media}:`, mediaError.response?.data?.message || mediaError.message);
         }
     }
     
