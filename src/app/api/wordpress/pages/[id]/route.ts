@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/api-helpers';
@@ -18,6 +19,10 @@ const pageUpdateSchema = z.object({
     featured_image_src: z.string().url().optional(),
     metaDescription: z.string().optional(),
     focusKeyword: z.string().optional(),
+    featured_image_metadata: z.object({
+        title: z.string(),
+        alt_text: z.string(),
+    }).optional(),
 });
 
 
@@ -46,6 +51,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const transformed = {
       ...pageData,
       featured_image_url: pageData._embedded?.['wp:featuredmedia']?.[0]?.source_url || null,
+      featured_media: pageData.featured_media,
       isElementor,
       elementorEditLink,
     };
@@ -70,14 +76,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         throw new Error('WordPress API is not configured for the active connection.');
     }
 
-    const pageId = params.id;
+    const pageId = Number(params.id);
     if (!pageId) return NextResponse.json({ error: 'Page ID is required.' }, { status: 400 });
 
     const body = await req.json();
     const validation = pageUpdateSchema.safeParse(body);
     if (!validation.success) return NextResponse.json({ error: 'Invalid data.', details: validation.error.flatten() }, { status: 400 });
     
-    const { featured_image_src, metaDescription, focusKeyword, ...pagePayload } = validation.data;
+    const { featured_image_src, metaDescription, focusKeyword, featured_image_metadata, ...pagePayload } = validation.data;
     
     if (featured_image_src) {
         const seoFilename = `${slugify(pagePayload.title || 'page')}-${pageId}.jpg`;
@@ -88,23 +94,27 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             description: pagePayload.content?.substring(0, 100) || '',
         }, wpApi);
     } else if (pagePayload.featured_media_id !== undefined) {
-        // Handle setting an existing image or removing it (ID of 0 removes it)
         (pagePayload as any).featured_media = pagePayload.featured_media_id;
     }
     
     const meta: { [key: string]: string | undefined } = {};
-    if (metaDescription !== undefined) {
-        meta._yoast_wpseo_metadesc = metaDescription;
-    }
-    if (focusKeyword !== undefined) {
-        meta._yoast_wpseo_focuskw = focusKeyword;
-    }
-    if (Object.keys(meta).length > 0) {
-        (pagePayload as any).meta = meta;
-    }
+    if (metaDescription !== undefined) meta._yoast_wpseo_metadesc = metaDescription;
+    if (focusKeyword !== undefined) meta._yoast_wpseo_focuskw = focusKeyword;
+    if (Object.keys(meta).length > 0) (pagePayload as any).meta = meta;
 
-    // WordPress API uses POST for updates to an existing ID
     const response = await wpApi.post(`/pages/${pageId}`, pagePayload);
+    
+    if (featured_image_metadata && response.data.featured_media) {
+        try {
+            await wpApi.post(`/media/${response.data.featured_media}`, {
+                title: featured_image_metadata.title,
+                alt_text: featured_image_metadata.alt_text,
+            });
+        } catch (mediaError: any) {
+            console.warn(`Post updated, but failed to update featured image metadata for media ID ${response.data.featured_media}:`, mediaError.response?.data?.message || mediaError.message);
+        }
+    }
+    
     return NextResponse.json({ success: true, data: response.data });
   } catch (error: any) {
     console.error(`Error updating page ${params.id}:`, error.response?.data || error.message);

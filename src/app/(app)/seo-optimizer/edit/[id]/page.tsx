@@ -2,15 +2,15 @@
 
 "use client";
 
-import React, { useEffect, useState, Suspense, useCallback } from 'react';
+import React, { useEffect, useState, Suspense, useCallback, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Sparkles, Wand2, Tags, ArrowLeft, ExternalLink, Image as ImageIcon, Copy } from 'lucide-react';
+import { Loader2, Sparkles, Wand2, Tags, ArrowLeft, ExternalLink, Image as ImageIcon, Copy, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { SeoAnalyzer } from '@/components/features/blog/seo-analyzer';
 import { GoogleSnippetPreview } from '@/components/features/blog/google-snippet-preview';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ContentToolbar } from '@/components/features/editor/content-toolbar';
 
 
 interface PostEditState {
@@ -33,6 +34,8 @@ interface PostEditState {
   focusKeyword: string;
   isElementor: boolean;
   elementorEditLink: string | null;
+  featuredImageUrl?: string | null;
+  featuredMediaId?: number | null;
   translations?: Record<string, number>;
 }
 
@@ -45,6 +48,7 @@ function EditPageContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const contentRef = useRef<HTMLTextAreaElement>(null);
 
   const postId = Number(params.id);
   const postType = searchParams.get('type') as 'Post' | 'Page';
@@ -55,11 +59,13 @@ function EditPageContent() {
   const [isSaving, setIsSaving] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [suggestedImageMeta, setSuggestedImageMeta] = useState<{title: string, altText: string} | null>(null);
+  const [applyMetaToFeatured, setApplyMetaToFeatured] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [categories, setCategories] = useState<WordPressPostCategory[]>([]);
   const [authors, setAuthors] = useState<WordPressUser[]>([]);
   const [syncSeo, setSyncSeo] = useState(true);
+  const [syncFullContent, setSyncFullContent] = useState(false);
 
   const { toast } = useToast();
 
@@ -76,6 +82,9 @@ function EditPageContent() {
   
   const handleAiGeneration = useCallback(async (mode: 'enhance_content' | 'suggest_keywords' | 'generate_meta_description' | 'generate_image_meta' | 'generate_focus_keyword') => {
         setIsAiLoading(true);
+        setSuggestedImageMeta(null);
+        setApplyMetaToFeatured(false);
+
         if (!post) {
             setIsAiLoading(false);
             return;
@@ -117,7 +126,7 @@ function EditPageContent() {
                 toast({ title: "Meta descripción generada", description: "El campo para buscadores ha sido actualizado." });
             } else if (mode === 'generate_image_meta') {
                 setSuggestedImageMeta({ title: aiContent.imageTitle, altText: aiContent.imageAltText });
-                toast({ title: "Metadatos de imagen sugeridos", description: "Copia y pega los resultados en tu biblioteca de medios." });
+                toast({ title: "Metadatos de imagen sugeridos", description: "Puedes aplicarlos a la imagen destacada o copiarlos." });
             } else if (mode === 'generate_focus_keyword') {
                  setPost(prev => prev ? { ...prev, focusKeyword: aiContent.focusKeyword } : null);
                 toast({ title: "Palabra clave sugerida", description: "Se ha rellenado el campo de palabra clave principal." });
@@ -147,7 +156,7 @@ function EditPageContent() {
         
         const payload: any = {
             title: post.title,
-            content: post.content, // Content is sent but not editable in this view
+            content: post.content,
             status: post.status,
             author: post.author,
             metaDescription: post.metaDescription,
@@ -157,6 +166,13 @@ function EditPageContent() {
         if (postType === 'Post') {
             payload.categories = post.category ? [post.category] : [];
             payload.tags = post.tags;
+        }
+
+        if (applyMetaToFeatured && suggestedImageMeta) {
+            payload.featured_image_metadata = {
+                title: suggestedImageMeta.title,
+                alt_text: suggestedImageMeta.altText,
+            };
         }
         
         const apiPath = postType === 'Post' ? `/api/wordpress/posts/${postId}` : `/api/wordpress/pages/${postId}`;
@@ -174,28 +190,23 @@ function EditPageContent() {
         
         toast({ title: '¡Éxito!', description: `La entrada ha sido actualizada en WordPress.` });
         
-        if (syncSeo && post.translations && Object.keys(post.translations).length > 1) {
+        if (syncFullContent && post.translations && Object.keys(post.translations).length > 1) {
+            toast({ title: "Sincronizando contenido...", description: "Traduciendo y actualizando el contenido en las otras versiones. Esto puede tardar." });
+            const syncPayload = {
+                sourcePostId: postId, postType: postType, translations: post.translations,
+                title: post.title, content: post.content,
+            };
+            fetch('/api/blog/sync-full-content', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(syncPayload) })
+            .then(r => r.json()).then(res => toast({ title: res.success ? "Sincronización completada" : "Error de sincronización", description: res.message }));
+        }
+        else if (syncSeo && post.translations && Object.keys(post.translations).length > 1) {
             toast({ title: "Sincronizando SEO...", description: "Aplicando mejoras a las traducciones. Esto puede tardar." });
             const syncPayload = {
-                sourcePostId: postId,
-                postType: postType,
-                translations: post.translations,
-                metaDescription: post.metaDescription,
-                focusKeyword: post.focusKeyword
+                sourcePostId: postId, postType: postType, translations: post.translations,
+                metaDescription: post.metaDescription, focusKeyword: post.focusKeyword
             };
-            
-            fetch('/api/seo/sync-translations', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify(syncPayload)
-            }).then(async (syncResponse) => {
-                const syncResult = await syncResponse.json();
-                if (syncResponse.ok) {
-                    toast({ title: "Sincronización SEO completada", description: syncResult.message });
-                } else {
-                     toast({ title: "Error en la sincronización SEO", description: syncResult.message || "No se pudieron actualizar todas las traducciones.", variant: "destructive" });
-                }
-            });
+            fetch('/api/seo/sync-translations', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(syncPayload) })
+            .then(r => r.json()).then(res => toast({ title: res.success ? "Sincronización SEO completada" : "Error de sincronización SEO", description: res.message }));
         }
         
     } catch (e: any) {
@@ -220,13 +231,11 @@ function EditPageContent() {
         const apiPath = postType === 'Post' ? `/api/wordpress/posts/${postId}` : `/api/wordpress/pages/${postId}`;
 
         const postResponsePromise = fetch(`${apiPath}?_embed=true`, { headers: { 'Authorization': `Bearer ${token}` }});
-        const categoriesResponsePromise = fetch('/api/wordpress/post-categories', { headers: { 'Authorization': `Bearer ${token}` }});
+        const categoriesResponsePromise = postType === 'Post' ? fetch('/api/wordpress/post-categories', { headers: { 'Authorization': `Bearer ${token}` }}) : Promise.resolve(null);
         const authorsResponsePromise = fetch('/api/wordpress/users', { headers: { 'Authorization': `Bearer ${token}` }});
         
         const [postResponse, categoriesResponse, authorsResponse] = await Promise.all([
-          postResponsePromise,
-          categoriesResponsePromise,
-          authorsResponsePromise
+          postResponsePromise, categoriesResponsePromise, authorsResponsePromise
         ]);
 
         if (!postResponse.ok) {
@@ -235,7 +244,7 @@ function EditPageContent() {
         }
         const postData = await postResponse.json();
         
-        if (categoriesResponse.ok) setCategories(await categoriesResponse.json());
+        if (categoriesResponse?.ok) setCategories(await categoriesResponse.json());
         if (authorsResponse.ok) setAuthors(await authorsResponse.json());
         
         setPost({
@@ -249,6 +258,8 @@ function EditPageContent() {
           focusKeyword: postData.meta?._yoast_wpseo_focuskw || '',
           isElementor: postData.isElementor || false,
           elementorEditLink: postData.elementorEditLink || null,
+          featuredImageUrl: postData.featured_image_url || null,
+          featuredMediaId: postData.featured_media || null,
           translations: postData.translations || {},
         });
 
@@ -259,7 +270,7 @@ function EditPageContent() {
       }
     };
     if(postId && postType) fetchInitialData();
-  }, [postId, postType, toast]);
+  }, [postId, postType]);
 
   useEffect(() => {
     if (post?.content) {
@@ -278,12 +289,8 @@ function EditPageContent() {
     return <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
   }
   
-  if (error) {
-     return <div className="container mx-auto py-8"><Alert variant="destructive"><AlertTitle>Error al Cargar</AlertTitle><AlertDescription>{error}</AlertDescription></Alert></div>;
-  }
-  
-  if (!post) {
-       return <div className="container mx-auto py-8"><Alert variant="destructive"><AlertTitle>Error</AlertTitle><AlertDescription>No se pudo cargar la información del contenido.</AlertDescription></Alert></div>;
+  if (error || !post) {
+     return <div className="container mx-auto py-8"><Alert variant="destructive"><AlertTitle>Error</AlertTitle><AlertDescription>{error || `No se pudo cargar la información del ${postType}.`}</AlertDescription></Alert></div>;
   }
   
   const imagesWithoutAlt = imagesInContent.filter(img => !img.alt);
@@ -294,17 +301,15 @@ function EditPageContent() {
             <CardHeader>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
-                        <CardTitle>Optimizador SEO</CardTitle>
+                        <CardTitle>Centro de Acción SEO</CardTitle>
                         <CardDescription>Editando: {post.title}</CardDescription>
                     </div>
                     <div className="flex gap-2">
                         <Button variant="outline" onClick={() => router.push('/seo-optimizer')}>
-                            <ArrowLeft className="mr-2 h-4 w-4" />
-                            Volver al Optimizador
+                            <ArrowLeft className="mr-2 h-4 w-4" /> Volver
                         </Button>
                         <Button onClick={handleSaveChanges} disabled={isSaving}>
-                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Guardar Cambios
+                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Guardar Cambios
                         </Button>
                     </div>
                 </div>
@@ -312,146 +317,71 @@ function EditPageContent() {
         </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-          {/* Main Column */}
           <div className="lg:col-span-2 space-y-6">
-            {post.isElementor && (
-                 <Alert>
-                    <ExternalLink className="h-4 w-4" />
-                    <AlertTitle>Página de Elementor Detectada</AlertTitle>
-                    <AlertDescription>
-                        Esta página se gestiona con Elementor. Para editar el contenido visual, debes usar el editor de Elementor. Esta herramienta te permite optimizar todos los metadatos SEO.
-                    </AlertDescription>
-                    <Button asChild className="mt-4" size="sm">
-                        <Link href={post.elementorEditLink!} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="mr-2 h-4 w-4" />
-                            Abrir con Elementor
-                        </Link>
-                    </Button>
-                </Alert>
-            )}
-
             <Card>
-              <CardHeader>
-                <CardTitle>SEO Principal</CardTitle>
-                <CardDescription>Optimiza los elementos más importantes para los motores de búsqueda.</CardDescription>
-              </CardHeader>
+              <CardHeader><CardTitle>Contenido y SEO Principal</CardTitle></CardHeader>
               <CardContent className="space-y-6">
-                <div>
-                    <Label htmlFor="title">Título SEO</Label>
-                    <Input id="title" name="title" value={post.title} onChange={handleInputChange} />
-                </div>
-                <div>
-                    <Label htmlFor="focusKeyword">Palabra Clave Principal</Label>
-                    <Input id="focusKeyword" name="focusKeyword" value={post.focusKeyword} onChange={handleInputChange} />
-                </div>
-                <div>
-                    <Label htmlFor="metaDescription">Meta Descripción (para Google)</Label>
-                    <Textarea id="metaDescription" name="metaDescription" value={post.metaDescription} onChange={handleInputChange} maxLength={165} rows={4} />
-                </div>
+                <div><Label htmlFor="title">Título SEO</Label><Input id="title" name="title" value={post.title} onChange={handleInputChange} /></div>
+                <div><Label htmlFor="focusKeyword">Palabra Clave Principal</Label><Input id="focusKeyword" name="focusKeyword" value={post.focusKeyword} onChange={handleInputChange} /></div>
+                <div><Label htmlFor="metaDescription">Meta Descripción (para Google)</Label><Textarea id="metaDescription" name="metaDescription" value={post.metaDescription} onChange={handleInputChange} maxLength={165} rows={3} /></div>
+                
+                {post.isElementor ? (
+                    <Alert><ExternalLink className="h-4 w-4" /><AlertTitle>Página de Elementor</AlertTitle><AlertDescription>El contenido se gestiona con Elementor. Para editar el cuerpo de la página, <Link href={post.elementorEditLink!} target="_blank" rel="noopener noreferrer" className="underline font-semibold">ábrela con Elementor</Link>.</AlertDescription></Alert>
+                ) : (
+                    <div>
+                        <Label htmlFor="content">Contenido de la Entrada</Label>
+                        <ContentToolbar onInsertTag={(tag) => {}} onInsertLink={() => {}} onInsertImage={() => {}} onAlign={() => {}}/>
+                        <Textarea id="content" name="content" ref={contentRef} value={post.content} onChange={handleInputChange} rows={15} className="rounded-t-none" />
+                    </div>
+                )}
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader>
-                <CardTitle>Análisis y Auditoría SEO</CardTitle>
-                <CardDescription>Recomendaciones basadas en el contenido y los metadatos actuales.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <GoogleSnippetPreview title={post.title} description={post.metaDescription} url={''} />
-                <SeoAnalyzer title={post.title} content={post.content} focusKeyword={post.focusKeyword} metaDescription={post.metaDescription} />
-              </CardContent>
+              <CardHeader><CardTitle>Análisis y Auditoría SEO</CardTitle></CardHeader>
+              <CardContent><GoogleSnippetPreview title={post.title} description={post.metaDescription} url={''} /><SeoAnalyzer title={post.title} content={post.content} focusKeyword={post.focusKeyword} metaDescription={post.metaDescription} /></CardContent>
             </Card>
             
             <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><ImageIcon /> Optimización de Imágenes</CardTitle>
-                    <CardDescription>El texto alternativo es crucial. Aquí puedes identificar imágenes sin él y generar sugerencias con IA.</CardDescription>
-                </CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><ImageIcon /> Optimización de Imágenes</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
-                     <Button onClick={() => handleAiGeneration('generate_image_meta')} disabled={isAiLoading || !post.content}>
-                        {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                        Sugerir Metadatos con IA
-                    </Button>
                      {suggestedImageMeta && (
                         <Alert>
                             <AlertTitle>Sugerencias de la IA</AlertTitle>
-                            <AlertDescription>
-                                <div className="space-y-2 mt-2">
-                                    <div>
-                                        <div className="flex justify-between items-center">
-                                            <Label className="text-xs">Título de Imagen Sugerido</Label>
-                                            <Button variant="ghost" size="icon-sm" onClick={() => navigator.clipboard.writeText(suggestedImageMeta.title)}><Copy className="h-3 w-3" /></Button>
-                                        </div>
-                                        <p className="text-sm p-2 bg-muted rounded-md">{suggestedImageMeta.title}</p>
-                                    </div>
-                                     <div>
-                                        <div className="flex justify-between items-center">
-                                            <Label className="text-xs">Texto Alternativo (Alt) Sugerido</Label>
-                                            <Button variant="ghost" size="icon-sm" onClick={() => navigator.clipboard.writeText(suggestedImageMeta.altText)}><Copy className="h-3 w-3" /></Button>
-                                        </div>
-                                        <p className="text-sm p-2 bg-muted rounded-md">{suggestedImageMeta.altText}</p>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">Usa estas sugerencias como base en tu biblioteca de medios de WordPress.</p>
+                            <AlertDescription className="space-y-2 mt-2">
+                                <div><Label className="text-xs">Título de Imagen</Label><p className="text-sm p-2 bg-muted rounded-md">{suggestedImageMeta.title}</p></div>
+                                <div><Label className="text-xs">Texto Alternativo (Alt)</Label><p className="text-sm p-2 bg-muted rounded-md">{suggestedImageMeta.altText}</p></div>
+                                <div className="flex items-center space-x-2 pt-2">
+                                  <Checkbox id="apply-meta" checked={applyMetaToFeatured} onCheckedChange={(checked) => setApplyMetaToFeatured(!!checked)} disabled={!post.featuredMediaId} />
+                                  <Label htmlFor="apply-meta" className="text-sm font-normal cursor-pointer">Aplicar a la imagen destacada al guardar</Label>
                                 </div>
+                                {!post.featuredMediaId && <p className="text-xs text-destructive">Esta entrada no tiene imagen destacada para aplicar los cambios.</p>}
                             </AlertDescription>
                         </Alert>
                      )}
                      {imagesWithoutAlt.length > 0 && (
-                        <div>
-                            <h4 className="font-semibold mb-2">Imágenes sin `alt` text:</h4>
-                            <div className="max-h-48 overflow-y-auto space-y-2 p-2 border rounded-md">
-                                {imagesWithoutAlt.map((img, i) => (
-                                    <div key={i} className="text-xs text-destructive truncate">
-                                       <span className="font-mono">{img.src}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
+                        <div><h4 className="font-semibold mb-2">Imágenes sin `alt` text:</h4><div className="max-h-48 overflow-y-auto space-y-2 p-2 border rounded-md">{imagesWithoutAlt.map((img, i) => (<div key={i} className="text-xs text-destructive truncate"><span className="font-mono">{img.src}</span></div>))}</div></div>
                      )}
                      {imagesInContent.length > 0 && imagesWithoutAlt.length === 0 && (
-                        <Alert variant="default" className="border-green-500/50">
-                            <AlertTitle className="text-green-600">¡Buen trabajo!</AlertTitle>
-                            <AlertDescription>Todas las {imagesInContent.length} imágenes encontradas en el contenido tienen texto alternativo.</AlertDescription>
-                        </Alert>
+                        <Alert variant="default" className="border-green-500/50"><AlertTitle className="text-green-600">¡Buen trabajo!</AlertTitle><AlertDescription>Todas las {imagesInContent.length} imágenes encontradas en el contenido tienen texto alternativo.</AlertDescription></Alert>
                      )}
                 </CardContent>
             </Card>
-
           </div>
           
-          {/* Sidebar Column */}
           <div className="space-y-6">
-            <Card>
-                <CardHeader>
-                <CardTitle>Asistente IA</CardTitle>
-                <CardDescription>Usa la IA para acelerar la optimización de los campos de texto.</CardDescription>
-                </CardHeader>
+            <Card><CardHeader><CardTitle>Asistente IA</CardTitle></CardHeader>
                 <CardContent className="flex flex-col gap-2">
-                  <Button onClick={() => handleAiGeneration('enhance_content')} disabled={isAiLoading || !post.content}>
-                      {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                      Mejorar Título con IA
-                  </Button>
-                  <Button onClick={() => handleAiGeneration('generate_focus_keyword')} disabled={isAiLoading || !post.content} variant="outline">
-                      {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                      Sugerir Palabra Clave Principal
-                  </Button>
-                  <Button onClick={() => handleAiGeneration('generate_meta_description')} disabled={isAiLoading || !post.content} variant="outline">
-                      {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                      Generar Meta Descripción con IA
-                  </Button>
-                   {postType === 'Post' && (
-                        <Button onClick={() => handleAiGeneration('suggest_keywords')} disabled={isAiLoading || !post.content} variant="outline">
-                            {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tags className="mr-2 h-4 w-4" />}
-                            Sugerir Etiquetas con IA
-                        </Button>
-                    )}
+                  <Button onClick={() => handleAiGeneration('enhance_content')} disabled={isAiLoading}><Wand2 className="mr-2 h-4 w-4" /> Mejorar Título</Button>
+                  <Button onClick={() => handleAiGeneration('generate_focus_keyword')} disabled={isAiLoading} variant="outline"><Sparkles className="mr-2 h-4 w-4" /> Sugerir Palabra Clave</Button>
+                  <Button onClick={() => handleAiGeneration('generate_meta_description')} disabled={isAiLoading} variant="outline"><Sparkles className="mr-2 h-4 w-4" /> Generar Meta Descripción</Button>
+                  <Button onClick={() => handleAiGeneration('generate_image_meta')} disabled={isAiLoading} variant="outline"><ImageIcon className="mr-2 h-4 w-4" /> Sugerir Meta de Imagen</Button>
+                   {postType === 'Post' && (<Button onClick={() => handleAiGeneration('suggest_keywords')} disabled={isAiLoading} variant="outline"><Tags className="mr-2 h-4 w-4" /> Sugerir Etiquetas</Button>)}
                 </CardContent>
             </Card>
 
             <Card>
-              <CardHeader>
-                <CardTitle>Publicación y Organización</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle>Publicación y Sincronización</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div><Label>Autor</Label><Select name="author" value={post.author?.toString() || ''} onValueChange={(v) => handleSelectChange('author', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{authors.map(a => <SelectItem key={a.id} value={a.id.toString()}>{a.name}</SelectItem>)}</SelectContent></Select></div>
@@ -464,11 +394,9 @@ function EditPageContent() {
                     </>
                   )}
                   {post.translations && Object.keys(post.translations).length > 1 && (
-                      <div className="flex items-center space-x-2 pt-4 border-t">
-                          <Checkbox id="sync-seo" checked={syncSeo} onCheckedChange={(checked) => setSyncSeo(!!checked)} />
-                          <Label htmlFor="sync-seo" className="font-normal text-sm cursor-pointer">
-                              Sincronizar SEO con las traducciones
-                          </Label>
+                      <div className="space-y-3 pt-4 border-t">
+                        <div className="flex items-center space-x-2"><Checkbox id="sync-seo" checked={syncSeo && !syncFullContent} onCheckedChange={(checked) => setSyncSeo(!!checked)} disabled={syncFullContent} /><Label htmlFor="sync-seo" className="font-normal text-sm cursor-pointer">Sincronizar SEO con las traducciones</Label></div>
+                        <div className="flex items-start space-x-2"><Checkbox id="sync-full-content" checked={syncFullContent} onCheckedChange={(checked) => { setSyncFullContent(!!checked); if (checked) setSyncSeo(true); }} /><div className="grid gap-1.5 leading-none"><Label htmlFor="sync-full-content" className="font-normal text-sm cursor-pointer">Sincronizar Título y Contenido</Label><p className="text-xs text-destructive">¡Atención! Esto sobreescribirá el contenido de todas las traducciones con una nueva versión traducida de esta entrada.</p></div></div>
                       </div>
                   )}
               </CardContent>

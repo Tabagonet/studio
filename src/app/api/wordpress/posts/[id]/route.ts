@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser, uploadImageToWordPress, findOrCreateTags } from '@/lib/api-helpers';
@@ -16,11 +17,15 @@ const postUpdateSchema = z.object({
     status: z.enum(['publish', 'draft', 'pending', 'private', 'future']).optional(),
     author: z.number().optional().nullable(),
     categories: z.array(z.number()).optional(),
-    tags: z.string().optional(), // Comma-separated string of tag names
-    featured_media_id: z.number().optional().nullable(), // ID of an existing image
-    featured_image_src: z.string().url().optional(), // URL of a new image to upload
+    tags: z.string().optional(),
+    featured_media_id: z.number().optional().nullable(),
+    featured_image_src: z.string().url().optional(),
     metaDescription: z.string().optional(),
     focusKeyword: z.string().optional(),
+    featured_image_metadata: z.object({
+        title: z.string(),
+        alt_text: z.string(),
+    }).optional(),
     translations: z.record(z.string(), z.number()).optional(),
 });
 
@@ -39,7 +44,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const postId = params.id;
     if (!postId) return NextResponse.json({ error: 'Post ID is required.' }, { status: 400 });
 
-    // Use _embed to get related data like featured image URL and author name
     const response = await wpApi.get(`/posts/${postId}`, { params: { _embed: true, context: 'edit' } });
     
     const postData = response.data;
@@ -50,6 +54,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const transformed = {
       ...postData,
       featured_image_url: postData._embedded?.['wp:featuredmedia']?.[0]?.source_url || null,
+      featured_media: postData.featured_media,
       isElementor,
       elementorEditLink,
     };
@@ -74,22 +79,20 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         throw new Error('WordPress API is not configured for the active connection.');
     }
 
-    const postId = params.id;
+    const postId = Number(params.id);
     if (!postId) return NextResponse.json({ error: 'Post ID is required.' }, { status: 400 });
 
     const body = await req.json();
     const validation = postUpdateSchema.safeParse(body);
     if (!validation.success) return NextResponse.json({ error: 'Invalid data.', details: validation.error.flatten() }, { status: 400 });
     
-    const { tags, featured_image_src, metaDescription, focusKeyword, ...postPayload } = validation.data;
+    const { tags, featured_image_src, metaDescription, focusKeyword, featured_image_metadata, ...postPayload } = validation.data;
     
-    // Handle tags by finding or creating them
-    if (tags !== undefined) { // Check for undefined to allow clearing tags with empty string
+    if (tags !== undefined) {
         const tagNames = tags.split(',').map(t => t.trim()).filter(Boolean);
         (postPayload as any).tags = await findOrCreateTags(tagNames, wpApi);
     }
     
-    // Handle featured image: upload if new src is provided
     if (featured_image_src) {
         const seoFilename = `${slugify(postPayload.title || 'blog-post')}-${postId}.jpg`;
         (postPayload as any).featured_media = await uploadImageToWordPress(featured_image_src, seoFilename, {
@@ -99,25 +102,27 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             description: postPayload.content?.substring(0, 100) || '',
         }, wpApi);
     } else if (postPayload.featured_media_id !== undefined) {
-        // Handle setting an existing image or removing it
         (postPayload as any).featured_media = postPayload.featured_media_id;
     }
     
-    // Add meta fields for SEO, allowing them to be cleared
     const meta: { [key: string]: string | undefined } = {};
-    if (metaDescription !== undefined) {
-        meta._yoast_wpseo_metadesc = metaDescription;
-    }
-    if (focusKeyword !== undefined) {
-        meta._yoast_wpseo_focuskw = focusKeyword;
-    }
-    if (Object.keys(meta).length > 0) {
-        (postPayload as any).meta = meta;
-    }
+    if (metaDescription !== undefined) meta._yoast_wpseo_metadesc = metaDescription;
+    if (focusKeyword !== undefined) meta._yoast_wpseo_focuskw = focusKeyword;
+    if (Object.keys(meta).length > 0) (postPayload as any).meta = meta;
 
-
-    // WordPress API uses POST for updates
     const response = await wpApi.post(`/posts/${postId}`, postPayload);
+    
+    if (featured_image_metadata && response.data.featured_media) {
+        try {
+            await wpApi.post(`/media/${response.data.featured_media}`, {
+                title: featured_image_metadata.title,
+                alt_text: featured_image_metadata.alt_text,
+            });
+        } catch (mediaError: any) {
+            console.warn(`Post updated, but failed to update featured image metadata for media ID ${response.data.featured_media}:`, mediaError.response?.data?.message || mediaError.message);
+        }
+    }
+    
     return NextResponse.json({ success: true, data: response.data });
   } catch (error: any) {
     console.error(`Error updating post ${params.id}:`, error.response?.data || error.message);
@@ -148,7 +153,6 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       throw new Error("Could not determine base site URL from WordPress API configuration.");
     }
     
-    // Use the new custom endpoint for trashing
     const customEndpointUrl = `${siteUrl}/wp-json/custom/v1/trash-post/${postId}`;
     const response = await wpApi.post(customEndpointUrl);
     
