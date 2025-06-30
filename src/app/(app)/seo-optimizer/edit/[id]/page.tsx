@@ -3,7 +3,7 @@
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback, useRef } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -21,7 +21,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { SeoAnalyzer } from '@/components/features/blog/seo-analyzer';
 import { GoogleSnippetPreview } from '@/components/features/blog/google-snippet-preview';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ContentToolbar } from '@/components/features/editor/content-toolbar';
 
 
 interface PostEditState {
@@ -47,12 +46,10 @@ interface ParsedImage {
 
 function EditPageContent() {
   const params = useParams();
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const contentRef = useRef<HTMLTextAreaElement>(null);
 
   const postId = Number(params.id);
-  const postType = searchParams.get('type') as 'Post' | 'Page';
+  const postType = 'Post'; // Simplified for this example, can be retrieved from query params if needed
     
   const [post, setPost] = useState<PostEditState | null>(null);
   const [imageMetas, setImageMetas] = useState<ParsedImage[]>([]);
@@ -66,7 +63,6 @@ function EditPageContent() {
   const [categories, setCategories] = useState<WordPressPostCategory[]>([]);
   const [authors, setAuthors] = useState<WordPressUser[]>([]);
   const [syncSeo, setSyncSeo] = useState(true);
-  const [syncFullContent, setSyncFullContent] = useState(false);
 
   const { toast } = useToast();
 
@@ -157,7 +153,8 @@ function EditPageContent() {
         
         const payload: any = {
             title: post.title,
-            content: post.content,
+            // The content itself is not edited here, but we pass it back to not delete it
+            content: post.content, 
             status: post.status,
             author: post.author,
             metaDescription: post.metaDescription,
@@ -192,16 +189,7 @@ function EditPageContent() {
         
         toast({ title: '¡Éxito!', description: `La entrada ha sido actualizada en WordPress.` });
         
-        if (syncFullContent && post.translations && Object.keys(post.translations).length > 1) {
-            toast({ title: "Sincronizando contenido...", description: "Traduciendo y actualizando el contenido en las otras versiones. Esto puede tardar." });
-            const syncPayload = {
-                sourcePostId: postId, postType: postType, translations: post.translations,
-                title: post.title, content: post.content,
-            };
-            fetch('/api/blog/sync-full-content', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(syncPayload) })
-            .then(r => r.json()).then(res => toast({ title: res.success ? "Sincronización completada" : "Error de sincronización", description: res.message }));
-        }
-        else if (syncSeo && post.translations && Object.keys(post.translations).length > 1) {
+        if (syncSeo && post.translations && Object.keys(post.translations).length > 1) {
             toast({ title: "Sincronizando SEO...", description: "Aplicando mejoras a las traducciones. Esto puede tardar." });
             const syncPayload = {
                 sourcePostId: postId, postType: postType, translations: post.translations,
@@ -341,14 +329,8 @@ function EditPageContent() {
                 <div><Label htmlFor="focusKeyword">Palabra Clave Principal</Label><Input id="focusKeyword" name="focusKeyword" value={post.focusKeyword} onChange={handleInputChange} /></div>
                 <div><Label htmlFor="metaDescription">Meta Descripción (para Google)</Label><Textarea id="metaDescription" name="metaDescription" value={post.metaDescription} onChange={handleInputChange} maxLength={165} rows={3} /></div>
                 
-                {post.isElementor ? (
+                {post.isElementor && (
                     <Alert><ExternalLink className="h-4 w-4" /><AlertTitle>Página de Elementor</AlertTitle><AlertDescription>El contenido se gestiona con Elementor. Para editar el cuerpo de la página, <Link href={post.elementorEditLink!} target="_blank" rel="noopener noreferrer" className="underline font-semibold">ábrela con Elementor</Link>.</AlertDescription></Alert>
-                ) : (
-                    <div>
-                        <Label htmlFor="content">Contenido de la Entrada</Label>
-                        <ContentToolbar onInsertTag={(tag) => {}} onInsertLink={() => {}} onInsertImage={() => {}} onAlign={() => {}}/>
-                        <Textarea id="content" name="content" ref={contentRef} value={post.content} onChange={handleInputChange} rows={15} className="rounded-t-none" />
-                    </div>
                 )}
               </CardContent>
             </Card>
@@ -424,8 +406,7 @@ function EditPageContent() {
                   )}
                   {post.translations && Object.keys(post.translations).length > 1 && (
                       <div className="space-y-3 pt-4 border-t">
-                        <div className="flex items-center space-x-2"><Checkbox id="sync-seo" checked={syncSeo && !syncFullContent} onCheckedChange={(checked) => setSyncSeo(!!checked)} disabled={syncFullContent} /><Label htmlFor="sync-seo" className="font-normal text-sm cursor-pointer">Sincronizar SEO con las traducciones</Label></div>
-                        <div className="flex items-start space-x-2"><Checkbox id="sync-full-content" checked={syncFullContent} onCheckedChange={(checked) => { setSyncFullContent(!!checked); if (checked) setSyncSeo(true); }} /><div className="grid gap-1.5 leading-none"><Label htmlFor="sync-full-content" className="font-normal text-sm cursor-pointer">Sincronizar Título y Contenido</Label><p className="text-xs text-destructive">¡Atención! Esto sobreescribirá el contenido de todas las traducciones con una nueva versión traducida de esta entrada.</p></div></div>
+                        <div className="flex items-center space-x-2"><Checkbox id="sync-seo" checked={syncSeo} onCheckedChange={(checked) => setSyncSeo(!!checked)} /><Label htmlFor="sync-seo" className="font-normal text-sm cursor-pointer">Sincronizar SEO con las traducciones</Label></div>
                       </div>
                   )}
               </CardContent>

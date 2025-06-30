@@ -4,6 +4,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { APP_NAME } from '@/lib/constants';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface GoogleSnippetPreviewProps {
   title: string;
@@ -20,7 +21,7 @@ const LengthIndicator = ({ value, maxValue }: { value: number, maxValue: number 
     if (percentage > 100) {
         colorClass = 'bg-red-500';
     } else if (percentage > 90) {
-        colorClass = 'bg-yellow-500';
+        colorClass = 'bg-amber-500';
     }
     return (
         <div className="w-full bg-muted rounded-full h-1.5 mt-1">
@@ -33,9 +34,12 @@ export function GoogleSnippetPreview({ title, description, url }: GoogleSnippetP
   const displayUrl = url ? `${url.replace(/^(https?:\/\/)/, '')}` : `www.${APP_NAME.toLowerCase().replace(/\s/g, '')}.com > blog > mi-entrada`;
 
   return (
-    <div className="p-3 border rounded-lg bg-card space-y-3">
-        <h4 className="font-semibold text-sm">Vista Previa en Google</h4>
-        <div className="p-4 rounded-md shadow-sm bg-background">
+    <Card>
+      <CardHeader>
+        <CardTitle>Vista Previa en Google</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="p-4 rounded-md shadow-sm bg-background border">
             <div className="flex items-center gap-2">
                 <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-xs font-bold">{APP_NAME.charAt(0)}</div>
                 <div>
@@ -50,7 +54,7 @@ export function GoogleSnippetPreview({ title, description, url }: GoogleSnippetP
                 {description || 'Aquí aparecerá tu meta descripción. Asegúrate de que sea atractiva e incluya tu palabra clave.'}
             </p>
         </div>
-        <div className="space-y-3 text-xs">
+        <div className="space-y-3 text-xs mt-4">
             <div>
                 <div className="flex justify-between">
                     <span>Longitud del Título</span>
@@ -66,6 +70,7 @@ export function GoogleSnippetPreview({ title, description, url }: GoogleSnippetP
                 <LengthIndicator value={description.length} maxValue={DESC_MAX_LENGTH} />
             </div>
         </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
