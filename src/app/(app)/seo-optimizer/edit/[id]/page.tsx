@@ -3,7 +3,7 @@
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -47,9 +47,10 @@ interface ParsedImage {
 function EditPageContent() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const postId = Number(params.id);
-  const postType = 'Post'; // Simplified for this example, can be retrieved from query params if needed
+  const postType = searchParams.get('type');
     
   const [post, setPost] = useState<PostEditState | null>(null);
   const [imageMetas, setImageMetas] = useState<ParsedImage[]>([]);
@@ -216,6 +217,13 @@ function EditPageContent() {
         setIsLoading(false);
         return;
       }
+      
+      if (isNaN(postId) || (postType !== 'Post' && postType !== 'Page')) {
+        setError('El ID o el tipo de contenido no son válidos.');
+        setIsLoading(false);
+        return;
+      }
+
       try {
         const token = await user.getIdToken();
         const apiPath = postType === 'Post' ? `/api/wordpress/posts/${postId}` : `/api/wordpress/pages/${postId}`;
@@ -295,7 +303,7 @@ function EditPageContent() {
   }
   
   if (error || !post) {
-     return <div className="container mx-auto py-8"><Alert variant="destructive"><AlertTitle>Error</AlertTitle><AlertDescription>{error || `No se pudo cargar la información del ${postType}.`}</AlertDescription></Alert></div>;
+     return <div className="container mx-auto py-8"><Alert variant="destructive"><AlertTitle>Error al Cargar</AlertTitle><AlertDescription>{error || `No se pudo cargar la información del ${postType || 'contenido'}.`}</AlertDescription></Alert></div>;
   }
   
 
