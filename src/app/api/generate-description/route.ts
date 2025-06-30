@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     
     const generateProductPromptTemplate = `You are an expert e-commerce copywriter and SEO specialist.
 Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
-The response must be a single, valid JSON object. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
+The response must be a single, valid JSON object with the following keys: "shortDescription", "longDescription", "keywords", "imageTitle", "imageAltText", "imageCaption", "imageDescription". Do not include markdown backticks (\`\`\`) or the word "json" in your response.
 
 **Input Information:**
 - **Product Name:** {{productName}}
@@ -101,6 +101,10 @@ Generate the complete JSON object based on your research of "{{productName}}".`;
 
   } catch (error: any) {
     console.error('🔥 Error in /api/generate-description:', error);
-    return NextResponse.json({ error: 'La IA falló: ' + error.message }, { status: 500 });
+    let errorMessage = 'La IA falló: ' + error.message;
+    if (error instanceof z.ZodError) {
+        errorMessage = 'La IA falló: ' + JSON.stringify(error.errors);
+    }
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
