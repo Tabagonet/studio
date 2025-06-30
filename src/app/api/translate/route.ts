@@ -1,8 +1,9 @@
 'use server';
-import '@/ai/genkit';
+import '@/ai/genkit'; // This ensures Genkit is initialized
 import { runFlow } from '@genkit-ai/core';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
+import { z } from 'zod';
 import {
   translateContentFlow,
   TranslateContentInputSchema,
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // The API route now receives a different shape, just the content and lang
+    // The API route receives a different shape, just the content and lang
     const apiSchema = z.object({
         content: z.record(z.string()),
         targetLanguage: z.string(),

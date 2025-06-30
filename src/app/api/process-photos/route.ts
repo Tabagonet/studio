@@ -1,5 +1,7 @@
 // src/app/api/process-photos/route.ts
 // NOTE: This endpoint has been repurposed for batch product updates via AI.
+import '@/ai/genkit'; // This ensures Genkit is initialized
+import { runFlow } from '@genkit-ai/core';
 import {NextRequest, NextResponse} from 'next/server';
 import {adminAuth} from '@/lib/firebase-admin';
 import {getApiClientsForUser} from '@/lib/api-helpers';
@@ -106,7 +108,7 @@ export async function POST(req: NextRequest) {
         const product = productResponse.data;
 
         // 2. Call AI content generator flow
-        const aiContent = await generateProductFlow({
+        const aiContent = await runFlow(generateProductFlow, {
           productName: product.name,
           productType: product.type,
           language: 'Spanish',

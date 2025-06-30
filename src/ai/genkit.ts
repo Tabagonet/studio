@@ -2,8 +2,12 @@
 
 // Use require for CJS/ESM interop issues in Next.js server environments
 const { initGenkit } = require('@genkit-ai/core');
-const googleAI = require('@genkit-ai/googleai');
+const googleAIModule = require('@genkit-ai/googleai');
 const { initializeApp, getApps } = require('firebase-admin/app');
+
+// The googleAI plugin might be a default export, handle both cases
+const googleAI = googleAIModule.default || googleAIModule;
+
 
 // Initialize Firebase Admin SDK if not already initialized
 if (getApps().length === 0) {

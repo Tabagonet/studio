@@ -1,5 +1,5 @@
 'use server';
-import '@/ai/genkit';
+import '@/ai/genkit'; // This ensures Genkit is initialized
 import { runFlow } from '@genkit-ai/core';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
