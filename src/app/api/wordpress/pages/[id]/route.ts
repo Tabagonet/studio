@@ -105,11 +105,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
     
     if (imageMetas && pagePayload.content) {
-        const $ = cheerio.load(pagePayload.content);
+        const $ = cheerio.load(pagePayload.content, null, false);
         imageMetas.forEach(meta => {
             $(`img[src="${meta.src}"]`).attr('alt', meta.alt);
         });
-        pagePayload.content = $('body').html() || '';
+        pagePayload.content = $.html();
     }
 
     const response = await wpApi.post(`/pages/${pageId}`, pagePayload);
@@ -133,3 +133,5 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: errorMessage }, { status });
   }
 }
+
+    

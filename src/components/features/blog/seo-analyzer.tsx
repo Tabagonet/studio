@@ -104,7 +104,7 @@ export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnaly
         
         // Clean and truncate content for context, preventing overload errors.
         const plainContent = (post.content || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        const contentForContext = plainContent.substring(0, 1500);
+        const contentForContext = plainContent.substring(0, 1000);
 
         const payload = { 
             mode, 
@@ -141,7 +141,11 @@ export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnaly
         try {
             const user = auth.currentUser; if (!user) return;
             const token = await user.getIdToken();
-            const payload = { mode: 'generate_focus_keyword', language: 'Spanish', existingTitle: post.title, existingContent: post.content };
+
+            const plainContent = (post.content || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+            const contentForContext = plainContent.substring(0, 1000);
+
+            const payload = { mode: 'generate_focus_keyword', language: 'Spanish', existingTitle: post.title, existingContent: contentForContext };
             const response = await fetch('/api/generate-blog-post', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload) });
             if (response.ok) {
                 const aiContent = await response.json();
@@ -255,3 +259,5 @@ export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnaly
     </div>
   );
 }
+
+    

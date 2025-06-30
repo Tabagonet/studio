@@ -109,11 +109,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
     
     if (imageMetas && postPayload.content) {
-        const $ = cheerio.load(postPayload.content);
+        const $ = cheerio.load(postPayload.content, null, false);
         imageMetas.forEach(meta => {
             $(`img[src="${meta.src}"]`).attr('alt', meta.alt);
         });
-        postPayload.content = $('body').html() || '';
+        postPayload.content = $.html();
     }
 
     const response = await wpApi.post(`/posts/${postId}`, postPayload);
@@ -173,3 +173,5 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     return NextResponse.json({ error: errorMessage }, { status });
   }
 }
+
+    
