@@ -3,11 +3,13 @@
 
 import React, { useEffect, useState, Suspense, useCallback, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, ArrowLeft, Save, Sparkles, ExternalLink, Image as ImageIcon } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, Sparkles, ExternalLink, Image as ImageIcon, Link as LinkIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -15,6 +17,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { SeoAnalyzer } from '@/components/features/blog/seo-analyzer';
 import type { SeoAnalysisRecord } from '@/lib/types';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ContentToolbar } from '@/components/features/editor/content-toolbar';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
 
 
 interface PostEditState {
@@ -58,6 +62,163 @@ function EditPageContent() {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+  const selectionRef = useRef<{ start: number; end: number } | null>(null);
+  const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
+  const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (!post) return;
+    setPost({ ...post, content: e.target.value });
+  };
+  
+  const handleInsertTag = (tag: 'h2' | 'ul' | 'ol' | 'strong' | 'em') => {
+    const textarea = contentRef.current;
+    if (!textarea || !post) return;
+    
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = textarea.value.substring(start, end);
+    let newText;
+
+    if (tag === 'ul' || tag === 'ol') {
+        const listItems = selectedText.split('\n').map(line => `  <li>${line}</li>`).join('\n');
+        newText = `${textarea.value.substring(0, start)}<${tag}>\n${listItems}\n</${tag}>${textarea.value.substring(end)}`;
+    } else {
+        newText = `${textarea.value.substring(0, start)}<${tag}>${selectedText}</${tag}>${textarea.value.substring(end)}`;
+    }
+    
+    setPost({ ...post, content: newText });
+  };
+
+  const handleAlignment = (align: 'left' | 'center' | 'right' | 'justify') => {
+    const textarea = contentRef.current;
+    if (!textarea || !post) return;
+
+    const { selectionStart, selectionEnd, value: fullText } = textarea;
+
+    const lineStart = fullText.lastIndexOf('\n', selectionStart - 1) + 1;
+    let lineEnd = fullText.indexOf('\n', selectionEnd);
+    if (lineEnd === -1) {
+      lineEnd = fullText.length;
+    }
+
+    const blockToFormat = fullText.substring(lineStart, lineEnd);
+    const lines = blockToFormat.split('\n');
+
+    const formattedLines = lines.map(line => {
+      const trimmedLine = line.trim();
+      if (trimmedLine.length === 0) return line;
+
+      if (/^<(h[1-6]|ul|ol|li)/.test(trimmedLine)) {
+        return line;
+      }
+      
+      const pTagRegex = /<p([^>]*)>/i;
+      const match = trimmedLine.match(pTagRegex);
+
+      if (match) {
+        const existingAttrs = match[1];
+        const styleRegex = /style="([^"]*)"/i;
+        const styleMatch = existingAttrs.match(styleRegex);
+
+        let newAttrs;
+        if (styleMatch) {
+            let styles = styleMatch[1].replace(/text-align:\s*[^;]+;?/gi, '').trim();
+            if (styles.length > 0 && !styles.endsWith(';')) styles += ';';
+            const newStyleAttr = `style="${styles} text-align: ${align};"`;
+            newAttrs = existingAttrs.replace(styleRegex, newStyleAttr);
+        } else {
+            newAttrs = `${existingAttrs} style="text-align: ${align};"`;
+        }
+        return trimmedLine.replace(pTagRegex, `<p${newAttrs}>`);
+      } else {
+        return `<p style="text-align: ${align};">${trimmedLine}</p>`;
+      }
+    });
+
+    const newContent =
+      fullText.substring(0, lineStart) +
+      formattedLines.join('\n') +
+      fullText.substring(lineEnd);
+    
+    setPost({ ...post, content: newContent });
+
+    setTimeout(() => {
+      textarea.focus();
+      const newSelectionEnd = lineStart + formattedLines.join('\n').length;
+      textarea.setSelectionRange(lineStart, newSelectionEnd);
+    }, 0);
+  };
+
+  const openActionDialog = (action: 'link' | 'image') => {
+      const textarea = contentRef.current;
+      if (textarea) {
+          selectionRef.current = { start: textarea.selectionStart, end: textarea.selectionEnd };
+          if (action === 'link') setIsLinkDialogOpen(true);
+          if (action === 'image') setIsImageDialogOpen(true);
+      }
+  };
+
+  const handleInsertLink = () => {
+      const textarea = contentRef.current;
+      const selection = selectionRef.current;
+      if (!textarea || !selection || !linkUrl || !post) return;
+      const { start, end } = selection;
+      const selectedText = textarea.value.substring(start, end);
+      if (!selectedText) {
+          toast({ title: 'Selecciona texto primero', description: 'Debes seleccionar el texto que quieres convertir en un enlace.', variant: 'destructive' });
+          return;
+      }
+      const newText = `${textarea.value.substring(0, start)}<a href="${linkUrl}" target="_blank" rel="noopener noreferrer">${selectedText}</a>${textarea.value.substring(end)}`;
+      setPost({ ...post, content: newText });
+      setLinkUrl('');
+      setIsLinkDialogOpen(false);
+  };
+
+  const handleInsertImage = async () => {
+      let finalImageUrl = imageUrl;
+      if (imageFile) {
+          setIsUploadingImage(true);
+          try {
+              const user = auth.currentUser;
+              if (!user) throw new Error("No autenticado.");
+              const token = await user.getIdToken();
+              const formData = new FormData();
+              formData.append('imagen', imageFile);
+              const response = await fetch('/api/upload-image', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData });
+              if (!response.ok) {
+                  const errorData = await response.json();
+                  throw new Error(errorData.error || 'Fallo en la subida de imagen.');
+              }
+              const imageData = await response.json();
+              finalImageUrl = imageData.url;
+          } catch (err: any) {
+              toast({ title: 'Error al subir imagen', description: err.message, variant: 'destructive' });
+              setIsUploadingImage(false);
+              return;
+          } finally {
+              setIsUploadingImage(false);
+          }
+      }
+      if (!finalImageUrl) {
+          toast({ title: 'Falta la imagen', description: 'Por favor, sube un archivo o introduce una URL.', variant: 'destructive' });
+          return;
+      }
+      const textarea = contentRef.current;
+      const selection = selectionRef.current;
+      if (!textarea || !selection || !post) return;
+      const { start } = selection;
+      const newText = `${textarea.value.substring(0, start)}\n<img src="${finalImageUrl}" alt="${post.title || 'Imagen insertada'}" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px;" />\n${textarea.value.substring(start)}`;
+      setPost({ ...post, content: newText });
+      setImageUrl('');
+      setImageFile(null);
+      setIsImageDialogOpen(false);
+  };
   
   const fetchInitialData = useCallback(async () => {
     setIsLoading(true);
@@ -87,7 +248,7 @@ function EditPageContent() {
         title: postData.title.rendered || '',
         content: postData.content.rendered || '',
         meta: {
-            _yoast_wpseo_title: postData.meta?._yoast_wpseo_title || '',
+            _yoast_wpseo_title: (typeof postData.meta?._yoast_wpseo_title === 'string') ? postData.meta._yoast_wpseo_title : '',
             _yoast_wpseo_metadesc: postData.meta?._yoast_wpseo_metadesc || '',
             _yoast_wpseo_focuskw: postData.meta?._yoast_wpseo_focuskw || '',
         },
@@ -140,14 +301,14 @@ function EditPageContent() {
             }
 
             try {
-                new URL(displaySrc); // Validate if the final URL is valid
+                new URL(displaySrc);
                 return {
-                    id: originalSrc, // Use original src from content as unique ID
+                    id: originalSrc, 
                     src: displaySrc,
                     alt: img.getAttribute('alt') || '',
                 };
             } catch (e) {
-                return null; // Ignore invalid image URLs
+                return null;
             }
         }).filter((img): img is ContentImage => !!img);
         
@@ -213,7 +374,7 @@ function EditPageContent() {
             body: JSON.stringify(payload)
         });
         if (!response.ok) throw new Error((await response.json()).error || 'Fallo al guardar.');
-        toast({ title: '¡Éxito!', description: "Los cambios SEO, incluyendo los textos 'alt' de las imágenes, han sido guardados." });
+        toast({ title: '¡Éxito!', description: "Los cambios SEO, incluyendo el contenido y los textos 'alt' de las imágenes, han sido guardados." });
     } catch (e: any) {
         toast({ title: 'Error al Guardar', description: e.message, variant: "destructive" });
     } finally {
@@ -251,6 +412,22 @@ function EditPageContent() {
             </CardHeader>
         </Card>
         
+        {post.isElementor && (
+          <Alert>
+            <ExternalLink className="h-4 w-4" />
+            <AlertTitle>Página de Elementor Detectada</AlertTitle>
+            <AlertDescription>
+                Para editar el contenido visual, debes usar el editor de Elementor. Desde aquí puedes optimizar los campos de Yoast SEO, pero los cambios en el contenido principal no tendrán efecto.
+            </AlertDescription>
+            <Button asChild className="mt-4" size="sm">
+                <Link href={post.elementorEditLink!} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Abrir con Elementor
+                </Link>
+            </Button>
+        </Alert>
+        )}
+
         <SeoAnalyzer
             post={post}
             setPost={setPost}
@@ -262,6 +439,38 @@ function EditPageContent() {
             applyAiMetaToFeatured={applyAiMetaToFeatured}
             setApplyAiMetaToFeatured={setApplyAiMetaToFeatured}
         />
+        
+        {!post.isElementor && (
+         <Card>
+            <CardHeader>
+                <CardTitle>Contenido Principal</CardTitle>
+                <CardDescription>
+                    Edita el contenido de la página para añadir palabras clave, mejorar la estructura y aplicar otras sugerencias de SEO.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Label htmlFor="content">Editor de Contenido</Label>
+                <ContentToolbar
+                    onInsertTag={handleInsertTag}
+                    onInsertLink={() => openActionDialog('link')}
+                    onInsertImage={() => openActionDialog('image')}
+                    onAlign={handleAlignment}
+                />
+                <Textarea
+                    id="content"
+                    ref={contentRef}
+                    value={post.content}
+                    onChange={handleContentChange}
+                    rows={25}
+                    className="rounded-t-none"
+                    placeholder="El contenido de tu página o entrada..."
+                />
+            </CardContent>
+        </Card>
+      )}
+
+        <AlertDialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Añadir Enlace</AlertDialogTitle><AlertDialogDescription>Introduce la URL completa a la que quieres enlazar el texto seleccionado.</AlertDialogDescription></AlertDialogHeader><Input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://ejemplo.com" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleInsertLink(); } }} /><AlertDialogFooter><AlertDialogCancel onClick={() => setLinkUrl('')}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleInsertLink}>Añadir Enlace</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+        <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Insertar Imagen</AlertDialogTitle><AlertDialogDescription>Sube una imagen o introduce una URL para insertarla en el contenido.</AlertDialogDescription></AlertDialogHeader><div className="space-y-4"><div><Label htmlFor="image-upload">Subir archivo</Label><Input id="image-upload" type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} /></div><div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">O</span></div></div><div><Label htmlFor="image-url">Insertar desde URL</Label><Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" /></div></div><AlertDialogFooter><AlertDialogCancel onClick={() => { setImageUrl(''); setImageFile(null); }}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleInsertImage} disabled={isUploadingImage}>{isUploadingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Insertar Imagen</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     </div>
   );
 }
