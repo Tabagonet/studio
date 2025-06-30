@@ -66,6 +66,7 @@ function EditPageContent() {
   const [syncSeo, setSyncSeo] = useState(true);
 
   const { toast } = useToast();
+  const hasTriggeredAutoKeyword = useRef(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!post) return;
@@ -80,8 +81,10 @@ function EditPageContent() {
   
   const handleAiGeneration = useCallback(async (mode: 'enhance_title' | 'suggest_keywords' | 'generate_meta_description' | 'generate_image_meta' | 'generate_focus_keyword') => {
         setIsAiLoading(true);
-        setSuggestedImageMeta(null);
-        setApplyMetaToFeatured(false);
+        if (mode !== 'generate_image_meta') {
+          setSuggestedImageMeta(null);
+          setApplyMetaToFeatured(false);
+        }
 
         if (!post) {
             setIsAiLoading(false);
@@ -139,6 +142,21 @@ function EditPageContent() {
             setIsAiLoading(false);
         }
     }, [post, toast]);
+
+    useEffect(() => {
+        const autoGenerateKeyword = async () => {
+            if (post && !post.focusKeyword && post.content && !hasTriggeredAutoKeyword.current) {
+                hasTriggeredAutoKeyword.current = true; // Prevent re-triggering
+                toast({
+                    title: "Asistente SEO",
+                    description: "Sugiriendo una palabra clave principal para empezar..."
+                });
+                await handleAiGeneration('generate_focus_keyword');
+            }
+        };
+
+        autoGenerateKeyword();
+    }, [post, handleAiGeneration, toast]);
 
     const handleSaveChanges = async () => {
     setIsSaving(true);
@@ -228,7 +246,7 @@ function EditPageContent() {
         const token = await user.getIdToken();
         const apiPath = postType === 'Post' ? `/api/wordpress/posts/${postId}` : `/api/wordpress/pages/${postId}`;
 
-        const postResponsePromise = fetch(`${apiPath}?_embed=true`, { headers: { 'Authorization': `Bearer ${token}` }});
+        const postResponsePromise = fetch(`${apiPath}?_embed=true&context=edit`, { headers: { 'Authorization': `Bearer ${token}` }});
         const categoriesResponsePromise = postType === 'Post' ? fetch('/api/wordpress/post-categories', { headers: { 'Authorization': `Bearer ${token}` }}) : Promise.resolve(null);
         const authorsResponsePromise = fetch('/api/wordpress/users', { headers: { 'Authorization': `Bearer ${token}` }});
         
@@ -317,7 +335,7 @@ function EditPageContent() {
                         <CardDescription>Editando: {post.title}</CardDescription>
                     </div>
                     <div className="flex gap-2">
-                        <Button variant="outline" onClick={() => router.push('/seo-optimizer')}>
+                        <Button variant="outline" onClick={() => router.push(`/seo-optimizer`)}>
                             <ArrowLeft className="mr-2 h-4 w-4" /> Volver
                         </Button>
                         <Button onClick={handleSaveChanges} disabled={isSaving}>
@@ -458,3 +476,6 @@ export default function SeoEditPage() {
         </Suspense>
     )
 }
+
+
+    
