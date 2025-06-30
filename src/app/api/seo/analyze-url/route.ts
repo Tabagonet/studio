@@ -39,7 +39,7 @@ async function getPageContentFromApi(postId: number, postType: 'Post' | 'Page', 
 
     const endpoint = postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
     // Add a cache-busting parameter to ensure fresh data is fetched
-    const response = await wpApi.get(endpoint, { params: { context: 'edit', _: new Date().getTime() } });
+    const response = await wpApi.get(endpoint, { params: { context: 'edit', '_': new Date().getTime() } });
     const rawData = response.data;
     
     if (!rawData || !rawData.content || !rawData.title) {
@@ -50,7 +50,7 @@ async function getPageContentFromApi(postId: number, postType: 'Post' | 'Page', 
     const $ = cheerio.load(contentHtml);
     $('script, style').remove();
     
-    // Explicitly check for a non-empty Yoast title. If it exists (even as an empty string), use it.
+    // Check for a non-empty Yoast title. If it exists (even as an empty string), use it.
     // Otherwise, fall back to the rendered title. This is the key change.
     const yoastTitle = rawData.meta?._yoast_wpseo_title;
     const finalTitle = (typeof yoastTitle === 'string') 
@@ -105,7 +105,7 @@ async function getPageContentFromScraping(url: string) {
                 text: $(el).text()
             })).get(),
             images: body$('img').map((i, el) => ({
-                src: $(el).attr('src'),
+                src: $(el).attr('src') || '',
                 alt: $(el).attr('alt') || ''
             })).get(),
             textContent: body$('body').text().replace(/\s\s+/g, ' ').trim(),

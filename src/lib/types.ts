@@ -1,6 +1,8 @@
 
+
 import type { LucideIcon } from 'lucide-react';
 import type { AnalysisResult } from '@/components/features/seo/analysis-view';
+import type { SeoInterpretationOutput } from '@/ai/flows/interpret-seo-analysis';
 
 // Core navigation type, kept for UI layout
 export interface NavItem {
@@ -260,6 +262,8 @@ export interface SeoAnalysisRecord {
     analysis: AnalysisResult;
     score: number;
 }
+
+export type { SeoInterpretationOutput };
 
 export interface BlogStats {
   total: number;
