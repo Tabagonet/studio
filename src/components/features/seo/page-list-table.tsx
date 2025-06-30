@@ -65,38 +65,48 @@ const ScoreBadge = ({ score }: { score: number | undefined }) => {
 export function SeoPageListTable({ data, scores, onAnalyzePage, onViewReport }: SeoPageListTableProps) {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
-  const [languageFilter, setLanguageFilter] = React.useState('es'); // Default to Spanish
+  const [languageFilter, setLanguageFilter] = React.useState('all');
 
   const tableData = React.useMemo(() => {
-    const dataMap = new Map(data.map(item => [item.id, { ...item, subRows: [] as ContentItem[] }]));
+    if (!data) return [];
     
-    // Helper to build hierarchy from a flat list based on parent IDs
-    const buildHierarchy = (items: ContentItem[]): ContentItem[] => {
-        const itemMap = new Map(items.map(item => [item.id, { ...item, subRows: [] as ContentItem[] }]));
-        const roots: ContentItem[] = [];
+    const itemsById = new Map(data.map((p) => [p.id, { ...p, subRows: [] as ContentItem[] }]));
+    const roots: ContentItem[] = [];
+    const processedIds = new Set<number>();
+
+    data.forEach((item) => {
+        if (processedIds.has(item.id)) return;
+
+        let mainItem: ContentItem | undefined;
+        const translationIds = new Set(Object.values(item.translations || {}));
         
-        items.forEach(item => {
-            if (item.parent && itemMap.has(item.parent)) {
-                const parent = itemMap.get(item.parent);
-                parent?.subRows.push(itemMap.get(item.id)!);
+        if (translationIds.size > 1) {
+            const groupItems = Array.from(translationIds)
+                .map(id => itemsById.get(id))
+                .filter((p): p is ContentItem => !!p);
+
+            if (groupItems.length > 0) {
+                mainItem = groupItems.find(p => p.lang === languageFilter) || groupItems[0];
+                
+                if (mainItem) {
+                    mainItem.subRows = groupItems.filter(p => p.id !== mainItem!.id);
+                    groupItems.forEach(p => processedIds.add(p.id));
+                }
             } else {
-                roots.push(itemMap.get(item.id)!);
+                mainItem = itemsById.get(item.id);
+                if(mainItem) processedIds.add(mainItem.id);
             }
-        });
+        } else {
+            mainItem = itemsById.get(item.id);
+            if(mainItem) processedIds.add(mainItem.id);
+        }
 
-        return roots;
-    };
-    
-    // Filter data by language first
-    const filteredData = languageFilter === 'all' 
-      ? data 
-      : data.filter(item => item.lang === languageFilter);
+        if (mainItem && (languageFilter === 'all' || mainItem.lang === languageFilter)) {
+            roots.push(mainItem);
+        }
+    });
 
-    // Sort flat list
-    const sortedData = [...filteredData].sort((a, b) => a.title.localeCompare(b.title));
-    // Then build hierarchy from the filtered & sorted list
-    return buildHierarchy(sortedData);
-
+    return roots.sort((a,b) => a.title.localeCompare(b.title));
   }, [data, languageFilter]);
 
 
