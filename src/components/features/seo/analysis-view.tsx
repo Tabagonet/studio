@@ -8,49 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { BrainCircuit, CheckCircle, XCircle, Image as ImageIcon, Heading1, ListTree, Edit, History, Printer, RefreshCw } from "lucide-react";
 import { Button } from '@/components/ui/button';
-import type { ContentItem } from '@/app/(app)/seo-optimizer/page';
-import type { SeoAnalysisRecord } from '@/lib/types';
+import type { ContentItem, AnalysisResult, SeoAnalysisRecord } from '@/lib/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
-export interface AnalysisResult {
-  title: string;
-  metaDescription: string;
-  canonicalUrl: string;
-  h1: string;
-  headings: { tag: string; text: string }[];
-  images: { src: string; alt: string }[];
-  aiAnalysis: {
-    score: number;
-    checks: {
-        titleContainsKeyword: boolean;
-        titleIsGoodLength: boolean;
-        metaDescriptionContainsKeyword: boolean;
-        metaDescriptionIsGoodLength: boolean;
-        keywordInFirstParagraph: boolean;
-        contentHasImages: boolean;
-        allImagesHaveAltText: boolean;
-        h1Exists: boolean;
-        canonicalUrlExists: boolean;
-    };
-    suggested: {
-      title: string;
-      metaDescription: string;
-      focusKeyword: string;
-    };
-  };
-}
-
-interface AnalysisViewProps {
-  analysis: AnalysisResult;
-  item: ContentItem;
-  history: SeoAnalysisRecord[];
-  onEdit: (item: ContentItem) => void;
-  onReanalyze: () => void;
-  onSelectHistoryItem: (record: SeoAnalysisRecord) => void;
-}
 
 const checkLabels: Record<keyof AnalysisResult['aiAnalysis']['checks'], string> = {
     titleContainsKeyword: "Título SEO contiene palabra clave",
@@ -63,6 +26,16 @@ const checkLabels: Record<keyof AnalysisResult['aiAnalysis']['checks'], string> 
     h1Exists: "Existe un único encabezado H1",
     canonicalUrlExists: "Existe una URL canónica",
 };
+
+interface AnalysisViewProps {
+  analysis: AnalysisResult;
+  item: ContentItem;
+  history: SeoAnalysisRecord[];
+  onEdit: (item: ContentItem) => void;
+  onReanalyze: () => void;
+  onSelectHistoryItem: (record: SeoAnalysisRecord) => void;
+}
+
 
 export function AnalysisView({ analysis, item, history, onEdit, onReanalyze, onSelectHistoryItem }: AnalysisViewProps) {
   const scoreColor = analysis.aiAnalysis.score >= 80 ? 'text-green-500' : analysis.aiAnalysis.score >= 50 ? 'text-amber-500' : 'text-destructive';

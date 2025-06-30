@@ -1,7 +1,6 @@
 
 
 import type { LucideIcon } from 'lucide-react';
-import type { AnalysisResult } from '@/components/features/seo/analysis-view';
 import type { SeoInterpretationOutput } from '@/ai/flows/interpret-seo-analysis';
 
 // Core navigation type, kept for UI layout
@@ -266,6 +265,35 @@ export interface ContentStats {
     languages: Record<string, number>;
     status: Record<string, number>;
 }
+
+export interface AnalysisResult {
+  title: string;
+  metaDescription: string;
+  canonicalUrl: string;
+  h1: string;
+  headings: { tag: string; text: string }[];
+  images: { src: string; alt: string }[];
+  aiAnalysis: {
+    score: number;
+    checks: {
+        titleContainsKeyword: boolean;
+        titleIsGoodLength: boolean;
+        metaDescriptionContainsKeyword: boolean;
+        metaDescriptionIsGoodLength: boolean;
+        keywordInFirstParagraph: boolean;
+        contentHasImages: boolean;
+        allImagesHaveAltText: boolean;
+        h1Exists: boolean;
+        canonicalUrlExists: boolean;
+    };
+    suggested: {
+      title: string;
+      metaDescription: string;
+      focusKeyword: string;
+    };
+  };
+}
+
 
 export interface SeoAnalysisRecord {
     id: string;

@@ -9,12 +9,23 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, Printer, BrainCircuit, CheckCircle, XCircle, Image as ImageIcon, Heading1, ListTree, Lightbulb, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
-import type { SeoAnalysisRecord } from '@/lib/types';
-import type { SeoInterpretationOutput } from '@/ai/flows/interpret-seo-analysis';
+import type { SeoAnalysisRecord, SeoInterpretationOutput, AnalysisResult } from '@/lib/types';
 import { interpretSeoAnalysis } from '@/ai/flows/interpret-seo-analysis';
 import { APP_NAME } from '@/lib/constants';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+
+const checkLabels: Record<keyof AnalysisResult['aiAnalysis']['checks'], string> = {
+    titleContainsKeyword: "Título SEO contiene palabra clave",
+    titleIsGoodLength: "Longitud del título SEO (30-65)",
+    metaDescriptionContainsKeyword: "Meta descripción contiene palabra clave",
+    metaDescriptionIsGoodLength: "Longitud de meta descripción (50-160)",
+    keywordInFirstParagraph: "Palabra clave en la introducción",
+    contentHasImages: "Contenido tiene imágenes",
+    allImagesHaveAltText: "Todas las imágenes tienen 'alt text'",
+    h1Exists: "Existe un único encabezado H1",
+    canonicalUrlExists: "Existe una URL canónica",
+};
 
 function ReportContent() {
   const searchParams = useSearchParams();
@@ -181,17 +192,18 @@ function ReportContent() {
         </section>
 
         <section>
-          <CardTitle className="text-2xl mb-6 flex items-center gap-2"><BrainCircuit className="h-6 w-6 text-primary" />Sugerencias de la IA</CardTitle>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card className="border-green-500/50">
-                  <CardHeader><CardTitle className="text-lg text-green-600">Puntos Fuertes</CardTitle></CardHeader>
-                  <CardContent><ul className="list-disc list-inside space-y-2">{analysis.aiAnalysis.positives.map((item, i) => <li key={i}>{item}</li>)}</ul></CardContent>
-              </Card>
-               <Card className="border-amber-500/50">
-                  <CardHeader><CardTitle className="text-lg text-amber-600">Áreas de Mejora</CardTitle></CardHeader>
-                  <CardContent><ul className="list-disc list-inside space-y-2">{analysis.aiAnalysis.improvements.map((item, i) => <li key={i}>{item}</li>)}</ul></CardContent>
-              </Card>
-          </div>
+            <CardTitle className="text-2xl mb-6 flex items-center gap-2"><BrainCircuit className="h-6 w-6 text-primary" />Checklist SEO Técnico</CardTitle>
+            <Card className="shadow-none border-none">
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                    {analysis.aiAnalysis.checks && Object.entries(analysis.aiAnalysis.checks).map(([key, passed]) => (
+                        <div key={key} className="flex items-start gap-3">
+                            {passed ? <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" /> : <XCircle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />}
+                            <p className="text-base">{checkLabels[key as keyof typeof checkLabels]}</p>
+                        </div>
+                    ))}
+                    {!analysis.aiAnalysis.checks && <p className="text-muted-foreground">No hay datos del checklist disponibles para este análisis.</p>}
+                </CardContent>
+            </Card>
         </section>
       </main>
       
