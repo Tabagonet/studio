@@ -6,8 +6,8 @@
  * - BlogContentInput - The Zod schema for the flow's input.
  * - BlogContentOutput - The Zod schema for the flow's output.
  */
-
-import {ai} from '@/ai/genkit';
+import {defineFlow} from '@genkit-ai/core';
+import {googleAI} from '@genkit-ai/googleai';
 import {z} from 'zod';
 import Handlebars from 'handlebars';
 
@@ -43,7 +43,7 @@ export const BlogContentOutputSchema = z.object({
 });
 export type BlogContentOutput = z.infer<typeof BlogContentOutputSchema>;
 
-const blogContentFlow = ai.defineFlow(
+export const generateBlogContent = defineFlow(
   {
     name: 'blogContentFlow',
     inputSchema: BlogContentInputSchema,
@@ -165,9 +165,9 @@ const blogContentFlow = ai.defineFlow(
 
     const template = Handlebars.compile(userPromptTemplate, {noEscape: true});
     const finalPrompt = template(modelInput);
+    const model = googleAI.model('gemini-1.5-flash-latest');
 
-    const {output} = await ai.generate({
-      model: 'googleai/gemini-1.5-flash-latest',
+    const {output} = await model.generate({
       system: systemInstruction,
       prompt: finalPrompt,
       output: {
@@ -176,14 +176,10 @@ const blogContentFlow = ai.defineFlow(
     });
 
     if (!output) {
-      throw new Error('AI returned an empty response for blog content generation.');
+      throw new Error(
+        'AI returned an empty response for blog content generation.'
+      );
     }
     return output as BlogContentOutput;
   }
 );
-
-export async function generateBlogContent(
-  input: BlogContentInput
-): Promise<BlogContentOutput> {
-  return await blogContentFlow(input);
-}

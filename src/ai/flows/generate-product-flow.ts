@@ -7,8 +7,9 @@
  * - GenerateProductOutputSchema - The return type for the flow.
  */
 import {z} from 'zod';
+import {defineFlow} from '@genkit-ai/core';
+import {googleAI} from '@genkit-ai/googleai';
 import {getApiClientsForUser} from '@/lib/api-helpers';
-import {ai} from '@/ai/genkit';
 
 export const GenerateProductInputSchema = z.object({
   productName: z.string().min(1, 'Product name is required.'),
@@ -55,7 +56,7 @@ export const GenerateProductOutputSchema = z.object({
 });
 export type GenerateProductOutput = z.infer<typeof GenerateProductOutputSchema>;
 
-const productGenerationFlow = ai.defineFlow(
+export const generateProductFlow = defineFlow(
   {
     name: 'generateProductFlow',
     inputSchema: GenerateProductInputSchema,
@@ -99,8 +100,8 @@ const productGenerationFlow = ai.defineFlow(
       }
     }
 
-    const {output} = await ai.generate({
-      model: 'googleai/gemini-1.5-flash-latest',
+    const model = googleAI.model('gemini-1.5-flash-latest');
+    const {output} = await model.generate({
       output: {
         format: 'json',
         schema: GenerateProductOutputSchema,
@@ -126,9 +127,3 @@ const productGenerationFlow = ai.defineFlow(
     return output;
   }
 );
-
-export async function generateProductFlow(
-  input: GenerateProductInput
-): Promise<GenerateProductOutput> {
-  return await productGenerationFlow(input);
-}

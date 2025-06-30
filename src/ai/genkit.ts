@@ -1,10 +1,11 @@
 'use server';
 /**
- * @fileoverview This file initializes the Genkit AI instance with plugins
- * for use throughout the application. It is marked as 'use server' to ensure
- * it only runs on the server, preventing Next.js bundling issues.
+ * @fileoverview This file initializes Genkit with plugins for use
+ * throughout the application. It is marked as 'use server' to ensure
+ * it only runs on the server. It should be imported for its side effects.
  */
-import genkit from '@genkit-ai/core';
+
+import {initGenkit} from '@genkit-ai/core';
 import {googleAI} from '@genkit-ai/googleai';
 import {initializeApp, getApps} from 'firebase-admin/app';
 
@@ -13,8 +14,8 @@ if (getApps().length === 0) {
   initializeApp();
 }
 
-// Configure and export the AI instance with the Google AI plugin.
-// This is the correct v1.x syntax.
-export const ai = genkit({
+// Configure Genkit with the Google AI plugin.
+// This file is imported for its side effects and does not export anything.
+initGenkit({
   plugins: [googleAI()],
 });

@@ -1,4 +1,5 @@
 'use server';
+import '@/ai/genkit';
 /**
  * @fileOverview An AI flow to interpret SEO analysis data.
  *
@@ -7,7 +8,8 @@
  * - SeoInterpretationOutput - The return type for the flow.
  */
 
-import {ai} from '@/ai/genkit';
+import {defineFlow, runFlow} from '@genkit-ai/core';
+import {googleAI} from '@genkit-ai/googleai';
 import {z} from 'zod';
 
 const aiChecksSchema = z.object({
@@ -44,7 +46,7 @@ export const SeoInterpretationOutputSchema = z.object({
   interpretation: z
     .string()
     .describe(
-      "A narrative paragraph explaining the most important SEO data points in a simple, easy-to-understand way."
+      'A narrative paragraph explaining the most important SEO data points in a simple, easy-to-understand way.'
     ),
   actionPlan: z
     .array(z.string())
@@ -64,7 +66,7 @@ export type SeoInterpretationOutput = z.infer<
   typeof SeoInterpretationOutputSchema
 >;
 
-const interpretationFlow = ai.defineFlow(
+const interpretationFlow = defineFlow(
   {
     name: 'interpretSeoAnalysisFlow',
     inputSchema: SeoAnalysisInputSchema,
@@ -72,9 +74,8 @@ const interpretationFlow = ai.defineFlow(
   },
   async (input: SeoAnalysisInput) => {
     const checksSummary = JSON.stringify(input.aiAnalysis.checks, null, 2);
-
-    const {output} = await ai.generate({
-      model: 'googleai/gemini-1.5-flash-latest',
+    const model = googleAI.model('gemini-1.5-flash-latest');
+    const {output} = await model.generate({
       output: {
         format: 'json',
         schema: SeoInterpretationOutputSchema,
@@ -113,5 +114,5 @@ const interpretationFlow = ai.defineFlow(
 export async function interpretSeoAnalysis(
   input: SeoAnalysisInput
 ): Promise<SeoInterpretationOutput> {
-  return await interpretationFlow(input);
+  return await runFlow(interpretationFlow, input);
 }

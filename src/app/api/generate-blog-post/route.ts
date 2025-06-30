@@ -1,9 +1,11 @@
+import '@/ai/genkit'; // Ensure Genkit is initialized
 import {NextRequest, NextResponse} from 'next/server';
 import {adminAuth} from '@/lib/firebase-admin';
 import {
   generateBlogContent,
   BlogContentInputSchema,
 } from '@/ai/flows/generate-blog-content-flow';
+import {runFlow} from '@genkit-ai/core';
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,7 +33,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const generatedContent = await generateBlogContent(validationResult.data);
+    const generatedContent = await runFlow(
+      generateBlogContent,
+      validationResult.data
+    );
 
     return NextResponse.json(generatedContent);
   } catch (error: any) {
