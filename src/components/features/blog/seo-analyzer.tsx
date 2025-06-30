@@ -1,20 +1,18 @@
-
-
 "use client";
 
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import { CheckCircle, XCircle, Sparkles, ExternalLink, Image as ImageIcon } from 'lucide-react';
+import { CheckCircle, XCircle, Sparkles, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ContentImage } from '@/lib/types';
-
+import { ImageIcon } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface SeoAnalyzerPost {
   title: string;
@@ -34,7 +32,6 @@ interface SeoAnalyzerPost {
 interface SeoAnalyzerProps {
   post: SeoAnalyzerPost | null;
   setPost: React.Dispatch<React.SetStateAction<SeoAnalyzerPost | null>>;
-  onMetaChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   isLoading: boolean;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
   contentImages: ContentImage[];
@@ -76,7 +73,6 @@ const CheckItem = ({ check, onFix, isAiLoading }: { check: SeoCheck, onFix: (mod
 export function SeoAnalyzer({ 
     post, 
     setPost, 
-    onMetaChange, 
     isLoading, 
     setIsLoading,
     contentImages,
@@ -301,18 +297,17 @@ export function SeoAnalyzer({
                 <CardDescription>Completa estas tareas para mejorar el SEO on-page de tu contenido.</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="mb-4">
-                    <Label htmlFor="focusKeyword">Palabra Clave Principal</Label>
-                    <Input id="focusKeyword" name="_yoast_wpseo_focuskw" value={keyword} onChange={onMetaChange} />
-                </div>
-                {isLoading && !keyword ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin mr-2" /> Sugiriendo palabra clave...</div> :
-                !keyword ? <p className="text-sm text-muted-foreground p-4 text-center border-dashed border rounded-md">Introduce una palabra clave principal para empezar.</p> :
-                <ul className="space-y-3">
-                    {checks.map(check => (
-                        <CheckItem key={check.id} check={check} onFix={handleFixWithAI} isAiLoading={isLoading}/>
-                    ))}
-                </ul>
-                }
+                {!keyword ? (
+                  <p className="text-sm text-muted-foreground p-4 text-center border-dashed border rounded-md">
+                    Introduce una Palabra Clave Principal en la tarjeta "Edición SEO" para empezar el análisis.
+                  </p>
+                ) : (
+                  <ul className="space-y-3">
+                      {checks.map(check => (
+                          <CheckItem key={check.id} check={check} onFix={handleFixWithAI} isAiLoading={isLoading}/>
+                      ))}
+                  </ul>
+                )}
             </CardContent>
         </Card>
 

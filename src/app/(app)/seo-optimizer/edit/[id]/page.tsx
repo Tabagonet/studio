@@ -383,16 +383,16 @@ function EditPageContent() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-1">
+                        <Label htmlFor="yoastFocusKw">Palabra Clave Principal</Label>
+                        <Input id="yoastFocusKw" name="_yoast_wpseo_focuskw" value={post.meta._yoast_wpseo_focuskw || ''} onChange={handleMetaChange} />
+                    </div>
+                    <div className="space-y-1">
                         <Label htmlFor="yoastTitle">Título SEO</Label>
-                        <div className="flex items-center gap-2">
-                           <Input id="yoastTitle" name="_yoast_wpseo_title" value={seoTitle} onChange={handleMetaChange} className="flex-grow"/>
-                        </div>
+                        <Input id="yoastTitle" name="_yoast_wpseo_title" value={seoTitle} onChange={handleMetaChange} />
                     </div>
                     <div className="space-y-1">
                         <Label htmlFor="metaDescription">Meta Descripción</Label>
-                        <div className="flex items-start gap-2">
-                            <Textarea id="metaDescription" name="_yoast_wpseo_metadesc" value={metaDescription} onChange={handleMetaChange} maxLength={165} rows={3} className="flex-grow"/>
-                        </div>
+                        <Textarea id="metaDescription" name="_yoast_wpseo_metadesc" value={metaDescription} onChange={handleMetaChange} maxLength={165} rows={3}/>
                     </div>
                 </CardContent>
               </Card>
