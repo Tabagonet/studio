@@ -59,11 +59,10 @@ export async function POST(req: NextRequest) {
 
             const fetchedProducts = [];
             for (const chunk of productChunks) {
-                // **THE FIX IS HERE**: Added `lang: ''` to fetch products from all languages.
                 const { data } = await wooApi.get('products', { 
                     include: chunk.join(','), 
                     per_page: 100,
-                    lang: ''
+                    lang: 'all' // CORRECTED: Use 'all' to ensure all translations are fetched.
                 });
                 fetchedProducts.push(...data);
             }
