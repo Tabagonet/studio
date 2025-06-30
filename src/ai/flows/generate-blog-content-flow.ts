@@ -44,6 +44,7 @@ const generateBlogContentFlowInternal = ai.defineFlow(
   async (input: BlogContentInput) => {
     let systemInstruction = '';
     let userPrompt = '';
+    let localOutputSchema = BlogContentOutputSchema; // Default schema
 
     switch (input.mode) {
         case 'generate_from_topic':
@@ -67,7 +68,7 @@ const generateBlogContentFlowInternal = ai.defineFlow(
             `;
             break;
         case 'enhance_title':
-            systemInstruction = `You are an expert SEO copywriter. Based on the provided content and original title, your task is to rewrite ONLY the blog post title to be more engaging, clear, and SEO-optimized. Return a single, valid JSON object with one key: 'title'. Do not include markdown or the word 'json' in your output.`;
+            systemInstruction = `You are an expert SEO copywriter. Based on the provided content and original title, your task is to rewrite ONLY the blog post title to be more engaging, clear, and SEO-optimized. Respond with a single, valid JSON object containing only one key: "title". Do not include markdown or the word 'json' in your output.`;
             userPrompt = `
                 Rewrite and improve ONLY the title for this blog post in {{language}}.
                 Original Title: "{{existingTitle}}"
@@ -76,9 +77,10 @@ const generateBlogContentFlowInternal = ai.defineFlow(
                 {{{existingContent}}}
                 ---
             `;
+            localOutputSchema = z.object({ title: z.string() });
             break;
         case 'generate_meta_description':
-            systemInstruction = `You are an expert SEO copywriter. Your task is to write a compelling meta description for the given blog post. **It is absolutely critical that the meta description is no more than 160 characters long.** Do not go over this limit. The description should be engaging and encourage clicks. Return a single, valid JSON object with one key: 'metaDescription'. Do not include markdown or the word 'json' in your output.`;
+            systemInstruction = `You are an expert SEO copywriter. Your task is to write a compelling meta description for the given blog post. The meta description must be no more than 160 characters long. The description should be engaging and encourage clicks. Return a single, valid JSON object with one key: 'metaDescription'. Do not include markdown or the word 'json' in your output.`;
             userPrompt = `
                 Generate a meta description in {{language}}.
                 Title: "{{existingTitle}}"
@@ -87,6 +89,7 @@ const generateBlogContentFlowInternal = ai.defineFlow(
                 {{{existingContent}}}
                 ---
             `;
+            localOutputSchema = z.object({ metaDescription: z.string() });
             break;
         case 'generate_image_meta':
             systemInstruction = `You are an expert SEO specialist. Your task is to generate generic but descriptive SEO metadata for images that could appear in a blog post, based on its title and content. The response must be a single, valid JSON object with two keys: 'imageTitle' and 'imageAltText'. Do not include markdown or the word 'json' in your output.`;
@@ -98,12 +101,14 @@ const generateBlogContentFlowInternal = ai.defineFlow(
                 {{{existingContent}}}
                 ---
             `;
+             localOutputSchema = z.object({ imageTitle: z.string(), imageAltText: z.string() });
             break;
         case 'suggest_titles':
              systemInstruction = `You are an expert SEO and content strategist. Based on the provided keyword, generate 5 creative, engaging, and SEO-friendly blog post titles. Return a single, valid JSON object with one key: 'titles', which is an array of 5 string titles. Do not include markdown or the word 'json' in your output.`;
              userPrompt = `
                 Generate 5 blog post titles in {{language}} for the keyword: "{{ideaKeyword}}"
             `;
+            localOutputSchema = z.object({ titles: z.array(z.string()) });
             break;
         case 'generate_focus_keyword':
             systemInstruction = `You are an expert SEO analyst. Your task is to identify the primary focus keyword (a short phrase of 2-4 words) from a blog post title and content. Return a single, valid JSON object with one key: 'focusKeyword'. The keyword should be in the same language as the content. Do not include markdown or the word 'json' in your output.`;
@@ -115,6 +120,7 @@ const generateBlogContentFlowInternal = ai.defineFlow(
                 {{{existingContent}}}
                 ---
             `;
+            localOutputSchema = z.object({ focusKeyword: z.string() });
             break;
         case 'suggest_keywords':
              systemInstruction = `You are an expert SEO specialist. Based on the following blog post title and content, generate a list of relevant, SEO-focused keywords. Return a single, valid JSON object with one key: 'suggestedKeywords' (a comma-separated string of 5-7 relevant keywords). Do not include markdown or the word 'json' in your output.`;
@@ -126,6 +132,7 @@ const generateBlogContentFlowInternal = ai.defineFlow(
                 {{{existingContent}}}
                 ---
             `;
+            localOutputSchema = z.object({ suggestedKeywords: z.string() });
             break;
     }
     
@@ -139,14 +146,14 @@ const generateBlogContentFlowInternal = ai.defineFlow(
         prompt: userPrompt,
         input,
         output: {
-            schema: BlogContentOutputSchema
+            schema: localOutputSchema
         }
     });
     
     if (!output) {
       throw new Error('AI returned an empty response for blog content generation.');
     }
-    return output;
+    return output as BlogContentOutput;
   }
 );
 

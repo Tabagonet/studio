@@ -1,11 +1,10 @@
 
-
 "use client";
 
-import React, { useEffect, useState, Suspense, useCallback, useRef } from 'react';
+import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,6 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { SeoAnalyzer } from '@/components/features/blog/seo-analyzer';
 import Link from 'next/link';
+import type { SeoAnalysisRecord } from '@/lib/types';
 
 
 interface PostEditState {
@@ -30,6 +30,7 @@ interface PostEditState {
   adminEditLink?: string | null;
   featuredImageUrl?: string | null;
   featuredMediaId?: number | null;
+  link?: string;
 }
 
 interface ContentImage {
@@ -92,6 +93,7 @@ function EditPageContent() {
         adminEditLink: postData.adminEditLink || null,
         featuredImageUrl: postData.featured_image_url || null,
         featuredMediaId: postData.featured_media || null,
+        link: postData.link,
       };
 
       // New part: Fetch latest analysis to get suggestions
@@ -100,17 +102,19 @@ function EditPageContent() {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         if (historyResponse.ok) {
-            const historyData = await historyResponse.json();
+            const historyData: { history: SeoAnalysisRecord[] } = await historyResponse.json();
             if (historyData.history && historyData.history.length > 0) {
                 const latestAnalysis = historyData.history[0].analysis;
-                if (latestAnalysis.suggested?.title) {
-                    loadedPost.title = latestAnalysis.suggested.title;
+                
+                // Only overwrite if the current field is empty
+                if (!loadedPost.title && latestAnalysis.aiAnalysis.suggested?.title) {
+                    loadedPost.title = latestAnalysis.aiAnalysis.suggested.title;
                 }
-                if (latestAnalysis.suggested?.metaDescription) {
-                    loadedPost.meta._yoast_wpseo_metadesc = latestAnalysis.suggested.metaDescription;
+                if (!loadedPost.meta._yoast_wpseo_metadesc && latestAnalysis.aiAnalysis.suggested?.metaDescription) {
+                    loadedPost.meta._yoast_wpseo_metadesc = latestAnalysis.aiAnalysis.suggested.metaDescription;
                 }
-                if (!loadedPost.meta._yoast_wpseo_focuskw && latestAnalysis.suggested?.focusKeyword) {
-                    loadedPost.meta._yoast_wpseo_focuskw = latestAnalysis.suggested.focusKeyword;
+                if (!loadedPost.meta._yoast_wpseo_focuskw && latestAnalysis.aiAnalysis.suggested?.focusKeyword) {
+                    loadedPost.meta._yoast_wpseo_focuskw = latestAnalysis.aiAnalysis.suggested.focusKeyword;
                 }
             }
         }
@@ -175,7 +179,7 @@ function EditPageContent() {
             body: JSON.stringify(payload)
         });
         if (!response.ok) throw new Error((await response.json()).error || 'Fallo al guardar.');
-        toast({ title: '¡Éxito!', description: 'Los cambios SEO han sido guardados.' });
+        toast({ title: '¡Éxito!', description: "Los cambios SEO, incluyendo los textos 'alt' de las imágenes, han sido guardados." });
     } catch (e: any) {
         toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
     } finally {
@@ -236,6 +240,7 @@ function EditPageContent() {
                         <CardDescription>Editando: {post.title}</CardDescription>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2">
+                        {/* This onClick now correctly sends the user back to the previous page in history, which should be the report view. */}
                         <Button variant="outline" onClick={() => router.back()}>
                             <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Informe
                         </Button>
@@ -282,8 +287,6 @@ function EditPageContent() {
         <SeoAnalyzer
             post={post}
             setPost={setPost}
-            postId={postId}
-            postType={postType}
             isLoading={isAiLoading}
             setIsLoading={setIsAiLoading}
         />
