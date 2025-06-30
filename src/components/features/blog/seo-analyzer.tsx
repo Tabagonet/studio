@@ -4,8 +4,7 @@
 import React, { useMemo } from 'react';
 import { CheckCircle, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Progress } from '@/components/ui/progress';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 
 interface SeoAnalyzerProps {
   title: string;
@@ -18,7 +17,6 @@ interface SeoCheck {
   id: string;
   pass: boolean;
   text: React.ReactNode;
-  weight: number;
 }
 
 const CheckItem = ({ pass, text }: { pass: boolean; text: React.ReactNode }) => {
@@ -33,9 +31,9 @@ const CheckItem = ({ pass, text }: { pass: boolean; text: React.ReactNode }) => 
 };
 
 export function SeoAnalyzer({ title, content, focusKeyword, metaDescription }: SeoAnalyzerProps) {
-  const { checks, score } = useMemo(() => {
+  const { checks, passedCount } = useMemo(() => {
     if (!focusKeyword || !focusKeyword.trim()) {
-      return { checks: [], score: 0 };
+      return { checks: [], passedCount: 0 };
     }
 
     const keyword = focusKeyword.trim().toLowerCase();
@@ -45,68 +43,51 @@ export function SeoAnalyzer({ title, content, focusKeyword, metaDescription }: S
 
     const allChecks: SeoCheck[] = [
       {
-        id: 'titleLength',
-        pass: title.length >= 30 && title.length <= 65,
-        text: title.length >= 30 && title.length <= 65
-          ? <>La longitud del título ({title.length}) es buena (entre 30-65 caracteres).</>
-          : <>La longitud del título ({title.length}) debería estar entre 30 y 65 caracteres.</>,
-        weight: 15,
-      },
-      {
         id: 'keywordInTitle',
         pass: title.trim().toLowerCase().includes(keyword),
-        text: title.trim().toLowerCase().includes(keyword)
-          ? <>La palabra clave <strong className="text-foreground">{`"${focusKeyword}"`}</strong> aparece en el título.</>
-          : <>La palabra clave <strong className="text-foreground">{`"${focusKeyword}"`}</strong> no está en el título.</>,
-        weight: 20,
-      },
-      {
-        id: 'metaDescLength',
-        pass: metaDescription.length >= 50 && metaDescription.length <= 160,
-        text: metaDescription.length >= 50 && metaDescription.length <= 160
-          ? <>La longitud de la meta descripción ({metaDescription.length}) es buena (entre 50-160).</>
-          : <>La longitud de la meta descripción ({metaDescription.length}) debería estar entre 50 y 160 caracteres.</>,
-        weight: 15,
+        text: <>La palabra clave principal aparece en el <strong>título SEO</strong>.</>,
       },
       {
         id: 'keywordInMetaDesc',
         pass: metaDescription.trim().toLowerCase().includes(keyword),
-        text: metaDescription.trim().toLowerCase().includes(keyword)
-          ? <>La palabra clave aparece en la meta descripción.</>
-          : <>La palabra clave no se encontró en la meta descripción.</>,
-        weight: 20,
+        text: <>La palabra clave principal aparece en la <strong>meta descripción</strong>.</>,
       },
       {
         id: 'keywordInIntro',
         pass: firstParagraph.includes(keyword),
-        text: firstParagraph.includes(keyword)
-          ? <>La palabra clave aparece en la introducción.</>
-          : <>La palabra clave no se encontró en la introducción (primeros párrafos).</>,
-        weight: 15,
+        text: <>La palabra clave principal se encuentra en la <strong>introducción</strong>.</>,
+      },
+      {
+        id: 'titleLength',
+        pass: title.length >= 30 && title.length <= 65,
+        text: <>El título SEO tiene una <strong>longitud adecuada</strong> ({title.length} caracteres).</>,
+      },
+      {
+        id: 'metaDescLength',
+        pass: metaDescription.length >= 50 && metaDescription.length <= 160,
+        text: <>La meta descripción tiene una <strong>longitud adecuada</strong> ({metaDescription.length} caracteres).</>,
       },
       {
         id: 'contentLength',
         pass: wordCount >= 300,
-        text: wordCount >= 300
-          ? <>El contenido tiene más de 300 palabras ({wordCount} palabras).</>
-          : <>El contenido tiene {wordCount} palabras. Se recomienda un mínimo de 300.</>,
-        weight: 15,
+        text: <>La longitud del contenido es <strong>suficiente</strong> ({wordCount} palabras).</>,
       },
     ];
 
-    const calculatedScore = allChecks.reduce((acc, check) => acc + (check.pass ? check.weight : 0), 0);
+    const currentPassedCount = allChecks.filter(check => check.pass).length;
 
-    return { checks: allChecks, score: calculatedScore };
+    return { checks: allChecks, passedCount: currentPassedCount };
   }, [title, content, focusKeyword, metaDescription]);
-
-  const scoreColor = score >= 80 ? 'bg-green-500' : score >= 50 ? 'bg-amber-500' : 'bg-red-500';
 
   if (!focusKeyword || !focusKeyword.trim()) {
     return (
         <Card>
-            <CardHeader><CardTitle>Checklist SEO Dinámico</CardTitle></CardHeader>
+            <CardHeader>
+                <CardTitle>Checklist de Análisis Básico</CardTitle>
+                <CardDescription>Introduce una palabra clave para activar el checklist.</CardDescription>
+            </CardHeader>
             <CardContent>
-                <p className="text-sm text-muted-foreground p-4 text-center">Introduce una palabra clave principal para ver el análisis.</p>
+                <p className="text-sm text-muted-foreground p-4 text-center">Aquí aparecerán las comprobaciones SEO básicas.</p>
             </CardContent>
         </Card>
     );
@@ -115,18 +96,20 @@ export function SeoAnalyzer({ title, content, focusKeyword, metaDescription }: S
   return (
     <Card>
         <CardHeader>
-            <CardTitle>Checklist SEO Dinámico</CardTitle>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle>Checklist de Análisis Básico</CardTitle>
+                <CardDescription>Optimiza según las mejores prácticas.</CardDescription>
+              </div>
+              <div className="text-right">
+                 <p className="text-sm text-muted-foreground">Completado</p>
+                 <p className="text-2xl font-bold">{passedCount}/{checks.length}</p>
+              </div>
+            </div>
         </CardHeader>
         <CardContent>
             <div className="space-y-3">
-                <div className="space-y-2">
-                    <div className="flex justify-between text-sm font-medium">
-                        <span>Puntuación SEO (Simulada)</span>
-                        <span>{score} / 100</span>
-                    </div>
-                    <Progress value={score} className={cn("[&>div]:bg-primary", scoreColor)} />
-                </div>
-                <ul className="space-y-3 pt-4">
+                <ul className="space-y-3 pt-4 border-t">
                 {checks.map(check => (
                     <CheckItem key={check.id} pass={check.pass} text={check.text} />
                 ))}
@@ -136,5 +119,3 @@ export function SeoAnalyzer({ title, content, focusKeyword, metaDescription }: S
     </Card>
   );
 }
-
-    
