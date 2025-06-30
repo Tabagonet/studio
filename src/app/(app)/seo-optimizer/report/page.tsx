@@ -180,15 +180,27 @@ function ReportContent() {
         </section>
 
         <section>
-          <CardTitle className="text-2xl mb-6 flex items-center gap-2"><BrainCircuit className="h-6 w-6 text-primary" />Sugerencias de la IA</CardTitle>
+          <CardTitle className="text-2xl mb-6 flex items-center gap-2"><BrainCircuit className="h-6 w-6 text-primary" />Resumen del Experto IA</CardTitle>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card className="border-green-500/50">
                   <CardHeader><CardTitle className="text-lg text-green-600">Puntos Fuertes</CardTitle></CardHeader>
-                  <CardContent><ul className="list-disc list-inside space-y-2">{analysis.aiAnalysis.positives.map((item, i) => <li key={i}>{item}</li>)}</ul></CardContent>
+                  <CardContent>
+                    {interpretation ? (
+                        <ul className="list-disc list-inside space-y-2">{interpretation.positives.map((item, i) => <li key={i}>{item}</li>)}</ul>
+                    ) : (
+                        <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Cargando...</div>
+                    )}
+                  </CardContent>
               </Card>
                <Card className="border-amber-500/50">
                   <CardHeader><CardTitle className="text-lg text-amber-600">Áreas de Mejora</CardTitle></CardHeader>
-                  <CardContent><ul className="list-disc list-inside space-y-2">{analysis.aiAnalysis.improvements.map((item, i) => <li key={i}>{item}</li>)}</ul></CardContent>
+                  <CardContent>
+                    {interpretation ? (
+                        <ul className="list-disc list-inside space-y-2">{interpretation.improvements.map((item, i) => <li key={i}>{item}</li>)}</ul>
+                    ) : (
+                        <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Cargando...</div>
+                    )}
+                  </CardContent>
               </Card>
           </div>
         </section>
