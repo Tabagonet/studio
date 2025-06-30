@@ -156,13 +156,36 @@ export const getColumns = (
     accessorKey: "price",
     header: () => <div className="text-right">Precio</div>,
     cell: ({ row }) => {
-      const price = parseFloat(row.getValue("price"))
-      const formatted = new Intl.NumberFormat("es-ES", {
+      const regularPriceVal = parseFloat(row.original.regular_price);
+      const salePriceVal = parseFloat(row.original.sale_price);
+
+      const hasSale = !isNaN(salePriceVal) && salePriceVal > 0 && salePriceVal < regularPriceVal;
+      const hasRegular = !isNaN(regularPriceVal) && regularPriceVal > 0;
+
+      if (!hasRegular && !hasSale) {
+        return <div className="text-right font-medium text-muted-foreground">N/A</div>;
+      }
+
+      const formatCurrency = (value: number) => new Intl.NumberFormat("es-ES", {
         style: "currency",
         currency: "EUR",
-      }).format(price)
+      }).format(value);
 
-      return <div className="text-right font-medium">{price ? formatted : "N/A"}</div>
+      return (
+        <div className="text-right font-medium">
+          {hasSale ? (
+            <div>
+              <span className="text-xs text-muted-foreground line-through">
+                {formatCurrency(regularPriceVal)}
+              </span>
+              <br />
+              <span className="text-primary">{formatCurrency(salePriceVal)}</span>
+            </div>
+          ) : (
+            hasRegular && <span>{formatCurrency(regularPriceVal)}</span>
+          )}
+        </div>
+      );
     },
   },
   {

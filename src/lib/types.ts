@@ -170,6 +170,8 @@ export interface ProductSearchResult {
   id: number;
   name: string;
   price: string;
+  regular_price: string;
+  sale_price: string;
   image: string | null;
   sku: string;
   type: ProductType;

@@ -87,6 +87,8 @@ export async function GET(req: NextRequest) {
             id: product.id,
             name: product.name,
             price: product.price,
+            regular_price: product.regular_price || '',
+            sale_price: product.sale_price || '',
             image: imageUrl,
             sku: product.sku,
             type: product.type,
