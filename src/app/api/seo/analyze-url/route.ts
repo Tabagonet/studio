@@ -15,14 +15,21 @@ const analyzeUrlSchema = z.object({
   postType: z.enum(['Post', 'Page']).optional(),
 });
 
+// NEW, more structured schema
+const aiChecksSchema = z.object({
+    titleContainsKeyword: z.boolean().describe("El título SEO contiene la palabra clave principal."),
+    titleIsGoodLength: z.boolean().describe("El título SEO tiene una longitud entre 30 y 65 caracteres."),
+    metaDescriptionContainsKeyword: z.boolean().describe("La meta descripción contiene la palabra clave principal."),
+    metaDescriptionIsGoodLength: z.boolean().describe("La meta descripción tiene una longitud entre 50 y 160 caracteres."),
+    keywordInFirstParagraph: z.boolean().describe("La palabra clave principal se encuentra en el primer párrafo del contenido."),
+    contentHasImages: z.boolean().describe("El contenido tiene al menos una imagen."),
+    allImagesHaveAltText: z.boolean().describe("TODAS las imágenes en el contenido tienen texto alternativo (alt text)."),
+    h1Exists: z.boolean().describe("La página tiene exactamente un encabezado H1."),
+    canonicalUrlExists: z.boolean().describe("La página especifica una URL canónica."),
+});
+
 const aiResponseSchema = z.object({
-  score: z.union([z.number(), z.string()]).transform(val => {
-    const num = Number(val);
-    return isNaN(num) ? 0 : num;
-  }).describe("Una puntuación SEO estimada de 0 a 100."),
-  summary: z.string().describe("Un breve resumen sobre de qué trata la página."),
-  positives: z.array(z.string()).describe("Una lista de 2-3 aspectos SEO positivos encontrados."),
-  improvements: z.array(z.string()).describe("Una lista de las 2-3 sugerencias de mejora más importantes y accionables."),
+  checks: aiChecksSchema,
   suggested: z.object({
     title: z.string().describe("Una sugerencia de título optimizado para SEO, con menos de 60 caracteres."),
     metaDescription: z.string().describe("Una sugerencia de meta descripción optimizada para SEO, con menos de 160 caracteres."),
@@ -38,7 +45,6 @@ async function getPageContentFromApi(postId: number, postType: 'Post' | 'Page', 
     }
 
     const endpoint = postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
-    // Add a cache-busting parameter to ensure fresh data is fetched
     const response = await wpApi.get(endpoint, { params: { context: 'edit', '_': new Date().getTime() } });
     const rawData = response.data;
     
@@ -50,19 +56,16 @@ async function getPageContentFromApi(postId: number, postType: 'Post' | 'Page', 
     const $ = cheerio.load(contentHtml);
     $('script, style').remove();
     
-    // Check for a non-empty Yoast title. If it exists (even as an empty string), use it.
-    // Otherwise, fall back to the rendered title. This is the key change.
     const yoastTitle = rawData.meta?._yoast_wpseo_title;
     const finalTitle = (typeof yoastTitle === 'string') 
                        ? yoastTitle 
                        : rawData.title?.rendered || '';
 
-    // NOTE: Canonical URL is in the <head>, which is not fetched by the API.
-    // This will be handled by scraping the public URL instead.
     return {
         title: finalTitle,
         metaDescription: rawData.meta?._yoast_wpseo_metadesc || '',
-        canonicalUrl: '', // To be filled by scraping
+        focusKeyword: rawData.meta?._yoast_wpseo_focuskw || '',
+        canonicalUrl: '', 
         h1: $('h1').first().text(),
         headings: $('h1, h2, h3, h4, h5, h6').map((i, el) => ({
             tag: (el as cheerio.TagElement).name,
@@ -98,6 +101,7 @@ async function getPageContentFromScraping(url: string) {
         return {
             title: finalTitle,
             metaDescription: $('meta[name="description"]').attr('content') || '',
+            focusKeyword: '', // Cannot get this from scraping
             canonicalUrl: $('link[rel="canonical"]').attr('href') || '',
             h1: body$('h1').first().text(),
             headings: body$('h1, h2, h3, h4, h5, h6').map((i, el) => ({
@@ -113,11 +117,8 @@ async function getPageContentFromScraping(url: string) {
     } catch (error) {
         if (axios.isAxiosError(error)) {
             let message = 'No se pudo acceder a la URL.';
-            if (error.code === 'ECONNABORTED') {
-                message = 'La solicitud a la URL tardó demasiado en responder (timeout de 10s).';
-            } else if (error.response) {
-                message = `La URL devolvió un error ${error.response.status}. Asegúrate de que es pública y accesible.`;
-            }
+            if (error.code === 'ECONNABORTED') message = 'La solicitud a la URL tardó demasiado en responder (timeout de 10s).';
+            else if (error.response) message = `La URL devolvió un error ${error.response.status}. Asegúrate de que es pública y accesible.`;
             console.error(`Axios error fetching URL ${url}: ${message}`, error);
             throw new Error(message);
         }
@@ -127,57 +128,55 @@ async function getPageContentFromScraping(url: string) {
 }
 
 
-async function getAiAnalysis(pageData: any, url: string) {
+async function getAiAnalysis(pageData: any) {
   const apiKey = process.env.GOOGLE_API_KEY;
-  if (!apiKey) {
-    throw new Error('La clave API de Google AI no está configurada en el servidor.');
-  }
+  if (!apiKey) throw new Error('La clave API de Google AI no está configurada en el servidor.');
 
   const prompt = `
-    Analiza el siguiente contenido de una página web para optimización SEO (On-Page).
-    URL de la página: ${url}
-    Título: ${pageData.title}
-    Meta Descripción: ${pageData.metaDescription}
-    URL Canónica: ${pageData.canonicalUrl || 'No encontrada'}
-    Contenido principal (extracto):
-    ---
-    ${pageData.textContent.substring(0, 30000)} 
-    ---
+    Analiza el siguiente contenido de una página web para optimización SEO (On-Page) y responde únicamente con un objeto JSON válido.
+    
+    **Datos de la Página:**
+    - Título SEO: "${pageData.title}"
+    - Meta Descripción: "${pageData.metaDescription}"
+    - Palabra Clave Principal: "${pageData.focusKeyword}"
+    - URL Canónica: "${pageData.canonicalUrl || 'No encontrada'}"
+    - Total de Imágenes: ${pageData.images.length}
+    - Imágenes sin 'alt': ${pageData.images.filter((i: any) => !i.alt).length}
+    - Encabezado H1: "${pageData.h1}"
+    - Primeros 300 caracteres del contenido: "${pageData.textContent.substring(0, 300)}"
 
-    Basado en TODA esta información, proporciona una respuesta en español, exclusivamente como un único y válido objeto JSON.
-    El objeto JSON debe contener:
-    - "score": Una puntuación SEO estimada de 0 a 100.
-    - "summary": Un breve resumen sobre de qué trata la página.
-    - "positives": Un array con 2-3 aspectos SEO positivos encontrados.
-    - "improvements": Un array con las 2-3 sugerencias de mejora más importantes y accionables. Presta especial atención a la URL canónica; si no existe o es incorrecta, debe ser una mejora prioritaria.
-    - "suggested": Un objeto con:
-        - "title": Una sugerencia de título optimizado para SEO (menos de 60 caracteres) que incluya la palabra clave principal.
-        - "metaDescription": Una sugerencia de meta descripción para SEO (menos de 160 caracteres) que incluya la palabra clave principal.
-        - "focusKeyword": La palabra clave principal (2-4 palabras) más adecuada para este contenido.
+    **Instrucciones:**
+    Evalúa cada uno de los siguientes puntos y devuelve un valor booleano (true/false) para cada uno en el objeto "checks". Además, proporciona sugerencias en el objeto "suggested".
+
+    **"checks":**
+    1.  "titleContainsKeyword": ¿Contiene el "Título SEO" la "Palabra Clave Principal"?
+    2.  "titleIsGoodLength": ¿Tiene el "Título SEO" entre 30 y 65 caracteres?
+    3.  "metaDescriptionContainsKeyword": ¿Contiene la "Meta Descripción" la "Palabra Clave Principal"?
+    4.  "metaDescriptionIsGoodLength": ¿Tiene la "Meta Descripción" entre 50 y 160 caracteres?
+    5.  "keywordInFirstParagraph": ¿Contienen los "Primeros 300 caracteres del contenido" la "Palabra Clave Principal"?
+    6.  "contentHasImages": ¿Es el "Total de Imágenes" mayor que 0?
+    7.  "allImagesHaveAltText": ¿Es el número de "Imágenes sin 'alt'" igual a 0?
+    8.  "h1Exists": ¿Existe el "Encabezado H1" y no está vacío?
+    9.  "canonicalUrlExists": ¿Existe la "URL Canónica" y no está vacía?
+
+    **"suggested":**
+    - "title": Sugiere un "Título SEO" mejorado.
+    - "metaDescription": Sugiere una "Meta Descripción" mejorada.
+    - "focusKeyword": Sugiere la "Palabra Clave Principal" más apropiada para el contenido.
   `;
 
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
     model: "gemini-1.5-flash-latest",
     generationConfig: { responseMimeType: "application/json" },
-    safetySettings: [
-        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-    ]
+    safetySettings: [ { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH }, { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH }, { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE }, { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE } ]
   });
 
   try {
     const result = await model.generateContent(prompt);
     if (result.response.promptFeedback?.blockReason) {
         const blockReason = result.response.promptFeedback.blockReason;
-        console.error(`AI generation blocked due to: ${blockReason}`);
-        let userMessage = "La IA no pudo procesar el contenido de esta página por motivos de seguridad.";
-        if (blockReason === 'SAFETY') {
-            userMessage += " Es posible que el contenido haya sido identificado como potencialmente dañino."
-        }
-        throw new Error(userMessage);
+        throw new Error(`La IA no pudo procesar el contenido por motivos de seguridad: ${blockReason}`);
     }
     
     const responseText = result.response.text();
@@ -185,15 +184,13 @@ async function getAiAnalysis(pageData: any, url: string) {
     const validation = aiResponseSchema.safeParse(parsedJson);
 
     if (!validation.success) {
-      console.error("AI returned invalid schema:", validation.error);
+      console.error("AI returned invalid schema:", validation.error.flatten());
       throw new Error("La IA devolvió una respuesta con un formato inesperado.");
     }
     return validation.data;
   } catch (error) {
     console.error("Error communicating with Google AI:", error);
-    if (error instanceof Error && (error.message.includes("La IA no pudo procesar") || error.message.includes("formato inesperado"))) {
-        throw error;
-    }
+    if (error instanceof Error) throw error;
     throw new Error("Hubo un error al procesar el contenido con la IA.");
   }
 }
@@ -222,36 +219,36 @@ export async function POST(req: NextRequest) {
     let pageData;
 
     if (postId && postType) {
-        console.log(`Analyzing via WP API for ${postType} ID: ${postId}`);
         const apiData = await getPageContentFromApi(postId, postType, uid);
         const scrapedData = await getPageContentFromScraping(finalUrl);
-        pageData = {
-          ...apiData,
-          canonicalUrl: scrapedData.canonicalUrl, // Take canonical from scraping
-        };
+        pageData = { ...apiData, canonicalUrl: scrapedData.canonicalUrl };
     } else {
-        console.log(`Analyzing via scraping public URL: ${finalUrl}`);
         pageData = await getPageContentFromScraping(finalUrl);
     }
     
     if (!pageData.textContent || pageData.textContent.trim().length < 50) {
         throw new Error('No se encontró suficiente contenido textual en la página para analizar. Asegúrate de que la URL es correcta y tiene contenido visible.');
     }
-    const aiAnalysis = await getAiAnalysis(pageData, finalUrl);
-    const fullAnalysis = { ...pageData, aiAnalysis };
+
+    const aiAnalysis = await getAiAnalysis(pageData);
     
-    // Save to Firestore
+    // Deterministic score calculation
+    const checkWeights = { titleContainsKeyword: 15, titleIsGoodLength: 10, metaDescriptionContainsKeyword: 15, metaDescriptionIsGoodLength: 10, keywordInFirstParagraph: 15, contentHasImages: 5, allImagesHaveAltText: 10, h1Exists: 10, canonicalUrlExists: 10 };
+    let score = 0;
+    Object.entries(aiAnalysis.checks).forEach(([key, passed]) => {
+      if (passed) score += checkWeights[key as keyof typeof checkWeights];
+    });
+
+    const fullAnalysis = { ...pageData, aiAnalysis: { ...aiAnalysis, score } };
+    
     if (adminDb && admin.firestore.FieldValue) {
-      const analysisRecord = {
+      await adminDb.collection('seo_analyses').add({
         userId: uid,
         url: url,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         analysis: fullAnalysis,
-        score: aiAnalysis.score,
-      };
-      await adminDb.collection('seo_analyses').add(analysisRecord);
-    } else {
-        console.warn("Firestore not available. SEO analysis will not be saved to history.");
+        score: score,
+      });
     }
 
     return NextResponse.json(fullAnalysis);

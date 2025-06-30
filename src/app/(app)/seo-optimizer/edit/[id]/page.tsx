@@ -5,7 +5,7 @@ import React, { useEffect, useState, Suspense, useCallback, useRef } from 'react
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,8 +15,7 @@ import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { SeoAnalyzer } from '@/components/features/blog/seo-analyzer';
-import type { SeoAnalysisRecord } from '@/lib/types';
-import { Checkbox } from '@/components/ui/checkbox';
+import { ContentImage } from '@/lib/types';
 import { ContentToolbar } from '@/components/features/editor/content-toolbar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
 import { GoogleSnippetPreview } from '@/components/features/blog/google-snippet-preview';
@@ -38,11 +37,6 @@ interface PostEditState {
   link?: string;
 }
 
-interface ContentImage {
-    id: string; // The original `src` attribute, used as a unique key
-    src: string; // The display-ready, absolute URL
-    alt: string;
-}
 
 function EditPageContent() {
   const params = useParams();
@@ -101,32 +95,21 @@ function EditPageContent() {
     if (!textarea || !post) return;
 
     const { selectionStart, selectionEnd, value: fullText } = textarea;
-
     const lineStart = fullText.lastIndexOf('\n', selectionStart - 1) + 1;
     let lineEnd = fullText.indexOf('\n', selectionEnd);
-    if (lineEnd === -1) {
-      lineEnd = fullText.length;
-    }
-
+    if (lineEnd === -1) lineEnd = fullText.length;
     const blockToFormat = fullText.substring(lineStart, lineEnd);
     const lines = blockToFormat.split('\n');
-
     const formattedLines = lines.map(line => {
       const trimmedLine = line.trim();
       if (trimmedLine.length === 0) return line;
-
-      if (/^<(h[1-6]|ul|ol|li)/.test(trimmedLine)) {
-        return line;
-      }
-      
+      if (/^<(h[1-6]|ul|ol|li)/.test(trimmedLine)) return line;
       const pTagRegex = /<p([^>]*)>/i;
       const match = trimmedLine.match(pTagRegex);
-
       if (match) {
         const existingAttrs = match[1];
         const styleRegex = /style="([^"]*)"/i;
         const styleMatch = existingAttrs.match(styleRegex);
-
         let newAttrs;
         if (styleMatch) {
             let styles = styleMatch[1].replace(/text-align:\s*[^;]+;?/gi, '').trim();
@@ -141,18 +124,11 @@ function EditPageContent() {
         return `<p style="text-align: ${align};">${trimmedLine}</p>`;
       }
     });
-
-    const newContent =
-      fullText.substring(0, lineStart) +
-      formattedLines.join('\n') +
-      fullText.substring(lineEnd);
-    
+    const newContent = fullText.substring(0, lineStart) + formattedLines.join('\n') + fullText.substring(lineEnd);
     setPost({ ...post, content: newContent });
-
     setTimeout(() => {
       textarea.focus();
-      const newSelectionEnd = lineStart + formattedLines.join('\n').length;
-      textarea.setSelectionRange(lineStart, newSelectionEnd);
+      textarea.setSelectionRange(lineStart, lineStart + formattedLines.join('\n').length);
     }, 0);
   };
 
@@ -186,29 +162,19 @@ function EditPageContent() {
       if (imageFile) {
           setIsUploadingImage(true);
           try {
-              const user = auth.currentUser;
-              if (!user) throw new Error("No autenticado.");
+              const user = auth.currentUser; if (!user) throw new Error("No autenticado.");
               const token = await user.getIdToken();
-              const formData = new FormData();
-              formData.append('imagen', imageFile);
+              const formData = new FormData(); formData.append('imagen', imageFile);
               const response = await fetch('/api/upload-image', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData });
-              if (!response.ok) {
-                  const errorData = await response.json();
-                  throw new Error(errorData.error || 'Fallo en la subida de imagen.');
-              }
-              const imageData = await response.json();
-              finalImageUrl = imageData.url;
+              if (!response.ok) throw new Error((await response.json()).error || 'Fallo en la subida de imagen.');
+              finalImageUrl = (await response.json()).url;
           } catch (err: any) {
               toast({ title: 'Error al subir imagen', description: err.message, variant: 'destructive' });
-              setIsUploadingImage(false);
-              return;
-          } finally {
-              setIsUploadingImage(false);
-          }
+              setIsUploadingImage(false); return;
+          } finally { setIsUploadingImage(false); }
       }
       if (!finalImageUrl) {
-          toast({ title: 'Falta la imagen', description: 'Por favor, sube un archivo o introduce una URL.', variant: 'destructive' });
-          return;
+          toast({ title: 'Falta la imagen', description: 'Por favor, sube un archivo o introduce una URL.', variant: 'destructive' }); return;
       }
       const textarea = contentRef.current;
       const selection = selectionRef.current;
@@ -216,26 +182,14 @@ function EditPageContent() {
       const { start } = selection;
       const newText = `${textarea.value.substring(0, start)}\n<img src="${finalImageUrl}" alt="${post.title || 'Imagen insertada'}" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px;" />\n${textarea.value.substring(start)}`;
       setPost({ ...post, content: newText });
-      setImageUrl('');
-      setImageFile(null);
-      setIsImageDialogOpen(false);
+      setImageUrl(''); setImageFile(null); setIsImageDialogOpen(false);
   };
   
   const fetchInitialData = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+    setIsLoading(true); setError(null);
     const user = auth.currentUser;
-    if (!user) {
-      setError('Authentication required.');
-      setIsLoading(false);
-      return;
-    }
-    
-    if (isNaN(postId) || !postType) {
-      setError(`El ID o el tipo del contenido no es válido.`);
-      setIsLoading(false);
-      return;
-    }
+    if (!user) { setError('Authentication required.'); setIsLoading(false); return; }
+    if (isNaN(postId) || !postType) { setError(`El ID o el tipo del contenido no es válido.`); setIsLoading(false); return; }
 
     try {
       const token = await user.getIdToken();
@@ -246,104 +200,55 @@ function EditPageContent() {
       const postData = await postResponse.json();
       
       const loadedPost: PostEditState = {
-        title: postData.title.rendered || '',
-        content: postData.content.rendered || '',
+        title: postData.title.rendered || '', content: postData.content.rendered || '',
         meta: {
             _yoast_wpseo_title: (typeof postData.meta?._yoast_wpseo_title === 'string') ? postData.meta._yoast_wpseo_title : '',
             _yoast_wpseo_metadesc: postData.meta?._yoast_wpseo_metadesc || '',
             _yoast_wpseo_focuskw: postData.meta?._yoast_wpseo_focuskw || '',
         },
-        isElementor: postData.isElementor || false,
-        elementorEditLink: postData.elementorEditLink || null,
-        adminEditLink: postData.adminEditLink || null,
-        featuredImageUrl: postData.featured_image_url || null,
-        featuredMediaId: postData.featured_media || null,
-        link: postData.link,
+        isElementor: postData.isElementor || false, elementorEditLink: postData.elementorEditLink || null,
+        adminEditLink: postData.adminEditLink || null, featuredImageUrl: postData.featured_image_url || null,
+        featuredMediaId: postData.featured_media || null, link: postData.link,
       };
 
       try {
-        const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(postData.link)}`, {
-            headers: { 'Authorization': `Bearer ${token}` },
-            cache: 'no-store',
-        });
+        const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(postData.link)}`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
         if (historyResponse.ok) {
-            const historyData: { history: SeoAnalysisRecord[] } = await historyResponse.json();
+            const historyData: { history: any[] } = await historyResponse.json();
             if (historyData.history && historyData.history.length > 0) {
                 const latestAnalysis = historyData.history[0].analysis;
-                
-                if (!loadedPost.meta._yoast_wpseo_title && latestAnalysis.aiAnalysis.suggested?.title) {
-                    loadedPost.meta._yoast_wpseo_title = latestAnalysis.aiAnalysis.suggested.title;
-                }
-                if (!loadedPost.meta._yoast_wpseo_metadesc && latestAnalysis.aiAnalysis.suggested?.metaDescription) {
-                    loadedPost.meta._yoast_wpseo_metadesc = latestAnalysis.aiAnalysis.suggested.metaDescription;
-                }
-                if (!loadedPost.meta._yoast_wpseo_focuskw && latestAnalysis.aiAnalysis.suggested?.focusKeyword) {
-                    loadedPost.meta._yoast_wpseo_focuskw = latestAnalysis.aiAnalysis.suggested.focusKeyword;
-                }
+                if (!loadedPost.meta._yoast_wpseo_title && latestAnalysis.aiAnalysis.suggested?.title) loadedPost.meta._yoast_wpseo_title = latestAnalysis.aiAnalysis.suggested.title;
+                if (!loadedPost.meta._yoast_wpseo_metadesc && latestAnalysis.aiAnalysis.suggested?.metaDescription) loadedPost.meta._yoast_wpseo_metadesc = latestAnalysis.aiAnalysis.suggested.metaDescription;
+                if (!loadedPost.meta._yoast_wpseo_focuskw && latestAnalysis.aiAnalysis.suggested?.focusKeyword) loadedPost.meta._yoast_wpseo_focuskw = latestAnalysis.aiAnalysis.suggested.focusKeyword;
             }
         }
-      } catch (historyError) {
-          console.warn("Could not fetch SEO history for suggestions:", historyError);
-      }
+      } catch (historyError) { console.warn("Could not fetch SEO history for suggestions:", historyError); }
       
       setPost(loadedPost);
       
       if (loadedPost.content && loadedPost.link) {
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = loadedPost.content;
+        const tempDiv = document.createElement('div'); tempDiv.innerHTML = loadedPost.content;
         const siteUrl = new URL(loadedPost.link);
-
         const images = Array.from(tempDiv.querySelectorAll('img')).map((img) => {
-            const originalSrc = img.getAttribute('src');
-            if (!originalSrc) return null;
-
+            const originalSrc = img.getAttribute('src'); if (!originalSrc) return null;
             let displaySrc = originalSrc;
-            if (displaySrc.startsWith('/')) {
-                displaySrc = `${siteUrl.origin}${displaySrc}`;
-            }
-
-            try {
-                new URL(displaySrc);
-                return {
-                    id: originalSrc, 
-                    src: displaySrc,
-                    alt: img.getAttribute('alt') || '',
-                };
-            } catch (e) {
-                return null;
-            }
+            if (displaySrc.startsWith('/')) displaySrc = `${siteUrl.origin}${displaySrc}`;
+            try { new URL(displaySrc); return { id: originalSrc, src: displaySrc, alt: img.getAttribute('alt') || '' }; } 
+            catch (e) { return null; }
         }).filter((img): img is ContentImage => !!img);
-        
         setContentImages(images);
-      } else {
-        setContentImages([]);
-      }
-
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setIsLoading(false);
-    }
+      } else { setContentImages([]); }
+    } catch (e: any) { setError(e.message);
+    } finally { setIsLoading(false); }
   }, [postId, postType, toast]);
 
 
-  useEffect(() => {
-    fetchInitialData();
-  }, [fetchInitialData]);
+  useEffect(() => { fetchInitialData(); }, [fetchInitialData]);
   
   const handleMetaChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!post) return;
     const { name, value } = e.target;
-    setPost(prev => {
-        if (!prev) return null;
-        return {
-            ...prev,
-            meta: {
-                ...prev.meta,
-                [name]: value,
-            },
-        };
-    });
+    setPost(prev => prev ? { ...prev, meta: { ...prev.meta, [name]: value } } : null);
   };
 
   const handleSaveChanges = async () => {
@@ -356,19 +261,10 @@ function EditPageContent() {
 
     try {
         const token = await user.getIdToken();
-        const payload: any = {
-            title: post.title,
-            meta: post.meta,
-            content: post.content,
-        };
-        
+        const payload: any = { title: post.title, meta: post.meta, content: post.content };
         if (applyAiMetaToFeatured && post.featuredMediaId && post.meta._yoast_wpseo_focuskw) {
-             payload.featured_image_metadata = {
-                title: post.title,
-                alt_text: post.meta._yoast_wpseo_focuskw,
-            };
+             payload.featured_image_metadata = { title: post.title, alt_text: post.meta._yoast_wpseo_focuskw };
         }
-
         const apiPath = postType === 'Post' ? `/api/wordpress/posts/${postId}` : `/api/wordpress/pages/${postId}`;
         const response = await fetch(apiPath, {
             method: 'PUT',
@@ -379,9 +275,7 @@ function EditPageContent() {
         toast({ title: '¡Éxito!', description: "Los cambios SEO, incluyendo el contenido y los textos 'alt' de las imágenes, han sido guardados." });
     } catch (e: any) {
         toast({ title: 'Error al Guardar', description: e.message, variant: "destructive" });
-    } finally {
-        setIsSaving(false);
-    }
+    } finally { setIsSaving(false); }
   };
 
 
@@ -392,6 +286,9 @@ function EditPageContent() {
   if (error || !post) {
      return <div className="container mx-auto py-8"><Alert variant="destructive"><AlertTitle>Error al Cargar</AlertTitle><AlertDescription>{error || `No se pudo cargar la información del ${postType || 'contenido'}.`}</AlertDescription></Alert></div>;
   }
+
+  const seoTitle = post.meta?._yoast_wpseo_title || '';
+  const metaDescription = post.meta?._yoast_wpseo_metadesc || '';
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -419,7 +316,6 @@ function EditPageContent() {
             <SeoAnalyzer
                 post={post}
                 setPost={setPost}
-                onMetaChange={handleMetaChange}
                 isLoading={isAiLoading}
                 setIsLoading={setIsAiLoading}
                 contentImages={contentImages}
@@ -429,25 +325,20 @@ function EditPageContent() {
             />
             
             {post.isElementor ? (
-                <Card>
+                 <Card>
                     <CardHeader>
                         <CardTitle>Contenido Gestionado por Elementor</CardTitle>
-                        <CardDescription>
-                            Esta página se edita con Elementor. Para evitar romper el diseño, el contenido debe modificarse desde su editor visual.
-                        </CardDescription>
+                        <CardDescription>Esta página se edita con Elementor. Para evitar romper el diseño, el contenido debe modificarse desde su editor visual.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Alert variant="default">
                             <ExternalLink className="h-4 w-4" />
                             <AlertTitle>Acción Requerida</AlertTitle>
-                            <AlertDescription>
-                                Las mejoras de contenido (como añadir palabras clave) deben hacerse en el editor de Elementor. Puedes optimizar los campos de Yoast SEO y los textos 'alt' de las imágenes aquí.
-                            </AlertDescription>
+                            <AlertDescription>Las mejoras de contenido (como añadir palabras clave) deben hacerse en el editor de Elementor. Puedes optimizar los campos de Yoast SEO y los textos 'alt' de las imágenes aquí.</AlertDescription>
                             {post.elementorEditLink && (
                                 <Button asChild className="mt-4" size="sm">
                                     <Link href={post.elementorEditLink} target="_blank" rel="noopener noreferrer">
-                                        <ExternalLink className="mr-2 h-4 w-4" />
-                                        Abrir con Elementor
+                                        <ExternalLink className="mr-2 h-4 w-4" /> Abrir con Elementor
                                     </Link>
                                 </Button>
                             )}
@@ -458,27 +349,12 @@ function EditPageContent() {
              <Card>
                 <CardHeader>
                     <CardTitle>Contenido Principal</CardTitle>
-                    <CardDescription>
-                        Edita el contenido de la página para añadir palabras clave, mejorar la estructura y aplicar otras sugerencias de SEO.
-                    </CardDescription>
+                    <CardDescription>Edita el contenido de la página para añadir palabras clave, mejorar la estructura y aplicar otras sugerencias de SEO.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Label htmlFor="content">Editor de Contenido</Label>
-                    <ContentToolbar
-                        onInsertTag={handleInsertTag}
-                        onInsertLink={() => openActionDialog('link')}
-                        onInsertImage={() => openActionDialog('image')}
-                        onAlign={handleAlignment}
-                    />
-                    <Textarea
-                        id="content"
-                        ref={contentRef}
-                        value={post.content}
-                        onChange={handleContentChange}
-                        rows={25}
-                        className="rounded-t-none"
-                        placeholder="El contenido de tu página o entrada..."
-                    />
+                    <ContentToolbar onInsertTag={handleInsertTag} onInsertLink={() => openActionDialog('link')} onInsertImage={() => openActionDialog('image')} onAlign={handleAlignment} />
+                    <Textarea id="content" ref={contentRef} value={post.content} onChange={handleContentChange} rows={25} className="rounded-t-none" placeholder="El contenido de tu página o entrada..." />
                 </CardContent>
             </Card>
           )}
@@ -491,27 +367,21 @@ function EditPageContent() {
                   <CardDescription>Modifica los campos que Yoast utiliza para los resultados de búsqueda.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-1">
-                      <Label htmlFor="yoastTitle">Título SEO</Label>
-                      <div className="flex items-center gap-2">
-                         <Input id="yoastTitle" name="_yoast_wpseo_title" value={post.meta._yoast_wpseo_title} onChange={handleMetaChange} className="flex-grow"/>
-                         <Button variant="ghost" size="icon" onClick={() => {}} disabled={isLoading} title="Mejorar con IA">
-                             <Sparkles className="h-4 w-4 text-primary"/>
-                         </Button>
-                      </div>
-                  </div>
-                  <div className="space-y-1">
-                      <Label htmlFor="metaDescription">Meta Descripción</Label>
-                      <div className="flex items-start gap-2">
-                          <Textarea id="metaDescription" name="_yoast_wpseo_metadesc" value={post.meta._yoast_wpseo_metadesc} onChange={handleMetaChange} maxLength={165} rows={3} className="flex-grow"/>
-                          <Button variant="ghost" size="icon" onClick={() => {}} disabled={isLoading} title="Generar con IA">
-                             <Sparkles className="h-4 w-4 text-primary"/>
-                          </Button>
-                      </div>
-                  </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="yoastTitle">Título SEO</Label>
+                        <div className="flex items-center gap-2">
+                           <Input id="yoastTitle" name="_yoast_wpseo_title" value={seoTitle} onChange={handleMetaChange} className="flex-grow"/>
+                        </div>
+                    </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="metaDescription">Meta Descripción</Label>
+                        <div className="flex items-start gap-2">
+                            <Textarea id="metaDescription" name="_yoast_wpseo_metadesc" value={metaDescription} onChange={handleMetaChange} maxLength={165} rows={3} className="flex-grow"/>
+                        </div>
+                    </div>
                 </CardContent>
               </Card>
-              <GoogleSnippetPreview title={post.meta._yoast_wpseo_title} description={post.meta._yoast_wpseo_metadesc} url={post.link || null} />
+              <GoogleSnippetPreview title={seoTitle} description={metaDescription} url={post.link || null} />
           </div>
         </div>
 

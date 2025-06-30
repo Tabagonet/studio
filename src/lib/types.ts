@@ -246,6 +246,12 @@ export interface ContentItem {
   translations?: Record<string, number>;
 }
 
+export interface ContentImage {
+    id: string; // The original `src` attribute, used as a unique key
+    src: string; // The display-ready, absolute URL
+    alt: string;
+}
+
 export interface ContentStats {
     totalPosts: number;
     totalPages: number;
