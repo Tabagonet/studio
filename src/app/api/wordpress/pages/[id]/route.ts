@@ -104,13 +104,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         }, wpApi);
     }
     
-    // Process image alt texts using Cheerio
     if (imageMetas && pagePayload.content) {
         const $ = cheerio.load(pagePayload.content);
         imageMetas.forEach(meta => {
             $(`img[src="${meta.src}"]`).attr('alt', meta.alt);
         });
-        pagePayload.content = $.html();
+        pagePayload.content = $('body').html() || '';
     }
 
     const response = await wpApi.post(`/pages/${pageId}`, pagePayload);

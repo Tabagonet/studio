@@ -113,7 +113,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         imageMetas.forEach(meta => {
             $(`img[src="${meta.src}"]`).attr('alt', meta.alt);
         });
-        postPayload.content = $.html();
+        postPayload.content = $('body').html() || '';
     }
 
     const response = await wpApi.post(`/posts/${postId}`, postPayload);
