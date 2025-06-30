@@ -59,7 +59,12 @@ export async function POST(req: NextRequest) {
 
             const fetchedProducts = [];
             for (const chunk of productChunks) {
-                const { data } = await wooApi.get('products', { include: chunk.join(','), per_page: 100 });
+                // **THE FIX IS HERE**: Added `lang: ''` to fetch products from all languages.
+                const { data } = await wooApi.get('products', { 
+                    include: chunk.join(','), 
+                    per_page: 100,
+                    lang: ''
+                });
                 fetchedProducts.push(...data);
             }
             
@@ -68,7 +73,8 @@ export async function POST(req: NextRequest) {
             }
 
             batchUpdatePayload = fetchedProducts.map((product: any) => {
-                const currentPrice = parseFloat(product[mod.field] || product.price || '0');
+                // More robust price parsing
+                const currentPrice = parseFloat(product[mod.field] || product.price) || 0;
                 let newPrice: number;
 
                 if (mod.operation === 'set') {
