@@ -114,14 +114,14 @@ export function ProductWizard() {
         if (finalProductData.targetLanguages) {
             for (const lang of finalProductData.targetLanguages) {
                 updateStepStatus(`translate_${lang}`, 'processing', undefined, 50);
-                const translationPayload = {
+                const contentToTranslate = {
                     name: finalProductData.name,
                     short_description: finalProductData.shortDescription,
                     long_description: finalProductData.longDescription,
                 };
-                const translateResponse = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ contentToTranslate: translationPayload, targetLanguage: lang }) });
-                if (!translateResponse.ok) throw new Error(`Error traduciendo a ${lang}`);
-                const { content: translatedContent } = await translateResponse.json();
+                const translateResponse = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ contentToTranslate, targetLanguage: lang }) });
+                if (!translateResponse.ok) throw new Error(`Error al traducir a ${lang}`);
+                const translatedContent = (await translateResponse.json()).content;
                 updateStepStatus(`translate_${lang}`, 'success', undefined, 100);
 
                 updateStepStatus(`create_${lang}`, 'processing', undefined, 50);

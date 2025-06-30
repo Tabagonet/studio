@@ -469,9 +469,14 @@ export default function BatchProcessPage() {
             for (const lang of targetLangs) {
                 const stepProgress = 60 + (30 * (langProgress / totalLangSteps));
                 updateProductProcessingStatus(product.id, 'processing', `Traduciendo a ${lang}...`, stepProgress);
+                const contentToTranslate = {
+                    name: originalProductData.name,
+                    short_description: originalProductData.shortDescription,
+                    long_description: originalProductData.longDescription,
+                };
                 const translateResponse = await fetch('/api/translate', { 
                     method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
-                    body: JSON.stringify({ content: { name: originalProductData.name, short_description: originalProductData.shortDescription, long_description: originalProductData.longDescription }, targetLanguage: lang })
+                    body: JSON.stringify({ contentToTranslate, targetLanguage: lang })
                 });
                 if (!translateResponse.ok) throw new Error(`Error al traducir a ${lang}`);
                 const translatedContent = (await translateResponse.json()).content;
