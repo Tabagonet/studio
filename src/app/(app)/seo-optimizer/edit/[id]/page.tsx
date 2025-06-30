@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback, useRef } from 'react';
@@ -15,15 +16,16 @@ import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { SeoAnalyzer } from '@/components/features/blog/seo-analyzer';
-import { ContentImage } from '@/lib/types';
+import { ContentImage, ExtractedWidget } from '@/lib/types';
 import { ContentToolbar } from '@/components/features/editor/content-toolbar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
 import { GoogleSnippetPreview } from '@/components/features/blog/google-snippet-preview';
+import { Badge } from '@/components/ui/badge';
 
 
 interface PostEditState {
   title: string;
-  content: string; 
+  content: string | ExtractedWidget[]; 
   meta: {
       _yoast_wpseo_title: string;
       _yoast_wpseo_metadesc: string;
@@ -73,7 +75,7 @@ function EditPageContent() {
   
   const handleInsertTag = (tag: 'h2' | 'ul' | 'ol' | 'strong' | 'em') => {
     const textarea = contentRef.current;
-    if (!textarea || !post) return;
+    if (!textarea || !post || typeof post.content !== 'string') return;
     
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
@@ -92,7 +94,7 @@ function EditPageContent() {
 
   const handleAlignment = (align: 'left' | 'center' | 'right' | 'justify') => {
     const textarea = contentRef.current;
-    if (!textarea || !post) return;
+    if (!textarea || !post || typeof post.content !== 'string') return;
 
     const { selectionStart, selectionEnd, value: fullText } = textarea;
     const lineStart = fullText.lastIndexOf('\n', selectionStart - 1) + 1;
@@ -144,7 +146,7 @@ function EditPageContent() {
   const handleInsertLink = () => {
       const textarea = contentRef.current;
       const selection = selectionRef.current;
-      if (!textarea || !selection || !linkUrl || !post) return;
+      if (!textarea || !selection || !linkUrl || !post || typeof post.content !== 'string') return;
       const { start, end } = selection;
       const selectedText = textarea.value.substring(start, end);
       if (!selectedText) {
@@ -178,7 +180,7 @@ function EditPageContent() {
       }
       const textarea = contentRef.current;
       const selection = selectionRef.current;
-      if (!textarea || !selection || !post) return;
+      if (!textarea || !selection || !post || typeof post.content !== 'string') return;
       const { start } = selection;
       const newText = `${textarea.value.substring(0, start)}\n<img src="${finalImageUrl}" alt="${post.title || 'Imagen insertada'}" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px;" />\n${textarea.value.substring(start)}`;
       setPost({ ...post, content: newText });
@@ -200,7 +202,7 @@ function EditPageContent() {
       const postData = await postResponse.json();
       
       const loadedPost: PostEditState = {
-        title: postData.title.rendered || '', content: postData.content.rendered || '',
+        title: postData.title.rendered || '', content: postData.content.rendered,
         meta: {
             _yoast_wpseo_title: (typeof postData.meta?._yoast_wpseo_title === 'string') ? postData.meta._yoast_wpseo_title : '',
             _yoast_wpseo_metadesc: postData.meta?._yoast_wpseo_metadesc || '',
@@ -226,7 +228,7 @@ function EditPageContent() {
       
       setPost(loadedPost);
       
-      if (loadedPost.content && loadedPost.link) {
+      if (typeof loadedPost.content === 'string' && loadedPost.link) {
         const tempDiv = document.createElement('div'); tempDiv.innerHTML = loadedPost.content;
         const siteUrl = new URL(loadedPost.link);
         const images = Array.from(tempDiv.querySelectorAll('img')).map((img) => {
@@ -261,7 +263,12 @@ function EditPageContent() {
 
     try {
         const token = await user.getIdToken();
-        const payload: any = { title: post.title, meta: post.meta, content: post.content };
+        const payload: any = { title: post.title, meta: post.meta };
+
+        if (typeof post.content === 'string') {
+            payload.content = post.content;
+        }
+        
         if (applyAiMetaToFeatured && post.featuredMediaId && post.meta._yoast_wpseo_focuskw) {
              payload.featured_image_metadata = { title: post.title, alt_text: post.meta._yoast_wpseo_focuskw };
         }
@@ -287,6 +294,7 @@ function EditPageContent() {
      return <div className="container mx-auto py-8"><Alert variant="destructive"><AlertTitle>Error al Cargar</AlertTitle><AlertDescription>{error || `No se pudo cargar la información del ${postType || 'contenido'}.`}</AlertDescription></Alert></div>;
   }
 
+  const isElementorContent = Array.isArray(post.content);
   const seoTitle = post.meta?._yoast_wpseo_title || '';
   const metaDescription = post.meta?._yoast_wpseo_metadesc || '';
 
@@ -324,25 +332,32 @@ function EditPageContent() {
                 setApplyAiMetaToFeatured={setApplyAiMetaToFeatured}
             />
             
-            {post.isElementor ? (
-                 <Card>
+            {isElementorContent ? (
+                <Card>
                     <CardHeader>
-                        <CardTitle>Contenido Gestionado por Elementor</CardTitle>
-                        <CardDescription>Esta página se edita con Elementor. Para evitar romper el diseño, el contenido debe modificarse desde su editor visual.</CardDescription>
+                        <CardTitle>Contenido de Elementor (Vista de Análisis)</CardTitle>
+                        <CardDescription>A continuación se muestra un desglose de los encabezados de tu página. Para editar el texto, debes usar el editor de Elementor.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <Alert variant="default">
-                            <ExternalLink className="h-4 w-4" />
-                            <AlertTitle>Acción Requerida</AlertTitle>
-                            <AlertDescription>Las mejoras de contenido (como añadir palabras clave) deben hacerse en el editor de Elementor. Puedes optimizar los campos de Yoast SEO y los textos 'alt' de las imágenes aquí.</AlertDescription>
-                            {post.elementorEditLink && (
-                                <Button asChild className="mt-4" size="sm">
-                                    <Link href={post.elementorEditLink} target="_blank" rel="noopener noreferrer">
-                                        <ExternalLink className="mr-2 h-4 w-4" /> Abrir con Elementor
-                                    </Link>
-                                </Button>
-                            )}
-                        </Alert>
+                        {post.elementorEditLink && (
+                           <Button asChild className="mb-4">
+                                <Link href={post.elementorEditLink} target="_blank" rel="noopener noreferrer">
+                                    <ExternalLink className="mr-2 h-4 w-4" />
+                                    Abrir con Elementor
+                                </Link>
+                            </Button>
+                        )}
+                        <div className="space-y-3 rounded-md border p-4 max-h-96 overflow-y-auto">
+                            {(post.content as ExtractedWidget[]).length > 0 ? 
+                                (post.content as ExtractedWidget[]).map(widget => (
+                                    <div key={widget.id} className="flex items-start gap-3">
+                                        <Badge variant="secondary" className="font-bold mt-1">{widget.tag?.toUpperCase()}</Badge>
+                                        <p className="text-muted-foreground">{widget.text}</p>
+                                    </div>
+                                ))
+                                : <p className="text-sm text-muted-foreground text-center">No se encontraron encabezados en el contenido de Elementor.</p>
+                            }
+                        </div>
                     </CardContent>
                 </Card>
             ) : (
@@ -354,7 +369,7 @@ function EditPageContent() {
                 <CardContent>
                     <Label htmlFor="content">Editor de Contenido</Label>
                     <ContentToolbar onInsertTag={handleInsertTag} onInsertLink={() => openActionDialog('link')} onInsertImage={() => openActionDialog('image')} onAlign={handleAlignment} />
-                    <Textarea id="content" ref={contentRef} value={post.content} onChange={handleContentChange} rows={25} className="rounded-t-none" placeholder="El contenido de tu página o entrada..." />
+                    <Textarea id="content" ref={contentRef} value={post.content as string} onChange={handleContentChange} rows={25} className="rounded-t-none" placeholder="El contenido de tu página o entrada..." />
                 </CardContent>
             </Card>
           )}

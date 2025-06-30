@@ -252,6 +252,13 @@ export interface ContentImage {
     alt: string;
 }
 
+export interface ExtractedWidget {
+    id: string;
+    type: 'heading' | 'text-editor' | 'other';
+    tag?: string; // h1, h2, p, etc.
+    text: string;
+}
+
 export interface ContentStats {
     totalPosts: number;
     totalPages: number;

@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import axios from 'axios';
 import FormData from 'form-data';
+import type { ExtractedWidget } from './types';
 
 
 // --- Schemas for AI Content Generation ---
@@ -86,6 +87,38 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
 // This function is kept to avoid breaking any potential remaining imports but should not be used.
 export async function generateProductContent() {
     throw new Error("generateProductContent is deprecated. Please use the generateProductFlow from /src/ai/flows/generate-product-flow.ts");
+}
+
+function extractHeadingsRecursive(elements: any[], widgets: ExtractedWidget[]): void {
+    if (!elements || !Array.isArray(elements)) return;
+
+    for (const element of elements) {
+        if (element.elType === 'widget' && element.widgetType === 'heading' && element.settings?.title) {
+            widgets.push({
+                id: element.id,
+                tag: element.settings.header_size || 'h2',
+                text: element.settings.title,
+                type: 'heading', // Added for clarity on the frontend
+            });
+        }
+        
+        if (element.elements && element.elements.length > 0) {
+            extractHeadingsRecursive(element.elements, widgets);
+        }
+    }
+}
+
+export function extractElementorHeadings(elementorDataString: string): ExtractedWidget[] {
+    try {
+        const widgets: ExtractedWidget[] = [];
+        if (!elementorDataString) return widgets;
+        const elementorData = JSON.parse(elementorDataString);
+        extractHeadingsRecursive(elementorData, widgets);
+        return widgets;
+    } catch (e) {
+        console.error("Failed to parse or extract Elementor headings", e);
+        return [];
+    }
 }
 
 

@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress, extractElementorHeadings } from '@/lib/api-helpers';
 import { z } from 'zod';
 
 const slugify = (text: string) => {
@@ -50,6 +50,13 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     
     const contentIsJsonArray = (pageData.content?.rendered || '').trim().startsWith('[');
     const isElementor = !!pageData.meta?._elementor_version || contentIsJsonArray;
+    
+    let finalContent;
+    if (isElementor && pageData.meta?._elementor_data) {
+        finalContent = extractElementorHeadings(pageData.meta._elementor_data);
+    } else {
+        finalContent = pageData.content?.rendered || '';
+    }
 
     const adminUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '/wp-admin/');
     const elementorEditLink = isElementor ? `${adminUrl}post.php?post=${pageId}&action=elementor` : null;
@@ -57,6 +64,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
     const transformed = {
       ...pageData,
+      content: { ...pageData.content, rendered: finalContent },
       featured_image_url: pageData._embedded?.['wp:featuredmedia']?.[0]?.source_url || null,
       featured_media: pageData.featured_media,
       isElementor,

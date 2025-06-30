@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress, findOrCreateTags } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress, findOrCreateTags, extractElementorHeadings } from '@/lib/api-helpers';
 import { z } from 'zod';
 
 const slugify = (text: string) => {
@@ -56,9 +56,16 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const elementorEditLink = isElementor ? `${adminUrl}post.php?post=${postId}&action=elementor` : null;
     const adminEditLink = `${adminUrl}post.php?post=${postId}&action=edit`;
 
+    let finalContent;
+    if (isElementor && postData.meta?._elementor_data) {
+        finalContent = extractElementorHeadings(postData.meta._elementor_data);
+    } else {
+        finalContent = postData.content?.rendered || '';
+    }
 
     const transformed = {
       ...postData,
+      content: { ...postData.content, rendered: finalContent },
       featured_image_url: postData._embedded?.['wp:featuredmedia']?.[0]?.source_url || null,
       featured_media: postData.featured_media,
       isElementor,
@@ -167,5 +174,3 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     return NextResponse.json({ error: errorMessage }, { status });
   }
 }
-
-    
