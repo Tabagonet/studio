@@ -51,7 +51,7 @@ async function getPageContentFromApi(postId: number, postType: 'Post' | 'Page', 
     $('script, style').remove();
     
     return {
-        title: rawData.title?.rendered || '',
+        title: rawData.meta?._yoast_wpseo_title || rawData.title?.rendered || '',
         metaDescription: rawData.meta?._yoast_wpseo_metadesc || '',
         h1: $('h1').first().text(),
         headings: $('h1, h2, h3, h4, h5, h6').map((i, el) => ({
