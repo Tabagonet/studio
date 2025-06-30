@@ -194,7 +194,7 @@ export async function POST(req: NextRequest) {
     - "metaDescription": Sugiere una "Meta Descripción" mejorada.
     - "focusKeyword": Sugiere la "Palabra Clave Principal" más apropiada para el contenido.
   `;
-
+  
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
 
