@@ -1,8 +1,8 @@
 'use server';
 
 // Use require for CJS/ESM interop issues in Next.js server environments
-const { genkit } = require('@genkit-ai/core');
-const { googleAI: googleAIPlugin } = require('@genkit-ai/googleai');
+const { initGenkit } = require('@genkit-ai/core');
+const googleAIPlugin = require('@genkit-ai/googleai');
 const { initializeApp, getApps } = require('firebase-admin/app');
 
 // Handle potential .default on the plugin
@@ -14,10 +14,12 @@ if (getApps().length === 0) {
   initializeApp();
 }
 
-// Configure and export the Genkit AI object.
-// This instance will be imported by all flows.
-export const ai = genkit({
-  plugins: [googleAI()],
+// Initialize Genkit with the Google AI plugin.
+// This file is now only imported for its side effect of initializing Genkit.
+initGenkit({
+  plugins: [
+    googleAI(),
+  ],
   logLevel: 'debug',
   enableTracingAndMetrics: true,
 });

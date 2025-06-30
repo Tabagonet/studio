@@ -2,11 +2,12 @@
 /**
  * @fileOverview An AI flow to interpret SEO analysis data.
  *
- * - interpretSeoAnalysis - A function that takes raw SEO data and provides expert interpretation and an action plan.
+ * - interpretationFlow - A function that takes raw SEO data and provides expert interpretation and an action plan.
  * - SeoAnalysisInput - The input type for the flow.
  * - SeoInterpretationOutput - The return type for the flow.
  */
-import { ai } from '@/ai/genkit';
+import { defineFlow, generate } from '@genkit-ai/core';
+import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'zod';
 
 const aiChecksSchema = z.object({
@@ -63,13 +64,7 @@ export type SeoInterpretationOutput = z.infer<
   typeof SeoInterpretationOutputSchema
 >;
 
-export async function interpretSeoAnalysis(
-  input: SeoAnalysisInput
-): Promise<SeoInterpretationOutput> {
-  return await interpretationFlow(input);
-}
-
-const interpretationFlow = ai.defineFlow(
+export const interpretationFlow = defineFlow(
   {
     name: 'interpretSeoAnalysisFlow',
     inputSchema: SeoAnalysisInputSchema,
@@ -78,8 +73,8 @@ const interpretationFlow = ai.defineFlow(
   async (input) => {
     const checksSummary = JSON.stringify(input.aiAnalysis.checks, null, 2);
     
-    const {output} = await ai.generate({
-      model: 'googleai/gemini-1.5-flash-latest',
+    const {output} = await generate({
+      model: googleAI('gemini-1.5-flash-latest'),
       output: {
         format: 'json',
         schema: SeoInterpretationOutputSchema,

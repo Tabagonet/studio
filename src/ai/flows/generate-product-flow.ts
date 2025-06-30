@@ -2,12 +2,13 @@
 /**
  * @fileOverview A flow for generating all AI content for a new product.
  *
- * - generateProduct - Handles the product content generation process.
+ * - generateProductFlow - Handles the product content generation process.
  * - GenerateProductInputSchema - The input type for the flow.
  * - GenerateProductOutputSchema - The return type for the flow.
  */
 import {z} from 'zod';
-import {ai} from '@/ai/genkit';
+import { defineFlow, generate } from '@genkit-ai/core';
+import { googleAI } from '@genkit-ai/googleai';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 
 export const GenerateProductInputSchema = z.object({
@@ -55,18 +56,8 @@ export const GenerateProductOutputSchema = z.object({
 });
 export type GenerateProductOutput = z.infer<typeof GenerateProductOutputSchema>;
 
-// Exported wrapper function
-export async function generateProduct(input: GenerateProductInput): Promise<GenerateProductOutput> {
-  return generateProductFlow(input);
-}
 
-
-const generateProductPrompt = ai.definePrompt(
-  {
-    name: 'generateProductPrompt',
-    input: { schema: GenerateProductInputSchema.extend({ groupedProductsList: z.string() }) },
-    output: { schema: GenerateProductOutputSchema },
-    prompt: `You are an expert e-commerce copywriter and SEO specialist.
+const generateProductPrompt = `You are an expert e-commerce copywriter and SEO specialist.
     Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
     The response must be a single, valid JSON object that conforms to the output schema. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
 
@@ -78,12 +69,10 @@ const generateProductPrompt = ai.definePrompt(
     - **Contained Products (for "Grouped" type only):**
     {{{groupedProductsList}}}
 
-    Generate the complete JSON object based on your research of "{{productName}}".`,
-  },
-);
+    Generate the complete JSON object based on your research of "{{productName}}".`;
 
 
-const generateProductFlow = ai.defineFlow(
+export const generateProductFlow = defineFlow(
   {
     name: 'generateProductFlow',
     inputSchema: GenerateProductInputSchema,
@@ -124,8 +113,14 @@ const generateProductFlow = ai.defineFlow(
         groupedProductsList = 'Error fetching product details.';
       }
     }
+    
+    const { output } = await generate({
+        model: googleAI('gemini-1.5-flash-latest'),
+        prompt: generateProductPrompt,
+        input: { ...input, groupedProductsList },
+        output: { schema: GenerateProductOutputSchema }
+    });
 
-    const { output } = await generateProductPrompt({ ...input, groupedProductsList });
     if (!output) {
       throw new Error('AI returned an empty response.');
     }

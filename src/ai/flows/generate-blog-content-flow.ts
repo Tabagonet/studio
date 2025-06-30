@@ -2,12 +2,13 @@
 /**
  * @fileOverview An AI flow for generating and enhancing blog post content.
  *
- * - generateBlogContent - Handles various blog content generation modes.
+ * - generateBlogContentFlow - Handles various blog content generation modes.
  * - BlogContentInputSchema - The Zod schema for the flow's input.
  * - BlogContentOutputSchema - The Zod schema for the flow's output.
  */
 import { z } from 'zod';
-import { ai } from '@/ai/genkit';
+import { defineFlow, generate } from '@genkit-ai/core';
+import { googleAI } from '@genkit-ai/googleai';
 import Handlebars from 'handlebars';
 
 export const BlogContentInputSchema = z.object({
@@ -42,12 +43,7 @@ export const BlogContentOutputSchema = z.object({
 });
 export type BlogContentOutput = z.infer<typeof BlogContentOutputSchema>;
 
-// Exported wrapper function
-export async function generateBlogContent(input: BlogContentInput): Promise<BlogContentOutput> {
-  return generateBlogContentFlow(input);
-}
-
-const generateBlogContentFlow = ai.defineFlow(
+export const generateBlogContentFlow = defineFlow(
   {
     name: 'blogContentFlow',
     inputSchema: BlogContentInputSchema,
@@ -161,8 +157,8 @@ const generateBlogContentFlow = ai.defineFlow(
     const template = Handlebars.compile(userPromptTemplate, {noEscape: true});
     const finalPrompt = template(modelInput);
     
-    const { output } = await ai.generate({
-      model: 'googleai/gemini-1.5-flash-latest',
+    const { output } = await generate({
+      model: googleAI('gemini-1.5-flash-latest'),
       system: systemInstruction,
       prompt: finalPrompt,
       output: {

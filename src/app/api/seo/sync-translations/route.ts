@@ -1,9 +1,10 @@
-
+import '@/ai/genkit';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import { z } from 'zod';
-import { translateContent } from '@/ai/flows/translate-content-flow';
+import { runFlow } from '@genkit-ai/core';
+import { translateContentFlow } from '@/ai/flows/translate-content-flow';
 
 
 const syncSchema = z.object({
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
                 let translatedFocusKeyword: string | undefined;
 
                 if (Object.keys(contentToTranslate).length > 0) {
-                    const translatedResult = await translateContent({
+                    const translatedResult = await runFlow(translateContentFlow, {
                         contentToTranslate,
                         targetLanguage: lang,
                     });

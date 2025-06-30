@@ -2,13 +2,14 @@
 /**
  * @fileOverview A centralized flow for translating structured content using Genkit.
  *
- * - translateContent - Handles translating a record of strings to a target language.
+ * - translateContentFlow - Handles translating a record of strings to a target language.
  * - TranslateContentInputSchema - The Zod schema for the flow's input.
  * - TranslateContentOutputSchema - The Zod schema for the flow's output.
  */
 
 import { z } from 'zod';
-import { ai } from '@/ai/genkit';
+import { defineFlow, generate } from '@genkit-ai/core';
+import { googleAI } from '@genkit-ai/googleai';
 
 // Schema for the translation input
 export const TranslateContentInputSchema = z.object({
@@ -23,13 +24,7 @@ export type TranslateContentOutput = z.infer<
   typeof TranslateContentOutputSchema
 >;
 
-// Exported wrapper function
-export async function translateContent(input: TranslateContentInput): Promise<TranslateContentOutput> {
-  return translateContentFlow(input);
-}
-
-
-const translateContentFlow = ai.defineFlow(
+export const translateContentFlow = defineFlow(
   {
     name: 'translateContentFlow',
     inputSchema: TranslateContentInputSchema,
@@ -43,8 +38,8 @@ const translateContentFlow = ai.defineFlow(
       contentToTranslate
     )}`;
 
-    const { output } = await ai.generate({
-      model: 'googleai/gemini-1.5-flash-latest',
+    const { output } = await generate({
+      model: googleAI('gemini-1.5-flash-latest'),
       system: systemInstruction,
       prompt: prompt,
       output: {

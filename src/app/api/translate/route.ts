@@ -1,12 +1,11 @@
 'use server';
-import '@/ai/genkit'; // This ensures Genkit is initialized
+import '@/ai/genkit';
 import { runFlow } from '@genkit-ai/core';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import {
   translateContentFlow,
-  TranslateContentInputSchema,
 } from '@/ai/flows/translate-content-flow';
 
 export async function POST(req: NextRequest) {
@@ -27,7 +26,6 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // The API route receives a different shape, just the content and lang
     const apiSchema = z.object({
         content: z.record(z.string()),
         targetLanguage: z.string(),
@@ -40,8 +38,8 @@ export async function POST(req: NextRequest) {
             {status: 400}
         );
     }
-
-    // Construct the input for the flow
+    
+    // The API route receives the content directly, not the full flow input schema
     const flowInput = {
         contentToTranslate: apiValidation.data.content,
         targetLanguage: apiValidation.data.targetLanguage
@@ -50,7 +48,7 @@ export async function POST(req: NextRequest) {
     const output = await runFlow(translateContentFlow, flowInput);
 
     // The flow already handles errors, so we just return the output
-    return NextResponse.json(output);
+    return NextResponse.json({ content: output });
   } catch (error: any) {
     console.error('Error in translation API:', error);
     return NextResponse.json(
