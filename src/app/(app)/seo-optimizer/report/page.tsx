@@ -34,6 +34,9 @@ function ReportContent() {
     const fetchAnalysis = async () => {
       setIsLoading(true);
       setError(null);
+      setAnalysisRecord(null);
+      setInterpretation(null);
+      
       const user = auth.currentUser;
       if (!user) {
         setError('Autenticación requerida.');
@@ -52,14 +55,13 @@ function ReportContent() {
         }
         
         const record: SeoAnalysisRecord = await response.json();
+        if (!record.analysis) {
+             throw new Error("Los datos del análisis en el registro están corruptos o incompletos.");
+        }
         setAnalysisRecord(record);
         
-        if (record.analysis) {
-            const interpretationResult = await interpretSeoAnalysis(record.analysis);
-            setInterpretation(interpretationResult);
-        } else {
-            throw new Error("Los datos del análisis están incompletos en el registro.");
-        }
+        const interpretationResult = await interpretSeoAnalysis(record.analysis);
+        setInterpretation(interpretationResult);
 
       } catch (e: any) {
         setError(e.message);
@@ -82,16 +84,16 @@ function ReportContent() {
   }
 
   if (error) {
-    return <Alert variant="destructive"><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>;
+    return <Alert variant="destructive"><AlertTitle>Error al cargar el informe</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>;
   }
 
-  if (!analysisRecord || !analysisRecord.analysis) {
-    return <Alert>No se encontraron datos de análisis válidos.</Alert>;
+  if (!analysisRecord || !interpretation) {
+    return <Alert>No se encontraron datos de análisis válidos para generar el informe.</Alert>;
   }
 
   const { analysis } = analysisRecord;
-  const scoreColor = analysis.aiAnalysis?.score >= 80 ? 'text-green-500' : analysis.aiAnalysis?.score >= 50 ? 'text-amber-500' : 'text-destructive';
-  const imagesWithoutAlt = analysis.images?.filter(img => !img.alt).length || 0;
+  const scoreColor = analysis.aiAnalysis.score >= 80 ? 'text-green-500' : analysis.aiAnalysis.score >= 50 ? 'text-amber-500' : 'text-destructive';
+  const imagesWithoutAlt = analysis.images.filter(img => !img.alt).length;
 
   return (
     <div className="report-container bg-background text-foreground font-sans">
@@ -112,17 +114,11 @@ function ReportContent() {
             <CardContent className="flex flex-col md:flex-row items-center justify-around gap-8 pt-8">
               <div className="text-center">
                 <p className="text-xl text-muted-foreground font-semibold">Puntuación Global</p>
-                <p className={`text-8xl font-bold ${scoreColor}`}>{analysis.aiAnalysis?.score ?? '?'}<span className="text-4xl">/100</span></p>
+                <p className={`text-8xl font-bold ${scoreColor}`}>{analysis.aiAnalysis.score}<span className="text-4xl">/100</span></p>
               </div>
               <div className="max-w-xl">
-                 {interpretation ? (
-                  <>
-                    <h3 className="text-xl font-semibold mb-2 flex items-center gap-2"><BrainCircuit className="h-6 w-6 text-primary" /> Interpretación del Experto IA</h3>
-                    <p className="text-base text-muted-foreground italic">"{interpretation.interpretation}"</p>
-                  </>
-                 ) : (
-                    <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Cargando interpretación...</div>
-                 )}
+                <h3 className="text-xl font-semibold mb-2 flex items-center gap-2"><BrainCircuit className="h-6 w-6 text-primary" /> Interpretación del Experto IA</h3>
+                <p className="text-base text-muted-foreground italic">"{interpretation.interpretation}"</p>
               </div>
             </CardContent>
           </Card>
@@ -133,15 +129,11 @@ function ReportContent() {
                 <CardDescription>Estos son los pasos más importantes para mejorar el SEO de esta página.</CardDescription>
              </CardHeader>
              <CardContent>
-                {interpretation?.actionPlan ? (
-                  <ul className="list-decimal list-inside space-y-4 text-lg">
-                      {interpretation.actionPlan.map((action, i) => (
-                          <li key={i} className="pl-2">{action}</li>
-                      ))}
-                  </ul>
-                ) : (
-                   <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Cargando plan de acción...</div>
-                )}
+                <ul className="list-decimal list-inside space-y-4 text-lg">
+                    {interpretation.actionPlan.map((action, i) => (
+                        <li key={i} className="pl-2">{action}</li>
+                    ))}
+                </ul>
              </CardContent>
            </Card>
         </section>
@@ -187,23 +179,11 @@ function ReportContent() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card className="border-green-500/50">
                   <CardHeader><CardTitle className="text-lg text-green-600">Puntos Fuertes</CardTitle></CardHeader>
-                  <CardContent>
-                    {interpretation?.positives ? (
-                        <ul className="list-disc list-inside space-y-2">{interpretation.positives.map((item, i) => <li key={i}>{item}</li>)}</ul>
-                    ) : (
-                        <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Cargando...</div>
-                    )}
-                  </CardContent>
+                  <CardContent><ul className="list-disc list-inside space-y-2">{interpretation.positives.map((item, i) => <li key={i}>{item}</li>)}</ul></CardContent>
               </Card>
                <Card className="border-amber-500/50">
                   <CardHeader><CardTitle className="text-lg text-amber-600">Áreas de Mejora</CardTitle></CardHeader>
-                  <CardContent>
-                    {interpretation?.improvements ? (
-                        <ul className="list-disc list-inside space-y-2">{interpretation.improvements.map((item, i) => <li key={i}>{item}</li>)}</ul>
-                    ) : (
-                        <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Cargando...</div>
-                    )}
-                  </CardContent>
+                  <CardContent><ul className="list-disc list-inside space-y-2">{interpretation.improvements.map((item, i) => <li key={i}>{item}</li>)}</ul></CardContent>
               </Card>
           </div>
         </section>
