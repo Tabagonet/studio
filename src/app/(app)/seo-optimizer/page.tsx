@@ -377,8 +377,8 @@ export default function SeoOptimizerPage() {
                 {isLoadingAnalysis && (
                      <div className="flex flex-col items-center justify-center text-center p-12 border border-dashed rounded-lg">
                         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                        <p className="text-lg font-semibold text-muted-foreground">Analizando {selectedPage.title}...</p>
-                        <p className="text-sm text-muted-foreground">Estamos leyendo el contenido y consultando a la IA.</p>
+                        <p className="text-lg font-semibold text-muted-foreground">Cargando informe para {selectedPage.title}...</p>
+                        <p className="text-sm text-muted-foreground">Por favor, espera un momento.</p>
                     </div>
                 )}
                 {analysis && !isLoadingAnalysis && (

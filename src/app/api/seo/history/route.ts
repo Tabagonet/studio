@@ -24,13 +24,27 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'El parámetro URL es obligatorio.' }, { status: 400 });
     }
 
+    // Helper function to normalize URLs for robust comparison
+    const normalizeUrl = (u: string): string => {
+        try {
+            // Using URL constructor is safer for complex URLs
+            const parsed = new URL(u);
+            return `${parsed.hostname}${parsed.pathname.replace(/\/$/, '')}`;
+        } catch (e) {
+            // Fallback for simple strings that might not have a protocol
+            return u.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/$/, '');
+        }
+    };
+
+    const normalizedRequestUrl = normalizeUrl(url);
+
     try {
-        // More robust query: Fetch all documents for the user.
+        // Querying all and filtering in-memory is necessary if we can't guarantee
+        // the stored URL format is consistent for an indexed query.
         const userAnalysesSnapshot = await adminDb.collection('seo_analyses')
             .where('userId', '==', uid)
             .get();
         
-        // Filter in-memory by the requested URL.
         const allHistoryForUser = userAnalysesSnapshot.docs.map(doc => {
             const data = doc.data();
             if (!data || !data.createdAt || typeof data.createdAt.toDate !== 'function') {
@@ -43,12 +57,13 @@ export async function GET(req: NextRequest) {
             };
         }).filter(Boolean as any as (value: any) => value is NonNullable<any>);
 
-        const historyForUrl = allHistoryForUser.filter(record => record.url === url);
+        // Filter using the normalized URLs
+        const historyForUrl = allHistoryForUser.filter(record => {
+            return normalizeUrl(record.url) === normalizedRequestUrl;
+        });
         
-        // Sort by date descending
         historyForUrl.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         
-        // Limit results after sorting
         const limitedHistory = historyForUrl.slice(0, 10);
 
         return NextResponse.json({ history: limitedHistory });
