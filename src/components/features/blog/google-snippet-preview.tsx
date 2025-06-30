@@ -2,6 +2,7 @@
 "use client";
 
 import React from 'react';
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { APP_NAME } from '@/lib/constants';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 interface GoogleSnippetPreviewProps {
   title: string;
   description: string;
-  url: string;
+  url: string | null;
 }
 
 const TITLE_MAX_LENGTH = 60;
@@ -31,7 +32,18 @@ const LengthIndicator = ({ value, maxValue }: { value: number, maxValue: number 
 };
 
 export function GoogleSnippetPreview({ title, description, url }: GoogleSnippetPreviewProps) {
-  const displayUrl = url ? `${url.replace(/^(https?:\/\/)/, '')}` : `www.${APP_NAME.toLowerCase().replace(/\s/g, '')}.com > blog > mi-entrada`;
+  let displayUrl = `www.${APP_NAME.toLowerCase().replace(/\s/g, '')}.com > blog > mi-entrada`;
+  let faviconUrl = `https://placehold.co/32x32.png`;
+
+  if (url) {
+    try {
+      const parsedUrl = new URL(url);
+      displayUrl = parsedUrl.hostname + parsedUrl.pathname.replace(/\/$/, '');
+      faviconUrl = `https://www.google.com/s2/favicons?sz=64&domain_url=${parsedUrl.hostname}`;
+    } catch (e) {
+      console.warn("Invalid URL for snippet preview:", url);
+    }
+  }
 
   return (
     <Card>
@@ -41,10 +53,10 @@ export function GoogleSnippetPreview({ title, description, url }: GoogleSnippetP
       <CardContent>
         <div className="p-4 rounded-md shadow-sm bg-background border">
             <div className="flex items-center gap-2">
-                <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-xs font-bold">{APP_NAME.charAt(0)}</div>
+                <Image src={faviconUrl} alt="Favicon" width={24} height={24} className="h-6 w-6" />
                 <div>
                     <p className="text-sm font-semibold">{APP_NAME}</p>
-                    <p className="text-xs text-muted-foreground">{displayUrl.split(' > ')[0]}</p>
+                    <p className="text-xs text-muted-foreground truncate">{displayUrl}</p>
                 </div>
             </div>
             <h3 className="text-blue-700 text-lg hover:underline truncate mt-2">

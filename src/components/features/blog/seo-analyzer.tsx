@@ -3,7 +3,7 @@
 "use client";
 
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import { CheckCircle, XCircle, Edit, Loader2, Sparkles } from 'lucide-react';
+import { CheckCircle, XCircle, Edit, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,24 +13,26 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { GoogleSnippetPreview } from './google-snippet-preview';
+import { Loader2 } from 'lucide-react';
 
 // Define the shape of the post object this component expects
 interface SeoAnalyzerPost {
   title: string;
-  content: string;
+  content: string; 
   meta: {
-    _yoast_wpseo_metadesc: string;
-    _yoast_wpseo_focuskw: string;
+      _yoast_wpseo_metadesc: string;
+      _yoast_wpseo_focuskw: string;
   };
   isElementor: boolean;
   elementorEditLink: string | null;
+  adminEditLink?: string | null;
+  link?: string;
 }
+
 
 interface SeoAnalyzerProps {
   post: SeoAnalyzerPost | null;
   setPost: React.Dispatch<React.SetStateAction<SeoAnalyzerPost | null>>;
-  postId: number;
-  postType: 'Post' | 'Page';
   isLoading: boolean;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
 }
@@ -41,10 +43,10 @@ interface SeoCheck {
   text: React.ReactNode;
   fixable?: boolean;
   aiMode?: 'enhance_title' | 'generate_meta_description';
-  editLink?: string;
+  editLink?: string | null;
 }
 
-const CheckItem = ({ check, onFix, isAiLoading }: { check: SeoCheck, onFix: (mode: SeoCheck['aiMode'], editLink?: string) => void; isAiLoading: boolean; }) => {
+const CheckItem = ({ check, onFix, isAiLoading }: { check: SeoCheck, onFix: (mode: SeoCheck['aiMode'], editLink?: string | null) => void; isAiLoading: boolean; }) => {
   const Icon = check.pass ? CheckCircle : XCircle;
   const color = check.pass ? 'text-green-600' : 'text-amber-600';
 
@@ -56,7 +58,8 @@ const CheckItem = ({ check, onFix, isAiLoading }: { check: SeoCheck, onFix: (mod
       </div>
       {!check.pass && check.fixable && (
          <Button size="sm" variant="outline" onClick={() => onFix(check.aiMode, check.editLink)} disabled={isAiLoading}>
-           {check.aiMode ? <Sparkles className="mr-2 h-4 w-4" /> : <Edit className="mr-2 h-4 w-4" />}
+           {isAiLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+           {!isAiLoading && (check.aiMode ? <Sparkles className="mr-2 h-4 w-4" /> : <Edit className="mr-2 h-4 w-4" />)}
            Arreglar
          </Button>
       )}
@@ -64,7 +67,7 @@ const CheckItem = ({ check, onFix, isAiLoading }: { check: SeoCheck, onFix: (mod
   );
 };
 
-export function SeoAnalyzer({ post, setPost, postId, postType, isLoading, setIsLoading }: SeoAnalyzerProps) {
+export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnalyzerProps) {
   const [isAiLoading, setIsAiLoadingState] = useState(false);
   const { toast } = useToast();
   const hasTriggeredAutoKeyword = React.useRef(false);
@@ -86,7 +89,7 @@ export function SeoAnalyzer({ post, setPost, postId, postType, isLoading, setIsL
     });
   };
 
-  const handleFixWithAI = useCallback(async (mode: SeoCheck['aiMode'], editLink?: string) => {
+  const handleFixWithAI = useCallback(async (mode: SeoCheck['aiMode'], editLink?: string | null) => {
     if (editLink) {
         window.open(editLink, '_blank');
         return;
@@ -98,12 +101,16 @@ export function SeoAnalyzer({ post, setPost, postId, postType, isLoading, setIsL
         const user = auth.currentUser;
         if (!user) throw new Error("No autenticado.");
         const token = await user.getIdToken();
+        
+        // Clean and truncate content for context, preventing overload errors.
+        const plainContent = (post.content || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        const contentForContext = plainContent.substring(0, 1500);
+
         const payload = { 
             mode, 
             language: 'Spanish',
             existingTitle: post.title,
-            // Truncate content to avoid overly large payloads for simple title enhancements
-            existingContent: post.content.substring(0, 4000),
+            existingContent: contentForContext,
         };
         const response = await fetch('/api/generate-blog-post', {
             method: 'POST',
@@ -194,10 +201,10 @@ export function SeoAnalyzer({ post, setPost, postId, postType, isLoading, setIsL
         pass: firstParagraph.includes(keyword),
         text: <>La palabra clave se encuentra en la <strong>introducción</strong> (primeros párrafos).</>,
         fixable: true,
-        editLink: `/blog/edit/${postId}`
+        editLink: post.isElementor ? post.elementorEditLink : post.adminEditLink
       },
     ];
-  }, [post, postId]);
+  }, [post]);
 
   if (!post) {
       return (
@@ -243,7 +250,7 @@ export function SeoAnalyzer({ post, setPost, postId, postType, isLoading, setIsL
                 <div><Label htmlFor="metaDescription">Meta Descripción (para Google)</Label><Textarea id="metaDescription" name="metaDescription" value={post.meta._yoast_wpseo_metadesc || ''} onChange={handleInputChange} maxLength={165} rows={3} /></div>
               </CardContent>
             </Card>
-            <GoogleSnippetPreview title={post.title} description={post.meta._yoast_wpseo_metadesc || ''} url={''} />
+            <GoogleSnippetPreview title={post.title} description={post.meta._yoast_wpseo_metadesc || ''} url={post.link || null} />
         </div>
     </div>
   );
