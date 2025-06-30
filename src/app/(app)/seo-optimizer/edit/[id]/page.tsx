@@ -34,7 +34,8 @@ interface PostEditState {
 }
 
 interface ContentImage {
-    src: string;
+    id: string; // The original `src` attribute, used as a unique key
+    src: string; // The display-ready, absolute URL
     alt: string;
 }
 
@@ -129,24 +130,26 @@ function EditPageContent() {
         tempDiv.innerHTML = loadedPost.content;
         const siteUrl = new URL(loadedPost.link);
 
-        const images = Array.from(tempDiv.querySelectorAll('img')).map(img => {
-            let src = img.getAttribute('src') || '';
-            if (src && src.startsWith('/')) {
-                src = `${siteUrl.origin}${src}`;
+        const images = Array.from(tempDiv.querySelectorAll('img')).map((img, index) => {
+            const originalSrc = img.getAttribute('src');
+            if (!originalSrc) return null;
+
+            let displaySrc = originalSrc;
+            if (displaySrc.startsWith('/')) {
+                displaySrc = `${siteUrl.origin}${displaySrc}`;
             }
-            return {
-                src: src,
-                alt: img.getAttribute('alt') || '',
-            };
-        }).filter(img => {
-            if (!img.src) return false;
+
             try {
-                const url = new URL(img.src);
-                return url.protocol === 'http:' || url.protocol === 'https:';
+                new URL(displaySrc); // Validate if the final URL is valid
+                return {
+                    id: originalSrc, // Use original src from content as unique ID
+                    src: displaySrc,
+                    alt: img.getAttribute('alt') || '',
+                };
             } catch (e) {
-                return false;
+                return null; // Ignore invalid image URLs
             }
-        });
+        }).filter((img): img is ContentImage => !!img);
         
         setContentImages(images);
       } else {
@@ -270,5 +273,3 @@ export default function SeoEditPage() {
         </Suspense>
     )
 }
-
-    

@@ -57,9 +57,12 @@ async function getPageContentFromApi(postId: number, postType: 'Post' | 'Page', 
                        ? yoastTitle 
                        : rawData.title?.rendered || '';
 
+    // NOTE: Canonical URL is in the <head>, which is not fetched by the API.
+    // This will be handled by scraping the public URL instead.
     return {
         title: finalTitle,
         metaDescription: rawData.meta?._yoast_wpseo_metadesc || '',
+        canonicalUrl: '', // To be filled by scraping
         h1: $('h1').first().text(),
         headings: $('h1, h2, h3, h4, h5, h6').map((i, el) => ({
             tag: (el as cheerio.TagElement).name,
@@ -84,21 +87,28 @@ async function getPageContentFromScraping(url: string) {
 
         const html = response.data;
         const $ = cheerio.load(html);
-        $('script, style').remove();
+        
+        const yoastTitle = $('meta[property="og:title"]').attr('content');
+        const pageTitle = $('title').text();
+        const finalTitle = yoastTitle || pageTitle;
 
+        const body$ = cheerio.load($.html('body'));
+        body$('script, style').remove();
+        
         return {
-            title: $('title').text(),
+            title: finalTitle,
             metaDescription: $('meta[name="description"]').attr('content') || '',
-            h1: $('h1').first().text(),
-            headings: $('h1, h2, h3, h4, h5, h6').map((i, el) => ({
+            canonicalUrl: $('link[rel="canonical"]').attr('href') || '',
+            h1: body$('h1').first().text(),
+            headings: body$('h1, h2, h3, h4, h5, h6').map((i, el) => ({
                 tag: (el as cheerio.TagElement).name,
                 text: $(el).text()
             })).get(),
-            images: $('img').map((i, el) => ({
+            images: body$('img').map((i, el) => ({
                 src: $(el).attr('src'),
                 alt: $(el).attr('alt') || ''
             })).get(),
-            textContent: $('body').text().replace(/\s\s+/g, ' ').trim(),
+            textContent: body$('body').text().replace(/\s\s+/g, ' ').trim(),
         };
     } catch (error) {
         if (axios.isAxiosError(error)) {
@@ -116,33 +126,34 @@ async function getPageContentFromScraping(url: string) {
     }
 }
 
-async function getAiAnalysis(content: string, title: string) {
+
+async function getAiAnalysis(pageData: any, url: string) {
   const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) {
     throw new Error('La clave API de Google AI no está configurada en el servidor.');
   }
 
   const prompt = `
-    Analiza el siguiente contenido de una página web (título: "${title}") para optimización SEO (On-Page).
-    Proporciona una respuesta en español, exclusivamente como un único y válido objeto JSON.
-    
-    Esquema JSON Requerido:
-    {
-      "score": "Una puntuación SEO estimada de 0 a 100.",
-      "summary": "Un breve resumen sobre de qué trata la página.",
-      "positives": "Un array con 2-3 aspectos SEO positivos encontrados.",
-      "improvements": "Un array con las 2-3 sugerencias de mejora más importantes y accionables.",
-      "suggested": {
-        "title": "Una sugerencia de título optimizado para SEO, con menos de 60 caracteres, que incluya la palabra clave principal.",
-        "metaDescription": "Una sugerencia de meta descripción optimizada para SEO, con menos de 160 caracteres, que incluya la palabra clave principal.",
-        "focusKeyword": "La palabra clave principal (2-4 palabras) más adecuada para este contenido."
-      }
-    }
+    Analiza el siguiente contenido de una página web para optimización SEO (On-Page).
+    URL de la página: ${url}
+    Título: ${pageData.title}
+    Meta Descripción: ${pageData.metaDescription}
+    URL Canónica: ${pageData.canonicalUrl || 'No encontrada'}
+    Contenido principal (extracto):
+    ---
+    ${pageData.textContent.substring(0, 30000)} 
+    ---
 
-    Contenido a Analizar:
-    ---
-    ${content.substring(0, 30000)} 
-    ---
+    Basado en TODA esta información, proporciona una respuesta en español, exclusivamente como un único y válido objeto JSON.
+    El objeto JSON debe contener:
+    - "score": Una puntuación SEO estimada de 0 a 100.
+    - "summary": Un breve resumen sobre de qué trata la página.
+    - "positives": Un array con 2-3 aspectos SEO positivos encontrados.
+    - "improvements": Un array con las 2-3 sugerencias de mejora más importantes y accionables. Presta especial atención a la URL canónica; si no existe o es incorrecta, debe ser una mejora prioritaria.
+    - "suggested": Un objeto con:
+        - "title": Una sugerencia de título optimizado para SEO (menos de 60 caracteres) que incluya la palabra clave principal.
+        - "metaDescription": Una sugerencia de meta descripción para SEO (menos de 160 caracteres) que incluya la palabra clave principal.
+        - "focusKeyword": La palabra clave principal (2-4 palabras) más adecuada para este contenido.
   `;
 
   const genAI = new GoogleGenerativeAI(apiKey);
@@ -206,23 +217,27 @@ export async function POST(req: NextRequest) {
     }
     
     const { url, postId, postType } = validation.data;
+    const finalUrl = url.trim().startsWith('http') ? url : `https://${url}`;
+    
     let pageData;
 
-    // New logic branch: if we have an ID, fetch directly via API to bypass cache.
     if (postId && postType) {
         console.log(`Analyzing via WP API for ${postType} ID: ${postId}`);
-        pageData = await getPageContentFromApi(postId, postType, uid);
+        const apiData = await getPageContentFromApi(postId, postType, uid);
+        const scrapedData = await getPageContentFromScraping(finalUrl);
+        pageData = {
+          ...apiData,
+          canonicalUrl: scrapedData.canonicalUrl, // Take canonical from scraping
+        };
     } else {
-        // Fallback to scraping public URL (for external sites or when ID is not available)
-        console.log(`Analyzing via scraping public URL: ${url}`);
-        const finalUrl = url.trim().startsWith('http') ? url : `https://${url}`;
+        console.log(`Analyzing via scraping public URL: ${finalUrl}`);
         pageData = await getPageContentFromScraping(finalUrl);
     }
     
     if (!pageData.textContent || pageData.textContent.trim().length < 50) {
         throw new Error('No se encontró suficiente contenido textual en la página para analizar. Asegúrate de que la URL es correcta y tiene contenido visible.');
     }
-    const aiAnalysis = await getAiAnalysis(pageData.textContent, pageData.title);
+    const aiAnalysis = await getAiAnalysis(pageData, finalUrl);
     const fullAnalysis = { ...pageData, aiAnalysis };
     
     // Save to Firestore

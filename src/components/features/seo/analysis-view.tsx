@@ -6,7 +6,7 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { BrainCircuit, CheckCircle, XCircle, Image as ImageIcon, Heading1, ListTree, Edit, History, Printer, RefreshCw } from "lucide-react";
+import { BrainCircuit, CheckCircle, XCircle, Image as ImageIcon, Heading1, ListTree, Edit, History, Printer, RefreshCw, Link2 } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import type { ContentItem } from '@/app/(app)/seo-optimizer/page';
 import type { SeoAnalysisRecord } from '@/lib/types';
@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 export interface AnalysisResult {
   title: string;
   metaDescription: string;
+  canonicalUrl: string;
   h1: string;
   headings: { tag: string; text: string }[];
   images: { src: string; alt: string }[];
@@ -151,6 +152,13 @@ export function AnalysisView({ analysis, item, history, onEdit, onReanalyze, onS
                 <p className="text-sm text-muted-foreground">{analysis.h1 || "No encontrado"}</p>
               </div>
             </div>
+            <div className="flex items-start gap-3">
+              {analysis.canonicalUrl ? <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" /> : <XCircle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />}
+              <div>
+                <p className="font-semibold">URL Canónica</p>
+                <p className="text-sm text-muted-foreground break-all">{analysis.canonicalUrl || "No encontrada"}</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -211,6 +219,3 @@ export function AnalysisView({ analysis, item, history, onEdit, onReanalyze, onS
     </div>
   );
 }
-    
-
-    
