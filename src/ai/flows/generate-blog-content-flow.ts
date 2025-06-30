@@ -45,6 +45,10 @@ const generateBlogContentFlowInternal = ai.defineFlow(
     let systemInstruction = '';
     let userPrompt = '';
     let localOutputSchema = BlogContentOutputSchema; // Default schema
+    
+    // Sanitize and truncate content to avoid AI errors
+    const contentSnippet = (input.existingContent || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 1500);
+    const modelInput = { ...input, existingContent: contentSnippet };
 
     switch (input.mode) {
         case 'generate_from_topic':
@@ -144,7 +148,7 @@ const generateBlogContentFlowInternal = ai.defineFlow(
         model: 'googleai/gemini-1.5-flash-latest',
         system: systemInstruction,
         prompt: userPrompt,
-        input,
+        input: modelInput, // Use the sanitized and truncated input for the model
         output: {
             schema: localOutputSchema
         }

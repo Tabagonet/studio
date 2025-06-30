@@ -84,7 +84,7 @@ function EditPageContent() {
       
       const postData = await postResponse.json();
       const loadedPost: PostEditState = {
-        title: postData.title.rendered || '',
+        title: postData.meta?._yoast_wpseo_title || postData.title.rendered || '',
         content: postData.content.rendered || '',
         meta: {
             _yoast_wpseo_title: postData.meta?._yoast_wpseo_title || postData.title.rendered || '',
@@ -132,7 +132,6 @@ function EditPageContent() {
 
         const images = Array.from(tempDiv.querySelectorAll('img')).map(img => {
             let src = img.getAttribute('src') || '';
-            // If src is relative (starts with '/'), make it absolute
             if (src && src.startsWith('/')) {
                 src = `${siteUrl.origin}${src}`;
             }
@@ -141,13 +140,12 @@ function EditPageContent() {
                 alt: img.getAttribute('alt') || '',
             };
         }).filter(img => {
-            // Also filter out invalid or non-http URLs before passing to next/image
             if (!img.src) return false;
             try {
                 const url = new URL(img.src);
                 return url.protocol === 'http:' || url.protocol === 'https:';
             } catch (e) {
-                return false; // Invalid URL format
+                return false;
             }
         });
         
@@ -287,7 +285,7 @@ function EditPageContent() {
           </Alert>
         )}
         
-        {!post.isElementor && (
+        {!post.isElementor && post.adminEditLink && (
            <Alert>
             <Edit className="h-4 w-4" />
             <AlertTitle>Editar Contenido Completo</AlertTitle>
@@ -295,7 +293,7 @@ function EditPageContent() {
               Para modificar los encabezados (H1, H2, etc.) o el cuerpo del texto, puedes usar el editor de WordPress.
             </AlertDescription>
              <Button asChild className="mt-4" size="sm">
-                <Link href={post.adminEditLink || '#'} target="_blank" rel="noopener noreferrer">
+                <Link href={post.adminEditLink} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="mr-2 h-4 w-4" />
                     Abrir Editor de WordPress
                 </Link>
@@ -334,7 +332,7 @@ function EditPageContent() {
                     {contentImages.map((img, index) => (
                         <div key={index} className="flex items-center gap-3 p-2 border rounded-md">
                             <div className="relative h-10 w-10 flex-shrink-0">
-                                <Image src={img.src} alt="Vista previa" fill className="rounded-md object-cover" />
+                                <Image src={img.src} alt="Vista previa" fill sizes="40px" className="rounded-md object-cover" />
                             </div>
                             <div className="flex-1 text-sm text-muted-foreground truncate" title={img.src}>
                                 {img.src.split('/').pop()}
