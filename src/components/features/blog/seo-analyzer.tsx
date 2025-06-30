@@ -102,7 +102,8 @@ export function SeoAnalyzer({ post, setPost, postId, postType, isLoading, setIsL
             mode, 
             language: 'Spanish',
             existingTitle: post.title,
-            existingContent: post.content,
+            // Truncate content to avoid overly large payloads for simple title enhancements
+            existingContent: post.content.substring(0, 4000),
         };
         const response = await fetch('/api/generate-blog-post', {
             method: 'POST',

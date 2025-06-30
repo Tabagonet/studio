@@ -40,6 +40,7 @@ export default function SeoOptimizerPage() {
   const [analysisHistory, setAnalysisHistory] = useState<SeoAnalysisRecord[]>([]);
   const [selectedPage, setSelectedPage] = useState<ContentItem | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState('');
   
   const [manualUrl, setManualUrl] = useState('');
   const [activeConnectionUrl, setActiveConnectionUrl] = useState('');
@@ -146,6 +147,7 @@ export default function SeoOptimizerPage() {
   }, [fetchContentData]);
 
   const handleViewReport = async (page: ContentItem) => {
+    setLoadingMessage(`Cargando informe para ${page.title}...`);
     setIsLoadingAnalysis(true);
     setError(null);
     setAnalysis(null);
@@ -194,6 +196,7 @@ export default function SeoOptimizerPage() {
 
 
   const handleAnalyze = async (page: ContentItem) => {
+    setLoadingMessage(`Analizando la página: ${page.title}...`);
     setIsLoadingAnalysis(true);
     setError(null);
     setAnalysis(null);
@@ -266,6 +269,7 @@ export default function SeoOptimizerPage() {
           parent: 0,
       };
       
+      setLoadingMessage('Analizando URL externa...');
       setIsLoadingAnalysis(true);
       setError(null);
       setAnalysis(null);
@@ -371,7 +375,7 @@ export default function SeoOptimizerPage() {
                 {isLoadingAnalysis && (
                      <div className="flex flex-col items-center justify-center text-center p-12 border border-dashed rounded-lg">
                         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                        <p className="text-lg font-semibold text-muted-foreground">Cargando informe para {selectedPage.title}...</p>
+                        <p className="text-lg font-semibold text-muted-foreground">{loadingMessage}</p>
                         <p className="text-sm text-muted-foreground">Por favor, espera un momento.</p>
                     </div>
                 )}
@@ -476,5 +480,3 @@ export default function SeoOptimizerPage() {
     </div>
   );
 }
-
-    
