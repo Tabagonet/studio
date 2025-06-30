@@ -6,10 +6,9 @@
  * - BlogContentInput - The Zod schema for the flow's input.
  * - BlogContentOutput - The Zod schema for the flow's output.
  */
-import {defineFlow} from '@genkit-ai/core';
-import {googleAI} from '@genkit-ai/googleai';
-import {z} from 'zod';
+import { z } from 'zod';
 import Handlebars from 'handlebars';
+import { ai } from '@/ai/genkit'; // Import the central AI object
 
 export const BlogContentInputSchema = z.object({
   mode: z.enum([
@@ -43,7 +42,8 @@ export const BlogContentOutputSchema = z.object({
 });
 export type BlogContentOutput = z.infer<typeof BlogContentOutputSchema>;
 
-export const generateBlogContent = defineFlow(
+// The actual flow definition, not exported directly
+const blogContentFlow = ai.defineFlow(
   {
     name: 'blogContentFlow',
     inputSchema: BlogContentInputSchema,
@@ -51,10 +51,9 @@ export const generateBlogContent = defineFlow(
   },
   async (input: BlogContentInput) => {
     let systemInstruction = '';
-    let userPromptTemplate = ''; // Renamed for clarity
-    let localOutputSchema = BlogContentOutputSchema; // Default schema
+    let userPromptTemplate = '';
+    let localOutputSchema = BlogContentOutputSchema;
 
-    // Sanitize and truncate content to avoid AI errors
     const contentSnippet = (input.existingContent || '')
       .replace(/<[^>]+>/g, ' ')
       .replace(/\s+/g, ' ')
@@ -84,7 +83,6 @@ export const generateBlogContent = defineFlow(
             `;
         break;
       case 'enhance_title': {
-        // Block scope for let
         systemInstruction = `You are an expert SEO copywriter. Your task is to rewrite a blog post title to be more engaging, clear, and SEO-optimized. The title must be under 60 characters. Respond with a single, valid JSON object containing only one key: "title". Do not include markdown or the word 'json' in your output.`;
 
         let promptText = `Rewrite and improve ONLY the title for this blog post in {{language}}.`;
@@ -165,9 +163,9 @@ export const generateBlogContent = defineFlow(
 
     const template = Handlebars.compile(userPromptTemplate, {noEscape: true});
     const finalPrompt = template(modelInput);
-    const model = googleAI.model('gemini-1.5-flash-latest');
-
-    const {output} = await model.generate({
+    
+    const { output } = await ai.generate({
+      model: 'googleai/gemini-1.5-flash-latest',
       system: systemInstruction,
       prompt: finalPrompt,
       output: {
@@ -183,3 +181,8 @@ export const generateBlogContent = defineFlow(
     return output as BlogContentOutput;
   }
 );
+
+// Export a simple async wrapper function that calls the flow.
+export async function generateBlogContent(input: BlogContentInput): Promise<BlogContentOutput> {
+    return await blogContentFlow(input);
+}
