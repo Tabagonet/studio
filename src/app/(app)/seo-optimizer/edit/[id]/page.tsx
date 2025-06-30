@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -81,7 +81,7 @@ function EditPageContent() {
         title: postData.title.rendered || '',
         content: postData.content.rendered || '',
         meta: {
-            _yoast_wpseo_title: postData.meta?._yoast_wpseo_title || '',
+            _yoast_wpseo_title: postData.meta?._yoast_wpseo_title || postData.title.rendered || '',
             _yoast_wpseo_metadesc: postData.meta?._yoast_wpseo_metadesc || '',
             _yoast_wpseo_focuskw: postData.meta?._yoast_wpseo_focuskw || '',
         },
