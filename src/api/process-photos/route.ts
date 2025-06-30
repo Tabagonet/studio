@@ -1,11 +1,9 @@
 // src/app/api/process-photos/route.ts
 // NOTE: This endpoint has been repurposed for batch product updates via AI.
-import '@/ai/genkit';
-import { runFlow } from '@genkit-ai/core';
 import {NextRequest, NextResponse} from 'next/server';
 import {adminAuth} from '@/lib/firebase-admin';
 import {getApiClientsForUser} from '@/lib/api-helpers';
-import {generateProductFlow} from '@/ai/flows/generate-product-flow';
+import {generateProduct} from '@/ai/flows/generate-product-flow';
 import {z} from 'zod';
 
 const BatchUpdateInputSchema = z.object({
@@ -108,7 +106,7 @@ export async function POST(req: NextRequest) {
         const product = productResponse.data;
 
         // 2. Call AI content generator flow
-        const aiContent = await runFlow(generateProductFlow, {
+        const aiContent = await generateProduct({
           productName: product.name,
           productType: product.type,
           language: 'Spanish',

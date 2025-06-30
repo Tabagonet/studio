@@ -2,13 +2,12 @@
 /**
  * @fileOverview A flow for generating all AI content for a new product.
  *
- * - generateProductFlow - Handles the product content generation process.
+ * - generateProduct - Handles the product content generation process.
  * - GenerateProductInputSchema - The input type for the flow.
  * - GenerateProductOutputSchema - The return type for the flow.
  */
 import {z} from 'zod';
-import { defineFlow } from '@genkit-ai/core';
-import { googleAI } from '@genkit-ai/googleai';
+import {ai} from '@/ai/genkit';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 
 export const GenerateProductInputSchema = z.object({
@@ -56,13 +55,41 @@ export const GenerateProductOutputSchema = z.object({
 });
 export type GenerateProductOutput = z.infer<typeof GenerateProductOutputSchema>;
 
-export const generateProductFlow = defineFlow(
+// Exported wrapper function
+export async function generateProduct(input: GenerateProductInput): Promise<GenerateProductOutput> {
+  return generateProductFlow(input);
+}
+
+
+const generateProductPrompt = ai.definePrompt(
+  {
+    name: 'generateProductPrompt',
+    input: { schema: GenerateProductInputSchema.extend({ groupedProductsList: z.string() }) },
+    output: { schema: GenerateProductOutputSchema },
+    prompt: `You are an expert e-commerce copywriter and SEO specialist.
+    Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
+    The response must be a single, valid JSON object that conforms to the output schema. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
+
+    **Input Information:**
+    - **Product Name:** {{productName}}
+    - **Language for output:** {{language}}
+    - **Product Type:** {{productType}}
+    - **User-provided Keywords (for inspiration):** {{keywords}}
+    - **Contained Products (for "Grouped" type only):**
+    {{{groupedProductsList}}}
+
+    Generate the complete JSON object based on your research of "{{productName}}".`,
+  },
+);
+
+
+const generateProductFlow = ai.defineFlow(
   {
     name: 'generateProductFlow',
     inputSchema: GenerateProductInputSchema,
     outputSchema: GenerateProductOutputSchema,
   },
-  async input => {
+  async (input) => {
     let groupedProductsList = 'N/A';
     if (
       input.productType === 'grouped' &&
@@ -71,9 +98,7 @@ export const generateProductFlow = defineFlow(
     ) {
       const {wooApi} = await getApiClientsForUser(input.uid);
       if (!wooApi) {
-        throw new Error(
-          'WooCommerce API is not configured. Cannot fetch grouped product details.'
-        );
+        throw new Error( 'WooCommerce API is not configured. Cannot fetch grouped product details.' );
       }
       try {
         const response = await wooApi.get('products', {
@@ -90,9 +115,9 @@ export const generateProductFlow = defineFlow(
                 stripHtml(product.short_description) ||
                 stripHtml(product.description)?.substring(0, 150) + '...' ||
                 'No description available.';
-              return `* Product: ${name}\n* Details: ${desc}`;
+              return `* Product: ${name}\\n* Details: ${desc}`;
             })
-            .join('\n\n');
+            .join('\\n\\n');
         }
       } catch (e) {
         console.error('Failed to fetch details for grouped products:', e);
@@ -100,30 +125,10 @@ export const generateProductFlow = defineFlow(
       }
     }
 
-    const {output} = await googleAI.generate({
-      model: 'googleai/gemini-1.5-flash-latest',
-      output: {
-        format: 'json',
-        schema: GenerateProductOutputSchema,
-      },
-      prompt: `You are an expert e-commerce copywriter and SEO specialist.
-    Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
-    The response must be a single, valid JSON object that conforms to the output schema. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
-
-    **Input Information:**
-    - **Product Name:** ${input.productName}
-    - **Language for output:** ${input.language}
-    - **Product Type:** ${input.productType}
-    - **User-provided Keywords (for inspiration):** ${input.keywords}
-    - **Contained Products (for "Grouped" type only):**
-    ${groupedProductsList}
-
-    Generate the complete JSON object based on your research of "${input.productName}".`,
-    });
+    const { output } = await generateProductPrompt({ ...input, groupedProductsList });
     if (!output) {
       throw new Error('AI returned an empty response.');
     }
-
     return output;
   }
 );

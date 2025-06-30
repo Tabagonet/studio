@@ -1,8 +1,9 @@
+'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { z } from 'zod';
-import { generateProductFlow, GenerateProductInputSchema } from '@/ai/flows/generate-product-flow';
+import { generateProduct, GenerateProductInputSchema } from '@/ai/flows/generate-product-flow';
 
 
 export async function POST(req: NextRequest) {
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
     // Add the server-side UID to the input for the flow
     const flowInput = { ...inputData, uid };
     
-    const generatedContent = await generateProductFlow(flowInput);
+    const generatedContent = await generateProduct(flowInput);
     
     return NextResponse.json(generatedContent);
 
