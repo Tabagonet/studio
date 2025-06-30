@@ -223,9 +223,19 @@ export default function SeoOptimizerPage() {
     }
   }, [viewingId, contentList, selectedPage, fetchReport, isLoading, router, toast]);
 
-  const handleNavigateToReport = (page: ContentItem) => {
+  const handleAnalyzePage = useCallback(async (page: ContentItem) => {
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: "Authentication Required", variant: "destructive" });
+        return;
+    }
+    const token = await user.getIdToken();
+    runAnalysis(page, token);
+  }, [runAnalysis, toast]);
+
+  const handleViewReport = useCallback((page: ContentItem) => {
     router.push(`/seo-optimizer?id=${page.id}&type=${page.type}`);
-  };
+  }, [router]);
 
   const handleManualAnalyze = () => {
       let urlToUse = manualUrl || activeConnectionUrl;
