@@ -4,8 +4,10 @@
  * for use throughout the application. It is marked as 'use server' to ensure
  * it only runs on the server, preventing Next.js bundling issues.
  */
-import genkit from '@genkit-ai/core';
-import googleAI from '@genkit-ai/googleai';
+// Using require to address Next.js build issues with Genkit's module resolution.
+const genkit = require('@genkit-ai/core').default;
+const googleAI = require('@genkit-ai/googleai').default;
+
 import { initializeApp, getApps } from 'firebase-admin/app';
 
 // Initialize Firebase Admin SDK if not already initialized
