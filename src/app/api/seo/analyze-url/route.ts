@@ -50,8 +50,15 @@ async function getPageContentFromApi(postId: number, postType: 'Post' | 'Page', 
     const $ = cheerio.load(contentHtml);
     $('script, style').remove();
     
+    // Explicitly check for a non-empty Yoast title. If it exists (even as an empty string), use it.
+    // Otherwise, fall back to the rendered title. This is the key change.
+    const yoastTitle = rawData.meta?._yoast_wpseo_title;
+    const finalTitle = (typeof yoastTitle === 'string') 
+                       ? yoastTitle 
+                       : rawData.title?.rendered || '';
+
     return {
-        title: rawData.meta?._yoast_wpseo_title || rawData.title?.rendered || '',
+        title: finalTitle,
         metaDescription: rawData.meta?._yoast_wpseo_metadesc || '',
         h1: $('h1').first().text(),
         headings: $('h1, h2, h3, h4, h5, h6').map((i, el) => ({
