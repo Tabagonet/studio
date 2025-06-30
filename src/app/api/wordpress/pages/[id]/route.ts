@@ -47,7 +47,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const response = await wpApi.get(`/pages/${pageId}`, { params: { _embed: true, context: 'edit' } });
     
     const pageData = response.data;
-    const isElementor = !!pageData.meta?._elementor_version;
+    
+    const contentIsJsonArray = (pageData.content?.rendered || '').trim().startsWith('[');
+    const isElementor = !!pageData.meta?._elementor_version || contentIsJsonArray;
+
     const adminUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '/wp-admin/');
     const elementorEditLink = isElementor ? `${adminUrl}post.php?post=${pageId}&action=elementor` : null;
     const adminEditLink = `${adminUrl}post.php?post=${pageId}&action=edit`;

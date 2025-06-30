@@ -239,7 +239,7 @@ function EditPageContent() {
     try {
       const token = await user.getIdToken();
       const apiPath = postType === 'Post' ? `/api/wordpress/posts/${postId}` : `/api/wordpress/pages/${postId}`;
-      const postResponse = await fetch(`${apiPath}?context=edit&bust=${new Date().getTime()}`, { headers: { 'Authorization': `Bearer ${token}` }});
+      const postResponse = await fetch(`${apiPath}?context=edit&bust=${new Date().getTime()}`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
       if (!postResponse.ok) throw new Error((await postResponse.json()).error || `Failed to fetch ${postType} data.`);
       
       const postData = await postResponse.json();
@@ -262,7 +262,8 @@ function EditPageContent() {
 
       try {
         const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(postData.link)}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: { 'Authorization': `Bearer ${token}` },
+            cache: 'no-store',
         });
         if (historyResponse.ok) {
             const historyData: { history: SeoAnalysisRecord[] } = await historyResponse.json();
@@ -291,7 +292,7 @@ function EditPageContent() {
         tempDiv.innerHTML = loadedPost.content;
         const siteUrl = new URL(loadedPost.link);
 
-        const images = Array.from(tempDiv.querySelectorAll('img')).map((img, index) => {
+        const images = Array.from(tempDiv.querySelectorAll('img')).map((img) => {
             const originalSrc = img.getAttribute('src');
             if (!originalSrc) return null;
 
@@ -322,7 +323,7 @@ function EditPageContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [postId, postType]);
+  }, [postId, postType, toast]);
 
 
   useEffect(() => {
@@ -412,62 +413,106 @@ function EditPageContent() {
             </CardHeader>
         </Card>
         
-        {post.isElementor && (
-          <Alert>
-            <ExternalLink className="h-4 w-4" />
-            <AlertTitle>Página de Elementor Detectada</AlertTitle>
-            <AlertDescription>
-                Para editar el contenido visual, debes usar el editor de Elementor. Desde aquí puedes optimizar los campos de Yoast SEO, pero los cambios en el contenido principal no tendrán efecto.
-            </AlertDescription>
-            <Button asChild className="mt-4" size="sm">
-                <Link href={post.elementorEditLink!} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Abrir con Elementor
-                </Link>
-            </Button>
-        </Alert>
-        )}
-
-        <SeoAnalyzer
-            post={post}
-            setPost={setPost}
-            onMetaChange={handleMetaChange}
-            isLoading={isAiLoading}
-            setIsLoading={setIsAiLoading}
-            contentImages={contentImages}
-            setContentImages={setContentImages}
-            applyAiMetaToFeatured={applyAiMetaToFeatured}
-            setApplyAiMetaToFeatured={setApplyAiMetaToFeatured}
-        />
-        
-        {!post.isElementor && (
-         <Card>
-            <CardHeader>
-                <CardTitle>Contenido Principal</CardTitle>
-                <CardDescription>
-                    Edita el contenido de la página para añadir palabras clave, mejorar la estructura y aplicar otras sugerencias de SEO.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Label htmlFor="content">Editor de Contenido</Label>
-                <ContentToolbar
-                    onInsertTag={handleInsertTag}
-                    onInsertLink={() => openActionDialog('link')}
-                    onInsertImage={() => openActionDialog('image')}
-                    onAlign={handleAlignment}
-                />
-                <Textarea
-                    id="content"
-                    ref={contentRef}
-                    value={post.content}
-                    onChange={handleContentChange}
-                    rows={25}
-                    className="rounded-t-none"
-                    placeholder="El contenido de tu página o entrada..."
-                />
-            </CardContent>
-        </Card>
-      )}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          <div className="lg:col-span-2 space-y-6">
+            <SeoAnalyzer
+                post={post}
+                setPost={setPost}
+                onMetaChange={handleMetaChange}
+                isLoading={isAiLoading}
+                setIsLoading={setIsAiLoading}
+                contentImages={contentImages}
+                setContentImages={setContentImages}
+                applyAiMetaToFeatured={applyAiMetaToFeatured}
+                setApplyAiMetaToFeatured={setApplyAiMetaToFeatured}
+            />
+            
+            {post.isElementor ? (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Contenido Gestionado por Elementor</CardTitle>
+                        <CardDescription>
+                            Esta página se edita con Elementor. Para evitar romper el diseño, el contenido debe modificarse desde su editor visual.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Alert variant="default">
+                            <ExternalLink className="h-4 w-4" />
+                            <AlertTitle>Acción Requerida</AlertTitle>
+                            <AlertDescription>
+                                Las mejoras de contenido (como añadir palabras clave) deben hacerse en el editor de Elementor. Puedes optimizar los campos de Yoast SEO y los textos 'alt' de las imágenes aquí.
+                            </AlertDescription>
+                            {post.elementorEditLink && (
+                                <Button asChild className="mt-4" size="sm">
+                                    <Link href={post.elementorEditLink} target="_blank" rel="noopener noreferrer">
+                                        <ExternalLink className="mr-2 h-4 w-4" />
+                                        Abrir con Elementor
+                                    </Link>
+                                </Button>
+                            )}
+                        </Alert>
+                    </CardContent>
+                </Card>
+            ) : (
+             <Card>
+                <CardHeader>
+                    <CardTitle>Contenido Principal</CardTitle>
+                    <CardDescription>
+                        Edita el contenido de la página para añadir palabras clave, mejorar la estructura y aplicar otras sugerencias de SEO.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Label htmlFor="content">Editor de Contenido</Label>
+                    <ContentToolbar
+                        onInsertTag={handleInsertTag}
+                        onInsertLink={() => openActionDialog('link')}
+                        onInsertImage={() => openActionDialog('image')}
+                        onAlign={handleAlignment}
+                    />
+                    <Textarea
+                        id="content"
+                        ref={contentRef}
+                        value={post.content}
+                        onChange={handleContentChange}
+                        rows={25}
+                        className="rounded-t-none"
+                        placeholder="El contenido de tu página o entrada..."
+                    />
+                </CardContent>
+            </Card>
+          )}
+          </div>
+          
+          <div className="sticky top-20 space-y-6">
+             <Card>
+                <CardHeader>
+                  <CardTitle>Edición SEO (Yoast)</CardTitle>
+                  <CardDescription>Modifica los campos que Yoast utiliza para los resultados de búsqueda.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-1">
+                      <Label htmlFor="yoastTitle">Título SEO</Label>
+                      <div className="flex items-center gap-2">
+                         <Input id="yoastTitle" name="_yoast_wpseo_title" value={post.meta._yoast_wpseo_title} onChange={handleMetaChange} className="flex-grow"/>
+                         <Button variant="ghost" size="icon" onClick={() => {}} disabled={isLoading} title="Mejorar con IA">
+                             <Sparkles className="h-4 w-4 text-primary"/>
+                         </Button>
+                      </div>
+                  </div>
+                  <div className="space-y-1">
+                      <Label htmlFor="metaDescription">Meta Descripción</Label>
+                      <div className="flex items-start gap-2">
+                          <Textarea id="metaDescription" name="_yoast_wpseo_metadesc" value={post.meta._yoast_wpseo_metadesc} onChange={handleMetaChange} maxLength={165} rows={3} className="flex-grow"/>
+                          <Button variant="ghost" size="icon" onClick={() => {}} disabled={isLoading} title="Generar con IA">
+                             <Sparkles className="h-4 w-4 text-primary"/>
+                          </Button>
+                      </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <GoogleSnippetPreview title={post.meta._yoast_wpseo_title} description={post.meta._yoast_wpseo_metadesc} url={post.link || null} />
+          </div>
+        </div>
 
         <AlertDialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Añadir Enlace</AlertDialogTitle><AlertDialogDescription>Introduce la URL completa a la que quieres enlazar el texto seleccionado.</AlertDialogDescription></AlertDialogHeader><Input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://ejemplo.com" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleInsertLink(); } }} /><AlertDialogFooter><AlertDialogCancel onClick={() => setLinkUrl('')}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleInsertLink}>Añadir Enlace</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
         <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Insertar Imagen</AlertDialogTitle><AlertDialogDescription>Sube una imagen o introduce una URL para insertarla en el contenido.</AlertDialogDescription></AlertDialogHeader><div className="space-y-4"><div><Label htmlFor="image-upload">Subir archivo</Label><Input id="image-upload" type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} /></div><div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">O</span></div></div><div><Label htmlFor="image-url">Insertar desde URL</Label><Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" /></div></div><AlertDialogFooter><AlertDialogCancel onClick={() => { setImageUrl(''); setImageFile(null); }}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleInsertImage} disabled={isUploadingImage}>{isUploadingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Insertar Imagen</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
