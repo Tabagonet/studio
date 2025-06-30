@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/api-helpers';
 import { z } from 'zod';
-import * as cheerio from 'cheerio';
 
 const slugify = (text: string) => {
     if (!text) return '';
@@ -27,10 +26,6 @@ const pageUpdateSchema = z.object({
         title: z.string(),
         alt_text: z.string(),
     }).optional(),
-    imageMetas: z.array(z.object({
-        src: z.string(),
-        alt: z.string(),
-    })).optional(),
 });
 
 
@@ -93,7 +88,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const validation = pageUpdateSchema.safeParse(body);
     if (!validation.success) return NextResponse.json({ error: 'Invalid data.', details: validation.error.flatten() }, { status: 400 });
     
-    const { featured_image_src, featured_image_metadata, imageMetas, ...pagePayload } = validation.data;
+    const { featured_image_src, featured_image_metadata, ...pagePayload } = validation.data;
     
     if (featured_image_src) {
         const seoFilename = `${slugify(pagePayload.title || 'page')}-${pageId}.jpg`;
@@ -105,14 +100,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         }, wpApi);
     }
     
-    if (imageMetas && pagePayload.content) {
-        const $ = cheerio.load(pagePayload.content, null, false);
-        imageMetas.forEach(meta => {
-            $(`img[src="${meta.src}"]`).attr('alt', meta.alt);
-        });
-        pagePayload.content = $('body').html() || pagePayload.content;
-    }
-
     const response = await wpApi.post(`/pages/${pageId}`, pagePayload);
     
     if (featured_image_metadata && response.data.featured_media) {

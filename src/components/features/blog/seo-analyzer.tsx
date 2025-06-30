@@ -93,6 +93,32 @@ export function SeoAnalyzer({
   const { toast } = useToast();
   const hasTriggeredAutoKeyword = React.useRef(false);
 
+  const handleImageAltChange = useCallback((index: number, newAlt: string) => {
+    if (!post) return;
+
+    const imageToUpdate = contentImages[index];
+
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = post.content;
+    
+    const imageElement = Array.from(tempDiv.querySelectorAll('img')).find(
+      (img) => img.src === imageToUpdate.src
+    );
+
+    if (imageElement) {
+        imageElement.alt = newAlt;
+        const newContent = tempDiv.innerHTML;
+        setPost(prev => (prev ? { ...prev, content: newContent } : null));
+    } else {
+        console.warn("Could not find image in content to update alt text for:", imageToUpdate.src);
+    }
+    
+    setContentImages(prev =>
+      prev.map((img, i) => (i === index ? { ...img, alt: newAlt } : img))
+    );
+  }, [post, contentImages, setPost, setContentImages]);
+
+
   const handleFixWithAI = useCallback(async (mode: SeoCheck['aiMode'], editLink?: string | null) => {
     if (editLink) {
         window.open(editLink, '_blank');
@@ -106,11 +132,12 @@ export function SeoAnalyzer({
         if (!user) throw new Error("No autenticado.");
         const token = await user.getIdToken();
         
-        const payload = { 
+        const payload: any = { 
             mode, 
             language: 'Spanish',
-            existingTitle: post.title,
+            existingTitle: post.meta._yoast_wpseo_title || post.title,
             existingContent: post.content,
+            keywords: post.meta._yoast_wpseo_focuskw || '',
         };
         const response = await fetch('/api/generate-blog-post', {
             method: 'POST',
@@ -179,18 +206,34 @@ export function SeoAnalyzer({
         
         const aiContent = await response.json();
         
-        setContentImages(prevImages =>
-            prevImages.map(img =>
-                !img.alt ? { ...img, alt: aiContent.imageAltText } : img
-            )
+        const newImages = contentImages.map(img => 
+            !img.alt ? { ...img, alt: aiContent.imageAltText } : img
         );
+
+        // This is a complex operation, let's do it carefully.
+        let updatedContent = post.content;
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = updatedContent;
+
+        newImages.forEach(updatedImage => {
+            const imageElement = Array.from(tempDiv.querySelectorAll('img')).find(
+                (img) => img.src === updatedImage.src
+            );
+            if (imageElement && !imageElement.alt) {
+                imageElement.alt = updatedImage.alt;
+            }
+        });
+        
+        setPost(p => p ? { ...p, content: tempDiv.innerHTML } : null);
+        setContentImages(newImages);
+
         toast({ title: 'Textos alternativos generados', description: "Se ha añadido 'alt text' a las imágenes que no lo tenían." });
     } catch (e: any) {
         toast({ title: 'Error de IA', description: e.message, variant: "destructive" });
     } finally {
         setIsLoading(false);
     }
-  }, [post, toast, setIsLoading, setContentImages]);
+  }, [post, toast, setIsLoading, setPost, setContentImages, contentImages]);
 
 
   const checks = useMemo<SeoCheck[]>(() => {
@@ -327,7 +370,7 @@ export function SeoAnalyzer({
                                <div className="h-2 w-2 rounded-full" style={{ backgroundColor: img.alt ? 'hsl(var(--primary))' : 'hsl(var(--destructive))' }} />
                                <Input 
                                  value={img.alt}
-                                 onChange={(e) => setContentImages(prev => prev.map((current, i) => i === index ? { ...current, alt: e.target.value } : current))}
+                                 onChange={(e) => handleImageAltChange(index, e.target.value)}
                                  placeholder="Añade el 'alt text'..."
                                  className="text-xs h-8"
                                />
