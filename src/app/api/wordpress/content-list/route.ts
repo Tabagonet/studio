@@ -17,7 +17,7 @@ async function fetchAllPaginatedContent(wpApi: AxiosInstance, endpoint: string) 
                 context: 'view', // context=view is necessary for register_rest_field
                 status: 'publish,future,draft,pending,private',
                 // Request only necessary fields for performance, including our custom ones.
-                _fields: 'id,title,type,link,status,parent,lang,translations',
+                _fields: 'id,title,type,link,status,parent,lang,translations,meta',
             },
         });
 
@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
 
     const combinedContent = [...posts, ...pages].map(item => ({
         id: item.id,
-        title: item.title?.rendered || 'Sin Título',
+        title: item.meta?._yoast_wpseo_title || item.title?.rendered || 'Sin Título',
         type: item.type === 'post' ? 'Post' : 'Page',
         link: item.link,
         status: item.status,
