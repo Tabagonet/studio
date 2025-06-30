@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useState, Suspense, useCallback } from 'react';
+import React, { useEffect, useState, Suspense, useCallback, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,9 +50,9 @@ function EditPageContent() {
   const [contentImages, setContentImages] = useState<ContentImage[]>([]);
   const [applyAiMetaToFeatured, setApplyAiMetaToFeatured] = useState(false);
   
+  const [isAiLoading, setIsAiLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isAiLoading, setIsAiLoading] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -193,14 +193,13 @@ function EditPageContent() {
         const payload: any = {
             title: post.title,
             meta: post.meta,
-            imageMetas: contentImages,
             content: post.content,
         };
         
-        if (applyAiMetaToFeatured && post.featuredMediaId) {
-            payload.featured_image_metadata = {
+        if (applyAiMetaToFeatured && post.featuredMediaId && post.meta._yoast_wpseo_focuskw) {
+             payload.featured_image_metadata = {
                 title: post.title,
-                alt_text: post.meta._yoast_wpseo_focuskw || post.title
+                alt_text: post.meta._yoast_wpseo_focuskw,
             };
         }
 
@@ -271,3 +270,5 @@ export default function SeoEditPage() {
         </Suspense>
     )
 }
+
+    

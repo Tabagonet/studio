@@ -93,30 +93,29 @@ export function SeoAnalyzer({
   const { toast } = useToast();
   const hasTriggeredAutoKeyword = React.useRef(false);
 
-  const handleImageAltChange = useCallback((index: number, newAlt: string) => {
+  const handleImageAltChange = useCallback((indexToUpdate: number, newAlt: string) => {
     if (!post) return;
 
-    const imageToUpdate = contentImages[index];
-
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = post.content;
-    
-    const imageElement = Array.from(tempDiv.querySelectorAll('img')).find(
-      (img) => img.src === imageToUpdate.src
+    setContentImages(prevImages => 
+        prevImages.map((img, i) => i === indexToUpdate ? { ...img, alt: newAlt } : img)
     );
-
-    if (imageElement) {
-        imageElement.alt = newAlt;
-        const newContent = tempDiv.innerHTML;
-        setPost(prev => (prev ? { ...prev, content: newContent } : null));
-    } else {
-        console.warn("Could not find image in content to update alt text for:", imageToUpdate.src);
-    }
     
-    setContentImages(prev =>
-      prev.map((img, i) => (i === index ? { ...img, alt: newAlt } : img))
-    );
-  }, [post, contentImages, setPost, setContentImages]);
+    setPost(prevPost => {
+        if (!prevPost) return null;
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = prevPost.content;
+        
+        const allImageElements = tempDiv.querySelectorAll('img');
+        if (allImageElements[indexToUpdate]) {
+            allImageElements[indexToUpdate].alt = newAlt;
+        } else {
+             console.warn(`Could not find image at index ${indexToUpdate} to update alt text.`);
+        }
+        
+        return { ...prevPost, content: tempDiv.innerHTML };
+    });
+  }, [post, setContentImages, setPost]);
 
 
   const handleFixWithAI = useCallback(async (mode: SeoCheck['aiMode'], editLink?: string | null) => {
@@ -210,17 +209,13 @@ export function SeoAnalyzer({
             !img.alt ? { ...img, alt: aiContent.imageAltText } : img
         );
 
-        // This is a complex operation, let's do it carefully.
-        let updatedContent = post.content;
         const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = updatedContent;
+        tempDiv.innerHTML = post.content;
+        const imageElements = tempDiv.querySelectorAll('img');
 
-        newImages.forEach(updatedImage => {
-            const imageElement = Array.from(tempDiv.querySelectorAll('img')).find(
-                (img) => img.src === updatedImage.src
-            );
-            if (imageElement && !imageElement.alt) {
-                imageElement.alt = updatedImage.alt;
+        newImages.forEach((updatedImage, index) => {
+            if (imageElements[index] && !imageElements[index].alt) {
+                imageElements[index].alt = updatedImage.alt;
             }
         });
         
@@ -330,8 +325,24 @@ export function SeoAnalyzer({
                  <Card>
                   <CardHeader><CardTitle>Edición SEO</CardTitle></CardHeader>
                   <CardContent className="space-y-4">
-                    <div><Label htmlFor="yoastTitle">Título SEO (Yoast)</Label><Input id="yoastTitle" name="_yoast_wpseo_title" value={seoTitle} onChange={onMetaChange} /></div>
-                    <div><Label htmlFor="metaDescription">Meta Descripción (Yoast)</Label><Textarea id="metaDescription" name="_yoast_wpseo_metadesc" value={metaDescription} onChange={onMetaChange} maxLength={165} rows={3} /></div>
+                    <div className="space-y-1">
+                        <Label htmlFor="yoastTitle">Título SEO (Yoast)</Label>
+                        <div className="flex items-center gap-2">
+                           <Input id="yoastTitle" name="_yoast_wpseo_title" value={seoTitle} onChange={onMetaChange} className="flex-grow"/>
+                           <Button variant="ghost" size="icon" onClick={() => handleFixWithAI('enhance_title')} disabled={isLoading} title="Mejorar con IA">
+                               <Sparkles className="h-4 w-4 text-primary"/>
+                           </Button>
+                        </div>
+                    </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="metaDescription">Meta Descripción (Yoast)</Label>
+                        <div className="flex items-start gap-2">
+                            <Textarea id="metaDescription" name="_yoast_wpseo_metadesc" value={metaDescription} onChange={onMetaChange} maxLength={165} rows={3} className="flex-grow"/>
+                            <Button variant="ghost" size="icon" onClick={() => handleFixWithAI('generate_meta_description')} disabled={isLoading} title="Generar con IA">
+                               <Sparkles className="h-4 w-4 text-primary"/>
+                            </Button>
+                        </div>
+                    </div>
                   </CardContent>
                 </Card>
                 <GoogleSnippetPreview title={seoTitle} description={metaDescription} url={post.link || null} />
@@ -352,7 +363,7 @@ export function SeoAnalyzer({
                     <div className="flex items-center space-x-2 pt-4 border-t">
                         <Checkbox id="apply-featured" checked={applyAiMetaToFeatured} onCheckedChange={(checked) => setApplyAiMetaToFeatured(!!checked)} />
                         <Label htmlFor="apply-featured" className="text-sm font-normal">
-                           Aplicar también los metadatos generados a la imagen destacada.
+                           Aplicar también el 'alt text' de la palabra clave a la imagen destacada.
                         </Label>
                     </div>
                  )}
@@ -384,3 +395,5 @@ export function SeoAnalyzer({
     </>
   );
 }
+
+    
