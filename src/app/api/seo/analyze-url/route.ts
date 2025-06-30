@@ -6,7 +6,7 @@ import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { z } from 'zod';
-import { generate } from '@genkit-ai/core';
+import * as genkit from '@genkit-ai/core';
 import { googleAI } from '@genkit-ai/googleai';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 
@@ -163,7 +163,7 @@ async function getAiAnalysis(pageData: any) {
     - "focusKeyword": Sugiere la "Palabra Clave Principal" más apropiada para el contenido.
   `;
   try {
-    const { output } = await generate({
+    const { output } = await genkit.generate({
         model: googleAI('gemini-1.5-flash-latest'),
         prompt: prompt,
         output: {

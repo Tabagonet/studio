@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { z } from 'zod';
-import { generate } from '@genkit-ai/core';
+import * as genkit from '@genkit-ai/core';
 import { googleAI } from '@genkit-ai/googleai';
 import Handlebars from 'handlebars';
 
@@ -168,7 +168,7 @@ export async function POST(req: NextRequest) {
         const template = Handlebars.compile(userPromptTemplate, {noEscape: true});
         const finalPrompt = template(modelInput);
         
-        const { output } = await generate({
+        const { output } = await genkit.generate({
           model: googleAI('gemini-1.5-flash-latest'),
           system: systemInstruction,
           prompt: finalPrompt,

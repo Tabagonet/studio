@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { z } from 'zod';
-import { generate } from '@genkit-ai/core';
+import * as genkit from '@genkit-ai/core';
 import { googleAI } from '@genkit-ai/googleai';
 
 export async function POST(req: NextRequest) {
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     const prompt = `Translate the following content to ${targetLanguage}:\\n\\n${JSON.stringify(contentToTranslate)}`;
     const outputSchema = z.record(z.string());
 
-    const { output } = await generate({
+    const { output } = await genkit.generate({
       model: googleAI('gemini-1.5-flash-latest'),
       system: systemInstruction,
       prompt: prompt,

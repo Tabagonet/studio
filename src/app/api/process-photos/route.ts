@@ -5,8 +5,8 @@ import {NextRequest, NextResponse} from 'next/server';
 import {adminAuth} from '@/lib/firebase-admin';
 import {getApiClientsForUser} from '@/lib/api-helpers';
 import {z} from 'zod';
-import { generate } from '@genkit-ai/core';
-import { googleAI } from '@genkit-ai/googleai';
+import * as genkit from '@genkit-ai/core';
+import {googleAI} from '@genkit-ai/googleai';
 import Handlebars from 'handlebars';
 
 const BatchUpdateInputSchema = z.object({
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
         const template = Handlebars.compile(generateProductPromptTemplate, { noEscape: true });
         const finalPrompt = template(aiInput);
 
-        const { output: aiContent } = await generate({
+        const { output: aiContent } = await genkit.generate({
           model: googleAI('gemini-1.5-flash-latest'),
           prompt: finalPrompt,
           output: { schema: GenerateProductOutputSchema }

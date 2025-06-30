@@ -3,7 +3,7 @@
 
 import {NextRequest, NextResponse} from 'next/server';
 import {adminAuth, adminDb} from '@/lib/firebase-admin';
-import {generate} from '@genkit-ai/core';
+import * as genkit from '@genkit-ai/core';
 import {googleAI} from '@genkit-ai/googleai';
 import {z} from 'zod';
 import { SeoAnalysisInputSchema, SeoInterpretationOutputSchema } from '@/ai/schemas';
@@ -132,7 +132,7 @@ export async function POST(
     
     const checksSummary = JSON.stringify(input.aiAnalysis.checks, null, 2);
     
-    const {output} = await generate({
+    const {output} = await genkit.generate({
       model: googleAI('gemini-1.5-flash-latest'),
       output: {
         format: 'json',
@@ -182,4 +182,3 @@ export async function POST(
     );
   }
 }
-
