@@ -1,4 +1,6 @@
 
+'use server';
+import '@/ai/genkit';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
@@ -27,6 +29,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
+        console.log("Handling /api/seo/sync-translations request...");
         const body = await req.json();
         const validation = syncSchema.safeParse(body);
         if (!validation.success) {
@@ -94,10 +97,11 @@ export async function POST(req: NextRequest) {
         }
 
         const message = `Sincronización completada. Éxito: ${results.success.length > 0 ? results.success.join(', ') : 'ninguno'}. Fallos: ${results.failed.length}.`;
+        console.log("SEO translation sync completed.");
         return NextResponse.json({ success: true, message, results });
 
     } catch (error: any) {
-        console.error("Error in sync-translations endpoint:", error);
+        console.error("🔥 Error in /api/seo/sync-translations:", error);
         return NextResponse.json({ error: "Failed to sync SEO translations", message: error.message }, { status: 500 });
     }
 }

@@ -1,16 +1,19 @@
-// src/app/api/process-photos/route.ts
-// NOTE: This endpoint has been repurposed for batch product updates via AI.
+
+'use server';
+import '@/ai/genkit';
+
 import {NextRequest, NextResponse} from 'next/server';
 import {adminAuth} from '@/lib/firebase-admin';
 import {getApiClientsForUser} from '@/lib/api-helpers';
-import {generateProduct} from '@/ai/flows/generate-product-flow';
 import {z} from 'zod';
+import { generateProduct } from '@/ai/flows/generate-product-flow';
 
 const BatchUpdateInputSchema = z.object({
   productIds: z.array(z.number()).min(1, 'At least one product ID is required.'),
   action: z.enum(['generateDescriptions', 'generateImageMetadata']),
   force: z.boolean().optional().default(false),
 });
+
 
 export async function POST(req: NextRequest) {
   let uid: string;
@@ -28,6 +31,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    console.log("Handling /api/process-photos (batch AI update) request...");
     const body = await req.json();
     const validation = BatchUpdateInputSchema.safeParse(body);
     if (!validation.success) {
@@ -46,7 +50,6 @@ export async function POST(req: NextRequest) {
       throw new Error('WordPress API must be configured to update image metadata.');
     }
 
-    // --- Confirmation Check Step (if force is false) ---
     if (!force) {
       const productsToConfirm: {id: number; name: string; reason: string}[] =
         [];
@@ -75,17 +78,11 @@ export async function POST(req: NextRequest) {
             });
           }
         } catch (error: any) {
-          // Ignore errors during check; the main execution loop will catch and report them as failed.
-          console.error(
-            `Failed to check product ${productId} for confirmation. Error: ${
-              error instanceof Error ? error.message : String(error)
-            }`
-          );
+          console.error(`Failed to check product ${productId} for confirmation.`);
         }
       }
 
       if (productsToConfirm.length > 0) {
-        // Return a 200 OK with a specific payload to avoid browser error logs for 409.
         return NextResponse.json({
           confirmationRequired: true,
           products: productsToConfirm,
@@ -93,7 +90,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // --- Execution Step ---
     const results = {
       success: [] as number[],
       failed: [] as {id: number; reason: string}[],
@@ -101,38 +97,30 @@ export async function POST(req: NextRequest) {
 
     for (const productId of productIds) {
       try {
-        // 1. Fetch product from Woo
         const productResponse = await wooApi.get(`products/${productId}`);
         const product = productResponse.data;
 
-        // 2. Call AI content generator flow
         const aiContent = await generateProduct({
           productName: product.name,
           productType: product.type,
           language: 'Spanish',
           keywords: product.tags?.map((t: any) => t.name).join(', ') || '',
-          groupedProductIds: [], // Not supported in batch mode for now
-          uid: uid,
+          groupedProductsList: '',
+          uid,
         });
 
-        // 3. Perform action based on input
         if (action === 'generateDescriptions') {
           await wooApi.put(`products/${productId}`, {
             short_description: aiContent.shortDescription,
             description: aiContent.longDescription,
-            tags: aiContent.keywords
-              .split(',')
-              .map((k: string) => ({name: k.trim()}))
-              .filter((k: {name: string}) => k.name),
+            tags: aiContent.keywords.split(',').map((k: string) => ({name: k.trim()})).filter((k: {name: string}) => k.name),
           });
         } else if (action === 'generateImageMetadata') {
-          if (!wpApi) throw new Error('WordPress API client is not available.'); // Should be caught earlier, but for safety.
+          if (!wpApi) throw new Error('WordPress API client is not available.');
           if (!product.images || product.images.length === 0) {
             throw new Error('El producto no tiene imágenes para actualizar.');
           }
-          // Update metadata for each image associated with the product
           for (const image of product.images) {
-            // The WP REST API uses POST on /media/<id> for updates.
             await wpApi.post(`media/${image.id}`, {
               title: aiContent.imageTitle,
               alt_text: aiContent.imageAltText,
@@ -144,33 +132,26 @@ export async function POST(req: NextRequest) {
 
         results.success.push(productId);
       } catch (error: any) {
-        console.error(
-          `Failed to process product ID ${productId}:`,
-          error.response?.data?.message || error.message
-        );
+        console.error(`Failed to process product ID ${productId}:`, error.response?.data?.message || error.message);
         results.failed.push({
           id: productId,
-          reason:
-            error.response?.data?.message || error.message || 'Unknown error',
+          reason: error.response?.data?.message || error.message || 'Unknown error',
         });
       }
     }
 
+    console.log("Batch AI update completed successfully.");
     return NextResponse.json({
       message: `Proceso completado. ${results.success.length} producto(s) actualizado(s), ${results.failed.length} fallido(s).`,
       results,
     });
   } catch (error: any) {
-    console.error('Error in batch update API:', error);
-    const status = error.message.includes('not configured')
-      ? 400
-      : error.response?.status || 500;
-    return NextResponse.json(
-      {
-        error: 'An unexpected error occurred during batch processing.',
-        message: error.message,
-      },
-      {status}
-    );
+    console.error('🔥 Error in /api/process-photos:', error);
+    const status = error.message.includes('not configured') ? 400 : error.response?.status || 500;
+    const errorMessage = error.message || 'An unknown error occurred';
+     if (errorMessage.trim().startsWith('<!DOCTYPE html>')) {
+        return NextResponse.json({ error: 'La IA falló: Error interno del servidor de IA. Por favor, reintenta.' }, { status: 500 });
+    }
+    return NextResponse.json({ error: 'La IA falló: ' + errorMessage,}, {status});
   }
 }

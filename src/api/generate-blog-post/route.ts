@@ -1,4 +1,6 @@
+
 'use server';
+import '@/ai/genkit';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
@@ -18,6 +20,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
+        console.log("Handling /api/generate-blog-post request...");
         const body = await req.json();
         const validationResult = BlogContentInputSchema.safeParse(body);
 
@@ -26,11 +29,16 @@ export async function POST(req: NextRequest) {
         }
         
         const generatedContent = await generateBlogContent(validationResult.data);
+        console.log("Blog post content generated successfully.");
         
         return NextResponse.json(generatedContent);
 
     } catch (error: any) {
-        console.error('Error generating blog post with flow:', error);
-        return NextResponse.json({ error: 'Failed to generate blog post', message: error.message }, { status: 500 });
+        console.error('🔥 Error in /api/generate-blog-post:', error);
+        const errorMessage = error.message || 'An unknown error occurred';
+        if (errorMessage.trim().startsWith('<!DOCTYPE html>')) {
+            return NextResponse.json({ error: 'La IA falló: Error interno del servidor de IA. Por favor, reintenta.' }, { status: 500 });
+        }
+        return NextResponse.json({ error: 'La IA falló: ' + errorMessage }, { status: 500 });
     }
 }

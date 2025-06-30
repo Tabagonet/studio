@@ -1,12 +1,15 @@
+
 'use server';
+import '@/ai/genkit';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { z } from 'zod';
-import { ai } from '@/ai/genkit';
 import { getApiClientsForUser } from '@/lib/api-helpers';
+import { runFlow, defineFlow, } from '@genkit-ai/core';
+import { googleAI } from '@genkit-ai/googleai';
 
 
 const analyzeUrlSchema = z.object({
@@ -15,7 +18,6 @@ const analyzeUrlSchema = z.object({
   postType: z.enum(['Post', 'Page']).optional(),
 });
 
-// NEW, more structured schema
 const aiChecksSchema = z.object({
     titleContainsKeyword: z.boolean().describe("El título SEO contiene la palabra clave principal."),
     titleIsGoodLength: z.boolean().describe("El título SEO tiene una longitud entre 30 y 65 caracteres."),
@@ -28,13 +30,65 @@ const aiChecksSchema = z.object({
     canonicalUrlExists: z.boolean().describe("La página especifica una URL canónica."),
 });
 
-const aiResponseSchema = z.object({
+const AiResponseSchema = z.object({
   checks: aiChecksSchema,
   suggested: z.object({
     title: z.string().describe("Una sugerencia de título optimizado para SEO, con menos de 60 caracteres."),
     metaDescription: z.string().describe("Una sugerencia de meta descripción optimizada para SEO, con menos de 160 caracteres."),
     focusKeyword: z.string().describe("La palabra clave principal (2-4 palabras) más adecuada para este contenido."),
   }),
+});
+
+const analyzeSeoFlow = defineFlow({
+    name: 'analyzeSeoFlow',
+    inputSchema: z.any(),
+    outputSchema: AiResponseSchema
+}, async (pageData) => {
+    const { generate } = await import('@genkit-ai/ai');
+    const prompt = `
+    Analiza el siguiente contenido de una página web para optimización SEO (On-Page) y responde únicamente con un objeto JSON válido.
+    
+    **Datos de la Página:**
+    - Título SEO: "${pageData.title}"
+    - Meta Descripción: "${pageData.metaDescription}"
+    - Palabra Clave Principal: "${pageData.focusKeyword}"
+    - URL Canónica: "${pageData.canonicalUrl || 'No encontrada'}"
+    - Total de Imágenes: ${pageData.images.length}
+    - Imágenes sin 'alt': ${pageData.images.filter((i: any) => !i.alt).length}
+    - Encabezado H1: "${pageData.h1}"
+    - Primeros 300 caracteres del contenido: "${pageData.textContent.substring(0, 300)}"
+
+    **Instrucciones:**
+    Evalúa cada uno de los siguientes puntos y devuelve un valor booleano (true/false) para cada uno en el objeto "checks". Además, proporciona sugerencias en el objeto "suggested".
+
+    **"checks":**
+    1.  "titleContainsKeyword": ¿Contiene el "Título SEO" la "Palabra Clave Principal"?
+    2.  "titleIsGoodLength": ¿Tiene el "Título SEO" entre 30 y 65 caracteres?
+    3.  "metaDescriptionContainsKeyword": ¿Contiene la "Meta Descripción" la "Palabra Clave Principal"?
+    4.  "metaDescriptionIsGoodLength": ¿Tiene la "Meta Descripción" entre 50 y 160 caracteres?
+    5.  "keywordInFirstParagraph": ¿Contienen los "Primeros 300 caracteres del contenido" la "Palabra Clave Principal"?
+    6.  "contentHasImages": ¿Es el "Total de Imágenes" mayor que 0?
+    7.  "allImagesHaveAltText": ¿Es el número de "Imágenes sin 'alt'" igual a 0?
+    8.  "h1Exists": ¿Existe el "Encabezado H1" y no está vacío?
+    9.  "canonicalUrlExists": ¿Existe la "URL Canónica" y no está vacía?
+
+    **"suggested":**
+    - "title": Sugiere un "Título SEO" mejorado.
+    - "metaDescription": Sugiere una "Meta Descripción" mejorada.
+    - "focusKeyword": Sugiere la "Palabra Clave Principal" más apropiada para el contenido.
+  `;
+  
+    const { output } = await generate({
+        model: googleAI('gemini-1.5-flash-latest'),
+        prompt: prompt,
+        output: {
+            schema: AiResponseSchema
+        }
+    });
+    if (!output) {
+      throw new Error("La IA devolvió una respuesta vacía.");
+    }
+    return output;
 });
 
 
@@ -127,59 +181,6 @@ async function getPageContentFromScraping(url: string) {
     }
 }
 
-
-async function getAiAnalysis(pageData: any) {
-  const prompt = `
-    Analiza el siguiente contenido de una página web para optimización SEO (On-Page) y responde únicamente con un objeto JSON válido.
-    
-    **Datos de la Página:**
-    - Título SEO: "${pageData.title}"
-    - Meta Descripción: "${pageData.metaDescription}"
-    - Palabra Clave Principal: "${pageData.focusKeyword}"
-    - URL Canónica: "${pageData.canonicalUrl || 'No encontrada'}"
-    - Total de Imágenes: ${pageData.images.length}
-    - Imágenes sin 'alt': ${pageData.images.filter((i: any) => !i.alt).length}
-    - Encabezado H1: "${pageData.h1}"
-    - Primeros 300 caracteres del contenido: "${pageData.textContent.substring(0, 300)}"
-
-    **Instrucciones:**
-    Evalúa cada uno de los siguientes puntos y devuelve un valor booleano (true/false) para cada uno en el objeto "checks". Además, proporciona sugerencias en el objeto "suggested".
-
-    **"checks":**
-    1.  "titleContainsKeyword": ¿Contiene el "Título SEO" la "Palabra Clave Principal"?
-    2.  "titleIsGoodLength": ¿Tiene el "Título SEO" entre 30 y 65 caracteres?
-    3.  "metaDescriptionContainsKeyword": ¿Contiene la "Meta Descripción" la "Palabra Clave Principal"?
-    4.  "metaDescriptionIsGoodLength": ¿Tiene la "Meta Descripción" entre 50 y 160 caracteres?
-    5.  "keywordInFirstParagraph": ¿Contienen los "Primeros 300 caracteres del contenido" la "Palabra Clave Principal"?
-    6.  "contentHasImages": ¿Es el "Total de Imágenes" mayor que 0?
-    7.  "allImagesHaveAltText": ¿Es el número de "Imágenes sin 'alt'" igual a 0?
-    8.  "h1Exists": ¿Existe el "Encabezado H1" y no está vacío?
-    9.  "canonicalUrlExists": ¿Existe la "URL Canónica" y no está vacía?
-
-    **"suggested":**
-    - "title": Sugiere un "Título SEO" mejorado.
-    - "metaDescription": Sugiere una "Meta Descripción" mejorada.
-    - "focusKeyword": Sugiere la "Palabra Clave Principal" más apropiada para el contenido.
-  `;
-  try {
-    const { output } = await ai.generate({
-        model: 'googleai/gemini-1.5-flash-latest',
-        prompt: prompt,
-        output: {
-            schema: aiResponseSchema
-        }
-    });
-    if (!output) {
-      throw new Error("La IA devolvió una respuesta vacía.");
-    }
-    return output;
-  } catch (error) {
-    console.error("Error communicating with Google AI:", error);
-    if (error instanceof Error) throw error;
-    throw new Error("Hubo un error al procesar el contenido con la IA.");
-  }
-}
-
 export async function POST(req: NextRequest) {
   let uid: string;
   try {
@@ -192,6 +193,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    console.log("Handling /api/seo/analyze-url request...");
     const body = await req.json();
     const validation = analyzeUrlSchema.safeParse(body);
     if (!validation.success) {
@@ -215,9 +217,8 @@ export async function POST(req: NextRequest) {
         throw new Error('No se encontró suficiente contenido textual en la página para analizar. Asegúrate de que la URL es correcta y tiene contenido visible.');
     }
 
-    const aiAnalysis = await getAiAnalysis(pageData);
+    const aiAnalysis = await runFlow(analyzeSeoFlow, pageData);
     
-    // Deterministic score calculation
     const checkWeights = { titleContainsKeyword: 15, titleIsGoodLength: 10, metaDescriptionContainsKeyword: 15, metaDescriptionIsGoodLength: 10, keywordInFirstParagraph: 15, contentHasImages: 5, allImagesHaveAltText: 10, h1Exists: 10, canonicalUrlExists: 10 };
     let score = 0;
     Object.entries(aiAnalysis.checks).forEach(([key, passed]) => {
@@ -236,9 +237,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    console.log("SEO analysis completed successfully for:", url);
     return NextResponse.json(fullAnalysis);
   } catch (error: any) {
-    console.error('Error in analyze-url endpoint:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('🔥 Error in /api/seo/analyze-url:', error);
+    const errorMessage = error.message || 'An unknown error occurred';
+    if (errorMessage.trim().startsWith('<!DOCTYPE html>')) {
+        return NextResponse.json({ error: 'La IA falló: Error interno del servidor de IA. Por favor, reintenta.' }, { status: 500 });
+    }
+    return NextResponse.json({ error: 'La IA falló: ' + errorMessage }, { status: 500 });
   }
 }

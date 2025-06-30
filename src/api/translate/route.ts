@@ -1,15 +1,15 @@
+
 'use server';
+import '@/ai/genkit';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import {
   translateContent,
-  TranslateContentInputSchema,
 } from '@/ai/flows/translate-content-flow';
 
 export async function POST(req: NextRequest) {
-  // 1. Authenticate the request
   try {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) throw new Error('Authentication token not provided.');
@@ -22,13 +22,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 2. Validate the request body and perform the translation
   try {
+    console.log("Handling /api/translate request...");
     const body = await req.json();
 
-    // The API route receives a different shape, just the content and lang
     const apiSchema = z.object({
-        content: z.record(z.string()),
+        contentToTranslate: z.record(z.string()),
         targetLanguage: z.string(),
     });
 
@@ -40,21 +39,17 @@ export async function POST(req: NextRequest) {
         );
     }
 
-    // Construct the input for the flow
-    const flowInput = {
-        contentToTranslate: apiValidation.data.content,
-        targetLanguage: apiValidation.data.targetLanguage
-    };
-    
-    const output = await translateContent(flowInput);
+    const output = await translateContent(apiValidation.data);
+    console.log("Translation completed successfully.");
 
-    // The flow already handles errors, so we just return the output
-    return NextResponse.json({ content: output });
+    return NextResponse.json(output);
+
   } catch (error: any) {
-    console.error('Error in translation API:', error);
-    return NextResponse.json(
-      {error: 'Failed to translate content', message: error.message},
-      {status: 500}
-    );
+    console.error('🔥 Error in /api/translate:', error);
+    const errorMessage = error.message || 'Failed to translate content';
+    if (errorMessage.trim().startsWith('<!DOCTYPE html>')) {
+        return NextResponse.json({ error: 'La IA falló: Error interno del servidor de IA. Por favor, reintenta.' }, { status: 500 });
+    }
+    return NextResponse.json({ error: 'La IA falló: ' + errorMessage }, { status: 500 });
   }
 }
