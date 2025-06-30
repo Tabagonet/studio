@@ -54,6 +54,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const isElementor = !!pageData.meta?._elementor_version;
     const adminUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '/wp-admin/');
     const elementorEditLink = isElementor ? `${adminUrl}post.php?post=${pageId}&action=elementor` : null;
+    const adminEditLink = `${adminUrl}post.php?post=${pageId}&action=edit`;
 
     const transformed = {
       ...pageData,
@@ -61,6 +62,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       featured_media: pageData.featured_media,
       isElementor,
       elementorEditLink,
+      adminEditLink,
     };
     return NextResponse.json(transformed);
   } catch (error: any) {

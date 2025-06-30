@@ -9,12 +9,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, ArrowLeft, Edit, Sparkles, Image as ImageIcon, Checkbox, Save } from 'lucide-react';
+import { Loader2, ArrowLeft, Edit, Sparkles, Image as ImageIcon, Checkbox, Save, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { SeoAnalyzer } from '@/components/features/blog/seo-analyzer';
+import Link from 'next/link';
 
 
 interface PostEditState {
@@ -26,6 +27,7 @@ interface PostEditState {
   };
   isElementor: boolean;
   elementorEditLink: string | null;
+  adminEditLink?: string | null;
   featuredImageUrl?: string | null;
   featuredMediaId?: number | null;
 }
@@ -87,6 +89,7 @@ function EditPageContent() {
         },
         isElementor: postData.isElementor || false,
         elementorEditLink: postData.elementorEditLink || null,
+        adminEditLink: postData.adminEditLink || null,
         featuredImageUrl: postData.featured_image_url || null,
         featuredMediaId: postData.featured_media || null,
       };
@@ -245,13 +248,35 @@ function EditPageContent() {
         </Card>
 
         {post.isElementor && (
-             <Alert>
-                <Edit className="h-4 w-4" />
-                <AlertTitle>Página de Elementor</AlertTitle>
-                <AlertDescription>
-                   Para editar los encabezados y el contenido, debes usar el editor de Elementor. Esta herramienta te permite editar los metadatos y optimizar las imágenes.
-                </AlertDescription>
-            </Alert>
+          <Alert>
+            <ExternalLink className="h-4 w-4" />
+            <AlertTitle>Página de Elementor Detectada</AlertTitle>
+            <AlertDescription>
+                Para editar el contenido visual y los encabezados, debes usar el editor de Elementor.
+            </AlertDescription>
+            <Button asChild className="mt-4" size="sm">
+                <Link href={post.elementorEditLink!} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Abrir con Elementor
+                </Link>
+            </Button>
+          </Alert>
+        )}
+        
+        {!post.isElementor && (
+           <Alert>
+            <Edit className="h-4 w-4" />
+            <AlertTitle>Editar Contenido Completo</AlertTitle>
+            <AlertDescription>
+              Para modificar los encabezados (H1, H2, etc.) o el cuerpo del texto, puedes usar el editor correspondiente.
+            </AlertDescription>
+             <Button asChild className="mt-4" size="sm">
+                <Link href={postType === 'Post' ? `/blog/edit/${postId}` : post.adminEditLink || '#'} target={postType === 'Post' ? '_self' : '_blank'} rel="noopener noreferrer">
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    {postType === 'Post' ? 'Abrir Editor de Contenido' : 'Abrir Editor de WordPress'}
+                </Link>
+            </Button>
+          </Alert>
         )}
         
         <SeoAnalyzer
