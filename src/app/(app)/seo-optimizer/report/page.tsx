@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, Printer, BrainCircuit, CheckCircle, XCircle, Image as ImageIcon, Heading1, ListTree, Lightbulb, FileText } from 'lucide-react';
+import { Loader2, Printer, BrainCircuit, Lightbulb, FileText, ListTree, Image as ImageIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import type { SeoAnalysisRecord, SeoInterpretationOutput } from '@/lib/types';
@@ -54,9 +54,12 @@ function ReportContent() {
         const record: SeoAnalysisRecord = await response.json();
         setAnalysisRecord(record);
         
-        // Now, fetch the interpretation
-        const interpretationResult = await interpretSeoAnalysis(record.analysis);
-        setInterpretation(interpretationResult);
+        if (record.analysis) {
+            const interpretationResult = await interpretSeoAnalysis(record.analysis);
+            setInterpretation(interpretationResult);
+        } else {
+            throw new Error("Los datos del análisis están incompletos en el registro.");
+        }
 
       } catch (e: any) {
         setError(e.message);
@@ -82,13 +85,13 @@ function ReportContent() {
     return <Alert variant="destructive"><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>;
   }
 
-  if (!analysisRecord) {
-    return <Alert>No se encontraron datos de análisis.</Alert>;
+  if (!analysisRecord || !analysisRecord.analysis) {
+    return <Alert>No se encontraron datos de análisis válidos.</Alert>;
   }
 
   const { analysis } = analysisRecord;
-  const scoreColor = analysis.aiAnalysis.score >= 80 ? 'text-green-500' : analysis.aiAnalysis.score >= 50 ? 'text-amber-500' : 'text-destructive';
-  const imagesWithoutAlt = analysis.images.filter(img => !img.alt).length;
+  const scoreColor = analysis.aiAnalysis?.score >= 80 ? 'text-green-500' : analysis.aiAnalysis?.score >= 50 ? 'text-amber-500' : 'text-destructive';
+  const imagesWithoutAlt = analysis.images?.filter(img => !img.alt).length || 0;
 
   return (
     <div className="report-container bg-background text-foreground font-sans">
@@ -109,7 +112,7 @@ function ReportContent() {
             <CardContent className="flex flex-col md:flex-row items-center justify-around gap-8 pt-8">
               <div className="text-center">
                 <p className="text-xl text-muted-foreground font-semibold">Puntuación Global</p>
-                <p className={`text-8xl font-bold ${scoreColor}`}>{analysis.aiAnalysis.score}<span className="text-4xl">/100</span></p>
+                <p className={`text-8xl font-bold ${scoreColor}`}>{analysis.aiAnalysis?.score ?? '?'}<span className="text-4xl">/100</span></p>
               </div>
               <div className="max-w-xl">
                  {interpretation ? (
@@ -132,7 +135,7 @@ function ReportContent() {
              <CardContent>
                 {interpretation ? (
                   <ul className="list-decimal list-inside space-y-4 text-lg">
-                      {interpretation.actionPlan.map((action, i) => (
+                      {interpretation.actionPlan?.map((action, i) => (
                           <li key={i} className="pl-2">{action}</li>
                       ))}
                   </ul>
@@ -149,16 +152,16 @@ function ReportContent() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Card>
                     <CardHeader><CardTitle className="text-lg">SEO Básico</CardTitle></CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex items-start gap-3"><CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" /><p><strong className="font-semibold">Título:</strong> {analysis.title || <span className="text-destructive">No encontrado</span>}</p></div>
-                        <div className="flex items-start gap-3"><CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" /><p><strong className="font-semibold">Meta Desc:</strong> {analysis.metaDescription || <span className="text-destructive">No encontrada</span>}</p></div>
-                        <div className="flex items-start gap-3"><CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" /><p><strong className="font-semibold">Encabezado H1:</strong> {analysis.h1 || <span className="text-destructive">No encontrado</span>}</p></div>
+                    <CardContent className="space-y-3 text-sm">
+                        <p><strong className="font-semibold">Título:</strong> {analysis.title || <span className="text-destructive">No encontrado</span>}</p>
+                        <p><strong className="font-semibold">Meta Desc:</strong> {analysis.metaDescription || <span className="text-destructive">No encontrada</span>}</p>
+                        <p><strong className="font-semibold">Encabezado H1:</strong> {analysis.h1 || <span className="text-destructive">No encontrado</span>}</p>
                     </CardContent>
                 </Card>
                 <Card>
-                    <CardHeader><CardTitle className="text-lg">SEO de Imágenes</CardTitle></CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex justify-between items-center"><p>Imágenes encontradas:</p><Badge>{analysis.images.length}</Badge></div>
+                    <CardHeader><CardTitle className="text-lg flex items-center gap-2"><ImageIcon className="h-5 w-5"/> SEO de Imágenes</CardTitle></CardHeader>
+                    <CardContent className="space-y-3 text-sm">
+                        <div className="flex justify-between items-center"><p>Imágenes encontradas:</p><Badge>{analysis.images?.length ?? 0}</Badge></div>
                         <div className="flex justify-between items-center"><p>Imágenes sin 'alt':</p><Badge variant={imagesWithoutAlt > 0 ? "destructive" : "default"}>{imagesWithoutAlt}</Badge></div>
                     </CardContent>
                 </Card>
@@ -166,13 +169,13 @@ function ReportContent() {
              <Card>
                 <CardHeader><CardTitle className="text-lg flex items-center gap-2"><ListTree className="h-5 w-5" /> Estructura de Encabezados</CardTitle></CardHeader>
                 <CardContent>
-                    <div className="columns-1 md:columns-2 gap-x-8">
-                    {analysis.headings.map((h, i) => (
+                    <div className="columns-1 md:columns-2 gap-x-8 max-h-96 overflow-y-auto">
+                    {analysis.headings?.length > 0 ? analysis.headings.map((h, i) => (
                         <div key={i} className="flex items-start gap-2 mb-2 break-inside-avoid-column">
                             <Badge variant="secondary" className="font-bold">{h.tag.toUpperCase()}</Badge>
                             <p className="text-sm">{h.text}</p>
                         </div>
-                    ))}
+                    )) : <p className="text-sm text-muted-foreground">No se encontraron encabezados.</p>}
                     </div>
                 </CardContent>
             </Card>
@@ -185,7 +188,7 @@ function ReportContent() {
               <Card className="border-green-500/50">
                   <CardHeader><CardTitle className="text-lg text-green-600">Puntos Fuertes</CardTitle></CardHeader>
                   <CardContent>
-                    {interpretation ? (
+                    {interpretation?.positives ? (
                         <ul className="list-disc list-inside space-y-2">{interpretation.positives.map((item, i) => <li key={i}>{item}</li>)}</ul>
                     ) : (
                         <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Cargando...</div>
@@ -195,7 +198,7 @@ function ReportContent() {
                <Card className="border-amber-500/50">
                   <CardHeader><CardTitle className="text-lg text-amber-600">Áreas de Mejora</CardTitle></CardHeader>
                   <CardContent>
-                    {interpretation ? (
+                    {interpretation?.improvements ? (
                         <ul className="list-disc list-inside space-y-2">{interpretation.improvements.map((item, i) => <li key={i}>{item}</li>)}</ul>
                     ) : (
                         <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Cargando...</div>
