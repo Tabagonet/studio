@@ -29,20 +29,20 @@ import { Input } from "@/components/ui/input"
 import { getColumns } from "./columns" 
 import type { ProductSearchResult, WooCommerceCategory, ProductStats } from "@/lib/types"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { BrainCircuit, ChevronDown, Loader2, Box, FileCheck2, FileText, BarChart3, Eye, EyeOff, Image as ImageIcon, Trash2 } from "lucide-react"
+import { BrainCircuit, ChevronDown, Loader2, Box, FileCheck2, FileText, BarChart3, Eye, EyeOff, Image as ImageIcon, Trash2, BadgeDollarSign } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Label } from "@/components/ui/label"
 
 
 export function ProductDataTable() {
   const [data, setData] = React.useState<ProductSearchResult[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
-  const [isAiProcessing, setIsAiProcessing] = React.useState(false);
-  const [isUpdatingStatus, setIsUpdatingStatus] = React.useState(false);
-  const [isDeleting, setIsDeleting] = React.useState(false);
+  const [isActionRunning, setIsActionRunning] = React.useState(false);
+  const [actionText, setActionText] = React.useState('');
   const [totalPages, setTotalPages] = React.useState(1)
   
   const [categories, setCategories] = React.useState<WooCommerceCategory[]>([]);
@@ -75,6 +75,14 @@ export function ProductDataTable() {
     action: 'generateDescriptions' | 'generateImageMetadata';
     productIds: number[];
   } | null>(null);
+  
+  const [isPriceModalOpen, setIsPriceModalOpen] = React.useState(false);
+  const [priceModification, setPriceModification] = React.useState({
+    field: 'regular_price' as 'regular_price' | 'sale_price',
+    operation: 'increase' as 'increase' | 'decrease' | 'set',
+    type: 'percentage' as 'percentage' | 'fixed',
+    value: '',
+  });
 
   const { toast, dismiss } = useToast()
 
@@ -305,19 +313,20 @@ export function ProductDataTable() {
       return;
     }
     
-    setIsAiProcessing(true);
+    setIsActionRunning(true);
+    setActionText('Procesando IA...');
     const user = auth.currentUser;
     if (!user) {
         toast({ title: "No autenticado", variant: "destructive" });
-        setIsAiProcessing(false);
+        setIsActionRunning(false);
         return;
     }
 
-    const actionText = action === 'generateDescriptions' ? 'descripciones' : 'metadatos de imagen';
+    const actionTextToast = action === 'generateDescriptions' ? 'descripciones' : 'metadatos de imagen';
 
     toast({
         title: "Procesando con IA...",
-        description: `Generando ${actionText} para ${productIds.length} producto(s). Esto puede tardar.`,
+        description: `Generando ${actionTextToast} para ${productIds.length} producto(s). Esto puede tardar.`,
     });
 
     try {
@@ -362,33 +371,34 @@ export function ProductDataTable() {
             variant: "destructive",
         });
     } finally {
-        setIsAiProcessing(false);
+        setIsActionRunning(false);
+        setActionText('');
         if (force) {
             setConfirmationData(null);
         }
     }
   }
 
-  const handleBatchStatusUpdate = async (status: 'publish' | 'draft') => {
+  const handleBatchUpdate = async (updates: any) => {
     const selectedRows = table.getSelectedRowModel().rows;
     if (selectedRows.length === 0) {
       toast({ title: "No hay productos seleccionados", variant: "destructive" });
       return;
     }
     
-    setIsUpdatingStatus(true);
+    setIsActionRunning(true);
+    setActionText('Actualizando...');
     const productIds = selectedRows.map(row => row.original.id);
     const user = auth.currentUser;
     if (!user) {
         toast({ title: "No autenticado", variant: "destructive" });
-        setIsUpdatingStatus(false);
+        setIsActionRunning(false);
         return;
     }
 
-    const actionText = status === 'publish' ? 'publicando' : 'ocultando';
     toast({
         title: "Actualizando en lote...",
-        description: `Se están ${actionText} ${productIds.length} producto(s).`,
+        description: `Se están aplicando cambios a ${productIds.length} producto(s).`,
     });
 
     try {
@@ -399,7 +409,7 @@ export function ProductDataTable() {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
             },
-            body: JSON.stringify({ productIds, status }),
+            body: JSON.stringify({ productIds, updates }),
         });
 
         const result = await response.json();
@@ -423,25 +433,28 @@ export function ProductDataTable() {
             variant: "destructive",
         });
     } finally {
-        setIsUpdatingStatus(false);
+        setIsActionRunning(false);
+        setActionText('');
+        setIsPriceModalOpen(false);
     }
   }
   
     const handleBatchDelete = async () => {
-        setIsDeleting(true);
+        setIsActionRunning(true);
+        setActionText('Eliminando...');
         const selectedRows = table.getSelectedRowModel().rows;
         const productIds = selectedRows.map(row => row.original.id);
     
         if (productIds.length === 0) {
             toast({ title: "No hay productos seleccionados", variant: "destructive" });
-            setIsDeleting(false);
+            setIsActionRunning(false);
             return;
         }
     
         const user = auth.currentUser;
         if (!user) {
             toast({ title: "No autenticado", variant: "destructive" });
-            setIsDeleting(false);
+            setIsActionRunning(false);
             return;
         }
     
@@ -479,17 +492,29 @@ export function ProductDataTable() {
                 variant: "destructive",
             });
         } finally {
-            setIsDeleting(false);
+            setIsActionRunning(false);
+            setActionText('');
         }
     };
+    
+    const handleApplyPriceChange = () => {
+        const value = parseFloat(priceModification.value);
+        if (isNaN(value) || value <= 0) {
+            toast({ title: 'Valor inválido', description: 'Por favor, introduce un número positivo.', variant: 'destructive' });
+            return;
+        }
+        handleBatchUpdate({
+            priceModification: {
+                ...priceModification,
+                value: value
+            }
+        });
+    }
 
   const selectedRowCount = Object.keys(rowSelection).length;
-  const isActionRunning = isAiProcessing || isUpdatingStatus || isDeleting;
 
   const getButtonText = () => {
-    if (isAiProcessing) return "Procesando IA...";
-    if (isUpdatingStatus) return "Actualizando...";
-    if (isDeleting) return "Eliminando...";
+    if (isActionRunning) return actionText;
     return `Acciones (${selectedRowCount})`;
   };
 
@@ -513,7 +538,7 @@ export function ProductDataTable() {
                 </ul>
             </ScrollArea>
             <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => { setConfirmationData(null); setIsAiProcessing(false); }}>Cancelar</AlertDialogCancel>
+                <AlertDialogCancel onClick={() => { setConfirmationData(null); setIsActionRunning(false); }}>Cancelar</AlertDialogCancel>
                 <AlertDialogAction 
                     onClick={() => {
                         if (confirmationData) {
@@ -526,6 +551,64 @@ export function ProductDataTable() {
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
+
+    <AlertDialog open={isPriceModalOpen} onOpenChange={setIsPriceModalOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Modificar Precios en Lote</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Define cómo quieres modificar los precios para los {selectedRowCount} productos seleccionados.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <Label>Campo de Precio</Label>
+                        <Select value={priceModification.field} onValueChange={(v) => setPriceModification(p => ({...p, field: v as any}))}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="regular_price">Precio Regular</SelectItem>
+                                <SelectItem value="sale_price">Precio de Oferta</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                     <div>
+                        <Label>Operación</Label>
+                        <Select value={priceModification.operation} onValueChange={(v) => setPriceModification(p => ({...p, operation: v as any}))}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="increase">Aumentar</SelectItem>
+                                <SelectItem value="decrease">Disminuir</SelectItem>
+                                <SelectItem value="set">Establecer Nuevo Precio</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+                 <div className="grid grid-cols-2 gap-4">
+                     <div>
+                        <Label>Tipo de Valor</Label>
+                        <Select value={priceModification.type} onValueChange={(v) => setPriceModification(p => ({...p, type: v as any}))} disabled={priceModification.operation === 'set'}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="percentage">Porcentaje (%)</SelectItem>
+                                <SelectItem value="fixed">Cantidad Fija (€)</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div>
+                        <Label>Valor</Label>
+                        <Input type="number" placeholder="Ej: 10" value={priceModification.value} onChange={(e) => setPriceModification(p => ({...p, value: e.target.value}))}/>
+                    </div>
+                </div>
+            </div>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleApplyPriceChange}>Aplicar Cambios</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -636,11 +719,16 @@ export function ProductDataTable() {
                         <ImageIcon className="mr-2 h-4 w-4" /> Generar Metadatos para Imágenes
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Gestión de Precios</DropdownMenuLabel>
+                    <DropdownMenuItem onSelect={() => setIsPriceModalOpen(true)}>
+                        <BadgeDollarSign className="mr-2 h-4 w-4" /> Modificar Precios
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
                     <DropdownMenuLabel>Acciones de Estado</DropdownMenuLabel>
-                    <DropdownMenuItem onSelect={() => handleBatchStatusUpdate('publish')}>
+                    <DropdownMenuItem onSelect={() => handleBatchUpdate({status: 'publish'})}>
                         <Eye className="mr-2 h-4 w-4" /> Hacer Visibles (Publicar)
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => handleBatchStatusUpdate('draft')}>
+                    <DropdownMenuItem onSelect={() => handleBatchUpdate({status: 'draft'})}>
                         <EyeOff className="mr-2 h-4 w-4" /> Ocultar (Poner como Borrador)
                     </DropdownMenuItem>
                      <DropdownMenuSeparator />
@@ -660,7 +748,7 @@ export function ProductDataTable() {
                   </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                  <AlertDialogCancel onClick={() => setIsDeleting(false)}>Cancelar</AlertDialogCancel>
+                  <AlertDialogCancel onClick={() => setIsActionRunning(false)}>Cancelar</AlertDialogCancel>
                   <AlertDialogAction onClick={handleBatchDelete} className={buttonVariants({ variant: "destructive" })}>
                       Sí, eliminar productos
                   </AlertDialogAction>
