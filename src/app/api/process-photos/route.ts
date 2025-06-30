@@ -1,42 +1,18 @@
 
 'use server';
-// NOTE: This endpoint has been repurposed for batch product updates via AI.
+import '@/ai/genkit';
+
 import {NextRequest, NextResponse} from 'next/server';
 import {adminAuth} from '@/lib/firebase-admin';
 import {getApiClientsForUser} from '@/lib/api-helpers';
 import {z} from 'zod';
-import * as genkit from '@genkit-ai/core';
-import {googleAI} from '@genkit-ai/googleai';
-import Handlebars from 'handlebars';
+import { generateProduct } from '@/ai/flows/generate-product-flow';
 
 const BatchUpdateInputSchema = z.object({
   productIds: z.array(z.number()).min(1, 'At least one product ID is required.'),
   action: z.enum(['generateDescriptions', 'generateImageMetadata']),
   force: z.boolean().optional().default(false),
 });
-
-// Schemas for the AI call
-const GenerateProductOutputSchema = z.object({
-  shortDescription: z.string().describe('A brief, catchy summary of the product.'),
-  longDescription: z.string().describe('A detailed, persuasive description of the product.'),
-  keywords: z.string().describe('A comma-separated list of 5 to 10 relevant SEO keywords.'),
-  imageTitle: z.string().describe('A concise, SEO-friendly title for the product images.'),
-  imageAltText: z.string().describe('A descriptive alt text for SEO.'),
-  imageCaption: z.string().describe('An engaging caption for the image.'),
-  imageDescription: z.string().describe('A detailed description for the image media library entry.'),
-});
-
-const generateProductPromptTemplate = `You are an expert e-commerce copywriter and SEO specialist.
-    Your task is to receive product information and generate a complete, accurate, and compelling product listing.
-    The response must be a single, valid JSON object.
-    
-    **Product Information:**
-    - **Product Name:** {{productName}}
-    - **Language for output:** {{language}}
-    - **Product Type:** {{productType}}
-    - **User-provided Keywords (for inspiration):** {{keywords}}
-
-    Generate the complete JSON object based on your research of "{{productName}}".`;
 
 
 export async function POST(req: NextRequest) {
@@ -73,7 +49,6 @@ export async function POST(req: NextRequest) {
       throw new Error('WordPress API must be configured to update image metadata.');
     }
 
-    // --- Confirmation Check Step (if force is false) ---
     if (!force) {
       const productsToConfirm: {id: number; name: string; reason: string}[] =
         [];
@@ -102,11 +77,7 @@ export async function POST(req: NextRequest) {
             });
           }
         } catch (error: any) {
-          console.error(
-            `Failed to check product ${productId} for confirmation. Error: ${
-              error instanceof Error ? error.message : String(error)
-            }`
-          );
+          console.error(`Failed to check product ${productId} for confirmation.`);
         }
       }
 
@@ -118,7 +89,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // --- Execution Step ---
     const results = {
       success: [] as number[],
       failed: [] as {id: number; reason: string}[],
@@ -129,33 +99,20 @@ export async function POST(req: NextRequest) {
         const productResponse = await wooApi.get(`products/${productId}`);
         const product = productResponse.data;
 
-        const aiInput = {
+        const aiContent = await generateProduct({
           productName: product.name,
           productType: product.type,
           language: 'Spanish',
           keywords: product.tags?.map((t: any) => t.name).join(', ') || '',
-        };
-        const template = Handlebars.compile(generateProductPromptTemplate, { noEscape: true });
-        const finalPrompt = template(aiInput);
-
-        const { output: aiContent } = await genkit.generate({
-          model: googleAI('gemini-1.5-flash-latest'),
-          prompt: finalPrompt,
-          output: { schema: GenerateProductOutputSchema }
+          groupedProductsList: '',
+          uid,
         });
-
-        if (!aiContent) {
-          throw new Error('AI returned an empty response.');
-        }
 
         if (action === 'generateDescriptions') {
           await wooApi.put(`products/${productId}`, {
             short_description: aiContent.shortDescription,
             description: aiContent.longDescription,
-            tags: aiContent.keywords
-              .split(',')
-              .map((k: string) => ({name: k.trim()}))
-              .filter((k: {name: string}) => k.name),
+            tags: aiContent.keywords.split(',').map((k: string) => ({name: k.trim()})).filter((k: {name: string}) => k.name),
           });
         } else if (action === 'generateImageMetadata') {
           if (!wpApi) throw new Error('WordPress API client is not available.');

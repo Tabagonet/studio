@@ -9,7 +9,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, Printer, BrainCircuit, Lightbulb, FileText, ListTree, Image as ImageIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
-import type { SeoAnalysisRecord, SeoInterpretationOutput } from '@/lib/types';
+import type { SeoAnalysisRecord, SeoInterpretationOutput, SeoAnalysisInput } from '@/lib/types';
+import { interpretSeoAnalysis } from '@/ai/flows/interpret-seo-analysis';
 import { APP_NAME } from '@/lib/constants';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -44,7 +45,6 @@ function ReportContent() {
       }
       try {
         const token = await user.getIdToken();
-        // First get the raw analysis data
         const response = await fetch(`/api/seo/analysis/${analysisId}`, {
           headers: { 'Authorization': `Bearer ${token}` },
         });
@@ -60,18 +60,7 @@ function ReportContent() {
         }
         setAnalysisRecord(record);
         
-        // Then, get the interpretation from the dedicated endpoint
-        const interpretationResponse = await fetch(`/api/seo/analysis/${analysisId}`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-        
-        if (!interpretationResponse.ok) {
-           const errorData = await interpretationResponse.json();
-           throw new Error(errorData.error || 'No se pudo generar la interpretación de la IA.');
-        }
-
-        const interpretationResult = await interpretationResponse.json();
+        const interpretationResult = await interpretSeoAnalysis(record.analysis as SeoAnalysisInput);
         setInterpretation(interpretationResult);
 
       } catch (e: any) {

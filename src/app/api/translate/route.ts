@@ -1,11 +1,11 @@
 
 'use server';
+import '@/ai/genkit';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { z } from 'zod';
-import * as genkit from '@genkit-ai/core';
-import { googleAI } from '@genkit-ai/googleai';
+import { translateContent } from '@/ai/flows/translate-content-flow';
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
+
     const apiSchema = z.object({
         contentToTranslate: z.record(z.string()),
         targetLanguage: z.string(),
@@ -34,30 +35,11 @@ export async function POST(req: NextRequest) {
             {status: 400}
         );
     }
-
-    const { contentToTranslate, targetLanguage } = apiValidation.data;
-
-    const systemInstruction = `You are an expert translator. Translate the values of the user-provided JSON object into the specified target language. It is crucial that you maintain the original JSON structure and keys. You must also preserve all HTML tags (e.g., <h2>, <p>, <strong>) and special separators like '|||' in their correct positions within the string values. Your output must be only the translated JSON object, without any extra text, comments, or markdown formatting.`;
-    const prompt = `Translate the following content to ${targetLanguage}:\\n\\n${JSON.stringify(contentToTranslate)}`;
-    const outputSchema = z.record(z.string());
-
-    const { output } = await genkit.generate({
-      model: googleAI('gemini-1.5-flash-latest'),
-      system: systemInstruction,
-      prompt: prompt,
-      output: {
-        format: 'json',
-        schema: outputSchema,
-      },
-    });
-
-    if (!output || typeof output !== 'object') {
-      throw new Error(
-        'AI returned a non-object or empty response for translation.'
-      );
-    }
     
+    const output = await translateContent(apiValidation.data);
+
     return NextResponse.json(output);
+
   } catch (error: any) {
     console.error('Error in translation API:', error);
     const errorMessage = error.message || 'Failed to translate content';
