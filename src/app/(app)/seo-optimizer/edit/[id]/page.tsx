@@ -2,20 +2,14 @@
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import Image from 'next/image';
+import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Loader2, ArrowLeft, Edit, Sparkles, Image as ImageIcon, Save, ExternalLink } from 'lucide-react';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Loader2, ArrowLeft, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { SeoAnalyzer } from '@/components/features/blog/seo-analyzer';
-import Link from 'next/link';
 import type { SeoAnalysisRecord } from '@/lib/types';
 
 
@@ -84,10 +78,10 @@ function EditPageContent() {
       
       const postData = await postResponse.json();
       const loadedPost: PostEditState = {
-        title: postData.meta?._yoast_wpseo_title || postData.title.rendered || '',
+        title: postData.title.rendered || '',
         content: postData.content.rendered || '',
         meta: {
-            _yoast_wpseo_title: postData.meta?._yoast_wpseo_title || postData.title.rendered || '',
+            _yoast_wpseo_title: postData.meta?._yoast_wpseo_title || '',
             _yoast_wpseo_metadesc: postData.meta?._yoast_wpseo_metadesc || '',
             _yoast_wpseo_focuskw: postData.meta?._yoast_wpseo_focuskw || '',
         },
@@ -166,6 +160,21 @@ function EditPageContent() {
     fetchInitialData();
   }, [fetchInitialData]);
   
+  const handleMetaChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (!post) return;
+    const { name, value } = e.target;
+    setPost(prev => {
+        if (!prev) return null;
+        return {
+            ...prev,
+            meta: {
+                ...prev.meta,
+                [name]: value,
+            },
+        };
+    });
+  };
+
   const handleSaveChanges = async () => {
     setIsSaving(true);
     const user = auth.currentUser;
@@ -205,40 +214,6 @@ function EditPageContent() {
     }
   };
 
-  const handleGenerateImageAlts = useCallback(async () => {
-    if (!post) return;
-    setIsAiLoading(true);
-    try {
-        const user = auth.currentUser;
-        if (!user) throw new Error("No autenticado.");
-        const token = await user.getIdToken();
-        const payload = {
-            mode: 'generate_image_meta',
-            language: 'Spanish',
-            existingTitle: post.title,
-            existingContent: post.content,
-        };
-        const response = await fetch('/api/generate-blog-post', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify(payload),
-        });
-        if (!response.ok) throw new Error((await response.json()).error || 'La IA falló al generar metadatos.');
-        
-        const aiContent = await response.json();
-        
-        setContentImages(prevImages =>
-            prevImages.map(img =>
-                !img.alt ? { ...img, alt: aiContent.imageAltText } : img
-            )
-        );
-        toast({ title: 'Textos alternativos generados', description: "Se ha añadido 'alt text' a las imágenes que no lo tenían." });
-    } catch (e: any) {
-        toast({ title: 'Error de IA', description: e.message, variant: "destructive" });
-    } finally {
-        setIsAiLoading(false);
-    }
-  }, [post, toast]);
 
   if (isLoading) {
     return <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
@@ -268,90 +243,18 @@ function EditPageContent() {
                 </div>
             </CardHeader>
         </Card>
-
-        {post.isElementor && (
-          <Alert>
-            <ExternalLink className="h-4 w-4" />
-            <AlertTitle>Página de Elementor Detectada</AlertTitle>
-            <AlertDescription>
-                Para editar el contenido visual y los encabezados, debes usar el editor de Elementor.
-            </AlertDescription>
-            <Button asChild className="mt-4" size="sm">
-                <Link href={post.elementorEditLink!} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Abrir con Elementor
-                </Link>
-            </Button>
-          </Alert>
-        )}
-        
-        {!post.isElementor && post.adminEditLink && (
-           <Alert>
-            <Edit className="h-4 w-4" />
-            <AlertTitle>Editar Contenido Completo</AlertTitle>
-            <AlertDescription>
-              Para modificar los encabezados (H1, H2, etc.) o el cuerpo del texto, puedes usar el editor de WordPress.
-            </AlertDescription>
-             <Button asChild className="mt-4" size="sm">
-                <Link href={post.adminEditLink} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Abrir Editor de WordPress
-                </Link>
-            </Button>
-          </Alert>
-        )}
         
         <SeoAnalyzer
             post={post}
             setPost={setPost}
+            onMetaChange={handleMetaChange}
             isLoading={isAiLoading}
             setIsLoading={setIsAiLoading}
+            contentImages={contentImages}
+            setContentImages={setContentImages}
+            applyAiMetaToFeatured={applyAiMetaToFeatured}
+            setApplyAiMetaToFeatured={setApplyAiMetaToFeatured}
         />
-
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2"><ImageIcon className="h-5 w-5 text-primary" /> Optimización de Imágenes</CardTitle>
-                <CardDescription>Revisa y añade texto alternativo a las imágenes de tu contenido para mejorar el SEO y la accesibilidad.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <Button onClick={handleGenerateImageAlts} disabled={isAiLoading}>
-                    {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                    Generar y Aplicar 'alt text' con IA
-                </Button>
-                
-                 {post.featuredImageUrl && (
-                    <div className="flex items-center space-x-2 pt-4 border-t">
-                        <Checkbox id="apply-featured" checked={applyAiMetaToFeatured} onCheckedChange={(checked) => setApplyAiMetaToFeatured(!!checked)} />
-                        <Label htmlFor="apply-featured" className="text-sm font-normal">
-                           Aplicar también los metadatos generados a la imagen destacada.
-                        </Label>
-                    </div>
-                 )}
-
-                <div className="space-y-2 max-h-72 overflow-y-auto pr-2">
-                    {contentImages.map((img, index) => (
-                        <div key={index} className="flex items-center gap-3 p-2 border rounded-md">
-                            <div className="relative h-10 w-10 flex-shrink-0">
-                                <Image src={img.src} alt="Vista previa" fill sizes="40px" className="rounded-md object-cover" />
-                            </div>
-                            <div className="flex-1 text-sm text-muted-foreground truncate" title={img.src}>
-                                {img.src.split('/').pop()}
-                            </div>
-                            <div className="flex items-center gap-2">
-                               <div className="h-2 w-2 rounded-full" style={{ backgroundColor: img.alt ? 'hsl(var(--primary))' : 'hsl(var(--destructive))' }} />
-                               <Input 
-                                 value={img.alt}
-                                 onChange={(e) => setContentImages(prev => prev.map((current, i) => i === index ? { ...current, alt: e.target.value } : current))}
-                                 placeholder="Añade el 'alt text'..."
-                                 className="text-xs h-8"
-                               />
-                            </div>
-                        </div>
-                    ))}
-                    {contentImages.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No se encontraron imágenes en el contenido.</p>}
-                </div>
-            </CardContent>
-        </Card>
     </div>
   );
 }

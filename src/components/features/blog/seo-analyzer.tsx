@@ -3,7 +3,7 @@
 "use client";
 
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import { CheckCircle, XCircle, Edit, Sparkles, ExternalLink } from 'lucide-react';
+import { CheckCircle, XCircle, Sparkles, ExternalLink, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,9 +14,9 @@ import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { GoogleSnippetPreview } from './google-snippet-preview';
 import { Loader2 } from 'lucide-react';
-import Link from 'next/link';
+import { Checkbox } from '@/components/ui/checkbox';
 
-// Define the shape of the post object this component expects
+
 interface SeoAnalyzerPost {
   title: string;
   content: string; 
@@ -28,15 +28,25 @@ interface SeoAnalyzerPost {
   isElementor: boolean;
   elementorEditLink: string | null;
   adminEditLink?: string | null;
+  featuredImageUrl?: string | null;
   link?: string;
 }
 
+interface ContentImage {
+    src: string;
+    alt: string;
+}
 
 interface SeoAnalyzerProps {
   post: SeoAnalyzerPost | null;
   setPost: React.Dispatch<React.SetStateAction<SeoAnalyzerPost | null>>;
+  onMetaChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   isLoading: boolean;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  contentImages: ContentImage[];
+  setContentImages: React.Dispatch<React.SetStateAction<ContentImage[]>>;
+  applyAiMetaToFeatured: boolean;
+  setApplyAiMetaToFeatured: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 interface SeoCheck {
@@ -69,27 +79,19 @@ const CheckItem = ({ check, onFix, isAiLoading }: { check: SeoCheck, onFix: (mod
   );
 };
 
-export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnalyzerProps) {
-  const [isAiLoading, setIsAiLoadingState] = useState(false);
+export function SeoAnalyzer({ 
+    post, 
+    setPost, 
+    onMetaChange, 
+    isLoading, 
+    setIsLoading,
+    contentImages,
+    setContentImages,
+    applyAiMetaToFeatured,
+    setApplyAiMetaToFeatured
+}: SeoAnalyzerProps) {
   const { toast } = useToast();
   const hasTriggeredAutoKeyword = React.useRef(false);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setPost(prev => {
-        if (!prev) return null;
-        if (name === 'title') {
-            return { ...prev, title: value, meta: { ...prev.meta, _yoast_wpseo_title: value } };
-        }
-        if (name === 'focusKeyword') {
-            return { ...prev, meta: { ...prev.meta, _yoast_wpseo_focuskw: value } };
-        }
-        if (name === 'metaDescription') {
-            return { ...prev, meta: { ...prev.meta, _yoast_wpseo_metadesc: value } };
-        }
-        return prev;
-    });
-  };
 
   const handleFixWithAI = useCallback(async (mode: SeoCheck['aiMode'], editLink?: string | null) => {
     if (editLink) {
@@ -97,7 +99,7 @@ export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnaly
         return;
     }
     if (!mode || !post) return;
-    setIsAiLoadingState(true);
+    setIsLoading(true);
 
     try {
         const user = auth.currentUser;
@@ -108,7 +110,7 @@ export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnaly
             mode, 
             language: 'Spanish',
             existingTitle: post.title,
-            existingContent: post.content, // Pass full content, let the flow handle it
+            existingContent: post.content,
         };
         const response = await fetch('/api/generate-blog-post', {
             method: 'POST',
@@ -119,7 +121,7 @@ export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnaly
         const aiContent = await response.json();
         
         if (mode === 'enhance_title' && aiContent.title) {
-            setPost(prev => prev ? {...prev, title: aiContent.title, meta: {...prev.meta, _yoast_wpseo_title: aiContent.title}} : null);
+            setPost(prev => prev ? {...prev, meta: {...prev.meta, _yoast_wpseo_title: aiContent.title}} : null);
             toast({ title: "Título mejorado con IA" });
         } else if (mode === 'generate_meta_description' && aiContent.metaDescription) {
             setPost(prev => prev ? {...prev, meta: {...prev.meta, _yoast_wpseo_metadesc: aiContent.metaDescription}} : null);
@@ -128,14 +130,14 @@ export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnaly
     } catch (e: any) {
         toast({ title: "Error de IA", description: e.message, variant: "destructive" });
     } finally {
-        setIsAiLoadingState(false);
+        setIsLoading(false);
     }
-  }, [post, setPost, toast]);
+  }, [post, setPost, toast, setIsLoading]);
 
   const autoGenerateKeyword = useCallback(async () => {
     if (post && !post.meta._yoast_wpseo_focuskw && post.content && !hasTriggeredAutoKeyword.current) {
         hasTriggeredAutoKeyword.current = true;
-        setIsAiLoadingState(true);
+        setIsLoading(true);
         try {
             const user = auth.currentUser; if (!user) return;
             const token = await user.getIdToken();
@@ -147,13 +149,49 @@ export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnaly
                 setPost(prev => (prev ? {...prev, meta: {...prev.meta, _yoast_wpseo_focuskw: aiContent.focusKeyword}} : null));
                 toast({ title: "Sugerencia de IA", description: "Se ha sugerido una palabra clave principal para empezar." });
             }
-        } catch (e) { console.error(e) } finally { setIsAiLoadingState(false) }
+        } catch (e) { console.error(e) } finally { setIsLoading(false) }
     }
-  }, [post, setPost, toast]);
+  }, [post, setPost, toast, setIsLoading]);
 
   useEffect(() => {
     autoGenerateKeyword();
   }, [autoGenerateKeyword]);
+
+  const handleGenerateImageAlts = useCallback(async () => {
+    if (!post) return;
+    setIsLoading(true);
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("No autenticado.");
+        const token = await user.getIdToken();
+        const payload = {
+            mode: 'generate_image_meta',
+            language: 'Spanish',
+            existingTitle: post.title,
+            existingContent: post.content,
+        };
+        const response = await fetch('/api/generate-blog-post', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error((await response.json()).error || 'La IA falló al generar metadatos.');
+        
+        const aiContent = await response.json();
+        
+        setContentImages(prevImages =>
+            prevImages.map(img =>
+                !img.alt ? { ...img, alt: aiContent.imageAltText } : img
+            )
+        );
+        toast({ title: 'Textos alternativos generados', description: "Se ha añadido 'alt text' a las imágenes que no lo tenían." });
+    } catch (e: any) {
+        toast({ title: 'Error de IA', description: e.message, variant: "destructive" });
+    } finally {
+        setIsLoading(false);
+    }
+  }, [post, toast, setIsLoading, setContentImages]);
+
 
   const checks = useMemo<SeoCheck[]>(() => {
     if (!post || !post.meta) return [];
@@ -161,10 +199,11 @@ export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnaly
     const keyword = (post.meta._yoast_wpseo_focuskw || '').trim().toLowerCase();
     if (!keyword) return [];
     
-    const seoTitle = (post.meta._yoast_wpseo_title || post.title || '').trim();
+    const seoTitle = (post.meta._yoast_wpseo_title || '').trim();
     const metaDescription = (post.meta._yoast_wpseo_metadesc || '').trim();
     const plainContent = (post.content || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     const firstParagraph = plainContent.substring(0, 600).toLowerCase();
+    const editLink = post.isElementor ? post.elementorEditLink : post.adminEditLink;
 
     return [
       {
@@ -200,7 +239,7 @@ export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnaly
         pass: firstParagraph.includes(keyword),
         text: <>La palabra clave se encuentra en la <strong>introducción</strong> (primeros párrafos).</>,
         fixable: true,
-        editLink: post.isElementor ? post.elementorEditLink : post.adminEditLink
+        editLink: editLink
       },
     ];
   }, [post]);
@@ -214,45 +253,91 @@ export function SeoAnalyzer({ post, setPost, isLoading, setIsLoading }: SeoAnaly
       )
   }
 
-  const keyword = (post.meta?._yoast_wpseo_focuskw || '').trim();
-  const seoTitle = (post.meta?._yoast_wpseo_title || post.title || '').trim();
-  const metaDescription = (post.meta?._yoast_wpseo_metadesc || '').trim();
+  const keyword = post.meta?._yoast_wpseo_focuskw || '';
+  const seoTitle = post.meta?._yoast_wpseo_title || '';
+  const metaDescription = post.meta?._yoast_wpseo_metadesc || '';
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        <div className="space-y-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Checklist SEO Accionable</CardTitle>
-                    <CardDescription>Completa estas tareas para mejorar el SEO on-page de tu contenido.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="mb-4">
-                        <Label htmlFor="focusKeyword">Palabra Clave Principal</Label>
-                        <Input id="focusKeyword" name="focusKeyword" value={keyword} onChange={handleInputChange} />
-                    </div>
-                    {isLoading && !keyword ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin mr-2" /> Sugiriendo palabra clave...</div> :
-                    !keyword ? <p className="text-sm text-muted-foreground p-4 text-center border-dashed border rounded-md">Introduce una palabra clave principal para empezar.</p> :
-                    <ul className="space-y-3">
-                        {checks.map(check => (
-                            <CheckItem key={check.id} check={check} onFix={handleFixWithAI} isAiLoading={isAiLoading}/>
-                        ))}
-                    </ul>
-                    }
-                </CardContent>
-            </Card>
+    <>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            <div className="space-y-6">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Checklist SEO Accionable</CardTitle>
+                        <CardDescription>Completa estas tareas para mejorar el SEO on-page de tu contenido.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="mb-4">
+                            <Label htmlFor="focusKeyword">Palabra Clave Principal</Label>
+                            <Input id="focusKeyword" name="_yoast_wpseo_focuskw" value={keyword} onChange={onMetaChange} />
+                        </div>
+                        {isLoading && !keyword ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin mr-2" /> Sugiriendo palabra clave...</div> :
+                        !keyword ? <p className="text-sm text-muted-foreground p-4 text-center border-dashed border rounded-md">Introduce una palabra clave principal para empezar.</p> :
+                        <ul className="space-y-3">
+                            {checks.map(check => (
+                                <CheckItem key={check.id} check={check} onFix={handleFixWithAI} isAiLoading={isLoading}/>
+                            ))}
+                        </ul>
+                        }
+                    </CardContent>
+                </Card>
 
+            </div>
+            <div className="sticky top-20 space-y-6">
+                 <Card>
+                  <CardHeader><CardTitle>Edición SEO</CardTitle></CardHeader>
+                  <CardContent className="space-y-4">
+                    <div><Label htmlFor="yoastTitle">Título SEO (Yoast)</Label><Input id="yoastTitle" name="_yoast_wpseo_title" value={seoTitle} onChange={onMetaChange} /></div>
+                    <div><Label htmlFor="metaDescription">Meta Descripción (Yoast)</Label><Textarea id="metaDescription" name="_yoast_wpseo_metadesc" value={metaDescription} onChange={onMetaChange} maxLength={165} rows={3} /></div>
+                  </CardContent>
+                </Card>
+                <GoogleSnippetPreview title={seoTitle} description={metaDescription} url={post.link || null} />
+            </div>
         </div>
-        <div className="sticky top-20 space-y-6">
-             <Card>
-              <CardHeader><CardTitle>Edición SEO</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                <div><Label htmlFor="title">Título SEO (Yoast)</Label><Input id="title" name="title" value={seoTitle} onChange={handleInputChange} /></div>
-                <div><Label htmlFor="metaDescription">Meta Descripción (Yoast)</Label><Textarea id="metaDescription" name="metaDescription" value={metaDescription} onChange={handleInputChange} maxLength={165} rows={3} /></div>
-              </CardContent>
-            </Card>
-            <GoogleSnippetPreview title={seoTitle} description={metaDescription} url={post.link || null} />
-        </div>
-    </div>
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><ImageIcon className="h-5 w-5 text-primary" /> Optimización de Imágenes</CardTitle>
+                <CardDescription>Revisa y añade texto alternativo a las imágenes de tu contenido para mejorar el SEO y la accesibilidad.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <Button onClick={handleGenerateImageAlts} disabled={isLoading}>
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                    Generar y Aplicar 'alt text' con IA
+                </Button>
+                
+                 {post.featuredImageUrl && (
+                    <div className="flex items-center space-x-2 pt-4 border-t">
+                        <Checkbox id="apply-featured" checked={applyAiMetaToFeatured} onCheckedChange={(checked) => setApplyAiMetaToFeatured(!!checked)} />
+                        <Label htmlFor="apply-featured" className="text-sm font-normal">
+                           Aplicar también los metadatos generados a la imagen destacada.
+                        </Label>
+                    </div>
+                 )}
+
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-2">
+                    {contentImages.map((img, index) => (
+                        <div key={index} className="flex items-center gap-3 p-2 border rounded-md">
+                            <div className="relative h-10 w-10 flex-shrink-0">
+                                <img src={img.src} alt="Vista previa" className="rounded-md object-cover h-full w-full" />
+                            </div>
+                            <div className="flex-1 text-sm text-muted-foreground truncate" title={img.src}>
+                                {img.src.split('/').pop()}
+                            </div>
+                            <div className="flex items-center gap-2">
+                               <div className="h-2 w-2 rounded-full" style={{ backgroundColor: img.alt ? 'hsl(var(--primary))' : 'hsl(var(--destructive))' }} />
+                               <Input 
+                                 value={img.alt}
+                                 onChange={(e) => setContentImages(prev => prev.map((current, i) => i === index ? { ...current, alt: e.target.value } : current))}
+                                 placeholder="Añade el 'alt text'..."
+                                 className="text-xs h-8"
+                               />
+                            </div>
+                        </div>
+                    ))}
+                    {contentImages.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No se encontraron imágenes en el contenido.</p>}
+                </div>
+            </CardContent>
+        </Card>
+    </>
   );
 }
