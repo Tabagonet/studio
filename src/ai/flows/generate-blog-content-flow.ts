@@ -12,7 +12,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 
 export const BlogContentInputSchema = z.object({
-  mode: z.enum(['generate_from_topic', 'enhance_content', 'suggest_keywords', 'generate_meta_description', 'suggest_titles', 'generate_image_meta', 'generate_focus_keyword']),
+  mode: z.enum(['generate_from_topic', 'enhance_content', 'enhance_title', 'suggest_keywords', 'generate_meta_description', 'suggest_titles', 'generate_image_meta', 'generate_focus_keyword']),
   language: z.string().optional().default('Spanish'),
   topic: z.string().optional(),
   keywords: z.string().optional(),
@@ -61,6 +61,17 @@ const generateBlogContentFlowInternal = ai.defineFlow(
                 Rewrite and improve the title and content in {{language}} for this blog post.
                 Original Title: "{{existingTitle}}"
                 Original Content:
+                ---
+                {{{existingContent}}}
+                ---
+            `;
+            break;
+        case 'enhance_title':
+            systemInstruction = `You are an expert SEO copywriter. Based on the provided content and original title, your task is to rewrite ONLY the blog post title to be more engaging, clear, and SEO-optimized. Return a single, valid JSON object with one key: 'title'. Do not include markdown or the word 'json' in your output.`;
+            userPrompt = `
+                Rewrite and improve ONLY the title for this blog post in {{language}}.
+                Original Title: "{{existingTitle}}"
+                Content for context:
                 ---
                 {{{existingContent}}}
                 ---

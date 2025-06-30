@@ -11,7 +11,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Sparkles, Wand2, Tags, ArrowLeft, ExternalLink, ImageIcon, Copy, Check } from 'lucide-react';
+import { Loader2, Sparkles, Wand2, Tags, ArrowLeft, ExternalLink, ImageIcon, Copy, Check, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -78,7 +78,7 @@ function EditPageContent() {
     setPost({ ...post, [name]: finalValue as any });
   };
   
-  const handleAiGeneration = useCallback(async (mode: 'enhance_content' | 'suggest_keywords' | 'generate_meta_description' | 'generate_image_meta' | 'generate_focus_keyword') => {
+  const handleAiGeneration = useCallback(async (mode: 'enhance_title' | 'suggest_keywords' | 'generate_meta_description' | 'generate_image_meta' | 'generate_focus_keyword') => {
         setIsAiLoading(true);
         setSuggestedImageMeta(null);
         setApplyMetaToFeatured(false);
@@ -116,7 +116,7 @@ function EditPageContent() {
 
             const aiContent = await response.json();
 
-            if (mode === 'enhance_content') {
+            if (mode === 'enhance_title') {
                 setPost(prev => prev ? { ...prev, title: aiContent.title } : null);
                 toast({ title: "Título mejorado", description: "Se ha actualizado el título de la entrada." });
             } else if (mode === 'generate_meta_description') {
@@ -337,8 +337,34 @@ function EditPageContent() {
                 <div><Label htmlFor="focusKeyword">Palabra Clave Principal</Label><Input id="focusKeyword" name="focusKeyword" value={post.focusKeyword} onChange={handleInputChange} /></div>
                 <div><Label htmlFor="metaDescription">Meta Descripción (para Google)</Label><Textarea id="metaDescription" name="metaDescription" value={post.metaDescription} onChange={handleInputChange} maxLength={165} rows={3} /></div>
                 
-                {post.isElementor && (
-                    <Alert><ExternalLink className="h-4 w-4" /><AlertTitle>Página de Elementor</AlertTitle><AlertDescription>El contenido se gestiona con Elementor. Para editar el cuerpo de la página, <Link href={post.elementorEditLink!} target="_blank" rel="noopener noreferrer" className="underline font-semibold">ábrela con Elementor</Link>.</AlertDescription></Alert>
+                {post.isElementor ? (
+                    <Alert>
+                        <ExternalLink className="h-4 w-4" />
+                        <AlertTitle>Página de Elementor Detectada</AlertTitle>
+                        <AlertDescription>
+                            Para editar el contenido y la estructura de encabezados, debes usar el editor de Elementor.
+                        </AlertDescription>
+                        <Button asChild className="mt-2" size="sm" variant="secondary">
+                            <Link href={post.elementorEditLink!} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                Abrir con Elementor
+                            </Link>
+                        </Button>
+                    </Alert>
+                ) : (
+                    <Alert>
+                        <Edit className="h-4 w-4" />
+                        <AlertTitle>Editar Contenido Completo</AlertTitle>
+                        <AlertDescription>
+                            Para modificar el cuerpo del texto y la estructura de encabezados (H2, H3...), utiliza el editor de entradas completo.
+                        </AlertDescription>
+                        <Button asChild className="mt-2" size="sm" variant="secondary">
+                            <Link href={`/blog/edit/${postId}`}>
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                Abrir Editor de Entradas
+                            </Link>
+                        </Button>
+                    </Alert>
                 )}
               </CardContent>
             </Card>
@@ -391,7 +417,7 @@ function EditPageContent() {
           <div className="space-y-6">
             <Card><CardHeader><CardTitle>Asistente IA</CardTitle></CardHeader>
                 <CardContent className="flex flex-col gap-2">
-                  <Button onClick={() => handleAiGeneration('enhance_content')} disabled={isAiLoading}><Wand2 className="mr-2 h-4 w-4" /> Mejorar Título</Button>
+                  <Button onClick={() => handleAiGeneration('enhance_title')} disabled={isAiLoading}><Wand2 className="mr-2 h-4 w-4" /> Mejorar Título</Button>
                   <Button onClick={() => handleAiGeneration('generate_focus_keyword')} disabled={isAiLoading} variant="outline"><Sparkles className="mr-2 h-4 w-4" /> Sugerir Palabra Clave</Button>
                   <Button onClick={() => handleAiGeneration('generate_meta_description')} disabled={isAiLoading} variant="outline"><Sparkles className="mr-2 h-4 w-4" /> Generar Meta Descripción</Button>
                   <Button onClick={() => handleAiGeneration('generate_image_meta')} disabled={isAiLoading} variant="outline"><ImageIcon className="mr-2 h-4 w-4" /> Sugerir Meta de Imagen</Button>
