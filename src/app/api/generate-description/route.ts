@@ -1,4 +1,6 @@
 'use server';
+import '@/ai/genkit';
+import { runFlow } from '@genkit-ai/core';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { z } from 'zod';
@@ -33,7 +35,7 @@ export async function POST(req: NextRequest) {
     // Add the server-side UID to the input for the flow
     const flowInput = { ...inputData, uid };
     
-    const generatedContent = await generateProductFlow(flowInput);
+    const generatedContent = await runFlow(generateProductFlow, flowInput);
     
     return NextResponse.json(generatedContent);
 

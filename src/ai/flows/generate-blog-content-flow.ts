@@ -8,7 +8,9 @@
  */
 import { z } from 'zod';
 import Handlebars from 'handlebars';
-import { ai } from '@/ai/genkit'; // Import the central AI object
+import { defineFlow } from '@genkit-ai/core';
+import { googleAI } from '@genkit-ai/googleai';
+
 
 export const BlogContentInputSchema = z.object({
   mode: z.enum([
@@ -42,8 +44,7 @@ export const BlogContentOutputSchema = z.object({
 });
 export type BlogContentOutput = z.infer<typeof BlogContentOutputSchema>;
 
-// The actual flow definition, not exported directly
-const blogContentFlow = ai.defineFlow(
+export const generateBlogContentFlow = defineFlow(
   {
     name: 'blogContentFlow',
     inputSchema: BlogContentInputSchema,
@@ -164,7 +165,7 @@ const blogContentFlow = ai.defineFlow(
     const template = Handlebars.compile(userPromptTemplate, {noEscape: true});
     const finalPrompt = template(modelInput);
     
-    const { output } = await ai.generate({
+    const { output } = await googleAI.generate({
       model: 'googleai/gemini-1.5-flash-latest',
       system: systemInstruction,
       prompt: finalPrompt,
@@ -181,8 +182,3 @@ const blogContentFlow = ai.defineFlow(
     return output as BlogContentOutput;
   }
 );
-
-// Export a simple async wrapper function that calls the flow.
-export async function generateBlogContent(input: BlogContentInput): Promise<BlogContentOutput> {
-    return await blogContentFlow(input);
-}

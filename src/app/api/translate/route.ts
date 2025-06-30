@@ -1,8 +1,10 @@
 'use server';
+import '@/ai/genkit';
+import { runFlow } from '@genkit-ai/core';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import {
-  translateContent,
+  translateContentFlow,
   TranslateContentInputSchema,
 } from '@/ai/flows/translate-content-flow';
 
@@ -23,18 +25,28 @@ export async function POST(req: NextRequest) {
   // 2. Validate the request body and perform the translation
   try {
     const body = await req.json();
-    // The API route receives the full input object for the flow
-    const validation = TranslateContentInputSchema.safeParse(body);
 
-    if (!validation.success) {
-      return NextResponse.json(
-        {error: 'Invalid input', details: validation.error.flatten()},
-        {status: 400}
-      );
+    // The API route now receives a different shape, just the content and lang
+    const apiSchema = z.object({
+        content: z.record(z.string()),
+        targetLanguage: z.string(),
+    });
+
+    const apiValidation = apiSchema.safeParse(body);
+    if (!apiValidation.success) {
+         return NextResponse.json(
+            {error: 'Invalid API input', details: apiValidation.error.flatten()},
+            {status: 400}
+        );
     }
 
-    // Call the centralized translation flow
-    const output = await translateContent(validation.data);
+    // Construct the input for the flow
+    const flowInput = {
+        contentToTranslate: apiValidation.data.content,
+        targetLanguage: apiValidation.data.targetLanguage
+    };
+    
+    const output = await runFlow(translateContentFlow, flowInput);
 
     // The flow already handles errors, so we just return the output
     return NextResponse.json(output);

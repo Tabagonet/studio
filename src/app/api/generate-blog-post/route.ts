@@ -1,7 +1,9 @@
 'use server';
+import '@/ai/genkit';
+import { runFlow } from '@genkit-ai/core';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { generateBlogContent, BlogContentInputSchema } from '@/ai/flows/generate-blog-content-flow';
+import { generateBlogContentFlow, BlogContentInputSchema } from '@/ai/flows/generate-blog-content-flow';
 
 export async function POST(req: NextRequest) {
     try {
@@ -24,7 +26,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid input', details: validationResult.error.flatten() }, { status: 400 });
         }
         
-        const generatedContent = await generateBlogContent(validationResult.data);
+        const generatedContent = await runFlow(generateBlogContentFlow, validationResult.data);
         
         return NextResponse.json(generatedContent);
 

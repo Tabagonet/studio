@@ -6,9 +6,10 @@
  * - SeoAnalysisInput - The input type for the flow.
  * - SeoInterpretationOutput - The return type for the flow.
  */
-
+import '@/ai/genkit';
 import { z } from 'zod';
-import { ai } from '@/ai/genkit';
+import { runFlow, defineFlow } from '@genkit-ai/core';
+import { googleAI } from '@genkit-ai/googleai';
 
 const aiChecksSchema = z.object({
   titleContainsKeyword: z.boolean(),
@@ -64,7 +65,7 @@ export type SeoInterpretationOutput = z.infer<
   typeof SeoInterpretationOutputSchema
 >;
 
-const interpretationFlow = ai.defineFlow(
+const interpretationFlow = defineFlow(
   {
     name: 'interpretSeoAnalysisFlow',
     inputSchema: SeoAnalysisInputSchema,
@@ -73,7 +74,7 @@ const interpretationFlow = ai.defineFlow(
   async (input: SeoAnalysisInput) => {
     const checksSummary = JSON.stringify(input.aiAnalysis.checks, null, 2);
     
-    const {output} = await ai.generate({
+    const {output} = await googleAI.generate({
       model: 'googleai/gemini-1.5-flash-latest',
       output: {
         format: 'json',
@@ -113,5 +114,5 @@ const interpretationFlow = ai.defineFlow(
 export async function interpretSeoAnalysis(
   input: SeoAnalysisInput
 ): Promise<SeoInterpretationOutput> {
-  return await interpretationFlow(input);
+  return await runFlow(interpretationFlow, input);
 }
