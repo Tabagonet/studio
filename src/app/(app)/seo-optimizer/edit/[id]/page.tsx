@@ -4,7 +4,7 @@
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -41,8 +41,8 @@ interface ContentImage {
 
 function EditPageContent() {
   const params = useParams();
-  const searchParams = useSearchParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const postId = Number(params.id);
   const postType = searchParams.get('type') || 'Post';
@@ -83,10 +83,10 @@ function EditPageContent() {
       
       const postData = await postResponse.json();
       const loadedPost: PostEditState = {
-        title: postData.meta?._yoast_wpseo_title || postData.title.rendered || '',
+        title: postData.title.rendered || '',
         content: postData.content.rendered || '',
         meta: {
-            _yoast_wpseo_title: postData.meta?._yoast_wpseo_title || '',
+            _yoast_wpseo_title: postData.meta?._yoast_wpseo_title || postData.title.rendered || '',
             _yoast_wpseo_metadesc: postData.meta?._yoast_wpseo_metadesc || '',
             _yoast_wpseo_focuskw: postData.meta?._yoast_wpseo_focuskw || '',
         },
@@ -98,7 +98,6 @@ function EditPageContent() {
         link: postData.link,
       };
 
-      // New part: Fetch latest analysis to get suggestions
       try {
         const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(postData.link)}`, {
             headers: { 'Authorization': `Bearer ${token}` }
@@ -108,10 +107,8 @@ function EditPageContent() {
             if (historyData.history && historyData.history.length > 0) {
                 const latestAnalysis = historyData.history[0].analysis;
                 
-                // Only overwrite if the current field is empty
                 if (!loadedPost.meta._yoast_wpseo_title && latestAnalysis.aiAnalysis.suggested?.title) {
                     loadedPost.meta._yoast_wpseo_title = latestAnalysis.aiAnalysis.suggested.title;
-                    loadedPost.title = latestAnalysis.aiAnalysis.suggested.title;
                 }
                 if (!loadedPost.meta._yoast_wpseo_metadesc && latestAnalysis.aiAnalysis.suggested?.metaDescription) {
                     loadedPost.meta._yoast_wpseo_metadesc = latestAnalysis.aiAnalysis.suggested.metaDescription;
@@ -164,13 +161,13 @@ function EditPageContent() {
         const payload: any = {
             title: post.title,
             meta: post.meta,
-            imageMetas: contentImages, // Send updated image alt tags
-            content: post.content, // Send content back so backend can update alt tags
+            imageMetas: contentImages,
+            content: post.content,
         };
         
         if (applyAiMetaToFeatured && post.featuredMediaId) {
             payload.featured_image_metadata = {
-                title: post.title, // Example, could be more specific
+                title: post.title,
                 alt_text: post.meta._yoast_wpseo_focuskw || post.title
             };
         }
@@ -244,7 +241,7 @@ function EditPageContent() {
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2">
                         <Button variant="outline" onClick={() => router.back()}>
-                            <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Informe
+                            <ArrowLeft className="mr-2 h-4 w-4" /> Volver al informe
                         </Button>
                          <Button onClick={handleSaveChanges} disabled={isSaving}>
                             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="h-4 w-4" /> } Guardar Cambios SEO
@@ -346,3 +343,5 @@ export default function SeoEditPage() {
         </Suspense>
     )
 }
+
+    

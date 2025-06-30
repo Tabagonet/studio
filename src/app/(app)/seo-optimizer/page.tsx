@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -29,6 +29,10 @@ export interface ContentItem {
 }
 
 export default function SeoOptimizerPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
+
   const [contentList, setContentList] = useState<ContentItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -47,11 +51,65 @@ export default function SeoOptimizerPage() {
 
   const [scores, setScores] = useState<Record<number, number>>({});
   
-  const router = useRouter();
-  const { toast } = useToast();
+  const viewingId = searchParams.get('id');
 
-  const latestAnalysisId = analysisHistory.length > 0 ? analysisHistory[0].id : null;
-  
+  const runAnalysis = useCallback(async (page: ContentItem, token: string) => {
+    setIsLoadingAnalysis(true);
+    setError(null);
+    setAnalysis(null);
+    setSelectedPage(page);
+    setLoadingMessage(`Analizando: ${page.title}...`);
+
+    try {
+        toast({ title: "Analizando con IA...", description: "Estamos leyendo la página y generando el informe SEO."});
+        const response = await fetch('/api/seo/analyze-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ url: page.link, postId: page.id, postType: page.type })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Ocurrió un error desconocido');
+        
+        setAnalysis(result);
+        setScores(prev => ({...prev, [page.id]: result.aiAnalysis.score}));
+
+        const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(page.link)}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (historyResponse.ok) setAnalysisHistory((await historyResponse.json()).history);
+    } catch (err: any) {
+        setError(err.message);
+        toast({ title: "Error en el Análisis", description: err.message, variant: "destructive" });
+        // Don't clear selected page on error, to allow retry
+    } finally {
+        setIsLoadingAnalysis(false);
+    }
+  }, [toast]);
+
+  const fetchReport = useCallback(async (page: ContentItem, token: string) => {
+    setIsLoadingAnalysis(true);
+    setLoadingMessage(`Cargando informe para ${page.title}...`);
+    setError(null);
+    setAnalysis(null);
+    setSelectedPage(page);
+
+    try {
+      const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(page.link)}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (!historyResponse.ok) throw new Error("No se pudo cargar el historial de análisis.");
+      
+      const historyData = await historyResponse.json();
+      if (historyData.history && historyData.history.length > 0) {
+        setAnalysis(historyData.history[0].analysis);
+        setAnalysisHistory(historyData.history);
+      } else {
+        await runAnalysis(page, token);
+      }
+    } catch (err: any) {
+      setError(err.message);
+      toast({ title: "Error al cargar informe", description: err.message, variant: "destructive" });
+    } finally {
+      setIsLoadingAnalysis(false);
+    }
+  }, [toast, runAnalysis]);
+
   const fetchContentData = useCallback(async () => {
     setIsLoading(true);
     setIsLoadingStats(true);
@@ -145,113 +203,30 @@ export default function SeoOptimizerPage() {
         window.removeEventListener('connections-updated', fetchContentData);
     }
   }, [fetchContentData]);
-
-  const handleViewReport = async (page: ContentItem) => {
-    setLoadingMessage(`Cargando informe para ${page.title}...`);
-    setIsLoadingAnalysis(true);
-    setError(null);
-    setAnalysis(null);
-    setAnalysisHistory([]);
-    setSelectedPage(page);
-
-    const user = auth.currentUser;
-    if (!user) {
-      toast({ title: "Autenticación Requerida", variant: "destructive" });
-      setIsLoadingAnalysis(false);
-      return;
-    }
-
-    try {
-      const token = await user.getIdToken();
-      let urlToAnalyze = page.link;
-      
-      const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(urlToAnalyze)}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (!historyResponse.ok) {
-        throw new Error("No se pudo cargar el historial de análisis.");
-      }
-
-      const historyData = await historyResponse.json();
-      if (historyData.history && historyData.history.length > 0) {
-        setAnalysis(historyData.history[0].analysis);
-        setAnalysisHistory(historyData.history);
-      } else {
-        toast({
-          title: "Informe no encontrado",
-          description: "No hay informes guardados para esta página. Por favor, analícela primero.",
-          variant: "destructive"
-        });
-        setSelectedPage(null);
-      }
-    } catch (err: any) {
-      setError(err.message);
-      toast({ title: "Error al cargar informe", description: err.message, variant: "destructive" });
-      setSelectedPage(null);
-    } finally {
-      setIsLoadingAnalysis(false);
-    }
-  };
-
-
-  const handleAnalyze = async (page: ContentItem) => {
-    setLoadingMessage(`Analizando la página: ${page.title}...`);
-    setIsLoadingAnalysis(true);
-    setError(null);
-    setAnalysis(null);
-    setAnalysisHistory([]);
-    setSelectedPage(page);
-
-    const user = auth.currentUser;
-    if (!user) {
-      toast({ title: "Autenticación Requerida", variant: "destructive" });
-      setIsLoadingAnalysis(false);
-      return;
-    }
-
-    try {
-        const token = await user.getIdToken();
-        let urlToAnalyze = page.link;
-        
-        toast({ title: "Analizando con IA...", description: "Estamos leyendo la página y generando el informe SEO."});
-        const response = await fetch('/api/seo/analyze-url', {
-            method: 'POST',
-            headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ 
-              url: urlToAnalyze,
-              postId: page.id,
-              postType: page.type,
-            })
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-            throw new Error(result.error || 'Ocurrió un error desconocido');
-        }
-
-        setAnalysis(result);
-        setScores(prev => ({...prev, [page.id]: result.aiAnalysis.score}));
-
-        const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(urlToAnalyze)}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (historyResponse.ok) {
-            setAnalysisHistory((await historyResponse.json()).history);
-        }
-
-    } catch (err: any) {
-      setError(err.message);
-      toast({ title: "Error en el Análisis", description: err.message, variant: "destructive" });
-    } finally {
-      setIsLoadingAnalysis(false);
-    }
-  };
   
+  useEffect(() => {
+    const id = viewingId ? Number(viewingId) : null;
+    const user = auth.currentUser;
+
+    if (id && contentList.length > 0 && user) {
+        if (!selectedPage || selectedPage.id !== id) {
+            const pageToView = contentList.find(p => p.id === id);
+            if (pageToView) {
+                user.getIdToken().then(token => fetchReport(pageToView, token));
+            } else if (!isLoading) {
+                 toast({ title: "Contenido no encontrado", description: "El contenido no se encontró en la conexión activa.", variant: "destructive" });
+                 router.push('/seo-optimizer');
+            }
+        }
+    } else if (!viewingId) {
+        setSelectedPage(null);
+    }
+  }, [viewingId, contentList, selectedPage, fetchReport, isLoading, router, toast]);
+
+  const handleNavigateToReport = (page: ContentItem) => {
+    router.push(`/seo-optimizer?id=${page.id}&type=${page.type}`);
+  };
+
   const handleManualAnalyze = () => {
       let urlToUse = manualUrl || activeConnectionUrl;
       if (!urlToUse) {
@@ -261,52 +236,25 @@ export default function SeoOptimizerPage() {
       
       const fullUrl = urlToUse.startsWith('http') ? urlToUse : `https://${urlToUse}`;
       const dummyItem: ContentItem = {
-          id: Date.now(), // Using timestamp as a temporary unique ID for external URLs
+          id: Date.now(),
           title: fullUrl,
-          type: 'Page', // Assume Page for external URLs
+          type: 'Page',
           link: fullUrl,
           status: 'publish',
           parent: 0,
       };
       
-      setLoadingMessage('Analizando URL externa...');
-      setIsLoadingAnalysis(true);
-      setError(null);
-      setAnalysis(null);
-      setAnalysisHistory([]);
-      setSelectedPage(dummyItem);
-      
       const user = auth.currentUser;
       if (!user) {
         toast({ title: "Autenticación Requerida", variant: "destructive" });
-        setIsLoadingAnalysis(false);
         return;
       }
       
-      user.getIdToken().then(async (token) => {
-        try {
-            toast({ title: "Analizando URL externa con IA...", description: "Estamos leyendo la página y generando el informe SEO."});
-            const response = await fetch('/api/seo/analyze-url', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`},
-                body: JSON.stringify({ url: fullUrl })
-            });
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.error || 'Ocurrió un error desconocido');
-            setAnalysis(result);
-        } catch (err: any) {
-            setError(err.message);
-            toast({ title: "Error en el Análisis", description: err.message, variant: "destructive" });
-        } finally {
-            setIsLoadingAnalysis(false);
-        }
-      });
+      user.getIdToken().then(token => runAnalysis(dummyItem, token));
   };
 
   const handleBackToList = () => {
-      setSelectedPage(null);
-      setAnalysis(null);
-      setError(null);
+      router.push('/seo-optimizer');
   }
   
   const handleEditContent = (item: ContentItem) => {
@@ -356,93 +304,100 @@ export default function SeoOptimizerPage() {
   }
 
   const renderContent = () => {
-    if (isLoading) {
-      return (
-        <div className="flex flex-col items-center justify-center text-center p-12 border border-dashed rounded-lg">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-          <p className="text-lg font-semibold text-muted-foreground">Cargando contenido del sitio...</p>
-        </div>
-      );
+    if (!viewingId) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>Selecciona Contenido para Analizar</CardTitle>
+                    <CardDescription>
+                        Elige una página o entrada de tu sitio, o introduce una URL externa para analizar.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {error && !isLoading && (
+                        <Alert variant="destructive" className="mb-4">
+                            <AlertTitle>No se pudo cargar la lista de contenido</AlertTitle>
+                            <AlertDescription>
+                                {error} Revisa que la API de WordPress esté configurada en <Link href="/settings/connections" className="underline font-semibold">Ajustes</Link>.
+                            </AlertDescription>
+                        </Alert>
+                    )}
+                    
+                    <div className="flex flex-col sm:flex-row gap-2 items-center mb-6">
+                        <Input 
+                            type="url"
+                            placeholder={activeConnectionUrl ? `Analizar URL externa (por defecto: ${activeConnectionUrl})` : "Introduce cualquier URL pública..."}
+                            value={manualUrl}
+                            onChange={(e) => setManualUrl(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleManualAnalyze()}
+                            className="flex-grow"
+                        />
+                        <Button onClick={handleManualAnalyze} disabled={isLoadingAnalysis} className="w-full sm:w-auto">
+                            {isLoadingAnalysis ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SearchCheck className="mr-2 h-4 w-4" />}
+                            Analizar URL
+                        </Button>
+                    </div>
+                    {!error && (
+                      <SeoPageListTable 
+                        data={contentList}
+                        onAnalyzePage={handleAnalyzePage} 
+                        onViewReport={handleViewReport}
+                        scores={scores}
+                      />
+                    )}
+                </CardContent>
+            </Card>
+        );
     }
     
-    if (selectedPage) {
+    if (isLoadingAnalysis) {
+        return (
+            <div className="flex flex-col items-center justify-center text-center p-12 border border-dashed rounded-lg">
+                <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                <p className="text-lg font-semibold text-muted-foreground">{loadingMessage}</p>
+                <p className="text-sm text-muted-foreground">Por favor, espera un momento.</p>
+            </div>
+        );
+    }
+    
+    if (analysis && selectedPage) {
         return (
             <div className="space-y-4">
                 <Button variant="outline" onClick={handleBackToList}>
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Volver a la lista
                 </Button>
-                {isLoadingAnalysis && (
-                     <div className="flex flex-col items-center justify-center text-center p-12 border border-dashed rounded-lg">
-                        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                        <p className="text-lg font-semibold text-muted-foreground">{loadingMessage}</p>
-                        <p className="text-sm text-muted-foreground">Por favor, espera un momento.</p>
-                    </div>
-                )}
-                {analysis && !isLoadingAnalysis && (
-                    <AnalysisView 
-                        analysis={analysis} 
-                        item={selectedPage} 
-                        onEdit={handleEditContent} 
-                        onReanalyze={() => handleAnalyze(selectedPage)}
-                        history={analysisHistory}
-                        onSelectHistoryItem={handleSelectHistoryItem}
-                    />
-                )}
-                {error && !isLoadingAnalysis && (
-                    <Alert variant="destructive">
-                      <AlertTitle>Error en el Análisis</AlertTitle>
-                      <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                )}
+                <AnalysisView 
+                    analysis={analysis} 
+                    item={selectedPage} 
+                    onEdit={handleEditContent} 
+                    onReanalyze={() => handleAnalyzePage(selectedPage)}
+                    history={analysisHistory}
+                    onSelectHistoryItem={handleSelectHistoryItem}
+                />
             </div>
         )
     }
 
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Selecciona Contenido para Analizar</CardTitle>
-          <CardDescription>
-            Elige una página o entrada de tu sitio, o introduce una URL externa para analizar.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-            {error && !isLoading && (
-                 <Alert variant="destructive" className="mb-4">
-                    <AlertTitle>No se pudo cargar la lista de contenido</AlertTitle>
-                    <AlertDescription>
-                        {error} Revisa que la API de WordPress esté configurada en <Link href="/settings/connections" className="underline font-semibold">Ajustes</Link>.
-                    </AlertDescription>
-                </Alert>
-            )}
-            
-             <div className="flex flex-col sm:flex-row gap-2 items-center mb-6">
-                <Input 
-                    type="url"
-                    placeholder={activeConnectionUrl ? `Analizar URL externa (por defecto: ${activeConnectionUrl})` : "Introduce cualquier URL pública..."}
-                    value={manualUrl}
-                    onChange={(e) => setManualUrl(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleManualAnalyze()}
-                    className="flex-grow"
-                />
-                <Button onClick={handleManualAnalyze} disabled={isLoadingAnalysis} className="w-full sm:w-auto">
-                    {isLoadingAnalysis ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SearchCheck className="mr-2 h-4 w-4" />}
-                    Analizar URL
+     if (error && !isLoadingAnalysis) {
+        return (
+            <div className="space-y-4">
+                 <Button variant="outline" onClick={handleBackToList}>
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Volver a la lista
                 </Button>
+                <Alert variant="destructive">
+                    <AlertTitle>Error en el Análisis</AlertTitle>
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
             </div>
-            {!error && (
-              <SeoPageListTable 
-                data={contentList}
-                onAnalyzePage={handleAnalyze} 
-                onViewReport={handleViewReport}
-                scores={scores}
-              />
-            )}
-        </CardContent>
-      </Card>
-    );
+        );
+    }
+    
+    return null; // Fallback
   }
+
+  const latestAnalysisId = analysisHistory.length > 0 ? analysisHistory[0].id : null;
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -474,9 +429,14 @@ export default function SeoOptimizerPage() {
         </CardHeader>
       </Card>
 
-      {!selectedPage && renderStats()}
+      {!viewingId && renderStats()}
       
-      {renderContent()}
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center text-center p-12 border border-dashed rounded-lg">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+          <p className="text-lg font-semibold text-muted-foreground">Cargando contenido del sitio...</p>
+        </div>
+      ) : renderContent() }
     </div>
   );
 }
