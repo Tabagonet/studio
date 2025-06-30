@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, ArrowLeft, Edit, Sparkles, Image as ImageIcon, Checkbox, Save, ExternalLink } from 'lucide-react';
+import { Loader2, ArrowLeft, Edit, Sparkles, Image as ImageIcon, Save, ExternalLink } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -70,7 +71,7 @@ function EditPageContent() {
     }
     
     if (isNaN(postId) || !postType) {
-      setError('El ID o el tipo del contenido no es válido.');
+      setError(`El ID o el tipo del contenido no es válido.`);
       setIsLoading(false);
       return;
     }
@@ -160,7 +161,7 @@ function EditPageContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [postId, postType, toast]);
+  }, [postId, postType]);
 
 
   useEffect(() => {
@@ -332,7 +333,9 @@ function EditPageContent() {
                 <div className="space-y-2 max-h-72 overflow-y-auto pr-2">
                     {contentImages.map((img, index) => (
                         <div key={index} className="flex items-center gap-3 p-2 border rounded-md">
-                            <Image src={img.src} alt="Vista previa" width={40} height={40} className="rounded object-cover" />
+                            <div className="relative h-10 w-10 flex-shrink-0">
+                                <Image src={img.src} alt="Vista previa" fill className="rounded-md object-cover" />
+                            </div>
                             <div className="flex-1 text-sm text-muted-foreground truncate" title={img.src}>
                                 {img.src.split('/').pop()}
                             </div>
@@ -362,5 +365,3 @@ export default function SeoEditPage() {
         </Suspense>
     )
 }
-
-    
