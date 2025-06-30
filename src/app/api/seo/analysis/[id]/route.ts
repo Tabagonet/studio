@@ -5,10 +5,7 @@ import '@/ai/genkit'; // Ensures Firebase Admin is initialized
 import {NextRequest, NextResponse} from 'next/server';
 import {adminAuth, adminDb} from '@/lib/firebase-admin';
 import { z } from 'zod';
-// Genkit and Google AI imports are now direct
-import { generate } from '@genkit-ai/ai';
-import { googleAI } from '@genkit-ai/googleai';
-import { configureGenkit } from 'genkit';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { SeoAnalysisInput } from '@/ai/schemas';
 
 const SeoInterpretationOutputSchema = z.object({
@@ -133,12 +130,6 @@ export async function POST(
   }
 
   try {
-    configureGenkit({
-        plugins: [googleAI()],
-        logLevel: 'debug',
-        enableTracingAndMetrics: true,
-    });
-    
     const docRef = adminDb.collection('seo_analyses').doc(id);
     const docSnap = await docRef.get();
 
@@ -181,20 +172,18 @@ export async function POST(
     4.  "improvements": Create a list of 2-4 key areas for SEO improvement, focusing on high-level concepts rather than repeating the action plan. For example: "Falta de optimización en el título y meta descripción para SEO." or "La página carece de palabras clave adicionales relacionadas con el tema".
     `;
 
-    const { output } = await generate({
-        model: googleAI('gemini-1.5-flash-latest'),
-        output: {
-            format: 'json',
-            schema: SeoInterpretationOutputSchema,
-        },
-        prompt,
-    });
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const aiContent = SeoInterpretationOutputSchema.parse(JSON.parse(response.text()));
     
-    if (!output) {
+    if (!aiContent) {
       throw new Error('AI returned an empty response.');
     }
 
-    return NextResponse.json(output);
+    return NextResponse.json(aiContent);
 
   } catch (error: any) {
     console.error(`🔥 Error interpreting analysis ${id}:`, error);

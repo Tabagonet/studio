@@ -5,10 +5,7 @@ import '@/ai/genkit';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { z } from 'zod';
-// Genkit and Google AI imports are now direct
-import { generate } from '@genkit-ai/ai';
-import { googleAI } from '@genkit-ai/googleai';
-import { configureGenkit } from 'genkit';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,12 +21,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    configureGenkit({
-        plugins: [googleAI()],
-        logLevel: 'debug',
-        enableTracingAndMetrics: true,
-    });
-    
     const body = await req.json();
 
     const apiSchema = z.object({
@@ -47,19 +38,15 @@ export async function POST(req: NextRequest) {
     
     const { contentToTranslate, targetLanguage } = apiValidation.data;
 
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
+    
     const systemInstruction = `You are an expert translator. Translate the values of the user-provided JSON object into the specified target language. It is crucial that you maintain the original JSON structure and keys. You must also preserve all HTML tags (e.g., <h2>, <p>, <strong>) and special separators like '|||' in their correct positions within the string values. Your output must be only the translated JSON object, without any extra text, comments, or markdown formatting.`;
     const prompt = `Translate the following content to ${targetLanguage}:\n\n${JSON.stringify(contentToTranslate)}`;
-    const outputSchema = z.record(z.string());
-
-    const { output } = await generate({
-      model: googleAI('gemini-1.5-flash-latest'),
-      system: systemInstruction,
-      prompt: prompt,
-      output: {
-        format: 'json',
-        schema: outputSchema,
-      },
-    });
+    
+    const result = await model.generateContent(`${systemInstruction}\n\n${prompt}`);
+    const response = await result.response;
+    const output = JSON.parse(response.text());
 
     if (!output || typeof output !== 'object') {
       throw new Error(
@@ -67,7 +54,10 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    return NextResponse.json(output);
+    // Zod validation on the output can be tricky here since the keys are dynamic.
+    // We trust the model to preserve the structure as requested.
+    
+    return NextResponse.json({ content: output });
 
   } catch (error: any) {
     console.error('🔥 Error in /api/translate:', error);

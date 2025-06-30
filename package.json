@@ -11,10 +11,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@genkit-ai/core": "1.13.0",
-    "@genkit-ai/googleai": "1.13.0",
-    "genkit": "1.13.0",
-    "@genkit-ai/ai": "1.13.0",
     "@google/generative-ai": "^0.15.0",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",

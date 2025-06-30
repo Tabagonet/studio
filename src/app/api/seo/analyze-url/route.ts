@@ -8,12 +8,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { z } from 'zod';
 import { getApiClientsForUser } from '@/lib/api-helpers';
-
-// Genkit and Google AI imports are now direct
-import { generate } from '@genkit-ai/ai';
-import { googleAI } from '@genkit-ai/googleai';
-import { configureGenkit } from 'genkit';
-
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const analyzeUrlSchema = z.object({
   url: z.string().min(1, "La URL no puede estar vacía."),
@@ -144,12 +139,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    configureGenkit({
-        plugins: [googleAI()],
-        logLevel: 'debug',
-        enableTracingAndMetrics: true,
-    });
-    
     const body = await req.json();
     const validation = analyzeUrlSchema.safeParse(body);
     if (!validation.success) {
@@ -205,12 +194,14 @@ export async function POST(req: NextRequest) {
     - "metaDescription": Sugiere una "Meta Descripción" mejorada.
     - "focusKeyword": Sugiere la "Palabra Clave Principal" más apropiada para el contenido.
   `;
-  
-    const { output: aiAnalysis } = await generate({
-        model: googleAI('gemini-1.5-flash-latest'),
-        prompt: prompt,
-        output: { schema: AiResponseSchema }
-    });
+
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const aiAnalysis = AiResponseSchema.parse(JSON.parse(response.text()));
+
     if (!aiAnalysis) {
       throw new Error("La IA devolvió una respuesta vacía.");
     }

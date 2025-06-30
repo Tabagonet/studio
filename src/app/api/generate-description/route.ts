@@ -6,11 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { getApiClientsForUser } from '@/lib/api-helpers';
-
-// Genkit and Google AI imports are now direct
-import { generate } from '@genkit-ai/ai';
-import { googleAI } from '@genkit-ai/googleai';
-import { configureGenkit } from 'genkit';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import Handlebars from 'handlebars';
 
 // Define schemas directly in the route
@@ -73,16 +69,12 @@ export async function POST(req: NextRequest) {
         }
     }
     
-    // AI Logic is now directly inside the route
-    configureGenkit({
-        plugins: [googleAI()],
-        logLevel: 'debug',
-        enableTracingAndMetrics: true,
-    });
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
     
     const generateProductPromptTemplate = `You are an expert e-commerce copywriter and SEO specialist.
 Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
-The response must be a single, valid JSON object that conforms to the output schema. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
+The response must be a single, valid JSON object. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
 
 **Input Information:**
 - **Product Name:** {{productName}}
@@ -97,19 +89,15 @@ Generate the complete JSON object based on your research of "{{productName}}".`;
     const template = Handlebars.compile(generateProductPromptTemplate, { noEscape: true });
     const finalPrompt = template({ ...clientInput, groupedProductsList });
     
-    const { output } = await generate({
-      model: googleAI('gemini-1.5-flash-latest'),
-      prompt: finalPrompt,
-      output: {
-        schema: GenerateProductOutputSchema
-      }
-    });
-
-    if (!output) {
+    const result = await model.generateContent(finalPrompt);
+    const response = await result.response;
+    const aiContent = GenerateProductOutputSchema.parse(JSON.parse(response.text()));
+    
+    if (!aiContent) {
       throw new Error('AI returned an empty response.');
     }
     
-    return NextResponse.json(output);
+    return NextResponse.json(aiContent);
 
   } catch (error: any) {
     console.error('🔥 Error in /api/generate-description:', error);

@@ -6,12 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import Handlebars from 'handlebars';
-
-// Genkit and Google AI imports are now direct
-import { generate } from '@genkit-ai/ai';
-import { googleAI } from '@genkit-ai/googleai';
-import { configureGenkit } from 'genkit';
-
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const BlogContentInputSchema = z.object({
   mode: z.enum([
@@ -24,17 +19,6 @@ const BlogContentInputSchema = z.object({
   ideaKeyword: z.string().optional(),
   existingTitle: z.string().optional(),
   existingContent: z.string().optional(),
-});
-
-const BlogContentOutputSchema = z.object({
-  title: z.string().optional(),
-  content: z.string().optional(),
-  suggestedKeywords: z.string().optional(),
-  metaDescription: z.string().optional(),
-  titles: z.array(z.string()).optional(),
-  imageTitle: z.string().optional(),
-  imageAltText: z.string().optional(),
-  focusKeyword: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -51,12 +35,6 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        configureGenkit({
-            plugins: [googleAI()],
-            logLevel: 'debug',
-            enableTracingAndMetrics: true,
-        });
-        
         const body = await req.json();
         const validationResult = BlogContentInputSchema.safeParse(body);
 
@@ -68,7 +46,6 @@ export async function POST(req: NextRequest) {
         
         let systemInstruction = '';
         let userPromptTemplate = '';
-        let localOutputSchema: z.ZodTypeAny = BlogContentOutputSchema;
 
         const contentSnippet = (input.existingContent || '')
           .replace(/<[^>]+>/g, ' ')
@@ -106,7 +83,6 @@ export async function POST(req: NextRequest) {
             }
             promptText += `\\nOriginal Title: "{{existingTitle}}"\\nContent for context:\\n---\n{{{existingContent}}}\\n---`;
             userPromptTemplate = promptText;
-            localOutputSchema = z.object({ title: z.string() });
             break;
           }
           case 'generate_meta_description':
@@ -119,7 +95,6 @@ export async function POST(req: NextRequest) {
                     {{{existingContent}}}
                     ---
                 `;
-            localOutputSchema = z.object({ metaDescription: z.string() });
             break;
           case 'generate_image_meta':
             systemInstruction = `You are an expert SEO specialist. Your task is to generate generic but descriptive SEO metadata for images that could appear in a blog post, based on its title and content. The response must be a single, valid JSON object with two keys: 'imageTitle' and 'imageAltText'. Do not include markdown or the word 'json' in your output.`;
@@ -131,14 +106,12 @@ export async function POST(req: NextRequest) {
                     {{{existingContent}}}
                     ---
                 `;
-            localOutputSchema = z.object({ imageTitle: z.string(), imageAltText: z.string() });
             break;
           case 'suggest_titles':
             systemInstruction = `You are an expert SEO and content strategist. Based on the provided keyword, generate 5 creative, engaging, and SEO-friendly blog post titles. Return a single, valid JSON object with one key: 'titles', which is an array of 5 string titles. Do not include markdown or the word 'json' in your output.`;
             userPromptTemplate = `
                     Generate 5 blog post titles in {{language}} for the keyword: "{{ideaKeyword}}"
                 `;
-            localOutputSchema = z.object({ titles: z.array(z.string()) });
             break;
           case 'generate_focus_keyword':
             systemInstruction = `You are an expert SEO analyst. Your task is to identify the primary focus keyword (a short phrase of 2-4 words) from a blog post title and content. Return a single, valid JSON object with one key: 'focusKeyword'. The keyword should be in the same language as the content. Do not include markdown or the word 'json' in your output.`;
@@ -150,7 +123,6 @@ export async function POST(req: NextRequest) {
                     {{{existingContent}}}
                     ---
                 `;
-            localOutputSchema = z.object({ focusKeyword: z.string() });
             break;
           case 'suggest_keywords':
             systemInstruction = `You are an expert SEO specialist. Based on the following blog post title and content, generate a list of relevant, SEO-focused keywords. Return a single, valid JSON object with one key: 'suggestedKeywords' (a comma-separated string of 5-7 relevant keywords). Do not include markdown or the word 'json' in your output.`;
@@ -162,7 +134,6 @@ export async function POST(req: NextRequest) {
                     {{{existingContent}}}
                     ---
                 `;
-            localOutputSchema = z.object({ suggestedKeywords: z.string() });
             break;
         }
 
@@ -173,20 +144,18 @@ export async function POST(req: NextRequest) {
         const template = Handlebars.compile(userPromptTemplate, { noEscape: true });
         const finalPrompt = template(modelInput);
         
-        const { output } = await generate({
-          model: googleAI('gemini-1.5-flash-latest'),
-          system: systemInstruction,
-          prompt: finalPrompt,
-          output: {
-            schema: localOutputSchema,
-          },
-        });
+        const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
 
-        if (!output) {
+        const result = await model.generateContent(`${systemInstruction}\n\n${finalPrompt}`);
+        const response = await result.response;
+        const aiContent = JSON.parse(response.text());
+
+        if (!aiContent) {
           throw new Error('AI returned an empty response for blog content generation.');
         }
 
-        return NextResponse.json(output);
+        return NextResponse.json(aiContent);
 
     } catch (error: any) {
         console.error('🔥 Error in /api/generate-blog-post:', error);

@@ -3,7 +3,7 @@
 /**
  * @fileoverview Centralized Firebase Admin initialization.
  * This file ensures that Firebase Admin is configured and initialized once for the server.
- * Genkit initialization has been moved to API routes directly to avoid bundling issues.
+ * Genkit initialization and AI logic has been moved to API routes directly to avoid bundling issues.
  */
 
 import { initializeApp, getApps } from 'firebase-admin/app';

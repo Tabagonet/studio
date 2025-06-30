@@ -6,11 +6,7 @@ import {NextRequest, NextResponse} from 'next/server';
 import {adminAuth} from '@/lib/firebase-admin';
 import {getApiClientsForUser} from '@/lib/api-helpers';
 import {z} from 'zod';
-
-// Genkit and Google AI imports are now direct
-import { generate } from '@genkit-ai/ai';
-import { googleAI } from '@genkit-ai/googleai';
-import { configureGenkit } from 'genkit';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import Handlebars from 'handlebars';
 
 const BatchUpdateInputSchema = z.object({
@@ -47,12 +43,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    configureGenkit({
-        plugins: [googleAI()],
-        logLevel: 'debug',
-        enableTracingAndMetrics: true,
-    });
-    
     const body = await req.json();
     const validation = BatchUpdateInputSchema.safeParse(body);
     if (!validation.success) {
@@ -116,6 +106,9 @@ export async function POST(req: NextRequest) {
       failed: [] as {id: number; reason: string}[],
     };
 
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
+
     for (const productId of productIds) {
       try {
         const productResponse = await wooApi.get(`products/${productId}`);
@@ -123,7 +116,7 @@ export async function POST(req: NextRequest) {
 
         const generateProductPromptTemplate = `You are an expert e-commerce copywriter and SEO specialist.
 Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
-The response must be a single, valid JSON object that conforms to the output schema. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
+The response must be a single, valid JSON object.
 
 **Input Information:**
 - **Product Name:** {{productName}}
@@ -143,11 +136,10 @@ Generate the complete JSON object based on your research of "{{productName}}".`;
             groupedProductsList: '',
         });
         
-        const { output: aiContent } = await generate({
-          model: googleAI('gemini-1.5-flash-latest'),
-          prompt: finalPrompt,
-          output: { schema: GenerateProductOutputSchema }
-        });
+        const result = await model.generateContent(finalPrompt);
+        const response = await result.response;
+        const aiContent = GenerateProductOutputSchema.parse(JSON.parse(response.text()));
+
 
         if (!aiContent) {
           throw new Error('AI returned an empty response.');

@@ -6,12 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import { z } from 'zod';
-
-// Genkit and Google AI imports are now direct
-import { generate } from '@genkit-ai/ai';
-import { googleAI } from '@genkit-ai/googleai';
-import { configureGenkit } from 'genkit';
-
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const syncSchema = z.object({
   sourcePostId: z.number(),
@@ -23,9 +18,11 @@ const syncSchema = z.object({
 
 export async function POST(req: NextRequest) {
     let uid: string;
+    let token: string;
     try {
-        const token = req.headers.get('Authorization')?.split('Bearer ')[1];
-        if (!token) throw new Error('Auth token missing');
+        const authToken = req.headers.get('Authorization')?.split('Bearer ')[1];
+        if (!authToken) throw new Error('Auth token missing');
+        token = authToken;
         if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
         const decodedToken = await adminAuth.verifyIdToken(token);
         uid = decodedToken.uid;
@@ -34,12 +31,6 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        configureGenkit({
-            plugins: [googleAI()],
-            logLevel: 'debug',
-            enableTracingAndMetrics: true,
-        });
-
         const body = await req.json();
         const validation = syncSchema.safeParse(body);
         if (!validation.success) {
@@ -65,6 +56,9 @@ export async function POST(req: NextRequest) {
             failed: [] as { lang: string; reason: string }[],
         };
 
+        const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
+
         for (const [lang, postId] of Object.entries(translations)) {
             if (lang === sourceLang) continue; // Skip the source post
 
@@ -80,12 +74,9 @@ export async function POST(req: NextRequest) {
                      const systemInstruction = `You are an expert translator. Translate the values of the user-provided JSON object into the specified target language. It is crucial that you maintain the original JSON structure and keys. Your output must be only the translated JSON object.`;
                      const prompt = `Translate the following content to ${lang}:\n\n${JSON.stringify(contentToTranslate)}`;
 
-                     const { output } = await generate({
-                        model: googleAI('gemini-1.5-flash-latest'),
-                        system: systemInstruction,
-                        prompt,
-                        output: { format: 'json', schema: z.record(z.string()) },
-                     });
+                     const result = await model.generateContent(`${systemInstruction}\n\n${prompt}`);
+                     const response = await result.response;
+                     const output = JSON.parse(response.text());
                      
                      if (!output || typeof output !== 'object') throw new Error('AI returned a non-object or empty response for translation.');
 
