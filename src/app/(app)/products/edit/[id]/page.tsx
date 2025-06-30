@@ -1,0 +1,374 @@
+
+"use client";
+
+import React, { useEffect, useState, Suspense } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Loader2, ArrowLeft, Save, Trash2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { auth } from '@/lib/firebase';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { WooCommerceCategory, ProductPhoto, WooCommerceImage } from '@/lib/types';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { ImageUploader } from '@/components/features/wizard/image-uploader';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ProductPreviewCard } from './product-preview-card';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { buttonVariants } from '@/components/ui/button';
+
+
+interface ProductEditState {
+  name: string;
+  sku: string;
+  regular_price: string;
+  sale_price: string;
+  short_description: string;
+  description: string;
+  images: ProductPhoto[];
+  status: 'publish' | 'draft' | 'pending' | 'private';
+  tags: string;
+  category_id: number | null;
+  manage_stock: boolean;
+  stock_quantity: string;
+  weight: string;
+  dimensions: {
+    length: string;
+    width: string;
+    height: string;
+  };
+  shipping_class: string;
+}
+
+function EditProductPageContent() {
+  const params = useParams();
+  const router = useRouter();
+  const productId = Number(params.id);
+
+  const [product, setProduct] = useState<ProductEditState | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+  
+  const { toast } = useToast();
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (!product) return;
+    setProduct({ ...product, [e.target.name]: e.target.value });
+  };
+  
+  const handleSelectChange = (name: 'status' | 'category_id', value: string) => {
+    if (!product) return;
+    const finalValue = name === 'category_id' ? (value ? parseInt(value, 10) : null) : value;
+    setProduct({ ...product, [name]: finalValue as any });
+  };
+  
+  const handlePhotosChange = (updatedPhotos: ProductPhoto[]) => {
+      if (!product) return;
+      setProduct({ ...product, images: updatedPhotos });
+  };
+  
+  const handleDimensionChange = (dim: 'length' | 'width' | 'height', value: string) => {
+    if (!product) return;
+    setProduct({
+      ...product,
+      dimensions: { ...product.dimensions, [dim]: value },
+    });
+  };
+
+  const handleSaveChanges = async () => {
+    setIsSaving(true);
+    const user = auth.currentUser;
+    if (!user || !product) {
+      toast({ title: 'Error', description: 'No se puede guardar el producto.', variant: 'destructive' });
+      setIsSaving(false);
+      return;
+    }
+
+    try {
+        const token = await user.getIdToken();
+        const payload: any = { ...product };
+        
+        const finalImagesForApi: ({id: number} | {src: string})[] = [];
+
+        product.images.filter(img => !img.file && typeof img.id === 'number').forEach(img => finalImagesForApi.push({ id: img.id as number }));
+        
+        const newPhotosToUpload = product.images.filter(p => p.file);
+
+        for (const photo of newPhotosToUpload) {
+            const formData = new FormData();
+            formData.append('imagen', photo.file!);
+
+            const response = await fetch('/api/upload-image', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+            });
+            if (!response.ok) throw new Error(`Error subiendo ${photo.name}`);
+            const imageData = await response.json();
+            finalImagesForApi.push({ src: imageData.url });
+        }
+        
+        payload.images = finalImagesForApi;
+
+        const response = await fetch(`/api/woocommerce/products/${productId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Fallo al guardar los cambios.');
+        }
+        
+        toast({ title: '¡Éxito!', description: 'El producto ha sido actualizado.' });
+        router.push('/batch');
+
+    } catch (e: any) {
+        toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
+    } finally {
+        setIsSaving(false);
+    }
+  };
+  
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    const user = auth.currentUser;
+    if (!user) {
+      toast({ title: 'Error de autenticación', variant: 'destructive' });
+      setIsDeleting(false);
+      return;
+    }
+    
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch(`/api/woocommerce/products/${productId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('Failed to delete product.');
+        toast({ title: 'Producto eliminado permanentemente.'});
+        router.push('/batch');
+    } catch(e: any) {
+        toast({ title: 'Error al eliminar', description: e.message, variant: 'destructive' });
+    } finally {
+        setIsDeleting(false);
+    }
+  };
+
+
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      setIsLoading(true);
+      setError(null);
+      const user = auth.currentUser;
+      if (!user) {
+        setError('Authentication required.');
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const token = await user.getIdToken();
+        const [productResponse, categoriesResponse] = await Promise.all([
+           fetch(`/api/woocommerce/products/${productId}`, { headers: { 'Authorization': `Bearer ${token}` }}),
+           fetch('/api/woocommerce/categories', { headers: { 'Authorization': `Bearer ${token}` }}),
+        ]);
+
+        if (!productResponse.ok) {
+          const errorData = await productResponse.json();
+          throw new Error(errorData.error || 'Failed to fetch product data.');
+        }
+        const productData = await productResponse.json();
+
+        if (categoriesResponse.ok) {
+          const catData = await categoriesResponse.json();
+          setWooCategories(catData);
+        } else {
+          console.error("Failed to fetch categories");
+        }
+        setIsLoadingCategories(false);
+
+        const existingImagesAsProductPhotos: ProductPhoto[] = productData.images.map(
+          (img: WooCommerceImage, index: number): ProductPhoto => ({
+              id: img.id,
+              previewUrl: img.src,
+              name: img.name,
+              isPrimary: index === 0,
+              status: 'completed',
+              progress: 100,
+          })
+        );
+
+        setProduct({
+          name: productData.name || '',
+          sku: productData.sku || '',
+          regular_price: productData.regular_price || '',
+          sale_price: productData.sale_price || '',
+          short_description: productData.short_description || '',
+          description: productData.description || '',
+          images: existingImagesAsProductPhotos,
+          status: productData.status || 'draft',
+          tags: productData.tags?.map((t: any) => t.name).join(', ') || '',
+          category_id: productData.categories?.length > 0 ? productData.categories[0].id : null,
+          manage_stock: productData.manage_stock || false,
+          stock_quantity: productData.stock_quantity?.toString() || '',
+          weight: productData.weight || '',
+          dimensions: productData.dimensions || { length: '', width: '', height: '' },
+          shipping_class: productData.shipping_class || '',
+        });
+
+      } catch (e: any) {
+        setError(e.message);
+        toast({ title: 'Error', description: e.message, variant: 'destructive' });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchInitialData();
+  }, [productId, toast]);
+  
+  if (isLoading) {
+    return <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
+  }
+  
+  if (error || !product) {
+     return (
+        <div className="container mx-auto py-8">
+            <Alert variant="destructive">
+                <AlertTitle>Error al Cargar</AlertTitle>
+                <AlertDescription>{error || "No se pudo cargar la información del producto."}</AlertDescription>
+                 <Button variant="outline" onClick={() => router.push('/batch')} className="mt-4">
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Volver a la lista
+                </Button>
+            </Alert>
+        </div>
+     );
+  }
+
+  return (
+    <div className="container mx-auto py-8 space-y-6">
+        <Card>
+            <CardHeader>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <CardTitle>Editor de Producto</CardTitle>
+                        <CardDescription>Editando: {product.name}</CardDescription>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" onClick={() => router.push('/batch')}>
+                            <ArrowLeft className="mr-2 h-4 w-4" />
+                            Volver a la lista
+                        </Button>
+                        <Button onClick={handleSaveChanges} disabled={isSaving}>
+                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Guardar Cambios
+                        </Button>
+                    </div>
+                </div>
+            </CardHeader>
+        </Card>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            {/* Main Column */}
+            <div className="lg:col-span-2 space-y-6">
+                <Card>
+                    <CardHeader><CardTitle>Información Principal</CardTitle></CardHeader>
+                    <CardContent className="space-y-4">
+                        <div><Label htmlFor="name">Nombre del Producto</Label><Input id="name" name="name" value={product.name} onChange={handleInputChange} /></div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div><Label htmlFor="sku">SKU</Label><Input id="sku" name="sku" value={product.sku} onChange={handleInputChange} /></div>
+                            <div><Label htmlFor="status">Estado</Label><Select name="status" value={product.status} onValueChange={(value) => handleSelectChange('status', value)}><SelectTrigger id="status"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="publish">Publicado</SelectItem><SelectItem value="draft">Borrador</SelectItem><SelectItem value="pending">Pendiente</SelectItem><SelectItem value="private">Privado</SelectItem></SelectContent></Select></div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader><CardTitle>Precios</CardTitle></CardHeader>
+                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} /></div>
+                        <div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} /></div>
+                    </CardContent>
+                </Card>
+                
+                 <Card>
+                    <CardHeader><CardTitle>Descripciones</CardTitle></CardHeader>
+                    <CardContent className="space-y-4">
+                        <div><Label htmlFor="short_description">Descripción Corta</Label><Textarea id="short_description" name="short_description" value={product.short_description} onChange={handleInputChange} rows={4} /></div>
+                        <div><Label htmlFor="description">Descripción Larga</Label><Textarea id="description" name="description" value={product.description} onChange={handleInputChange} rows={10} /></div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader><CardTitle>Inventario</CardTitle></CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex items-center space-x-2"><Checkbox id="manage_stock" checked={product.manage_stock} onCheckedChange={(checked) => setProduct({ ...product, manage_stock: !!checked, stock_quantity: !!checked ? product.stock_quantity : '' })} /><Label htmlFor="manage_stock" className="font-normal">Gestionar inventario</Label></div>
+                        {product.manage_stock && (<div><Label htmlFor="stock_quantity">Cantidad en Stock</Label><Input id="stock_quantity" name="stock_quantity" type="number" value={product.stock_quantity} onChange={handleInputChange} /></div>)}
+                    </CardContent>
+                </Card>
+
+                 <Card>
+                    <CardHeader><CardTitle>Envío</CardTitle></CardHeader>
+                    <CardContent className="space-y-4">
+                         <div><Label htmlFor="weight">Peso (kg)</Label><Input id="weight" name="weight" type="number" value={product.weight} onChange={handleInputChange} /></div>
+                         <div><Label>Dimensiones (cm)</Label><div className="grid grid-cols-3 gap-2"><Input value={product.dimensions.length} onChange={(e) => handleDimensionChange('length', e.target.value)} placeholder="Largo" /><Input value={product.dimensions.width} onChange={(e) => handleDimensionChange('width', e.target.value)} placeholder="Ancho" /><Input value={product.dimensions.height} onChange={(e) => handleDimensionChange('height', e.target.value)} placeholder="Alto" /></div></div>
+                         <div><Label htmlFor="shipping_class">Clase de envío (slug)</Label><Input id="shipping_class" name="shipping_class" value={product.shipping_class} onChange={handleInputChange} /></div>
+                    </CardContent>
+                </Card>
+            </div>
+            
+            {/* Sidebar Column */}
+            <div className="space-y-6">
+                <ProductPreviewCard product={product} categories={wooCategories} />
+                <Card>
+                    <CardHeader><CardTitle>Organización</CardTitle></CardHeader>
+                    <CardContent className="space-y-4">
+                         <div><Label htmlFor="category_id">Categoría</Label><Select name="category_id" value={product.category_id?.toString() || ''} onValueChange={(value) => handleSelectChange('category_id', value)} disabled={isLoadingCategories}><SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger><SelectContent>{wooCategories.map((cat) => (<SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>))}</SelectContent></Select></div>
+                         <div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={product.tags} onChange={handleInputChange} /></div>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader><CardTitle>Imágenes</CardTitle></CardHeader>
+                    <CardContent>
+                        <ImageUploader photos={product.images} onPhotosChange={handlePhotosChange} isProcessing={isSaving} />
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader><CardTitle className="text-destructive">Zona de Peligro</CardTitle></CardHeader>
+                    <CardContent>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" className="w-full" disabled={isDeleting}>
+                                    <Trash2 className="mr-2 h-4 w-4" /> Eliminar Producto
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente este producto.</AlertDialogDescription></AlertDialogHeader>
+                                <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className={buttonVariants({ variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+    </div>
+  );
+}
+
+
+export default function EditProductPage() {
+    return (
+        <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
+            <EditProductPageContent />
+        </Suspense>
+    )
+}

@@ -35,6 +35,16 @@ const productUpdateSchema = z.object({
     imageAltText: z.string().optional(),
     imageCaption: z.string().optional(),
     imageDescription: z.string().optional(),
+    // Inventory and shipping
+    manage_stock: z.boolean().optional(),
+    stock_quantity: z.string().optional(),
+    weight: z.string().optional(),
+    dimensions: z.object({
+        length: z.string(),
+        width: z.string(),
+        height: z.string(),
+    }).optional(),
+    shipping_class: z.string().optional(),
 });
 
 
@@ -152,6 +162,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     } else {
         // If 'images' key is not present in payload, don't touch the images.
         delete wooPayload.images;
+    }
+    
+    // Handle stock quantity: it should be a number for WooCommerce API
+    if (wooPayload.stock_quantity !== undefined && wooPayload.stock_quantity !== '') {
+        wooPayload.stock_quantity = parseInt(wooPayload.stock_quantity, 10);
     }
     
     const response = await wooApi.put(`products/${productId}`, wooPayload);

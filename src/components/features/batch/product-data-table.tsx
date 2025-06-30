@@ -2,6 +2,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import {
   ColumnFiltersState,
   SortingState,
@@ -32,8 +33,7 @@ import { BrainCircuit, ChevronDown, Loader2, Box, FileCheck2, FileText, BarChart
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { ProductEditModal } from "./product-edit-modal"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 
@@ -68,7 +68,7 @@ export function ProductDataTable() {
     pageSize: 10, 
   })
   
-  const [editingProductId, setEditingProductId] = React.useState<number | null>(null);
+  const router = useRouter();
 
   const [confirmationData, setConfirmationData] = React.useState<{
     products: { id: number; name: string; reason: string }[];
@@ -268,18 +268,10 @@ export function ProductDataTable() {
   }, [toast, fetchData, fetchStats]);
 
   const handleEditProduct = (productId: number) => {
-    setEditingProductId(productId);
-  };
-  
-  const handleCloseModal = (refresh: boolean) => {
-    setEditingProductId(null);
-    if (refresh) {
-      fetchData();
-      fetchStats();
-    }
+    router.push(`/products/edit/${productId}`);
   };
 
-  const columns = React.useMemo(() => getColumns(handleStatusUpdate, handleEditProduct, handleDeleteProduct), [handleStatusUpdate, handleDeleteProduct]);
+  const columns = React.useMemo(() => getColumns(handleStatusUpdate, handleEditProduct, handleDeleteProduct), [handleStatusUpdate, handleEditProduct, handleDeleteProduct]);
 
   const table = useReactTable({
     data,
@@ -503,12 +495,6 @@ export function ProductDataTable() {
 
   return (
     <div className="w-full space-y-4">
-      {editingProductId && (
-        <ProductEditModal
-          productId={editingProductId}
-          onClose={handleCloseModal}
-        />
-      )}
       <AlertDialog open={!!confirmationData} onOpenChange={(open) => !open && setConfirmationData(null)}>
         <AlertDialogContent>
             <AlertDialogHeader>
