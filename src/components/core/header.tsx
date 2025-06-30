@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -45,7 +45,7 @@ export function Header() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isNotificationLoading, setIsNotificationLoading] = useState(true);
 
-  const fetchNotifications = async (user: FirebaseUser | null) => {
+  const fetchNotifications = useCallback(async (user: FirebaseUser | null) => {
     if (user) {
         setIsNotificationLoading(true);
         try {
@@ -63,6 +63,11 @@ export function Header() {
             }
         } catch (error) {
             console.error("Failed to fetch notifications:", error);
+            toast({
+                title: "Error de Notificaciones",
+                description: "No se pudieron cargar las notificaciones desde el servidor.",
+                variant: "destructive"
+            });
         } finally {
             setIsNotificationLoading(false);
         }
@@ -71,9 +76,9 @@ export function Header() {
         setUnreadCount(0);
         setIsNotificationLoading(false);
     }
-  };
+  }, [toast]);
 
-  const fetchConnectionStatus = async (user: FirebaseUser | null) => {
+  const fetchConnectionStatus = useCallback(async (user: FirebaseUser | null) => {
     if (user) {
       setIsLoadingStatus(true);
       try {
@@ -93,6 +98,11 @@ export function Header() {
         }
       } catch (error) {
         console.error("Failed to fetch connection status:", error);
+        toast({
+            title: "Error de Conexión",
+            description: "No se pudo conectar con el servidor para verificar el estado de la conexión. Revisa tu conexión a internet.",
+            variant: "destructive",
+        });
         setConfigStatus(null);
       } finally {
         setIsLoadingStatus(false);
@@ -101,7 +111,7 @@ export function Header() {
       setConfigStatus(null);
       setIsLoadingStatus(false);
     }
-  };
+  }, [toast]);
 
 
   useEffect(() => {
@@ -122,7 +132,7 @@ export function Header() {
         unsubscribe();
         window.removeEventListener('connections-updated', handleConnectionsUpdate);
     };
-  }, []);
+  }, [fetchConnectionStatus, fetchNotifications]);
 
   const handleMarkAsRead = async () => {
     if (unreadCount === 0) return;
