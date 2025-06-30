@@ -23,6 +23,11 @@ const aiResponseSchema = z.object({
   summary: z.string().describe("Un breve resumen sobre de qué trata la página."),
   positives: z.array(z.string()).describe("Una lista de 2-3 aspectos SEO positivos encontrados."),
   improvements: z.array(z.string()).describe("Una lista de las 2-3 sugerencias de mejora más importantes y accionables."),
+  suggested: z.object({
+    title: z.string().describe("Una sugerencia de título optimizado para SEO, con menos de 60 caracteres."),
+    metaDescription: z.string().describe("Una sugerencia de meta descripción optimizada para SEO, con menos de 160 caracteres."),
+    focusKeyword: z.string().describe("La palabra clave principal (2-4 palabras) más adecuada para este contenido."),
+  }),
 });
 
 
@@ -104,21 +109,27 @@ async function getPageContentFromScraping(url: string) {
     }
 }
 
-async function getAiAnalysis(content: string) {
+async function getAiAnalysis(content: string, title: string) {
   const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) {
     throw new Error('La clave API de Google AI no está configurada en el servidor.');
   }
 
   const prompt = `
-    Analiza el siguiente contenido de una página web para optimización SEO (On-Page). Proporciona una respuesta en español, exclusivamente como un único y válido objeto JSON.
+    Analiza el siguiente contenido de una página web (título: "${title}") para optimización SEO (On-Page).
+    Proporciona una respuesta en español, exclusivamente como un único y válido objeto JSON.
     
     Esquema JSON Requerido:
     {
       "score": "Una puntuación SEO estimada de 0 a 100.",
       "summary": "Un breve resumen sobre de qué trata la página.",
       "positives": "Un array con 2-3 aspectos SEO positivos encontrados.",
-      "improvements": "Un array con las 2-3 sugerencias de mejora más importantes y accionables."
+      "improvements": "Un array con las 2-3 sugerencias de mejora más importantes y accionables.",
+      "suggested": {
+        "title": "Una sugerencia de título optimizado para SEO, con menos de 60 caracteres, que incluya la palabra clave principal.",
+        "metaDescription": "Una sugerencia de meta descripción optimizada para SEO, con menos de 160 caracteres, que incluya la palabra clave principal.",
+        "focusKeyword": "La palabra clave principal (2-4 palabras) más adecuada para este contenido."
+      }
     }
 
     Contenido a Analizar:
@@ -204,7 +215,7 @@ export async function POST(req: NextRequest) {
     if (!pageData.textContent || pageData.textContent.trim().length < 50) {
         throw new Error('No se encontró suficiente contenido textual en la página para analizar. Asegúrate de que la URL es correcta y tiene contenido visible.');
     }
-    const aiAnalysis = await getAiAnalysis(pageData.textContent);
+    const aiAnalysis = await getAiAnalysis(pageData.textContent, pageData.title);
     const fullAnalysis = { ...pageData, aiAnalysis };
     
     // Save to Firestore

@@ -3,13 +3,13 @@
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, ArrowLeft, Edit, Sparkles, Image as ImageIcon, Checkbox } from 'lucide-react';
+import { Loader2, ArrowLeft, Edit, Sparkles, Image as ImageIcon, Checkbox, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -20,19 +20,14 @@ import { SeoAnalyzer } from '@/components/features/blog/seo-analyzer';
 interface PostEditState {
   title: string;
   content: string; 
-  status: 'publish' | 'draft' | 'pending' | 'future' | 'private';
-  author: number | null;
-  category: number | null;
-  tags: string;
   meta: {
-      _yoast_wpseo_metadesc?: string;
-      _yoast_wpseo_focuskw?: string;
+      _yoast_wpseo_metadesc: string;
+      _yoast_wpseo_focuskw: string;
   };
   isElementor: boolean;
   elementorEditLink: string | null;
   featuredImageUrl?: string | null;
   featuredMediaId?: number | null;
-  translations?: Record<string, number>;
 }
 
 interface ContentImage {
@@ -42,10 +37,11 @@ interface ContentImage {
 
 function EditPageContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
 
   const postId = Number(params.id);
-  const postType = params.type?.[0]?.toUpperCase() + params.type?.slice(1) || 'Post';
+  const postType = searchParams.get('type') || 'Post';
     
   const [post, setPost] = useState<PostEditState | null>(null);
   const [contentImages, setContentImages] = useState<ContentImage[]>([]);
@@ -58,12 +54,10 @@ function EditPageContent() {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   
-  const hasTriggeredAutoKeyword = useRef(false);
-
+  
   const fetchInitialData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    hasTriggeredAutoKeyword.current = false;
     const user = auth.currentUser;
     if (!user) {
       setError('Authentication required.');
@@ -71,8 +65,8 @@ function EditPageContent() {
       return;
     }
     
-    if (isNaN(postId)) {
-      setError('El ID del contenido no es válido.');
+    if (isNaN(postId) || !postType) {
+      setError('El ID o el tipo del contenido no es válido.');
       setIsLoading(false);
       return;
     }
@@ -87,10 +81,6 @@ function EditPageContent() {
       const loadedPost: PostEditState = {
         title: postData.title.rendered || '',
         content: postData.content.rendered || '',
-        status: postData.status || 'draft',
-        author: postData.author || null,
-        category: postData.categories?.[0] || null,
-        tags: postData._embedded?.['wp:term']?.[1]?.map((t: any) => t.name).join(', ') || '',
         meta: {
             _yoast_wpseo_metadesc: postData.meta?._yoast_wpseo_metadesc || '',
             _yoast_wpseo_focuskw: postData.meta?._yoast_wpseo_focuskw || '',
@@ -99,8 +89,32 @@ function EditPageContent() {
         elementorEditLink: postData.elementorEditLink || null,
         featuredImageUrl: postData.featured_image_url || null,
         featuredMediaId: postData.featured_media || null,
-        translations: postData.translations || {},
       };
+
+      // New part: Fetch latest analysis to get suggestions
+      try {
+        const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(postData.link)}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (historyResponse.ok) {
+            const historyData = await historyResponse.json();
+            if (historyData.history && historyData.history.length > 0) {
+                const latestAnalysis = historyData.history[0].analysis;
+                if (latestAnalysis.suggested?.title) {
+                    loadedPost.title = latestAnalysis.suggested.title;
+                }
+                if (latestAnalysis.suggested?.metaDescription) {
+                    loadedPost.meta._yoast_wpseo_metadesc = latestAnalysis.suggested.metaDescription;
+                }
+                if (!loadedPost.meta._yoast_wpseo_focuskw && latestAnalysis.suggested?.focusKeyword) {
+                    loadedPost.meta._yoast_wpseo_focuskw = latestAnalysis.suggested.focusKeyword;
+                }
+            }
+        }
+      } catch (historyError) {
+          console.warn("Could not fetch SEO history for suggestions:", historyError);
+      }
+      
       setPost(loadedPost);
       
       if (loadedPost.content) {
@@ -127,30 +141,6 @@ function EditPageContent() {
     fetchInitialData();
   }, [fetchInitialData]);
   
-  const autoGenerateKeyword = useCallback(async () => {
-    if (post && !post.meta._yoast_wpseo_focuskw && post.content && !hasTriggeredAutoKeyword.current) {
-        hasTriggeredAutoKeyword.current = true;
-        setIsAiLoading(true);
-        try {
-            const user = auth.currentUser; if (!user) return;
-            const token = await user.getIdToken();
-            const payload = { mode: 'generate_focus_keyword', language: 'Spanish', existingTitle: post.title, existingContent: post.content };
-            const response = await fetch('/api/generate-blog-post', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload) });
-            if (response.ok) {
-                const aiContent = await response.json();
-                setPost(prev => prev ? { ...prev, meta: { ...prev.meta, _yoast_wpseo_focuskw: aiContent.focusKeyword } } : null);
-                toast({ title: "Sugerencia de IA", description: "Se ha sugerido una palabra clave principal para empezar." });
-            }
-        } catch (e) { console.error(e) } finally { setIsAiLoading(false) }
-    }
-  }, [post, toast]);
-
-  useEffect(() => {
-    if(!isLoading && post) {
-        autoGenerateKeyword();
-    }
-  }, [isLoading, post, autoGenerateKeyword]);
-  
   const handleSaveChanges = async () => {
     setIsSaving(true);
     const user = auth.currentUser;
@@ -164,7 +154,7 @@ function EditPageContent() {
         const payload: any = {
             title: post.title,
             meta: post.meta,
-            imageMetas: contentImages,
+            imageMetas: contentImages, // Send updated image alt tags
             content: post.content, // Send content back so backend can update alt tags
         };
         
@@ -247,7 +237,7 @@ function EditPageContent() {
                             <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Informe
                         </Button>
                          <Button onClick={handleSaveChanges} disabled={isSaving}>
-                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Guardar Cambios SEO
+                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="h-4 w-4" /> } Guardar Cambios SEO
                         </Button>
                     </div>
                 </div>
@@ -270,12 +260,13 @@ function EditPageContent() {
             postId={postId}
             postType={postType}
             isLoading={isAiLoading}
+            setIsLoading={setIsAiLoading}
         />
 
         <Card>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2"><ImageIcon className="h-5 w-5 text-primary" /> Optimización de Imágenes</CardTitle>
-                <CardDescription>Revisa el texto alternativo de las imágenes de tu contenido.</CardDescription>
+                <CardDescription>Revisa y añade texto alternativo a las imágenes de tu contenido para mejorar el SEO y la accesibilidad.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                 <Button onClick={handleGenerateImageAlts} disabled={isAiLoading}>
@@ -296,17 +287,17 @@ function EditPageContent() {
                     {contentImages.map((img, index) => (
                         <div key={index} className="flex items-center gap-3 p-2 border rounded-md">
                             <Image src={img.src} alt="Vista previa" width={40} height={40} className="rounded object-cover" />
-                            <div className="flex-1 text-sm text-muted-foreground truncate">
-                                {img.src}
+                            <div className="flex-1 text-sm text-muted-foreground truncate" title={img.src}>
+                                {img.src.split('/').pop()}
                             </div>
                             <div className="flex items-center gap-2">
-                                <span className={img.alt ? 'text-green-600' : 'text-destructive'}>{img.alt ? "✓ 'alt' presente" : "✗ 'alt' ausente"}</span>
-                                {img.alt && (
-                                    <div className="h-2 w-2 rounded-full bg-green-500" />
-                                )}
-                                {!img.alt && (
-                                     <div className="h-2 w-2 rounded-full bg-destructive" />
-                                )}
+                               <div className="h-2 w-2 rounded-full" style={{ backgroundColor: img.alt ? 'hsl(var(--primary))' : 'hsl(var(--destructive))' }} />
+                               <Input 
+                                 value={img.alt}
+                                 onChange={(e) => setContentImages(prev => prev.map((current, i) => i === index ? { ...current, alt: e.target.value } : current))}
+                                 placeholder="Añade el 'alt text'..."
+                                 className="text-xs h-8"
+                               />
                             </div>
                         </div>
                     ))}
