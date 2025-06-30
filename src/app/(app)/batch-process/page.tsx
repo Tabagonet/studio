@@ -708,7 +708,7 @@ export default function BatchProcessPage() {
                                 <div className="flex-1 min-w-0 space-y-1">
                                     <h3 className="font-semibold truncate">{product.name}</h3>
                                     <p className="text-sm text-muted-foreground">SKU: <code className="bg-muted px-1 py-0.5 rounded">{product.id}</code></p>
-                                    <p className="text-sm text-muted-foreground">Imágenes encontradas: <Badge variant="secondary">{product.images.length}</Badge></p>
+                                    <div className="text-sm text-muted-foreground">Imágenes encontradas: <Badge variant="secondary">{product.images.length}</Badge></div>
                                 </div>
                                 <div className="flex-1 max-w-xs space-y-2">
                                     <div className="flex items-center gap-2">
