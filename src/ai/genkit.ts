@@ -5,9 +5,10 @@
  * it only runs on the server.
  */
 
-import { genkit } from '@genkit-ai/core';
-import { googleAI } from '@genkit-ai/googleai';
-import { initializeApp, getApps } from 'firebase-admin/app';
+// Use require for CJS/ESM interop issues in Next.js server environments
+const { genkit } = require('@genkit-ai/core');
+const { googleAI } = require('@genkit-ai/googleai');
+const { initializeApp, getApps } = require('firebase-admin/app');
 
 // Initialize Firebase Admin SDK if not already initialized
 if (getApps().length === 0) {
