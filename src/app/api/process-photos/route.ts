@@ -1,18 +1,43 @@
-// src/app/api/process-photos/route.ts
+
+'use server';
 // NOTE: This endpoint has been repurposed for batch product updates via AI.
-import '@/ai/genkit'; // This ensures Genkit is initialized
-import { runFlow } from '@genkit-ai/core';
 import {NextRequest, NextResponse} from 'next/server';
 import {adminAuth} from '@/lib/firebase-admin';
 import {getApiClientsForUser} from '@/lib/api-helpers';
-import {generateProductFlow} from '@/ai/flows/generate-product-flow';
 import {z} from 'zod';
+import { generate } from '@genkit-ai/core';
+import { googleAI } from '@genkit-ai/googleai';
+import Handlebars from 'handlebars';
 
 const BatchUpdateInputSchema = z.object({
   productIds: z.array(z.number()).min(1, 'At least one product ID is required.'),
   action: z.enum(['generateDescriptions', 'generateImageMetadata']),
   force: z.boolean().optional().default(false),
 });
+
+// Schemas for the AI call
+const GenerateProductOutputSchema = z.object({
+  shortDescription: z.string().describe('A brief, catchy summary of the product.'),
+  longDescription: z.string().describe('A detailed, persuasive description of the product.'),
+  keywords: z.string().describe('A comma-separated list of 5 to 10 relevant SEO keywords.'),
+  imageTitle: z.string().describe('A concise, SEO-friendly title for the product images.'),
+  imageAltText: z.string().describe('A descriptive alt text for SEO.'),
+  imageCaption: z.string().describe('An engaging caption for the image.'),
+  imageDescription: z.string().describe('A detailed description for the image media library entry.'),
+});
+
+const generateProductPromptTemplate = `You are an expert e-commerce copywriter and SEO specialist.
+    Your task is to receive product information and generate a complete, accurate, and compelling product listing.
+    The response must be a single, valid JSON object.
+    
+    **Product Information:**
+    - **Product Name:** {{productName}}
+    - **Language for output:** {{language}}
+    - **Product Type:** {{productType}}
+    - **User-provided Keywords (for inspiration):** {{keywords}}
+
+    Generate the complete JSON object based on your research of "{{productName}}".`;
+
 
 export async function POST(req: NextRequest) {
   let uid: string;
@@ -77,7 +102,6 @@ export async function POST(req: NextRequest) {
             });
           }
         } catch (error: any) {
-          // Ignore errors during check; the main execution loop will catch and report them as failed.
           console.error(
             `Failed to check product ${productId} for confirmation. Error: ${
               error instanceof Error ? error.message : String(error)
@@ -87,7 +111,6 @@ export async function POST(req: NextRequest) {
       }
 
       if (productsToConfirm.length > 0) {
-        // Return a 200 OK with a specific payload to avoid browser error logs for 409.
         return NextResponse.json({
           confirmationRequired: true,
           products: productsToConfirm,
@@ -103,21 +126,28 @@ export async function POST(req: NextRequest) {
 
     for (const productId of productIds) {
       try {
-        // 1. Fetch product from Woo
         const productResponse = await wooApi.get(`products/${productId}`);
         const product = productResponse.data;
 
-        // 2. Call AI content generator flow
-        const aiContent = await runFlow(generateProductFlow, {
+        const aiInput = {
           productName: product.name,
           productType: product.type,
           language: 'Spanish',
           keywords: product.tags?.map((t: any) => t.name).join(', ') || '',
-          groupedProductIds: [], // Not supported in batch mode for now
-          uid: uid,
+        };
+        const template = Handlebars.compile(generateProductPromptTemplate, { noEscape: true });
+        const finalPrompt = template(aiInput);
+
+        const { output: aiContent } = await generate({
+          model: googleAI('gemini-1.5-flash-latest'),
+          prompt: finalPrompt,
+          output: { schema: GenerateProductOutputSchema }
         });
 
-        // 3. Perform action based on input
+        if (!aiContent) {
+          throw new Error('AI returned an empty response.');
+        }
+
         if (action === 'generateDescriptions') {
           await wooApi.put(`products/${productId}`, {
             short_description: aiContent.shortDescription,
@@ -128,13 +158,11 @@ export async function POST(req: NextRequest) {
               .filter((k: {name: string}) => k.name),
           });
         } else if (action === 'generateImageMetadata') {
-          if (!wpApi) throw new Error('WordPress API client is not available.'); // Should be caught earlier, but for safety.
+          if (!wpApi) throw new Error('WordPress API client is not available.');
           if (!product.images || product.images.length === 0) {
             throw new Error('El producto no tiene imágenes para actualizar.');
           }
-          // Update metadata for each image associated with the product
           for (const image of product.images) {
-            // The WP REST API uses POST on /media/<id> for updates.
             await wpApi.post(`media/${image.id}`, {
               title: aiContent.imageTitle,
               alt_text: aiContent.imageAltText,
@@ -146,14 +174,10 @@ export async function POST(req: NextRequest) {
 
         results.success.push(productId);
       } catch (error: any) {
-        console.error(
-          `Failed to process product ID ${productId}:`,
-          error.response?.data?.message || error.message
-        );
+        console.error(`Failed to process product ID ${productId}:`, error.response?.data?.message || error.message);
         results.failed.push({
           id: productId,
-          reason:
-            error.response?.data?.message || error.message || 'Unknown error',
+          reason: error.response?.data?.message || error.message || 'Unknown error',
         });
       }
     }
@@ -164,15 +188,10 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error('Error in batch update API:', error);
-    const status = error.message.includes('not configured')
-      ? 400
-      : error.response?.status || 500;
-    return NextResponse.json(
-      {
-        error: 'An unexpected error occurred during batch processing.',
-        message: error.message,
-      },
-      {status}
-    );
+    const status = error.message.includes('not configured') ? 400 : error.response?.status || 500;
+     if (error.message.trim().startsWith('<!DOCTYPE html>')) {
+        return NextResponse.json({ error: 'La IA falló: Error interno del servidor de IA. Por favor, reintenta.' }, { status: 500 });
+    }
+    return NextResponse.json({ error: 'La IA falló: ' + error.message,}, {status});
   }
 }

@@ -1,15 +1,13 @@
+
 'use server';
-import '@/ai/genkit';
-import { runFlow } from '@genkit-ai/core';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { z } from 'zod';
-import {
-  translateContentFlow,
-} from '@/ai/flows/translate-content-flow';
+import { generate } from '@genkit-ai/core';
+import { googleAI } from '@genkit-ai/googleai';
 
 export async function POST(req: NextRequest) {
-  // 1. Authenticate the request
   try {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) throw new Error('Authentication token not provided.');
@@ -22,12 +20,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 2. Validate the request body and perform the translation
   try {
     const body = await req.json();
-
     const apiSchema = z.object({
-        content: z.record(z.string()),
+        contentToTranslate: z.record(z.string()),
         targetLanguage: z.string(),
     });
 
@@ -38,22 +34,36 @@ export async function POST(req: NextRequest) {
             {status: 400}
         );
     }
-    
-    // The API route receives the content directly, not the full flow input schema
-    const flowInput = {
-        contentToTranslate: apiValidation.data.content,
-        targetLanguage: apiValidation.data.targetLanguage
-    };
-    
-    const output = await runFlow(translateContentFlow, flowInput);
 
-    // The flow already handles errors, so we just return the output
-    return NextResponse.json({ content: output });
+    const { contentToTranslate, targetLanguage } = apiValidation.data;
+
+    const systemInstruction = `You are an expert translator. Translate the values of the user-provided JSON object into the specified target language. It is crucial that you maintain the original JSON structure and keys. You must also preserve all HTML tags (e.g., <h2>, <p>, <strong>) and special separators like '|||' in their correct positions within the string values. Your output must be only the translated JSON object, without any extra text, comments, or markdown formatting.`;
+    const prompt = `Translate the following content to ${targetLanguage}:\\n\\n${JSON.stringify(contentToTranslate)}`;
+    const outputSchema = z.record(z.string());
+
+    const { output } = await generate({
+      model: googleAI('gemini-1.5-flash-latest'),
+      system: systemInstruction,
+      prompt: prompt,
+      output: {
+        format: 'json',
+        schema: outputSchema,
+      },
+    });
+
+    if (!output || typeof output !== 'object') {
+      throw new Error(
+        'AI returned a non-object or empty response for translation.'
+      );
+    }
+    
+    return NextResponse.json(output);
   } catch (error: any) {
     console.error('Error in translation API:', error);
-    return NextResponse.json(
-      {error: 'Failed to translate content', message: error.message},
-      {status: 500}
-    );
+    const errorMessage = error.message || 'Failed to translate content';
+    if (errorMessage.trim().startsWith('<!DOCTYPE html>')) {
+        return NextResponse.json({ error: 'La IA falló: Error interno del servidor de IA. Por favor, reintenta.' }, { status: 500 });
+    }
+    return NextResponse.json({ error: 'La IA falló: ' + errorMessage }, { status: 500 });
   }
 }

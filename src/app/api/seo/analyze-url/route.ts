@@ -1,12 +1,13 @@
 
+'use server';
 
-import '@/ai/genkit';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { z } from 'zod';
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import { generate } from '@genkit-ai/core';
+import { googleAI } from '@genkit-ai/googleai';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 
 
@@ -16,7 +17,6 @@ const analyzeUrlSchema = z.object({
   postType: z.enum(['Post', 'Page']).optional(),
 });
 
-// NEW, more structured schema
 const aiChecksSchema = z.object({
     titleContainsKeyword: z.boolean().describe("El título SEO contiene la palabra clave principal."),
     titleIsGoodLength: z.boolean().describe("El título SEO tiene una longitud entre 30 y 65 caracteres."),
@@ -130,9 +130,6 @@ async function getPageContentFromScraping(url: string) {
 
 
 async function getAiAnalysis(pageData: any) {
-  const apiKey = process.env.GOOGLE_API_KEY;
-  if (!apiKey) throw new Error('La clave API de Google AI no está configurada en el servidor.');
-
   const prompt = `
     Analiza el siguiente contenido de una página web para optimización SEO (On-Page) y responde únicamente con un objeto JSON válido.
     
@@ -165,30 +162,18 @@ async function getAiAnalysis(pageData: any) {
     - "metaDescription": Sugiere una "Meta Descripción" mejorada.
     - "focusKeyword": Sugiere la "Palabra Clave Principal" más apropiada para el contenido.
   `;
-
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash-latest",
-    generationConfig: { responseMimeType: "application/json" },
-    safetySettings: [ { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH }, { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH }, { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE }, { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE } ]
-  });
-
   try {
-    const result = await model.generateContent(prompt);
-    if (result.response.promptFeedback?.blockReason) {
-        const blockReason = result.response.promptFeedback.blockReason;
-        throw new Error(`La IA no pudo procesar el contenido por motivos de seguridad: ${blockReason}`);
+    const { output } = await generate({
+        model: googleAI('gemini-1.5-flash-latest'),
+        prompt: prompt,
+        output: {
+            schema: aiResponseSchema
+        }
+    });
+    if (!output) {
+      throw new Error("La IA devolvió una respuesta vacía.");
     }
-    
-    const responseText = result.response.text();
-    const parsedJson = JSON.parse(responseText);
-    const validation = aiResponseSchema.safeParse(parsedJson);
-
-    if (!validation.success) {
-      console.error("AI returned invalid schema:", validation.error.flatten());
-      throw new Error("La IA devolvió una respuesta con un formato inesperado.");
-    }
-    return validation.data;
+    return output;
   } catch (error) {
     console.error("Error communicating with Google AI:", error);
     if (error instanceof Error) throw error;
@@ -233,7 +218,6 @@ export async function POST(req: NextRequest) {
 
     const aiAnalysis = await getAiAnalysis(pageData);
     
-    // Deterministic score calculation
     const checkWeights = { titleContainsKeyword: 15, titleIsGoodLength: 10, metaDescriptionContainsKeyword: 15, metaDescriptionIsGoodLength: 10, keywordInFirstParagraph: 15, contentHasImages: 5, allImagesHaveAltText: 10, h1Exists: 10, canonicalUrlExists: 10 };
     let score = 0;
     Object.entries(aiAnalysis.checks).forEach(([key, passed]) => {
@@ -255,6 +239,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(fullAnalysis);
   } catch (error: any) {
     console.error('Error in analyze-url endpoint:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error.message.trim().startsWith('<!DOCTYPE html>')) {
+        return NextResponse.json({ error: 'La IA falló: Error interno del servidor de IA. Por favor, reintenta.' }, { status: 500 });
+    }
+    return NextResponse.json({ error: 'La IA falló: ' + error.message }, { status: 500 });
   }
 }

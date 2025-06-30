@@ -56,6 +56,3 @@ export const SeoInterpretationOutputSchema = z.object({
 export type SeoInterpretationOutput = z.infer<
   typeof SeoInterpretationOutputSchema
 >;
-
-// This file is now only for schema definitions.
-// The API call is made directly from /api/seo/analysis/[id]/route.ts
