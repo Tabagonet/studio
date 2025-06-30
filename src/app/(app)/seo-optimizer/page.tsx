@@ -48,6 +48,8 @@ export default function SeoOptimizerPage() {
   
   const router = useRouter();
   const { toast } = useToast();
+
+  const latestAnalysisId = analysisHistory.length > 0 ? analysisHistory[0].id : null;
   
   const fetchContentData = useCallback(async () => {
     setIsLoading(true);
