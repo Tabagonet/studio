@@ -73,9 +73,12 @@ const generateBlogContentFlowInternal = ai.defineFlow(
             `;
             break;
         case 'enhance_title':
-            systemInstruction = `You are an expert SEO copywriter. Based on the provided content and original title, your task is to rewrite ONLY the blog post title to be more engaging, clear, and SEO-optimized. Respond with a single, valid JSON object containing only one key: "title". Do not include markdown or the word 'json' in your output.`;
+            systemInstruction = `You are an expert SEO copywriter. Your task is to rewrite a blog post title to be more engaging, clear, and SEO-optimized. The title must be under 60 characters. Respond with a single, valid JSON object containing only one key: "title". Do not include markdown or the word 'json' in your output.`;
             userPromptTemplate = `
                 Rewrite and improve ONLY the title for this blog post in {{language}}.
+                {{#if keywords}}
+                It is crucial that the new title includes the focus keyword: "{{keywords}}".
+                {{/if}}
                 Original Title: "{{existingTitle}}"
                 Content for context:
                 ---

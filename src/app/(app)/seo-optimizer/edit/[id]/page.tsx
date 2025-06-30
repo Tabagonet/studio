@@ -3,14 +3,18 @@
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Save } from 'lucide-react';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Loader2, ArrowLeft, Save, Sparkles, ExternalLink, Image as ImageIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { SeoAnalyzer } from '@/components/features/blog/seo-analyzer';
 import type { SeoAnalysisRecord } from '@/lib/types';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 interface PostEditState {
@@ -73,10 +77,11 @@ function EditPageContent() {
     try {
       const token = await user.getIdToken();
       const apiPath = postType === 'Post' ? `/api/wordpress/posts/${postId}` : `/api/wordpress/pages/${postId}`;
-      const postResponse = await fetch(`${apiPath}?context=edit`, { headers: { 'Authorization': `Bearer ${token}` }});
+      const postResponse = await fetch(`${apiPath}?context=edit&bust=${new Date().getTime()}`, { headers: { 'Authorization': `Bearer ${token}` }});
       if (!postResponse.ok) throw new Error((await postResponse.json()).error || `Failed to fetch ${postType} data.`);
       
       const postData = await postResponse.json();
+      
       const loadedPost: PostEditState = {
         title: postData.title.rendered || '',
         content: postData.content.rendered || '',
@@ -234,10 +239,10 @@ function EditPageContent() {
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2">
                         <Button variant="outline" onClick={() => router.back()}>
-                            <ArrowLeft className="mr-2 h-4 w-4" /> Volver al informe
+                            <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Informe
                         </Button>
                          <Button onClick={handleSaveChanges} disabled={isSaving}>
-                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="h-4 w-4" /> } Guardar Cambios SEO
+                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" /> } Guardar Cambios SEO
                         </Button>
                     </div>
                 </div>
