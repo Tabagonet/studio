@@ -7,7 +7,7 @@
  * - GenerateProductInputSchema - The input type for the flow.
  * - GenerateProductOutputSchema - The return type for the flow.
  */
-import { genkit, z } from 'genkit';
+import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 

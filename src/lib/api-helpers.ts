@@ -5,33 +5,9 @@ import { createWooCommerceApi } from '@/lib/woocommerce';
 import { createWordPressApi } from '@/lib/wordpress';
 import type WooCommerceRestApiType from '@woocommerce/woocommerce-rest-api';
 import type { AxiosInstance } from 'axios';
-import { z } from 'zod';
-import { ai } from '@/ai/genkit';
 import axios from 'axios';
 import FormData from 'form-data';
 import type { ExtractedWidget } from './types';
-
-
-// --- Schemas for AI Content Generation ---
-// Note: The main logic has been moved to /src/ai/flows/generate-product-flow.ts
-// Schemas are kept here if needed by other helpers, but the primary source of truth is the flow file.
-export const GenerateProductDescriptionInputSchema = z.object({
-  productName: z.string().min(1, 'Product name is required.'),
-  productType: z.string(),
-  keywords: z.string().optional(),
-  language: z.enum(['Spanish', 'English', 'French', 'German', 'Portuguese']).default('Spanish'),
-  groupedProductIds: z.array(z.number()).optional(),
-});
-
-export const GenerateProductDescriptionOutputSchema = z.object({
-  shortDescription: z.string(),
-  longDescription: z.string(),
-  keywords: z.string(),
-  imageTitle: z.string(),
-  imageAltText: z.string(),
-  imageCaption: z.string(),
-  imageDescription: z.string(),
-});
 
 
 interface ApiClients {
