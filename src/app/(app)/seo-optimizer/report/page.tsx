@@ -133,9 +133,9 @@ function ReportContent() {
                 <CardDescription>Estos son los pasos más importantes para mejorar el SEO de esta página.</CardDescription>
              </CardHeader>
              <CardContent>
-                {interpretation ? (
+                {interpretation?.actionPlan ? (
                   <ul className="list-decimal list-inside space-y-4 text-lg">
-                      {interpretation.actionPlan?.map((action, i) => (
+                      {interpretation.actionPlan.map((action, i) => (
                           <li key={i} className="pl-2">{action}</li>
                       ))}
                   </ul>
