@@ -68,13 +68,16 @@ export async function POST(request: NextRequest) {
             images: wordpressImageIds, attributes: wooAttributes,
             tags: wooTags.map(id => ({ id })),
             lang: lang,
+            weight: finalProductData.weight || undefined,
+            dimensions: finalProductData.dimensions,
+            shipping_class: finalProductData.shipping_class || undefined,
+            manage_stock: finalProductData.manage_stock,
         };
 
         if (finalProductData.productType === 'simple') {
             wooPayload.regular_price = finalProductData.regularPrice;
             wooPayload.sale_price = finalProductData.salePrice || undefined;
-            if (finalProductData.stockQuantity) {
-                wooPayload.manage_stock = true;
+            if (finalProductData.manage_stock) {
                 wooPayload.stock_quantity = parseInt(finalProductData.stockQuantity, 10);
             }
         } else if (finalProductData.productType === 'grouped') {
@@ -93,12 +96,15 @@ export async function POST(request: NextRequest) {
                     regular_price: v.regularPrice || undefined, 
                     sale_price: v.salePrice || undefined,
                     attributes: v.attributes.map(a => ({ name: a.name, option: a.value })),
+                    weight: v.weight || undefined,
+                    dimensions: v.dimensions,
+                    shipping_class: v.shipping_class || undefined,
+                    manage_stock: v.manage_stock,
                 };
                 if(finalProductData.shouldSaveSku !== false && v.sku) {
                     variationPayload.sku = v.sku;
                 }
-                if (v.stockQuantity) {
-                    variationPayload.manage_stock = true;
+                if (v.manage_stock) {
                     variationPayload.stock_quantity = parseInt(v.stockQuantity, 10);
                 }
                 return variationPayload;

@@ -61,7 +61,15 @@ export interface ProductVariation {
   sku: string;
   regularPrice: string;
   salePrice: string;
+  manage_stock: boolean;
   stockQuantity: string;
+  weight?: string;
+  dimensions?: {
+    length: string;
+    width: string;
+    height: string;
+  };
+  shipping_class?: string;
 }
 
 
@@ -130,7 +138,15 @@ export interface ProductData {
   productType: ProductType;
   regularPrice: string;
   salePrice: string;
+  manage_stock: boolean;
   stockQuantity: string;
+  weight?: string;
+  dimensions?: {
+    length: string;
+    width: string;
+    height: string;
+  };
+  shipping_class?: string;
   category: WooCommerceCategory | null; // Store category object
   categoryPath?: string; // Used for batch creation by name/path
   keywords: string;

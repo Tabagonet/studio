@@ -124,20 +124,26 @@ export default function BatchProcessPage() {
   const handleDownloadTemplate = () => {
     const headers = [
       'sku', 'nombre', 'tipo', 'categorias', 'etiquetas', 'traducir_a',
-      'precio_regular', 'precio_oferta', 'stock_inicial',
+      'precio_regular', 'precio_oferta',
+      'gestionar_stock', 'stock_inicial',
+      'peso', 'largo', 'ancho', 'alto', 'clase_de_envio',
       'atributo_1_nombre', 'atributo_1_valores', 'atributo_1_variacion', 'atributo_1_visible',
       'atributo_2_nombre', 'atributo_2_valores', 'atributo_2_variacion', 'atributo_2_visible',
     ];
     const exampleData = [
       [
         'SKU-PALA-ACERO', 'Pala de Jardín de Acero', 'simple', 'Herramientas', 'jardineria, pala, acero', 'English,French',
-        '12.50', '9.99', '200',
+        '12.50', '9.99',
+        '1', '200',
+        '0.8', '50', '20', '5', 'envio-estandar',
         '', '', '', '',
         '', '', '', ''
       ],
       [
         'TSHIRT-COOL', 'Camiseta Molona', 'variable', 'Ropa > Camisetas', 'ropa, camiseta, verano', '',
-        '', '', '0',
+        '', '',
+        '1', '0',
+        '0.2', '30', '25', '2', 'envio-ligero',
         'Color', 'Rojo | Verde | Azul', '1', '1',
         'Talla', 'S | M | L', '1', '1'
       ]
@@ -387,7 +393,12 @@ export default function BatchProcessPage() {
                 const payload: Partial<ProductData> = {
                     name: pData.name, sku: pData.sku, shouldSaveSku: saveSkuInWoo,
                     productType: pData.productType,
-                    regularPrice: pData.regularPrice, salePrice: pData.salePrice, stockQuantity: pData.stockQuantity,
+                    regularPrice: pData.regularPrice, salePrice: pData.salePrice, 
+                    manage_stock: pData.manage_stock,
+                    stockQuantity: pData.stockQuantity,
+                    weight: pData.weight,
+                    dimensions: pData.dimensions,
+                    shipping_class: pData.shipping_class,
                     keywords: pData.keywords,
                     shortDescription: pData.shortDescription, longDescription: pData.longDescription,
                     photos: uploadedPhotos,
@@ -415,7 +426,9 @@ export default function BatchProcessPage() {
                         variations = combinations.map(combo => {
                             const attrs = combo.map((value, index) => ({ name: variationAttributes[index].name, value }));
                             const skuSuffix = attrs.map(a => a.value.substring(0,3).toUpperCase()).join('-');
-                            return { id: uuidv4(), attributes: attrs, sku: `${payload.sku || 'VAR'}-${skuSuffix}`, regularPrice: '', salePrice: '', stockQuantity: '' };
+                            return { 
+                                id: uuidv4(), attributes: attrs, sku: `${payload.sku || 'VAR'}-${skuSuffix}`, regularPrice: '', salePrice: '', stockQuantity: '', manage_stock: false 
+                            };
                         });
                     }
                 }
@@ -429,7 +442,16 @@ export default function BatchProcessPage() {
             const originalProductData: ProductData = {
                 name: product.name, sku: product.id, productType: product.csvData.tipo || 'simple',
                 regularPrice: product.csvData.precio_regular || '', salePrice: product.csvData.precio_oferta || '',
-                stockQuantity: product.csvData.stock_inicial || '', shortDescription: aiContent.shortDescription, longDescription: aiContent.longDescription, keywords: aiContent.keywords,
+                manage_stock: product.csvData.gestionar_stock === '1',
+                stockQuantity: product.csvData.stock_inicial || '',
+                weight: product.csvData.peso || '',
+                dimensions: {
+                    length: product.csvData.largo || '',
+                    width: product.csvData.ancho || '',
+                    height: product.csvData.alto || '',
+                },
+                shipping_class: product.csvData.clase_de_envio || '',
+                shortDescription: aiContent.shortDescription, longDescription: aiContent.longDescription, keywords: aiContent.keywords,
                 attributes: [], photos: [], language: sourceLang, category: null
             };
             const originalApiPayload = { productData: createBasePayload(originalProductData), lang: sourceLangSlug };

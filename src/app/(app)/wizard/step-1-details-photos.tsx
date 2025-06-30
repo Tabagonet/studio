@@ -344,7 +344,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                 </div>
 
                 {productData.productType === 'simple' && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <Label htmlFor="regularPrice">Precio Regular (€)</Label>
                       <Input id="regularPrice" name="regularPrice" type="number" value={productData.regularPrice} onChange={handleInputChange} placeholder="Ej: 29.99" disabled={isProcessing} />
@@ -353,12 +353,76 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                       <Label htmlFor="salePrice">Precio de Oferta (€)</Label>
                       <Input id="salePrice" name="salePrice" type="number" value={productData.salePrice} onChange={handleInputChange} placeholder="Opcional" disabled={isProcessing} />
                     </div>
-                     <div>
-                      <Label htmlFor="stockQuantity">Cantidad en Stock</Label>
-                      <Input id="stockQuantity" name="stockQuantity" type="number" value={productData.stockQuantity} onChange={handleInputChange} placeholder="Ej: 100" disabled={isProcessing} />
-                    </div>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                  <CardTitle>Inventario y Envío</CardTitle>
+                  <CardDescription>Define el stock, peso y dimensiones del producto.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                  <div className="flex items-center space-x-2">
+                  <Checkbox
+                      id="manage_stock"
+                      checked={productData.manage_stock}
+                      onCheckedChange={(checked) => updateProductData({ manage_stock: !!checked })}
+                      disabled={isProcessing}
+                  />
+                  <Label htmlFor="manage_stock" className="text-sm font-normal">
+                      Gestionar inventario a nivel de producto
+                  </Label>
+                  </div>
+                  {productData.manage_stock && (
+                  <div>
+                      <Label htmlFor="stockQuantity">Cantidad en Stock</Label>
+                      <Input
+                      id="stockQuantity"
+                      name="stockQuantity"
+                      type="number"
+                      value={productData.stockQuantity}
+                      onChange={handleInputChange}
+                      placeholder="Ej: 100"
+                      disabled={isProcessing}
+                      />
+                  </div>
+                  )}
+                  <div>
+                  <Label htmlFor="weight">Peso (kg)</Label>
+                  <Input
+                      id="weight"
+                      name="weight"
+                      type="number"
+                      value={productData.weight}
+                      onChange={handleInputChange}
+                      placeholder="Ej: 0.5"
+                      disabled={isProcessing}
+                  />
+                  </div>
+                  <div>
+                  <Label>Dimensiones (cm)</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                      <Input name="length" value={productData.dimensions?.length} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), length: e.target.value } as any })} placeholder="Largo" disabled={isProcessing} />
+                      <Input name="width" value={productData.dimensions?.width} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), width: e.target.value } as any })} placeholder="Ancho" disabled={isProcessing} />
+                      <Input name="height" value={productData.dimensions?.height} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), height: e.target.value } as any })} placeholder="Alto" disabled={isProcessing} />
+                  </div>
+                  </div>
+                  <div>
+                  <Label htmlFor="shipping_class">Clase de envío</Label>
+                  <Input
+                      id="shipping_class"
+                      name="shipping_class"
+                      value={productData.shipping_class}
+                      onChange={handleInputChange}
+                      placeholder="Introduce el slug de la clase de envío"
+                      disabled={isProcessing}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                      Encuentra el slug en WooCommerce &gt; Ajustes &gt; Envío &gt; Clases de envío.
+                  </p>
+                  </div>
               </CardContent>
             </Card>
             
