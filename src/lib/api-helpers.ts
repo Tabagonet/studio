@@ -58,13 +58,6 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   return { wooApi, wpApi, activeConnectionKey };
 }
 
-// Deprecated: The main generateProductContent function now lives inside the Genkit flow
-// at /src/ai/flows/generate-product-flow.ts. This keeps server-side AI logic cleanly separated.
-// This function is kept to avoid breaking any potential remaining imports but should not be used.
-export async function generateProductContent() {
-    throw new Error("generateProductContent is deprecated. Please use the generateProductFlow from /src/ai/flows/generate-product-flow.ts");
-}
-
 function extractHeadingsRecursive(elements: any[], widgets: ExtractedWidget[]): void {
     if (!elements || !Array.isArray(elements)) return;
 

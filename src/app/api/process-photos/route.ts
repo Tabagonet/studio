@@ -1,17 +1,33 @@
 
 'use server';
-import '@/ai/genkit';
+import '@/ai/genkit'; // Ensures Firebase Admin is initialized
 
 import {NextRequest, NextResponse} from 'next/server';
 import {adminAuth} from '@/lib/firebase-admin';
 import {getApiClientsForUser} from '@/lib/api-helpers';
 import {z} from 'zod';
-import { generateProduct } from '@/ai/flows/generate-product-flow';
+
+// Genkit and Google AI imports are now direct
+import { generate } from '@genkit-ai/ai';
+import { googleAI } from '@genkit-ai/googleai';
+import { configureGenkit } from 'genkit';
+import Handlebars from 'handlebars';
 
 const BatchUpdateInputSchema = z.object({
   productIds: z.array(z.number()).min(1, 'At least one product ID is required.'),
   action: z.enum(['generateDescriptions', 'generateImageMetadata']),
   force: z.boolean().optional().default(false),
+});
+
+// Define schemas directly in the route
+const GenerateProductOutputSchema = z.object({
+  shortDescription: z.string().describe('A brief, catchy summary of the product (1-2 sentences). Must use HTML for formatting.'),
+  longDescription: z.string().describe('A detailed, persuasive, and comprehensive description of the product. Must use HTML for formatting.'),
+  keywords: z.string().describe('A comma-separated list of 5 to 10 relevant SEO keywords/tags for the product, in English.'),
+  imageTitle: z.string().describe('A concise, SEO-friendly title for the product images.'),
+  imageAltText: z.string().describe('A descriptive alt text for SEO, describing the image for visually impaired users.'),
+  imageCaption: z.string().describe('An engaging caption for the image, suitable for the media library.'),
+  imageDescription: z.string().describe('A detailed description for the image media library entry.'),
 });
 
 
@@ -31,6 +47,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    configureGenkit({
+        plugins: [googleAI()],
+        logLevel: 'debug',
+        enableTracingAndMetrics: true,
+    });
+    
     const body = await req.json();
     const validation = BatchUpdateInputSchema.safeParse(body);
     if (!validation.success) {
@@ -99,14 +121,37 @@ export async function POST(req: NextRequest) {
         const productResponse = await wooApi.get(`products/${productId}`);
         const product = productResponse.data;
 
-        const aiContent = await generateProduct({
-          productName: product.name,
-          productType: product.type,
-          language: 'Spanish',
-          keywords: product.tags?.map((t: any) => t.name).join(', ') || '',
-          groupedProductsList: '',
-          uid,
+        const generateProductPromptTemplate = `You are an expert e-commerce copywriter and SEO specialist.
+Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
+The response must be a single, valid JSON object that conforms to the output schema. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
+
+**Input Information:**
+- **Product Name:** {{productName}}
+- **Language for output:** {{language}}
+- **Product Type:** {{productType}}
+- **User-provided Keywords (for inspiration):** {{keywords}}
+- **Contained Products (for "Grouped" type only):** {{{groupedProductsList}}}
+
+Generate the complete JSON object based on your research of "{{productName}}".`;
+
+        const template = Handlebars.compile(generateProductPromptTemplate, { noEscape: true });
+        const finalPrompt = template({ 
+            productName: product.name,
+            productType: product.type,
+            language: 'Spanish',
+            keywords: product.tags?.map((t: any) => t.name).join(', ') || '',
+            groupedProductsList: '',
         });
+        
+        const { output: aiContent } = await generate({
+          model: googleAI('gemini-1.5-flash-latest'),
+          prompt: finalPrompt,
+          output: { schema: GenerateProductOutputSchema }
+        });
+
+        if (!aiContent) {
+          throw new Error('AI returned an empty response.');
+        }
 
         if (action === 'generateDescriptions') {
           await wooApi.put(`products/${productId}`, {
@@ -144,11 +189,8 @@ export async function POST(req: NextRequest) {
       results,
     });
   } catch (error: any) {
-    console.error('Error in batch update API:', error);
+    console.error('🔥 Error in /api/process-photos:', error);
     const status = error.message.includes('not configured') ? 400 : error.response?.status || 500;
-     if (error.message.trim().startsWith('<!DOCTYPE html>')) {
-        return NextResponse.json({ error: 'La IA falló: Error interno del servidor de IA. Por favor, reintenta.' }, { status: 500 });
-    }
     return NextResponse.json({ error: 'La IA falló: ' + error.message,}, {status});
   }
 }

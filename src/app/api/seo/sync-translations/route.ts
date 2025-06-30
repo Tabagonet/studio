@@ -1,10 +1,16 @@
 
-import '@/ai/genkit';
+'use server';
+import '@/ai/genkit'; // Ensures Firebase Admin is initialized
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import { z } from 'zod';
-import { translateContent } from '@/ai/flows/translate-content-flow';
+
+// Genkit and Google AI imports are now direct
+import { generate } from '@genkit-ai/ai';
+import { googleAI } from '@genkit-ai/googleai';
+import { configureGenkit } from 'genkit';
 
 
 const syncSchema = z.object({
@@ -28,6 +34,12 @@ export async function POST(req: NextRequest) {
     }
 
     try {
+        configureGenkit({
+            plugins: [googleAI()],
+            logLevel: 'debug',
+            enableTracingAndMetrics: true,
+        });
+
         const body = await req.json();
         const validation = syncSchema.safeParse(body);
         if (!validation.success) {
@@ -65,12 +77,20 @@ export async function POST(req: NextRequest) {
                 let translatedFocusKeyword: string | undefined;
 
                 if (Object.keys(contentToTranslate).length > 0) {
-                    const translatedResult = await translateContent({
-                        contentToTranslate,
-                        targetLanguage: lang,
-                    });
-                    translatedMetaDescription = translatedResult.metaDescription;
-                    translatedFocusKeyword = translatedResult.focusKeyword;
+                     const systemInstruction = `You are an expert translator. Translate the values of the user-provided JSON object into the specified target language. It is crucial that you maintain the original JSON structure and keys. Your output must be only the translated JSON object.`;
+                     const prompt = `Translate the following content to ${lang}:\n\n${JSON.stringify(contentToTranslate)}`;
+
+                     const { output } = await generate({
+                        model: googleAI('gemini-1.5-flash-latest'),
+                        system: systemInstruction,
+                        prompt,
+                        output: { format: 'json', schema: z.record(z.string()) },
+                     });
+                     
+                     if (!output || typeof output !== 'object') throw new Error('AI returned a non-object or empty response for translation.');
+
+                    translatedMetaDescription = (output as any).metaDescription;
+                    translatedFocusKeyword = (output as any).focusKeyword;
                 }
 
                 const payload: { meta: { [key: string]: string | undefined } } = { meta: {} };
@@ -82,7 +102,6 @@ export async function POST(req: NextRequest) {
                     payload.meta._yoast_wpseo_focuskw = translatedFocusKeyword;
                 }
                 
-                // Only make the API call if there's something to update
                 if (Object.keys(payload.meta).length > 0) {
                     await wpApi.post(`/${endpoint}/${postId}`, payload);
                     results.success.push(lang.toUpperCase());
@@ -95,10 +114,11 @@ export async function POST(req: NextRequest) {
         }
 
         const message = `Sincronización completada. Éxito: ${results.success.length > 0 ? results.success.join(', ') : 'ninguno'}. Fallos: ${results.failed.length}.`;
+        
         return NextResponse.json({ success: true, message, results });
 
     } catch (error: any) {
-        console.error("Error in sync-translations endpoint:", error);
+        console.error("🔥 Error in /api/seo/sync-translations:", error);
         return NextResponse.json({ error: "Failed to sync SEO translations", message: error.message }, { status: 500 });
     }
 }
