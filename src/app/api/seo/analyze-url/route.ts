@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SeoAnalysisRecord, SeoAnalysisInput } from '@/lib/types';
+import type { AxiosInstance } from 'axios';
 
 
 const analyzeUrlSchema = z.object({
@@ -60,7 +61,6 @@ const SeoInterpretationOutputSchema = z.object({
     ),
 });
 
-
 async function getBackendMetadata(postId: number, postType: 'Post' | 'Page', uid: string) {
     const { wpApi } = await getApiClientsForUser(uid);
     if (!wpApi) {
@@ -94,7 +94,7 @@ async function getBackendMetadata(postId: number, postType: 'Post' | 'Page', uid
 }
 
 
-async function getPageContentFromScraping(url: string) {
+async function getPageContentFromScraping(url: string, wpApi: AxiosInstance | null) {
     try {
         const response = await axios.get(url, {
             headers: {
@@ -109,64 +109,72 @@ async function getPageContentFromScraping(url: string) {
         const html = response.data;
         const $ = cheerio.load(html);
         
-        const yoastTitle = $('meta[property="og:title"]').attr('content');
-        const pageTitle = $('title').text();
-        const globalTitle = yoastTitle || pageTitle;
+        const globalTitle = $('meta[property="og:title"]').attr('content') || $('title').text();
         const metaDescription = $('meta[name="description"]').attr('content') || '';
         const canonicalUrl = $('link[rel="canonical"]').attr('href') || '';
         
         const $body = $('body');
-        // --- EXCLUSION LOGIC ---
-        // Explicitly remove common non-content areas before analysis
         $body.find('header, footer, nav, .site-header, .site-footer').remove();
         $body.find('script, style, noscript').remove();
         
-        const contentSelectors = ['main', 'article', '.entry-content', '.post-content', '.page-content', '#content', '#main'];
+        const $content = $body.find('main, article, .entry-content, .post-content, .page-content, #content, #main').first();
+        const $analysisArea = $content.length ? $content : $body;
         
-        let $content = $body.find(contentSelectors.join(', ')).first();
-        if ($content.length === 0) {
-            $content = $body; // Fallback to the modified body
+        const imagesFromHtml: { src: string; alt: string; mediaId: number | null }[] = [];
+        $analysisArea.find('img').each((i, el) => {
+            const srcAttr = $(el).attr('data-src') || $(el).attr('src');
+            if (!srcAttr) return;
+
+            const classList = $(el).attr('class') || '';
+            const match = classList.match(/wp-image-(\d+)/);
+            const mediaId = match ? parseInt(match[1], 10) : null;
+            
+            imagesFromHtml.push({
+                src: new URL(srcAttr, url).href,
+                alt: $(el).attr('alt') || '',
+                mediaId: mediaId,
+            });
+        });
+        
+        const mediaIdsToFetch = imagesFromHtml.map(img => img.mediaId).filter((id): id is number => id !== null);
+        let mediaDataMap = new Map<number, { alt_text: string }>();
+        
+        if (wpApi && mediaIdsToFetch.length > 0) {
+            try {
+                const mediaResponse = await wpApi.get('/media', {
+                    params: { include: [...new Set(mediaIdsToFetch)].join(','), per_page: 100, _fields: 'id,alt_text' }
+                });
+                if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
+                    mediaResponse.data.forEach((mediaItem: any) => {
+                        mediaDataMap.set(mediaItem.id, { alt_text: mediaItem.alt_text });
+                    });
+                }
+            } catch (e) {
+                console.warn("Could not fetch media details from WordPress API, falling back to scraped alt text.", e);
+            }
         }
         
-        const allImages = $content.find('img').map((i, el) => {
-             const originalSrc = $(el).attr('data-src') || $(el).attr('src') || '';
-             if (!originalSrc) return null;
-             
-             // Normalize URL to handle relative paths
-             const absoluteSrc = new URL(originalSrc, url).href;
-
-             return {
-                 src: absoluteSrc,
-                 alt: $(el).attr('data-alt') || $(el).attr('alt') || ''
-             }
-        }).get().filter(img => img !== null) as {src: string, alt: string}[];
-
-        const uniqueImagesMap = new Map<string, { src: string; alt: string }>();
-        allImages.forEach(img => {
-            // Normalize URL by removing size suffixes to identify unique images
-            const baseSrc = img.src.replace(/-\d+x\d+(?=\.(jpg|jpeg|png|webp|gif|svg)$)/i, '');
-            const existing = uniqueImagesMap.get(baseSrc);
-            // Add if new, or if existing one had no alt text but this one does
-            if (!existing || (!existing.alt && img.alt)) {
-                uniqueImagesMap.set(baseSrc, img);
-            }
-        });
-
-        const uniqueImages = Array.from(uniqueImagesMap.values());
+        const finalImages = imagesFromHtml.map(img => ({
+            src: img.src,
+            alt: img.mediaId && mediaDataMap.has(img.mediaId) ? mediaDataMap.get(img.mediaId)!.alt_text : img.alt,
+        }));
         
+        const uniqueImages = Array.from(new Map(finalImages.map(img => [img.src, img])).values());
+
         return {
             title: globalTitle,
-            metaDescription: metaDescription,
-            focusKeyword: '', // Cannot get this from scraping
-            canonicalUrl: canonicalUrl,
-            h1: $content.find('h1').first().text() || $('h1').first().text(),
-            headings: $content.find('h1, h2, h3, h4, h5, h6').map((i, el) => ({
+            metaDescription,
+            focusKeyword: '', // To be enriched later if possible
+            canonicalUrl,
+            h1: $analysisArea.find('h1').first().text(),
+            headings: $analysisArea.find('h1, h2, h3, h4, h5, h6').map((i, el) => ({
                 tag: (el as cheerio.TagElement).name,
                 text: $(el).text()
             })).get(),
             images: uniqueImages,
-            textContent: $content.text().replace(/\s\s+/g, ' ').trim(),
+            textContent: $analysisArea.text().replace(/\s\s+/g, ' ').trim(),
         };
+
     } catch (error) {
         if (axios.isAxiosError(error)) {
             let message = 'No se pudo acceder a la URL.';
@@ -199,14 +207,12 @@ export async function POST(req: NextRequest) {
     }
     
     const { url, postId, postType } = validation.data;
-    let finalUrl = url.trim().startsWith('http') ? url : `https://${url}`;
-    
-    // Add cache-busting query parameter
+    const finalUrl = url.trim().startsWith('http') ? url : `https://${url}`;
     const urlWithCacheBust = new URL(finalUrl);
     urlWithCacheBust.searchParams.set('timestamp', Date.now().toString());
-    finalUrl = urlWithCacheBust.toString();
     
-    let pageData = await getPageContentFromScraping(finalUrl);
+    const { wpApi } = await getApiClientsForUser(uid);
+    let pageData = await getPageContentFromScraping(urlWithCacheBust.toString(), wpApi);
 
     if (postId && postType) {
         const backendMeta = await getBackendMetadata(postId, postType, uid);
