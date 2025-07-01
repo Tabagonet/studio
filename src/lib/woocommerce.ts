@@ -1,6 +1,5 @@
 // src/lib/woocommerce.ts
-// Use `require` for this CommonJS library to ensure compatibility with Next.js server-side builds.
-const WooCommerceRestApi = require("@woocommerce/woocommerce-rest-api");
+import WooCommerceRestApi from "@woocommerce/woocommerce-rest-api";
 import type WooCommerceRestApiType from "@woocommerce/woocommerce-rest-api";
 
 interface WooCommerceCredentials {
