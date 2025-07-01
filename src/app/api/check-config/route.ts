@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
   let userConfig = {
     wooCommerceConfigured: false,
     wordPressConfigured: false,
+    aiUsageCount: 0, // Add usage count
   };
   let activeStoreUrl: string | null = null;
 
@@ -39,6 +40,8 @@ export async function GET(req: NextRequest) {
         const allConnections = settings?.connections;
         const activeKey = settings?.activeConnectionKey;
         
+        userConfig.aiUsageCount = settings?.aiUsageCount || 0;
+
         if (activeKey && allConnections && allConnections[activeKey]) {
           const activeConnection = allConnections[activeKey];
           userConfig.wooCommerceConfigured = !!(activeConnection.wooCommerceStoreUrl && activeConnection.wooCommerceApiKey && activeConnection.wooCommerceApiSecret);

@@ -95,8 +95,8 @@ async function getPageContentFromApi(postId: number, postType: 'Post' | 'Page', 
             text: $(el).text()
         })).get(),
         images: $('img').map((i, el) => ({
-            src: $(el).data('src') || $(el).attr('src') || '',
-            alt: $(el).data('alt') || $(el).attr('alt') || ''
+            src: $(el).attr('data-src') || $(el).attr('src') || '',
+            alt: $(el).attr('data-alt') || $(el).attr('alt') || ''
         })).get(),
         textContent: $('body').text().replace(/\s\s+/g, ' ').trim(),
     };
@@ -132,8 +132,8 @@ async function getPageContentFromScraping(url: string) {
                 text: $(el).text()
             })).get(),
             images: body$('img').map((i, el) => ({
-                src: $(el).data('src') || $(el).attr('src') || '',
-                alt: $(el).data('alt') || $(el).attr('alt') || ''
+                src: $(el).attr('data-src') || $(el).attr('src') || '',
+                alt: $(el).attr('data-alt') || $(el).attr('alt') || ''
             })).get(),
             textContent: body$('body').text().replace(/\s\s+/g, ' ').trim(),
         };
@@ -266,23 +266,27 @@ export async function POST(req: NextRequest) {
     let responsePayload: SeoAnalysisRecord;
     
     if (adminDb && admin.firestore.FieldValue) {
-      const docRef = await adminDb.collection('seo_analyses').add({
-        userId: uid,
-        url: url,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        analysis: fullAnalysis,
-        score: score,
-        interpretation: interpretation, // Save the interpretation
-      });
-      responsePayload = {
-        id: docRef.id,
-        userId: uid,
-        url: url,
-        createdAt: new Date().toISOString(),
-        analysis: fullAnalysis,
-        score: score,
-        interpretation: interpretation,
-      };
+        // Increment AI usage count by 2 (one for technical analysis, one for interpretation)
+        const userSettingsRef = adminDb.collection('user_settings').doc(uid);
+        await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(2) }, { merge: true });
+
+        const docRef = await adminDb.collection('seo_analyses').add({
+            userId: uid,
+            url: url,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            analysis: fullAnalysis,
+            score: score,
+            interpretation: interpretation, // Save the interpretation
+        });
+        responsePayload = {
+            id: docRef.id,
+            userId: uid,
+            url: url,
+            createdAt: new Date().toISOString(),
+            analysis: fullAnalysis,
+            score: score,
+            interpretation: interpretation,
+        };
     } else {
         throw new Error("Firestore is not configured. Cannot save analysis.");
     }

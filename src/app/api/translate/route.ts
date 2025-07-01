@@ -3,16 +3,18 @@
 import '@/ai/genkit';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth } from '@/lib/firebase-admin';
+import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function POST(req: NextRequest) {
+  let uid: string;
   try {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) throw new Error('Authentication token not provided.');
     if (!adminAuth) throw new Error('Firebase Admin Auth is not initialized.');
-    await adminAuth.verifyIdToken(token);
+    const decodedToken = await adminAuth.verifyIdToken(token);
+    uid = decodedToken.uid;
   } catch (error: any) {
     return NextResponse.json(
       {error: 'Authentication failed', message: error.message},
@@ -54,10 +56,15 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    // Zod validation on the output can be tricky here since the keys are dynamic.
-    // We trust the model to preserve the structure as requested.
-    
-    return NextResponse.json({ content: output });
+    // Increment AI usage count
+    if (adminDb) {
+        const userSettingsRef = adminDb.collection('user_settings').doc(uid);
+        await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
+    }
+
+    // The API that calls this one expects the translated content under a 'content' key
+    // Let's adjust the response structure to match.
+    return NextResponse.json(output);
 
   } catch (error: any) {
     console.error('🔥 Error in /api/translate:', error);

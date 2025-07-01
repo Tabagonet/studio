@@ -1,9 +1,10 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, UploadCloud, History, BarChart3, Layers, Loader2, Link as LinkIcon, Calendar, Download, Newspaper } from "lucide-react";
+import { PlusCircle, UploadCloud, History, BarChart3, Layers, Loader2, Link as LinkIcon, Calendar, Download, Newspaper, BrainCircuit } from "lucide-react";
 import Link from "next/link";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
@@ -20,13 +21,20 @@ import { APP_NAME } from '@/lib/constants';
 
 type FilterType = 'this_month' | 'last_30_days' | 'all_time';
 
+interface ConfigStatus {
+  wooCommerceConfigured: boolean;
+  wordPressConfigured: boolean;
+  aiUsageCount?: number; // Now optional
+}
+
+
 export default function DashboardPage() {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>('this_month');
   const { toast } = useToast();
 
-  const [configStatus, setConfigStatus] = useState<{ wooCommerceConfigured: boolean; wordPressConfigured: boolean } | null>(null);
+  const [configStatus, setConfigStatus] = useState<ConfigStatus | null>(null);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
 
   useEffect(() => {
@@ -147,15 +155,16 @@ export default function DashboardPage() {
   const renderStats = () => {
     if (isLoading) {
       return (
-        <div className="grid gap-6 md:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             <Card><CardHeader><CardTitle className="text-sm font-medium">Productos Creados</CardTitle></CardHeader><CardContent><Loader2 className="h-6 w-6 animate-spin" /></CardContent></Card>
             <Card><CardHeader><CardTitle className="text-sm font-medium">Total de Productos</CardTitle></CardHeader><CardContent><Loader2 className="h-6 w-6 animate-spin" /></CardContent></Card>
             <Card><CardHeader><CardTitle className="text-sm font-medium">Webs Utilizadas</CardTitle></CardHeader><CardContent><Loader2 className="h-6 w-6 animate-spin" /></CardContent></Card>
+            <Card><CardHeader><CardTitle className="text-sm font-medium">Uso de IA</CardTitle></CardHeader><CardContent><Loader2 className="h-6 w-6 animate-spin" /></CardContent></Card>
         </div>
       );
     }
     return (
-        <div className="grid gap-6 md:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Productos Creados</CardTitle>
@@ -186,6 +195,16 @@ export default function DashboardPage() {
             <CardContent>
               <div className="text-2xl font-bold">{stats.connectionsUsed}</div>
               <p className="text-xs text-muted-foreground">Conexiones API activas usadas</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Generaciones con IA</CardTitle>
+              <BrainCircuit className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{configStatus?.aiUsageCount || 0}</div>
+              <p className="text-xs text-muted-foreground">Total de usos de la API de IA</p>
             </CardContent>
           </Card>
         </div>

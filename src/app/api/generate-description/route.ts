@@ -3,7 +3,7 @@
 import '@/ai/genkit'; // Ensures Firebase Admin is initialized
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth } from '@/lib/firebase-admin';
+import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -122,6 +122,12 @@ Generate the complete JSON object based on your research of "{{productName}}".`;
       throw new Error('AI returned an empty response.');
     }
     
+    // Increment AI usage count
+    if (adminDb) {
+        const userSettingsRef = adminDb.collection('user_settings').doc(uid);
+        await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
+    }
+
     return NextResponse.json(aiContent);
 
   } catch (error: any) {

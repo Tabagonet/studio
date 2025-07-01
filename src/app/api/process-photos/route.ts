@@ -3,7 +3,7 @@
 import '@/ai/genkit'; // Ensures Firebase Admin is initialized
 
 import {NextRequest, NextResponse} from 'next/server';
-import {adminAuth} from '@/lib/firebase-admin';
+import {adminAuth, adminDb, admin} from '@/lib/firebase-admin';
 import {getApiClientsForUser} from '@/lib/api-helpers';
 import {z} from 'zod';
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -108,6 +108,7 @@ export async function POST(req: NextRequest) {
 
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
+    let aiCallCount = 0;
 
     for (const productId of productIds) {
       try {
@@ -139,7 +140,7 @@ Generate the complete JSON object based on your research of "{{productName}}".`;
         const result = await model.generateContent(finalPrompt);
         const response = await result.response;
         const aiContent = GenerateProductOutputSchema.parse(JSON.parse(response.text()));
-
+        aiCallCount++;
 
         if (!aiContent) {
           throw new Error('AI returned an empty response.');
@@ -174,6 +175,12 @@ Generate the complete JSON object based on your research of "{{productName}}".`;
           reason: error.response?.data?.message || error.message || 'Unknown error',
         });
       }
+    }
+    
+    // Increment AI usage count
+    if (adminDb && aiCallCount > 0) {
+        const userSettingsRef = adminDb.collection('user_settings').doc(uid);
+        await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(aiCallCount) }, { merge: true });
     }
 
     return NextResponse.json({

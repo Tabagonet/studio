@@ -3,7 +3,7 @@
 import '@/ai/genkit'; // Ensures Firebase Admin is initialized
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth } from '@/lib/firebase-admin';
+import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import Handlebars from 'handlebars';
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -22,13 +22,15 @@ const BlogContentInputSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+    let uid: string;
     try {
         const token = req.headers.get('Authorization')?.split('Bearer ')[1];
         if (!token) {
             return NextResponse.json({ error: 'Authentication token not provided.' }, { status: 401 });
         }
         if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
-        await adminAuth.verifyIdToken(token);
+        const decodedToken = await adminAuth.verifyIdToken(token);
+        uid = decodedToken.uid;
 
     } catch (error) {
         return NextResponse.json({ error: 'Authentication failed.' }, { status: 401 });
@@ -154,6 +156,13 @@ export async function POST(req: NextRequest) {
         if (!aiContent) {
           throw new Error('AI returned an empty response for blog content generation.');
         }
+
+        // Increment AI usage count
+        if (adminDb) {
+            const userSettingsRef = adminDb.collection('user_settings').doc(uid);
+            await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
+        }
+
 
         return NextResponse.json(aiContent);
 
