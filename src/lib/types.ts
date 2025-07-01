@@ -335,3 +335,4 @@ export interface ProductStats {
   status: { [key: string]: number };
   type: { [key: string]: number };
 }
+
