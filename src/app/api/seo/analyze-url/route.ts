@@ -61,32 +61,41 @@ const SeoInterpretationOutputSchema = z.object({
 });
 
 
-async function getPageContentFromApi(postId: number, postType: 'Post' | 'Page', uid: string) {
+async function getBackendMetadata(postId: number, postType: 'Post' | 'Page', uid: string) {
     const { wpApi } = await getApiClientsForUser(uid);
     if (!wpApi) {
-        throw new Error('WordPress API not configured.');
+        // This case should ideally not be hit if called correctly, but it's safe to handle.
+        console.warn('Could not get WordPress API client to fetch backend metadata.');
+        return { title: '', metaDescription: '', focusKeyword: '' };
     }
 
-    const endpoint = postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
-    const response = await wpApi.get(endpoint, { params: { context: 'edit', '_': new Date().getTime() } });
-    const rawData = response.data;
-    
-    if (!rawData || !rawData.content || !rawData.title) {
-        throw new Error(`Could not fetch content for ${postType} ID ${postId} via API.`);
+    try {
+        const endpoint = postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
+        const response = await wpApi.get(endpoint, { params: { context: 'edit', _fields: 'title,meta', '_': new Date().getTime() } });
+        const rawData = response.data;
+        
+        if (!rawData) {
+            throw new Error(`Could not fetch metadata for ${postType} ID ${postId} via API.`);
+        }
+
+        const yoastTitle = rawData.meta?._yoast_wpseo_title;
+        // Use Yoast title if it's a non-empty string, otherwise it's better to let the scraped title take precedence.
+        const finalTitle = (typeof yoastTitle === 'string' && yoastTitle.trim() !== '') 
+                           ? yoastTitle.trim()
+                           : rawData.title?.rendered || '';
+
+        return {
+            title: finalTitle,
+            metaDescription: rawData.meta?._yoast_wpseo_metadesc || '',
+            focusKeyword: rawData.meta?._yoast_wpseo_focuskw || '',
+        };
+    } catch (apiError) {
+        console.error(`Failed to fetch backend metadata for ${postType} ${postId}:`, apiError);
+        // Return empty strings to allow the analysis to proceed with scraped data.
+        return { title: '', metaDescription: '', focusKeyword: '' };
     }
-
-    const yoastTitle = rawData.meta?._yoast_wpseo_title;
-    const finalTitle = (typeof yoastTitle === 'string') 
-                       ? yoastTitle 
-                       : rawData.title?.rendered || '';
-
-    return {
-        // Only return backend-specific fields
-        title: finalTitle,
-        metaDescription: rawData.meta?._yoast_wpseo_metadesc || '',
-        focusKeyword: rawData.meta?._yoast_wpseo_focuskw || '',
-    };
 }
+
 
 async function getPageContentFromScraping(url: string) {
     try {
@@ -185,18 +194,17 @@ export async function POST(req: NextRequest) {
     urlWithCacheBust.searchParams.set('timestamp', Date.now().toString());
     finalUrl = urlWithCacheBust.toString();
     
-    // Always get the public-facing content via scraping
-    const scrapedData = await getPageContentFromScraping(finalUrl);
-    let pageData = { ...scrapedData };
+    // Step 1: Always scrape the public URL for the most accurate content representation.
+    let pageData = await getPageContentFromScraping(finalUrl);
 
-    // If it's a known post, enrich the scraped data with backend metadata from Yoast
+    // Step 2: If it's a known post, enrich with data only available from the backend API.
     if (postId && postType) {
-        const apiData = await getPageContentFromApi(postId, postType, uid);
+        const backendMeta = await getBackendMetadata(postId, postType, uid);
         pageData = {
-            ...scrapedData,
-            title: apiData.title || scrapedData.title,
-            metaDescription: apiData.metaDescription || scrapedData.metaDescription,
-            focusKeyword: apiData.focusKeyword,
+            ...pageData, // Keep all scraped data (especially images and textContent)
+            title: backendMeta.title || pageData.title, // Prefer backend (Yoast) title if it exists
+            metaDescription: backendMeta.metaDescription || pageData.metaDescription, // Prefer backend (Yoast) meta desc
+            focusKeyword: backendMeta.focusKeyword, // Only available from API
         };
     }
     

@@ -45,7 +45,7 @@ export function AnalysisView({ record, item, history, onEdit, onReanalyze, onSel
 
   const scoreColor = analysis.aiAnalysis.score >= 80 ? 'text-green-500' : analysis.aiAnalysis.score >= 50 ? 'text-amber-500' : 'text-destructive';
   const latestAnalysisId = history[0]?.id;
-  const imagesWithoutAlt = analysis.images?.filter(img => !img.alt).length ?? 0;
+  const imagesWithoutAlt = analysis.images?.filter(img => !img.alt) ?? [];
 
   return (
     <div className="space-y-6">
@@ -164,8 +164,24 @@ export function AnalysisView({ record, item, history, onEdit, onReanalyze, onSel
             </div>
             <div className="flex justify-between items-center text-sm">
                 <p className="text-muted-foreground">Imágenes que necesitan 'alt text':</p>
-                <Badge variant={imagesWithoutAlt > 0 ? "destructive" : "default"}>{imagesWithoutAlt}</Badge>
+                <Badge variant={imagesWithoutAlt.length > 0 ? "destructive" : "default"}>{imagesWithoutAlt.length}</Badge>
             </div>
+            {imagesWithoutAlt.length > 0 && (
+                <div className="pt-2 mt-2 border-t">
+                    <p className="text-xs font-semibold text-muted-foreground mb-1">Imágenes sin 'alt text' detectadas:</p>
+                    <ScrollArea className="max-h-24">
+                        <ul className="text-xs text-muted-foreground space-y-1">
+                            {imagesWithoutAlt.map((img, i) => (
+                                <li key={i} className="truncate">
+                                    <a href={img.src} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                                        ...{img.src.slice(-60)}
+                                    </a>
+                                </li>
+                            ))}
+                        </ul>
+                    </ScrollArea>
+                </div>
+            )}
         </CardContent>
       </Card>
       
