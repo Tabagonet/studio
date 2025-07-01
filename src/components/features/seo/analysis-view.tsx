@@ -82,134 +82,130 @@ export function AnalysisView({ record, item, history, onEdit, onReanalyze, onSel
   const latestAnalysisId = history[0]?.id;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 space-y-6">
-        <Card>
-          <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex items-center gap-2">
-                <BrainCircuit className="h-6 w-6 text-primary" /> 
-                <CardTitle>Análisis SEO</CardTitle>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={onReanalyze} variant="secondary"><RefreshCw className="mr-2 h-4 w-4" /> Volver a Analizar</Button>
-              <Button onClick={() => onEdit(item)}><Edit className="mr-2 h-4 w-4" /> Editar y Optimizar</Button>
-               {latestAnalysisId && (
-                <Button asChild variant="outline"><Link href={`/seo-optimizer/report?analysisId=${latestAnalysisId}`} target="_blank"><Printer className="mr-2 h-4 w-4" /> Generar Informe</Link></Button>
-              )}
-            </div>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex items-center gap-2">
+              <BrainCircuit className="h-6 w-6 text-primary" /> 
+              <CardTitle>Análisis SEO</CardTitle>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={onReanalyze} variant="secondary"><RefreshCw className="mr-2 h-4 w-4" /> Volver a Analizar</Button>
+            <Button onClick={() => onEdit(item)}><Edit className="mr-2 h-4 w-4" /> Editar y Optimizar</Button>
+              {latestAnalysisId && (
+              <Button asChild variant="outline"><Link href={`/seo-optimizer/report?analysisId=${latestAnalysisId}`} target="_blank"><Printer className="mr-2 h-4 w-4" /> Generar Informe</Link></Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="text-center">
+              <p className="text-sm text-muted-foreground">Puntuación SEO Determinista</p>
+              <p className={`text-6xl font-bold ${scoreColor}`}>{analysis.aiAnalysis.score}/100</p>
+          </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 pt-4 border-t">
+              {analysis.aiAnalysis?.checks && Object.entries(analysis.aiAnalysis.checks).map(([key, passed]) => (
+                  <div key={key} className="flex items-center gap-2 text-sm">
+                      {passed ? <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" /> : <XCircle className="h-4 w-4 text-amber-500 flex-shrink-0" />}
+                      <span className="text-muted-foreground">{checkLabels[key as keyof typeof checkLabels]}</span>
+                  </div>
+              ))}
+          </div>
+        </CardContent>
+      </Card>
+      
+      <Card>
+          <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Lightbulb className="h-6 w-6 text-primary" /> Plan de Acción e Interpretación IA</CardTitle>
+              <CardDescription>Sugerencias generadas por IA basadas en el análisis técnico.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="text-center">
-                <p className="text-sm text-muted-foreground">Puntuación SEO Determinista</p>
-                <p className={`text-6xl font-bold ${scoreColor}`}>{analysis.aiAnalysis.score}/100</p>
-            </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 pt-4 border-t">
-                {analysis.aiAnalysis?.checks && Object.entries(analysis.aiAnalysis.checks).map(([key, passed]) => (
-                    <div key={key} className="flex items-center gap-2 text-sm">
-                        {passed ? <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" /> : <XCircle className="h-4 w-4 text-amber-500 flex-shrink-0" />}
-                        <span className="text-muted-foreground">{checkLabels[key as keyof typeof checkLabels]}</span>
-                    </div>
-                ))}
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Lightbulb className="h-6 w-6 text-primary" /> Plan de Acción e Interpretación IA</CardTitle>
-                <CardDescription>Sugerencias generadas por IA basadas en el análisis técnico.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                {isInterpreting ? (
-                    <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin mr-2" /> Generando resumen...</div>
-                ) : interpretation ? (
-                    <div className="space-y-6">
-                        <div>
-                            <h3 className="font-semibold text-lg mb-2">Interpretación General</h3>
-                            <p className="text-sm text-muted-foreground italic">"{interpretation.interpretation}"</p>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
-                                <h4 className="font-semibold text-green-600">Puntos Fuertes</h4>
+          <CardContent>
+              {isInterpreting ? (
+                  <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin mr-2" /> Generando resumen...</div>
+              ) : interpretation ? (
+                  <div className="space-y-6">
+                      <div>
+                          <h3 className="font-semibold text-lg mb-2">Interpretación General</h3>
+                          <p className="text-sm text-muted-foreground italic">"{interpretation.interpretation}"</p>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-2">
+                              <h4 className="font-semibold text-green-600">Puntos Fuertes</h4>
+                              <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+                                  {interpretation.positives.map((item, i) => <li key={i}>{item}</li>)}
+                              </ul>
+                          </div>
+                          <div className="space-y-2">
+                              <h4 className="font-semibold text-amber-600">Áreas de Mejora</h4>
                                 <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-                                    {interpretation.positives.map((item, i) => <li key={i}>{item}</li>)}
-                                </ul>
-                            </div>
-                            <div className="space-y-2">
-                                <h4 className="font-semibold text-amber-600">Áreas de Mejora</h4>
-                                 <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-                                    {interpretation.improvements.map((item, i) => <li key={i}>{item}</li>)}
-                                </ul>
-                            </div>
-                        </div>
-                        <div className="pt-4 border-t">
-                             <h3 className="font-semibold text-lg mb-2">Plan de Acción Sugerido</h3>
-                             <ul className="list-decimal list-inside text-sm space-y-2">
-                                {interpretation.actionPlan.map((action, i) => (
-                                    <li key={i} className="pl-2">{action}</li>
-                                ))}
-                            </ul>
-                        </div>
-                    </div>
-                ) : (
-                    <p className="text-sm text-center text-muted-foreground">No se pudo cargar la interpretación de la IA.</p>
-                )}
-            </CardContent>
-        </Card>
-        
-         <Card>
-          <CardHeader>
-             <CardTitle className="flex items-center gap-2"><ListTree className="h-6 w-6 text-primary" /> Estructura de Encabezados</CardTitle>
-             <CardDescription>Una buena jerarquía de encabezados (H1, H2, H3...) ayuda a Google a entender tu contenido.</CardDescription>
-          </CardHeader>
-          <CardContent>
-             <ScrollArea className="h-64">
-                <div className="space-y-2">
-                    {analysis.headings.map((h, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                            <Badge variant="secondary" className="font-bold">{h.tag.toUpperCase()}</Badge>
-                            <p className="text-sm text-muted-foreground">{h.text}</p>
-                        </div>
-                    ))}
-                    {analysis.headings.length === 0 && <p className="text-muted-foreground text-sm text-center">No se encontraron encabezados.</p>}
-                </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><History className="h-5 w-5 text-primary"/> Historial de Análisis</CardTitle>
-            <CardDescription>Selecciona un análisis anterior para ver sus detalles.</CardDescription>
-          </CardHeader>
-          <CardContent>
-              {history.length > 0 ? (
-                  <ul className="space-y-2">
-                      {history.map(historyItem => (
-                          <li key={historyItem.id}>
-                              <button
-                                  onClick={() => onSelectHistoryItem(historyItem)}
-                                  className={cn( "flex justify-between items-center text-sm p-2 bg-muted rounded-md w-full text-left hover:bg-accent transition-colors", record.id === historyItem.id && "ring-2 ring-primary bg-primary/10" )}
-                                  aria-current={record.id === historyItem.id}
-                              >
-                                  <span className="text-muted-foreground">
-                                      {format(new Date(historyItem.createdAt), "d/LLL/yy HH:mm", { locale: es })}
-                                  </span>
-                                  <Badge className={ cn(historyItem.score >= 80 ? 'bg-green-500' : historyItem.score >= 50 ? 'bg-amber-500' : 'bg-destructive') }>
-                                      {historyItem.score}
-                                  </Badge>
-                              </button>
-                          </li>
-                      ))}
-                  </ul>
+                                  {interpretation.improvements.map((item, i) => <li key={i}>{item}</li>)}
+                              </ul>
+                          </div>
+                      </div>
+                      <div className="pt-4 border-t">
+                            <h3 className="font-semibold text-lg mb-2">Plan de Acción Sugerido</h3>
+                            <ul className="list-decimal list-inside text-sm space-y-2">
+                              {interpretation.actionPlan.map((action, i) => (
+                                  <li key={i} className="pl-2">{action}</li>
+                              ))}
+                          </ul>
+                      </div>
+                  </div>
               ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">No hay análisis anteriores para esta URL.</p>
+                  <p className="text-sm text-center text-muted-foreground">No se pudo cargar la interpretación de la IA.</p>
               )}
           </CardContent>
-        </Card>
-      </div>
+      </Card>
+      
+      <Card>
+        <CardHeader>
+            <CardTitle className="flex items-center gap-2"><ListTree className="h-6 w-6 text-primary" /> Estructura de Encabezados</CardTitle>
+            <CardDescription>Una buena jerarquía de encabezados (H1, H2, H3...) ayuda a Google a entender tu contenido.</CardDescription>
+        </CardHeader>
+        <CardContent>
+            <ScrollArea className="max-h-64">
+              <div className="space-y-2">
+                  {analysis.headings.map((h, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                          <Badge variant="secondary" className="font-bold">{h.tag.toUpperCase()}</Badge>
+                          <p className="text-sm text-muted-foreground">{h.text}</p>
+                      </div>
+                  ))}
+                  {analysis.headings.length === 0 && <p className="text-muted-foreground text-sm text-center">No se encontraron encabezados.</p>}
+              </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><History className="h-5 w-5 text-primary"/> Historial de Análisis</CardTitle>
+          <CardDescription>Selecciona un análisis anterior para ver sus detalles.</CardDescription>
+        </CardHeader>
+        <CardContent>
+            {history.length > 0 ? (
+                <ul className="space-y-2">
+                    {history.map(historyItem => (
+                        <li key={historyItem.id}>
+                            <button
+                                onClick={() => onSelectHistoryItem(historyItem)}
+                                className={cn( "flex justify-between items-center text-sm p-2 bg-muted rounded-md w-full text-left hover:bg-accent transition-colors", record.id === historyItem.id && "ring-2 ring-primary bg-primary/10" )}
+                                aria-current={record.id === historyItem.id}
+                            >
+                                <span className="text-muted-foreground">
+                                    {format(new Date(historyItem.createdAt), "d/LLL/yy HH:mm", { locale: es })}
+                                </span>
+                                <Badge className={ cn(historyItem.score >= 80 ? 'bg-green-500' : historyItem.score >= 50 ? 'bg-amber-500' : 'bg-destructive') }>
+                                    {historyItem.score}
+                                </Badge>
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">No hay análisis anteriores para esta URL.</p>
+            )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
