@@ -177,6 +177,11 @@ function replaceElementorTextsRecursive(data: any, translatedTexts: string[]): a
     return data;
 }
 
+export function replaceElementorTexts(elementorData: any, translatedTexts: string[]): any {
+  if (!elementorData || !Array.isArray(elementorData)) return elementorData;
+  return replaceElementorTextsRecursive(elementorData, translatedTexts);
+}
+
 
 /**
  * Downloads, processes (resizes, converts to WebP), and uploads an image to the WordPress media library.
