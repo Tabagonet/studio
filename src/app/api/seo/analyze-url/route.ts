@@ -114,7 +114,7 @@ async function getPageContentFromScraping(url: string, wpApi: AxiosInstance | nu
         const canonicalUrl = $('link[rel="canonical"]').attr('href') || '';
         
         const $body = $('body');
-        $body.find('header, footer, nav, .site-header, .site-footer').remove();
+        $body.find('header, footer, nav, .site-header, .site-footer, .header-main').remove();
         $body.find('script, style, noscript').remove();
         
         const $content = $body.find('main, article, .entry-content, .post-content, .page-content, #content, #main').first();
@@ -280,26 +280,48 @@ export async function POST(req: NextRequest) {
 
     const fullAnalysis = { ...pageData, aiAnalysis: { ...aiAnalysis, score } };
     
+    // Now, generate the interpretation
     const checksSummary = JSON.stringify(fullAnalysis.aiAnalysis.checks, null, 2);
-    const interpretationPrompt = `You are a world-class SEO consultant analyzing a web page's on-page SEO data.
-    The user has received the following raw data from an analysis tool.
-    Your task is to interpret this data and provide a clear, actionable summary in Spanish.
+    let interpretationPrompt: string;
 
-    **Analysis Data:**
-    - Page Title: "${fullAnalysis.title}"
-    - Meta Description: "${fullAnalysis.metaDescription}"
-    - H1 Heading: "${fullAnalysis.h1}"
-    - SEO Score: ${fullAnalysis.aiAnalysis.score}/100
-    - Technical SEO Checks (true = passed, false = failed):
-    ${checksSummary}
+    if (score === 100) {
+      interpretationPrompt = `You are a world-class SEO consultant analyzing a web page's on-page SEO data.
+      The user has received a perfect score of 100/100, which is excellent.
+      Your task is to provide a congratulatory and reassuring summary in Spanish.
 
-    **Your Task:**
-    Based on all the data above, generate a JSON object with four keys: "interpretation", "actionPlan", "positives", "improvements".
-    - "interpretation": Write a narrative paragraph in Spanish that interprets the key findings. Explain WHY the score is what it is, focusing on the most critical elements based on the failed checks.
-    - "actionPlan": Create a list of the 3 to 5 most important, high-impact, actionable steps the user should take.
-    - "positives": Create a list of 2-4 key SEO strengths of the page.
-    - "improvements": Create a list of 2-4 key areas for SEO improvement, focusing on high-level concepts.
-    `;
+      **Analysis Data:**
+      - Page Title: "${fullAnalysis.title}"
+      - SEO Score: 100/100
+      - All technical checks passed.
+
+      **Your Task:**
+      Generate a JSON object with four keys: "interpretation", "actionPlan", "positives", "improvements".
+      - "interpretation": Write a narrative paragraph in Spanish congratulating the user on the perfect score and explaining that all fundamental on-page SEO checks are correct.
+      - "actionPlan": Return an array with a single string: "¡Felicidades! No se requieren acciones prioritarias. ¡Sigue así!".
+      - "positives": Create a list of 3-4 key SEO strengths of the page (e.g., "Título y meta descripción bien optimizados", "Buena estructura de encabezados").
+      - "improvements": Return an array with a single string: "Actualmente, no hay áreas de mejora urgentes basadas en nuestro checklist.".
+      `;
+    } else {
+      interpretationPrompt = `You are a world-class SEO consultant analyzing a web page's on-page SEO data.
+      The user has received the following raw data from an analysis tool.
+      Your task is to interpret this data and provide a clear, actionable summary in Spanish.
+
+      **Analysis Data:**
+      - Page Title: "${fullAnalysis.title}"
+      - Meta Description: "${fullAnalysis.metaDescription}"
+      - H1 Heading: "${fullAnalysis.h1}"
+      - SEO Score: ${fullAnalysis.aiAnalysis.score}/100
+      - Technical SEO Checks (true = passed, false = failed):
+      ${checksSummary}
+
+      **Your Task:**
+      Based on all the data above, generate a JSON object with four keys: "interpretation", "actionPlan", "positives", "improvements".
+      - "interpretation": Write a narrative paragraph in Spanish that interprets the key findings. Explain WHY the score is what it is, focusing on the most critical elements based on the failed checks.
+      - "actionPlan": Create a list of the 3 to 5 most important, high-impact, actionable steps the user should take.
+      - "positives": Create a list of 2-4 key SEO strengths of the page.
+      - "improvements": Create a list of 2-4 key areas for SEO improvement, focusing on high-level concepts.
+      `;
+    }
     
     const interpretationResult = await model.generateContent(interpretationPrompt);
     const interpretationResponse = await interpretationResult.response;
