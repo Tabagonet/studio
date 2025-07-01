@@ -92,7 +92,10 @@ async function getPageContentFromScraping(url: string) {
     try {
         const response = await axios.get(url, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
+                'Expires': '0',
             },
             timeout: 10000 
         });
@@ -175,7 +178,12 @@ export async function POST(req: NextRequest) {
     }
     
     const { url, postId, postType } = validation.data;
-    const finalUrl = url.trim().startsWith('http') ? url : `https://${url}`;
+    let finalUrl = url.trim().startsWith('http') ? url : `https://${url}`;
+    
+    // Add cache-busting query parameter
+    const urlWithCacheBust = new URL(finalUrl);
+    urlWithCacheBust.searchParams.set('timestamp', Date.now().toString());
+    finalUrl = urlWithCacheBust.toString();
     
     // Always get the public-facing content via scraping
     const scrapedData = await getPageContentFromScraping(finalUrl);
