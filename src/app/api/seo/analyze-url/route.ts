@@ -8,7 +8,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { z } from 'zod';
 import { getApiClientsForUser } from '@/lib/api-helpers';
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "@google-generative-ai";
 import { SeoAnalysisRecord, SeoAnalysisInput } from '@/lib/types';
 
 
@@ -111,20 +111,16 @@ async function getPageContentFromScraping(url: string) {
             src: $(el).attr('data-src') || $(el).attr('src') || '',
             alt: $(el).attr('data-alt') || $(el).attr('alt') || ''
         })).get();
-
+        
         const uniqueImagesMap = new Map<string, { src: string; alt: string }>();
 
         allImages.forEach(img => {
             if (!img.src) return;
 
-            // Create a robust key for deduplication. 
-            // This key attempts to identify an image regardless of its responsive size variations.
-            // Example: /path/to/my-image-300x200.jpg -> /path/to/my-image.jpg
             const baseSrc = img.src.replace(/-\d+x\d+(?=\.(jpg|jpeg|png|webp|gif)$)/i, '');
 
             const existing = uniqueImagesMap.get(baseSrc);
             
-            // If we haven't seen this base image, or if we have but the new one has alt text and the old one didn't, we add/update it.
             if (!existing || (!existing.alt && img.alt)) {
                 uniqueImagesMap.set(baseSrc, img);
             }
@@ -309,4 +305,5 @@ export async function POST(req: NextRequest) {
     console.error('🔥 Error in /api/seo/analyze-url:', error);
     return NextResponse.json({ error: 'La IA falló: ' + error.message }, { status: 500 });
   }
-}
+
+    
