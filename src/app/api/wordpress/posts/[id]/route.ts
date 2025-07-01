@@ -28,6 +28,10 @@ const postUpdateSchema = z.object({
         title: z.string(),
         alt_text: z.string(),
     }).optional(),
+    image_alt_updates: z.array(z.object({
+        id: z.number(),
+        alt: z.string(),
+    })).optional(),
 });
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -100,7 +104,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const validation = postUpdateSchema.safeParse(body);
     if (!validation.success) return NextResponse.json({ error: 'Invalid data.', details: validation.error.flatten() }, { status: 400 });
     
-    const { tags, featured_image_src, featured_image_metadata, ...postPayload } = validation.data;
+    const { tags, featured_image_src, featured_image_metadata, image_alt_updates, ...postPayload } = validation.data;
     
     if (tags !== undefined) {
         const tagNames = tags.split(',').map(t => t.trim()).filter(Boolean);
@@ -127,6 +131,18 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             });
         } catch (mediaError: any) {
             console.warn(`Post updated, but failed to update featured image metadata for media ID ${response.data.featured_media}:`, mediaError.response?.data?.message || mediaError.message);
+        }
+    }
+    
+    if (image_alt_updates && image_alt_updates.length > 0) {
+        for (const update of image_alt_updates) {
+            try {
+                await wpApi.post(`/media/${update.id}`, {
+                    alt_text: update.alt
+                });
+            } catch (mediaError: any) {
+                console.warn(`Failed to update alt text for media ID ${update.id}:`, mediaError.response?.data?.message || mediaError.message);
+            }
         }
     }
     

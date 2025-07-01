@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { SeoAnalyzer } from '@/components/features/blog/seo-analyzer';
+import { SeoAnalyzer } from '@/components/features/seo/seo-analyzer';
 import { ContentImage, ExtractedWidget } from '@/lib/types';
 import { ContentToolbar } from '@/components/features/editor/content-toolbar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
@@ -50,6 +50,7 @@ function EditPageContent() {
     
   const [post, setPost] = useState<PostEditState | null>(null);
   const [contentImages, setContentImages] = useState<ContentImage[]>([]);
+  const [initialContentImages, setInitialContentImages] = useState<ContentImage[]>([]);
   const [applyAiMetaToFeatured, setApplyAiMetaToFeatured] = useState(false);
   
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -231,15 +232,25 @@ function EditPageContent() {
       if (typeof loadedPost.content === 'string' && loadedPost.link) {
         const tempDiv = document.createElement('div'); tempDiv.innerHTML = loadedPost.content;
         const siteUrl = new URL(loadedPost.link);
-        const images = Array.from(tempDiv.querySelectorAll('img')).map((img) => {
+        const images: ContentImage[] = Array.from(tempDiv.querySelectorAll('img')).map((img) => {
             const originalSrc = img.getAttribute('src'); if (!originalSrc) return null;
+            
+            const classList = img.getAttribute('class') || '';
+            const match = classList.match(/wp-image-(\d+)/);
+            const mediaId = match ? parseInt(match[1], 10) : null;
+
             let displaySrc = originalSrc;
             if (displaySrc.startsWith('/')) displaySrc = `${siteUrl.origin}${displaySrc}`;
-            try { new URL(displaySrc); return { id: originalSrc, src: displaySrc, alt: img.getAttribute('alt') || '' }; } 
+            try { new URL(displaySrc); return { id: originalSrc, src: displaySrc, alt: img.getAttribute('alt') || '', mediaId }; } 
             catch (e) { return null; }
         }).filter((img): img is ContentImage => !!img);
+        
         setContentImages(images);
-      } else { setContentImages([]); }
+        setInitialContentImages(images); // Store initial state for comparison on save
+      } else { 
+        setContentImages([]);
+        setInitialContentImages([]);
+      }
     } catch (e: any) { setError(e.message);
     } finally { setIsLoading(false); }
   }, [postId, postType, toast]);
@@ -267,6 +278,18 @@ function EditPageContent() {
 
         if (typeof post.content === 'string') {
             payload.content = post.content;
+        }
+        
+        const altUpdates: { id: number, alt: string }[] = [];
+        contentImages.forEach((currentImage) => {
+            const initialImage = initialContentImages.find(img => img.id === currentImage.id);
+            if (currentImage.mediaId && initialImage && currentImage.alt !== initialImage.alt) {
+                altUpdates.push({ id: currentImage.mediaId, alt: currentImage.alt });
+            }
+        });
+
+        if (altUpdates.length > 0) {
+            payload.image_alt_updates = altUpdates;
         }
         
         if (applyAiMetaToFeatured && post.featuredMediaId && post.meta._yoast_wpseo_focuskw) {

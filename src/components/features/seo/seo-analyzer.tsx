@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
@@ -13,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
-
+import { ContentImage } from '@/lib/types';
 
 interface SeoAnalyzerPost {
   title: string;
@@ -30,16 +29,9 @@ interface SeoAnalyzerPost {
   link?: string;
 }
 
-interface ContentImage {
-    id: string; // The original `src` attribute, used as a unique key
-    src: string; // The display-ready, absolute URL
-    alt: string;
-}
-
 interface SeoAnalyzerProps {
   post: SeoAnalyzerPost | null;
   setPost: React.Dispatch<React.SetStateAction<SeoAnalyzerPost | null>>;
-  onMetaChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   isLoading: boolean;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
   contentImages: ContentImage[];
@@ -81,7 +73,6 @@ const CheckItem = ({ check, onFix, isAiLoading }: { check: SeoCheck, onFix: (mod
 export function SeoAnalyzer({ 
     post, 
     setPost, 
-    onMetaChange, 
     isLoading, 
     setIsLoading,
     contentImages,
@@ -93,33 +84,13 @@ export function SeoAnalyzer({
   const hasTriggeredAutoKeyword = React.useRef(false);
 
   const handleImageAltChange = useCallback((imageId: string, newAlt: string) => {
-    if (!post) return;
-
-    // Update the visual list of images
+    // This function ONLY updates the local list of images.
+    // The parent component is responsible for comparing this with the initial
+    // state and sending the necessary API calls on save.
     setContentImages(prevImages => 
         prevImages.map((img) => img.id === imageId ? { ...img, alt: newAlt } : img)
     );
-    
-    // Update the master HTML content string in the parent component's state
-    setPost(prevPost => {
-        if (!prevPost) return null;
-        
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = prevPost.content;
-        
-        // Find the specific image by its original `src` attribute (which we use as an ID)
-        // Use querySelector with attribute selector for reliability
-        const imageToUpdate = tempDiv.querySelector(`img[src="${CSS.escape(imageId)}"]`);
-        
-        if (imageToUpdate) {
-            imageToUpdate.setAttribute('alt', newAlt);
-        } else {
-             console.warn(`Could not find image with src="${imageId}" to update alt text.`);
-        }
-        
-        return { ...prevPost, content: tempDiv.innerHTML };
-    });
-  }, [post, setContentImages, setPost]);
+  }, [setContentImages]);
 
 
   const handleFixWithAI = useCallback(async (mode: SeoCheck['aiMode'], editLink?: string | null) => {
@@ -212,19 +183,7 @@ export function SeoAnalyzer({
         const newImages = contentImages.map(img => 
             !img.alt ? { ...img, alt: aiContent.imageAltText } : img
         );
-
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = post.content;
-
-        newImages.forEach((updatedImage) => {
-           if (!updatedImage.alt) return;
-           const imageElement = tempDiv.querySelector(`img[src="${CSS.escape(updatedImage.id)}"]`);
-           if (imageElement && !imageElement.hasAttribute('alt')) {
-               imageElement.setAttribute('alt', updatedImage.alt);
-           }
-        });
         
-        setPost(p => p ? { ...p, content: tempDiv.innerHTML } : null);
         setContentImages(newImages);
 
         toast({ title: 'Textos alternativos generados', description: "Se ha añadido 'alt text' a las imágenes que no lo tenían." });
@@ -233,7 +192,7 @@ export function SeoAnalyzer({
     } finally {
         setIsLoading(false);
     }
-  }, [post, toast, setIsLoading, setPost, setContentImages, contentImages]);
+  }, [post, toast, setIsLoading, setContentImages, contentImages]);
 
 
   const checks = useMemo<SeoCheck[]>(() => {
@@ -306,18 +265,17 @@ export function SeoAnalyzer({
                 <CardDescription>Completa estas tareas para mejorar el SEO on-page de tu contenido.</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="mb-4">
-                    <Label htmlFor="focusKeyword">Palabra Clave Principal</Label>
-                    <Input id="focusKeyword" name="_yoast_wpseo_focuskw" value={keyword} onChange={onMetaChange} />
-                </div>
-                {isLoading && !keyword ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin mr-2" /> Sugiriendo palabra clave...</div> :
-                !keyword ? <p className="text-sm text-muted-foreground p-4 text-center border-dashed border rounded-md">Introduce una palabra clave principal para empezar.</p> :
-                <ul className="space-y-3">
-                    {checks.map(check => (
-                        <CheckItem key={check.id} check={check} onFix={handleFixWithAI} isAiLoading={isLoading}/>
-                    ))}
-                </ul>
-                }
+                {!keyword ? (
+                  <p className="text-sm text-muted-foreground p-4 text-center border-dashed border rounded-md">
+                    Introduce una Palabra Clave Principal en la tarjeta "Edición SEO" para empezar el análisis.
+                  </p>
+                ) : (
+                  <ul className="space-y-3">
+                      {checks.map(check => (
+                          <CheckItem key={check.id} check={check} onFix={handleFixWithAI} isAiLoading={isLoading}/>
+                      ))}
+                  </ul>
+                )}
             </CardContent>
         </Card>
 

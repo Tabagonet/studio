@@ -258,6 +258,7 @@ export interface ContentImage {
     id: string; // The original `src` attribute, used as a unique key
     src: string; // The display-ready, absolute URL
     alt: string;
+    mediaId: number | null; // The WordPress Media Library ID
 }
 
 export interface ExtractedWidget {
