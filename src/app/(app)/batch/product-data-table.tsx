@@ -184,7 +184,7 @@ export function ProductDataTable() {
 
       const { products, totalPages } = await response.json();
       
-      const stringLangCodes: string[] = [...new Set<string>(products.map((p: ProductSearchResult) => p.lang).filter((l): l is string => !!l && l !== 'N/A'))];
+      const stringLangCodes: string[] = [...new Set<string>(products.map((p: ProductSearchResult) => p.lang).filter((l: string | null | undefined): l is string => !!l && l !== 'N/A'))];
       setAvailableLanguages(stringLangCodes.map(code => ({ code, name: LANGUAGE_MAP[code] || code.toUpperCase() })));
 
 
@@ -225,13 +225,13 @@ export function ProductDataTable() {
       
       setData(roots);
       setTotalPages(totalPages);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast({ title: "Error", description: (error as Error).message, variant: "destructive" });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
-  }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedStockStatus, selectedLanguage, sorting, toast]); 
+  }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedStockStatus, selectedLanguage, sorting]); 
 
   React.useEffect(() => {
     const fetchCats = async (token: string) => {
@@ -243,9 +243,9 @@ export function ProductDataTable() {
         if (!response.ok) throw new Error('Failed to load categories');
         const data = await response.json();
         setCategories(data);
-      } catch (error) {
+      } catch (error: any) {
         console.error(error);
-        toast({ title: "Error al Cargar Categorías", description: (error as Error).message, variant: "destructive" });
+        toast({ title: "Error al Cargar Categorías", description: error.message, variant: "destructive" });
       } finally {
         setIsLoadingCategories(false);
       }
@@ -262,7 +262,7 @@ export function ProductDataTable() {
         }
     });
     return () => unsubscribe();
-  }, [fetchData, fetchStats, toast]);
+  }, [fetchData, fetchStats]);
 
   React.useEffect(() => {
     if (categories.length === 0) return;
@@ -306,11 +306,11 @@ export function ProductDataTable() {
       toast({ title: "¡Éxito!", description: "El estado del producto ha sido actualizado." });
       fetchData();
       fetchStats();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast({ title: "Error", description: (error as Error).message, variant: "destructive" });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     }
-  }, [fetchData, fetchStats, toast]);
+  }, [fetchData, fetchStats]);
 
   const handleDeleteProduct = React.useCallback(async (productId: number) => {
     const user = auth.currentUser;
@@ -335,11 +335,11 @@ export function ProductDataTable() {
       toast({ title: "¡Producto Eliminado!", description: "El producto se ha eliminado permanentemente." });
       fetchData();
       fetchStats();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting product:', error);
-      toast({ title: "Error al Eliminar", description: (error as Error).message, variant: "destructive" });
+      toast({ title: "Error al Eliminar", description: error.message, variant: "destructive" });
     }
-  }, [fetchData, fetchStats, toast]);
+  }, [fetchData, fetchStats]);
 
   const handleEditProduct = (productId: number) => {
     router.push(`/products/edit/${productId}`);

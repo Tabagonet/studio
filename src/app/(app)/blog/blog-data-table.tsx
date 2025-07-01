@@ -151,7 +151,7 @@ export function BlogDataTable() {
 
       const { posts, totalPages }: { posts: BlogPostSearchResult[], totalPages: number } = await response.json();
       
-      const stringLangCodes: string[] = [...new Set<string>(posts.map((p: BlogPostSearchResult) => p.lang).filter((l): l is string => !!l && l !== 'N/A'))];
+      const stringLangCodes: string[] = [...new Set<string>(posts.map((p: BlogPostSearchResult) => p.lang).filter((l: string | null | undefined): l is string => !!l && l !== 'N/A'))];
       setAvailableLanguages(stringLangCodes.map(code => ({ code, name: LANGUAGE_MAP[code] || code.toUpperCase() })));
 
 
@@ -203,13 +203,13 @@ export function BlogDataTable() {
       
       setData(roots);
       setTotalPages(totalPages);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast({ title: "Error", description: (error as Error).message, variant: "destructive" });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
-  }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedLanguage, sorting, toast]); 
+  }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedLanguage, sorting]); 
 
   React.useEffect(() => {
     const fetchCats = async (token: string) => {
@@ -220,9 +220,9 @@ export function BlogDataTable() {
         });
         if (!response.ok) throw new Error('Failed to load categories');
         setCategories(await response.json());
-      } catch (error) {
+      } catch (error: any) {
         console.error(error);
-        toast({ title: "Error al Cargar Categorías", description: (error as Error).message, variant: "destructive" });
+        toast({ title: "Error al Cargar Categorías", description: error.message, variant: "destructive" });
       } finally {
         setIsLoadingCategories(false);
       }
@@ -239,7 +239,7 @@ export function BlogDataTable() {
         }
     });
     return () => unsubscribe();
-  }, [fetchData, fetchStats, toast]);
+  }, [fetchData, fetchStats]);
 
   React.useEffect(() => {
     if (categories.length === 0) return;
@@ -278,11 +278,11 @@ export function BlogDataTable() {
       toast({ title: "¡Éxito!", description: "El estado de la entrada ha sido actualizado." });
       fetchData();
       fetchStats();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast({ title: "Error", description: (error as Error).message, variant: "destructive" });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     }
-  }, [fetchData, fetchStats, toast]);
+  }, [fetchData, fetchStats]);
 
   const handleDeletePost = React.useCallback(async (postId: number) => {
     const user = auth.currentUser;
@@ -301,11 +301,11 @@ export function BlogDataTable() {
       toast({ title: "¡Entrada movida a la papelera!", description: "Podrás restaurarla o eliminarla desde WordPress." });
       fetchData();
       fetchStats();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting post:', error);
-      toast({ title: "Error al Eliminar", description: (error as Error).message, variant: "destructive" });
+      toast({ title: "Error al Eliminar", description: error.message, variant: "destructive" });
     }
-  }, [fetchData, fetchStats, toast]);
+  }, [fetchData, fetchStats]);
 
   const handleEditPost = (postId: number) => {
     router.push(`/blog/edit/${postId}`);
