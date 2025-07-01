@@ -237,7 +237,7 @@ export const getColumns = (
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Fecha
+          Fecha de Creación
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       )
