@@ -59,16 +59,18 @@ export async function POST(req: NextRequest) {
     
     const clientInput = validationResult.data;
     
+    // Fetch clients and settings ONCE
+    const { wooApi, settings } = await getApiClientsForUser(uid);
+    
     let groupedProductsList = 'N/A';
     if (clientInput.productType === 'grouped' && clientInput.groupedProductIds && clientInput.groupedProductIds.length > 0) {
-        const { wooApi } = await getApiClientsForUser(uid);
-        if (wooApi) {
+        if (wooApi) { // Check if wooApi was successfully created
              try {
                 const response = await wooApi.get('products', { include: clientInput.groupedProductIds, per_page: 100, lang: 'all' });
                 if (response.data && response.data.length > 0) {
                     groupedProductsList = response.data.map((p: any) => `* Product: ${p.name}\\n* Details: ${p.short_description || p.description || 'No description'}`).join('\\n\\n');
                 }
-            } catch (e) {
+            } catch (e: unknown) {
                 console.error('Failed to fetch details for grouped products:', e);
                 groupedProductsList = 'Error fetching product details.';
             }
@@ -95,7 +97,6 @@ The response must be a single, valid JSON object with the following keys: "image
 Generate the JSON object based on your research of "{{productName}}".`;
     } else { // full_product
       outputSchema = FullProductOutputSchema;
-      const { settings } = await getApiClientsForUser(uid, true);
       const activeKey = settings?.activeConnectionKey;
       const customPrompt = activeKey ? settings?.connections?.[activeKey]?.promptTemplate : null;
 
@@ -108,8 +109,7 @@ The response must be a single, valid JSON object with the following keys: "short
 - **Language for output:** {{language}}
 - **Product Type:** {{productType}}
 - **User-provided Keywords (for inspiration):** {{keywords}}
-- **Contained Products (for "Grouped" type only):**
-{{{groupedProductsList}}}
+- **Contained Products (for "Grouped" type only):** {{{groupedProductsList}}}
 
 Generate the complete JSON object based on your research of "{{productName}}".`;
     }
@@ -135,7 +135,7 @@ Generate the complete JSON object based on your research of "{{productName}}".`;
 
   } catch (error: any) {
     console.error('🔥 Error in /api/generate-description:', error);
-    let errorMessage = 'La IA falló: ' + error.message;
+    let errorMessage = 'La IA falló: ' + (error instanceof Error ? error.message : String(error));
     if (error instanceof z.ZodError) {
         errorMessage = 'La IA falló: ' + JSON.stringify(error.errors);
     }

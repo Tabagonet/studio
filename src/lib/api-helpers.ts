@@ -1,6 +1,6 @@
 
 // src/lib/api-helpers.ts
-import { adminDb } from '@/lib/firebase-admin';
+import { admin, adminDb } from '@/lib/firebase-admin';
 import { createWooCommerceApi } from '@/lib/woocommerce';
 import { createWordPressApi } from '@/lib/wordpress';
 import type WooCommerceRestApiType from '@woocommerce/woocommerce-rest-api';
@@ -15,6 +15,7 @@ interface ApiClients {
   wooApi: WooCommerceRestApiType | null;
   wpApi: AxiosInstance | null;
   activeConnectionKey: string;
+  settings: admin.firestore.DocumentData | undefined;
 }
 
 /**
@@ -56,7 +57,7 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
     applicationPassword: activeConnection.wordpressApplicationPassword,
   });
 
-  return { wooApi, wpApi, activeConnectionKey };
+  return { wooApi, wpApi, activeConnectionKey, settings };
 }
 
 function extractHeadingsRecursive(elements: any[], widgets: ExtractedWidget[]): void {
