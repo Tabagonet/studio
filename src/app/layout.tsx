@@ -1,7 +1,7 @@
 
 import type { Metadata } from 'next';
 import './globals.css';
-import { ClientToaster } from '@/components/core/client-toaster'; // Import the new ClientToaster
+import { Toaster } from '@/components/ui/toaster';
 import { APP_NAME } from '@/lib/constants';
 
 export const metadata: Metadata = {
@@ -24,7 +24,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         {children}
-        <ClientToaster /> {/* Use the new ClientToaster component */}
+        <Toaster />
       </body>
     </html>
   );
