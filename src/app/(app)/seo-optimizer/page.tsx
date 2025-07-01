@@ -10,7 +10,7 @@ import { SearchCheck, Loader2, BrainCircuit, ArrowLeft, Package, Newspaper, File
 import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { SeoPageListTable } from '@/components/features/seo/page-list-table';
-import { AnalysisView, type AnalysisResult } from '@/components/features/seo/analysis-view';
+import { AnalysisView } from '@/components/features/seo/analysis-view';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -40,7 +40,7 @@ export default function SeoOptimizerPage() {
   const [isLoadingStats, setIsLoadingStats] = useState(true);
 
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
-  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [analysisRecord, setAnalysisRecord] = useState<SeoAnalysisRecord | null>(null);
   const [analysisHistory, setAnalysisHistory] = useState<SeoAnalysisRecord[]>([]);
   const [selectedPage, setSelectedPage] = useState<ContentItem | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +56,7 @@ export default function SeoOptimizerPage() {
   const runAnalysis = useCallback(async (page: ContentItem, token: string) => {
     setIsLoadingAnalysis(true);
     setError(null);
-    setAnalysis(null);
+    setAnalysisRecord(null);
     setSelectedPage(page);
     setLoadingMessage(`Analizando: ${page.title}...`);
 
@@ -68,21 +68,20 @@ export default function SeoOptimizerPage() {
             body: JSON.stringify({ url: page.link, postId: page.id, postType: page.type }),
             cache: 'no-store', // Force re-fetching from the server, bypassing cache
         });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'Ocurrió un error desconocido');
+        const result: SeoAnalysisRecord = await response.json();
+        if (!response.ok) throw new Error((result as any).error || 'Ocurrió un error desconocido');
         
-        setAnalysis(result);
-        setScores(prev => ({...prev, [page.id]: result.aiAnalysis.score}));
+        setAnalysisRecord(result);
+        setScores(prev => ({...prev, [page.id]: result.score}));
 
         const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(page.link)}`, { 
             headers: { 'Authorization': `Bearer ${token}` },
-            cache: 'no-store', // Also disable cache for history
+            cache: 'no-store',
         });
         if (historyResponse.ok) setAnalysisHistory((await historyResponse.json()).history);
     } catch (err: any) {
         setError(err.message);
         toast({ title: "Error en el Análisis", description: err.message, variant: "destructive" });
-        // Don't clear selected page on error, to allow retry
     } finally {
         setIsLoadingAnalysis(false);
     }
@@ -92,19 +91,19 @@ export default function SeoOptimizerPage() {
     setIsLoadingAnalysis(true);
     setLoadingMessage(`Cargando informe para ${page.title}...`);
     setError(null);
-    setAnalysis(null);
+    setAnalysisRecord(null);
     setSelectedPage(page);
 
     try {
       const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(page.link)}`, { 
           headers: { 'Authorization': `Bearer ${token}` },
-          cache: 'no-store', // Disable cache here too
+          cache: 'no-store',
       });
       if (!historyResponse.ok) throw new Error("No se pudo cargar el historial de análisis.");
       
-      const historyData = await historyResponse.json();
+      const historyData: { history: SeoAnalysisRecord[] } = await historyResponse.json();
       if (historyData.history && historyData.history.length > 0) {
-        setAnalysis(historyData.history[0].analysis);
+        setAnalysisRecord(historyData.history[0]);
         setAnalysisHistory(historyData.history);
       } else {
         await runAnalysis(page, token);
@@ -227,6 +226,7 @@ export default function SeoOptimizerPage() {
         }
     } else if (!viewingId) {
         setSelectedPage(null);
+        setAnalysisRecord(null);
     }
   }, [viewingId, contentList, selectedPage, fetchReport, isLoading, router, toast]);
 
@@ -280,7 +280,7 @@ export default function SeoOptimizerPage() {
   };
   
   const handleSelectHistoryItem = (record: SeoAnalysisRecord) => {
-    setAnalysis(record.analysis);
+    setAnalysisRecord(record);
     toast({
       title: "Informe Histórico Cargado",
       description: `Mostrando el análisis del ${new Date(record.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}.`,
@@ -377,7 +377,7 @@ export default function SeoOptimizerPage() {
         );
     }
     
-    if (analysis && selectedPage) {
+    if (analysisRecord && selectedPage) {
         return (
             <div className="space-y-4">
                 <Button variant="outline" onClick={handleBackToList}>
@@ -385,7 +385,7 @@ export default function SeoOptimizerPage() {
                     Volver a la lista
                 </Button>
                 <AnalysisView 
-                    analysis={analysis} 
+                    record={analysisRecord} 
                     item={selectedPage} 
                     onEdit={handleEditContent} 
                     onReanalyze={() => handleAnalyzePage(selectedPage)}

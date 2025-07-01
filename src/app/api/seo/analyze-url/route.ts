@@ -9,6 +9,7 @@ import * as cheerio from 'cheerio';
 import { z } from 'zod';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { SeoAnalysisRecord } from '@/lib/types';
 
 const analyzeUrlSchema = z.object({
   url: z.string().min(1, "La URL no puede estar vacía."),
@@ -214,17 +215,30 @@ export async function POST(req: NextRequest) {
 
     const fullAnalysis = { ...pageData, aiAnalysis: { ...aiAnalysis, score } };
     
+    let responsePayload: SeoAnalysisRecord | { analysis: typeof fullAnalysis };
+    
     if (adminDb && admin.firestore.FieldValue) {
-      await adminDb.collection('seo_analyses').add({
+      const docRef = await adminDb.collection('seo_analyses').add({
         userId: uid,
         url: url,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         analysis: fullAnalysis,
         score: score,
       });
+      responsePayload = {
+        id: docRef.id,
+        userId: uid,
+        url: url,
+        createdAt: new Date().toISOString(),
+        analysis: fullAnalysis,
+        score: score,
+      };
+    } else {
+        // Fallback if DB is not available
+        responsePayload = { analysis: fullAnalysis } as any; // Cast for type consistency in response
     }
 
-    return NextResponse.json(fullAnalysis);
+    return NextResponse.json(responsePayload);
   } catch (error: any) {
     console.error('🔥 Error in /api/seo/analyze-url:', error);
     return NextResponse.json({ error: 'La IA falló: ' + error.message }, { status: 500 });
