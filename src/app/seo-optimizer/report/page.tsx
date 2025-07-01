@@ -3,19 +3,18 @@
 
 import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, Printer, BrainCircuit, Lightbulb, FileText, ListTree, Image as ImageIcon, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, BrainCircuit, Lightbulb, FileText, ListTree, Image as ImageIcon, CheckCircle, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
-import type { SeoAnalysisRecord, AnalysisResult } from '@/lib/types';
+import type { SeoAnalysisRecord } from '@/lib/types';
 import { APP_NAME } from '@/lib/constants';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
-const checkLabels: Record<keyof AnalysisResult['aiAnalysis']['checks'], string> = {
+const checkLabels: Record<keyof SeoAnalysisRecord['analysis']['aiAnalysis']['checks'], string> = {
     titleContainsKeyword: "Título SEO contiene palabra clave",
     titleIsGoodLength: "Longitud del título SEO (30-65)",
     metaDescriptionContainsKeyword: "Meta descripción contiene palabra clave",
@@ -66,7 +65,7 @@ function ReportContent() {
         
         const record: SeoAnalysisRecord = await response.json();
         if (!record.analysis || !record.interpretation) {
-             throw new Error("El informe está incompleto o corrupto.");
+             throw new Error("El informe está incompleto o corrupto. Vuelva a analizar la página.");
         }
         setAnalysisRecord(record);
 
@@ -80,6 +79,19 @@ function ReportContent() {
 
     fetchAnalysis();
   }, [analysisId, toast]);
+  
+  // Automatically trigger print dialog when content is ready
+  useEffect(() => {
+    if (!isLoading && !error && analysisRecord) {
+      // A small delay ensures content is fully rendered before printing
+      const timer = setTimeout(() => {
+        window.print();
+      }, 500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading, error, analysisRecord]);
+
 
   if (isLoading) {
     return (
@@ -225,11 +237,9 @@ function ReportContent() {
 export default function ReportPage() {
     return (
         <>
-            <div className="print-hide container mx-auto py-4 flex justify-end gap-2">
-                <Button onClick={() => window.print()}>
-                    <Printer className="mr-2 h-4 w-4"/>
-                    Imprimir o Guardar como PDF
-                </Button>
+            <div className="print-hide container mx-auto py-4 text-center">
+                <p className="text-sm text-muted-foreground">La ventana de impresión debería abrirse automáticamente.</p>
+                <p className="text-xs text-muted-foreground">Si no es así, puedes usar la función de impresión de tu navegador (Ctrl+P o Cmd+P).</p>
             </div>
             <Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-12 w-12 animate-spin"/></div>}>
                 <ReportContent />

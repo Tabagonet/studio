@@ -71,7 +71,7 @@ export function AnalysisView({ record, item, history, onEdit, onReanalyze, onSel
             <Button onClick={onReanalyze} variant="secondary"><RefreshCw className="mr-2 h-4 w-4" /> Volver a Analizar</Button>
             <Button onClick={() => onEdit(item)}><Edit className="mr-2 h-4 w-4" /> Editar y Optimizar</Button>
               {latestAnalysisId && (
-              <Button asChild variant="outline"><Link href={`/seo-optimizer/report?analysisId=${latestAnalysisId}`} target="_blank"><Printer className="mr-2 h-4 w-4" /> Generar Informe</Link></Button>
+              <Button asChild variant="outline"><Link href={`/seo-optimizer/report?analysisId=${latestAnalysisId}`} target="_blank"><Printer className="mr-2 h-4 w-4" /> Ver Informe Imprimible</Link></Button>
             )}
           </div>
         </CardHeader>
