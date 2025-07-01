@@ -5,7 +5,7 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { BrainCircuit, CheckCircle, XCircle, ListTree, Edit, History, Printer, RefreshCw, Lightbulb } from "lucide-react";
+import { BrainCircuit, CheckCircle, XCircle, ListTree, Edit, History, Printer, RefreshCw, Lightbulb, Image as ImageIcon } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import type { ContentItem, AnalysisResult, SeoAnalysisRecord } from '@/lib/types';
 import { format } from 'date-fns';
@@ -42,6 +42,7 @@ export function AnalysisView({ record, item, history, onEdit, onReanalyze, onSel
 
   const scoreColor = analysis.aiAnalysis.score >= 80 ? 'text-green-500' : analysis.aiAnalysis.score >= 50 ? 'text-amber-500' : 'text-destructive';
   const latestAnalysisId = history[0]?.id;
+  const imagesWithoutAlt = analysis.images?.filter(img => !img.alt).length ?? 0;
 
   return (
     <div className="space-y-6">
@@ -133,6 +134,23 @@ export function AnalysisView({ record, item, history, onEdit, onReanalyze, onSel
                   {analysis.headings.length === 0 && <p className="text-muted-foreground text-sm text-center">No se encontraron encabezados.</p>}
               </div>
           </ScrollArea>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+            <CardTitle className="flex items-center gap-2"><ImageIcon className="h-6 w-6 text-primary" /> SEO de Imágenes</CardTitle>
+            <CardDescription>El texto alternativo (alt text) es crucial para la accesibilidad y el SEO de imágenes.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+            <div className="flex justify-between items-center text-sm">
+                <p className="text-muted-foreground">Imágenes encontradas en el contenido:</p>
+                <Badge>{analysis.images?.length ?? 0}</Badge>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+                <p className="text-muted-foreground">Imágenes que necesitan 'alt text':</p>
+                <Badge variant={imagesWithoutAlt > 0 ? "destructive" : "default"}>{imagesWithoutAlt}</Badge>
+            </div>
         </CardContent>
       </Card>
       
