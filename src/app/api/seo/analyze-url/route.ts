@@ -107,6 +107,24 @@ async function getPageContentFromScraping(url: string) {
         const body$ = cheerio.load($.html('body'));
         body$('script, style').remove();
         
+        // New logic for deduplicating images
+        const allImages = body$('img').map((i, el) => ({
+            src: $(el).attr('data-src') || $(el).attr('src') || '',
+            alt: $(el).attr('data-alt') || $(el).attr('alt') || ''
+        })).get();
+
+        const uniqueImagesMap = new Map<string, { src: string; alt: string }>();
+        allImages.forEach(img => {
+            if (img.src) {
+                const existing = uniqueImagesMap.get(img.src);
+                // If we haven't seen this src, or if we have but the new one has an alt text and the old one didn't, we update it.
+                if (!existing || (!existing.alt && img.alt)) {
+                    uniqueImagesMap.set(img.src, img);
+                }
+            }
+        });
+        const uniqueImages = Array.from(uniqueImagesMap.values());
+        
         return {
             title: finalTitle,
             metaDescription: $('meta[name="description"]').attr('content') || '',
@@ -117,10 +135,7 @@ async function getPageContentFromScraping(url: string) {
                 tag: (el as cheerio.TagElement).name,
                 text: $(el).text()
             })).get(),
-            images: body$('img').map((i, el) => ({
-                src: $(el).attr('data-src') || $(el).attr('src') || '',
-                alt: $(el).attr('data-alt') || $(el).attr('alt') || ''
-            })).get(),
+            images: uniqueImages, // Use the deduplicated array
             textContent: body$('body').text().replace(/\s\s+/g, ' ').trim(),
         };
     } catch (error) {
