@@ -1,6 +1,7 @@
 
 // src/lib/api-helpers.ts
-import { admin, adminDb } from '@/lib/firebase-admin';
+import type * as admin from 'firebase-admin';
+import { adminDb } from '@/lib/firebase-admin';
 import { createWooCommerceApi } from '@/lib/woocommerce';
 import { createWordPressApi } from '@/lib/wordpress';
 import type WooCommerceRestApiType from '@woocommerce/woocommerce-rest-api';
