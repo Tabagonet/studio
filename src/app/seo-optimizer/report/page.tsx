@@ -6,14 +6,25 @@ import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, Printer, BrainCircuit, Lightbulb, FileText, ListTree, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Printer, BrainCircuit, Lightbulb, FileText, ListTree, Image as ImageIcon, CheckCircle, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
-import type { SeoAnalysisRecord, SeoInterpretationOutput, SeoAnalysisInput } from '@/lib/types';
-import { interpretSeoAnalysis } from '@/ai/flows/interpret-seo-analysis';
+import type { SeoAnalysisRecord, SeoInterpretationOutput } from '@/lib/types';
 import { APP_NAME } from '@/lib/constants';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+
+const checkLabels: Record<keyof SeoAnalysisRecord['analysis']['aiAnalysis']['checks'], string> = {
+    titleContainsKeyword: "Título SEO contiene palabra clave",
+    titleIsGoodLength: "Longitud del título SEO (30-65)",
+    metaDescriptionContainsKeyword: "Meta descripción contiene palabra clave",
+    metaDescriptionIsGoodLength: "Longitud de meta descripción (50-160)",
+    keywordInFirstParagraph: "Palabra clave en la introducción",
+    contentHasImages: "Contenido tiene imágenes",
+    allImagesHaveAltText: "Todas las imágenes tienen 'alt text'",
+    h1Exists: "Existe un único encabezado H1",
+    canonicalUrlExists: "Existe una URL canónica",
+};
 
 function ReportContent() {
   const searchParams = useSearchParams();
@@ -45,6 +56,8 @@ function ReportContent() {
       }
       try {
         const token = await user.getIdToken();
+        
+        // 1. Get the raw analysis data
         const response = await fetch(`/api/seo/analysis/${analysisId}`, {
           headers: { 'Authorization': `Bearer ${token}` },
         });
@@ -60,7 +73,18 @@ function ReportContent() {
         }
         setAnalysisRecord(record);
         
-        const interpretationResult = await interpretSeoAnalysis(record.analysis as SeoAnalysisInput);
+        // 2. Get the AI interpretation by POSTing to the same endpoint
+        const interpretationResponse = await fetch(`/api/seo/analysis/${analysisId}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+        });
+
+        if (!interpretationResponse.ok) {
+            const errorData = await interpretationResponse.json();
+            throw new Error(errorData.error || "No se pudo generar la interpretación de la IA.");
+        }
+        
+        const interpretationResult = await interpretationResponse.json();
         setInterpretation(interpretationResult);
 
       } catch (e: any) {
@@ -168,6 +192,21 @@ function ReportContent() {
                     </CardContent>
                 </Card>
             </div>
+            
+            <Card>
+                <CardHeader><CardTitle className="text-lg">Checklist SEO Detallado</CardTitle></CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                        {analysis.aiAnalysis?.checks && Object.entries(analysis.aiAnalysis.checks).map(([key, passed]) => (
+                            <div key={key} className="flex items-center gap-2 text-sm">
+                                {passed ? <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" /> : <XCircle className="h-4 w-4 text-amber-500 flex-shrink-0" />}
+                                <span className="text-muted-foreground">{checkLabels[key as keyof typeof checkLabels]}</span>
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
+
              <Card>
                 <CardHeader><CardTitle className="text-lg flex items-center gap-2"><ListTree className="h-5 w-5" /> Estructura de Encabezados</CardTitle></CardHeader>
                 <CardContent>
