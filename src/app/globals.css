@@ -107,68 +107,26 @@ body {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
     font-size: 10pt;
+    background-color: #fff !important;
   }
 
   .print-hide {
     display: none !important;
   }
   
-  .report-container {
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Ensure cards in the report don't have shadows or excessive borders */
+  .report-view .card {
+    border: 1px solid #ddd !important;
     box-shadow: none !important;
-    border: none !important;
-  }
-
-  .report-main {
-    padding: 1cm !important;
-  }
-  
-  .page-break-after {
-    page-break-after: always;
-  }
-  
-  .break-inside-avoid-column {
-    break-inside: avoid-column;
-  }
-
-  .report-header, .report-footer {
-    position: relative;
   }
   
   @page {
     size: A4;
     margin: 1.5cm;
-    
-    @bottom-center {
-      content: "Página " counter(page);
-      font-size: 9pt;
-      color: #666;
-    }
-  }
-
-  /* Ensure background colors and text colors print correctly */
-  .report-container, .bg-background {
-      background-color: #fff !important;
-      color: #000 !important;
-  }
-  
-  .text-primary {
-      color: hsl(var(--primary)) !important;
-  }
-
-  .text-muted-foreground {
-      color: #555 !important;
-  }
-  
-  .border, .border-b-2, .border-primary, .separator {
-      border-color: #ccc !important;
-  }
-
-  .shadow-none {
-      box-shadow: none !important;
-  }
-  
-  a {
-    color: hsl(var(--primary)) !important;
-    text-decoration: none;
   }
 }

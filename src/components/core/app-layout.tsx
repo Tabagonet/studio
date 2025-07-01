@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -13,12 +14,16 @@ interface AppLayoutProps {
 export function AppLayout({ children, defaultOpen = true }: AppLayoutProps) {
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
-      <Sidebar collapsible="icon" variant="sidebar" side="left" className="border-r">
-        <SidebarNav />
-      </Sidebar>
-      <SidebarRail />
+      <div className="print-hide">
+        <Sidebar collapsible="icon" variant="sidebar" side="left" className="border-r">
+          <SidebarNav />
+        </Sidebar>
+        <SidebarRail />
+      </div>
       <SidebarInset className="flex flex-col min-h-screen">
-        <Header />
+        <div className="print-hide">
+          <Header />
+        </div>
         <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto">
           {children}
         </main>

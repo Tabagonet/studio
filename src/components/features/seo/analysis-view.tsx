@@ -51,7 +51,7 @@ export function AnalysisView({ record, item, history, onEdit, onReanalyze, onSel
     <div className="space-y-6">
       
        {isStale && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="print-hide">
               <RefreshCw className="h-4 w-4" />
               <AlertTitle>Informe desactualizado</AlertTitle>
               <AlertDescription>
@@ -67,12 +67,10 @@ export function AnalysisView({ record, item, history, onEdit, onReanalyze, onSel
               <BrainCircuit className="h-6 w-6 text-primary" /> 
               <CardTitle>Análisis SEO</CardTitle>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 print-hide">
             <Button onClick={onReanalyze} variant="secondary"><RefreshCw className="mr-2 h-4 w-4" /> Volver a Analizar</Button>
             <Button onClick={() => onEdit(item)}><Edit className="mr-2 h-4 w-4" /> Editar y Optimizar</Button>
-              {latestAnalysisId && (
-              <Button asChild variant="outline"><Link href={`/seo-optimizer/report?analysisId=${latestAnalysisId}`} target="_blank"><Printer className="mr-2 h-4 w-4" /> Ver Informe Imprimible</Link></Button>
-            )}
+            <Button onClick={() => window.print()} variant="outline"><Printer className="mr-2 h-4 w-4" /> Imprimir Informe</Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -185,36 +183,38 @@ export function AnalysisView({ record, item, history, onEdit, onReanalyze, onSel
         </CardContent>
       </Card>
       
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><History className="h-5 w-5 text-primary"/> Historial de Análisis</CardTitle>
-          <CardDescription>Selecciona un análisis anterior para ver sus detalles.</CardDescription>
-        </CardHeader>
-        <CardContent>
-            {history.length > 0 ? (
-                <ul className="space-y-2">
-                    {history.map(historyItem => (
-                        <li key={historyItem.id}>
-                            <button
-                                onClick={() => onSelectHistoryItem(historyItem)}
-                                className={cn( "flex justify-between items-center text-sm p-2 bg-muted rounded-md w-full text-left hover:bg-accent transition-colors", record.id === historyItem.id && "ring-2 ring-primary bg-primary/10" )}
-                                aria-current={record.id === historyItem.id}
-                            >
-                                <span className="text-muted-foreground">
-                                    {format(new Date(historyItem.createdAt), "d/LLL/yy HH:mm", { locale: es })}
-                                </span>
-                                <Badge className={ cn(historyItem.score >= 80 ? 'bg-green-500' : historyItem.score >= 50 ? 'bg-amber-500' : 'bg-destructive') }>
-                                    {historyItem.score}
-                                </Badge>
-                            </button>
-                        </li>
-                    ))}
-                </ul>
-            ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">No hay análisis anteriores para esta URL.</p>
-            )}
-        </CardContent>
-      </Card>
+      <div className="print-hide">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><History className="h-5 w-5 text-primary"/> Historial de Análisis</CardTitle>
+            <CardDescription>Selecciona un análisis anterior para ver sus detalles.</CardDescription>
+          </CardHeader>
+          <CardContent>
+              {history.length > 0 ? (
+                  <ul className="space-y-2">
+                      {history.map(historyItem => (
+                          <li key={historyItem.id}>
+                              <button
+                                  onClick={() => onSelectHistoryItem(historyItem)}
+                                  className={cn( "flex justify-between items-center text-sm p-2 bg-muted rounded-md w-full text-left hover:bg-accent transition-colors", record.id === historyItem.id && "ring-2 ring-primary bg-primary/10" )}
+                                  aria-current={record.id === historyItem.id}
+                              >
+                                  <span className="text-muted-foreground">
+                                      {format(new Date(historyItem.createdAt), "d/LLL/yy HH:mm", { locale: es })}
+                                  </span>
+                                  <Badge className={ cn(historyItem.score >= 80 ? 'bg-green-500' : historyItem.score >= 50 ? 'bg-amber-500' : 'bg-destructive') }>
+                                      {historyItem.score}
+                                  </Badge>
+                              </button>
+                          </li>
+                      ))}
+                  </ul>
+              ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">No hay análisis anteriores para esta URL.</p>
+              )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
