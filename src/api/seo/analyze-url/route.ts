@@ -8,11 +8,8 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { z } from 'zod';
 import { getApiClientsForUser } from '@/lib/api-helpers';
-
-// Genkit and Google AI imports are now direct
-import { generate } from '@genkit-ai/ai';
-import { googleAI } from '@genkit-ai/googleai';
-import { configureGenkit } from 'genkit';
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { SeoAnalysisRecord, SeoAnalysisInput } from '@/lib/types';
 
 
 const analyzeUrlSchema = z.object({
@@ -40,6 +37,27 @@ const AiResponseSchema = z.object({
     metaDescription: z.string().describe("Una sugerencia de meta descripción optimizada para SEO, con menos de 160 caracteres."),
     focusKeyword: z.string().describe("La palabra clave principal (2-4 palabras) más adecuada para este contenido."),
   }),
+});
+
+const SeoInterpretationOutputSchema = z.object({
+  interpretation: z
+    .string()
+    .describe(
+      'A narrative paragraph explaining the most important SEO data points in a simple, easy-to-understand way.'
+    ),
+  actionPlan: z
+    .array(z.string())
+    .describe(
+      "A bulleted list of the top 3-5 most impactful and actionable steps to improve the page's SEO."
+    ),
+  positives: z
+    .array(z.string())
+    .describe('A bulleted list of 2-4 key SEO strengths of the page.'),
+  improvements: z
+    .array(z.string())
+    .describe(
+      "A bulleted list of 2-4 key areas for SEO improvement, focusing on high-level concepts rather than repeating the action plan."
+    ),
 });
 
 
@@ -144,12 +162,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    configureGenkit({
-        plugins: [googleAI()],
-        logLevel: 'debug',
-        enableTracingAndMetrics: true,
-    });
-    
     const body = await req.json();
     const validation = analyzeUrlSchema.safeParse(body);
     if (!validation.success) {
@@ -173,7 +185,10 @@ export async function POST(req: NextRequest) {
         throw new Error('No se encontró suficiente contenido textual en la página para analizar. Asegúrate de que la URL es correcta y tiene contenido visible.');
     }
 
-    const prompt = `
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
+    
+    const technicalAnalysisPrompt = `
     Analiza el siguiente contenido de una página web para optimización SEO (On-Page) y responde únicamente con un objeto JSON válido.
     
     **Datos de la Página:**
@@ -206,13 +221,12 @@ export async function POST(req: NextRequest) {
     - "focusKeyword": Sugiere la "Palabra Clave Principal" más apropiada para el contenido.
   `;
   
-    const { output: aiAnalysis } = await generate({
-        model: googleAI('gemini-1.5-flash-latest'),
-        prompt: prompt,
-        output: { schema: AiResponseSchema }
-    });
+    const techResult = await model.generateContent(technicalAnalysisPrompt);
+    const techResponse = await techResult.response;
+    const aiAnalysis = AiResponseSchema.parse(JSON.parse(techResponse.text()));
+
     if (!aiAnalysis) {
-      throw new Error("La IA devolvió una respuesta vacía.");
+      throw new Error("La IA devolvió una respuesta vacía para el análisis técnico.");
     }
 
     const checkWeights = { titleContainsKeyword: 15, titleIsGoodLength: 10, metaDescriptionContainsKeyword: 15, metaDescriptionIsGoodLength: 10, keywordInFirstParagraph: 15, contentHasImages: 5, allImagesHaveAltText: 10, h1Exists: 10, canonicalUrlExists: 10 };
@@ -223,17 +237,57 @@ export async function POST(req: NextRequest) {
 
     const fullAnalysis = { ...pageData, aiAnalysis: { ...aiAnalysis, score } };
     
+    // Now, generate the interpretation
+    const checksSummary = JSON.stringify(fullAnalysis.aiAnalysis.checks, null, 2);
+    const interpretationPrompt = `You are a world-class SEO consultant analyzing a web page's on-page SEO data.
+    The user has received the following raw data from an analysis tool.
+    Your task is to interpret this data and provide a clear, actionable summary in Spanish.
+
+    **Analysis Data:**
+    - Page Title: "${fullAnalysis.title}"
+    - Meta Description: "${fullAnalysis.metaDescription}"
+    - H1 Heading: "${fullAnalysis.h1}"
+    - SEO Score: ${fullAnalysis.aiAnalysis.score}/100
+    - Technical SEO Checks (true = passed, false = failed):
+    ${checksSummary}
+
+    **Your Task:**
+    Based on all the data above, generate a JSON object with four keys: "interpretation", "actionPlan", "positives", "improvements".
+    - "interpretation": Write a narrative paragraph in Spanish that interprets the key findings. Explain WHY the score is what it is, focusing on the most critical elements based on the failed checks.
+    - "actionPlan": Create a list of the 3 to 5 most important, high-impact, actionable steps the user should take.
+    - "positives": Create a list of 2-4 key SEO strengths of the page.
+    - "improvements": Create a list of 2-4 key areas for SEO improvement, focusing on high-level concepts.
+    `;
+    
+    const interpretationResult = await model.generateContent(interpretationPrompt);
+    const interpretationResponse = await interpretationResult.response;
+    const interpretation = SeoInterpretationOutputSchema.parse(JSON.parse(interpretationResponse.text()));
+    
+    let responsePayload: SeoAnalysisRecord;
+    
     if (adminDb && admin.firestore.FieldValue) {
-      await adminDb.collection('seo_analyses').add({
+      const docRef = await adminDb.collection('seo_analyses').add({
         userId: uid,
         url: url,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         analysis: fullAnalysis,
         score: score,
+        interpretation: interpretation, // Save the interpretation
       });
+      responsePayload = {
+        id: docRef.id,
+        userId: uid,
+        url: url,
+        createdAt: new Date().toISOString(),
+        analysis: fullAnalysis,
+        score: score,
+        interpretation: interpretation,
+      };
+    } else {
+        throw new Error("Firestore is not configured. Cannot save analysis.");
     }
 
-    return NextResponse.json(fullAnalysis);
+    return NextResponse.json(responsePayload);
   } catch (error: any) {
     console.error('🔥 Error in /api/seo/analyze-url:', error);
     return NextResponse.json({ error: 'La IA falló: ' + error.message }, { status: 500 });
