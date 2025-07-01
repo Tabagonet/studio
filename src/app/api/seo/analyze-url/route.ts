@@ -105,24 +105,31 @@ async function getPageContentFromScraping(url: string) {
         const finalTitle = yoastTitle || pageTitle;
 
         const body$ = cheerio.load($.html('body'));
-        body$('script, style').remove();
+        body$('script, style, noscript').remove();
         
-        // New logic for deduplicating images
         const allImages = body$('img').map((i, el) => ({
             src: $(el).attr('data-src') || $(el).attr('src') || '',
             alt: $(el).attr('data-alt') || $(el).attr('alt') || ''
         })).get();
 
         const uniqueImagesMap = new Map<string, { src: string; alt: string }>();
+
         allImages.forEach(img => {
-            if (img.src) {
-                const existing = uniqueImagesMap.get(img.src);
-                // If we haven't seen this src, or if we have but the new one has an alt text and the old one didn't, we update it.
-                if (!existing || (!existing.alt && img.alt)) {
-                    uniqueImagesMap.set(img.src, img);
-                }
+            if (!img.src) return;
+
+            // Create a robust key for deduplication. 
+            // This key attempts to identify an image regardless of its responsive size variations.
+            // Example: /path/to/my-image-300x200.jpg -> /path/to/my-image.jpg
+            const baseSrc = img.src.replace(/-\d+x\d+(?=\.(jpg|jpeg|png|webp|gif)$)/i, '');
+
+            const existing = uniqueImagesMap.get(baseSrc);
+            
+            // If we haven't seen this base image, or if we have but the new one has alt text and the old one didn't, we add/update it.
+            if (!existing || (!existing.alt && img.alt)) {
+                uniqueImagesMap.set(baseSrc, img);
             }
         });
+
         const uniqueImages = Array.from(uniqueImagesMap.values());
         
         return {
@@ -135,7 +142,7 @@ async function getPageContentFromScraping(url: string) {
                 tag: (el as cheerio.TagElement).name,
                 text: $(el).text()
             })).get(),
-            images: uniqueImages, // Use the deduplicated array
+            images: uniqueImages,
             textContent: body$('body').text().replace(/\s\s+/g, ' ').trim(),
         };
     } catch (error) {
