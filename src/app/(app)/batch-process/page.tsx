@@ -188,7 +188,8 @@ export default function BatchProcessPage() {
         },
         error: (error: any) => {
             console.error("Error parsing CSV:", error);
-            toast({ title: "Error al leer CSV", description: error.message, variant: "destructive" });
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            toast({ title: "Error al leer CSV", description: errorMessage, variant: "destructive" });
         }
     });
   }, [csvFile, toast]);
@@ -215,7 +216,7 @@ export default function BatchProcessPage() {
 
         const csvMap = new Map<string, Record<string, any>>();
         csvData.forEach(row => {
-            if(row.sku) csvMap.set(row.sku.trim(), row);
+            if(row.sku && typeof row.sku === 'string') csvMap.set(row.sku.trim(), row);
         });
 
         const imagesBySku = new Map<string, File[]>();
@@ -258,7 +259,8 @@ export default function BatchProcessPage() {
                         console.warn(`Failed to check existence for SKU: ${sku}`);
                     }
                 } catch (err) {
-                    console.error(`Error during existence check for SKU ${sku}:`, err);
+                    const errorMessage = err instanceof Error ? err.message : String(err);
+                    console.error(`Error during existence check for SKU ${sku}:`, errorMessage);
                 }
 
                 const hasImages = matchingImages.length > 0;
@@ -510,10 +512,11 @@ export default function BatchProcessPage() {
             updateProductProcessingStatus(product.id, 'completed', '¡Producto(s) creado(s) con éxito!', 100);
             successes++;
 
-        } catch (error: any) {
+        } catch (error) {
             failures++;
+            const errorMessage = error instanceof Error ? error.message : String(error);
             const productState = stagedProducts.find(p => p.id === product.id);
-            updateProductProcessingStatus(product.id, 'error', error.message, productState?.progress);
+            updateProductProcessingStatus(product.id, 'error', errorMessage, productState?.progress);
         }
     }
 

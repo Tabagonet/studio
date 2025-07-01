@@ -60,8 +60,9 @@ export default function AdminActivityPage() {
                    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
                 );
                 setLogs(sortedLogs);
-            } catch (error: any) {
-                toast({ title: "Error al Cargar Registros", description: error.message, variant: "destructive" });
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                toast({ title: "Error al Cargar Registros", description: errorMessage, variant: "destructive" });
             } finally {
                 setIsLoading(false);
             }

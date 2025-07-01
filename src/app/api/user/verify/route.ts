@@ -1,3 +1,4 @@
+
 // src/app/api/user/verify/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
@@ -116,8 +117,9 @@ export async function GET(req: NextRequest) {
 
       return NextResponse.json(validatedNewData.data, { status: 201 });
     }
-  } catch (dbError) {
-    console.error("Firestore error in /api/user/verify:", dbError);
-    return NextResponse.json({ error: 'Database error occurred.' }, { status: 500 });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+    console.error("Firestore error in /api/user/verify:", error);
+    return NextResponse.json({ error: `Database error occurred: ${errorMessage}` }, { status: 500 });
   }
 }

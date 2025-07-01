@@ -172,12 +172,13 @@ export function BlogCreator() {
         setFinalLinks(createdPostUrls);
         setSubmissionStatus('success');
 
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         const failedStep = steps.find(s => s.status === 'processing');
         if (failedStep) {
-            updateStepStatus(failedStep.id, 'error', error.message);
+            updateStepStatus(failedStep.id, 'error', errorMessage);
         }
-        toast({ title: 'Proceso Interrumpido', description: error.message, variant: 'destructive' });
+        toast({ title: 'Proceso Interrumpido', description: errorMessage, variant: 'destructive' });
         setSubmissionStatus('error');
     }
   };

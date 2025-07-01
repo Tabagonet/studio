@@ -55,8 +55,9 @@ export async function POST(req: NextRequest, { params }: { params: { userId: str
         
         return NextResponse.json({ success: true, message: `User ${userId} status updated to ${status}.` });
 
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         console.error(`Error updating user ${userId}:`, error);
-        return NextResponse.json({ error: 'Failed to update user status', details: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to update user status', details: errorMessage }, { status: 500 });
     }
 }

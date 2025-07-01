@@ -52,12 +52,13 @@ export function UserManagementTable() {
             const data = await response.json();
             setUsers(data.users);
 
-        } catch (error: any) {
-            toast({ title: "Error al Cargar Usuarios", description: error.message, variant: "destructive" });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            toast({ title: "Error al Cargar Usuarios", description: errorMessage, variant: "destructive" });
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [toast]);
 
     useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -94,8 +95,9 @@ export function UserManagementTable() {
             toast({ title: "Éxito", description: successMessage });
             fetchUsers();
             return true;
-        } catch (error: any) {
-            toast({ title: "Error en la Operación", description: error.message, variant: "destructive" });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            toast({ title: "Error en la Operación", description: errorMessage, variant: "destructive" });
             return false;
         }
     };
@@ -142,8 +144,9 @@ export function UserManagementTable() {
             }
             toast({ title: "Éxito", description: "El usuario ha sido eliminado." });
             fetchUsers();
-        } catch (error: any) {
-            toast({ title: "Error al Eliminar", description: error.message, variant: "destructive" });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            toast({ title: "Error al Eliminar", description: errorMessage, variant: "destructive" });
         } finally {
             setIsUpdating(null);
         }

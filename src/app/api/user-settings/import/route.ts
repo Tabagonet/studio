@@ -71,9 +71,10 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ success: true, message: 'Settings imported successfully.' });
 
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         console.error('Error importing user settings:', error);
-        const status = error.message.includes('Authentication') ? 401 : 500;
-        return NextResponse.json({ error: error.message || 'Failed to import settings' }, { status });
+        const status = errorMessage.includes('Authentication') ? 401 : 500;
+        return NextResponse.json({ error: errorMessage || 'Failed to import settings' }, { status });
     }
 }

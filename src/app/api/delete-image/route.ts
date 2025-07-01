@@ -16,7 +16,8 @@ export async function POST(req: NextRequest) {
     await adminAuth.verifyIdToken(token);
   } catch (error) {
     console.error("Error al verificar el token de Firebase en /api/delete-image:", error);
-    return NextResponse.json({ success: false, error: "Token de autenticación inválido o expirado" }, { status: 401 });
+    const errorMessage = error instanceof Error ? error.message : "Token de autenticación inválido o expirado";
+    return NextResponse.json({ success: false, error: errorMessage }, { status: 401 });
   }
 
   try {

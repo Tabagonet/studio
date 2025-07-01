@@ -90,7 +90,7 @@ export default function PromptsPage() {
             unsubscribe();
             window.removeEventListener('connections-updated', () => fetchPromptForActiveConnection(auth.currentUser));
         };
-    }, [toast]);
+    }, []);
 
 
     const handleSave = async () => {
@@ -122,10 +122,11 @@ export default function PromptsPage() {
                 title: "Plantilla Guardada",
                 description: `Tu plantilla para la conexión "${result.activeConnectionKey}" ha sido actualizada.`,
             });
-        } catch (error: any) {
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
             toast({
                 title: "Error al Guardar",
-                description: error.message,
+                description: errorMessage,
                 variant: "destructive",
             });
         } finally {

@@ -52,8 +52,9 @@ export async function POST(req: NextRequest, { params }: { params: { userId: str
         
         return NextResponse.json({ success: true, message: `User ${userId} role updated to ${role}.` });
 
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         console.error(`Error updating role for user ${userId}:`, error);
-        return NextResponse.json({ error: 'Failed to update user role', details: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to update user role', details: errorMessage }, { status: 500 });
     }
 }

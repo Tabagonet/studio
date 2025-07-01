@@ -37,10 +37,11 @@ export async function GET(req: NextRequest) {
             activeConnectionKey: activeKey || null,
         });
 
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         console.error('Error fetching user prompt:', error);
-        const status = error.message.includes('Authentication') ? 401 : 500;
-        return NextResponse.json({ error: error.message || 'Error al obtener la plantilla' }, { status });
+        const status = errorMessage.includes('Authentication') ? 401 : 500;
+        return NextResponse.json({ error: errorMessage || 'Error al obtener la plantilla' }, { status });
     }
 }
 
@@ -74,9 +75,10 @@ export async function POST(req: NextRequest) {
         });
 
         return NextResponse.json({ success: true, message: 'Plantilla guardada correctamente.', activeConnectionKey: activeKey });
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         console.error('Error saving user prompt:', error);
-        const status = error.message.includes('Authentication') ? 401 : 500;
-        return NextResponse.json({ error: error.message || 'Error al guardar la plantilla' }, { status });
+        const status = errorMessage.includes('Authentication') ? 401 : 500;
+        return NextResponse.json({ error: errorMessage || 'Error al guardar la plantilla' }, { status });
     }
 }

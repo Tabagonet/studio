@@ -12,7 +12,8 @@ async function getUserIdFromRequest(req: NextRequest): Promise<string> {
 }
 
 // Helper to delete all documents in a query in batches
-async function deleteQueryBatch(db: FirebaseFirestore.Firestore, query: FirebaseFirestore.Query, resolve: (value: unknown) => void) {
+async function deleteQueryBatch(db: FirebaseFirestore.Firestore, query: FirebaseFirestore.Query, resolve: (value: unknown) => void, reject: (reason?: any) => void) {
+  try {
     const snapshot = await query.limit(500).get(); // Firestore batch limit is 500
     
     if (snapshot.size === 0) {
@@ -29,8 +30,11 @@ async function deleteQueryBatch(db: FirebaseFirestore.Firestore, query: Firebase
 
     // Recurse on the same query to process next batch
     process.nextTick(() => {
-        deleteQueryBatch(db, query, resolve);
+        deleteQueryBatch(db, query, resolve, reject);
     });
+  } catch(error) {
+    reject(error);
+  }
 }
 
 
@@ -44,17 +48,18 @@ export async function DELETE(req: NextRequest) {
         
         // --- Delete Activity Logs ---
         const activityQuery = adminDb.collection('activity_logs').where('userId', '==', uid);
-        await new Promise((resolve) => deleteQueryBatch(adminDb!, activityQuery, resolve));
+        await new Promise((resolve, reject) => deleteQueryBatch(adminDb!, activityQuery, resolve, reject));
         
         // --- Delete Notifications ---
         const notificationsQuery = adminDb.collection('notifications').where('recipientUid', '==', uid);
-        await new Promise((resolve) => deleteQueryBatch(adminDb!, notificationsQuery, resolve));
+        await new Promise((resolve, reject) => deleteQueryBatch(adminDb!, notificationsQuery, resolve, reject));
 
         return NextResponse.json({ success: true, message: 'Your activity logs and notifications have been cleared.' });
 
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         console.error('Error cleaning up user data:', error);
-        const status = error.message.includes('Authentication') ? 401 : 500;
-        return NextResponse.json({ error: error.message || 'Failed to clean up data' }, { status });
+        const status = errorMessage.includes('Authentication') ? 401 : 500;
+        return NextResponse.json({ error: errorMessage || 'Failed to clean up data' }, { status });
     }
 }

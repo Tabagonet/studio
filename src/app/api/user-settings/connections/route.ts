@@ -32,9 +32,10 @@ export async function GET(req: NextRequest) {
             });
         }
         return NextResponse.json({ allConnections: {}, activeConnectionKey: null });
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         console.error('Error fetching user connections:', error);
-        return NextResponse.json({ error: error.message || 'Authentication required' }, { status: 401 });
+        return NextResponse.json({ error: errorMessage || 'Authentication required' }, { status: 401 });
     }
 }
 
@@ -132,10 +133,11 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ success: true, message: 'Connection saved successfully.' });
 
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         console.error('Error saving user connections:', error);
-        const status = error.message.includes('Authentication') ? 401 : 500;
-        return NextResponse.json({ error: error.message || 'Failed to save connections' }, { status });
+        const status = errorMessage.includes('Authentication') ? 401 : 500;
+        return NextResponse.json({ error: errorMessage || 'Failed to save connections' }, { status });
     }
 }
 
@@ -179,9 +181,10 @@ export async function DELETE(req: NextRequest) {
 
         return NextResponse.json({ success: true, message: 'Connection deleted successfully.' });
 
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         console.error('Error deleting user connection:', error);
-        const status = error.message.includes('Authentication') ? 401 : 500;
-        return NextResponse.json({ error: error.message || 'Failed to delete connection' }, { status });
+        const status = errorMessage.includes('Authentication') ? 401 : 500;
+        return NextResponse.json({ error: errorMessage || 'Failed to delete connection' }, { status });
     }
 }

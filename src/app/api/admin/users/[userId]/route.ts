@@ -60,14 +60,14 @@ export async function DELETE(req: NextRequest, { params }: { params: { userId: s
 
         return NextResponse.json({ success: true, message: `User ${userId} and all associated data have been deleted.` });
 
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         console.error(`Error deleting user ${userId}:`, error);
         
-        // Handle case where user might not exist in Auth anymore but exists in DB
-        if (error.code === 'auth/user-not-found') {
+        if ((error as any).code === 'auth/user-not-found') {
             return NextResponse.json({ success: true, message: 'User already deleted from Auth, DB records cleaned up.' });
         }
 
-        return NextResponse.json({ error: 'Failed to delete user', details: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to delete user', details: errorMessage }, { status: 500 });
     }
 }

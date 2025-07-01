@@ -36,8 +36,9 @@ export default function NotificationsPage() {
                         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
                     );
                     setNotifications(sortedNotifications);
-                } catch (error: any) {
-                    toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                } catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    toast({ title: 'Error', description: errorMessage, variant: 'destructive' });
                 } finally {
                     setIsLoading(false);
                 }
@@ -77,8 +78,9 @@ export default function NotificationsPage() {
             }
 
             toast({ title: "Notificación eliminada" });
-        } catch (error: any) {
-            toast({ title: "Error al eliminar", description: error.message, variant: "destructive" });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            toast({ title: "Error al eliminar", description: errorMessage, variant: "destructive" });
             // Rollback on error
             setNotifications(originalNotifications);
         } finally {

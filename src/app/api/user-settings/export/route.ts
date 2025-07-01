@@ -41,8 +41,9 @@ export async function GET(req: NextRequest) {
 
         return new NextResponse(jsonString, { headers });
 
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         console.error('Error exporting user settings:', error);
-        return NextResponse.json({ error: error.message || 'Failed to export settings' }, { status: 500 });
+        return NextResponse.json({ error: errorMessage || 'Failed to export settings' }, { status: 500 });
     }
 }

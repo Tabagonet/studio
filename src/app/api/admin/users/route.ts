@@ -46,8 +46,9 @@ export async function GET(req: NextRequest) {
         });
 
         return NextResponse.json({ users });
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         console.error("Error fetching users for admin:", error);
-        return NextResponse.json({ error: 'Failed to fetch users', details: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to fetch users', details: errorMessage }, { status: 500 });
     }
 }

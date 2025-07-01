@@ -1,3 +1,4 @@
+
 // src/app/api/notifications/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -42,9 +43,10 @@ export async function GET(req: NextRequest) {
         
         return NextResponse.json({ notifications });
 
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         console.error("Error fetching notifications:", error);
-        return NextResponse.json({ error: 'Failed to fetch notifications', details: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to fetch notifications', details: errorMessage }, { status: 500 });
     }
 }
 
@@ -76,8 +78,9 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ success: true, message: `${unreadNotificationsSnapshot.size} notifications marked as read.` });
 
-    } catch (error: any) {
+    } catch (error) {
+         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
          console.error("Error marking notifications as read:", error);
-        return NextResponse.json({ error: 'Failed to mark notifications as read', details: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to mark notifications as read', details: errorMessage }, { status: 500 });
     }
 }

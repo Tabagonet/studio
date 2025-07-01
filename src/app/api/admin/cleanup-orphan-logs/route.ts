@@ -60,8 +60,9 @@ export async function DELETE(req: NextRequest) {
 
         return NextResponse.json({ success: true, message: `Se eliminaron ${orphanLogsRefs.length} registros huérfanos.` });
 
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         console.error("Error cleaning up orphan activity logs:", error);
-        return NextResponse.json({ error: 'Failed to clean up logs', details: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to clean up logs', details: errorMessage }, { status: 500 });
     }
 }

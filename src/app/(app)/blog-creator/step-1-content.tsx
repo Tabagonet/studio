@@ -82,8 +82,9 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                         updatePostData({ author: matchingAuthor });
                     }
                 }
-            } catch (error: any) {
-                toast({ title: "Error de Carga", description: error.message, variant: "destructive" });
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                toast({ title: "Error de Carga", description: errorMessage, variant: "destructive" });
             } finally {
                 setIsLoading(prev => ({ ...prev, categories: false, authors: false }));
             }
@@ -137,8 +138,9 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
             const result = await response.json();
             setSuggestedTitles(result.titles || []);
 
-        } catch (error: any) {
-            toast({ title: "Error de IA", description: error.message, variant: "destructive" });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            toast({ title: "Error de IA", description: errorMessage, variant: "destructive" });
         } finally {
             setIsGeneratingIdeas(false);
         }
@@ -206,8 +208,9 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                 toast({ title: "Etiquetas sugeridas", description: "Se han actualizado las etiquetas." });
             }
 
-        } catch (error: any) {
-            toast({ title: "Error de IA", description: error.message, variant: "destructive" });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            toast({ title: "Error de IA", description: errorMessage, variant: "destructive" });
         } finally {
             setIsLoading(prev => ({ ...prev, ai: false }));
         }
@@ -348,8 +351,9 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                 const imageData = await response.json();
                 finalImageUrl = imageData.url;
 
-            } catch (err: any) {
-                toast({ title: 'Error al subir imagen', description: err.message, variant: 'destructive' });
+            } catch (err) {
+                const errorMessage = err instanceof Error ? err.message : String(err);
+                toast({ title: 'Error al subir imagen', description: errorMessage, variant: 'destructive' });
                 setIsUploadingImage(false);
                 return;
             } finally {

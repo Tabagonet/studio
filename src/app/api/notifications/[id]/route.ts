@@ -48,8 +48,9 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
         return NextResponse.json({ success: true, message: 'Notification deleted successfully.' });
 
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         console.error(`Error deleting notification ${notificationId}:`, error);
-        return NextResponse.json({ error: 'Failed to delete notification', details: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to delete notification', details: errorMessage }, { status: 500 });
     }
 }
