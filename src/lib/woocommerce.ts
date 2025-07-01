@@ -1,5 +1,6 @@
 // src/lib/woocommerce.ts
-import WooCommerceRestApi from "@woocommerce/woocommerce-rest-api";
+// Use `require` for this CommonJS library to ensure compatibility with Next.js server-side builds.
+const WooCommerceRestApi = require("@woocommerce/woocommerce-rest-api");
 import type WooCommerceRestApiType from "@woocommerce/woocommerce-rest-api";
 
 interface WooCommerceCredentials {
@@ -41,7 +42,8 @@ export function createWooCommerceApi(credentials: WooCommerceCredentials): WooCo
     // console.log("WooCommerce API client dynamically created for user.");
     return wooApi;
   } catch (error) {
-    console.error("Error creating dynamic WooCommerce API client:", error);
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+    console.error("Error creating dynamic WooCommerce API client:", errorMessage);
     return null;
   }
 }

@@ -187,8 +187,8 @@ export default function BatchProcessPage() {
             });
         },
         error: (error: any) => {
-            console.error("Error parsing CSV:", error);
             const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error("Error parsing CSV:", errorMessage);
             toast({ title: "Error al leer CSV", description: errorMessage, variant: "destructive" });
         }
     });
