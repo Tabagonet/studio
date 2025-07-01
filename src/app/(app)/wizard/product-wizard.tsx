@@ -120,20 +120,24 @@ export function ProductWizard() {
                 };
                 const translateResponse = await fetch('/api/translate', { 
                     method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
-                    body: JSON.stringify({ contentToTranslate, targetLanguage: lang })
+                    body: JSON.stringify({ content: contentToTranslate, targetLanguage: lang })
                 });
                 if (!translateResponse.ok) throw new Error(`Error al traducir a ${lang}`);
-                const translatedContent = await translateResponse.json();
+                const translatedContent = (await translateResponse.json()).content;
                 updateStepStatus(`translate_${lang}`, 'success', undefined, 100);
 
                 updateStepStatus(`create_${lang}`, 'processing', undefined, 50);
                 const targetLangSlug = ALL_LANGUAGES.find(l => l.code === lang)?.slug || lang.toLowerCase().substring(0, 2);
+                
+                const baseSkuForTranslation = finalProductData.sku.trim() || `PROD${originalResult.data.id}`;
+                const translatedSku = `${baseSkuForTranslation}-${targetLangSlug.toUpperCase()}`;
+
                 const translatedProductData = {
                   ...finalProductData,
                   name: translatedContent.name,
                   shortDescription: translatedContent.short_description,
                   longDescription: translatedContent.long_description,
-                  sku: `${finalProductData.sku || 'PROD'}-${targetLangSlug.toUpperCase()}`
+                  sku: translatedSku
                 };
                 
                 const translatedPayload = { productData: translatedProductData, lang: targetLangSlug };
