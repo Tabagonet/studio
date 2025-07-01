@@ -8,7 +8,7 @@ import * as cheerio from 'cheerio';
 import { z } from 'zod';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { SeoAnalysisRecord, SeoAnalysisInput } from '@/lib/types';
+import { SeoAnalysisRecord } from '@/lib/types';
 import type { AxiosInstance } from 'axios';
 
 
@@ -86,8 +86,9 @@ async function getBackendMetadata(postId: number, postType: 'Post' | 'Page', uid
             metaDescription: rawData.meta?._yoast_wpseo_metadesc || '',
             focusKeyword: rawData.meta?._yoast_wpseo_focuskw || '',
         };
-    } catch (apiError) {
-        console.error(`Failed to fetch backend metadata for ${postType} ${postId}:`, apiError);
+    } catch (apiError: unknown) {
+        const errorMessage = apiError instanceof Error ? apiError.message : String(apiError);
+        console.error(`Failed to fetch backend metadata for ${postType} ${postId}:`, errorMessage);
         return { title: '', metaDescription: '', focusKeyword: '' };
     }
 }
@@ -174,7 +175,7 @@ async function getPageContentFromScraping(url: string, wpApi: AxiosInstance | nu
             textContent: $analysisArea.text().replace(/\s\s+/g, ' ').trim(),
         };
 
-    } catch (error) {
+    } catch (error: unknown) {
         if (axios.isAxiosError(error)) {
             let message = 'No se pudo acceder a la URL.';
             if (error.code === 'ECONNABORTED') message = 'La solicitud a la URL tardó demasiado en responder (timeout de 10s).';
