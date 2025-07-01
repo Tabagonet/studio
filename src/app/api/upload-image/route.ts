@@ -5,6 +5,8 @@ import { adminAuth } from "@/lib/firebase-admin";
 import axios from "axios";
 import FormDataLib from "form-data";
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   const token = req.headers.get("Authorization")?.split("Bearer ")[1];
   if (!token) {

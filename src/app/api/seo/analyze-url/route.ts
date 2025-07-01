@@ -11,6 +11,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SeoAnalysisRecord } from '@/lib/types';
 import type { AxiosInstance } from 'axios';
 
+export const dynamic = 'force-dynamic';
 
 const analyzeUrlSchema = z.object({
   url: z.string().min(1, "La URL no puede estar vacía."),

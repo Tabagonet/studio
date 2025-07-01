@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
 
+export const dynamic = 'force-dynamic';
+
 const userSchema = z.object({
   uid: z.string(),
   email: z.string().email().or(z.literal('')),

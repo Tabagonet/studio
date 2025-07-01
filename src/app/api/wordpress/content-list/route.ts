@@ -4,6 +4,8 @@ import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import type { AxiosInstance } from 'axios';
 
+export const dynamic = 'force-dynamic';
+
 async function fetchAllPaginatedContent(wpApi: AxiosInstance, endpoint: string) {
     let allContent: any[] = [];
     let page = 1;

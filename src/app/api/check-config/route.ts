@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   // --- 1. Get User ID from Token ---
   let uid: string;

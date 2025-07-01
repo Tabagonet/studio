@@ -4,6 +4,8 @@ import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser, collectElementorTexts, replaceElementorTexts } from '@/lib/api-helpers';
 import { z } from 'zod';
 
+export const dynamic = 'force-dynamic';
+
 const batchCloneSchema = z.object({
   post_ids: z.array(z.number()),
   target_lang: z.string(),

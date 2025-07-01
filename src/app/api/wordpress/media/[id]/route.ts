@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 
+export const dynamic = 'force-dynamic';
+
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];

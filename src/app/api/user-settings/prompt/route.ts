@@ -4,6 +4,8 @@ import type * as admin from 'firebase-admin';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
 
+export const dynamic = 'force-dynamic';
+
 // Helper function to get user UID and user settings document from request
 async function getUserSettings(req: NextRequest): Promise<{ uid: string; settings: admin.firestore.DocumentData | undefined }> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];

@@ -6,6 +6,8 @@ import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   let uid: string;
   try {

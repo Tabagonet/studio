@@ -4,6 +4,8 @@ import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { addRemotePattern } from '@/lib/next-config-manager';
 
+export const dynamic = 'force-dynamic';
+
 // Helper function to get user UID from token
 async function getUserIdFromRequest(req: NextRequest): Promise<string> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];

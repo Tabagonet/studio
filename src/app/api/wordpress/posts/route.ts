@@ -6,6 +6,8 @@ import { z } from 'zod';
 import type { BlogPostData } from '@/lib/types';
 import axios from 'axios';
 
+export const dynamic = 'force-dynamic';
+
 const slugify = (text: string) => {
     if (!text) return '';
     return text.toString().toLowerCase()
