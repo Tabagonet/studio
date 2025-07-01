@@ -26,7 +26,7 @@ interface Step1DetailsPhotosProps {
   isProcessing?: boolean;
 }
 
-const StatusIndicator = ({ status, message }: { status: 'checking' | 'exists' | 'available' | 'idle', message: string }) => {
+const StatusIndicator = ({ status, message }: { status: 'idle' | 'checking' | 'exists' | 'available'; message: string }) => {
     if (status === 'idle') return null;
     if (status === 'checking') return <div className="flex items-center text-xs text-muted-foreground mt-1"><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Verificando...</div>;
     const color = status === 'exists' ? 'text-destructive' : 'text-green-600';
@@ -92,10 +92,10 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         setWooCategories(flattenedHierarchy);
 
       } catch (error) {
-        console.error("Error fetching WooCommerce categories:", error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         toast({
           title: "Error al Cargar Categorías",
-          description: (error as Error).message || "No se pudieron cargar las categorías de WooCommerce.",
+          description: errorMessage || "No se pudieron cargar las categorías de WooCommerce.",
           variant: "destructive",
         });
       } finally {
@@ -144,7 +144,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                  (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'idle', message: '' }); // Reset on error
             }
         } catch (error) {
-            console.error(`Error checking ${field}:`, error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error(`Error checking ${field}:`, errorMessage);
             (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'idle', message: '' });
         }
     };
@@ -498,7 +499,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                         <div>
                             <Label htmlFor="shipping_class">Clase de envío</Label>
                             <Input id="shipping_class" name="shipping_class" value={productData.shipping_class} onChange={handleInputChange} placeholder="Introduce el slug de la clase de envío" disabled={isProcessing} />
-                            <p className="text-xs text-muted-foreground mt-1">Encuentra el slug en WooCommerce > Ajustes > Envío > Clases de envío.</p>
+                            <p className="text-xs text-muted-foreground mt-1">Encuentra el slug en WooCommerce &gt; Ajustes &gt; Envío &gt; Clases de envío.</p>
                         </div>
                     </div>
                 )}
