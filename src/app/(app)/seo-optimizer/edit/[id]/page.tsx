@@ -229,28 +229,14 @@ function EditPageContent() {
       
       setPost(loadedPost);
       
-      if (typeof loadedPost.content === 'string' && loadedPost.link) {
-        const tempDiv = document.createElement('div'); tempDiv.innerHTML = loadedPost.content;
-        const siteUrl = new URL(loadedPost.link);
-        const images: ContentImage[] = Array.from(tempDiv.querySelectorAll('img')).map((img) => {
-            const originalSrc = img.getAttribute('src'); if (!originalSrc) return null;
-            
-            const classList = img.getAttribute('class') || '';
-            const match = classList.match(/wp-image-(\d+)/);
-            const mediaId = match ? parseInt(match[1], 10) : null;
-
-            let displaySrc = originalSrc;
-            if (displaySrc.startsWith('/')) displaySrc = `${siteUrl.origin}${displaySrc}`;
-            try { new URL(displaySrc); return { id: originalSrc, src: displaySrc, alt: img.getAttribute('alt') || '', mediaId }; } 
-            catch (e) { return null; }
-        }).filter((img): img is ContentImage => !!img);
-        
-        setContentImages(images);
-        setInitialContentImages(images); // Store initial state for comparison on save
-      } else { 
-        setContentImages([]);
-        setInitialContentImages([]);
+      if (postData.scrapedImages && Array.isArray(postData.scrapedImages)) {
+          setContentImages(postData.scrapedImages);
+          setInitialContentImages(postData.scrapedImages);
+      } else {
+          setContentImages([]);
+          setInitialContentImages([]);
       }
+
     } catch (e: any) { setError(e.message);
     } finally { setIsLoading(false); }
   }, [postId, postType, toast]);
@@ -282,7 +268,7 @@ function EditPageContent() {
         
         const altUpdates: { id: number, alt: string }[] = [];
         contentImages.forEach((currentImage) => {
-            const initialImage = initialContentImages.find(img => img.id === currentImage.id);
+            const initialImage = initialContentImages.find(img => img.mediaId === currentImage.mediaId);
             if (currentImage.mediaId && initialImage && currentImage.alt !== initialImage.alt) {
                 altUpdates.push({ id: currentImage.mediaId, alt: currentImage.alt });
             }
@@ -436,4 +422,3 @@ export default function SeoEditPage() {
         </Suspense>
     )
 }
-

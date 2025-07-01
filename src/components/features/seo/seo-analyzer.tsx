@@ -83,12 +83,10 @@ export function SeoAnalyzer({
   const { toast } = useToast();
   const hasTriggeredAutoKeyword = React.useRef(false);
 
-  const handleImageAltChange = useCallback((imageId: string, newAlt: string) => {
-    // This function ONLY updates the local list of images.
-    // The parent component is responsible for comparing this with the initial
-    // state and sending the necessary API calls on save.
+  const handleImageAltChange = useCallback((mediaId: number | null, newAlt: string) => {
+    if (!mediaId) return;
     setContentImages(prevImages => 
-        prevImages.map((img) => img.id === imageId ? { ...img, alt: newAlt } : img)
+        prevImages.map((img) => img.mediaId === mediaId ? { ...img, alt: newAlt } : img)
     );
   }, [setContentImages]);
 
@@ -110,7 +108,7 @@ export function SeoAnalyzer({
             mode, 
             language: 'Spanish',
             existingTitle: post.meta._yoast_wpseo_title || post.title,
-            existingContent: post.content,
+            existingContent: typeof post.content === 'string' ? post.content : '',
             keywords: post.meta._yoast_wpseo_focuskw || '',
         };
         const response = await fetch('/api/generate-blog-post', {
@@ -143,7 +141,7 @@ export function SeoAnalyzer({
             const user = auth.currentUser; if (!user) return;
             const token = await user.getIdToken();
 
-            const payload = { mode: 'generate_focus_keyword', language: 'Spanish', existingTitle: post.title, existingContent: post.content };
+            const payload = { mode: 'generate_focus_keyword', language: 'Spanish', existingTitle: post.title, existingContent: typeof post.content === 'string' ? post.content : '' };
             const response = await fetch('/api/generate-blog-post', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload) });
             if (response.ok) {
                 const aiContent = await response.json();
@@ -169,7 +167,7 @@ export function SeoAnalyzer({
             mode: 'generate_image_meta',
             language: 'Spanish',
             existingTitle: post.title,
-            existingContent: post.content,
+            existingContent: typeof post.content === 'string' ? post.content : '',
         };
         const response = await fetch('/api/generate-blog-post', {
             method: 'POST',
@@ -203,7 +201,8 @@ export function SeoAnalyzer({
     
     const seoTitle = (post.meta._yoast_wpseo_title || '').trim();
     const metaDescription = (post.meta._yoast_wpseo_metadesc || '').trim();
-    const plainContent = (post.content || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    const contentText = typeof post.content === 'string' ? post.content : (post.content || []).map(w => w.text).join(' ');
+    const plainContent = contentText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     const firstParagraph = plainContent.substring(0, 600).toLowerCase();
     const editLink = post.isElementor ? post.elementorEditLink : post.adminEditLink;
 
@@ -306,13 +305,13 @@ export function SeoAnalyzer({
                                 <img src={img.src} alt="Vista previa" className="rounded-md object-cover h-full w-full" />
                             </div>
                             <div className="flex-1 text-sm text-muted-foreground truncate" title={img.src}>
-                                {img.id.split('/').pop()}
+                                {img.src.split('/').pop()}
                             </div>
                             <div className="flex items-center gap-2">
                                <div className="h-2 w-2 rounded-full" style={{ backgroundColor: img.alt ? 'hsl(var(--primary))' : 'hsl(var(--destructive))' }} />
                                <Input 
                                  value={img.alt}
-                                 onChange={(e) => handleImageAltChange(img.id, e.target.value)}
+                                 onChange={(e) => handleImageAltChange(img.mediaId, e.target.value)}
                                  placeholder="Añade el 'alt text'..."
                                  className="text-xs h-8"
                                />

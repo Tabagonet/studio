@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser, uploadImageToWordPress, extractElementorHeadings } from '@/lib/api-helpers';
 import { z } from 'zod';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
 
 const slugify = (text: string) => {
     if (!text) return '';
@@ -61,6 +63,51 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     } else {
         finalContent = pageData.content?.rendered || '';
     }
+    
+    // --- New: Scrape live page for accurate image data ---
+    const pageLink = pageData.link;
+    let scrapedImages: any[] = [];
+    if (pageLink && wpApi) {
+        try {
+            const scrapeResponse = await axios.get(pageLink, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36', 'Cache-Control': 'no-cache' } });
+            const html = scrapeResponse.data;
+            const $ = cheerio.load(html);
+            
+            const $contentArea = $('main').length ? $('main') : $('article').length ? $('article') : $('body');
+            $contentArea.find('header, footer, nav').remove();
+
+            const imagePromises: Promise<any>[] = [];
+            const foundImageIds = new Set<number>();
+
+            $contentArea.find('img').each((i, el) => {
+                const classList = $(el).attr('class') || '';
+                const match = classList.match(/wp-image-(\d+)/);
+                const mediaId = match ? parseInt(match[1], 10) : null;
+                if (mediaId && !foundImageIds.has(mediaId)) {
+                    foundImageIds.add(mediaId);
+                }
+            });
+            
+            if (foundImageIds.size > 0) {
+                 const mediaResponse = await wpApi.get('/media', {
+                    params: { include: Array.from(foundImageIds).join(','), per_page: 100, _fields: 'id,alt_text,source_url,media_details' }
+                });
+
+                if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
+                     scrapedImages = mediaResponse.data.map((mediaItem: any) => ({
+                        id: mediaItem.source_url, // Use source_url as a unique key
+                        src: mediaItem.source_url,
+                        alt: mediaItem.alt_text || '',
+                        mediaId: mediaItem.id,
+                    }));
+                }
+            }
+        } catch (scrapeError) {
+            console.warn(`Could not scrape ${pageLink} for live image data:`, scrapeError);
+        }
+    }
+    // --- End new logic ---
+
 
     const adminUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '/wp-admin/');
     const elementorEditLink = isElementor ? `${adminUrl}post.php?post=${pageId}&action=elementor` : null;
@@ -74,6 +121,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       isElementor,
       elementorEditLink,
       adminEditLink,
+      scrapedImages,
     };
     return NextResponse.json(transformed);
   } catch (error: any) {
@@ -148,4 +196,3 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: errorMessage }, { status });
   }
 }
-
