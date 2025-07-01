@@ -12,11 +12,11 @@ import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ContentImage } from '@/lib/types';
+import type { ContentImage, ExtractedWidget } from '@/lib/types';
 
 interface SeoAnalyzerPost {
   title: string;
-  content: string; 
+  content: string | ExtractedWidget[]; 
   meta: {
       _yoast_wpseo_title: string;
       _yoast_wpseo_metadesc: string;
