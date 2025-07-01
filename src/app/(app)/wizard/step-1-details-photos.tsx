@@ -162,7 +162,6 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     if (name === 'productType') {
       updateProductData({ 
         productType: value as ProductType, 
-        // Reset attributes and variations when type changes to avoid inconsistencies
         attributes: [{ name: '', value: '', forVariations: false, visible: true }], 
         variations: [] 
       });
@@ -347,6 +346,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             <Card>
               <CardHeader>
                 <CardTitle>Información del Producto</CardTitle>
+                <CardDescription>Define los detalles clave de tu producto. Las opciones cambiarán según el tipo que elijas.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -408,7 +408,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                 </div>
 
                 {productData.productType === 'simple' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t pt-6">
                     <div>
                       <Label htmlFor="regularPrice">Precio Regular (€)</Label>
                       <Input id="regularPrice" name="regularPrice" type="number" value={productData.regularPrice} onChange={handleInputChange} placeholder="Ej: 29.99" disabled={isProcessing} />
@@ -419,91 +419,92 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                     </div>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                  <CardTitle>Inventario y Envío</CardTitle>
-                  <CardDescription>Define el stock, peso y dimensiones del producto.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                  <div className="flex items-center space-x-2">
-                  <Checkbox
-                      id="manage_stock"
-                      checked={productData.manage_stock}
-                      onCheckedChange={(checked) => updateProductData({ manage_stock: !!checked })}
-                      disabled={isProcessing}
-                  />
-                  <Label htmlFor="manage_stock" className="text-sm font-normal">
-                      Gestionar inventario a nivel de producto
-                  </Label>
-                  </div>
-                  {productData.manage_stock && (
-                  <div>
-                      <Label htmlFor="stockQuantity">Cantidad en Stock</Label>
-                      <Input
-                      id="stockQuantity"
-                      name="stockQuantity"
-                      type="number"
-                      value={productData.stockQuantity}
-                      onChange={handleInputChange}
-                      placeholder="Ej: 100"
-                      disabled={isProcessing}
-                      />
-                  </div>
-                  )}
-                  <div>
-                  <Label htmlFor="weight">Peso (kg)</Label>
-                  <Input
-                      id="weight"
-                      name="weight"
-                      type="number"
-                      value={productData.weight}
-                      onChange={handleInputChange}
-                      placeholder="Ej: 0.5"
-                      disabled={isProcessing}
-                  />
-                  </div>
-                  <div>
-                  <Label>Dimensiones (cm)</Label>
-                  <div className="grid grid-cols-3 gap-2">
-                      <Input name="length" value={productData.dimensions?.length} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), length: e.target.value } as any })} placeholder="Largo" disabled={isProcessing} />
-                      <Input name="width" value={productData.dimensions?.width} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), width: e.target.value } as any })} placeholder="Ancho" disabled={isProcessing} />
-                      <Input name="height" value={productData.dimensions?.height} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), height: e.target.value } as any })} placeholder="Alto" disabled={isProcessing} />
-                  </div>
-                  </div>
-                  <div>
-                  <Label htmlFor="shipping_class">Clase de envío</Label>
-                  <Input
-                      id="shipping_class"
-                      name="shipping_class"
-                      value={productData.shipping_class}
-                      onChange={handleInputChange}
-                      placeholder="Introduce el slug de la clase de envío"
-                      disabled={isProcessing}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                      Encuentra el slug en WooCommerce &gt; Ajustes &gt; Envío &gt; Clases de envío.
-                  </p>
-                  </div>
-              </CardContent>
-            </Card>
-            
-            {productData.productType === 'grouped' && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Productos Agrupados</CardTitle>
-                        <CardDescription>Busca y selecciona los productos simples que formarán parte de este grupo.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
+                
+                {productData.productType === 'grouped' && (
+                    <div className="border-t pt-6 mt-6">
+                        <h3 className="text-lg font-medium mb-2">Productos Agrupados</h3>
+                        <p className="text-sm text-muted-foreground mb-4">Busca y selecciona los productos simples que formarán parte de este grupo.</p>
                         <GroupedProductSelector 
                             productIds={productData.groupedProductIds || []} 
                             onProductIdsChange={(ids) => updateProductData({ groupedProductIds: ids })} 
                         />
-                    </CardContent>
-                </Card>
-            )}
+                    </div>
+                )}
+
+                {productData.productType !== 'grouped' && (
+                    <div className="border-t pt-6 mt-6">
+                        <h3 className="text-lg font-medium mb-2">Atributos del Producto</h3>
+                        <p className="text-sm text-muted-foreground mb-4">Añade atributos como talla, color, etc. Para productos variables, marca la casilla "Para variaciones" y separa los valores con " | ".</p>
+                        {productData.attributes.map((attr, index) => (
+                           <div key={index} className="flex flex-col sm:flex-row items-start sm:items-end gap-2 p-3 border rounded-md bg-muted/20 mb-2">
+                                <div className="flex-1 w-full">
+                                    <Label htmlFor={`attrName-${index}`}>Nombre</Label>
+                                    <Input id={`attrName-${index}`} value={attr.name} onChange={(e) => handleAttributeChange(index, 'name', e.target.value)} placeholder="Ej: Color" disabled={isProcessing || isGenerating} />
+                                </div>
+                                <div className="flex-1 w-full">
+                                    <Label htmlFor={`attrValue-${index}`}>Valor(es)</Label>
+                                    <Input id={`attrValue-${index}`} value={attr.value} onChange={(e) => handleAttributeChange(index, 'value', e.target.value)} placeholder="Ej: Azul | Rojo | Verde" disabled={isProcessing || isGenerating} />
+                                </div>
+                                <div className="flex items-center gap-4 pt-2 sm:pt-0 sm:self-end sm:h-10">
+                                    {productData.productType === 'variable' && (
+                                        <div className="flex items-center space-x-2">
+                                            <Checkbox id={`attrVar-${index}`} checked={attr.forVariations} onCheckedChange={(checked) => handleAttributeChange(index, 'forVariations', !!checked)} disabled={isProcessing || isGenerating} />
+                                            <Label htmlFor={`attrVar-${index}`} className="text-sm font-normal whitespace-nowrap">Para variaciones</Label>
+                                        </div>
+                                    )}
+                                    <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" disabled={isProcessing || isGenerating} className="flex-shrink-0">
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                </div>
+                            </div>
+                        ))}
+                        <Button type="button" variant="outline" onClick={addAttribute} className="mt-2" disabled={isProcessing || isGenerating}>
+                            <PlusCircle className="mr-2 h-4 w-4" /> Añadir Atributo
+                        </Button>
+                    </div>
+                )}
+
+                {productData.productType === 'variable' && (
+                    <div className="border-t pt-6 mt-6">
+                        <VariableProductManager productData={productData} updateProductData={updateProductData} />
+                    </div>
+                )}
+                
+                {productData.productType !== 'variable' && (
+                    <div className="border-t pt-6 mt-6 space-y-4">
+                        <h3 className="text-lg font-medium">Inventario y Envío</h3>
+                        <div className="flex items-center space-x-2">
+                            <Checkbox id="manage_stock" checked={productData.manage_stock} onCheckedChange={(checked) => updateProductData({ manage_stock: !!checked })} disabled={isProcessing} />
+                            <Label htmlFor="manage_stock" className="text-sm font-normal">Gestionar inventario a nivel de producto</Label>
+                        </div>
+                        {productData.manage_stock && (
+                            <div>
+                                <Label htmlFor="stockQuantity">Cantidad en Stock</Label>
+                                <Input id="stockQuantity" name="stockQuantity" type="number" value={productData.stockQuantity} onChange={handleInputChange} placeholder="Ej: 100" disabled={isProcessing} />
+                            </div>
+                        )}
+                        <div>
+                            <Label htmlFor="weight">Peso (kg)</Label>
+                            <Input id="weight" name="weight" type="number" value={productData.weight} onChange={handleInputChange} placeholder="Ej: 0.5" disabled={isProcessing} />
+                        </div>
+                        <div>
+                            <Label>Dimensiones (cm)</Label>
+                            <div className="grid grid-cols-3 gap-2">
+                                <Input name="length" value={productData.dimensions?.length} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), length: e.target.value } as any })} placeholder="Largo" disabled={isProcessing} />
+                                <Input name="width" value={productData.dimensions?.width} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), width: e.target.value } as any })} placeholder="Ancho" disabled={isProcessing} />
+                                <Input name="height" value={productData.dimensions?.height} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), height: e.target.value } as any })} placeholder="Alto" disabled={isProcessing} />
+                            </div>
+                        </div>
+                        <div>
+                            <Label htmlFor="shipping_class">Clase de envío</Label>
+                            <Input id="shipping_class" name="shipping_class" value={productData.shipping_class} onChange={handleInputChange} placeholder="Introduce el slug de la clase de envío" disabled={isProcessing} />
+                            <p className="text-xs text-muted-foreground mt-1">Encuentra el slug en WooCommerce > Ajustes > Envío > Clases de envío.</p>
+                        </div>
+                    </div>
+                )}
+
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader>
@@ -554,47 +555,6 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                 </div>
               </CardContent>
             </Card>
-
-            {productData.productType !== 'grouped' && (
-            <Card>
-                <CardHeader>
-                    <CardTitle>Atributos del Producto</CardTitle>
-                    <CardDescription>Añade atributos como talla, color, etc. Para productos variables, separa los valores con " | ".</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                {productData.attributes.map((attr, index) => (
-                    <div key={index} className="flex flex-col sm:flex-row items-start sm:items-end gap-2 p-3 border rounded-md bg-muted/20">
-                        <div className="flex-1 w-full">
-                            <Label htmlFor={`attrName-${index}`}>Nombre</Label>
-                            <Input id={`attrName-${index}`} value={attr.name} onChange={(e) => handleAttributeChange(index, 'name', e.target.value)} placeholder="Ej: Color" disabled={isProcessing || isGenerating} />
-                        </div>
-                        <div className="flex-1 w-full">
-                            <Label htmlFor={`attrValue-${index}`}>Valor(es)</Label>
-                            <Input id={`attrValue-${index}`} value={attr.value} onChange={(e) => handleAttributeChange(index, 'value', e.target.value)} placeholder="Ej: Azul | Rojo | Verde" disabled={isProcessing || isGenerating} />
-                        </div>
-                        <div className="flex items-center gap-4 pt-2 sm:pt-0 sm:self-end sm:h-10">
-                            {productData.productType === 'variable' && (
-                                <div className="flex items-center space-x-2">
-                                    <Checkbox id={`attrVar-${index}`} checked={attr.forVariations} onCheckedChange={(checked) => handleAttributeChange(index, 'forVariations', !!checked)} disabled={isProcessing || isGenerating} />
-                                    <Label htmlFor={`attrVar-${index}`} className="text-sm font-normal whitespace-nowrap">Para variaciones</Label>
-                                </div>
-                            )}
-                            <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" disabled={isProcessing || isGenerating} className="flex-shrink-0">
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                        </div>
-                    </div>
-                ))}
-                <Button type="button" variant="outline" onClick={addAttribute} className="mt-2" disabled={isProcessing || isGenerating}>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Añadir Atributo
-                </Button>
-                </CardContent>
-            </Card>
-            )}
-
-             {productData.productType === 'variable' && (
-                <VariableProductManager productData={productData} updateProductData={updateProductData} />
-            )}
         </div>
         <div className="lg:col-span-1 space-y-8">
             <Card>
