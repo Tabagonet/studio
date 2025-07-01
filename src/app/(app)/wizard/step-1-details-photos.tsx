@@ -39,6 +39,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingImageMeta, setIsGeneratingImageMeta] = useState(false);
   const [skuStatus, setSkuStatus] = useState<{ status: 'idle' | 'checking' | 'exists' | 'available'; message: string }>({ status: 'idle', message: '' });
   const [nameStatus, setNameStatus] = useState<{ status: 'idle' | 'checking' | 'exists' | 'available'; message: string }>({ status: 'idle', message: '' });
   const { toast } = useToast();
@@ -243,14 +244,11 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         });
 
         if (!response.ok) {
-            let errorToastDescription = `El servidor respondió con un error ${response.status}. Revisa la consola del servidor.`;
+            let errorToastDescription = `El servidor respondió con un error ${response.status}.`;
             try {
-                // Attempt to parse the error response as JSON
                 const errorData = await response.json();
-                // Use the specific error message from the API if available
                 errorToastDescription = errorData.error || errorData.message || errorToastDescription;
             } catch (e) {
-                // If parsing fails, it's likely the raw HTML error page
                 errorToastDescription = `Error interno del servidor (${response.status}). La respuesta no es un JSON válido.`;
             }
             throw new Error(errorToastDescription);
@@ -274,6 +272,63 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         toast({ title: "Error de IA", description: error.message, variant: "destructive", duration: 10000 });
     } finally {
         setIsGenerating(false);
+    }
+  };
+
+  const handleGenerateImageMetadata = async () => {
+    if (!productData.name) {
+        toast({ title: "Falta el nombre", description: "Por favor, introduce un nombre para el producto.", variant: "destructive" });
+        return;
+    }
+    setIsGeneratingImageMeta(true);
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("No autenticado.");
+        const token = await user.getIdToken();
+
+        const payload = {
+            productName: productData.name,
+            productType: productData.productType,
+            keywords: productData.keywords,
+            language: productData.language,
+            mode: 'image_meta_only',
+        };
+
+        const response = await fetch('/api/generate-description', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            let errorToastDescription = `El servidor respondió con un error ${response.status}.`;
+            try {
+                const errorData = await response.json();
+                errorToastDescription = errorData.error || errorData.message || errorToastDescription;
+            } catch (e) {
+                // Ignore if parsing fails
+            }
+            throw new Error(errorToastDescription);
+        }
+
+        const aiContent = await response.json();
+        
+        updateProductData({
+            imageTitle: aiContent.imageTitle,
+            imageAltText: aiContent.imageAltText,
+            imageCaption: aiContent.imageCaption,
+            imageDescription: aiContent.imageDescription,
+        });
+
+        toast({ title: "Metadatos de imagen generados", description: "La IA ha rellenado los datos SEO para las imágenes." });
+
+    } catch (error: any) {
+        toast({ title: "Error de IA", description: error.message, variant: "destructive", duration: 7000 });
+    } finally {
+        setIsGeneratingImageMeta(false);
     }
   };
 
@@ -545,10 +600,19 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             <Card>
               <CardHeader>
                 <CardTitle>Imágenes del Producto</CardTitle>
-                <CardDescription>Sube las imágenes para tu producto. La primera imagen se usará como principal.</CardDescription>
+                <CardDescription>Sube las imágenes para tu producto. La primera se usará como principal.</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} isProcessing={isProcessing || isGenerating} maxPhotos={15} />
+                <Button 
+                  onClick={handleGenerateImageMetadata} 
+                  disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} 
+                  className="w-full"
+                  variant="outline"
+                >
+                  {isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}
+                  {isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}
+                </Button>
               </CardContent>
             </Card>
 

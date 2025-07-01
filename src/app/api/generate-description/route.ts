@@ -9,11 +9,17 @@ import { getApiClientsForUser } from '@/lib/api-helpers';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Handlebars from 'handlebars';
 
-// Define schemas directly in the route
-const GenerateProductOutputSchema = z.object({
+const FullProductOutputSchema = z.object({
   shortDescription: z.string().describe('A brief, catchy summary of the product (1-2 sentences). Must use HTML for formatting.'),
   longDescription: z.string().describe('A detailed, persuasive, and comprehensive description of the product. Must use HTML for formatting.'),
   keywords: z.string().describe('A comma-separated list of 5 to 10 relevant SEO keywords/tags for the product, in English.'),
+  imageTitle: z.string().describe('A concise, SEO-friendly title for the product images.'),
+  imageAltText: z.string().describe('A descriptive alt text for SEO, describing the image for visually impaired users.'),
+  imageCaption: z.string().describe('An engaging caption for the image, suitable for the media library.'),
+  imageDescription: z.string().describe('A detailed description for the image media library entry.'),
+});
+
+const ImageMetaOnlySchema = z.object({
   imageTitle: z.string().describe('A concise, SEO-friendly title for the product images.'),
   imageAltText: z.string().describe('A descriptive alt text for SEO, describing the image for visually impaired users.'),
   imageCaption: z.string().describe('An engaging caption for the image, suitable for the media library.'),
@@ -44,6 +50,7 @@ export async function POST(req: NextRequest) {
         keywords: z.string().optional(),
         language: z.enum(['Spanish', 'English', 'French', 'German', 'Portuguese']).default('Spanish'),
         groupedProductIds: z.array(z.number()).optional(),
+        mode: z.enum(['full_product', 'image_meta_only']).default('full_product'),
     });
 
     const validationResult = clientInputSchema.safeParse(body);
@@ -72,7 +79,24 @@ export async function POST(req: NextRequest) {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
     
-    const generateProductPromptTemplate = `You are an expert e-commerce copywriter and SEO specialist.
+    let promptTemplate: string;
+    let outputSchema: z.ZodTypeAny;
+
+    if (clientInput.mode === 'image_meta_only') {
+      outputSchema = ImageMetaOnlySchema;
+      promptTemplate = `You are an expert e-commerce copywriter and SEO specialist.
+Your task is to generate ONLY the SEO metadata for product images.
+The response must be a single, valid JSON object with the following keys: "imageTitle", "imageAltText", "imageCaption", "imageDescription".
+
+**Input Information:**
+- **Product Name:** {{productName}}
+- **Product Type:** {{productType}}
+- **User-provided Keywords (for inspiration):** {{keywords}}
+
+Generate the JSON object based on your research of "{{productName}}".`;
+    } else { // full_product
+      outputSchema = FullProductOutputSchema;
+      promptTemplate = `You are an expert e-commerce copywriter and SEO specialist.
 Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
 The response must be a single, valid JSON object with the following keys: "shortDescription", "longDescription", "keywords", "imageTitle", "imageAltText", "imageCaption", "imageDescription". Do not include markdown backticks (\`\`\`) or the word "json" in your response.
 
@@ -85,13 +109,14 @@ The response must be a single, valid JSON object with the following keys: "short
 {{{groupedProductsList}}}
 
 Generate the complete JSON object based on your research of "{{productName}}".`;
+    }
 
-    const template = Handlebars.compile(generateProductPromptTemplate, { noEscape: true });
+    const template = Handlebars.compile(promptTemplate, { noEscape: true });
     const finalPrompt = template({ ...clientInput, groupedProductsList });
     
     const result = await model.generateContent(finalPrompt);
     const response = await result.response;
-    const aiContent = GenerateProductOutputSchema.parse(JSON.parse(response.text()));
+    const aiContent = outputSchema.parse(JSON.parse(response.text()));
     
     if (!aiContent) {
       throw new Error('AI returned an empty response.');
