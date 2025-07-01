@@ -96,7 +96,11 @@ The response must be a single, valid JSON object with the following keys: "image
 Generate the JSON object based on your research of "{{productName}}".`;
     } else { // full_product
       outputSchema = FullProductOutputSchema;
-      promptTemplate = `You are an expert e-commerce copywriter and SEO specialist.
+      const { settings } = await getApiClientsForUser(uid, true);
+      const activeKey = settings?.activeConnectionKey;
+      const customPrompt = activeKey ? settings?.connections?.[activeKey]?.promptTemplate : null;
+
+      promptTemplate = customPrompt || `You are an expert e-commerce copywriter and SEO specialist.
 Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
 The response must be a single, valid JSON object with the following keys: "shortDescription", "longDescription", "keywords", "imageTitle", "imageAltText", "imageCaption", "imageDescription". Do not include markdown backticks (\`\`\`) or the word "json" in your response.
 

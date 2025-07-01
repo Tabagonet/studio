@@ -55,9 +55,8 @@ export async function POST(req: NextRequest) {
             success: [] as string[],
             failed: [] as { lang: string; reason: string }[],
         };
-
-        const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
+        
+        const baseUrl = req.nextUrl.origin;
 
         for (const [lang, postId] of Object.entries(translations)) {
             if (lang === sourceLang) continue; // Skip the source post
@@ -71,12 +70,20 @@ export async function POST(req: NextRequest) {
                 let translatedFocusKeyword: string | undefined;
 
                 if (Object.keys(contentToTranslate).length > 0) {
-                     const systemInstruction = `You are an expert translator. Translate the values of the user-provided JSON object into the specified target language. It is crucial that you maintain the original JSON structure and keys. Your output must be only the translated JSON object.`;
-                     const prompt = `Translate the following content to ${lang}:\n\n${JSON.stringify(contentToTranslate)}`;
+                     const translateResponse = await fetch(`${baseUrl}/api/translate`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ contentToTranslate, targetLanguage: lang })
+                     });
 
-                     const result = await model.generateContent(`${systemInstruction}\n\n${prompt}`);
-                     const response = await result.response;
-                     const output = JSON.parse(response.text());
+                     if (!translateResponse.ok) {
+                        const errorData = await translateResponse.json();
+                        throw new Error(errorData.error || `La traducción para ${lang} falló.`);
+                     }
+                     const output = await translateResponse.json();
                      
                      if (!output || typeof output !== 'object') throw new Error('AI returned a non-object or empty response for translation.');
 

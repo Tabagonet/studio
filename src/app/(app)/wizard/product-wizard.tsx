@@ -14,7 +14,6 @@ import { auth } from '@/lib/firebase';
 import { ArrowLeft, ArrowRight, Rocket, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
-import axios from 'axios';
 
 export function ProductWizard() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -112,7 +111,6 @@ export function ProductWizard() {
 
         // --- Step 3: Create Translations ---
         if (finalProductData.targetLanguages) {
-            const baseUrl = window.location.origin;
             for (const lang of finalProductData.targetLanguages) {
                 updateStepStatus(`translate_${lang}`, 'processing', undefined, 50);
                 const contentToTranslate = {
@@ -120,7 +118,7 @@ export function ProductWizard() {
                     short_description: finalProductData.shortDescription,
                     long_description: finalProductData.longDescription,
                 };
-                const translateResponse = await fetch(`${baseUrl}/api/translate`, { 
+                const translateResponse = await fetch('/api/translate', { 
                     method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
                     body: JSON.stringify({ contentToTranslate, targetLanguage: lang })
                 });

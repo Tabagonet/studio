@@ -125,7 +125,7 @@ export function BlogCreator() {
             const contentToTranslate = { title: postData.title, content: postData.content };
             const translateResponse = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ contentToTranslate, targetLanguage: lang }) });
             if (!translateResponse.ok) throw new Error(`Error al traducir a ${lang}`);
-            const { content: translatedContent } = await translateResponse.json();
+            const translatedContent = await translateResponse.json();
             updateStepStatus(`translate_${lang}`, 'success');
 
             // b. Create translated post
