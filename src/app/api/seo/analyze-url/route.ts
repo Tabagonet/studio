@@ -74,10 +74,6 @@ async function getPageContentFromApi(postId: number, postType: 'Post' | 'Page', 
     if (!rawData || !rawData.content || !rawData.title) {
         throw new Error(`Could not fetch content for ${postType} ID ${postId} via API.`);
     }
-
-    const contentHtml = rawData.content?.rendered || '';
-    const $ = cheerio.load(contentHtml);
-    $('script, style').remove();
     
     const yoastTitle = rawData.meta?._yoast_wpseo_title;
     const finalTitle = (typeof yoastTitle === 'string') 
@@ -85,20 +81,10 @@ async function getPageContentFromApi(postId: number, postType: 'Post' | 'Page', 
                        : rawData.title?.rendered || '';
 
     return {
+        // Only return backend-specific fields
         title: finalTitle,
         metaDescription: rawData.meta?._yoast_wpseo_metadesc || '',
         focusKeyword: rawData.meta?._yoast_wpseo_focuskw || '',
-        canonicalUrl: '', 
-        h1: $('h1').first().text(),
-        headings: $('h1, h2, h3, h4, h5, h6').map((i, el) => ({
-            tag: (el as cheerio.TagElement).name,
-            text: $(el).text()
-        })).get(),
-        images: $('img').map((i, el) => ({
-            src: $(el).attr('data-src') || $(el).attr('src') || '',
-            alt: $(el).attr('data-alt') || $(el).attr('alt') || ''
-        })).get(),
-        textContent: $('body').text().replace(/\s\s+/g, ' ').trim(),
     };
 }
 
@@ -171,14 +157,19 @@ export async function POST(req: NextRequest) {
     const { url, postId, postType } = validation.data;
     const finalUrl = url.trim().startsWith('http') ? url : `https://${url}`;
     
-    let pageData;
+    // Always get the public-facing content via scraping
+    const scrapedData = await getPageContentFromScraping(finalUrl);
+    let pageData = { ...scrapedData };
 
+    // If it's a known post, enrich the scraped data with backend metadata from Yoast
     if (postId && postType) {
         const apiData = await getPageContentFromApi(postId, postType, uid);
-        const scrapedData = await getPageContentFromScraping(finalUrl);
-        pageData = { ...apiData, canonicalUrl: scrapedData.canonicalUrl };
-    } else {
-        pageData = await getPageContentFromScraping(finalUrl);
+        pageData = {
+            ...scrapedData,
+            title: apiData.title || scrapedData.title,
+            metaDescription: apiData.metaDescription || scrapedData.metaDescription,
+            focusKeyword: apiData.focusKeyword,
+        };
     }
     
     if (!pageData.textContent || pageData.textContent.trim().length < 50) {
