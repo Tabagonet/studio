@@ -64,7 +64,6 @@ const SeoInterpretationOutputSchema = z.object({
 async function getBackendMetadata(postId: number, postType: 'Post' | 'Page', uid: string) {
     const { wpApi } = await getApiClientsForUser(uid);
     if (!wpApi) {
-        // This case should ideally not be hit if called correctly, but it's safe to handle.
         console.warn('Could not get WordPress API client to fetch backend metadata.');
         return { title: '', metaDescription: '', focusKeyword: '' };
     }
@@ -79,7 +78,6 @@ async function getBackendMetadata(postId: number, postType: 'Post' | 'Page', uid
         }
 
         const yoastTitle = rawData.meta?._yoast_wpseo_title;
-        // Use Yoast title if it's a non-empty string, otherwise it's better to let the scraped title take precedence.
         const finalTitle = (typeof yoastTitle === 'string' && yoastTitle.trim() !== '') 
                            ? yoastTitle.trim()
                            : rawData.title?.rendered || '';
@@ -91,7 +89,6 @@ async function getBackendMetadata(postId: number, postType: 'Post' | 'Page', uid
         };
     } catch (apiError) {
         console.error(`Failed to fetch backend metadata for ${postType} ${postId}:`, apiError);
-        // Return empty strings to allow the analysis to proceed with scraped data.
         return { title: '', metaDescription: '', focusKeyword: '' };
     }
 }
@@ -112,14 +109,24 @@ async function getPageContentFromScraping(url: string) {
         const html = response.data;
         const $ = cheerio.load(html);
         
+        // --- Global page data (from <head>) ---
         const yoastTitle = $('meta[property="og:title"]').attr('content');
         const pageTitle = $('title').text();
-        const finalTitle = yoastTitle || pageTitle;
-
-        const body$ = cheerio.load($.html('body'));
-        body$('script, style, noscript').remove();
+        const globalTitle = yoastTitle || pageTitle;
+        const metaDescription = $('meta[name="description"]').attr('content') || '';
+        const canonicalUrl = $('link[rel="canonical"]').attr('href') || '';
         
-        const allImages = body$('img').map((i, el) => ({
+        // --- Scoped content data (from <body>) ---
+        $('script, style, noscript').remove();
+        
+        // Define common selectors for the main content area in order of preference
+        const contentSelectors = ['main', 'article', '.entry-content', '.post-content', '.page-content', '#content', '#main'];
+        let $content = $(contentSelectors.join(', ')).first();
+        if ($content.length === 0) {
+            $content = $('body'); // Fallback to body if no specific container is found
+        }
+        
+        const allImages = $content.find('img').map((i, el) => ({
             src: $(el).attr('data-src') || $(el).attr('src') || '',
             alt: $(el).attr('data-alt') || $(el).attr('alt') || ''
         })).get();
@@ -128,13 +135,9 @@ async function getPageContentFromScraping(url: string) {
 
         allImages.forEach(img => {
             if (!img.src) return;
-
             // Normalize URL by removing size suffixes (e.g., -300x200) before the extension
             const baseSrc = img.src.replace(/-\d+x\d+(?=\.(jpg|jpeg|png|webp|gif|svg)$)/i, '');
-
             const existing = uniqueImagesMap.get(baseSrc);
-            
-            // Add or update if the new one has 'alt' text and the existing one doesn't
             if (!existing || (!existing.alt && img.alt)) {
                 uniqueImagesMap.set(baseSrc, img);
             }
@@ -143,17 +146,17 @@ async function getPageContentFromScraping(url: string) {
         const uniqueImages = Array.from(uniqueImagesMap.values());
         
         return {
-            title: finalTitle,
-            metaDescription: $('meta[name="description"]').attr('content') || '',
+            title: globalTitle,
+            metaDescription: metaDescription,
             focusKeyword: '', // Cannot get this from scraping
-            canonicalUrl: $('link[rel="canonical"]').attr('href') || '',
-            h1: body$('h1').first().text(),
-            headings: body$('h1, h2, h3, h4, h5, h6').map((i, el) => ({
+            canonicalUrl: canonicalUrl,
+            h1: $content.find('h1').first().text() || $('h1').first().text(),
+            headings: $content.find('h1, h2, h3, h4, h5, h6').map((i, el) => ({
                 tag: (el as cheerio.TagElement).name,
                 text: $(el).text()
             })).get(),
             images: uniqueImages,
-            textContent: body$('body').text().replace(/\s\s+/g, ' ').trim(),
+            textContent: $content.text().replace(/\s\s+/g, ' ').trim(),
         };
     } catch (error) {
         if (axios.isAxiosError(error)) {
@@ -194,17 +197,15 @@ export async function POST(req: NextRequest) {
     urlWithCacheBust.searchParams.set('timestamp', Date.now().toString());
     finalUrl = urlWithCacheBust.toString();
     
-    // Step 1: Always scrape the public URL for the most accurate content representation.
     let pageData = await getPageContentFromScraping(finalUrl);
 
-    // Step 2: If it's a known post, enrich with data only available from the backend API.
     if (postId && postType) {
         const backendMeta = await getBackendMetadata(postId, postType, uid);
         pageData = {
-            ...pageData, // Keep all scraped data (especially images and textContent)
-            title: backendMeta.title || pageData.title, // Prefer backend (Yoast) title if it exists
-            metaDescription: backendMeta.metaDescription || pageData.metaDescription, // Prefer backend (Yoast) meta desc
-            focusKeyword: backendMeta.focusKeyword, // Only available from API
+            ...pageData,
+            title: backendMeta.title || pageData.title,
+            metaDescription: backendMeta.metaDescription || pageData.metaDescription,
+            focusKeyword: backendMeta.focusKeyword,
         };
     }
     
@@ -264,7 +265,6 @@ export async function POST(req: NextRequest) {
 
     const fullAnalysis = { ...pageData, aiAnalysis: { ...aiAnalysis, score } };
     
-    // Now, generate the interpretation
     const checksSummary = JSON.stringify(fullAnalysis.aiAnalysis.checks, null, 2);
     const interpretationPrompt = `You are a world-class SEO consultant analyzing a web page's on-page SEO data.
     The user has received the following raw data from an analysis tool.
@@ -293,7 +293,6 @@ export async function POST(req: NextRequest) {
     let responsePayload: SeoAnalysisRecord;
     
     if (adminDb && admin.firestore.FieldValue) {
-        // Increment AI usage count by 2 (one for technical analysis, one for interpretation)
         const userSettingsRef = adminDb.collection('user_settings').doc(uid);
         await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(2) }, { merge: true });
 
@@ -303,7 +302,7 @@ export async function POST(req: NextRequest) {
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             analysis: fullAnalysis,
             score: score,
-            interpretation: interpretation, // Save the interpretation
+            interpretation: interpretation,
         });
         responsePayload = {
             id: docRef.id,
