@@ -255,6 +255,11 @@ export interface ContentItem {
   modified: string;
 }
 
+export type HierarchicalContentItem = ContentItem & {
+    subRows?: HierarchicalContentItem[];
+};
+
+
 export interface ContentImage {
     id: string; // The original `src` attribute, used as a unique key
     src: string; // The display-ready, absolute URL

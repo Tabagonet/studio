@@ -25,14 +25,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { SearchCheck, ChevronRight, FileText } from "lucide-react";
-import type { ContentItem as RawContentItem } from "@/app/(app)/seo-optimizer/page";
+import type { ContentItem, HierarchicalContentItem } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-
-// Define a new type for the table that includes the optional subRows
-type ContentItem = RawContentItem & {
-    subRows?: ContentItem[];
-};
 
 interface SeoPageListTableProps {
   data: ContentItem[];
@@ -67,23 +62,23 @@ export function SeoPageListTable({ data, scores, onAnalyzePage, onViewReport }: 
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
   const [languageFilter, setLanguageFilter] = React.useState('all');
 
-  const tableData = React.useMemo(() => {
+  const tableData = React.useMemo((): HierarchicalContentItem[] => {
     if (!data) return [];
     
-    const itemsById = new Map(data.map((p) => [p.id, { ...p, subRows: [] as ContentItem[] }]));
-    const roots: ContentItem[] = [];
+    const itemsById = new Map<number, HierarchicalContentItem>(data.map((p) => [p.id, { ...p, subRows: [] }]));
+    const roots: HierarchicalContentItem[] = [];
     const processedIds = new Set<number>();
 
     data.forEach((item) => {
         if (processedIds.has(item.id)) return;
 
-        let mainItem: ContentItem | undefined;
+        let mainItem: HierarchicalContentItem | undefined;
         const translationIds = new Set(Object.values(item.translations || {}));
         
         if (translationIds.size > 1) {
             const groupItems = Array.from(translationIds)
                 .map(id => itemsById.get(id))
-                .filter((p): p is ContentItem => !!p);
+                .filter((p): p is HierarchicalContentItem => !!p);
 
             if (groupItems.length > 0) {
                 mainItem = groupItems.find(p => p.lang === languageFilter) || groupItems[0];
@@ -110,7 +105,7 @@ export function SeoPageListTable({ data, scores, onAnalyzePage, onViewReport }: 
   }, [data, languageFilter]);
 
 
-  const columns = React.useMemo<ColumnDef<ContentItem>[]>(
+  const columns = React.useMemo<ColumnDef<HierarchicalContentItem>[]>(
     () => [
       {
         accessorKey: 'title',
