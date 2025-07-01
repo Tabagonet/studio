@@ -24,14 +24,15 @@ const firebaseConfig = {
 };
 
 let app: FirebaseApp;
+const appName = "autopress-ai-app"; // Unique name for the app instance
 
 try {
-  app = getApp('autopress'); // Use a unique app name if you have multiple Firebase apps
+  app = getApp(appName);
 } catch (e) {
   if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
     console.error("Firebase client config is missing. Make sure NEXT_PUBLIC_FIREBASE_ environment variables are set.");
   }
-  app = initializeApp(firebaseConfig, 'autopress');
+  app = initializeApp(firebaseConfig, appName);
 }
 
 const db: Firestore = getFirestore(app);

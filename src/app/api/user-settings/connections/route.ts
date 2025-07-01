@@ -53,10 +53,10 @@ const urlOrEmptyString = z.string().refine((value) => {
 
 
 const connectionDataSchema = z.object({
-    wooCommerceStoreUrl: urlOrEmptyString,
+    wooCommerceStoreUrl: urlOrEmptyString.optional(),
     wooCommerceApiKey: z.string().optional(),
     wooCommerceApiSecret: z.string().optional(),
-    wordpressApiUrl: urlOrEmptyString,
+    wordpressApiUrl: urlOrEmptyString.optional(),
     wordpressUsername: z.string().optional(),
     wordpressApplicationPassword: z.string().optional(),
     promptTemplate: z.string().optional(), // For consistency with prompt management

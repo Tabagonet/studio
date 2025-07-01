@@ -6,7 +6,7 @@ import { APP_NAME } from '@/lib/constants';
 
 export const metadata: Metadata = {
   title: APP_NAME,
-  description: 'Automate WooCommerce and WordPress content with AI.',
+  description: `The AI-powered assistant for WooCommerce and WordPress content.`,
 };
 
 export default function RootLayout({
