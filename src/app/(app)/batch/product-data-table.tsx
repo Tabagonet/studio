@@ -145,7 +145,6 @@ export function ProductDataTable() {
     setIsLoading(true);
     const user = auth.currentUser;
     if (!user) {
-      toast({ title: "No autenticado", description: "Por favor, inicie sesión.", variant: "destructive" });
       setIsLoading(false);
       return;
     }
@@ -185,7 +184,7 @@ export function ProductDataTable() {
 
       const { products, totalPages } = await response.json();
       
-      const stringLangCodes: string[] = [...new Set&lt;string&gt;(products.map((p: ProductSearchResult) => p.lang).filter((l): l is string => !!l && l !== 'N/A'))];
+      const stringLangCodes: string[] = [...new Set<string>(products.map((p: ProductSearchResult) => p.lang).filter((l): l is string => !!l && l !== 'N/A'))];
       setAvailableLanguages(stringLangCodes.map(code => ({ code, name: LANGUAGE_MAP[code] || code.toUpperCase() })));
 
 
@@ -282,7 +281,6 @@ export function ProductDataTable() {
   const handleStatusUpdate = React.useCallback(async (productId: number, newStatus: 'publish' | 'draft') => {
     const user = auth.currentUser;
     if (!user) {
-      toast({ title: "No autenticado", variant: "destructive" });
       return;
     }
     
@@ -317,7 +315,6 @@ export function ProductDataTable() {
   const handleDeleteProduct = React.useCallback(async (productId: number) => {
     const user = auth.currentUser;
     if (!user) {
-      toast({ title: "No autenticado", variant: "destructive" });
       return;
     }
 
@@ -402,7 +399,6 @@ export function ProductDataTable() {
     setActionText('Procesando IA...');
     const user = auth.currentUser;
     if (!user) {
-        toast({ title: "No autenticado", variant: "destructive" });
         setIsActionRunning(false);
         return;
     }
@@ -476,7 +472,6 @@ export function ProductDataTable() {
 
     const user = auth.currentUser;
     if (!user) {
-        toast({ title: "No autenticado", variant: "destructive" });
         setIsActionRunning(false);
         return;
     }
@@ -538,7 +533,6 @@ export function ProductDataTable() {
     
         const user = auth.currentUser;
         if (!user) {
-            toast({ title: "No autenticado", variant: "destructive" });
             setIsActionRunning(false);
             return;
         }

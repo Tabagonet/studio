@@ -113,7 +113,6 @@ export function BlogDataTable() {
     setIsLoading(true);
     const user = auth.currentUser;
     if (!user) {
-      toast({ title: "No autenticado", description: "Por favor, inicie sesión.", variant: "destructive" });
       setIsLoading(false);
       return;
     }
@@ -152,7 +151,7 @@ export function BlogDataTable() {
 
       const { posts, totalPages }: { posts: BlogPostSearchResult[], totalPages: number } = await response.json();
       
-      const stringLangCodes: string[] = [...new Set(posts.map((p: BlogPostSearchResult) => p.lang).filter((l): l is string => !!l && l !== 'N/A'))];
+      const stringLangCodes: string[] = [...new Set<string>(posts.map((p: BlogPostSearchResult) => p.lang).filter((l): l is string => !!l && l !== 'N/A'))];
       setAvailableLanguages(stringLangCodes.map(code => ({ code, name: LANGUAGE_MAP[code] || code.toUpperCase() })));
 
 
@@ -259,7 +258,6 @@ export function BlogDataTable() {
   const handleStatusUpdate = React.useCallback(async (postId: number, newStatus: 'publish' | 'draft') => {
     const user = auth.currentUser;
     if (!user) {
-      toast({ title: "No autenticado", variant: "destructive" });
       return;
     }
     
@@ -284,12 +282,11 @@ export function BlogDataTable() {
       console.error(error);
       toast({ title: "Error", description: (error as Error).message, variant: "destructive" });
     }
-  }, [toast, fetchData, fetchStats]);
+  }, [fetchData, fetchStats, toast]);
 
   const handleDeletePost = React.useCallback(async (postId: number) => {
     const user = auth.currentUser;
     if (!user) {
-      toast({ title: "No autenticado", variant: "destructive" });
       return;
     }
     toast({ title: `Moviendo entrada a la papelera...` });
@@ -308,7 +305,7 @@ export function BlogDataTable() {
       console.error('Error deleting post:', error);
       toast({ title: "Error al Eliminar", description: (error as Error).message, variant: "destructive" });
     }
-  }, [toast, fetchData, fetchStats]);
+  }, [fetchData, fetchStats, toast]);
 
   const handleEditPost = (postId: number) => {
     router.push(`/blog/edit/${postId}`);
@@ -361,7 +358,6 @@ export function BlogDataTable() {
 
     const user = auth.currentUser;
     if (!user) {
-        toast({ title: "No autenticado", variant: "destructive" });
         setIsBatchActionLoading(false);
         return;
     }
@@ -430,7 +426,6 @@ export function BlogDataTable() {
 
     const user = auth.currentUser;
     if (!user) {
-        toast({ title: "No autenticado", variant: "destructive" });
         setIsLinking(false);
         return;
     }
