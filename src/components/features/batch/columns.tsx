@@ -57,6 +57,7 @@ export const getColumns = (
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="w-[350px]"
         >
           Producto
           <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -96,6 +97,7 @@ export const getColumns = (
     accessorKey: "status",
     header: ({ column }) => {
       return (
+        <div className="text-center">
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
@@ -103,6 +105,7 @@ export const getColumns = (
           Estado
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
+        </div>
       )
     },
     cell: ({ row }) => {
@@ -114,12 +117,12 @@ export const getColumns = (
         private: 'Privado',
       }[status] || status;
       
-      return <Badge variant={status === 'publish' ? 'default' : 'secondary'}>{statusText}</Badge>
+      return <div className="text-center"><Badge variant={status === 'publish' ? 'default' : 'secondary'}>{statusText}</Badge></div>
     }
   },
   {
     accessorKey: "lang",
-    header: "Idioma",
+    header: () => <div className="text-center">Idioma</div>,
     cell: ({ row }) => {
       const lang = row.original.lang;
       const translations = row.original.translations || {};
@@ -129,32 +132,34 @@ export const getColumns = (
 
       if (translationCount > 0) {
         return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center gap-1.5 cursor-help">
-                  {badge}
-                  <span className="text-muted-foreground text-xs font-bold">+{translationCount}</span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Enlazado con {translationCount} otra(s) traducción(es).</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <div className="text-center">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center justify-center gap-1.5 cursor-help">
+                    {badge}
+                    <span className="text-muted-foreground text-xs font-bold">+{translationCount}</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Enlazado con {translationCount} otra(s) traducción(es).</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
         );
       }
-      return badge;
+      return <div className="text-center">{badge}</div>;
     }
   },
   {
     accessorKey: "type",
-    header: "Tipo",
-    cell: ({ row }) => <Badge variant="secondary">{row.original.type}</Badge>
+    header: () => <div className="text-center">Tipo</div>,
+    cell: ({ row }) => <div className="text-center"><Badge variant="secondary">{row.original.type}</Badge></div>
   },
   {
     id: "logistics",
-    header: "Logística",
+    header: () => <div className="text-center">Logística</div>,
     cell: ({ row }) => {
       const { manage_stock, stock_quantity, weight, dimensions, shipping_class } = row.original;
       const hasWeightOrDims = (weight && parseFloat(weight) > 0) || (dimensions && (parseFloat(dimensions.length) > 0 || parseFloat(dimensions.width) > 0 || parseFloat(dimensions.height) > 0));
@@ -162,7 +167,7 @@ export const getColumns = (
       
       return (
         <TooltipProvider>
-            <div className="flex items-center justify-start gap-3">
+            <div className="flex items-center justify-center gap-3">
             {manage_stock && (
                 <Tooltip>
                     <TooltipTrigger><Package className="h-4 w-4 text-primary" /></TooltipTrigger>
@@ -233,6 +238,7 @@ export const getColumns = (
     accessorKey: "date_created",
     header: ({ column }) => {
       return (
+        <div className="text-center">
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
@@ -240,6 +246,7 @@ export const getColumns = (
           Fecha de Creación
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
+        </div>
       )
     },
     cell: ({ row }) => {
@@ -250,7 +257,7 @@ export const getColumns = (
         month: '2-digit',
         year: 'numeric'
       });
-      return <div>{formattedDate}</div>;
+      return <div className="text-center">{formattedDate}</div>;
     },
   },
   {
