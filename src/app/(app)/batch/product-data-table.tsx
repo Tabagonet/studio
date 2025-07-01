@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -36,7 +37,7 @@ import { BrainCircuit, ChevronDown, Loader2, Box, FileCheck2, FileText, BarChart
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -224,9 +225,10 @@ export function ProductDataTable() {
       
       setData(roots);
       setTotalPages(totalPages);
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(error);
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -242,9 +244,10 @@ export function ProductDataTable() {
         if (!response.ok) throw new Error('Failed to load categories');
         const data = await response.json();
         setCategories(data);
-      } catch (error: any) {
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         console.error(error);
-        toast({ title: "Error al Cargar Categorías", description: error.message, variant: "destructive" });
+        toast({ title: "Error al Cargar Categorías", description: errorMessage, variant: "destructive" });
       } finally {
         setIsLoadingCategories(false);
       }
@@ -305,9 +308,10 @@ export function ProductDataTable() {
       toast({ title: "¡Éxito!", description: "El estado del producto ha sido actualizado." });
       fetchData();
       fetchStats();
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(error);
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
     }
   }, [fetchData, fetchStats, toast]);
 
@@ -334,9 +338,10 @@ export function ProductDataTable() {
       toast({ title: "¡Producto Eliminado!", description: "El producto se ha eliminado permanentemente." });
       fetchData();
       fetchStats();
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Error deleting product:', error);
-      toast({ title: "Error al Eliminar", description: error.message, variant: "destructive" });
+      toast({ title: "Error al Eliminar", description: errorMessage, variant: "destructive" });
     }
   }, [fetchData, fetchStats, toast]);
 
@@ -444,10 +449,11 @@ export function ProductDataTable() {
         fetchData();
         fetchStats();
 
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         toast({
             title: "Error en la acción de IA",
-            description: error.message,
+            description: errorMessage,
             variant: "destructive",
         });
     } finally {
@@ -505,10 +511,11 @@ export function ProductDataTable() {
         fetchData();
         fetchStats();
 
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         toast({
             title: "Error en la acción en lote",
-            description: error.message,
+            description: errorMessage,
             variant: "destructive",
         });
     } finally {
@@ -563,10 +570,11 @@ export function ProductDataTable() {
             fetchData();
             fetchStats();
     
-        } catch (error: any) {
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
             toast({
                 title: "Error en la eliminación en lote",
-                description: error.message,
+                description: errorMessage,
                 variant: "destructive",
             });
         } finally {
@@ -985,3 +993,5 @@ export function ProductDataTable() {
     </div>
   )
 }
+
+    

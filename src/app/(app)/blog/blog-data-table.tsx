@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -36,7 +37,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { BookOpen, FileCheck2, FileText, Loader2, Lock, Trash2, ChevronDown, Languages, Link2 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 
 const LANGUAGE_MAP: { [key: string]: string } = {
     es: 'Español',
@@ -202,9 +203,10 @@ export function BlogDataTable() {
       
       setData(roots);
       setTotalPages(totalPages);
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(error);
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -219,9 +221,10 @@ export function BlogDataTable() {
         });
         if (!response.ok) throw new Error('Failed to load categories');
         setCategories(await response.json());
-      } catch (error: any) {
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         console.error(error);
-        toast({ title: "Error al Cargar Categorías", description: error.message, variant: "destructive" });
+        toast({ title: "Error al Cargar Categorías", description: errorMessage, variant: "destructive" });
       } finally {
         setIsLoadingCategories(false);
       }
@@ -277,9 +280,10 @@ export function BlogDataTable() {
       toast({ title: "¡Éxito!", description: "El estado de la entrada ha sido actualizado." });
       fetchData();
       fetchStats();
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(error);
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
     }
   }, [fetchData, fetchStats, toast]);
 
@@ -300,9 +304,10 @@ export function BlogDataTable() {
       toast({ title: "¡Entrada movida a la papelera!", description: "Podrás restaurarla o eliminarla desde WordPress." });
       fetchData();
       fetchStats();
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Error deleting post:', error);
-      toast({ title: "Error al Eliminar", description: error.message, variant: "destructive" });
+      toast({ title: "Error al Eliminar", description: errorMessage, variant: "destructive" });
     }
   }, [fetchData, fetchStats, toast]);
 
@@ -388,10 +393,11 @@ export function BlogDataTable() {
         fetchData();
         fetchStats();
 
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         toast({
             title: "Error en la eliminación en lote",
-            description: error.message,
+            description: errorMessage,
         });
     } finally {
         setIsBatchActionLoading(false);
@@ -449,8 +455,9 @@ export function BlogDataTable() {
         table.resetRowSelection();
         fetchData();
         fetchStats();
-    } catch (error: any) {
-         toast({ title: "Error al enlazar", description: error.message, variant: "destructive" });
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+         toast({ title: "Error al enlazar", description: errorMessage, variant: "destructive" });
     } finally {
         setIsLinking(false);
     }
@@ -579,3 +586,5 @@ export function BlogDataTable() {
     </div>
   )
 }
+
+    
