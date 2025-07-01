@@ -17,7 +17,7 @@ async function fetchAllPaginatedContent(wpApi: AxiosInstance, endpoint: string) 
                 context: 'view', // context=view is necessary for register_rest_field
                 status: 'publish,future,draft,pending,private',
                 // Request only necessary fields for performance, including our custom ones.
-                _fields: 'id,title,type,link,status,parent,lang,translations,meta',
+                _fields: 'id,title,type,link,status,parent,lang,translations,meta,modified',
             },
         });
 
@@ -67,6 +67,7 @@ export async function GET(req: NextRequest) {
         parent: item.parent || 0,
         lang: item.lang || null,
         translations: item.translations || {},
+        modified: item.modified,
     }));
 
     return NextResponse.json({ content: combinedContent });

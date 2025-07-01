@@ -252,6 +252,7 @@ export interface ContentItem {
   parent: number;
   lang?: string;
   translations?: Record<string, number>;
+  modified: string;
 }
 
 export interface ContentImage {

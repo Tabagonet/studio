@@ -13,6 +13,7 @@ import { es } from 'date-fns/locale';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 
 const checkLabels: Record<keyof AnalysisResult['aiAnalysis']['checks'], string> = {
@@ -34,11 +35,13 @@ interface AnalysisViewProps {
   onEdit: (item: ContentItem) => void;
   onReanalyze: () => void;
   onSelectHistoryItem: (record: SeoAnalysisRecord) => void;
+  contentModifiedDate: string;
 }
 
 
-export function AnalysisView({ record, item, history, onEdit, onReanalyze, onSelectHistoryItem }: AnalysisViewProps) {
+export function AnalysisView({ record, item, history, onEdit, onReanalyze, onSelectHistoryItem, contentModifiedDate }: AnalysisViewProps) {
   const { analysis, interpretation } = record;
+  const isStale = new Date(contentModifiedDate) > new Date(record.createdAt);
 
   const scoreColor = analysis.aiAnalysis.score >= 80 ? 'text-green-500' : analysis.aiAnalysis.score >= 50 ? 'text-amber-500' : 'text-destructive';
   const latestAnalysisId = history[0]?.id;
@@ -46,6 +49,18 @@ export function AnalysisView({ record, item, history, onEdit, onReanalyze, onSel
 
   return (
     <div className="space-y-6">
+      
+       {isStale && (
+          <Alert variant="destructive">
+              <RefreshCw className="h-4 w-4" />
+              <AlertTitle>Informe desactualizado</AlertTitle>
+              <AlertDescription>
+                  Detectamos que se han guardado cambios en esta página desde el último análisis. 
+                  Para obtener los resultados más precisos, te recomendamos volver a analizar.
+              </AlertDescription>
+          </Alert>
+        )}
+
       <Card>
         <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-2">

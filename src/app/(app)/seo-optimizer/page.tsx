@@ -14,19 +14,8 @@ import { AnalysisView } from '@/components/features/seo/analysis-view';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { ContentStats, SeoAnalysisRecord } from '@/lib/types';
+import type { ContentStats, SeoAnalysisRecord, ContentItem } from '@/lib/types';
 
-
-export interface ContentItem {
-  id: number;
-  title: string;
-  type: 'Post' | 'Page';
-  link: string;
-  status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
-  parent: number;
-  lang?: string;
-  translations?: Record<string, number>;
-}
 
 export default function SeoOptimizerPage() {
   const router = useRouter();
@@ -259,6 +248,7 @@ export default function SeoOptimizerPage() {
           link: fullUrl,
           status: 'publish',
           parent: 0,
+          modified: new Date().toISOString(),
       };
       
       const user = auth.currentUser;
@@ -391,6 +381,7 @@ export default function SeoOptimizerPage() {
                     onReanalyze={() => handleAnalyzePage(selectedPage)}
                     history={analysisHistory}
                     onSelectHistoryItem={handleSelectHistoryItem}
+                    contentModifiedDate={selectedPage.modified}
                 />
             </div>
         )
