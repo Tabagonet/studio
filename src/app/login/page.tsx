@@ -34,13 +34,11 @@ export default function LoginPage() {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-      // Auth state change will trigger redirect via useEffect or the one in this function
+      // The onAuthStateChanged listener will handle the redirect.
       toast({
         title: "Inicio de Sesión Exitoso",
         description: "Redirigiendo a tu panel...",
       });
-       // router.push might be slightly faster if onAuthStateChanged takes a moment
-       router.push('/dashboard'); 
     } catch (error: any) {
       console.error("Error signing in with Google:", error);
       toast({

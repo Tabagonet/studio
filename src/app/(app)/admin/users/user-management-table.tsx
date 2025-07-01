@@ -57,7 +57,7 @@ export function UserManagementTable() {
         } finally {
             setIsLoading(false);
         }
-    }, [toast]);
+    }, []);
 
     useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -273,4 +273,3 @@ export function UserManagementTable() {
         </div>
     );
 }
-

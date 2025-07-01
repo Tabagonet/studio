@@ -76,7 +76,7 @@ export default function AdminActivityPage() {
             }
         });
         return () => unsubscribe();
-    }, [toast]);
+    }, []);
     
     const filteredLogs = useMemo(() => {
         const now = new Date();
