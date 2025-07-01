@@ -109,35 +109,44 @@ async function getPageContentFromScraping(url: string) {
         const html = response.data;
         const $ = cheerio.load(html);
         
-        // --- Global page data (from <head>) ---
         const yoastTitle = $('meta[property="og:title"]').attr('content');
         const pageTitle = $('title').text();
         const globalTitle = yoastTitle || pageTitle;
         const metaDescription = $('meta[name="description"]').attr('content') || '';
         const canonicalUrl = $('link[rel="canonical"]').attr('href') || '';
         
-        // --- Scoped content data (from <body>) ---
-        $('script, style, noscript').remove();
+        const $body = $('body');
+        // --- EXCLUSION LOGIC ---
+        // Explicitly remove common non-content areas before analysis
+        $body.find('header, footer, nav, .site-header, .site-footer').remove();
+        $body.find('script, style, noscript').remove();
         
-        // Define common selectors for the main content area in order of preference
         const contentSelectors = ['main', 'article', '.entry-content', '.post-content', '.page-content', '#content', '#main'];
-        let $content = $(contentSelectors.join(', ')).first();
+        
+        let $content = $body.find(contentSelectors.join(', ')).first();
         if ($content.length === 0) {
-            $content = $('body'); // Fallback to body if no specific container is found
+            $content = $body; // Fallback to the modified body
         }
         
-        const allImages = $content.find('img').map((i, el) => ({
-            src: $(el).attr('data-src') || $(el).attr('src') || '',
-            alt: $(el).attr('data-alt') || $(el).attr('alt') || ''
-        })).get();
-        
-        const uniqueImagesMap = new Map<string, { src: string; alt: string }>();
+        const allImages = $content.find('img').map((i, el) => {
+             const originalSrc = $(el).attr('data-src') || $(el).attr('src') || '';
+             if (!originalSrc) return null;
+             
+             // Normalize URL to handle relative paths
+             const absoluteSrc = new URL(originalSrc, url).href;
 
+             return {
+                 src: absoluteSrc,
+                 alt: $(el).attr('data-alt') || $(el).attr('alt') || ''
+             }
+        }).get().filter(img => img !== null) as {src: string, alt: string}[];
+
+        const uniqueImagesMap = new Map<string, { src: string; alt: string }>();
         allImages.forEach(img => {
-            if (!img.src) return;
-            // Normalize URL by removing size suffixes (e.g., -300x200) before the extension
+            // Normalize URL by removing size suffixes to identify unique images
             const baseSrc = img.src.replace(/-\d+x\d+(?=\.(jpg|jpeg|png|webp|gif|svg)$)/i, '');
             const existing = uniqueImagesMap.get(baseSrc);
+            // Add if new, or if existing one had no alt text but this one does
             if (!existing || (!existing.alt && img.alt)) {
                 uniqueImagesMap.set(baseSrc, img);
             }
