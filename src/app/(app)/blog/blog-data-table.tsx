@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -37,7 +36,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { BookOpen, FileCheck2, FileText, Loader2, Lock, Trash2, ChevronDown, Languages, Link2 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 
 const LANGUAGE_MAP: { [key: string]: string } = {
     es: 'Español',
@@ -155,7 +154,7 @@ export function BlogDataTable() {
       setAvailableLanguages(stringLangCodes.map(code => ({ code, name: LANGUAGE_MAP[code] || code.toUpperCase() })));
 
 
-      const postsById = new Map(posts.map((p: BlogPostSearchResult) => [p.id, { ...p, subRows: [] as HierarchicalBlogPost[] }]));
+      const postsById = new Map<number, HierarchicalBlogPost>(posts.map((p: BlogPostSearchResult) => [p.id, { ...p, subRows: [] as HierarchicalBlogPost[] }]));
       const roots: HierarchicalBlogPost[] = [];
       const processedIds = new Set<number>();
 
@@ -209,7 +208,7 @@ export function BlogDataTable() {
     } finally {
       setIsLoading(false);
     }
-  }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedLanguage, sorting]); 
+  }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedLanguage, sorting, toast]); 
 
   React.useEffect(() => {
     const fetchCats = async (token: string) => {
@@ -239,7 +238,7 @@ export function BlogDataTable() {
         }
     });
     return () => unsubscribe();
-  }, [fetchData, fetchStats]);
+  }, [fetchData, fetchStats, toast]);
 
   React.useEffect(() => {
     if (categories.length === 0) return;
@@ -282,7 +281,7 @@ export function BlogDataTable() {
       console.error(error);
       toast({ title: "Error", description: error.message, variant: "destructive" });
     }
-  }, [fetchData, fetchStats]);
+  }, [fetchData, fetchStats, toast]);
 
   const handleDeletePost = React.useCallback(async (postId: number) => {
     const user = auth.currentUser;
@@ -305,7 +304,7 @@ export function BlogDataTable() {
       console.error('Error deleting post:', error);
       toast({ title: "Error al Eliminar", description: error.message, variant: "destructive" });
     }
-  }, [fetchData, fetchStats]);
+  }, [fetchData, fetchStats, toast]);
 
   const handleEditPost = (postId: number) => {
     router.push(`/blog/edit/${postId}`);
@@ -393,7 +392,6 @@ export function BlogDataTable() {
         toast({
             title: "Error en la eliminación en lote",
             description: error.message,
-            variant: "destructive",
         });
     } finally {
         setIsBatchActionLoading(false);

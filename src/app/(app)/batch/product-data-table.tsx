@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -37,7 +36,7 @@ import { BrainCircuit, ChevronDown, Loader2, Box, FileCheck2, FileText, BarChart
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -99,7 +98,7 @@ export function ProductDataTable() {
   
   const [priceModification, setPriceModification] = React.useState({
     field: 'regular_price' as 'regular_price' | 'sale_price',
-    operation: 'increase' as 'increase' | 'decrease' | 'set',
+    operation: 'increase' as 'increase' | 'set',
     type: 'percentage' as 'percentage' | 'fixed',
     value: '',
   });
@@ -188,7 +187,7 @@ export function ProductDataTable() {
       setAvailableLanguages(stringLangCodes.map(code => ({ code, name: LANGUAGE_MAP[code] || code.toUpperCase() })));
 
 
-      const productsById = new Map(products.map((p: ProductSearchResult) => [p.id, { ...p, subRows: [] as HierarchicalProduct[] }]));
+      const productsById = new Map<number, HierarchicalProduct>(products.map((p: ProductSearchResult) => [p.id, { ...p, subRows: [] as HierarchicalProduct[] }]));
       const roots: HierarchicalProduct[] = [];
       const processedIds = new Set<number>();
 
@@ -231,7 +230,7 @@ export function ProductDataTable() {
     } finally {
       setIsLoading(false);
     }
-  }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedStockStatus, selectedLanguage, sorting]); 
+  }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedStockStatus, selectedLanguage, sorting, toast]); 
 
   React.useEffect(() => {
     const fetchCats = async (token: string) => {
@@ -262,7 +261,7 @@ export function ProductDataTable() {
         }
     });
     return () => unsubscribe();
-  }, [fetchData, fetchStats]);
+  }, [fetchData, fetchStats, toast]);
 
   React.useEffect(() => {
     if (categories.length === 0) return;
@@ -310,7 +309,7 @@ export function ProductDataTable() {
       console.error(error);
       toast({ title: "Error", description: error.message, variant: "destructive" });
     }
-  }, [fetchData, fetchStats]);
+  }, [fetchData, fetchStats, toast]);
 
   const handleDeleteProduct = React.useCallback(async (productId: number) => {
     const user = auth.currentUser;
@@ -339,7 +338,7 @@ export function ProductDataTable() {
       console.error('Error deleting product:', error);
       toast({ title: "Error al Eliminar", description: error.message, variant: "destructive" });
     }
-  }, [fetchData, fetchStats]);
+  }, [fetchData, fetchStats, toast]);
 
   const handleEditProduct = (productId: number) => {
     router.push(`/products/edit/${productId}`);
