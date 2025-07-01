@@ -141,6 +141,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
                 // It's a new image from a temporary URL, upload it to WordPress
                 const baseNameForSeo = imageTitle || validatedData.name || 'product-image';
                 const filenameSuffix = validatedData.images.length > 1 ? `-${productId}-${imageIndex + 1}` : `-${productId}`;
+                
+                // Pass a .jpg name, the helper will convert it to .webp
                 const seoFilename = `${slugify(baseNameForSeo)}${filenameSuffix}.jpg`;
 
                 const newImageId = await uploadImageToWordPress(
@@ -165,7 +167,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
     
     // Handle stock quantity: it should be a number for WooCommerce API
-    if (wooPayload.stock_quantity !== undefined && wooPayload.stock_quantity !== '') {
+    if (wooPayload.stock_quantity !== undefined && wooPayload.stock_quantity !== null && wooPayload.stock_quantity !== '') {
         wooPayload.stock_quantity = parseInt(wooPayload.stock_quantity, 10);
     }
     

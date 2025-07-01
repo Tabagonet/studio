@@ -35,10 +35,11 @@ export async function POST(request: NextRequest) {
         // 1. Handle category
         const finalCategoryId = await findOrCreateCategoryByPath(finalProductData.categoryPath || finalProductData.category?.name || '', wooApi);
 
-        // 2. Upload images (if they have an uploadedUrl from the temp server)
+        // 2. Upload and process images (if they have an uploadedUrl from the temp server)
         const wordpressImageIds = [];
         for (const [index, photo] of finalProductData.photos.entries()) {
             if (photo.uploadedUrl) {
+                // The filename passed to the helper will have its extension replaced with .webp
                 const newImageId = await uploadImageToWordPress(
                     photo.uploadedUrl,
                     `${slugify(finalProductData.name)}-${index + 1}.jpg`,
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
         if (finalProductData.productType === 'simple') {
             wooPayload.regular_price = finalProductData.regularPrice;
             wooPayload.sale_price = finalProductData.salePrice || undefined;
-            if (finalProductData.manage_stock) {
+            if (finalProductData.manage_stock && finalProductData.stockQuantity) {
                 wooPayload.stock_quantity = parseInt(finalProductData.stockQuantity, 10);
             }
         } else if (finalProductData.productType === 'grouped') {
@@ -104,7 +105,7 @@ export async function POST(request: NextRequest) {
                 if(finalProductData.shouldSaveSku !== false && v.sku) {
                     variationPayload.sku = v.sku;
                 }
-                if (v.manage_stock) {
+                if (v.manage_stock && v.stockQuantity) {
                     variationPayload.stock_quantity = parseInt(v.stockQuantity, 10);
                 }
                 return variationPayload;

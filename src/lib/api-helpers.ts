@@ -8,6 +8,7 @@ import type { AxiosInstance } from 'axios';
 import axios from 'axios';
 import FormData from 'form-data';
 import type { ExtractedWidget } from './types';
+import sharp from 'sharp';
 
 
 interface ApiClients {
@@ -176,16 +177,11 @@ function replaceElementorTextsRecursive(data: any, translatedTexts: string[]): a
     return data;
 }
 
-export function replaceElementorTexts(originalElements: any[], translatedTexts: string[]): any[] {
-    const textsCopy = [...translatedTexts]; // Use a mutable copy so we can shift() from it
-    return replaceElementorTextsRecursive(originalElements, textsCopy);
-}
-
 
 /**
- * Uploads an image from a given URL to the WordPress media library.
- * @param imageUrl The URL of the image to upload.
- * @param seoFilename A desired filename for SEO purposes.
+ * Downloads, processes (resizes, converts to WebP), and uploads an image to the WordPress media library.
+ * @param imageUrl The URL of the image to process.
+ * @param seoFilename A desired filename for SEO purposes. The extension will be replaced with .webp.
  * @param imageMetadata Metadata for the image (title, alt, etc.).
  * @param wpApi Initialized Axios instance for WordPress API.
  * @returns The ID of the newly uploaded media item.
@@ -197,20 +193,33 @@ export async function uploadImageToWordPress(
   wpApi: AxiosInstance
 ): Promise<number> {
     try {
+        // 1. Download the image
         const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-        const imageBuffer = Buffer.from(imageResponse.data);
+        const originalBuffer = Buffer.from(imageResponse.data, 'binary');
 
+        // 2. Process the image with Sharp
+        const processedBuffer = await sharp(originalBuffer)
+            .resize(1200, 1200, {
+                fit: 'inside', // Resize while maintaining aspect ratio
+                withoutEnlargement: true, // Don't enlarge smaller images
+            })
+            .webp({ quality: 80 }) // Convert to WebP with 80% quality
+            .toBuffer();
+            
+        // 3. Prepare FormData for WordPress upload
+        const webpFilename = seoFilename.replace(/\.[^/.]+$/, "") + ".webp"; // Ensure filename is .webp
         const formData = new FormData();
-        formData.append('file', imageBuffer, seoFilename);
+        formData.append('file', processedBuffer, webpFilename);
         formData.append('title', imageMetadata.title);
         formData.append('alt_text', imageMetadata.alt_text);
         formData.append('caption', imageMetadata.caption);
         formData.append('description', imageMetadata.description);
 
+        // 4. Upload the processed image to WordPress
         const mediaResponse = await wpApi.post('/media', formData, {
             headers: {
                 ...formData.getHeaders(),
-                'Content-Disposition': `attachment; filename=${seoFilename}`,
+                'Content-Disposition': `attachment; filename=${webpFilename}`,
             },
         });
 
