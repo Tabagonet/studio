@@ -6,20 +6,31 @@ import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, Printer, BrainCircuit, Lightbulb, FileText, ListTree, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Printer, BrainCircuit, Lightbulb, FileText, ListTree, Image as ImageIcon, CheckCircle, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
-import type { SeoAnalysisRecord, SeoInterpretationOutput } from '@/lib/types';
-import { interpretSeoAnalysis } from '@/ai/flows/interpret-seo-analysis';
+import type { SeoAnalysisRecord } from '@/lib/types';
 import { APP_NAME } from '@/lib/constants';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
+
+const checkLabels: Record<keyof SeoAnalysisRecord['analysis']['aiAnalysis']['checks'], string> = {
+    titleContainsKeyword: "Título SEO contiene palabra clave",
+    titleIsGoodLength: "Longitud del título SEO (30-65)",
+    metaDescriptionContainsKeyword: "Meta descripción contiene palabra clave",
+    metaDescriptionIsGoodLength: "Longitud de meta descripción (50-160)",
+    keywordInFirstParagraph: "Palabra clave en la introducción",
+    contentHasImages: "Contenido tiene imágenes",
+    allImagesHaveAltText: "Todas las imágenes tienen 'alt text'",
+    h1Exists: "Existe un único encabezado H1",
+    canonicalUrlExists: "Existe una URL canónica",
+};
 
 function ReportContent() {
   const searchParams = useSearchParams();
   const analysisId = searchParams.get('analysisId');
   const [analysisRecord, setAnalysisRecord] = useState<SeoAnalysisRecord | null>(null);
-  const [interpretation, setInterpretation] = useState<SeoInterpretationOutput | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -35,7 +46,6 @@ function ReportContent() {
       setIsLoading(true);
       setError(null);
       setAnalysisRecord(null);
-      setInterpretation(null);
       
       const user = auth.currentUser;
       if (!user) {
@@ -55,13 +65,10 @@ function ReportContent() {
         }
         
         const record: SeoAnalysisRecord = await response.json();
-        if (!record.analysis) {
-             throw new Error("Los datos del análisis en el registro están corruptos o incompletos.");
+        if (!record.analysis || !record.interpretation) {
+             throw new Error("El informe está incompleto o corrupto. Vuelva a analizar la página.");
         }
         setAnalysisRecord(record);
-        
-        const interpretationResult = await interpretSeoAnalysis(record.analysis);
-        setInterpretation(interpretationResult);
 
       } catch (e: any) {
         setError(e.message);
@@ -78,7 +85,7 @@ function ReportContent() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">Generando informe SEO avanzado...</p>
+        <p className="text-lg text-muted-foreground">Cargando informe SEO avanzado...</p>
       </div>
     );
   }
@@ -91,7 +98,7 @@ function ReportContent() {
     return <Alert>No se encontraron datos de análisis válidos para generar el informe.</Alert>;
   }
 
-  const { analysis } = analysisRecord;
+  const { analysis, interpretation } = analysisRecord;
   const scoreColor = analysis.aiAnalysis.score >= 80 ? 'text-green-500' : analysis.aiAnalysis.score >= 50 ? 'text-amber-500' : 'text-destructive';
   const imagesWithoutAlt = analysis.images?.filter(img => !img.alt).length ?? 0;
 
@@ -117,14 +124,8 @@ function ReportContent() {
                 <p className={`text-8xl font-bold ${scoreColor}`}>{analysis.aiAnalysis.score}<span className="text-4xl">/100</span></p>
               </div>
               <div className="max-w-xl">
-                 {interpretation ? (
-                  <>
-                    <h3 className="text-xl font-semibold mb-2 flex items-center gap-2"><BrainCircuit className="h-6 w-6 text-primary" /> Interpretación del Experto IA</h3>
-                    <p className="text-base text-muted-foreground italic">"{interpretation.interpretation}"</p>
-                  </>
-                 ) : (
-                    <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Cargando interpretación...</div>
-                 )}
+                 <h3 className="text-xl font-semibold mb-2 flex items-center gap-2"><BrainCircuit className="h-6 w-6 text-primary" /> Interpretación del Experto IA</h3>
+                 <p className="text-base text-muted-foreground italic">"{interpretation.interpretation}"</p>
               </div>
             </CardContent>
           </Card>
@@ -135,15 +136,11 @@ function ReportContent() {
                 <CardDescription>Estos son los pasos más importantes para mejorar el SEO de esta página.</CardDescription>
              </CardHeader>
              <CardContent>
-                {interpretation ? (
-                  <ul className="list-decimal list-inside space-y-4 text-lg">
-                      {interpretation.actionPlan.map((action, i) => (
-                          <li key={i} className="pl-2">{action}</li>
-                      ))}
-                  </ul>
-                ) : (
-                   <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Cargando plan de acción...</div>
-                )}
+                <ul className="list-decimal list-inside space-y-4 text-lg">
+                    {interpretation.actionPlan.map((action, i) => (
+                        <li key={i} className="pl-2">{action}</li>
+                    ))}
+                </ul>
              </CardContent>
            </Card>
         </section>
@@ -151,6 +148,20 @@ function ReportContent() {
         <section className="page-break-after">
           <CardTitle className="text-2xl mb-6 flex items-center gap-2"><FileText className="h-6 w-6 text-primary" />Análisis Técnico Detallado</CardTitle>
           <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-lg">Checklist SEO</CardTitle>
+                </CardHeader>
+                 <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                    {analysis.aiAnalysis?.checks && Object.entries(analysis.aiAnalysis.checks).map(([key, passed]) => (
+                        <div key={key} className="flex items-center gap-2 text-sm">
+                            {passed ? <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" /> : <XCircle className="h-4 w-4 text-amber-500 flex-shrink-0" />}
+                            <span className="text-muted-foreground">{checkLabels[key as keyof typeof checkLabels]}</span>
+                        </div>
+                    ))}
+                </CardContent>
+            </Card>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Card>
                     <CardHeader><CardTitle className="text-lg">SEO Básico</CardTitle></CardHeader>
@@ -190,21 +201,13 @@ function ReportContent() {
               <Card className="border-green-500/50">
                   <CardHeader><CardTitle className="text-lg text-green-600">Puntos Fuertes</CardTitle></CardHeader>
                    <CardContent>
-                    {interpretation ? (
                         <ul className="list-disc list-inside space-y-2">{interpretation.positives.map((item, i) => <li key={i}>{item}</li>)}</ul>
-                    ) : (
-                        <p className="text-sm text-muted-foreground">Cargando...</p>
-                    )}
                   </CardContent>
               </Card>
                <Card className="border-amber-500/50">
                   <CardHeader><CardTitle className="text-lg text-amber-600">Áreas de Mejora</CardTitle></CardHeader>
                   <CardContent>
-                    {interpretation ? (
                         <ul className="list-disc list-inside space-y-2">{interpretation.improvements.map((item, i) => <li key={i}>{item}</li>)}</ul>
-                    ) : (
-                        <p className="text-sm text-muted-foreground">Cargando...</p>
-                    )}
                   </CardContent>
               </Card>
           </div>
