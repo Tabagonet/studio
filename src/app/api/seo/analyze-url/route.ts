@@ -8,7 +8,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { z } from 'zod';
 import { getApiClientsForUser } from '@/lib/api-helpers';
-import { GoogleGenerativeAI } from "@google-generative-ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SeoAnalysisRecord, SeoAnalysisInput } from '@/lib/types';
 
 
@@ -74,7 +74,7 @@ async function getPageContentFromApi(postId: number, postType: 'Post' | 'Page', 
     if (!rawData || !rawData.content || !rawData.title) {
         throw new Error(`Could not fetch content for ${postType} ID ${postId} via API.`);
     }
-    
+
     const yoastTitle = rawData.meta?._yoast_wpseo_title;
     const finalTitle = (typeof yoastTitle === 'string') 
                        ? yoastTitle 
@@ -117,10 +117,12 @@ async function getPageContentFromScraping(url: string) {
         allImages.forEach(img => {
             if (!img.src) return;
 
-            const baseSrc = img.src.replace(/-\d+x\d+(?=\.(jpg|jpeg|png|webp|gif)$)/i, '');
+            // Normalize URL by removing size suffixes (e.g., -300x200) before the extension
+            const baseSrc = img.src.replace(/-\d+x\d+(?=\.(jpg|jpeg|png|webp|gif|svg)$)/i, '');
 
             const existing = uniqueImagesMap.get(baseSrc);
             
+            // Add or update if the new one has 'alt' text and the existing one doesn't
             if (!existing || (!existing.alt && img.alt)) {
                 uniqueImagesMap.set(baseSrc, img);
             }
@@ -305,5 +307,4 @@ export async function POST(req: NextRequest) {
     console.error('🔥 Error in /api/seo/analyze-url:', error);
     return NextResponse.json({ error: 'La IA falló: ' + error.message }, { status: 500 });
   }
-
-    
+}
