@@ -95,8 +95,8 @@ async function getPageContentFromApi(postId: number, postType: 'Post' | 'Page', 
             text: $(el).text()
         })).get(),
         images: $('img').map((i, el) => ({
-            src: $(el).attr('src') || '',
-            alt: $(el).attr('alt') || ''
+            src: $(el).attr('src') || $(el).data('src') || '',
+            alt: $(el).attr('alt') || $(el).data('alt') || ''
         })).get(),
         textContent: $('body').text().replace(/\s\s+/g, ' ').trim(),
     };
@@ -132,8 +132,8 @@ async function getPageContentFromScraping(url: string) {
                 text: $(el).text()
             })).get(),
             images: body$('img').map((i, el) => ({
-                src: $(el).attr('src') || '',
-                alt: $(el).attr('alt') || ''
+                src: $(el).attr('src') || $(el).data('src') || '',
+                alt: $(el).attr('alt') || $(el).data('alt') || ''
             })).get(),
             textContent: body$('body').text().replace(/\s\s+/g, ' ').trim(),
         };
