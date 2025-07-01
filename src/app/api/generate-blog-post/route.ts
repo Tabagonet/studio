@@ -1,6 +1,4 @@
 
-'use server';
-
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
@@ -33,7 +31,7 @@ export async function POST(req: NextRequest) {
         const decodedToken = await adminAuth.verifyIdToken(token);
         uid = decodedToken.uid;
 
-    } catch (error) {
+    } catch (error: any) {
         return NextResponse.json({ error: 'Authentication failed.' }, { status: 401 });
     }
 

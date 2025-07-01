@@ -1,6 +1,4 @@
 
-'use server';
-
 import { z } from 'zod';
 
 export const aiChecksSchema = z.object({
