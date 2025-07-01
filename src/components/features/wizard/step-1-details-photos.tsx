@@ -92,10 +92,10 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         setWooCategories(flattenedHierarchy);
 
       } catch (error) {
-        console.error("Error fetching WooCommerce categories:", error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         toast({
           title: "Error al Cargar Categorías",
-          description: (error as Error).message || "No se pudieron cargar las categorías de WooCommerce.",
+          description: errorMessage || "No se pudieron cargar las categorías de WooCommerce.",
           variant: "destructive",
         });
       } finally {
@@ -114,7 +114,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [toast]);
   
     useEffect(() => {
     const checkProductExistence = async (field: 'sku' | 'name', value: string) => {
@@ -144,7 +144,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                  (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'idle', message: '' }); // Reset on error
             }
         } catch (error) {
-            console.error(`Error checking ${field}:`, error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error(`Error checking ${field}:`, errorMessage);
             (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'idle', message: '' });
         }
     };
@@ -152,7 +153,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     if (debouncedSku) checkProductExistence('sku', debouncedSku);
     if (debouncedName) checkProductExistence('name', debouncedName);
 
-  }, [debouncedSku, debouncedName]);
+  }, [debouncedSku, debouncedName, toast]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     updateProductData({ [e.target.name]: e.target.value });
@@ -498,7 +499,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                         <div>
                             <Label htmlFor="shipping_class">Clase de envío</Label>
                             <Input id="shipping_class" name="shipping_class" value={productData.shipping_class} onChange={handleInputChange} placeholder="Introduce el slug de la clase de envío" disabled={isProcessing} />
-                            <p className="text-xs text-muted-foreground mt-1">Encuentra el slug en WooCommerce > Ajustes > Envío > Clases de envío.</p>
+                            <p className="text-xs text-muted-foreground mt-1">Encuentra el slug en WooCommerce &gt; Ajustes &gt; Envío &gt; Clases de envío.</p>
                         </div>
                     </div>
                 )}
