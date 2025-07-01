@@ -185,7 +185,7 @@ export function ProductDataTable() {
 
       const { products, totalPages } = await response.json();
       
-      const stringLangCodes: string[] = [...new Set(products.map((p: ProductSearchResult) => p.lang).filter((l): l is string => !!l && l !== 'N/A'))];
+      const stringLangCodes: string[] = [...new Set&lt;string&gt;(products.map((p: ProductSearchResult) => p.lang).filter((l): l is string => !!l && l !== 'N/A'))];
       setAvailableLanguages(stringLangCodes.map(code => ({ code, name: LANGUAGE_MAP[code] || code.toUpperCase() })));
 
 
@@ -232,7 +232,7 @@ export function ProductDataTable() {
     } finally {
       setIsLoading(false);
     }
-  }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedStockStatus, selectedLanguage, sorting]); 
+  }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedStockStatus, selectedLanguage, sorting, toast]); 
 
   React.useEffect(() => {
     const fetchCats = async (token: string) => {
@@ -312,7 +312,7 @@ export function ProductDataTable() {
       console.error(error);
       toast({ title: "Error", description: (error as Error).message, variant: "destructive" });
     }
-  }, [fetchData, fetchStats]);
+  }, [fetchData, fetchStats, toast]);
 
   const handleDeleteProduct = React.useCallback(async (productId: number) => {
     const user = auth.currentUser;
@@ -342,7 +342,7 @@ export function ProductDataTable() {
       console.error('Error deleting product:', error);
       toast({ title: "Error al Eliminar", description: (error as Error).message, variant: "destructive" });
     }
-  }, [fetchData, fetchStats]);
+  }, [fetchData, fetchStats, toast]);
 
   const handleEditProduct = (productId: number) => {
     router.push(`/products/edit/${productId}`);
