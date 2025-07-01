@@ -483,7 +483,7 @@ export default function BatchProcessPage() {
                     body: JSON.stringify({ contentToTranslate, targetLanguage: lang })
                 });
                 if (!translateResponse.ok) throw new Error(`Error al traducir a ${lang}`);
-                const translatedContent = (await translateResponse.json()).content;
+                const translatedContent = await translateResponse.json();
 
                 updateProductProcessingStatus(product.id, 'processing', `Creando producto en ${lang}...`, stepProgress + (15 / totalLangSteps));
                 const targetLangInfo = ALL_LANGUAGES.find(l => l.name === lang || l.code === lang);

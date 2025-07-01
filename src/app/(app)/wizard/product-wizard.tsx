@@ -169,7 +169,7 @@ export function ProductWizard() {
         toast({ title: 'Proceso Interrumpido', description: error.message, variant: 'destructive' });
         setSubmissionStatus('error');
     }
-  }, [productData]);
+  }, [productData, toast]);
 
 
   useEffect(() => {
