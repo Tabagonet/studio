@@ -33,13 +33,14 @@ import { Input } from "@/components/ui/input"
 import { getColumns } from "./columns" 
 import type { ProductSearchResult, WooCommerceCategory, ProductStats, HierarchicalProduct } from "@/lib/types"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { BrainCircuit, ChevronDown, Loader2, Box, FileCheck2, FileText, BarChart3, Eye, EyeOff, Image as ImageIcon, Trash2, BadgeDollarSign, Languages } from "lucide-react"
+import { BrainCircuit, ChevronDown, Loader2, Box, FileCheck2, FileText, BarChart3, Eye, EyeOff, Image as ImageIcon, Trash2, BadgeDollarSign, Languages, Package } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 
 
 const LANGUAGE_MAP: { [key: string]: string } = {
@@ -94,11 +95,21 @@ export function ProductDataTable() {
   } | null>(null);
   
   const [isPriceModalOpen, setIsPriceModalOpen] = React.useState(false);
+  const [isQuickUpdateModalOpen, setIsQuickUpdateModalOpen] = React.useState(false);
+  
   const [priceModification, setPriceModification] = React.useState({
     field: 'regular_price' as 'regular_price' | 'sale_price',
     operation: 'increase' as 'increase' | 'decrease' | 'set',
     type: 'percentage' as 'percentage' | 'fixed',
     value: '',
+  });
+
+  const [quickUpdateData, setQuickUpdateData] = React.useState({
+    weight: '',
+    dimensions: { length: '', width: '', height: '' },
+    shipping_class: '',
+    manage_stock: false,
+    stock_quantity: '',
   });
 
   const { toast, dismiss } = useToast()
@@ -369,12 +380,10 @@ export function ProductDataTable() {
   const getProductIdsForAction = () => {
     const productIdsSet = new Set<number>();
     table.getSelectedRowModel().rows.forEach((row) => {
-      // Find the root parent of this row to get the full product group
       let current = row;
       while (current.getParentRow()) {
         current = current.getParentRow() as Row<HierarchicalProduct>;
       }
-      // Now 'current' is the root row of the group. Add it and all its children.
       productIdsSet.add(current.original.id);
       current.original.subRows?.forEach(subRow => productIdsSet.add(subRow.id));
     });
@@ -512,6 +521,7 @@ export function ProductDataTable() {
         setIsActionRunning(false);
         setActionText('');
         setIsPriceModalOpen(false);
+        setIsQuickUpdateModalOpen(false);
     }
   }
   
@@ -585,6 +595,26 @@ export function ProductDataTable() {
             }
         });
     }
+
+    const handleApplyQuickUpdate = () => {
+      const payload: any = {};
+      if (quickUpdateData.weight) payload.weight = quickUpdateData.weight;
+      if (quickUpdateData.shipping_class) payload.shipping_class = quickUpdateData.shipping_class;
+      if (Object.values(quickUpdateData.dimensions).some(d => d)) {
+        payload.dimensions = quickUpdateData.dimensions;
+      }
+      
+      payload.manage_stock = quickUpdateData.manage_stock;
+      if (quickUpdateData.manage_stock && quickUpdateData.stock_quantity) {
+        payload.stock_quantity = quickUpdateData.stock_quantity;
+      }
+      
+      if (Object.keys(payload).length === 0) {
+        toast({ title: "Nada que actualizar", description: "Por favor, introduce al menos un valor.", variant: "destructive" });
+        return;
+      }
+      handleBatchUpdate(payload);
+    };
 
   const selectedRowCount = Object.keys(rowSelection).length;
 
@@ -683,6 +713,47 @@ export function ProductDataTable() {
         </AlertDialogContent>
     </AlertDialog>
 
+    <AlertDialog open={isQuickUpdateModalOpen} onOpenChange={setIsQuickUpdateModalOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Actualización Rápida de Datos</AlertDialogTitle>
+          <AlertDialogDescription>
+              Aplica los mismos datos físicos y de inventario a los {selectedRowCount} productos seleccionados. Los campos vacíos se ignorarán.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Peso (kg)</Label>
+              <Input placeholder="Ej: 0.5" value={quickUpdateData.weight} onChange={(e) => setQuickUpdateData(d => ({ ...d, weight: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Clase de envío</Label>
+              <Input placeholder="Slug de la clase" value={quickUpdateData.shipping_class} onChange={(e) => setQuickUpdateData(d => ({ ...d, shipping_class: e.target.value }))} />
+            </div>
+          </div>
+          <div>
+            <Label>Dimensiones (cm)</Label>
+            <div className="grid grid-cols-3 gap-2">
+              <Input placeholder="Largo" value={quickUpdateData.dimensions.length} onChange={(e) => setQuickUpdateData(d => ({ ...d, dimensions: { ...d.dimensions, length: e.target.value } }))} />
+              <Input placeholder="Ancho" value={quickUpdateData.dimensions.width} onChange={(e) => setQuickUpdateData(d => ({ ...d, dimensions: { ...d.dimensions, width: e.target.value } }))} />
+              <Input placeholder="Alto" value={quickUpdateData.dimensions.height} onChange={(e) => setQuickUpdateData(d => ({ ...d, dimensions: { ...d.dimensions, height: e.target.value } }))} />
+            </div>
+          </div>
+          <div className="pt-4 border-t space-y-2">
+            <div className="flex items-center space-x-2">
+              <Checkbox id="manage_stock_quick" checked={quickUpdateData.manage_stock} onCheckedChange={(checked) => setQuickUpdateData(d => ({ ...d, manage_stock: !!checked }))} />
+              <Label htmlFor="manage_stock_quick" className="font-normal">Gestionar inventario</Label>
+            </div>
+            <Input type="number" placeholder="Cantidad" disabled={!quickUpdateData.manage_stock} value={quickUpdateData.stock_quantity} onChange={(e) => setQuickUpdateData(d => ({ ...d, stock_quantity: e.target.value }))} />
+          </div>
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction onClick={handleApplyQuickUpdate}>Aplicar Actualización</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -795,7 +866,10 @@ export function ProductDataTable() {
                         <ImageIcon className="mr-2 h-4 w-4" /> Generar Metadatos para Imágenes
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuLabel>Gestión de Precios</DropdownMenuLabel>
+                     <DropdownMenuLabel>Gestión de Datos</DropdownMenuLabel>
+                     <DropdownMenuItem onSelect={() => setIsQuickUpdateModalOpen(true)}>
+                        <Package className="mr-2 h-4 w-4" /> Actualización Rápida
+                    </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => setIsPriceModalOpen(true)}>
                         <BadgeDollarSign className="mr-2 h-4 w-4" /> Modificar Precios
                     </DropdownMenuItem>

@@ -14,6 +14,15 @@ const BatchUpdateSchema = z.object({
       type: z.enum(['fixed', 'percentage']),
       value: z.number().positive('El valor debe ser un número positivo.'),
     }).optional(),
+    weight: z.string().optional(),
+    dimensions: z.object({
+        length: z.string(),
+        width: z.string(),
+        height: z.string(),
+    }).optional(),
+    shipping_class: z.string().optional(),
+    manage_stock: z.boolean().optional(),
+    stock_quantity: z.string().optional(),
   }),
 });
 
@@ -47,10 +56,7 @@ export async function POST(req: NextRequest) {
         let batchUpdatePayload: { id: number; [key: string]: any }[] = [];
         let message = 'Proceso completado.';
 
-        if (updates.status) {
-            batchUpdatePayload = productIds.map(id => ({ id, status: updates.status }));
-            message = `Se ha actualizado el estado de ${productIds.length} producto(s).`;
-        } else if (updates.priceModification) {
+        if (updates.priceModification) {
             const mod = updates.priceModification;
             const productChunks = [];
             for (let i = 0; i < productIds.length; i += 100) {
@@ -62,7 +68,7 @@ export async function POST(req: NextRequest) {
                 const { data } = await wooApi.get('products', { 
                     include: chunk.join(','), 
                     per_page: 100,
-                    lang: 'all' // CORRECTED: Use 'all' to ensure all translations are fetched.
+                    lang: 'all'
                 });
                 fetchedProducts.push(...data);
             }
@@ -72,7 +78,6 @@ export async function POST(req: NextRequest) {
             }
 
             batchUpdatePayload = fetchedProducts.map((product: any) => {
-                // More robust price parsing
                 const currentPrice = parseFloat(product[mod.field] || product.price) || 0;
                 let newPrice: number;
 
@@ -95,7 +100,24 @@ export async function POST(req: NextRequest) {
             });
             message = `Se han modificado los precios de ${batchUpdatePayload.length} producto(s).`;
         } else {
-             return NextResponse.json({ error: 'No update action specified.' }, { status: 400 });
+            const updateData: any = {};
+            if (updates.status) updateData.status = updates.status;
+            if (updates.weight) updateData.weight = updates.weight;
+            if (updates.shipping_class) updateData.shipping_class = updates.shipping_class;
+            
+            if (updates.dimensions && (updates.dimensions.length || updates.dimensions.width || updates.dimensions.height)) {
+                updateData.dimensions = updates.dimensions;
+            }
+
+            if (updates.manage_stock !== undefined) {
+                updateData.manage_stock = updates.manage_stock;
+                if (updates.manage_stock && updates.stock_quantity) {
+                     updateData.stock_quantity = parseInt(updates.stock_quantity, 10);
+                }
+            }
+            
+            batchUpdatePayload = productIds.map(id => ({ id, ...updateData }));
+            message = `Se han actualizado los datos de ${productIds.length} producto(s).`;
         }
         
         if (batchUpdatePayload.length > 0) {
