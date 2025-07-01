@@ -1,6 +1,5 @@
 import {NextRequest, NextResponse} from 'next/server';
 import {adminAuth, adminDb} from '@/lib/firebase-admin';
-import { interpretSeoAnalysis } from '@/ai/flows/interpret-seo-analysis';
 
 export async function GET(req: NextRequest) {
   let uid: string;
