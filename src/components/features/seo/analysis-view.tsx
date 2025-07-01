@@ -1,19 +1,17 @@
 
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { BrainCircuit, CheckCircle, XCircle, ListTree, Edit, History, Printer, RefreshCw, Lightbulb } from "lucide-react";
 import { Button } from '@/components/ui/button';
-import type { ContentItem, AnalysisResult, SeoAnalysisRecord, SeoInterpretationOutput } from '@/lib/types';
+import type { ContentItem, AnalysisResult, SeoAnalysisRecord } from '@/lib/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { auth } from '@/lib/firebase';
-import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
 
@@ -40,43 +38,7 @@ interface AnalysisViewProps {
 
 
 export function AnalysisView({ record, item, history, onEdit, onReanalyze, onSelectHistoryItem }: AnalysisViewProps) {
-  const [interpretation, setInterpretation] = useState<SeoInterpretationOutput | null>(null);
-  const [isInterpreting, setIsInterpreting] = useState(false);
-  const { toast } = useToast();
-  
-  const { analysis } = record;
-
-  useEffect(() => {
-    const getInterpretation = async () => {
-        if (!record?.id) return;
-        
-        setIsInterpreting(true);
-        setInterpretation(null);
-        const user = auth.currentUser;
-        if (!user) return;
-
-        try {
-            const token = await user.getIdToken();
-            const response = await fetch(`/api/seo/analysis/${record.id}`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || "No se pudo generar la interpretación de la IA.");
-            }
-            const result = await response.json();
-            setInterpretation(result);
-        } catch (error: any) {
-            toast({ title: 'Error de IA', description: error.message, variant: 'destructive' });
-        } finally {
-            setIsInterpreting(false);
-        }
-    };
-    
-    getInterpretation();
-  }, [record?.id, toast]);
-
+  const { analysis, interpretation } = record;
 
   const scoreColor = analysis.aiAnalysis.score >= 80 ? 'text-green-500' : analysis.aiAnalysis.score >= 50 ? 'text-amber-500' : 'text-destructive';
   const latestAnalysisId = history[0]?.id;
@@ -119,9 +81,9 @@ export function AnalysisView({ record, item, history, onEdit, onReanalyze, onSel
               <CardDescription>Sugerencias generadas por IA basadas en el análisis técnico.</CardDescription>
           </CardHeader>
           <CardContent>
-              {isInterpreting ? (
-                  <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin mr-2" /> Generando resumen...</div>
-              ) : interpretation ? (
+              {!interpretation ? (
+                  <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin mr-2" /> La IA está procesando el resumen...</div>
+              ) : (
                   <div className="space-y-6">
                       <div>
                           <h3 className="font-semibold text-lg mb-2">Interpretación General</h3>
@@ -150,8 +112,6 @@ export function AnalysisView({ record, item, history, onEdit, onReanalyze, onSel
                           </ul>
                       </div>
                   </div>
-              ) : (
-                  <p className="text-sm text-center text-muted-foreground">No se pudo cargar la interpretación de la IA.</p>
               )}
           </CardContent>
       </Card>

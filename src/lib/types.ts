@@ -1,7 +1,7 @@
 
 
 import type { LucideIcon } from 'lucide-react';
-import type { SeoInterpretationOutput } from '@/ai/flows/interpret-seo-analysis';
+import type { SeoInterpretationOutput } from '@/ai/schemas';
 
 // Core navigation type, kept for UI layout
 export interface NavItem {
@@ -311,6 +311,7 @@ export interface SeoAnalysisRecord {
     createdAt: string; // ISO String
     analysis: AnalysisResult;
     score: number;
+    interpretation?: SeoInterpretationOutput;
 }
 
 export type { SeoInterpretationOutput };
