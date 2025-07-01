@@ -4,7 +4,7 @@
 import { ColumnDef } from "@tanstack/react-table"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowUpDown, MoreHorizontal, Eye, EyeOff, Pencil, CheckCircle2, XCircle, ExternalLink, Trash2, ChevronRight, Languages } from "lucide-react"
+import { ArrowUpDown, MoreHorizontal, Eye, EyeOff, Pencil, ExternalLink, Trash2, ChevronRight, Package, Ruler, Truck } from "lucide-react"
 
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -147,10 +147,51 @@ export const getColumns = (
       return badge;
     }
   },
-   {
+  {
     accessorKey: "type",
     header: "Tipo",
     cell: ({ row }) => <Badge variant="secondary">{row.original.type}</Badge>
+  },
+  {
+    id: "logistics",
+    header: "Logística",
+    cell: ({ row }) => {
+      const { manage_stock, stock_quantity, weight, dimensions, shipping_class } = row.original;
+      const hasWeightOrDims = (weight && parseFloat(weight) > 0) || (dimensions && (parseFloat(dimensions.length) > 0 || parseFloat(dimensions.width) > 0 || parseFloat(dimensions.height) > 0));
+      const hasShippingClass = !!shipping_class;
+      
+      return (
+        <TooltipProvider>
+            <div className="flex items-center justify-start gap-3">
+            {manage_stock && (
+                <Tooltip>
+                    <TooltipTrigger><Package className="h-4 w-4 text-primary" /></TooltipTrigger>
+                    <TooltipContent>Stock: {stock_quantity ?? 'N/A'}</TooltipContent>
+                </Tooltip>
+            )}
+            {hasWeightOrDims && (
+                <Tooltip>
+                    <TooltipTrigger><Ruler className="h-4 w-4 text-primary" /></TooltipTrigger>
+                    <TooltipContent>
+                        {weight && `Peso: ${weight} kg`}
+                        {weight && dimensions && <br />}
+                        {dimensions && `Dims: ${dimensions.length || 'N/A'}x${dimensions.width || 'N/A'}x${dimensions.height || 'N/A'} cm`}
+                    </TooltipContent>
+                </Tooltip>
+            )}
+            {hasShippingClass && (
+                 <Tooltip>
+                    <TooltipTrigger><Truck className="h-4 w-4 text-primary" /></TooltipTrigger>
+                    <TooltipContent>Clase de envío: {shipping_class}</TooltipContent>
+                </Tooltip>
+            )}
+            {!manage_stock && !hasWeightOrDims && !hasShippingClass && (
+                <span className="text-xs text-muted-foreground">-</span>
+            )}
+            </div>
+        </TooltipProvider>
+      );
+    }
   },
   {
     accessorKey: "price",

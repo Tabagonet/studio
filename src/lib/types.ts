@@ -147,7 +147,7 @@ export interface ProductData {
     width: string;
     height: string;
   };
-  shipping_class?: string;
+  shipping_class: string;
   category: WooCommerceCategory | null; // Store category object
   categoryPath?: string; // Used for batch creation by name/path
   keywords: string;
@@ -183,6 +183,15 @@ export interface ProductSearchResult {
   permalink: string;
   lang?: string;
   translations?: Record<string, number>;
+  manage_stock: boolean;
+  stock_quantity: number | null;
+  weight: string;
+  dimensions: {
+    length: string;
+    width: string;
+    height: string;
+  };
+  shipping_class: string;
 }
 
 export type HierarchicalProduct = ProductSearchResult & { subRows: HierarchicalProduct[] };

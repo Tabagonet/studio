@@ -67,17 +67,13 @@ export async function GET(req: NextRequest) {
     const products: ProductSearchResult[] = response.data.map((product: any) => {
         let imageUrl: string | null = null;
         
-        // Prefer the 'images' array first, as it's the standard for galleries.
         if (product.images && product.images.length > 0 && product.images[0].src) {
             imageUrl = product.images[0].src;
         } 
-        // Fallback to the top-level 'image' property.
         else if (product.image) {
-            // It can be an object with a 'src' property...
             if (typeof product.image === 'object' && product.image.src) {
                 imageUrl = product.image.src;
             } 
-            // ...or sometimes just a string URL.
             else if (typeof product.image === 'string') {
                 imageUrl = product.image;
             }
@@ -99,6 +95,11 @@ export async function GET(req: NextRequest) {
             permalink: product.permalink,
             lang: product.lang || null,
             translations: product.translations || {},
+            manage_stock: product.manage_stock,
+            stock_quantity: product.stock_quantity,
+            weight: product.weight,
+            dimensions: product.dimensions,
+            shipping_class: product.shipping_class,
         };
     });
 
