@@ -59,40 +59,6 @@ const SeoInterpretationOutputSchema = z.object({
     ),
 });
 
-async function getBackendMetadata(postId: number, postType: 'Post' | 'Page', uid: string) {
-    const { wpApi } = await getApiClientsForUser(uid);
-    if (!wpApi) {
-        console.warn('Could not get WordPress API client to fetch backend metadata.');
-        return { title: '', metaDescription: '', focusKeyword: '' };
-    }
-
-    try {
-        const endpoint = postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
-        const response = await wpApi.get(endpoint, { params: { context: 'edit', _fields: 'title,meta', '_': new Date().getTime() } });
-        const rawData = response.data;
-        
-        if (!rawData) {
-            throw new Error(`Could not fetch metadata for ${postType} ID ${postId} via API.`);
-        }
-
-        const yoastTitle = rawData.meta?._yoast_wpseo_title;
-        const finalTitle = (typeof yoastTitle === 'string' && yoastTitle.trim() !== '') 
-                           ? yoastTitle.trim()
-                           : rawData.title?.rendered || '';
-
-        return {
-            title: finalTitle,
-            metaDescription: rawData.meta?._yoast_wpseo_metadesc || '',
-            focusKeyword: rawData.meta?._yoast_wpseo_focuskw || '',
-        };
-    } catch (apiError: unknown) {
-        const errorMessage = apiError instanceof Error ? apiError.message : String(apiError);
-        console.error(`Failed to fetch backend metadata for ${postType} ${postId}:`, errorMessage);
-        return { title: '', metaDescription: '', focusKeyword: '' };
-    }
-}
-
-
 async function getPageContentFromScraping(url: string, wpApi: AxiosInstance | null) {
     try {
         const response = await axios.get(url, {
@@ -206,21 +172,36 @@ export async function POST(req: NextRequest) {
     }
     
     const { url, postId, postType } = validation.data;
-    const finalUrl = url.trim().startsWith('http') ? url : `https://${url}`;
-    const urlWithCacheBust = new URL(finalUrl);
-    urlWithCacheBust.searchParams.set('timestamp', Date.now().toString());
-    
     const { wpApi } = await getApiClientsForUser(uid);
-    let pageData = await getPageContentFromScraping(urlWithCacheBust.toString(), wpApi);
+    let pageData;
 
-    if (postId && postType) {
-        const backendMeta = await getBackendMetadata(postId, postType, uid);
+    if (postId && postType && wpApi) {
+        // --- NEW LOGIC: Fetch internal content directly via API ---
+        const endpoint = postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
+        const response = await wpApi.get(endpoint, { params: { context: 'edit', '_': new Date().getTime() } });
+        const post = response.data;
+        const htmlContent = post.content?.rendered || '';
+        const $ = cheerio.load(htmlContent);
+
+        const yoastTitle = post.meta?._yoast_wpseo_title;
+        const finalTitle = (typeof yoastTitle === 'string' && yoastTitle.trim() !== '') ? yoastTitle.trim() : post.title?.rendered || '';
+
         pageData = {
-            ...pageData,
-            title: backendMeta.title || pageData.title,
-            metaDescription: backendMeta.metaDescription || pageData.metaDescription,
-            focusKeyword: backendMeta.focusKeyword,
+            title: finalTitle,
+            metaDescription: post.meta?._yoast_wpseo_metadesc || '',
+            focusKeyword: post.meta?._yoast_wpseo_focuskw || '',
+            canonicalUrl: post.link || '',
+            h1: $('h1').first().text(),
+            headings: $('h1, h2, h3, h4, h5, h6').map((i, el) => ({ tag: (el as cheerio.TagElement).name, text: $(el).text() })).get(),
+            images: $('img').map((i, el) => ({ src: $(el).attr('src') || '', alt: $(el).attr('alt') || '' })).get(),
+            textContent: $('body').text().replace(/\s\s+/g, ' ').trim(),
         };
+    } else {
+        // --- FALLBACK: Scrape public URL ---
+        const finalUrl = url.trim().startsWith('http') ? url : `https://${url}`;
+        const urlWithCacheBust = new URL(finalUrl);
+        urlWithCacheBust.searchParams.set('timestamp', Date.now().toString());
+        pageData = await getPageContentFromScraping(urlWithCacheBust.toString(), wpApi);
     }
     
     if (!pageData.textContent || pageData.textContent.trim().length < 50) {
