@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { UploadCloud, FileText, Info, FileSpreadsheet, Image as ImageIcon, CheckCircle, Download, Loader2, FileWarning, PackageCheck, PackageX, PackageSearch, Sparkles, ShieldAlert } from "lucide-react";
 import { cn } from '@/lib/utils';
-import Papa from 'papaparse';
+import Papa, { ParseResult } from 'papaparse';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
@@ -173,12 +173,14 @@ export default function BatchProcessPage() {
         return;
     }
 
-    Papa.parse(csvFile, {
+    Papa.parse<Record<string, any>>(csvFile, {
         header: true,
         skipEmptyLines: true,
-        complete: (results) => {
-            const validData = results.data.filter((row: any) => row.sku && row.sku.trim() !== '');
-            setCsvData(validData as Record<string, any>[]);
+        complete: (results: ParseResult<Record<string, any>>) => {
+            const validData = results.data.filter(
+                (row: Record<string, any>) => row.sku && typeof row.sku === 'string' && row.sku.trim() !== ''
+            );
+            setCsvData(validData);
              toast({
                 title: "CSV Analizado",
                 description: `Se han encontrado ${validData.length} filas con SKU válido.`,
