@@ -9,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, Printer, BrainCircuit, Lightbulb, FileText, ListTree, Image as ImageIcon, CheckCircle, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
-import type { SeoAnalysisRecord, SeoInterpretationOutput, AnalysisResult } from '@/lib/types';
+import type { SeoAnalysisRecord, AnalysisResult } from '@/lib/types';
 import { APP_NAME } from '@/lib/constants';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -148,7 +148,7 @@ function ReportContent() {
         <section className="page-break-after">
           <CardTitle className="text-2xl mb-6 flex items-center gap-2"><FileText className="h-6 w-6 text-primary" />Análisis Técnico Detallado</CardTitle>
           <div className="space-y-6">
-             <Card>
+            <Card>
                 <CardHeader>
                     <CardTitle className="text-lg">Checklist SEO</CardTitle>
                 </CardHeader>
