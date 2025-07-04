@@ -1,4 +1,3 @@
-
 // src/app/api/license/verify-plugin/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
@@ -7,8 +6,8 @@ import { z } from 'zod';
 export const dynamic = 'force-dynamic';
 
 const verifySchema = z.object({
-  apiKey: z.string().uuid(),
-  siteUrl: z.string().url(),
+  apiKey: z.string().uuid("Formato de API Key inválido."),
+  siteUrl: z.string().url("La URL del sitio proporcionada no es válida."),
 });
 
 // Helper to normalize URLs for comparison
@@ -25,26 +24,31 @@ const normalizeUrl = (url: string): string => {
 };
 
 
-export async function POST(req: NextRequest) {
+export async function GET(req: NextRequest) {
   if (!adminDb) {
-    return NextResponse.json({ error: 'Firestore not configured' }, { status: 503 });
+    return NextResponse.json({ status: 'error', message: 'Firestore no configurado en el servidor.' }, { status: 503 });
   }
 
   try {
-    const body = await req.json();
-    const validation = verifySchema.safeParse(body);
+    const { searchParams } = new URL(req.url);
+    const apiKey = searchParams.get('apiKey');
+    const siteUrl = searchParams.get('siteUrl');
+
+    const validation = verifySchema.safeParse({ apiKey, siteUrl });
     if (!validation.success) {
-      return NextResponse.json({ status: 'error', message: 'API Key o URL del sitio no son válidos.', details: validation.error.flatten() }, { status: 400 });
+      const issues = validation.error.flatten();
+      const errorMessage = issues.fieldErrors.apiKey?.[0] || issues.fieldErrors.siteUrl?.[0] || 'Datos de entrada inválidos.';
+      return NextResponse.json({ status: 'error', message: errorMessage }, { status: 400 });
     }
 
-    const { apiKey, siteUrl } = validation.data;
+    const { apiKey: validApiKey, siteUrl: validSiteUrl } = validation.data;
     
     // 1. Find user by API key using direct lookup
-    const apiKeyRef = adminDb.collection('api_keys').doc(apiKey);
+    const apiKeyRef = adminDb.collection('api_keys').doc(validApiKey);
     const apiKeyDoc = await apiKeyRef.get();
     
     if (!apiKeyDoc.exists) {
-        return NextResponse.json({ status: 'inactive', message: 'API Key no válida.' }, { status: 403 });
+        return NextResponse.json({ status: 'inactive', message: 'API Key no válida o no encontrada.' }, { status: 403 });
     }
     
     const { userId: uid } = apiKeyDoc.data() as { userId: string };
@@ -70,7 +74,7 @@ export async function POST(req: NextRequest) {
     const connectionCount = Object.keys(connections).length;
     const siteLimit = userData.siteLimit ?? 1;
     
-    const normalizedSiteUrl = normalizeUrl(siteUrl);
+    const normalizedSiteUrl = normalizeUrl(validSiteUrl);
     
     const isSiteRegistered = Object.values(connections).some((conn: any) => {
         const wooUrl = conn.wooCommerceStoreUrl ? normalizeUrl(conn.wooCommerceStoreUrl) : null;
@@ -82,6 +86,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ status: 'active', message: 'Plugin verificado correctamente.' });
     }
 
+    // If it's not registered, check if they have hit their limit.
     if (connectionCount < siteLimit) {
       return NextResponse.json({ status: 'inactive', message: 'Este sitio no está configurado en tu cuenta de AutoPress AI. Por favor, añádelo en Ajustes > Conexiones.' }, { status: 403 });
     } else {

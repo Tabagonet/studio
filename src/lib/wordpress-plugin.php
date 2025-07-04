@@ -2,7 +2,7 @@
 /*
 Plugin Name: AutoPress AI Helper
 Description: Añade endpoints a la REST API para gestionar traducciones, stock y otras funciones personalizadas para AutoPress AI.
-Version: 1.14
+Version: 1.15
 Author: intelvisual@intelvisual.es
 */
 
@@ -109,13 +109,15 @@ function autopress_ai_ajax_verify_key() {
         return;
     }
 
-    $verify_url = 'https://autopress.intelvisual.es/api/license/verify-plugin';
-    $response = wp_remote_post($verify_url, [
-        'method'    => 'POST',
-        'timeout'   => 15,
-        'headers'   => ['Content-Type' => 'application/json; charset=utf-8'],
-        'body'      => wp_json_encode(['apiKey' => $api_key, 'siteUrl' => get_site_url()]),
-        'data_format' => 'body',
+    $verify_url_base = 'https://autopress.intelvisual.es/api/license/verify-plugin';
+    $args = array(
+        'apiKey'  => $api_key,
+        'siteUrl' => get_site_url(),
+    );
+    $verify_url = add_query_arg($args, $verify_url_base);
+
+    $response = wp_remote_get($verify_url, [
+        'timeout'   => 20,
     ]);
 
     if (is_wp_error($response)) {
@@ -128,7 +130,7 @@ function autopress_ai_ajax_verify_key() {
     $data = json_decode($body, true);
 
     if ($data === null) {
-        wp_send_json_error(['message' => 'Respuesta inesperada del servidor de AutoPress AI. No es un JSON válido. Código: ' . $response_code], 500);
+        wp_send_json_error(['message' => 'Respuesta inesperada del servidor de AutoPress AI. No es un JSON válido. Código: ' . $response_code . ' Cuerpo: ' . esc_html($body)], 500);
         return;
     }
     
