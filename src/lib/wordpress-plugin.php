@@ -13,7 +13,8 @@ add_action('admin_menu', 'autopress_ai_add_admin_menu');
 add_action('wp_ajax_autopress_ai_verify_key', 'autopress_ai_ajax_verify_key');
 
 function autopress_ai_add_admin_menu() {
-    add_options_page('AutoPress AI Helper', 'AutoPress AI', 'manage_options', 'autopress-ai', 'autopress_ai_options_page');
+    // Changed capability from 'manage_options' to 'edit_posts' to allow more roles.
+    add_options_page('AutoPress AI Helper', 'AutoPress AI', 'edit_posts', 'autopress-ai', 'autopress_ai_options_page');
 }
 
 function autopress_ai_options_page() {
@@ -25,6 +26,15 @@ function autopress_ai_options_page() {
             <?php wp_nonce_field('autopress_ai_verify_nonce', 'autopress_ai_nonce'); ?>
             <table class="form-table">
                 <tbody>
+                    <tr>
+                        <th scope="row">
+                            <label for="autopress_app_url_field"><?php _e('URL de la Aplicación AutoPress AI', 'autopress-ai'); ?></label>
+                        </th>
+                        <td>
+                            <input type="url" name="autopress_app_url" id="autopress_app_url_field" value="<?php echo esc_attr(get_option('autopress_app_url', 'https://autopress.intelvisual.es')); ?>" class="regular-text" placeholder="https://tu-app.vercel.app">
+                            <p class="description"><?php _e('Introduce la URL principal donde está alojada tu aplicación AutoPress AI.', 'autopress-ai'); ?></p>
+                        </td>
+                    </tr>
                     <tr>
                         <th scope="row">
                             <label for="autopress_ai_api_key_field"><?php _e('API Key', 'autopress-ai'); ?></label>
@@ -56,6 +66,7 @@ function autopress_ai_options_page() {
         jQuery(document).ready(function($) {
             $('#autopress-ai-form').on('submit', function(e) {
                 e.preventDefault();
+                var appUrl = $('#autopress_app_url_field').val();
                 var apiKey = $('#autopress_ai_api_key_field').val();
                 var nonce = $('#autopress_ai_nonce').val();
                 var noticeEl = $('#autopress-notice');
@@ -67,6 +78,7 @@ function autopress_ai_options_page() {
 
                 $.post(ajaxurl, {
                     action: 'autopress_ai_verify_key',
+                    app_url: appUrl,
                     api_key: apiKey,
                     nonce: nonce
                 }, function(response) {
@@ -96,29 +108,31 @@ function autopress_ai_ajax_verify_key() {
         wp_send_json_error(['message' => 'Fallo de seguridad.'], 403);
         return;
     }
-    if (!current_user_can('manage_options')) {
+    // Changed capability from 'manage_options' to 'edit_posts' to allow more roles.
+    if (!current_user_can('edit_posts')) {
         wp_send_json_error(['message' => 'No tienes permisos.'], 403);
         return;
     }
-
+    
+    $app_url = isset($_POST['app_url']) ? esc_url_raw($_POST['app_url']) : '';
     $api_key = isset($_POST['api_key']) ? sanitize_text_field($_POST['api_key']) : '';
-    if (empty($api_key)) {
+
+    if (empty($api_key) || empty($app_url)) {
         update_option('autopress_ai_api_key', '');
+        update_option('autopress_app_url', '');
         update_option('autopress_ai_is_active', 'false');
-        wp_send_json_error(['message' => 'La API Key no puede estar vacía.'], 400);
+        wp_send_json_error(['message' => 'La URL de la aplicación y la API Key no pueden estar vacías.'], 400);
         return;
     }
 
-    $verify_url_base = 'https://autopress.intelvisual.es/api/license/verify-plugin';
+    $verify_url_base = rtrim($app_url, '/') . '/api/license/verify-plugin';
     $args = array(
         'apiKey'  => $api_key,
         'siteUrl' => get_site_url(),
     );
     $verify_url = add_query_arg($args, $verify_url_base);
 
-    $response = wp_remote_get($verify_url, [
-        'timeout'   => 20,
-    ]);
+    $response = wp_remote_get($verify_url, [ 'timeout'   => 20, ]);
 
     if (is_wp_error($response)) {
         wp_send_json_error(['message' => 'Error de red al conectar con el servidor de AutoPress AI: ' . $response->get_error_message()], 500);
@@ -136,6 +150,7 @@ function autopress_ai_ajax_verify_key() {
     
     if (isset($data['status']) && $data['status'] === 'active') {
         update_option('autopress_ai_api_key', $api_key);
+        update_option('autopress_app_url', $app_url);
         update_option('autopress_ai_is_active', 'true');
         wp_send_json_success(['message' => '¡Verificación exitosa! El plugin está activo.']);
     } else {
@@ -144,6 +159,7 @@ function autopress_ai_ajax_verify_key() {
         wp_send_json_error(['message' => 'Verificación fallida: ' . $error_message], 400);
     }
 }
+
 
 // === REST API Endpoints ===
 if (get_option('autopress_ai_is_active') === 'true') {
