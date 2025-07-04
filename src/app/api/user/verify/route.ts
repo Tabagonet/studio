@@ -1,4 +1,3 @@
-
 // src/app/api/user/verify/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
@@ -112,26 +111,23 @@ export async function GET(req: NextRequest) {
       await batch.commit();
       
       if (newUser.status === 'pending_approval') {
-          // Added check to ensure adminDb is not null inside this block
-          if (adminDb) {
-              const adminsSnapshot = await adminDb.collection('users').where('role', '==', 'admin').get();
-              if (!adminsSnapshot.empty) {
-                  const notificationBatch = adminDb.batch();
-                  adminsSnapshot.forEach(adminDoc => {
-                      if (adminDoc.id === uid) return; // Don't notify the user themselves
-                      const notificationRef = adminDb.collection('notifications').doc();
-                      notificationBatch.set(notificationRef, {
-                          recipientUid: adminDoc.id,
-                          type: 'new_user_pending',
-                          title: 'Nuevo Usuario Registrado',
-                          message: `El usuario ${newUser.displayName || newUser.email} está pendiente de aprobación.`,
-                          link: '/admin/users',
-                          read: false,
-                          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                      });
+          const adminsSnapshot = await adminDb.collection('users').where('role', '==', 'admin').get();
+          if (!adminsSnapshot.empty) {
+              const notificationBatch = adminDb.batch();
+              for (const adminDoc of adminsSnapshot.docs) {
+                  if (adminDoc.id === uid) continue; // Don't notify the user themselves
+                  const notificationRef = adminDb.collection('notifications').doc();
+                  notificationBatch.set(notificationRef, {
+                      recipientUid: adminDoc.id,
+                      type: 'new_user_pending',
+                      title: 'Nuevo Usuario Registrado',
+                      message: `El usuario ${newUser.displayName || newUser.email} está pendiente de aprobación.`,
+                      link: '/admin/users',
+                      read: false,
+                      createdAt: admin.firestore.FieldValue.serverTimestamp(),
                   });
-                  await notificationBatch.commit();
               }
+              await notificationBatch.commit();
           }
       }
 
