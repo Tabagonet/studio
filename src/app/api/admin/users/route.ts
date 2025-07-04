@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
                 photoURL: data.photoURL || '',
                 role: data.role || 'pending',
                 status: data.status || 'pending_approval',
+                siteLimit: data.siteLimit ?? 1, // Default to 1 if not set
                 createdAt: createdAt,
             };
         });

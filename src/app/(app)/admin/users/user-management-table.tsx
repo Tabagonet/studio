@@ -7,11 +7,13 @@ import { auth } from '@/lib/firebase';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, UserCheck, UserX, MoreHorizontal, Trash2, Shield, User } from 'lucide-react';
+import { Loader2, UserCheck, UserX, MoreHorizontal, Trash2, Shield, User, KeyRound } from 'lucide-react';
 import Image from 'next/image';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface User {
   uid: string;
@@ -20,6 +22,7 @@ interface User {
   photoURL: string;
   role: 'admin' | 'user' | 'pending';
   status: 'active' | 'rejected' | 'pending_approval';
+  siteLimit: number;
 }
 
 export function UserManagementTable() {
@@ -28,6 +31,11 @@ export function UserManagementTable() {
     const [isUpdating, setIsUpdating] = useState<string | null>(null);
     const { toast } = useToast();
     const currentAdminUid = auth.currentUser?.uid;
+    
+    // State for site limit modal
+    const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
+    const [selectedUserForLimit, setSelectedUserForLimit] = useState<User | null>(null);
+    const [newSiteLimit, setNewSiteLimit] = useState<number | string>('');
 
     const fetchUsers = useCallback(async () => {
         setIsLoading(true);
@@ -124,6 +132,26 @@ export function UserManagementTable() {
         setIsUpdating(null);
     };
 
+    const handleUpdateSiteLimit = async () => {
+        if (!selectedUserForLimit || newSiteLimit === '' || Number(newSiteLimit) < 0) {
+            toast({ title: 'Valor inválido', description: 'Por favor, introduce un número válido para el límite.', variant: 'destructive'});
+            return;
+        }
+        setIsUpdating(selectedUserForLimit.uid);
+        const success = await performApiCall(
+            `/api/admin/users/${selectedUserForLimit.uid}/update-site-limit`,
+            'POST',
+            { siteLimit: Number(newSiteLimit) },
+            `El límite de sitios para ${selectedUserForLimit.displayName} ha sido actualizado.`
+        );
+        setIsUpdating(null);
+        if(success) {
+             setIsLimitModalOpen(false);
+             setSelectedUserForLimit(null);
+             setNewSiteLimit('');
+        }
+    };
+
     const handleDeleteUser = async (targetUid: string) => {
         setIsUpdating(targetUid);
         const user = auth.currentUser;
@@ -172,12 +200,42 @@ export function UserManagementTable() {
     
     return (
         <div className="rounded-md border">
+            <AlertDialog open={isLimitModalOpen} onOpenChange={setIsLimitModalOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Establecer Límite de Sitios</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Define cuántos perfiles de conexión puede guardar este usuario. Usa un número alto (ej. 999) para "ilimitado".
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="py-4">
+                        <Label htmlFor="site-limit-input">Límite de Sitios para {selectedUserForLimit?.displayName}</Label>
+                        <Input
+                            id="site-limit-input"
+                            type="number"
+                            min="0"
+                            value={newSiteLimit}
+                            onChange={(e) => setNewSiteLimit(e.target.value)}
+                            placeholder="Ej: 5"
+                        />
+                    </div>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => { setSelectedUserForLimit(null); setNewSiteLimit(''); }}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleUpdateSiteLimit} disabled={isUpdating === selectedUserForLimit?.uid}>
+                             {isUpdating === selectedUserForLimit?.uid && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                             Guardar Límite
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
             <Table>
                 <TableHeader>
                     <TableRow>
                         <TableHead className="w-[300px]">Usuario</TableHead>
                         <TableHead>Email</TableHead>
                         <TableHead>Rol</TableHead>
+                        <TableHead>Límite Sitios</TableHead>
                         <TableHead>Estado</TableHead>
                         <TableHead className="text-right w-[100px]">Acciones</TableHead>
                     </TableRow>
@@ -193,6 +251,9 @@ export function UserManagementTable() {
                             </TableCell>
                             <TableCell className="text-muted-foreground">{u.email}</TableCell>
                             <TableCell><Badge variant="outline" className="capitalize">{u.role}</Badge></TableCell>
+                            <TableCell className="text-center font-medium">
+                                {u.siteLimit >= 999 ? 'Ilimitado' : u.siteLimit}
+                            </TableCell>
                             <TableCell>{getStatusBadge(u.status)}</TableCell>
                             <TableCell className="text-right">
                                 {isUpdating === u.uid ? (
@@ -223,6 +284,10 @@ export function UserManagementTable() {
                                                 )}
                                                 {u.status === 'active' && (
                                                     <>
+                                                         <DropdownMenuItem onSelect={() => { setSelectedUserForLimit(u); setNewSiteLimit(u.siteLimit); setIsLimitModalOpen(true); }}>
+                                                            <KeyRound className="mr-2 h-4 w-4" /> Fijar Límite de Sitios
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
                                                         {u.role === 'user' && (
                                                             <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'admin')}>
                                                                 <Shield className="mr-2 h-4 w-4" /> Hacer Admin
@@ -266,7 +331,7 @@ export function UserManagementTable() {
                         </TableRow>
                     )) : (
                         <TableRow>
-                            <TableCell colSpan={5} className="h-24 text-center">
+                            <TableCell colSpan={6} className="h-24 text-center">
                                 No se encontraron usuarios.
                             </TableCell>
                         </TableRow>

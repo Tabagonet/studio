@@ -75,8 +75,6 @@ export async function POST(req: NextRequest) {
     try {
         const uid = await getUserIdFromRequest(req);
         const body = await req.json();
-        console.log('[API /connections] Received POST request body:', JSON.stringify(body, null, 2));
-
 
         const payloadSchema = z.object({
             key: z.string().min(1, "Key is required"),
@@ -86,15 +84,34 @@ export async function POST(req: NextRequest) {
 
         const validationResult = payloadSchema.safeParse(body);
         if (!validationResult.success) {
-            console.error('[API /connections] Validation failed:', JSON.stringify(validationResult.error.flatten(), null, 2));
             return NextResponse.json({ error: 'Invalid data', details: validationResult.error.flatten() }, { status: 400 });
         }
         
         const { key, connectionData, setActive } = validationResult.data;
-        console.log(`[API /connections] Validation successful for key: ${key}`);
+
+        // --- Site Limit Check ---
+        const userSettingsRef = adminDb.collection('user_settings').doc(uid);
+        const userDocRef = adminDb.collection('users').doc(uid);
+
+        const [userSettingsSnap, userDocSnap] = await Promise.all([userSettingsRef.get(), userDocRef.get()]);
+        
+        const settingsData = userSettingsSnap.data();
+        const userData = userDocSnap.data();
+
+        const siteLimit = userData?.siteLimit ?? 1; // Default to 1 site if not set
+        const currentConnections = settingsData?.connections || {};
+        const connectionCount = Object.keys(currentConnections).length;
+
+        // Check if the key already exists. If so, it's an update and should be allowed regardless of limit.
+        const isUpdate = Object.prototype.hasOwnProperty.call(currentConnections, key);
+
+        if (!isUpdate && connectionCount >= siteLimit) {
+            return NextResponse.json({ error: `Límite de sitios alcanzado. Tu plan actual permite ${siteLimit} sitio(s).` }, { status: 403 });
+        }
+        // --- End Site Limit Check ---
+
 
         // Save to Firestore first
-        const userSettingsRef = adminDb.collection('user_settings').doc(uid);
         await userSettingsRef.set({
             connections: {
                 [key]: connectionData

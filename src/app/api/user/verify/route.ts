@@ -14,6 +14,7 @@ const userSchema = z.object({
   role: z.enum(['admin', 'user', 'pending']),
   status: z.enum(['active', 'rejected', 'pending_approval']),
   termsAccepted: z.boolean(),
+  siteLimit: z.number().optional(),
 });
 
 const ADMIN_EMAIL = 'tabagonet@gmail.com';
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest) {
       // This ensures the primary admin user always has the correct role and status.
       if (userData?.email === ADMIN_EMAIL && (userData?.role !== 'admin' || userData?.status !== 'active')) {
           console.log(`Applying admin override for ${ADMIN_EMAIL}`);
-          const adminUpdate = { role: 'admin', status: 'active' };
+          const adminUpdate = { role: 'admin', status: 'active', siteLimit: 999 };
           await userRef.update(adminUpdate);
           
           const updatedUserData = { ...userData, ...adminUpdate };
@@ -84,6 +85,7 @@ export async function GET(req: NextRequest) {
         role: isAdmin ? 'admin' : 'pending',
         status: isAdmin ? 'active' : 'pending_approval',
         termsAccepted: isAdmin, // Admins auto-accept terms
+        siteLimit: isAdmin ? 999 : 1, // Admins get unlimited, new users get 1
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       };
       

@@ -112,7 +112,7 @@ export default function ConnectionsPage() {
             }
         });
         return () => unsubscribe();
-    }, [toast]);
+    }, []);
     
     useEffect(() => {
         if (selectedKey === 'new') {
@@ -160,7 +160,7 @@ export default function ConnectionsPage() {
         const wooHostname = getHostname(formData.wooCommerceStoreUrl);
         const wpHostname = getHostname(formData.wordpressApiUrl);
         
-        const key = wooHostname || wpHostname;
+        const key = selectedKey !== 'new' ? selectedKey : (wooHostname || wpHostname);
     
         if (!key) {
             toast({
@@ -181,7 +181,7 @@ export default function ConnectionsPage() {
 
         try {
             const token = await user.getIdToken();
-            await fetch('/api/user-settings/connections', {
+            const response = await fetch('/api/user-settings/connections', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -189,6 +189,11 @@ export default function ConnectionsPage() {
                 },
                 body: JSON.stringify({ key, connectionData: formData, setActive: true })
             });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Fallo al guardar la conexión.");
+            }
 
             toast({
                 title: "Conexión Guardada",
