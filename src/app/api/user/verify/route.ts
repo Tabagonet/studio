@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
+import { v4 as uuidv4 } from 'uuid';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,7 @@ const userSchema = z.object({
   status: z.enum(['active', 'rejected', 'pending_approval']),
   termsAccepted: z.boolean(),
   siteLimit: z.number().optional(),
+  apiKey: z.string().uuid().optional(),
 });
 
 const ADMIN_EMAIL = 'tabagonet@gmail.com';
@@ -49,10 +51,12 @@ export async function GET(req: NextRequest) {
       const userData = userDoc.data();
 
       // --- Admin Override ---
-      // This ensures the primary admin user always has the correct role and status.
       if (userData?.email === ADMIN_EMAIL && (userData?.role !== 'admin' || userData?.status !== 'active')) {
           console.log(`Applying admin override for ${ADMIN_EMAIL}`);
-          const adminUpdate = { role: 'admin', status: 'active', siteLimit: 999 };
+          const adminUpdate: any = { role: 'admin', status: 'active', siteLimit: 999 };
+          if (!userData.apiKey) {
+            adminUpdate.apiKey = uuidv4();
+          }
           await userRef.update(adminUpdate);
           
           const updatedUserData = { ...userData, ...adminUpdate };
@@ -65,6 +69,13 @@ export async function GET(req: NextRequest) {
           return NextResponse.json(validatedData.data);
       }
       // --- End Admin Override ---
+      
+       // Ensure existing users have an API key if they are missing one
+      if (!userData?.apiKey) {
+          const newApiKey = uuidv4();
+          await userRef.update({ apiKey: newApiKey });
+          userData!.apiKey = newApiKey;
+      }
 
       const validatedData = userSchema.safeParse(userData);
       if (!validatedData.success) {
@@ -86,6 +97,7 @@ export async function GET(req: NextRequest) {
         status: isAdmin ? 'active' : 'pending_approval',
         termsAccepted: isAdmin, // Admins auto-accept terms
         siteLimit: isAdmin ? 999 : 1, // Admins get unlimited, new users get 1
+        apiKey: uuidv4(),
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       };
       

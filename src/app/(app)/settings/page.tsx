@@ -6,10 +6,12 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { KeyRound, DatabaseZap, Download, Upload, Info, BrainCircuit, Loader2, ExternalLink, Server, Store, Globe, Trash2 } from "lucide-react";
+import { KeyRound, DatabaseZap, Download, Upload, Info, BrainCircuit, Loader2, ExternalLink, Server, Store, Globe, Trash2, Eye, EyeOff } from "lucide-react";
 import { auth } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 
 
 type ServerConfigStatus = {
@@ -17,6 +19,7 @@ type ServerConfigStatus = {
   wooCommerceConfigured: boolean;
   wordPressConfigured: boolean;
   firebaseAdminSdk: boolean;
+  apiKey: string | null;
 };
 
 const StatusBadge = ({ status, loading, configuredText = "Configurada", missingText = "Falta" }: { status?: boolean, loading: boolean, configuredText?: string, missingText?: string }) => {
@@ -51,6 +54,7 @@ export default function SettingsPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
   const [isCleaningOrphans, setIsCleaningOrphans] = useState(false);
+  const [isApiKeyVisible, setIsApiKeyVisible] = useState(false);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -64,14 +68,20 @@ export default function SettingsPage() {
             const response = await fetch('/api/check-config', {
               headers: { 'Authorization': `Bearer ${token}` }
             });
+            const roleResponse = await fetch('/api/user/verify', {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
 
-            if (!response.ok) {
+            if (!response.ok || !roleResponse.ok) {
               const errorData = await response.json().catch(() => ({}));
               throw new Error(errorData.error || `Error del servidor: ${response.status}`);
             }
             
-            const data: ServerConfigStatus = await response.json();
-            setServerConfig(data);
+            const configData: any = await response.json();
+            const userData: any = await roleResponse.json();
+            
+            setServerConfig({ ...configData, apiKey: userData.apiKey });
+
           } catch (error: any) {
             toast({
               title: "Error al verificar configuración",
@@ -116,7 +126,7 @@ export default function SettingsPage() {
         const a = document.createElement('a');
         a.href = url;
         const formattedDate = new Date().toISOString().split('T')[0];
-        a.download = `wooautomate_settings_${formattedDate}.json`;
+        a.download = `autopress_ai_settings_${formattedDate}.json`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -282,6 +292,40 @@ export default function SettingsPage() {
                     <ExternalLink className="ml-2 h-4 w-4" />
                 </Link>
             </Button>
+        </CardContent>
+      </Card>
+      
+       <Card className="shadow-lg">
+        <CardHeader>
+          <div className="flex items-center space-x-2">
+            <KeyRound className="h-6 w-6 text-primary" />
+            <CardTitle>Clave de API del Plugin</CardTitle>
+          </div>
+          <CardDescription>
+            Usa esta clave en los ajustes del plugin de WordPress para activar la conexión segura con la plataforma.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+            {isLoadingConfig ? (
+                 <Skeleton className="h-10 w-full" />
+            ) : serverConfig?.apiKey ? (
+                <div className="flex items-center gap-2">
+                    <Input
+                        readOnly
+                        value={isApiKeyVisible ? serverConfig.apiKey : '•'.repeat(36)}
+                        className={cn("font-code", !isApiKeyVisible && "tracking-widest")}
+                    />
+                     <Button variant="outline" size="icon" onClick={() => setIsApiKeyVisible(!isApiKeyVisible)}>
+                        {isApiKeyVisible ? <EyeOff /> : <Eye />}
+                    </Button>
+                    <Button onClick={() => {
+                        navigator.clipboard.writeText(serverConfig.apiKey!);
+                        toast({ title: "Copiado", description: "La clave de API ha sido copiada." });
+                    }}>Copiar</Button>
+                </div>
+            ) : (
+                <p className="text-sm text-destructive">No se pudo generar tu clave de API. Por favor, recarga la página.</p>
+            )}
         </CardContent>
       </Card>
 
