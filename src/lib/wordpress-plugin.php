@@ -28,15 +28,6 @@ function autopress_ai_options_page() {
                 <tbody>
                     <tr>
                         <th scope="row">
-                            <label for="autopress_app_url_field"><?php _e('URL de la Aplicación AutoPress AI', 'autopress-ai'); ?></label>
-                        </th>
-                        <td>
-                            <input type="url" name="autopress_app_url" id="autopress_app_url_field" value="<?php echo esc_attr(get_option('autopress_app_url', 'https://autopress.intelvisual.es')); ?>" class="regular-text" placeholder="https://tu-app.vercel.app">
-                            <p class="description"><?php _e('Introduce la URL principal donde está alojada tu aplicación AutoPress AI.', 'autopress-ai'); ?></p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">
                             <label for="autopress_ai_api_key_field"><?php _e('API Key', 'autopress-ai'); ?></label>
                         </th>
                         <td>
@@ -66,7 +57,6 @@ function autopress_ai_options_page() {
         jQuery(document).ready(function($) {
             $('#autopress-ai-form').on('submit', function(e) {
                 e.preventDefault();
-                var appUrl = $('#autopress_app_url_field').val();
                 var apiKey = $('#autopress_ai_api_key_field').val();
                 var nonce = $('#autopress_ai_nonce').val();
                 var noticeEl = $('#autopress-notice');
@@ -78,7 +68,6 @@ function autopress_ai_options_page() {
 
                 $.post(ajaxurl, {
                     action: 'autopress_ai_verify_key',
-                    app_url: appUrl,
                     api_key: apiKey,
                     nonce: nonce
                 }, function(response) {
@@ -114,18 +103,17 @@ function autopress_ai_ajax_verify_key() {
         return;
     }
     
-    $app_url = isset($_POST['app_url']) ? esc_url_raw($_POST['app_url']) : '';
     $api_key = isset($_POST['api_key']) ? sanitize_text_field($_POST['api_key']) : '';
 
-    if (empty($api_key) || empty($app_url)) {
+    if (empty($api_key)) {
         update_option('autopress_ai_api_key', '');
-        update_option('autopress_app_url', '');
         update_option('autopress_ai_is_active', 'false');
-        wp_send_json_error(['message' => 'La URL de la aplicación y la API Key no pueden estar vacías.'], 400);
+        wp_send_json_error(['message' => 'La API Key no puede estar vacía.'], 400);
         return;
     }
-
-    $verify_url_base = rtrim($app_url, '/') . '/api/license/verify-plugin';
+    
+    // The application URL is now hardcoded as it is in a production environment
+    $verify_url_base = 'https://autopress.intelvisual.es/api/license/verify-plugin';
     $args = array(
         'apiKey'  => $api_key,
         'siteUrl' => get_site_url(),
@@ -150,7 +138,6 @@ function autopress_ai_ajax_verify_key() {
     
     if (isset($data['status']) && $data['status'] === 'active') {
         update_option('autopress_ai_api_key', $api_key);
-        update_option('autopress_app_url', $app_url);
         update_option('autopress_ai_is_active', 'true');
         wp_send_json_success(['message' => '¡Verificación exitosa! El plugin está activo.']);
     } else {
