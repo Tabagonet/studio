@@ -10,26 +10,10 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 // === Admin Menu and Settings Page ===
 add_action('admin_menu', 'autopress_ai_add_admin_menu');
-add_action('admin_init', 'autopress_ai_settings_init');
 add_action('wp_ajax_autopress_ai_verify_key', 'autopress_ai_ajax_verify_key');
 
 function autopress_ai_add_admin_menu() {
     add_options_page('AutoPress AI Helper', 'AutoPress AI', 'manage_options', 'autopress-ai', 'autopress_ai_options_page');
-}
-
-function autopress_ai_settings_init() {
-    register_setting('autopress_ai_settings', 'autopress_ai_api_key');
-    add_settings_section('autopress_ai_section', __('Configuración de Conexión', 'autopress-ai'), 'autopress_ai_section_callback', 'autopress-ai');
-    add_settings_field('autopress_ai_api_key_field', __('API Key de AutoPress AI', 'autopress-ai'), 'autopress_ai_api_key_render', 'autopress-ai', 'autopress_ai_section');
-}
-
-function autopress_ai_api_key_render() {
-    $api_key = get_option('autopress_ai_api_key');
-    echo '<input type="password" name="autopress_ai_api_key" id="autopress_ai_api_key" value="' . esc_attr($api_key) . '" class="regular-text">';
-}
-
-function autopress_ai_section_callback() {
-    echo __('Introduce la API Key desde tu perfil en la aplicación AutoPress AI para activar este plugin.', 'autopress-ai');
 }
 
 function autopress_ai_options_page() {
@@ -43,7 +27,7 @@ function autopress_ai_options_page() {
                 <tbody>
                     <tr>
                         <th scope="row">
-                            <label for="autopress_ai_api_key"><?php _e('API Key', 'autopress-ai'); ?></label>
+                            <label for="autopress_ai_api_key_field"><?php _e('API Key', 'autopress-ai'); ?></label>
                         </th>
                         <td>
                             <input type="password" name="autopress_ai_api_key" id="autopress_ai_api_key_field" value="<?php echo esc_attr(get_option('autopress_ai_api_key')); ?>" class="regular-text">
@@ -88,12 +72,16 @@ function autopress_ai_options_page() {
                 }, function(response) {
                     if (response.success) {
                         noticeEl.removeClass('notice-error').addClass('notice-success is-dismissible').html('<p>' + response.data.message + '</p>').show();
-                        setTimeout(function(){ location.reload(); }, 1000);
+                        setTimeout(function(){ location.reload(); }, 1500);
                     } else {
                         noticeEl.removeClass('notice-success').addClass('notice-error is-dismissible').html('<p>' + response.data.message + '</p>').show();
                     }
-                }).fail(function() {
-                     noticeEl.removeClass('notice-success').addClass('notice-error is-dismissible').html('<p>Error de comunicación con el servidor. Revisa la consola del navegador.</p>').show();
+                }).fail(function(jqXHR) {
+                    var errorMessage = 'Error de comunicación con el servidor. Revisa la consola del navegador.';
+                    if (jqXHR.responseJSON && jqXHR.responseJSON.data && jqXHR.responseJSON.data.message) {
+                        errorMessage = jqXHR.responseJSON.data.message;
+                    }
+                     noticeEl.removeClass('notice-success').addClass('notice-error is-dismissible').html('<p>' + errorMessage + '</p>').show();
                 }).always(function() {
                     submitButton.val(originalButtonText).prop('disabled', false);
                 });
@@ -125,19 +113,26 @@ function autopress_ai_ajax_verify_key() {
     $response = wp_remote_post($verify_url, [
         'method'    => 'POST',
         'timeout'   => 15,
-        'headers'   => ['Content-Type' => 'application/json'],
-        'body'      => json_encode(['apiKey' => $api_key, 'siteUrl' => get_site_url()]),
+        'headers'   => ['Content-Type' => 'application/json; charset=utf-8'],
+        'body'      => wp_json_encode(['apiKey' => $api_key, 'siteUrl' => get_site_url()]),
+        'data_format' => 'body',
     ]);
 
     if (is_wp_error($response)) {
-        wp_send_json_error(['message' => 'Error al conectar con el servidor de AutoPress AI: ' . $response->get_error_message()], 500);
+        wp_send_json_error(['message' => 'Error de red al conectar con el servidor de AutoPress AI: ' . $response->get_error_message()], 500);
         return;
     }
 
+    $response_code = wp_remote_retrieve_response_code($response);
     $body = wp_remote_retrieve_body($response);
     $data = json_decode($body, true);
 
-    if (wp_remote_retrieve_response_code($response) == 200 && isset($data['status']) && $data['status'] === 'active') {
+    if ($data === null) {
+        wp_send_json_error(['message' => 'Respuesta inesperada del servidor de AutoPress AI. No es un JSON válido. Código: ' . $response_code], 500);
+        return;
+    }
+    
+    if (isset($data['status']) && $data['status'] === 'active') {
         update_option('autopress_ai_api_key', $api_key);
         update_option('autopress_ai_is_active', 'true');
         wp_send_json_success(['message' => '¡Verificación exitosa! El plugin está activo.']);
@@ -149,7 +144,6 @@ function autopress_ai_ajax_verify_key() {
 }
 
 // === REST API Endpoints ===
-// Only register endpoints if the plugin is verified and active
 if (get_option('autopress_ai_is_active') === 'true') {
     add_action('init', 'custom_api_register_yoast_meta_fields');
     add_action('plugins_loaded', 'autopress_ai_register_rest_endpoints');
@@ -192,5 +186,3 @@ function autopress_ai_register_rest_endpoints() {
     function custom_api_get_content_list( $request ) { $post_types = get_post_types( [ 'public' => true ], 'names' ); $args = [ 'post_type' => array_keys($post_types), 'posts_per_page' => -1, 'post_status' => ['publish', 'draft', 'pending', 'private', 'future'], 'fields' => 'ids' ]; $query = new WP_Query( $args ); $posts = $query->posts; $content_list = []; if ( ! empty( $posts ) ) { foreach ( $posts as $post_id ) { $post_obj = get_post( $post_id ); if ( ! $post_obj ) continue; $content_list[] = [ 'id' => $post_obj->ID, 'title' => $post_obj->post_title, 'type' => get_post_type($post_obj->ID) === 'post' ? 'Post' : 'Page', 'link' => get_permalink( $post_obj->ID ), 'status' => $post_obj->post_status, 'parent' => $post_obj->post_parent, 'lang' => pll_get_post_language( $post_obj->ID, 'slug' ), 'translations' => pll_get_post_translations( $post_obj->ID ), ]; } } return new WP_REST_Response( [ 'content' => $content_list ], 200 ); }
     function custom_sync_product_stock($request) { $product_id = absint($request->get_param('product_id')); $stock_quantity = intval($request->get_param('stock_quantity')); if (!$product_id || $stock_quantity < 0) { return new WP_Error('invalid_input', 'Parámetros inválidos.', ['status' => 400]); } if (!function_exists('pll_get_post_translations')) { return new WP_Error('missing_polylang', 'Polylang no está activo.', ['status' => 500]); } $translations = pll_get_post_translations($product_id); if (empty($translations)) { return new WP_Error('no_translations', 'No se encontraron traducciones para este producto.', ['status' => 404]); } $updated = []; foreach ($translations as $lang => $post_id) { $product = wc_get_product($post_id); if ($product) { $product->set_stock_quantity($stock_quantity); $product->save(); $updated[$lang] = ['id' => $post_id, 'stock' => $product->get_stock_quantity()]; } } return rest_ensure_response(['success' => true, 'updated_products' => $updated]); }
 }
-
-    

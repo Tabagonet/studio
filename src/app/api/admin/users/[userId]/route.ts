@@ -27,37 +27,49 @@ export async function DELETE(req: NextRequest, { params }: { params: { userId: s
     }
 
     const { userId } = params;
-    const requestingUid = req.headers.get('x-decoded-uid'); // Assume a middleware might add this
+    
+    // Attempt to get the UID of the admin making the request
+    // This is a simplified stand-in for a proper middleware solution
+    let adminUid: string | null = null;
+    try {
+        const token = req.headers.get('Authorization')?.split('Bearer ')[1];
+        if (token) adminUid = (await adminAuth.verifyIdToken(token)).uid;
+    } catch (e) {
+        // ignore if token verification fails, the isAdmin check already passed
+    }
+    
     if (!userId) {
         return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    if (userId === requestingUid) {
+    if (userId === adminUid) {
         return NextResponse.json({ error: 'Admins cannot delete their own account.' }, { status: 400 });
     }
     
     try {
         const batch = adminDb.batch();
         
-        // References to the user's main data
         const userRef = adminDb.collection('users').doc(userId);
         const userSettingsRef = adminDb.collection('user_settings').doc(userId);
         
-        // Find and add user's activity logs to the batch for deletion
+        // Before deleting the user doc, get their API key to delete it from the lookup collection
+        const userDoc = await userRef.get();
+        const userData = userDoc.data();
+        if (userData?.apiKey) {
+            const apiKeyRef = adminDb.collection('api_keys').doc(userData.apiKey);
+            batch.delete(apiKeyRef);
+        }
+
         const activityLogsQuery = adminDb.collection('activity_logs').where('userId', '==', userId);
         const activityLogsSnapshot = await activityLogsQuery.get();
         activityLogsSnapshot.forEach(doc => {
             batch.delete(doc.ref);
         });
 
-        // Add user documents to the batch
         batch.delete(userRef);
         batch.delete(userSettingsRef);
         
-        // First, commit all database deletions
         await batch.commit();
-
-        // Then, delete the user from Firebase Auth
         await adminAuth.deleteUser(userId);
 
         return NextResponse.json({ success: true, message: `User ${userId} and all associated data have been deleted.` });

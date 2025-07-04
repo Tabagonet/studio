@@ -13,13 +13,17 @@ const verifySchema = z.object({
 
 // Helper to normalize URLs for comparison
 const normalizeUrl = (url: string): string => {
+  if (!url) return '';
   try {
-    const parsed = new URL(url);
-    return `${parsed.hostname}${parsed.pathname.replace(/\/$/, '')}`;
-  } catch {
+    const urlObject = new URL(url.startsWith('http') ? url : `https://${url}`);
+    // Remove www., trailing slash, and protocol
+    return `${urlObject.hostname.replace(/^www\./, '')}${urlObject.pathname.replace(/\/$/, '')}`;
+  } catch (e) {
+    // Fallback for simple hostnames or invalid URLs
     return url.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/$/, '');
   }
 };
+
 
 export async function POST(req: NextRequest) {
   if (!adminDb) {
@@ -34,19 +38,25 @@ export async function POST(req: NextRequest) {
     }
 
     const { apiKey, siteUrl } = validation.data;
-    const normalizedSiteUrl = normalizeUrl(siteUrl);
-
-    // 1. Find user by API key
-    const usersRef = adminDb.collection('users');
-    const userQuery = await usersRef.where('apiKey', '==', apiKey).limit(1).get();
-
-    if (userQuery.empty) {
-      return NextResponse.json({ status: 'inactive', message: 'API Key no válida.' }, { status: 403 });
+    
+    // 1. Find user by API key using direct lookup
+    const apiKeyRef = adminDb.collection('api_keys').doc(apiKey);
+    const apiKeyDoc = await apiKeyRef.get();
+    
+    if (!apiKeyDoc.exists) {
+        return NextResponse.json({ status: 'inactive', message: 'API Key no válida.' }, { status: 403 });
     }
-
-    const userDoc = userQuery.docs[0];
-    const userData = userDoc.data();
-    const uid = userDoc.id;
+    
+    const { userId: uid } = apiKeyDoc.data() as { userId: string };
+    if (!uid) {
+        return NextResponse.json({ status: 'error', message: 'API Key corrupta. Contacta con soporte.' }, { status: 500 });
+    }
+    
+    const userDoc = await adminDb.collection('users').doc(uid).get();
+    if (!userDoc.exists) {
+        return NextResponse.json({ status: 'inactive', message: 'La cuenta de usuario asociada no existe.' }, { status: 403 });
+    }
+    const userData = userDoc.data()!;
 
     // 2. Check user status
     if (userData.status !== 'active') {
@@ -60,7 +70,8 @@ export async function POST(req: NextRequest) {
     const connectionCount = Object.keys(connections).length;
     const siteLimit = userData.siteLimit ?? 1;
     
-    // Check if any of the user's saved connections match the plugin's site URL
+    const normalizedSiteUrl = normalizeUrl(siteUrl);
+    
     const isSiteRegistered = Object.values(connections).some((conn: any) => {
         const wooUrl = conn.wooCommerceStoreUrl ? normalizeUrl(conn.wooCommerceStoreUrl) : null;
         const wpUrl = conn.wordpressApiUrl ? normalizeUrl(conn.wordpressApiUrl) : null;
@@ -71,7 +82,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ status: 'active', message: 'Plugin verificado correctamente.' });
     }
 
-    // If site is not registered, check if user has space to add it
     if (connectionCount < siteLimit) {
       return NextResponse.json({ status: 'inactive', message: 'Este sitio no está configurado en tu cuenta de AutoPress AI. Por favor, añádelo en Ajustes > Conexiones.' }, { status: 403 });
     } else {

@@ -48,20 +48,17 @@ export async function GET(req: NextRequest) {
 
     if (userDoc.exists) {
       // User exists, return their data
-      const userData = userDoc.data();
+      const userData = userDoc.data()!;
 
       // --- Admin Override ---
-      // This ensures the main admin account always has full privileges.
-      if (
-        userData?.email === ADMIN_EMAIL &&
-        (userData?.role !== 'admin' ||
-          userData?.status !== 'active' ||
-          userData?.siteLimit !== 999)
-      ) {
+      const isAdmin = userData.email === ADMIN_EMAIL;
+      const needsAdminUpdate = isAdmin && (userData.role !== 'admin' || userData.status !== 'active' || userData.siteLimit !== 999);
+      if (needsAdminUpdate) {
           console.log(`Applying admin override for ${ADMIN_EMAIL}`);
           const adminUpdate: any = { role: 'admin', status: 'active', siteLimit: 999 };
           if (!userData.apiKey) {
             adminUpdate.apiKey = uuidv4();
+            await adminDb.collection('api_keys').doc(adminUpdate.apiKey).set({ userId: uid });
           }
           await userRef.update(adminUpdate);
           
@@ -77,10 +74,11 @@ export async function GET(req: NextRequest) {
       // --- End Admin Override ---
       
        // Ensure existing users have an API key if they are missing one
-      if (!userData?.apiKey) {
+      if (!userData.apiKey) {
           const newApiKey = uuidv4();
           await userRef.update({ apiKey: newApiKey });
-          userData!.apiKey = newApiKey;
+          await adminDb.collection('api_keys').doc(newApiKey).set({ userId: uid, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+          userData.apiKey = newApiKey;
       }
 
       const validatedData = userSchema.safeParse(userData);
@@ -93,6 +91,7 @@ export async function GET(req: NextRequest) {
     } else {
       // User does not exist, create a new user.
       const isAdmin = email === ADMIN_EMAIL;
+      const newApiKey = uuidv4();
 
       const newUser = {
         uid: uid,
@@ -103,20 +102,23 @@ export async function GET(req: NextRequest) {
         status: isAdmin ? 'active' : 'pending_approval',
         termsAccepted: isAdmin, // Admins auto-accept terms
         siteLimit: isAdmin ? 999 : 1, // Admins get unlimited, new users get 1
-        apiKey: uuidv4(),
+        apiKey: newApiKey,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       };
       
-      await userRef.set(newUser);
+      const batch = adminDb.batch();
+      batch.set(userRef, newUser);
+      batch.set(adminDb.collection('api_keys').doc(newApiKey), { userId: uid, createdAt: newUser.createdAt });
+      await batch.commit();
       
-      // --- Create notification for admins ---
       if (newUser.status === 'pending_approval') {
           const adminsSnapshot = await adminDb.collection('users').where('role', '==', 'admin').get();
           if (!adminsSnapshot.empty) {
-              const batch = adminDb.batch();
+              const notificationBatch = adminDb.batch();
               adminsSnapshot.forEach(adminDoc => {
-                  const notificationRef = adminDb!.collection('notifications').doc();
-                  batch.set(notificationRef, {
+                  if (adminDoc.id === uid) return; // Don't notify the user themselves
+                  const notificationRef = adminDb.collection('notifications').doc();
+                  notificationBatch.set(notificationRef, {
                       recipientUid: adminDoc.id,
                       type: 'new_user_pending',
                       title: 'Nuevo Usuario Registrado',
@@ -126,7 +128,7 @@ export async function GET(req: NextRequest) {
                       createdAt: admin.firestore.FieldValue.serverTimestamp(),
                   });
               });
-              await batch.commit();
+              await notificationBatch.commit();
           }
       }
 
