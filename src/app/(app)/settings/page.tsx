@@ -50,6 +50,7 @@ const StatusBadge = ({ status, loading, configuredText = "Configurada", missingT
 
 export default function SettingsPage() {
   const [serverConfig, setServerConfig] = useState<ServerConfigStatus | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -81,6 +82,7 @@ export default function SettingsPage() {
             const configData: any = await response.json();
             const userData: any = await roleResponse.json();
             
+            setUserRole(userData.role);
             setServerConfig({ ...configData, apiKey: userData.apiKey });
 
           } catch (error: any) {
@@ -439,28 +441,30 @@ export default function SettingsPage() {
                         </AlertDialogContent>
                     </AlertDialog>
                     
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button variant="destructive" disabled={isCleaningOrphans}>
-                                {isCleaningOrphans ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                                Limpiar Registros Huérfanos
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>¿Confirmar limpieza?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    Esta acción buscará y eliminará permanentemente todos los registros de actividad que pertenezcan a usuarios ya eliminados. No se puede deshacer.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleOrphanCleanup} className="bg-destructive hover:bg-destructive/90">
-                                    Sí, limpiar registros
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                    {userRole === 'admin' && (
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" disabled={isCleaningOrphans}>
+                                    {isCleaningOrphans ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                                    Limpiar Registros Huérfanos
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>¿Confirmar limpieza?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Esta acción buscará y eliminará permanentemente todos los registros de actividad que pertenezcan a usuarios ya eliminados. No se puede deshacer.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleOrphanCleanup} className="bg-destructive hover:bg-destructive/90">
+                                        Sí, limpiar registros
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    )}
                 </div>
             </div>
         </CardContent>
