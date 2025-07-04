@@ -51,7 +51,13 @@ export async function GET(req: NextRequest) {
       const userData = userDoc.data();
 
       // --- Admin Override ---
-      if (userData?.email === ADMIN_EMAIL && (userData?.role !== 'admin' || userData?.status !== 'active')) {
+      // This ensures the main admin account always has full privileges.
+      if (
+        userData?.email === ADMIN_EMAIL &&
+        (userData?.role !== 'admin' ||
+          userData?.status !== 'active' ||
+          userData?.siteLimit !== 999)
+      ) {
           console.log(`Applying admin override for ${ADMIN_EMAIL}`);
           const adminUpdate: any = { role: 'admin', status: 'active', siteLimit: 999 };
           if (!userData.apiKey) {
