@@ -13,12 +13,14 @@ import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { WordPressPostCategory, WordPressUser, ProductPhoto } from '@/lib/types';
+import type { WordPressPostCategory, WordPressUser, ProductPhoto, LinkSuggestion } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
+import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
+import type { SuggestLinksOutput } from '@/ai/flows/suggest-links-flow';
 
 
 interface PostEditState {
@@ -58,10 +60,13 @@ function EditPageContent() {
   const [imageUrl, setImageUrl] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  const [isSuggestingLinks, setIsSuggestingLinks] = useState(false);
+  const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>([]);
   
   const { toast } = useToast();
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!post) return;
     const { name, value } = e.target;
     setPost({ ...post, [name]: value });
@@ -269,6 +274,76 @@ function EditPageContent() {
     }
   }
 
+  const handleSuggestLinks = async () => {
+    if (!post || !post.content.trim()) {
+        toast({ title: "Contenido vacío", description: "Escribe algo antes de pedir sugerencias de enlaces.", variant: "destructive" });
+        return;
+    }
+    setIsSuggestingLinks(true);
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("No autenticado.");
+        const token = await user.getIdToken();
+        const response = await fetch('/api/ai/suggest-links', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ content: post.content })
+        });
+        if (!response.ok) throw new Error((await response.json()).message || "La IA falló al sugerir enlaces.");
+        
+        const data: SuggestLinksOutput = await response.json();
+        setLinkSuggestions(data.suggestions || []);
+
+    } catch(e: any) {
+        toast({ title: "Error al sugerir enlaces", description: e.message, variant: "destructive" });
+        setLinkSuggestions([]);
+    } finally {
+        setIsSuggestingLinks(false);
+    }
+  };
+
+  const applyLink = (content: string, suggestion: LinkSuggestion): string => {
+    const phrase = suggestion.phraseToLink.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(?<!<a[^>]*>)${phrase}(?!<\\/a>)`, '');
+    if (content.match(regex)) {
+        return content.replace(regex, `<a href="${suggestion.targetUrl}" target="_blank">${suggestion.phraseToLink}</a>`);
+    }
+    return content;
+  };
+
+  const handleApplySuggestion = (suggestion: LinkSuggestion) => {
+    if (!post || typeof post.content !== 'string') return;
+    const newContent = applyLink(post.content, suggestion);
+    if (newContent !== post.content) {
+        setPost(p => p ? { ...p, content: newContent } : null);
+        toast({ title: "Enlace aplicado", description: `Se ha enlazado la frase "${suggestion.phraseToLink}".` });
+        setLinkSuggestions(prev => prev.filter(s => s.phraseToLink !== suggestion.phraseToLink || s.targetUrl !== suggestion.targetUrl));
+    } else {
+        toast({ title: "No se pudo aplicar", description: "No se encontró la frase exacta o ya estaba enlazada.", variant: "destructive" });
+    }
+  };
+
+  const handleApplyAllSuggestions = () => {
+     if (!post || typeof post.content !== 'string') return;
+     let updatedContent = post.content;
+     let appliedCount = 0;
+     for (const suggestion of linkSuggestions) {
+         const newContent = applyLink(updatedContent, suggestion);
+         if (newContent !== updatedContent) {
+             updatedContent = newContent;
+             appliedCount++;
+         }
+     }
+     if (appliedCount > 0) {
+        setPost(p => p ? { ...p, content: updatedContent } : null);
+        toast({ title: "Enlaces aplicados", description: `Se han aplicado ${appliedCount} sugerencias de enlaces.` });
+        setLinkSuggestions([]);
+     } else {
+        toast({ title: "No se aplicó nada", description: "No se encontraron frases o ya estaban enlazadas.", variant: "destructive" });
+     }
+  };
+
+
   useEffect(() => {
     const fetchInitialData = async () => {
       setIsLoading(true);
@@ -359,7 +434,7 @@ function EditPageContent() {
                                 Vista Previa
                             </Link>
                         </Button>
-                        <Button onClick={handleSaveChanges} disabled={isSaving}>
+                        <Button onClick={handleSaveChanges} disabled={isSaving || isSuggestingLinks}>
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Guardar Cambios
                         </Button>
@@ -400,6 +475,7 @@ function EditPageContent() {
                         content={post.content}
                         onChange={handleContentChange}
                         onInsertImage={() => setIsImageDialogOpen(true)}
+                        onSuggestLinks={handleSuggestLinks}
                         placeholder="Escribe el contenido de tu entrada..."
                       />
                   </div>
@@ -415,11 +491,11 @@ function EditPageContent() {
                     <CardDescription>Utiliza la IA para mejorar tu contenido.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                    <Button onClick={() => handleAiGeneration('enhance_content')} disabled={isAiLoading || !post.content} className="w-full">
+                    <Button onClick={() => handleAiGeneration('enhance_content')} disabled={isAiLoading || !post.content || isSuggestingLinks} className="w-full">
                         {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                         Mejorar Contenido
                     </Button>
-                    <Button onClick={() => handleAiGeneration('suggest_keywords')} disabled={isAiLoading || !post.content} className="w-full" variant="outline">
+                    <Button onClick={() => handleAiGeneration('suggest_keywords')} disabled={isAiLoading || !post.content || isSuggestingLinks} className="w-full" variant="outline">
                         {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tags className="mr-2 h-4 w-4" />}
                         Sugerir Etiquetas
                     </Button>
@@ -455,7 +531,7 @@ function EditPageContent() {
                     <div className="max-h-40 overflow-y-auto space-y-2 p-2 border rounded-md">
                         {allCategories.map(cat => (
                             <div key={cat.id} className="flex items-center space-x-2">
-                                <Input type="checkbox" id={`cat-${cat.id}`} checked={post.categories.includes(cat.id)} onChange={(e) => {
+                                <Input type="checkbox" id={`cat-${cat.id}`} checked={post!.categories.includes(cat.id)} onChange={(e) => {
                                     const newCategories = e.target.checked 
                                       ? [...post!.categories, cat.id] 
                                       : post!.categories.filter(c => c !== cat.id);
@@ -499,8 +575,15 @@ function EditPageContent() {
           </div>
         </div>
 
-        {/* DIALOGS for ContentToolbar */}
+        {/* DIALOGS */}
         <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Insertar Imagen</AlertDialogTitle><AlertDialogDescription>Sube una imagen o introduce una URL para insertarla en el contenido.</AlertDialogDescription></AlertDialogHeader><div className="space-y-4"><div><Label htmlFor="image-upload">Subir archivo</Label><Input id="image-upload" type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} /></div><div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">O</span></div></div><div><Label htmlFor="image-url">Insertar desde URL</Label><Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" /></div></div><AlertDialogFooter><AlertDialogCancel onClick={() => { setImageUrl(''); setImageFile(null); }}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleInsertImage} disabled={isUploadingImage}>{isUploadingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Insertar Imagen</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+        <LinkSuggestionsDialog
+          open={linkSuggestions.length > 0 && !isSuggestingLinks}
+          onOpenChange={(open) => { if (!open) setLinkSuggestions([]); }}
+          suggestions={linkSuggestions}
+          onApplySuggestion={handleApplySuggestion}
+          onApplyAll={handleApplyAllSuggestions}
+        />
     </div>
   );
 }

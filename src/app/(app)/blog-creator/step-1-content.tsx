@@ -6,13 +6,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ImageUploader } from "@/components/features/wizard/image-uploader";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from "@/lib/firebase";
-import type { BlogPostData, WordPressPostCategory, ProductPhoto, WordPressUser } from "@/lib/types";
-import { Loader2, Sparkles, Wand2, Languages, Edit, Pilcrow, Heading2, List, ListOrdered, CalendarIcon, Info, Tags, Link as LinkIcon, Image as ImageIcon, Lightbulb, Check, Strikethrough, Heading3, Bold, Italic, Underline, Quote, AlignCenter, AlignJustify, AlignLeft, AlignRight } from "lucide-react";
+import type { BlogPostData, WordPressPostCategory, ProductPhoto, WordPressUser, LinkSuggestion } from "@/lib/types";
+import { Loader2, Sparkles, Wand2, Languages, Edit, Pilcrow, Heading2, List, ListOrdered, CalendarIcon, Info, Tags, Link as LinkIcon, Image as ImageIcon, Lightbulb, Check, Strikethrough, Heading3, Bold, Italic, Underline, Quote, AlignCenter, AlignJustify, AlignLeft, AlignRight, Link2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
@@ -21,6 +20,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
+import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
+import type { SuggestLinksOutput } from '@/ai/flows/suggest-links-flow';
 
 
 const ALL_LANGUAGES = [
@@ -45,6 +46,9 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
     const [ideaKeyword, setIdeaKeyword] = useState('');
     const [suggestedTitles, setSuggestedTitles] = useState<string[]>([]);
     const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
+
+    const [isSuggestingLinks, setIsSuggestingLinks] = useState(false);
+    const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>([]);
     
     const { toast } = useToast();
 
@@ -91,7 +95,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
         return () => unsubscribe();
     }, [toast, updatePostData, postData.author]);
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         updatePostData({ [e.target.name]: e.target.value });
     };
 
@@ -253,6 +257,73 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
       navigator.clipboard.writeText(`<img src="${finalImageUrl}" />`);
     };
 
+    const handleSuggestLinks = async () => {
+        if (!postData.content.trim()) {
+            toast({ title: "Contenido vacío", description: "Escribe algo antes de pedir sugerencias de enlaces.", variant: "destructive" });
+            return;
+        }
+        setIsSuggestingLinks(true);
+        try {
+            const user = auth.currentUser;
+            if (!user) throw new Error("No autenticado.");
+            const token = await user.getIdToken();
+            const response = await fetch('/api/ai/suggest-links', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ content: postData.content })
+            });
+            if (!response.ok) throw new Error((await response.json()).message || "La IA falló al sugerir enlaces.");
+            
+            const data: SuggestLinksOutput = await response.json();
+            setLinkSuggestions(data.suggestions || []);
+
+        } catch(e: any) {
+            toast({ title: "Error al sugerir enlaces", description: e.message, variant: "destructive" });
+            setLinkSuggestions([]);
+        } finally {
+            setIsSuggestingLinks(false);
+        }
+    };
+
+    const applyLink = (content: string, suggestion: LinkSuggestion): string => {
+        const phrase = suggestion.phraseToLink.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`(?<!<a[^>]*>)${phrase}(?!<\\/a>)`, '');
+        if (content.match(regex)) {
+            return content.replace(regex, `<a href="${suggestion.targetUrl}" target="_blank">${suggestion.phraseToLink}</a>`);
+        }
+        return content;
+    };
+
+    const handleApplySuggestion = (suggestion: LinkSuggestion) => {
+        const newContent = applyLink(postData.content, suggestion);
+        if (newContent !== postData.content) {
+            updatePostData({ content: newContent });
+            toast({ title: "Enlace aplicado", description: `Se ha enlazado la frase "${suggestion.phraseToLink}".` });
+            setLinkSuggestions(prev => prev.filter(s => s.phraseToLink !== suggestion.phraseToLink || s.targetUrl !== suggestion.targetUrl));
+        } else {
+            toast({ title: "No se pudo aplicar", description: "No se encontró la frase exacta o ya estaba enlazada.", variant: "destructive" });
+        }
+    };
+
+    const handleApplyAllSuggestions = () => {
+        let updatedContent = postData.content;
+        let appliedCount = 0;
+        for (const suggestion of linkSuggestions) {
+            const newContent = applyLink(updatedContent, suggestion);
+            if (newContent !== updatedContent) {
+                updatedContent = newContent;
+                appliedCount++;
+            }
+        }
+        if (appliedCount > 0) {
+            updatePostData({ content: updatedContent });
+            toast({ title: "Enlaces aplicados", description: `Se han aplicado ${appliedCount} sugerencias de enlaces.` });
+            setLinkSuggestions([]);
+        } else {
+            toast({ title: "No se aplicó nada", description: "No se encontraron frases o ya estaban enlazadas.", variant: "destructive" });
+        }
+    };
+
     return (
         <>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -277,7 +348,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                                     <Label>1. ¿Sin ideas? Genera títulos desde una palabra clave</Label>
                                      <div className="flex gap-2">
                                         <Input value={ideaKeyword} onChange={(e) => setIdeaKeyword(e.target.value)} placeholder="Ej: Jardinería sostenible" />
-                                        <Button onClick={handleGenerateIdeas} disabled={isGeneratingIdeas || !ideaKeyword}>
+                                        <Button onClick={handleGenerateIdeas} disabled={isGeneratingIdeas || !ideaKeyword || isLoading.ai}>
                                             {isGeneratingIdeas ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lightbulb className="mr-2 h-4 w-4" />}
                                             Generar Ideas
                                         </Button>
@@ -327,6 +398,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                                       content={postData.content}
                                       onChange={handleContentChange}
                                       onInsertImage={() => setIsImageDialogOpen(true)}
+                                      onSuggestLinks={handleSuggestLinks}
                                       placeholder="Escribe el contenido de tu entrada o genéralo con IA..."
                                     />
                                 </div>
@@ -395,7 +467,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="metaDescription">Meta Descripción</Label>
-                                <Textarea 
+                                <Input 
                                     id="metaDescription" 
                                     name="metaDescription" 
                                     value={postData.metaDescription} 
@@ -498,6 +570,13 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+            <LinkSuggestionsDialog
+              open={linkSuggestions.length > 0 && !isSuggestingLinks}
+              onOpenChange={(open) => { if (!open) setLinkSuggestions([]); }}
+              suggestions={linkSuggestions}
+              onApplySuggestion={handleApplySuggestion}
+              onApplyAll={handleApplyAllSuggestions}
+            />
         </>
     );
 }

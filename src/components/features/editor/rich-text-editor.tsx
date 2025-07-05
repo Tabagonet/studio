@@ -16,11 +16,12 @@ interface RichTextEditorProps {
   content: string;
   onChange: (richText: string) => void;
   onInsertImage: () => void;
+  onSuggestLinks?: () => void;
   placeholder?: string;
   size?: 'default' | 'small';
 }
 
-export function RichTextEditor({ content, onChange, onInsertImage, placeholder, size = 'default' }: RichTextEditorProps) {
+export function RichTextEditor({ content, onChange, onInsertImage, onSuggestLinks, placeholder, size = 'default' }: RichTextEditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -73,7 +74,7 @@ export function RichTextEditor({ content, onChange, onInsertImage, placeholder, 
   
   return (
     <div className="rounded-md border border-input bg-transparent ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
-      <RichTextToolbar editor={editor} onInsertImage={onInsertImage} />
+      <RichTextToolbar editor={editor} onInsertImage={onInsertImage} onSuggestLinks={onSuggestLinks} />
       <EditorContent editor={editor} />
     </div>
   );

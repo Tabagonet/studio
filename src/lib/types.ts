@@ -336,3 +336,8 @@ export interface ProductStats {
   type: { [key: string]: number };
 }
 
+export interface LinkSuggestion {
+  phraseToLink: string;
+  targetUrl: string;
+  targetTitle: string;
+}

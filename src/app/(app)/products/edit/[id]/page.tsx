@@ -11,13 +11,15 @@ import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { WooCommerceCategory, ProductPhoto, WooCommerceImage } from '@/lib/types';
+import type { WooCommerceCategory, ProductPhoto, WooCommerceImage, LinkSuggestion } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ProductPreviewCard } from './product-preview-card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
+import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
+import type { SuggestLinksOutput } from '@/ai/flows/suggest-links-flow';
 
 
 interface ProductEditState {
@@ -62,6 +64,9 @@ function EditProductPageContent() {
   const [imageUrl, setImageUrl] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  const [isSuggestingLinks, setIsSuggestingLinks] = useState(false);
+  const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>([]);
 
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -254,7 +259,7 @@ function EditProductPageContent() {
     }
   }, [productId, toast]);
   
-  const handleInsertImage = useCallback(async () => {
+  const handleInsertImageInLongDesc = useCallback(async () => {
     let finalImageUrl = imageUrl;
     if (imageFile) {
         setIsUploadingImage(true);
@@ -281,7 +286,6 @@ function EditProductPageContent() {
     }
 
     const imgTag = `<img src="${finalImageUrl}" alt="${product?.name || 'Imagen insertada'}" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px;" />`;
-    // For simplicity, appending to the long description. A more complex implementation could insert at cursor.
     if (product) {
       setProduct({ ...product, description: product.description + `\n${imgTag}` });
     }
@@ -290,6 +294,75 @@ function EditProductPageContent() {
     setImageFile(null);
     setIsImageDialogOpen(false);
   }, [imageUrl, imageFile, product, toast]);
+
+  const handleSuggestLinks = async () => {
+    if (!product || !product.description.trim()) {
+        toast({ title: "Contenido vacío", description: "Escribe algo en la descripción larga antes de pedir sugerencias.", variant: "destructive" });
+        return;
+    }
+    setIsSuggestingLinks(true);
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("No autenticado.");
+        const token = await user.getIdToken();
+        const response = await fetch('/api/ai/suggest-links', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ content: product.description })
+        });
+        if (!response.ok) throw new Error((await response.json()).message || "La IA falló al sugerir enlaces.");
+        
+        const data: SuggestLinksOutput = await response.json();
+        setLinkSuggestions(data.suggestions || []);
+
+    } catch(e: any) {
+        toast({ title: "Error al sugerir enlaces", description: e.message, variant: "destructive" });
+        setLinkSuggestions([]);
+    } finally {
+        setIsSuggestingLinks(false);
+    }
+  };
+
+  const applyLink = (content: string, suggestion: LinkSuggestion): string => {
+    const phrase = suggestion.phraseToLink.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(?<!<a[^>]*>)${phrase}(?!<\\/a>)`, '');
+    if (content.match(regex)) {
+        return content.replace(regex, `<a href="${suggestion.targetUrl}" target="_blank">${suggestion.phraseToLink}</a>`);
+    }
+    return content;
+  };
+
+  const handleApplySuggestion = (suggestion: LinkSuggestion) => {
+    if (!product) return;
+    const newContent = applyLink(product.description, suggestion);
+    if (newContent !== product.description) {
+        setProduct(p => p ? { ...p, description: newContent } : null);
+        toast({ title: "Enlace aplicado", description: `Se ha enlazado la frase "${suggestion.phraseToLink}".` });
+        setLinkSuggestions(prev => prev.filter(s => s.phraseToLink !== suggestion.phraseToLink || s.targetUrl !== suggestion.targetUrl));
+    } else {
+        toast({ title: "No se pudo aplicar", description: "No se encontró la frase exacta o ya estaba enlazada.", variant: "destructive" });
+    }
+  };
+
+  const handleApplyAllSuggestions = () => {
+     if (!product) return;
+     let updatedContent = product.description;
+     let appliedCount = 0;
+     for (const suggestion of linkSuggestions) {
+         const newContent = applyLink(updatedContent, suggestion);
+         if (newContent !== updatedContent) {
+             updatedContent = newContent;
+             appliedCount++;
+         }
+     }
+     if (appliedCount > 0) {
+        setProduct(p => p ? { ...p, description: updatedContent } : null);
+        toast({ title: "Enlaces aplicados", description: `Se han aplicado ${appliedCount} sugerencias de enlaces.` });
+        setLinkSuggestions([]);
+     } else {
+        toast({ title: "No se aplicó nada", description: "No se encontraron frases o ya estaban enlazadas.", variant: "destructive" });
+     }
+  };
   
   if (isLoading) {
     return <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
@@ -325,7 +398,7 @@ function EditProductPageContent() {
                               <ArrowLeft className="mr-2 h-4 w-4" />
                               Volver a la lista
                           </Button>
-                          <Button onClick={handleSaveChanges} disabled={isSaving}>
+                          <Button onClick={handleSaveChanges} disabled={isSaving || isSuggestingLinks}>
                               {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                               Guardar Cambios
                           </Button>
@@ -375,6 +448,7 @@ function EditProductPageContent() {
                                   content={product.description}
                                   onChange={handleLongDescriptionChange}
                                   onInsertImage={() => setIsImageDialogOpen(true)}
+                                  onSuggestLinks={handleSuggestLinks}
                                   placeholder="Escribe la descripción larga aquí..."
                               />
                           </div>
@@ -459,13 +533,20 @@ function EditProductPageContent() {
               </div>
               <AlertDialogFooter>
                   <AlertDialogCancel onClick={() => { setImageUrl(''); setImageFile(null); }}>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleInsertImage} disabled={isUploadingImage}>
+                  <AlertDialogAction onClick={handleInsertImageInLongDesc} disabled={isUploadingImage}>
                       {isUploadingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Insertar Imagen
                   </AlertDialogAction>
               </AlertDialogFooter>
           </AlertDialogContent>
       </AlertDialog>
+      <LinkSuggestionsDialog
+          open={linkSuggestions.length > 0 && !isSuggestingLinks}
+          onOpenChange={(open) => { if (!open) setLinkSuggestions([]); }}
+          suggestions={linkSuggestions}
+          onApplySuggestion={handleApplySuggestion}
+          onApplyAll={handleApplyAllSuggestions}
+        />
     </>
   );
 }

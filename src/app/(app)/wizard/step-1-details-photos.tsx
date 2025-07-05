@@ -9,9 +9,9 @@ import { Button } from '@/components/ui/button';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { VariableProductManager } from '@/components/features/wizard/variable-product-manager';
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
-import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory } from '@/lib/types';
+import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory, LinkSuggestion } from '@/lib/types';
 import { PRODUCT_TYPES, ALL_LANGUAGES } from '@/lib/constants';
-import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle, Image as ImageIcon } from "lucide-react";
+import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle, Image as ImageIcon, Link2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
@@ -20,6 +20,8 @@ import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { useDebounce } from '@/hooks/use-debounce';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
+import type { SuggestLinksOutput } from '@/ai/flows/suggest-links-flow';
 
 
 interface Step1DetailsPhotosProps {
@@ -53,6 +55,9 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   const [imageUrl, setImageUrl] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  const [isSuggestingLinks, setIsSuggestingLinks] = useState(false);
+  const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>([]);
 
   useEffect(() => {
     const fetchCategories = async (token: string) => {
@@ -382,6 +387,72 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     setIsImageDialogOpen(false);
   };
 
+  const handleSuggestLinks = async () => {
+    if (!productData.longDescription.trim()) {
+        toast({ title: "Contenido vacío", description: "Escribe algo en la descripción larga antes de pedir sugerencias.", variant: "destructive" });
+        return;
+    }
+    setIsSuggestingLinks(true);
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("No autenticado.");
+        const token = await user.getIdToken();
+        const response = await fetch('/api/ai/suggest-links', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ content: productData.longDescription })
+        });
+        if (!response.ok) throw new Error((await response.json()).message || "La IA falló al sugerir enlaces.");
+        
+        const data: SuggestLinksOutput = await response.json();
+        setLinkSuggestions(data.suggestions || []);
+
+    } catch(e: any) {
+        toast({ title: "Error al sugerir enlaces", description: e.message, variant: "destructive" });
+        setLinkSuggestions([]);
+    } finally {
+        setIsSuggestingLinks(false);
+    }
+  };
+
+  const applyLink = (content: string, suggestion: LinkSuggestion): string => {
+    const phrase = suggestion.phraseToLink.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(?<!<a[^>]*>)${phrase}(?!<\\/a>)`, '');
+    if (content.match(regex)) {
+        return content.replace(regex, `<a href="${suggestion.targetUrl}" target="_blank">${suggestion.phraseToLink}</a>`);
+    }
+    return content;
+  };
+
+  const handleApplySuggestion = (suggestion: LinkSuggestion) => {
+    const newContent = applyLink(productData.longDescription, suggestion);
+    if (newContent !== productData.longDescription) {
+        updateProductData({ longDescription: newContent });
+        toast({ title: "Enlace aplicado", description: `Se ha enlazado la frase "${suggestion.phraseToLink}".` });
+        setLinkSuggestions(prev => prev.filter(s => s.phraseToLink !== suggestion.phraseToLink || s.targetUrl !== suggestion.targetUrl));
+    } else {
+        toast({ title: "No se pudo aplicar", description: "No se encontró la frase exacta o ya estaba enlazada.", variant: "destructive" });
+    }
+  };
+
+  const handleApplyAllSuggestions = () => {
+     let updatedContent = productData.longDescription;
+     let appliedCount = 0;
+     for (const suggestion of linkSuggestions) {
+         const newContent = applyLink(updatedContent, suggestion);
+         if (newContent !== updatedContent) {
+             updatedContent = newContent;
+             appliedCount++;
+         }
+     }
+     if (appliedCount > 0) {
+        updateProductData({ longDescription: updatedContent });
+        toast({ title: "Enlaces aplicados", description: `Se han aplicado ${appliedCount} sugerencias de enlaces.` });
+        setLinkSuggestions([]);
+     } else {
+        toast({ title: "No se aplicó nada", description: "No se encontraron frases o ya estaban enlazadas.", variant: "destructive" });
+     }
+  };
 
   return (
     <>
@@ -581,22 +652,24 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                   <div className="border-t pt-6 space-y-6">
                     <div>
                         <Label htmlFor="shortDescription">Descripción Corta</Label>
-                        <RichTextEditor
-                          content={productData.shortDescription}
-                          onChange={handleShortDescriptionChange}
-                          onInsertImage={() => setIsImageDialogOpen(true)}
-                          placeholder="Un resumen atractivo y conciso de tu producto que será generado por la IA."
-                          size="small"
+                         <RichTextEditor
+                            content={productData.shortDescription}
+                            onChange={handleShortDescriptionChange}
+                            onInsertImage={() => setIsImageDialogOpen(true)}
+                            onSuggestLinks={handleSuggestLinks}
+                            placeholder="Un resumen atractivo y conciso de tu producto que será generado por la IA."
+                            size="small"
                         />
                     </div>
                   
                     <div>
                         <Label htmlFor="longDescription">Descripción Larga</Label>
                         <RichTextEditor
-                          content={productData.longDescription}
-                          onChange={handleLongDescriptionChange}
-                          onInsertImage={() => setIsImageDialogOpen(true)}
-                          placeholder="Describe tu producto en detalle: características, materiales, usos, etc. La IA lo generará por ti."
+                            content={productData.longDescription}
+                            onChange={handleLongDescriptionChange}
+                            onInsertImage={() => setIsImageDialogOpen(true)}
+                            onSuggestLinks={handleSuggestLinks}
+                            placeholder="Describe tu producto en detalle: características, materiales, usos, etc. La IA lo generará por ti."
                         />
                     </div>
                   </div>
@@ -686,6 +759,13 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
               </AlertDialogFooter>
           </AlertDialogContent>
       </AlertDialog>
+      <LinkSuggestionsDialog
+          open={linkSuggestions.length > 0 && !isSuggestingLinks}
+          onOpenChange={(open) => { if (!open) setLinkSuggestions([]); }}
+          suggestions={linkSuggestions}
+          onApplySuggestion={handleApplySuggestion}
+          onApplyAll={handleApplyAllSuggestions}
+        />
     </>
   );
 }

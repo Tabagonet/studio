@@ -3,7 +3,7 @@
 
 import { type Editor } from '@tiptap/react';
 import {
-  Bold, Strikethrough, Italic, List, ListOrdered, Heading1, Heading2, Heading3, Quote, AlignLeft, AlignCenter, AlignRight, AlignJustify, Underline, Link as LinkIcon, Image as ImageIcon
+  Bold, Strikethrough, Italic, List, ListOrdered, Heading1, Heading2, Heading3, Quote, AlignLeft, AlignCenter, AlignRight, AlignJustify, Underline, Link as LinkIcon, Image as ImageIcon, Link2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCallback, useState } from 'react';
@@ -15,9 +15,10 @@ import { cn } from '@/lib/utils';
 type Props = {
   editor: Editor | null;
   onInsertImage: () => void;
+  onSuggestLinks?: () => void;
 };
 
-export const RichTextToolbar = ({ editor, onInsertImage }: Props) => {
+export const RichTextToolbar = ({ editor, onInsertImage, onSuggestLinks }: Props) => {
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   
@@ -96,6 +97,11 @@ export const RichTextToolbar = ({ editor, onInsertImage }: Props) => {
           <Button type="button" variant="ghost" size="icon" onClick={onInsertImage} title="Insertar Imagen" className="h-8 w-8">
             <ImageIcon className="h-4 w-4" />
           </Button>
+          {onSuggestLinks && (
+            <Button type="button" variant="ghost" size="icon" onClick={onSuggestLinks} title="Sugerir Enlaces Internos (IA)" className="h-8 w-8">
+              <Link2 className="h-4 w-4" />
+            </Button>
+          )}
         </div>
         
         {/* Alignment */}
