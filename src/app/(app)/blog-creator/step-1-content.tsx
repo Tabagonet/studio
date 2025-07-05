@@ -216,7 +216,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
         }
     };
     
-    const handleInsertTag = (tag: 'h2' | 'ul' | 'ol' | 'strong' | 'em') => {
+    const handleInsertTag = (tag: 'h2' | 'h3' | 'blockquote' | 'ul' | 'ol' | 'strong' | 'em' | 'u' | 's') => {
         const textarea = contentRef.current;
         if (!textarea) return;
         
@@ -567,7 +567,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                                 <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">O</span></div>
                             </div>
                             <div>
-                                <Label htmlFor="categoryPath">Crear Nueva Categoría (Ej: Principal &gt; Subcategoría)</Label>
+                                <Label htmlFor="categoryPath">Crear Nueva Categoría (Ej: Principal > Subcategoría)</Label>
                                 <Input
                                     id="categoryPath"
                                     name="categoryPath"

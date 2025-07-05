@@ -68,12 +68,11 @@ function EditPageContent() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!post) return;
-    const { name, value } = e.target;
     setPost({ ...post, [name]: value });
   };
   
   // Handlers for ContentToolbar
-  const handleInsertTag = (tag: 'h2' | 'ul' | 'ol' | 'strong' | 'em') => {
+  const handleInsertTag = (tag: 'h2' | 'h3' | 'blockquote' | 'ul' | 'ol' | 'strong' | 'em' | 'u' | 's') => {
     const textarea = contentRef.current;
     if (!textarea || !post) return;
     
@@ -311,7 +310,7 @@ function EditPageContent() {
             payload.featured_image_src = imageData.url;
         } else if (!post.featuredImage) {
             // Image was removed
-            payload.featured_media_id = 0;
+            payload.featured_media = 0;
         }
         
         const response = await fetch(`/api/wordpress/posts/${postId}`, {
