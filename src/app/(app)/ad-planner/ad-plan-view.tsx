@@ -1,7 +1,8 @@
+
 'use client';
 
 import React from 'react';
-import { pdf, Document, Page, Text, View, StyleSheet, Image as PdfImage } from '@react-pdf/renderer';
+import { pdf, Document, Page, Text, View, StyleSheet, Font, Image as PdfImage } from '@react-pdf/renderer';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CreateAdPlanOutput } from './schema';
@@ -11,7 +12,20 @@ import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
 
-// Styles for the PDF document using the standard Helvetica font
+
+// Register fonts for PDF rendering
+Font.register({
+    family: 'Helvetica',
+    fonts: [
+        { src: 'https://fonts.gstatic.com/s/helveticaneue/v1/1_U_F2iatS-L2h2p1iA-22A.ttf' }, // A fallback, as direct Helvetica is standard
+        { src: `https://fonts.gstatic.com/s/ptsans/v17/jizaRExUiTo99u79D0-ExdGM.ttf`, fontWeight: 'normal' },
+        { src: `https://fonts.gstatic.com/s/ptsans/v17/jizfRExUiTo99u79B_mh0OOtLQ.ttf`, fontWeight: 'bold' },
+        { src: `https://fonts.gstatic.com/s/ptsans/v17/jizcRExUiTo99u79D0eEwMOpbA.ttf`, fontStyle: 'italic' },
+    ]
+});
+
+
+// Styles for the PDF document
 const styles = StyleSheet.create({
   page: { fontFamily: 'Helvetica', fontSize: 10, paddingTop: 35, paddingBottom: 65, paddingHorizontal: 35, lineHeight: 1.5, color: '#333333' },
   header: { textAlign: 'center', marginBottom: 20, borderBottomWidth: 2, borderBottomColor: '#E6E6FA', paddingBottom: 10 },
@@ -160,7 +174,7 @@ export function AdPlanView({ plan, onReset, companyName, logoUrl }: { plan: Crea
                 <CardContent className="space-y-4">
                     {plan.strategies.map((strategy, index) => (
                         <div key={index} className="p-4 border rounded-lg space-y-3 bg-muted/20">
-                            <div className="flex flex-col sm:flex-row sm:justify-between"><h3 className="text-xl font-semibold text-secondary">{strategy.platform}</h3><p className="font-bold text-lg">{formatCurrency(strategy.monthly_budget)} / mes</p></div>
+                            <div className="flex flex-col sm:flex-row sm:justify-between"><h3 className="text-xl font-semibold text-primary">{strategy.platform}</h3><p className="font-bold text-lg">{formatCurrency(strategy.monthly_budget)} / mes</p></div>
                             <p className="text-sm text-muted-foreground italic"><Lightbulb className="inline-block mr-2 h-4 w-4" />{strategy.strategy_rationale}</p>
                             <div className="flex flex-wrap items-center gap-4 text-sm pt-2">
                                 <div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-muted-foreground" /><span>Fase del embudo: <Badge>{strategy.funnel_stage}</Badge></span></div>
@@ -183,7 +197,7 @@ export function AdPlanView({ plan, onReset, companyName, logoUrl }: { plan: Crea
                          {plan.calendar.map((milestone, index) => (
                             <div key={index} className="relative pl-6">
                                 <div className="absolute left-0 top-1 h-full w-px bg-border"></div>
-                                <div className="absolute left-[-5px] top-1.5 h-3 w-3 rounded-full bg-secondary"></div>
+                                <div className="absolute left-[-5px] top-1.5 h-3 w-3 rounded-full bg-primary"></div>
                                 <h4 className="font-semibold">{milestone.month}: {milestone.focus}</h4>
                                 <ul className="list-disc list-inside text-sm text-muted-foreground pl-2 mt-1 space-y-0.5">{milestone.actions.map((action, i) => <li key={i}>{action}</li>)}</ul>
                             </div>

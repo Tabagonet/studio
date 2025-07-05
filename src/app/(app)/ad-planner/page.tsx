@@ -144,7 +144,7 @@ export default function AdPlannerPage() {
             <Card>
                 <CardHeader>
                     <div className="flex items-center space-x-3">
-                        <Megaphone className="h-8 w-8 text-secondary" />
+                        <Megaphone className="h-8 w-8 text-primary" />
                         <div>
                             <CardTitle>Planificador de Publicidad con IA</CardTitle>
                             <CardDescription>Genera planes de publicidad digital profesionales para cualquier web.</CardDescription>
