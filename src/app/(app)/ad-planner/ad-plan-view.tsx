@@ -96,10 +96,10 @@ const AdPlanPDF = ({ plan, companyName, logoUrl }: { plan: CreateAdPlanOutput; c
                 </View>
             </View>
 
-            <View style={styles.feeProposalCard}><Text style={styles.sectionTitle}>Propuesta de Gestión</Text><Text style={styles.bodyText}>{plan.fee_proposal.fee_description}</Text>
+            <View style={styles.feeProposalCard}><Text style={styles.sectionTitle}>Propuesta de Gestión</Text><Text style={styles.bodyText}>{plan.fee_proposal?.fee_description}</Text>
                 <View style={styles.feeContainer}>
-                    <View style={styles.feeItem}><Text>Cuota de Configuración</Text><Text style={styles.monthlyBudget}>{formatCurrency(plan.fee_proposal.setup_fee)}</Text></View>
-                    <View style={styles.feeItem}><Text>Gestión Mensual</Text><Text style={styles.monthlyBudget}>{formatCurrency(plan.fee_proposal.management_fee)}</Text></View>
+                    <View style={styles.feeItem}><Text>Cuota de Configuración</Text><Text style={styles.monthlyBudget}>{formatCurrency(plan.fee_proposal?.setup_fee || 0)}</Text></View>
+                    <View style={styles.feeItem}><Text>Gestión Mensual</Text><Text style={styles.monthlyBudget}>{formatCurrency(plan.fee_proposal?.management_fee || 0)}</Text></View>
                 </View>
             </View>
 
@@ -301,11 +301,11 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
             <Card className="bg-accent/50 border-primary/20">
                  <CardHeader><CardTitle className="flex items-center gap-3"><Zap className="h-6 w-6 text-primary" /> Propuesta de Gestión</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
-                    <p className="text-muted-foreground">{plan.fee_proposal.fee_description}</p>
+                    <p className="text-muted-foreground">{plan.fee_proposal?.fee_description || 'Descripción de la propuesta no disponible.'}</p>
                     <Separator />
                     <div className="flex flex-col sm:flex-row sm:justify-around text-center gap-4">
-                        <div><p className="text-sm text-muted-foreground">Cuota de Configuración</p><p className="text-2xl font-bold">{formatCurrency(plan.fee_proposal.setup_fee)}</p></div>
-                        <div><p className="text-sm text-muted-foreground">Cuota de Gestión Mensual</p><p className="text-2xl font-bold">{formatCurrency(plan.fee_proposal.management_fee)}</p></div>
+                        <div><p className="text-sm text-muted-foreground">Cuota de Configuración</p><p className="text-2xl font-bold">{formatCurrency(plan.fee_proposal?.setup_fee || 0)}</p></div>
+                        <div><p className="text-sm text-muted-foreground">Cuota de Gestión Mensual</p><p className="text-2xl font-bold">{formatCurrency(plan.fee_proposal?.management_fee || 0)}</p></div>
                     </div>
                 </CardContent>
             </Card>
