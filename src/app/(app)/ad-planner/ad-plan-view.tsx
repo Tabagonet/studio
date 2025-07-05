@@ -13,16 +13,17 @@ import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
 import { StrategyDetailDialog } from './StrategyDetailDialog';
 import { formatCurrency } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 
 // Register fonts for PDF rendering
 Font.register({
     family: 'Helvetica',
     fonts: [
-        { src: 'https://fonts.gstatic.com/s/helveticaneue/v1/1_U_F2iatS-L2h2p1iA-22A.ttf' }, // A fallback, as direct Helvetica is standard
-        { src: `https://fonts.gstatic.com/s/ptsans/v17/jizaRExUiTo99u79D0-ExdGM.ttf`, fontWeight: 'normal' },
-        { src: `https://fonts.gstatic.com/s/ptsans/v17/jizfRExUiTo99u79B_mh0OOtLQ.ttf`, fontWeight: 'bold' },
-        { src: `https://fonts.gstatic.com/s/ptsans/v17/jizcRExUiTo99u79D0eEwMOpbA.ttf`, fontStyle: 'italic' },
+        { src: 'https://fonts.gstatic.com/s/ptsans/v17/jizaRExUiTo99u79D0-ExdGM.ttf', fontWeight: 'normal' },
+        { src: 'https://fonts.gstatic.com/s/ptsans/v17/jizfRExUiTo99u79B_mh0OOtLQ.ttf', fontWeight: 'bold' },
+        { src: 'https://fonts.gstatic.com/s/ptsans/v17/jizcRExUiTo99u79D0eEwMOpbA.ttf', fontStyle: 'italic' },
     ]
 });
 
@@ -116,6 +117,23 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
         setPlan(initialPlan);
     }, [initialPlan]);
 
+    const handleBudgetChange = (platform: string, newBudgetString: string) => {
+        const newBudget = parseFloat(newBudgetString) || 0;
+        setPlan(prevPlan => {
+            if (!prevPlan) return null;
+            const updatedStrategies = prevPlan.strategies.map(s => 
+                s.platform === platform ? { ...s, monthly_budget: newBudget } : s
+            );
+            const newTotalBudget = updatedStrategies.reduce((sum, s) => sum + s.monthly_budget, 0);
+
+            return {
+                ...prevPlan,
+                strategies: updatedStrategies,
+                total_monthly_budget: newTotalBudget,
+            };
+        });
+    };
+
     const handleDownload = async () => {
         // Use an image proxy for the PDF to avoid CORS issues.
         const proxiedLogoUrl = logoUrl ? `/api/image-proxy?url=${encodeURIComponent(logoUrl)}` : null;
@@ -201,7 +219,19 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
                            <div className="flex flex-col sm:flex-row sm:justify-between items-start gap-3">
                                 <div>
                                     <h3 className="text-xl font-semibold text-primary">{strategy.platform}</h3>
-                                    <p className="font-bold text-lg">{formatCurrency(strategy.monthly_budget)} / mes</p>
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <Label htmlFor={`budget-${strategy.platform}`} className="sr-only">Presupuesto mensual</Label>
+                                        <Input
+                                            id={`budget-${strategy.platform}`}
+                                            type="number"
+                                            value={strategy.monthly_budget}
+                                            onChange={(e) => handleBudgetChange(strategy.platform, e.target.value)}
+                                            className="w-32 font-bold text-lg"
+                                            min="0"
+                                            step="10"
+                                        />
+                                        <span className="font-bold text-lg text-muted-foreground">/ mes</span>
+                                    </div>
                                 </div>
                                 <Button variant="outline" size="sm" onClick={() => setDetailedStrategy(strategy)}>
                                     <ListOrdered className="mr-2 h-4 w-4" />
