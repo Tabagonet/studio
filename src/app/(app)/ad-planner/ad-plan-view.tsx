@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { PDFDownloadLink, Document, Page, Text, View, StyleSheet, Font, Image as PdfImage } from '@react-pdf/renderer';
+import { pdf, Document, Page, Text, View, StyleSheet, Font, Image as PdfImage } from '@react-pdf/renderer';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CreateAdPlanOutput } from './schema';
@@ -10,6 +10,8 @@ import { DollarSign, Printer, RotateCcw, Target, TrendingUp, Calendar, Zap, Clip
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
+import { useToast } from '@/hooks/use-toast';
+
 
 // Register fonts for PDF rendering from a reliable CDN
 Font.register({
@@ -113,6 +115,36 @@ const formatCurrency = (value: number) => {
 };
 
 export function AdPlanView({ plan, onReset }: { plan: CreateAdPlanOutput; onReset: () => void; }) {
+    const [isPdfLoading, setIsPdfLoading] = React.useState(false);
+    const { toast } = useToast();
+
+    const handleDownload = async () => {
+        setIsPdfLoading(true);
+        try {
+            const blob = await pdf(<AdPlanPDF plan={plan} />).toBlob();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const fileName = `plan_publicidad_${plan.executive_summary.substring(0, 20).replace(/\s/g, '_') || 'AutoPress'}.pdf`;
+            
+            link.href = url;
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+            link.click();
+            
+            link.parentNode?.removeChild(link);
+            URL.revokeObjectURL(url);
+            
+        } catch (error) {
+            console.error("Failed to generate PDF:", error);
+            toast({
+                title: "Error al generar PDF",
+                description: "No se pudo crear el documento. Revisa la consola para más detalles.",
+                variant: "destructive",
+            });
+        } finally {
+            setIsPdfLoading(false);
+        }
+    };
     
     return (
         <div className="space-y-6 report-view">
@@ -124,17 +156,10 @@ export function AdPlanView({ plan, onReset }: { plan: CreateAdPlanOutput; onRese
 
              <div className="flex flex-wrap gap-2 justify-end print-hide">
                 <Button variant="outline" onClick={onReset}><RotateCcw className="mr-2 h-4 w-4" /> Crear Nuevo Plan</Button>
-                <PDFDownloadLink
-                    document={<AdPlanPDF plan={plan} />}
-                    fileName={`plan_publicidad_${plan.executive_summary.substring(0, 20).replace(/\s/g, '_') || 'AutoPress'}.pdf`}
-                >
-                    {({ loading }) => (
-                        <Button disabled={loading}>
-                            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
-                            {loading ? 'Generando PDF...' : 'Descargar PDF'}
-                        </Button>
-                    )}
-                </PDFDownloadLink>
+                 <Button onClick={handleDownload} disabled={isPdfLoading}>
+                    {isPdfLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
+                    {isPdfLoading ? 'Generando PDF...' : 'Descargar PDF'}
+                </Button>
             </div>
             
             <Card>
