@@ -30,20 +30,25 @@ export async function GET(req: NextRequest) {
 
         const history = snapshot.docs.map(doc => {
             const data = doc.data();
+
+            // More robust data check. If a record is missing essential data, skip it.
+            if (!data || !data.planData || !data.url) {
+                console.warn(`Skipping malformed ad plan history record: ${doc.id}`);
+                return null;
+            }
             
-            // Defensive check to prevent errors if createdAt is missing or not a timestamp
             const createdAt = (data.createdAt && typeof data.createdAt.toDate === 'function')
                 ? data.createdAt.toDate().toISOString()
                 : new Date(0).toISOString(); // Fallback to epoch time
 
             return {
                 id: doc.id,
-                url: data.url || 'URL no encontrada',
+                url: data.url,
                 objectives: data.objectives || [],
                 createdAt: createdAt,
                 planData: data.planData as CreateAdPlanOutput,
             };
-        });
+        }).filter(item => item !== null); // Filter out any skipped (null) items
 
         return NextResponse.json({ history });
 
