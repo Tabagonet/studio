@@ -159,6 +159,7 @@ body {
   .report-view .card {
     border: 1px solid #ddd !important;
     box-shadow: none !important;
+    page-break-inside: avoid;
   }
   
   @page {
