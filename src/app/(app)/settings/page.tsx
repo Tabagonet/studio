@@ -441,7 +441,7 @@ export default function SettingsPage() {
                         </AlertDialogContent>
                     </AlertDialog>
                     
-                    {userRole === 'admin' && (
+                    {userRole === 'super_admin' && (
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
                                 <Button variant="destructive" disabled={isCleaningOrphans}>

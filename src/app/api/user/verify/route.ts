@@ -12,7 +12,7 @@ const userSchema = z.object({
   email: z.string().email().or(z.literal('')),
   displayName: z.string().nullable(),
   photoURL: z.string().url().nullable(),
-  role: z.enum(['super_admin', 'admin', 'content_manager', 'product_manager', 'seo_analyst', 'pending']),
+  role: z.enum(['super_admin', 'admin', 'content_manager', 'product_manager', 'seo_analyst', 'pending', 'user']),
   status: z.enum(['active', 'rejected', 'pending_approval']),
   termsAccepted: z.boolean(),
   siteLimit: z.number().optional(),
@@ -81,8 +81,9 @@ export async function GET(req: NextRequest) {
           await adminDb.collection('api_keys').doc(newApiKey).set({ userId: uid, createdAt: admin.firestore.FieldValue.serverTimestamp() });
           userData.apiKey = newApiKey;
       }
-
-      const validatedData = userSchema.safeParse(userData);
+      
+      const roleToReturn = userData.role || 'pending';
+      const validatedData = userSchema.safeParse({...userData, role: roleToReturn});
       if (!validatedData.success) {
         console.error("User data in DB is invalid:", validatedData.error);
         return NextResponse.json({ error: "Invalid user data in database." }, { status: 500 });
