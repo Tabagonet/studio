@@ -22,7 +22,7 @@ Tu respuesta DEBE ser un único objeto JSON válido.
 **Instrucciones del Plan:**
 1.  **executive_summary:** Resume la estrategia general en 2-3 párrafos. El resultado DEBE ser un único string de texto.
 2.  **target_audience:** Describe al público objetivo detalladamente (demografía, intereses, puntos de dolor). El resultado DEBE ser un único string de texto, usando saltos de línea (\\n) para separar conceptos si es necesario.
-3.  **strategies:** Propón estrategias para cada plataforma.
+3.  **strategies:** Propón un conjunto de estrategias publicitarias detalladas, una para cada plataforma relevante. El número de estrategias debe ser el adecuado para cumplir los objetivos, generalmente entre 2 y 4.
     -   "platform": Plataforma publicitaria (DEBE ser un solo string, ej. Google Ads, Meta Ads).
     -   "strategy_rationale": Justifica por qué esta plataforma es adecuada.
     -   "funnel_stage": Elige UNA de las siguientes opciones: 'Awareness', 'Consideration', 'Conversion'.
@@ -37,7 +37,7 @@ Tu respuesta DEBE ser un único objeto JSON válido.
     - "month": El número del mes (ej. 'Mes 1', 'Mes 2', etc.).
     - "focus": El enfoque principal para ese mes (ej. "Configuración y Lanzamiento", "Optimización y Test A/B", "Escalado de Campañas").
     - "actions": Lista de 3 a 5 acciones DETALLADAS y específicas a realizar durante ese mes. Las acciones deben estar directamente relacionadas con la URL, los objetivos y la duración total del plan. Sé explícito.
-6.  **kpis:** Lista de KPIs clave GENERALES para toda la campaña, incluyendo un objetivo numérico cuantificable y ambicioso para cada uno (ej. "ROAS General > 3.5", "CPA Total < 25€", "CTR > 2%").
+6.  **kpis:** Lista de 4 a 6 KPIs clave GENERALES para toda la campaña. Incluye un objetivo numérico cuantificable y ambicioso para cada uno. Sé exhaustivo, incluyendo métricas de rendimiento, coste y visibilidad (ej. "ROAS General > 3.5", "CPA Total < 25€", "Tasa de Conversión > 3%", "CTR General > 2%", "CPC Medio < 1.10€", "Impresiones > 500,000/mes").
 7.  **fee_proposal:** Propuesta de honorarios. Pon "setup_fee" y "management_fee" a 0. Genera una "fee_description" genérica sobre lo que suelen incluir los honorarios.
     - "setup_fee": 0.
     - "management_fee": 0.
