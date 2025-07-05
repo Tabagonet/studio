@@ -556,7 +556,7 @@ export default function BatchProcessPage() {
               <ul className="list-disc list-inside pl-6 mt-2 text-sm space-y-1">
                   <li><strong>Columnas Clave:</strong> <code>sku</code> y <code>nombre</code> son obligatorios. El <code>nombre</code> se usará para la IA.</li>
                    <li><strong>Traducciones:</strong> Usa la columna <code>traducir_a</code> para indicar los idiomas de destino, separados por coma. Ej: <code>English,French</code>.</li>
-                  <li><strong>Categorías:</strong> Usa <code>&gt;</code> para indicar jerarquía. Ej: <code>Ropa &gt; Camisetas</code>.</li>
+                  <li><strong>Categorías:</strong> Usa <code>&gt;</code> para indicar jerarquía. Ej: <code>{'Ropa > Camisetas'}</code>.</li>
                   <li><strong>Productos Variables:</strong>
                       <ul className="list-['-_'] list-inside pl-4">
                         <li>Define el <code>tipo</code> como <code>variable</code>.</li>

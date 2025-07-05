@@ -439,7 +439,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                                 <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">O</span></div>
                             </div>
                             <div>
-                                <Label htmlFor="categoryPath">Crear Nueva Categoría (Ej: Principal > Subcategoría)</Label>
+                                <Label htmlFor="categoryPath">{'Crear Nueva Categoría (Ej: Principal > Subcategoría)'}</Label>
                                 <Input
                                     id="categoryPath"
                                     name="categoryPath"
