@@ -11,14 +11,14 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
 
-// Register fonts for PDF rendering from a reliable CDN
+// Register fonts for PDF rendering from the official Google Fonts repository raw content
 Font.register({
   family: 'PT Sans',
   fonts: [
-    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-400-normal.ttf' },
-    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-700-normal.ttf', fontWeight: 'bold' },
-    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-400-italic.ttf', fontStyle: 'italic' },
-    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-700-italic.ttf', fontWeight: 'bold', fontStyle: 'italic' },
+    { src: 'https://raw.githubusercontent.com/google/fonts/main/ofl/ptsans/PTSans-Regular.ttf' },
+    { src: 'https://raw.githubusercontent.com/google/fonts/main/ofl/ptsans/PTSans-Bold.ttf', fontWeight: 'bold' },
+    { src: 'https://raw.githubusercontent.com/google/fonts/main/ofl/ptsans/PTSans-Italic.ttf', fontStyle: 'italic' },
+    { src: 'https://raw.githubusercontent.com/google/fonts/main/ofl/ptsans/PTSans-BoldItalic.ttf', fontWeight: 'bold', fontStyle: 'italic' },
   ],
 });
 
@@ -117,7 +117,7 @@ export function AdPlanView({ plan, onReset }: { plan: CreateAdPlanOutput; onRese
     return (
         <div className="space-y-6 report-view">
             <div className="report-header hidden print:block">
-                <Image src="/images/logo.png" alt="Logo" width={60} height={60} className="mx-auto" />
+                <Image src="/images/logo.png" alt="Logo" width={60} height={60} className="mx-auto" data-ai-hint="logo brand" />
                 <h1 className="text-2xl font-bold mt-2">Plan de Publicidad Digital</h1>
                 <p className="text-sm text-gray-500">Preparado por AutoPress AI el {new Date().toLocaleDateString('es-ES')}</p>
             </div>
