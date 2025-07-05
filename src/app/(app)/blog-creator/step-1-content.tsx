@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ImageUploader } from "@/components/features/wizard/image-uploader";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from "@/lib/firebase";
-import type { BlogPostData, WordPressPostCategory, ProductPhoto, WordPressUser, LinkSuggestion } from "@/lib/types";
+import type { BlogPostData, WordPressPostCategory, ProductPhoto, WordPressUser } from "@/lib/types";
 import { Loader2, Sparkles, Wand2, Languages, Edit, Pilcrow, Heading2, List, ListOrdered, CalendarIcon, Info, Tags, Link as LinkIcon, Image as ImageIcon, Lightbulb, Check, Strikethrough, Heading3, Bold, Italic, Underline, Quote, AlignCenter, AlignJustify, AlignLeft, AlignRight, Link2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -21,7 +21,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
-import type { SuggestLinksOutput } from '@/ai/flows/suggest-links-flow';
+import type { SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
 
 
 const ALL_LANGUAGES = [

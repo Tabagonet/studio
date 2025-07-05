@@ -1,6 +1,4 @@
 
-'use server';
-
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Handlebars from 'handlebars';
 import { 

@@ -1,6 +1,4 @@
 
-'use server';
-
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { CreateAdPlanInput, CreateAdPlanOutput, CreateAdPlanOutputSchema } from '@/app/(app)/ad-planner/schema';
 import { adminDb } from '@/lib/firebase-admin';

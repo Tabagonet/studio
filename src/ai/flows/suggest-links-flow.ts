@@ -1,4 +1,3 @@
-'use server';
 /**
  * @fileOverview An AI flow for suggesting internal links within content.
  *
