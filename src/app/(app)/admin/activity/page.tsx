@@ -24,6 +24,12 @@ interface UserStat {
     photoURL: string;
     productCount: number;
     connections: Set<string>;
+    companyName: string | null;
+}
+
+type GroupedUserStats = {
+    companyName: string;
+    users: UserStat[];
 }
 
 type FilterType = 'this_month' | 'last_30_days' | 'all_time';
@@ -56,6 +62,7 @@ export default function AdminActivityPage() {
                 }
 
                 const data = await response.json();
+                // Sorting is now done on the server, but we can keep client sort as a fallback
                 const sortedLogs = data.logs.sort((a: ActivityLog, b: ActivityLog) => 
                    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
                 );
@@ -77,7 +84,7 @@ export default function AdminActivityPage() {
             }
         });
         return () => unsubscribe();
-    }, []);
+    }, [toast]);
     
     const filteredLogs = useMemo(() => {
         const now = new Date();
@@ -111,6 +118,7 @@ export default function AdminActivityPage() {
                     photoURL: log.user.photoURL,
                     productCount: 0,
                     connections: new Set<string>(),
+                    companyName: log.user.companyName || null,
                 };
             }
             stats[log.userId].productCount++;
@@ -118,8 +126,31 @@ export default function AdminActivityPage() {
                 stats[log.userId].connections.add(log.details.connectionKey);
             }
         });
-        return Object.values(stats).sort((a,b) => b.productCount - a.productCount);
+        return Object.values(stats);
     }, [filteredLogs]);
+    
+    const groupedUserStats = useMemo((): GroupedUserStats[] => {
+        if (userStats.length === 0) return [];
+        
+        const groups: Record<string, UserStat[]> = {};
+        
+        userStats.forEach(stat => {
+            const companyKey = stat.companyName || 'Sin Empresa Asignada';
+            if (!groups[companyKey]) {
+                groups[companyKey] = [];
+            }
+            groups[companyKey].push(stat);
+        });
+
+        return Object.entries(groups).map(([companyName, users]) => ({
+            companyName,
+            users: users.sort((a,b) => b.productCount - a.productCount)
+        })).sort((a,b) => {
+            if (a.companyName === 'Sin Empresa Asignada') return 1;
+            if (b.companyName === 'Sin Empresa Asignada') return -1;
+            return a.companyName.localeCompare(b.companyName);
+        });
+    }, [userStats]);
 
     const handleExportUserStats = () => {
         if (userStats.length === 0) {
@@ -130,6 +161,7 @@ export default function AdminActivityPage() {
         const dataToExport = userStats.map(stat => ({
             'Usuario': stat.displayName,
             'Email': stat.email,
+            'Empresa': stat.companyName || 'N/A',
             'Productos Creados': stat.productCount,
             'Webs Utilizadas': Array.from(stat.connections).join(', '),
         }));
@@ -149,7 +181,7 @@ export default function AdminActivityPage() {
     };
 
     const handleExportDetailedLogs = () => {
-        if (logs.length === 0) { // Use all logs, not just filtered for detailed export
+        if (logs.length === 0) {
             toast({ title: 'Nada que exportar', description: 'No hay registros detallados para exportar.', variant: "destructive" });
             return;
         }
@@ -157,6 +189,7 @@ export default function AdminActivityPage() {
         const dataToExport = logs.map(log => ({
             'Fecha': new Date(log.timestamp).toLocaleString('es-ES'),
             'Usuario': log.user.displayName,
+            'Empresa': log.user.companyName || 'N/A',
             'Acción': log.action,
             'Detalles': log.action === 'PRODUCT_CREATED' 
                 ? `Creó "${log.details.productName}" en ${log.details.connectionKey} (desde ${log.details.source})`
@@ -196,7 +229,7 @@ export default function AdminActivityPage() {
                             <LineChart className="h-8 w-8 text-primary" />
                             <div>
                                 <CardTitle>Resumen de Actividad por Usuario</CardTitle>
-                                <CardDescription>Estadísticas de creación de productos por cada usuario.</CardDescription>
+                                <CardDescription>Estadísticas de creación de productos por cada usuario, agrupadas por empresa.</CardDescription>
                             </div>
                         </div>
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -228,26 +261,35 @@ export default function AdminActivityPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {userStats.length > 0 ? userStats.map(stat => (
-                                <TableRow key={stat.userId}>
-                                    <TableCell>
-                                        <div className="flex items-center gap-3">
-                                            <Image src={stat.photoURL || `https://placehold.co/40x40.png`} alt={stat.displayName} width={32} height={32} className="rounded-full" />
-                                            <div>
-                                                <div className="font-medium">{stat.displayName}</div>
-                                                <div className="text-xs text-muted-foreground">{stat.email}</div>
-                                            </div>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-center font-bold text-lg">{stat.productCount}</TableCell>
-                                    <TableCell>
-                                        <div className="flex flex-col gap-1">
-                                            {Array.from(stat.connections).map(conn => (
-                                                <Badge key={conn} variant="secondary">{conn}</Badge>
-                                            ))}
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
+                            {groupedUserStats.length > 0 ? groupedUserStats.map(group => (
+                                <React.Fragment key={group.companyName}>
+                                    <TableRow className="bg-muted/50 hover:bg-muted/50">
+                                        <TableCell colSpan={3} className="font-semibold text-primary">
+                                            {group.companyName}
+                                        </TableCell>
+                                    </TableRow>
+                                    {group.users.map(stat => (
+                                        <TableRow key={stat.userId}>
+                                            <TableCell>
+                                                <div className="flex items-center gap-3">
+                                                    <Image src={stat.photoURL || `https://placehold.co/40x40.png`} alt={stat.displayName} width={32} height={32} className="rounded-full" />
+                                                    <div>
+                                                        <div className="font-medium">{stat.displayName}</div>
+                                                        <div className="text-xs text-muted-foreground">{stat.email}</div>
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-center font-bold text-lg">{stat.productCount}</TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-col gap-1">
+                                                    {Array.from(stat.connections).map(conn => (
+                                                        <Badge key={conn} variant="secondary">{conn}</Badge>
+                                                    ))}
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </React.Fragment>
                             )) : (
                                 <TableRow>
                                     <TableCell colSpan={3} className="h-24 text-center">

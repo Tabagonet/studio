@@ -1,8 +1,7 @@
 
-
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -39,6 +38,11 @@ interface User {
   siteLimit: number;
   companyId: string | null;
   companyName: string | null;
+}
+
+type GroupedUsers = {
+    companyName: string;
+    users: User[];
 }
 
 export function UserManagementTable() {
@@ -229,6 +233,29 @@ export function UserManagementTable() {
         }
     };
     
+    const groupedUsers = useMemo((): GroupedUsers[] => {
+        if (!users || users.length === 0) return [];
+        
+        const groups: Record<string, User[]> = {};
+        
+        users.forEach(user => {
+            const companyKey = user.companyName || 'Sin Empresa Asignada';
+            if (!groups[companyKey]) {
+                groups[companyKey] = [];
+            }
+            groups[companyKey].push(user);
+        });
+
+        return Object.entries(groups).map(([companyName, users]) => ({
+            companyName,
+            users: users.sort((a,b) => a.displayName.localeCompare(b.displayName))
+        })).sort((a,b) => {
+            if (a.companyName === 'Sin Empresa Asignada') return 1;
+            if (b.companyName === 'Sin Empresa Asignada') return -1;
+            return a.companyName.localeCompare(b.companyName);
+        });
+    }, [users]);
+    
     if (isLoading) {
         return (
             <div className="flex justify-center items-center h-64 border rounded-md">
@@ -275,141 +302,145 @@ export function UserManagementTable() {
                         <TableHead className="w-[300px]">Usuario</TableHead>
                         <TableHead>Email</TableHead>
                         <TableHead>Rol</TableHead>
-                        <TableHead>Empresa</TableHead>
                         <TableHead>Límite Sitios</TableHead>
                         <TableHead>Estado</TableHead>
                         <TableHead className="text-right w-[100px]">Acciones</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {users.length > 0 ? users.map((u) => (
-                        <TableRow key={u.uid} className={cn(isUpdating === u.uid && "opacity-50")}>
-                            <TableCell>
-                                <div className="flex items-center gap-3">
-                                    <Image src={u.photoURL || `https://placehold.co/40x40.png`} alt={u.displayName} width={32} height={32} className="rounded-full" />
-                                    <span className="font-medium">{u.displayName}</span>
-                                </div>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">{u.email}</TableCell>
-                            <TableCell>
-                                <Badge variant="outline" className="capitalize">
-                                    {ROLE_NAMES[u.role] || u.role}
-                                </Badge>
-                            </TableCell>
-                             <TableCell>
-                                {u.companyName ? (
-                                    <Badge variant="secondary">{u.companyName}</Badge>
-                                ) : (
-                                    <span className="text-xs text-muted-foreground">No asignado</span>
-                                )}
-                            </TableCell>
-                            <TableCell className="text-center font-medium">
-                                {u.siteLimit >= 999 ? 'Ilimitado' : u.siteLimit}
-                            </TableCell>
-                            <TableCell>{getStatusBadge(u.status)}</TableCell>
-                            <TableCell className="text-right">
-                                {isUpdating === u.uid ? (
-                                    <div className="flex justify-end items-center h-8">
-                                        <Loader2 className="h-5 w-5 animate-spin" />
+                    {groupedUsers.length > 0 ? groupedUsers.map((group) => (
+                        <React.Fragment key={group.companyName}>
+                            <TableRow className="bg-muted/50 hover:bg-muted/50">
+                                <TableCell colSpan={6} className="font-semibold text-primary">
+                                    <div className="flex items-center gap-2">
+                                        <Building className="h-4 w-4" />
+                                        {group.companyName}
                                     </div>
-                                ) : (
-                                    <AlertDialog>
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" className="h-8 w-8 p-0" disabled={u.uid === currentAdmin?.uid || u.role === 'super_admin'}>
-                                                    <span className="sr-only">Abrir menú</span>
-                                                    <MoreHorizontal className="h-4 w-4" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                                <DropdownMenuSeparator />
-                                                {u.status === 'pending_approval' && (
-                                                    <>
-                                                        <DropdownMenuItem onSelect={() => handleUpdateStatus(u.uid, 'active')}>
-                                                            <UserCheck className="mr-2 h-4 w-4" /> Aprobar
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem onSelect={() => handleUpdateStatus(u.uid, 'rejected')} className="text-destructive focus:text-destructive">
-                                                            <UserX className="mr-2 h-4 w-4" /> Rechazar
-                                                        </DropdownMenuItem>
-                                                    </>
-                                                )}
-                                                {u.status === 'active' && (
-                                                    <>
-                                                        {currentUserRole === 'super_admin' && (
+                                </TableCell>
+                            </TableRow>
+                            {group.users.map((u) => (
+                                <TableRow key={u.uid} className={cn(isUpdating === u.uid && "opacity-50")}>
+                                    <TableCell>
+                                        <div className="flex items-center gap-3">
+                                            <Image src={u.photoURL || `https://placehold.co/40x40.png`} alt={u.displayName} width={32} height={32} className="rounded-full" />
+                                            <span className="font-medium">{u.displayName}</span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                                    <TableCell>
+                                        <Badge variant="outline" className="capitalize">
+                                            {ROLE_NAMES[u.role] || u.role}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-center font-medium">
+                                        {u.siteLimit >= 999 ? 'Ilimitado' : u.siteLimit}
+                                    </TableCell>
+                                    <TableCell>{getStatusBadge(u.status)}</TableCell>
+                                    <TableCell className="text-right">
+                                        {isUpdating === u.uid ? (
+                                            <div className="flex justify-end items-center h-8">
+                                                <Loader2 className="h-5 w-5 animate-spin" />
+                                            </div>
+                                        ) : (
+                                            <AlertDialog>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" className="h-8 w-8 p-0" disabled={u.uid === currentAdmin?.uid || u.role === 'super_admin'}>
+                                                            <span className="sr-only">Abrir menú</span>
+                                                            <MoreHorizontal className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                                        <DropdownMenuSeparator />
+                                                        {u.status === 'pending_approval' && (
                                                             <>
-                                                                <DropdownMenuItem onSelect={() => { setSelectedUserForLimit(u); setNewSiteLimit(u.siteLimit); setIsLimitModalOpen(true); }}>
-                                                                    <KeyRound className="mr-2 h-4 w-4" /> Fijar Límite de Sitios
+                                                                <DropdownMenuItem onSelect={() => handleUpdateStatus(u.uid, 'active')}>
+                                                                    <UserCheck className="mr-2 h-4 w-4" /> Aprobar
                                                                 </DropdownMenuItem>
+                                                                <DropdownMenuItem onSelect={() => handleUpdateStatus(u.uid, 'rejected')} className="text-destructive focus:text-destructive">
+                                                                    <UserX className="mr-2 h-4 w-4" /> Rechazar
+                                                                </DropdownMenuItem>
+                                                            </>
+                                                        )}
+                                                        {u.status === 'active' && (
+                                                            <>
+                                                                {currentUserRole === 'super_admin' && (
+                                                                    <>
+                                                                        <DropdownMenuItem onSelect={() => { setSelectedUserForLimit(u); setNewSiteLimit(u.siteLimit); setIsLimitModalOpen(true); }}>
+                                                                            <KeyRound className="mr-2 h-4 w-4" /> Fijar Límite de Sitios
+                                                                        </DropdownMenuItem>
+                                                                        <DropdownMenuSub>
+                                                                            <DropdownMenuSubTrigger>
+                                                                                <Building className="mr-2 h-4 w-4" /> Asignar a Empresa
+                                                                            </DropdownMenuSubTrigger>
+                                                                            <DropdownMenuPortal>
+                                                                                <DropdownMenuSubContent>
+                                                                                    {companies.map(company => (
+                                                                                        <DropdownMenuItem key={company.id} onSelect={() => handleAssignCompany(u.uid, company.id)}>
+                                                                                            {company.name}
+                                                                                        </DropdownMenuItem>
+                                                                                    ))}
+                                                                                    {companies.length === 0 && <DropdownMenuItem disabled>No hay empresas creadas</DropdownMenuItem>}
+                                                                                </DropdownMenuSubContent>
+                                                                            </DropdownMenuPortal>
+                                                                        </DropdownMenuSub>
+                                                                        <DropdownMenuSeparator />
+                                                                    </>
+                                                                )}
+                                                                
                                                                 <DropdownMenuSub>
                                                                     <DropdownMenuSubTrigger>
-                                                                        <Building className="mr-2 h-4 w-4" /> Asignar a Empresa
+                                                                        <Briefcase className="mr-2 h-4 w-4" /> Cambiar Rol
                                                                     </DropdownMenuSubTrigger>
                                                                     <DropdownMenuPortal>
                                                                         <DropdownMenuSubContent>
-                                                                            {companies.map(company => (
-                                                                                <DropdownMenuItem key={company.id} onSelect={() => handleAssignCompany(u.uid, company.id)}>
-                                                                                    {company.name}
-                                                                                </DropdownMenuItem>
-                                                                            ))}
-                                                                            {companies.length === 0 && <DropdownMenuItem disabled>No hay empresas creadas</DropdownMenuItem>}
+                                                                            {currentUserRole === 'super_admin' && (
+                                                                                <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'admin')}><Shield className="mr-2 h-4 w-4" /> Administrador</DropdownMenuItem>
+                                                                            )}
+                                                                            <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'content_manager')}><FileSignature className="mr-2 h-4 w-4" /> Gestor de Contenido</DropdownMenuItem>
+                                                                            <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'product_manager')}><BookCopy className="mr-2 h-4 w-4" /> Gestor de Productos</DropdownMenuItem>
+                                                                            <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'seo_analyst')}><Search className="mr-2 h-4 w-4" /> Analista SEO</DropdownMenuItem>
                                                                         </DropdownMenuSubContent>
                                                                     </DropdownMenuPortal>
                                                                 </DropdownMenuSub>
-                                                                <DropdownMenuSeparator />
+
+                                                                <DropdownMenuItem onSelect={() => handleUpdateStatus(u.uid, 'rejected')} className="text-destructive focus:text-destructive">
+                                                                  <UserX className="mr-2 h-4 w-4" /> Suspender
+                                                                </DropdownMenuItem>
                                                             </>
                                                         )}
-                                                        
-                                                        <DropdownMenuSub>
-                                                            <DropdownMenuSubTrigger>
-                                                                <Briefcase className="mr-2 h-4 w-4" /> Cambiar Rol
-                                                            </DropdownMenuSubTrigger>
-                                                            <DropdownMenuPortal>
-                                                                <DropdownMenuSubContent>
-                                                                    {currentUserRole === 'super_admin' && (
-                                                                        <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'admin')}><Shield className="mr-2 h-4 w-4" /> Administrador</DropdownMenuItem>
-                                                                    )}
-                                                                    <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'content_manager')}><FileSignature className="mr-2 h-4 w-4" /> Gestor de Contenido</DropdownMenuItem>
-                                                                    <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'product_manager')}><BookCopy className="mr-2 h-4 w-4" /> Gestor de Productos</DropdownMenuItem>
-                                                                    <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'seo_analyst')}><Search className="mr-2 h-4 w-4" /> Analista SEO</DropdownMenuItem>
-                                                                </DropdownMenuSubContent>
-                                                            </DropdownMenuPortal>
-                                                        </DropdownMenuSub>
-
-                                                        <DropdownMenuItem onSelect={() => handleUpdateStatus(u.uid, 'rejected')} className="text-destructive focus:text-destructive">
-                                                          <UserX className="mr-2 h-4 w-4" /> Suspender
-                                                        </DropdownMenuItem>
-                                                    </>
-                                                )}
-                                                <DropdownMenuSeparator />
-                                                <AlertDialogTrigger asChild>
-                                                    <DropdownMenuItem className="text-destructive focus:text-destructive">
-                                                        <Trash2 className="mr-2 h-4 w-4" /> Eliminar
-                                                    </DropdownMenuItem>
-                                                </AlertDialogTrigger>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    Esta acción no se puede deshacer. Se eliminará permanentemente al usuario <strong>{u.displayName}</strong> y todos sus datos.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleDeleteUser(u.uid)} className={buttonVariants({ variant: "destructive" })}>
-                                                    Sí, eliminar usuario
-                                                </AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                )}
-                            </TableCell>
-                        </TableRow>
+                                                        <DropdownMenuSeparator />
+                                                        <AlertDialogTrigger asChild>
+                                                            <DropdownMenuItem className="text-destructive focus:text-destructive">
+                                                                <Trash2 className="mr-2 h-4 w-4" /> Eliminar
+                                                            </DropdownMenuItem>
+                                                        </AlertDialogTrigger>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            Esta acción no se puede deshacer. Se eliminará permanentemente al usuario <strong>{u.displayName}</strong> y todos sus datos.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDeleteUser(u.uid)} className={buttonVariants({ variant: "destructive" })}>
+                                                            Sí, eliminar usuario
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        )}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </React.Fragment>
                     )) : (
                         <TableRow>
-                            <TableCell colSpan={7} className="h-24 text-center">
+                            <TableCell colSpan={6} className="h-24 text-center">
                                 No se encontraron usuarios.
                             </TableCell>
                         </TableRow>

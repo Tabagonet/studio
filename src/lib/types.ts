@@ -229,6 +229,8 @@ export interface ActivityLog {
     displayName: string;
     email: string;
     photoURL: string;
+    companyId?: string | null;
+    companyName?: string | null;
   };
 }
 

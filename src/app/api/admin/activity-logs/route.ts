@@ -25,25 +25,35 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        // 1. Fetch all users and create a map
+        // 1. Fetch all companies and create a map
+        const companiesSnapshot = await adminDb.collection('companies').get();
+        const companiesMap = new Map<string, string>();
+        companiesSnapshot.forEach(doc => {
+            companiesMap.set(doc.id, doc.data().name);
+        });
+
+        // 2. Fetch all users and create a map with company info
         const usersSnapshot = await adminDb.collection('users').get();
         const usersMap = new Map<string, any>();
         usersSnapshot.forEach(doc => {
             const data = doc.data();
+            const companyId = data.companyId || null;
             usersMap.set(doc.id, {
                 displayName: data.displayName || 'No Name',
                 email: data.email || '',
                 photoURL: data.photoURL || '',
+                companyId: companyId,
+                companyName: companyId ? (companiesMap.get(companyId) || null) : null
             });
         });
 
-        // 2. Fetch all activity logs, limited to the most recent 200 for performance
-        const logsSnapshot = await adminDb.collection('activity_logs').limit(200).get();
+        // 3. Fetch all activity logs, limited to the most recent 200 for performance
+        const logsSnapshot = await adminDb.collection('activity_logs').orderBy('timestamp', 'desc').limit(200).get();
         
-        // 3. Combine logs with user data
+        // 4. Combine logs with user data
         const logs = logsSnapshot.docs.map(doc => {
             const logData = doc.data();
-            const user = usersMap.get(logData.userId) || { displayName: 'Usuario Eliminado', email: '', photoURL: '' };
+            const user = usersMap.get(logData.userId) || { displayName: 'Usuario Eliminado', email: '', photoURL: '', companyId: null, companyName: null };
             return {
                 id: doc.id,
                 ...logData,
