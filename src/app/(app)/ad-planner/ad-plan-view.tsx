@@ -5,12 +5,13 @@ import React from 'react';
 import { pdf, Document, Page, Text, View, StyleSheet, Font, Image as PdfImage } from '@react-pdf/renderer';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { CreateAdPlanOutput } from './schema';
-import { DollarSign, Printer, RotateCcw, Target, TrendingUp, Calendar, Zap, ClipboardCheck, Users, Megaphone, Lightbulb, MapPin, BarChart, Loader2 } from 'lucide-react';
+import type { CreateAdPlanOutput, Strategy } from './schema';
+import { DollarSign, Printer, RotateCcw, Target, TrendingUp, Calendar, Zap, ClipboardCheck, Users, Megaphone, Lightbulb, MapPin, BarChart, Loader2, ListOrdered } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
+import { StrategyDetailDialog } from './StrategyDetailDialog';
 
 
 // Register fonts for PDF rendering
@@ -110,6 +111,7 @@ const formatCurrency = (value: number) => {
 
 export function AdPlanView({ plan, onReset, companyName, logoUrl }: { plan: CreateAdPlanOutput; onReset: () => void; companyName: string; logoUrl: string | null }) {
     const [isPdfLoading, setIsPdfLoading] = React.useState(false);
+    const [detailedStrategy, setDetailedStrategy] = React.useState<Strategy | null>(null);
     const { toast } = useToast();
 
     const handleDownload = async () => {
@@ -145,6 +147,11 @@ export function AdPlanView({ plan, onReset, companyName, logoUrl }: { plan: Crea
     
     return (
         <div className="space-y-6 report-view">
+             <StrategyDetailDialog 
+                strategy={detailedStrategy} 
+                onOpenChange={(open) => !open && setDetailedStrategy(null)}
+            />
+
             <div className="report-header hidden print:block">
                 <Image src={logoUrl || "https://placehold.co/60x60.png"} alt="Logo" width={60} height={60} className="mx-auto" data-ai-hint="logo brand" />
                 <h1 className="text-2xl font-bold mt-2">Plan de Publicidad Digital</h1>
@@ -170,11 +177,23 @@ export function AdPlanView({ plan, onReset, companyName, logoUrl }: { plan: Crea
             </Card>
             
             <Card>
-                <CardHeader><CardTitle className="flex items-center gap-3"><Megaphone className="h-6 w-6 text-primary" /> Estrategias y Presupuesto</CardTitle><CardDescription>Total mensual recomendado: <span className="font-bold text-lg text-primary">{formatCurrency(plan.total_monthly_budget)}</span></CardDescription></CardHeader>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-3"><Megaphone className="h-6 w-6 text-primary" /> Estrategias y Presupuesto</CardTitle>
+                    <CardDescription>Total mensual recomendado: <span className="font-bold text-lg text-primary">{formatCurrency(plan.total_monthly_budget)}</span></CardDescription>
+                </CardHeader>
                 <CardContent className="space-y-4">
                     {plan.strategies.map((strategy, index) => (
                         <div key={index} className="p-4 border rounded-lg space-y-3 bg-muted/20">
-                            <div className="flex flex-col sm:flex-row sm:justify-between"><h3 className="text-xl font-semibold text-primary">{strategy.platform}</h3><p className="font-bold text-lg">{formatCurrency(strategy.monthly_budget)} / mes</p></div>
+                           <div className="flex flex-col sm:flex-row sm:justify-between items-start gap-3">
+                                <div>
+                                    <h3 className="text-xl font-semibold text-primary">{strategy.platform}</h3>
+                                    <p className="font-bold text-lg">{formatCurrency(strategy.monthly_budget)} / mes</p>
+                                </div>
+                                <Button variant="outline" size="sm" onClick={() => setDetailedStrategy(strategy)}>
+                                    <ListOrdered className="mr-2 h-4 w-4" />
+                                    Planificar Tareas
+                                </Button>
+                            </div>
                             <p className="text-sm text-muted-foreground italic"><Lightbulb className="inline-block mr-2 h-4 w-4" />{strategy.strategy_rationale}</p>
                             <div className="flex flex-wrap items-center gap-4 text-sm pt-2">
                                 <div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-muted-foreground" /><span>Fase del embudo: <Badge>{strategy.funnel_stage}</Badge></span></div>

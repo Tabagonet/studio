@@ -1,7 +1,7 @@
 
 import { z } from 'zod';
 
-const AdStrategySchema = z.object({
+export const AdStrategySchema = z.object({
   platform: z.string().describe("Plataforma publicitaria (ej. Google Ads, Meta Ads, LinkedIn Ads)."),
   strategy_rationale: z.string().describe("Justificación de por qué se ha elegido esta plataforma para los objetivos dados."),
   funnel_stage: z.enum(['Awareness', 'Consideration', 'Conversion']).describe("Etapa del embudo de ventas a la que se dirige esta estrategia."),
@@ -9,6 +9,8 @@ const AdStrategySchema = z.object({
   ad_formats: z.array(z.string()).describe("Formatos de anuncio concretos a utilizar (ej. Anuncio de Texto Expandido, Anuncio de Carrusel, In-Stream)."),
   monthly_budget: z.number().describe("Presupuesto mensual recomendado para esta plataforma."),
 });
+
+export type Strategy = z.infer<typeof AdStrategySchema>;
 
 const CalendarMilestoneSchema = z.object({
   month: z.string().describe("Mes del hito (ej. 'Mes 1', 'Mes 2', 'Mes 3')."),
