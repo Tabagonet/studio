@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { VariableProductManager } from '@/components/features/wizard/variable-product-manager';
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
-import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory, LinkSuggestion } from '@/lib/types';
+import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory } from '@/lib/types';
 import { PRODUCT_TYPES, ALL_LANGUAGES } from '@/lib/constants';
 import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle, Image as ImageIcon, Link2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,7 +21,7 @@ import { useDebounce } from '@/hooks/use-debounce';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
-import type { SuggestLinksOutput } from '@/ai/flows/suggest-links-flow';
+import type { SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
 
 
 interface Step1DetailsPhotosProps {
@@ -597,7 +597,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                       <div className="border-t pt-6 mt-6 space-y-4">
                           <h3 className="text-lg font-medium">Inventario y Envío</h3>
                           <div className="flex items-center space-x-2">
-                              <Checkbox id="manage_stock" checked={productData.manage_stock} onCheckedChange={(checked) => updateProductData({ manage_stock: !!checked })} disabled={isProcessing} />
+                              <Checkbox id="manage_stock" checked={productData.manage_stock} onCheckedChange={(checked) => updateProductData({ manage_stock: !!checked, stockQuantity: !!checked ? productData.stockQuantity : '' })} disabled={isProcessing} />
                               <Label htmlFor="manage_stock" className="text-sm font-normal">Gestionar inventario a nivel de producto</Label>
                           </div>
                           {productData.manage_stock && (
