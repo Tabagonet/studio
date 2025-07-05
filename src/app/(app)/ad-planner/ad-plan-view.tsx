@@ -11,13 +11,14 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
 
-// Register fonts for PDF rendering
+// Register fonts for PDF rendering from a reliable CDN
 Font.register({
   family: 'PT Sans',
   fonts: [
-    { src: 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ptsans/PTSans-Regular.ttf' },
-    { src: 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ptsans/PTSans-Bold.ttf', fontWeight: 'bold' },
-    { src: 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ptsans/PTSans-Italic.ttf', fontStyle: 'italic' },
+    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-400-normal.ttf' },
+    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-700-normal.ttf', fontWeight: 'bold' },
+    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-400-italic.ttf', fontStyle: 'italic' },
+    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-700-italic.ttf', fontWeight: 'bold', fontStyle: 'italic' },
   ],
 });
 
