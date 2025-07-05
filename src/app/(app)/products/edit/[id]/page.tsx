@@ -1,11 +1,12 @@
+
 "use client";
 
-import React, { useEffect, useState, Suspense } from 'react';
+import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowLeft, Save, Trash2, Image as ImageIcon } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -16,7 +17,6 @@ import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ProductPreviewCard } from './product-preview-card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { buttonVariants } from '@/components/ui/button';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 
 
@@ -249,10 +249,12 @@ function EditProductPageContent() {
       }
     };
 
-    fetchInitialData();
+    if (productId) {
+      fetchInitialData();
+    }
   }, [productId, toast]);
   
-  const handleInsertImage = async () => {
+  const handleInsertImage = useCallback(async () => {
     let finalImageUrl = imageUrl;
     if (imageFile) {
         setIsUploadingImage(true);
@@ -287,7 +289,7 @@ function EditProductPageContent() {
     setImageUrl('');
     setImageFile(null);
     setIsImageDialogOpen(false);
-  };
+  }, [imageUrl, imageFile, product, toast]);
   
   if (isLoading) {
     return <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
@@ -310,159 +312,160 @@ function EditProductPageContent() {
 
   return (
     <>
-    <div className="container mx-auto py-8 space-y-6">
-        <Card>
-            <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                        <CardTitle>Editor de Producto</CardTitle>
-                        <CardDescription>Editando: {product.name}</CardDescription>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" onClick={() => router.push('/batch')}>
-                            <ArrowLeft className="mr-2 h-4 w-4" />
-                            Volver a la lista
-                        </Button>
-                        <Button onClick={handleSaveChanges} disabled={isSaving}>
-                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Guardar Cambios
-                        </Button>
-                    </div>
-                </div>
-            </CardHeader>
-        </Card>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            {/* Main Column */}
-            <div className="lg:col-span-2 space-y-6">
-                <Card>
-                    <CardHeader><CardTitle>Información Principal</CardTitle></CardHeader>
-                    <CardContent className="space-y-4">
-                        <div><Label htmlFor="name">Nombre del Producto</Label><Input id="name" name="name" value={product.name} onChange={handleInputChange} /></div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div><Label htmlFor="sku">SKU</Label><Input id="sku" name="sku" value={product.sku} onChange={handleInputChange} /></div>
-                            <div><Label htmlFor="status">Estado</Label><Select name="status" value={product.status} onValueChange={(value) => handleSelectChange('status', value)}><SelectTrigger id="status"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="publish">Publicado</SelectItem><SelectItem value="draft">Borrador</SelectItem><SelectItem value="pending">Pendiente</SelectItem><SelectItem value="private">Privado</SelectItem></SelectContent></Select></div>
-                        </div>
-                    </CardContent>
-                </Card>
+      <div className="container mx-auto py-8 space-y-6">
+          <Card>
+              <CardHeader>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                          <CardTitle>Editor de Producto</CardTitle>
+                          <CardDescription>Editando: {product.name}</CardDescription>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                          <Button variant="outline" onClick={() => router.push('/batch')}>
+                              <ArrowLeft className="mr-2 h-4 w-4" />
+                              Volver a la lista
+                          </Button>
+                          <Button onClick={handleSaveChanges} disabled={isSaving}>
+                              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                              Guardar Cambios
+                          </Button>
+                      </div>
+                  </div>
+              </CardHeader>
+          </Card>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+              {/* Main Column */}
+              <div className="lg:col-span-2 space-y-6">
+                  <Card>
+                      <CardHeader><CardTitle>Información Principal</CardTitle></CardHeader>
+                      <CardContent className="space-y-4">
+                          <div><Label htmlFor="name">Nombre del Producto</Label><Input id="name" name="name" value={product.name} onChange={handleInputChange} /></div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div><Label htmlFor="sku">SKU</Label><Input id="sku" name="sku" value={product.sku} onChange={handleInputChange} /></div>
+                              <div><Label htmlFor="status">Estado</Label><Select name="status" value={product.status} onValueChange={(value) => handleSelectChange('status', value)}><SelectTrigger id="status"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="publish">Publicado</SelectItem><SelectItem value="draft">Borrador</SelectItem><SelectItem value="pending">Pendiente</SelectItem><SelectItem value="private">Privado</SelectItem></SelectContent></Select></div>
+                          </div>
+                      </CardContent>
+                  </Card>
 
-                <Card>
-                    <CardHeader><CardTitle>Precios</CardTitle></CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} /></div>
-                        <div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} /></div>
-                    </CardContent>
-                </Card>
-                
-                 <Card>
-                    <CardHeader><CardTitle>Descripciones</CardTitle></CardHeader>
-                    <CardContent className="space-y-4">
-                        <div>
-                            <Label htmlFor="short_description">Descripción Corta</Label>
-                            <RichTextEditor 
-                                content={product.short_description}
-                                onChange={handleShortDescriptionChange}
-                                onInsertImage={() => setIsImageDialogOpen(true)}
-                                placeholder="Escribe la descripción corta aquí..."
-                                size="small"
-                            />
-                        </div>
-                        <div>
-                            <Label htmlFor="description">Descripción Larga</Label>
-                            <RichTextEditor 
-                                content={product.description}
-                                onChange={handleLongDescriptionChange}
-                                onInsertImage={() => setIsImageDialogOpen(true)}
-                                placeholder="Escribe la descripción larga aquí..."
-                            />
-                        </div>
-                    </CardContent>
-                </Card>
+                  <Card>
+                      <CardHeader><CardTitle>Precios</CardTitle></CardHeader>
+                      <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} /></div>
+                          <div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} /></div>
+                      </CardContent>
+                  </Card>
+                  
+                   <Card>
+                      <CardHeader><CardTitle>Descripciones</CardTitle></CardHeader>
+                      <CardContent className="space-y-4">
+                          <div>
+                              <Label htmlFor="short_description">Descripción Corta</Label>
+                              <RichTextEditor 
+                                  content={product.short_description}
+                                  onChange={handleShortDescriptionChange}
+                                  onInsertImage={() => setIsImageDialogOpen(true)}
+                                  placeholder="Escribe la descripción corta aquí..."
+                                  size="small"
+                              />
+                          </div>
+                          <div>
+                              <Label htmlFor="description">Descripción Larga</Label>
+                              <RichTextEditor 
+                                  content={product.description}
+                                  onChange={handleLongDescriptionChange}
+                                  onInsertImage={() => setIsImageDialogOpen(true)}
+                                  placeholder="Escribe la descripción larga aquí..."
+                              />
+                          </div>
+                      </CardContent>
+                  </Card>
 
-                <Card>
-                    <CardHeader><CardTitle>Inventario</CardTitle></CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex items-center space-x-2"><Checkbox id="manage_stock" checked={product.manage_stock} onCheckedChange={(checked) => setProduct({ ...product, manage_stock: !!checked, stock_quantity: !!checked ? product.stock_quantity : '' })} /><Label htmlFor="manage_stock" className="font-normal">Gestionar inventario</Label></div>
-                        {product.manage_stock && (<div><Label htmlFor="stock_quantity">Cantidad en Stock</Label><Input id="stock_quantity" name="stock_quantity" type="number" value={product.stock_quantity} onChange={handleInputChange} /></div>)}
-                    </CardContent>
-                </Card>
+                  <Card>
+                      <CardHeader><CardTitle>Inventario</CardTitle></CardHeader>
+                      <CardContent className="space-y-4">
+                          <div className="flex items-center space-x-2"><Checkbox id="manage_stock" checked={product.manage_stock} onCheckedChange={(checked) => setProduct({ ...product, manage_stock: !!checked, stock_quantity: !!checked ? product.stock_quantity : '' })} /><Label htmlFor="manage_stock" className="font-normal">Gestionar inventario</Label></div>
+                          {product.manage_stock && (<div><Label htmlFor="stock_quantity">Cantidad en Stock</Label><Input id="stock_quantity" name="stock_quantity" type="number" value={product.stock_quantity} onChange={handleInputChange} /></div>)}
+                      </CardContent>
+                  </Card>
 
-                 <Card>
-                    <CardHeader><CardTitle>Envío</CardTitle></CardHeader>
-                    <CardContent className="space-y-4">
-                         <div><Label htmlFor="weight">Peso (kg)</Label><Input id="weight" name="weight" type="number" value={product.weight} onChange={handleInputChange} /></div>
-                         <div><Label>Dimensiones (cm)</Label><div className="grid grid-cols-3 gap-2"><Input value={product.dimensions.length} onChange={(e) => handleDimensionChange('length', e.target.value)} placeholder="Largo" /><Input value={product.dimensions.width} onChange={(e) => handleDimensionChange('width', e.target.value)} placeholder="Ancho" /><Input value={product.dimensions.height} onChange={(e) => handleDimensionChange('height', e.target.value)} placeholder="Alto" /></div></div>
-                         <div><Label htmlFor="shipping_class">Clase de envío (slug)</Label><Input id="shipping_class" name="shipping_class" value={product.shipping_class} onChange={handleInputChange} /></div>
-                    </CardContent>
-                </Card>
-            </div>
-            
-            {/* Sidebar Column */}
-            <div className="space-y-6">
-                <ProductPreviewCard product={product} categories={wooCategories} />
-                <Card>
-                    <CardHeader><CardTitle>Organización</CardTitle></CardHeader>
-                    <CardContent className="space-y-4">
-                         <div><Label htmlFor="category_id">Categoría</Label><Select name="category_id" value={product.category_id?.toString() || ''} onValueChange={(value) => handleSelectChange('category_id', value)} disabled={isLoadingCategories}><SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger><SelectContent>{wooCategories.map((cat) => (<SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>))}</SelectContent></Select></div>
-                         <div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={product.tags} onChange={handleInputChange} /></div>
-                    </CardContent>
-                </Card>
-                 <Card>
-                    <CardHeader><CardTitle>Imágenes</CardTitle></CardHeader>
-                    <CardContent>
-                        <ImageUploader photos={product.images} onPhotosChange={handlePhotosChange} isProcessing={isSaving} />
-                    </CardContent>
-                </Card>
-                 <Card>
-                    <CardHeader><CardTitle className="text-destructive">Zona de Peligro</CardTitle></CardHeader>
-                    <CardContent>
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="destructive" className="w-full" disabled={isDeleting}>
-                                    <Trash2 className="mr-2 h-4 w-4" /> Eliminar Producto
-                                </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente este producto.</AlertDialogDescription></AlertDialogHeader>
-                                <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className={buttonVariants({ variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                    </CardContent>
-                </Card>
-            </div>
-        </div>
-    </div>
-    <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>Insertar Imagen</AlertDialogTitle>
-                <AlertDialogDescription>Sube una imagen o introduce una URL para insertarla en el contenido.</AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="space-y-4">
-                <div>
-                    <Label htmlFor="image-upload">Subir archivo</Label>
-                    <Input id="image-upload" type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
-                </div>
-                <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-background px-2 text-muted-foreground">O</span></div>
-                </div>
-                <div>
-                    <Label htmlFor="image-url">Insertar desde URL</Label>
-                    <Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" />
-                </div>
-            </div>
-            <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => { setImageUrl(''); setImageFile(null); }}>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={handleInsertImage} disabled={isUploadingImage}>
-                    {isUploadingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Insertar Imagen
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
+                   <Card>
+                      <CardHeader><CardTitle>Envío</CardTitle></CardHeader>
+                      <CardContent className="space-y-4">
+                           <div><Label htmlFor="weight">Peso (kg)</Label><Input id="weight" name="weight" type="number" value={product.weight} onChange={handleInputChange} /></div>
+                           <div><Label>Dimensiones (cm)</Label><div className="grid grid-cols-3 gap-2"><Input value={product.dimensions.length} onChange={(e) => handleDimensionChange('length', e.target.value)} placeholder="Largo" /><Input value={product.dimensions.width} onChange={(e) => handleDimensionChange('width', e.target.value)} placeholder="Ancho" /><Input value={product.dimensions.height} onChange={(e) => handleDimensionChange('height', e.target.value)} placeholder="Alto" /></div></div>
+                           <div><Label htmlFor="shipping_class">Clase de envío (slug)</Label><Input id="shipping_class" name="shipping_class" value={product.shipping_class} onChange={handleInputChange} /></div>
+                      </CardContent>
+                  </Card>
+              </div>
+              
+              {/* Sidebar Column */}
+              <div className="space-y-6">
+                  <ProductPreviewCard product={product} categories={wooCategories} />
+                  <Card>
+                      <CardHeader><CardTitle>Organización</CardTitle></CardHeader>
+                      <CardContent className="space-y-4">
+                           <div><Label htmlFor="category_id">Categoría</Label><Select name="category_id" value={product.category_id?.toString() || ''} onValueChange={(value) => handleSelectChange('category_id', value)} disabled={isLoadingCategories}><SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger><SelectContent>{wooCategories.map((cat) => (<SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>))}</SelectContent></Select></div>
+                           <div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={product.tags} onChange={handleInputChange} /></div>
+                      </CardContent>
+                  </Card>
+                   <Card>
+                      <CardHeader><CardTitle>Imágenes</CardTitle></CardHeader>
+                      <CardContent>
+                          <ImageUploader photos={product.images} onPhotosChange={handlePhotosChange} isProcessing={isSaving} />
+                      </CardContent>
+                  </Card>
+                   <Card>
+                      <CardHeader><CardTitle className="text-destructive">Zona de Peligro</CardTitle></CardHeader>
+                      <CardContent>
+                          <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                  <Button variant="destructive" className="w-full" disabled={isDeleting}>
+                                      <Trash2 className="mr-2 h-4 w-4" /> Eliminar Producto
+                                  </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                  <AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente este producto.</AlertDialogDescription></AlertDialogHeader>
+                                  <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className={buttonVariants({ variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter>
+                              </AlertDialogContent>
+                          </AlertDialog>
+                      </CardContent>
+                  </Card>
+              </div>
+          </div>
+      </div>
+      <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+                  <AlertDialogTitle>Insertar Imagen</AlertDialogTitle>
+                  <AlertDialogDescription>Sube una imagen o introduce una URL para insertarla en el contenido.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-4">
+                  <div>
+                      <Label htmlFor="image-upload">Subir archivo</Label>
+                      <Input id="image-upload" type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
+                  </div>
+                  <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                          <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                          <span className="bg-background px-2 text-muted-foreground">O</span></div>
+                  </div>
+                  <div>
+                      <Label htmlFor="image-url">Insertar desde URL</Label>
+                      <Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" />
+                  </div>
+              </div>
+              <AlertDialogFooter>
+                  <AlertDialogCancel onClick={() => { setImageUrl(''); setImageFile(null); }}>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleInsertImage} disabled={isUploadingImage}>
+                      {isUploadingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Insertar Imagen
+                  </AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
