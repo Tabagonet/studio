@@ -38,10 +38,10 @@ Tu respuesta DEBE ser un único objeto JSON válido.
     - "focus": El enfoque principal para ese mes (ej. "Configuración y Lanzamiento", "Optimización y Test A/B", "Escalado de Campañas").
     - "actions": Lista de 3 a 5 acciones DETALLADAS y específicas a realizar durante ese mes. Las acciones deben estar directamente relacionadas con la URL, los objetivos y la duración total del plan. Sé explícito.
 6.  **kpis:** Lista de 4 a 6 KPIs clave GENERALES para toda la campaña. Incluye un objetivo numérico cuantificable y ambicioso para cada uno. Sé exhaustivo, incluyendo métricas de rendimiento, coste y visibilidad (ej. "ROAS General > 3.5", "CPA Total < 25€", "Tasa de Conversión > 3%", "CTR General > 2%", "CPC Medio < 1.10€", "Impresiones > 500,000/mes").
-7.  **fee_proposal:** Propuesta de honorarios. Pon "setup_fee" y "management_fee" a 0. Genera una "fee_description" genérica sobre lo que suelen incluir los honorarios.
-    - "setup_fee": 0.
-    - "management_fee": 0.
-    - "fee_description": Descripción genérica de los servicios.
+7.  **fee_proposal:** Propuesta de honorarios.
+    - "setup_fee": Un número que representa tu estimación del coste de configuración inicial. Debe ser razonable, por ejemplo, entre 200 y 500.
+    - "management_fee": Un número que representa tu estimación del coste de gestión mensual. Basa este cálculo en las horas que crees que se necesitarán para ejecutar las acciones del calendario, asumiendo una tarifa de 60€/hora.
+    - "fee_description": Descripción genérica de los servicios que se suelen incluir en la cuota de gestión (ej: optimización de campañas, informes mensuales, etc.).
 `;
     if (!adminDb) return defaultPrompt;
     try {
