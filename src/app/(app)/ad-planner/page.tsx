@@ -3,7 +3,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CreateAdPlanInputSchema, type CreateAdPlanInput, type CreateAdPlanOutput } from './schema';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,8 +13,9 @@ import { Loader2, Sparkles, Megaphone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { generateAdPlanAction } from './actions';
 import { AdPlanView } from './ad-plan-view';
-import { auth } from '@/lib/firebase';
+import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { Checkbox } from '@/components/ui/checkbox';
+import { AdPlanHistory, type AdPlanHistoryItem } from './history-list';
 
 
 const objectives = [
@@ -29,6 +30,9 @@ const objectives = [
 export default function AdPlannerPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [adPlan, setAdPlan] = useState<CreateAdPlanOutput | null>(null);
+    const [companyInfo, setCompanyInfo] = useState<{name: string, logoUrl: string | null} | null>(null);
+    const [history, setHistory] = useState<AdPlanHistoryItem[]>([]);
+    const [isLoadingHistory, setIsLoadingHistory] = useState(true);
     const { toast } = useToast();
 
     const form = useForm<CreateAdPlanInput>({
@@ -38,6 +42,63 @@ export default function AdPlannerPage() {
             objectives: [],
         },
     });
+
+    useEffect(() => {
+        const fetchInitialData = async (user: FirebaseUser) => {
+            setIsLoadingHistory(true);
+            const token = await user.getIdToken();
+            
+            // Fetch Company Info
+            try {
+                const userVerifyResponse = await fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` }});
+                const userData = await userVerifyResponse.json();
+                let companyName = "AutoPress AI";
+                let logoUrl = null;
+
+                const companyIdToFetch = userData.role === 'super_admin' 
+                    ? (await (await fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } })).json()).companies.find((c: any) => c.name === 'Grupo 4 alas S.L.')?.id
+                    : userData.companyId;
+
+                if (companyIdToFetch) {
+                    const companyResponse = await fetch(`/api/user-settings/company?companyId=${companyIdToFetch}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                    if (companyResponse.ok) {
+                        const companyData = await companyResponse.json();
+                        if (companyData.company) {
+                            companyName = companyData.company.name;
+                            logoUrl = companyData.company.logoUrl;
+                        }
+                    }
+                }
+                setCompanyInfo({ name: companyName, logoUrl: logoUrl });
+            } catch (e) {
+                console.error("Failed to fetch company info", e);
+                setCompanyInfo({ name: "AutoPress AI", logoUrl: null });
+            }
+
+            // Fetch History
+            try {
+                const historyResponse = await fetch('/api/ad-planner/history', { headers: { 'Authorization': `Bearer ${token}` } });
+                if (historyResponse.ok) {
+                    setHistory((await historyResponse.json()).history);
+                }
+            } catch (error) {
+                toast({ title: "Error al cargar historial", variant: "destructive" });
+            } finally {
+                setIsLoadingHistory(false);
+            }
+        };
+
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            if (user) {
+                fetchInitialData(user);
+            } else {
+                setIsLoadingHistory(false);
+                setCompanyInfo(null);
+            }
+        });
+        return () => unsubscribe();
+    }, [toast]);
+
 
     async function onSubmit(values: CreateAdPlanInput) {
         setIsLoading(true);
@@ -61,12 +122,22 @@ export default function AdPlannerPage() {
             } else if (result.data) {
                 setAdPlan(result.data);
                 toast({ title: "¡Plan generado con éxito!", description: "Revisa la estrategia propuesta a continuación." });
+                // Refetch history
+                const historyResponse = await fetch('/api/ad-planner/history', { headers: { 'Authorization': `Bearer ${token}` } });
+                if (historyResponse.ok) {
+                    setHistory((await historyResponse.json()).history);
+                }
             }
         } catch (error: any) {
             setIsLoading(false);
             toast({ variant: 'destructive', title: "Error de Red", description: error.message });
         }
     }
+    
+    const handleViewHistory = (plan: CreateAdPlanOutput) => {
+        setAdPlan(plan);
+        window.scrollTo(0, 0);
+    };
 
     return (
         <div className="container mx-auto py-8 space-y-8">
@@ -159,7 +230,13 @@ export default function AdPlannerPage() {
                 </Card>
             )}
 
-            {adPlan && <AdPlanView plan={adPlan} onReset={() => setAdPlan(null)} />}
+            {adPlan && companyInfo && <AdPlanView plan={adPlan} onReset={() => setAdPlan(null)} companyName={companyInfo.name} logoUrl={companyInfo.logoUrl} />}
+
+            {!adPlan && (
+                <div className="mt-8">
+                    <AdPlanHistory history={history} isLoading={isLoadingHistory} onViewPlan={handleViewHistory} />
+                </div>
+            )}
         </div>
     );
 }
