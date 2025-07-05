@@ -53,7 +53,7 @@ export default function AdPlannerPage() {
 
         try {
             const token = await user.getIdToken();
-            const result = await generateAdPlanAction(values);
+            const result = await generateAdPlanAction(values, token);
 
             setIsLoading(false);
             if (result.error) {
