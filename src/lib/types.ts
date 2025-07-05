@@ -341,3 +341,10 @@ export interface LinkSuggestion {
   targetUrl: string;
   targetTitle: string;
 }
+
+export interface Company {
+  id: string;
+  name: string;
+  createdAt: string; // ISO String
+  userCount?: number;
+}
