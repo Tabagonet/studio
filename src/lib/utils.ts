@@ -7,6 +7,11 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function formatCurrency(value: number) {
+    return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(value);
+};
+
+
 /**
  * Extracts product name and potential attributes from a filename.
  * Example: "AGAVE CAVANILLESII-1.jpg" -> name: "Agave Cavanillesii", attributes: ["1"]

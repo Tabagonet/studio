@@ -60,6 +60,13 @@ export async function createAdPlan(input: CreateAdPlanInput, uid: string): Promi
   const result = await model.generateContent(prompt);
   const responseText = result.response.text();
   const parsedJson = JSON.parse(responseText);
+
+  // Add the original input URL and objectives to the final plan object
+  const finalPlan = {
+      ...parsedJson,
+      url: input.url,
+      objectives: input.objectives,
+  };
   
-  return CreateAdPlanOutputSchema.parse(parsedJson);
+  return CreateAdPlanOutputSchema.parse(finalPlan);
 }

@@ -1,45 +1,85 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, DollarSign, Trash2 } from 'lucide-react';
-import type { Strategy } from './schema';
+import { Plus, DollarSign, Trash2, Save, Loader2 } from 'lucide-react';
+import type { CreateAdPlanOutput, Strategy, Task } from './schema';
 import { v4 as uuidv4 } from 'uuid';
 import { ScrollArea } from '@/components/ui/scroll-area';
-
-interface Task {
-  id: string;
-  name: string;
-  hours: number;
-}
+import { useToast } from '@/hooks/use-toast';
+import { generateStrategyTasksAction } from './actions';
+import { auth } from '@/lib/firebase';
+import { formatCurrency } from '@/lib/utils';
 
 interface StrategyDetailDialogProps {
+  plan: CreateAdPlanOutput | null;
   strategy: Strategy | null;
   onOpenChange: (open: boolean) => void;
+  onPlanUpdate: (updatedPlan: CreateAdPlanOutput) => void;
 }
 
-export function StrategyDetailDialog({ strategy, onOpenChange }: StrategyDetailDialogProps) {
+export function StrategyDetailDialog({ plan, strategy, onOpenChange, onPlanUpdate }: StrategyDetailDialogProps) {
   const [hourlyRate, setHourlyRate] = useState(60);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoadingTasks, setIsLoadingTasks] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
-    // Reset tasks when a new strategy is selected
-    if (strategy) {
-      // Pre-populate with a few example tasks based on campaign type
-      const exampleTasks: Task[] = [
-        { id: uuidv4(), name: 'Investigación de Palabras Clave y Competencia', hours: 4 },
-        { id: uuidv4(), name: `Configuración de Campaña de ${strategy.campaign_type}`, hours: 3 },
-        { id: uuidv4(), name: 'Creación de Grupos de Anuncios y Anuncios Iniciales', hours: 5 },
-        { id: uuidv4(), name: 'Configuración de Seguimiento de Conversiones', hours: 2 },
-        { id: uuidv4(), name: 'Optimización y Gestión Mensual', hours: 8 },
-      ];
-      setTasks(exampleTasks);
+    if (strategy && plan) {
+      // If tasks are already in the plan, use them. Otherwise, fetch from AI.
+      if (strategy.tasks && strategy.tasks.length > 0) {
+        setTasks(strategy.tasks);
+      } else {
+        const fetchTasks = async () => {
+          setIsLoadingTasks(true);
+          const user = auth.currentUser;
+          if (!user) {
+            toast({ title: 'Error de autenticación', variant: 'destructive' });
+            setIsLoadingTasks(false);
+            return;
+          }
+          try {
+            const token = await user.getIdToken();
+            const result = await generateStrategyTasksAction({
+              url: plan.url,
+              objectives: plan.objectives,
+              platform: strategy.platform,
+              campaign_type: strategy.campaign_type,
+              funnel_stage: strategy.funnel_stage,
+              strategy_rationale: strategy.strategy_rationale,
+            }, token);
+
+            if (result.error || !result.data) {
+              throw new Error(result.error || 'La IA no pudo generar tareas.');
+            }
+
+            const newTasksWithIds = result.data.tasks.map(t => ({...t, id: uuidv4()}));
+            setTasks(newTasksWithIds);
+
+            // Persist the newly generated tasks to the main plan state
+            const updatedPlan = {
+              ...plan,
+              strategies: plan.strategies.map(s => 
+                s.platform === strategy.platform ? { ...s, tasks: newTasksWithIds } : s
+              )
+            };
+            onPlanUpdate(updatedPlan);
+
+          } catch (error: any) {
+            toast({ title: 'Error al generar tareas', description: error.message, variant: 'destructive' });
+          } finally {
+            setIsLoadingTasks(false);
+          }
+        };
+        fetchTasks();
+      }
     }
-  }, [strategy]);
+  }, [strategy, plan, onPlanUpdate, toast]);
+
 
   const addTask = () => {
     setTasks([...tasks, { id: uuidv4(), name: 'Nueva Tarea', hours: 1 }]);
@@ -69,20 +109,46 @@ export function StrategyDetailDialog({ strategy, onOpenChange }: StrategyDetailD
     return { totalHours, totalCost };
   }, [tasks, hourlyRate]);
   
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(value);
+
+  const handleUpdateProposal = () => {
+    if (!strategy || !plan) return;
+    const updatedPlan: CreateAdPlanOutput = {
+      ...plan,
+      strategies: plan.strategies.map(s => 
+        s.platform === strategy.platform ? { ...s, tasks: tasks } : s
+      ),
+      fee_proposal: {
+        ...plan.fee_proposal,
+        management_fee: totalCost,
+      },
+    };
+    onPlanUpdate(updatedPlan);
+    toast({ title: 'Propuesta Actualizada', description: `La cuota de gestión se ha actualizado a ${formatCurrency(totalCost)}.` });
   };
+  
+  const handleSaveAndClose = useCallback(() => {
+     if (strategy && plan) {
+         const updatedPlan: CreateAdPlanOutput = {
+           ...plan,
+           strategies: plan.strategies.map(s => 
+             s.platform === strategy.platform ? { ...s, tasks: tasks } : s
+           ),
+         };
+         onPlanUpdate(updatedPlan);
+     }
+     onOpenChange(false);
+  }, [strategy, plan, tasks, onPlanUpdate, onOpenChange]);
 
 
-  if (!strategy) return null;
+  if (!strategy || !plan) return null;
 
   return (
-    <Dialog open={!!strategy} onOpenChange={onOpenChange}>
+    <Dialog open={!!strategy} onOpenChange={(open) => !open && handleSaveAndClose()}>
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-2xl">Plan de Acción Detallado: {strategy.platform}</DialogTitle>
           <DialogDescription>
-            Define las tareas, horas y costes para ejecutar esta estrategia. Esto es para tu planificación interna y no aparecerá en el informe PDF.
+            Define las tareas, horas y costes para ejecutar esta estrategia. La cuota de gestión se actualizará cuando hagas clic en "Actualizar Propuesta".
           </DialogDescription>
         </DialogHeader>
 
@@ -90,39 +156,46 @@ export function StrategyDetailDialog({ strategy, onOpenChange }: StrategyDetailD
             {/* Left Column: Tasks */}
             <div className="md:col-span-2 flex flex-col min-h-0">
                 <h3 className="text-lg font-semibold mb-3">Desglose de Tareas</h3>
-                <ScrollArea className="flex-1 pr-4 -mr-4">
-                    <div className="space-y-3">
-                        {tasks.map((task) => (
-                        <div key={task.id} className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50">
-                            <div className="flex-1">
-                                <Label htmlFor={`task-name-${task.id}`} className="sr-only">Nombre de la tarea</Label>
-                                <Input
-                                    id={`task-name-${task.id}`}
-                                    value={task.name}
-                                    onChange={(e) => updateTask(task.id, 'name', e.target.value)}
-                                    className="bg-background"
-                                />
-                            </div>
-                            <div className="w-24">
-                                <Label htmlFor={`task-hours-${task.id}`} className="sr-only">Horas</Label>
-                                <Input
-                                    id={`task-hours-${task.id}`}
-                                    type="number"
-                                    value={task.hours}
-                                    onChange={(e) => updateTask(task.id, 'hours', e.target.value)}
-                                    className="text-center bg-background"
-                                    min="0"
-                                    step="0.5"
-                                />
-                            </div>
-                            <Button variant="ghost" size="icon" onClick={() => removeTask(task.id)} className="text-destructive">
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                        </div>
-                        ))}
+                {isLoadingTasks ? (
+                    <div className="flex-1 flex flex-col items-center justify-center">
+                        <Loader2 className="h-8 w-8 animate-spin" />
+                        <p className="mt-2 text-muted-foreground">La IA está generando tareas...</p>
                     </div>
-                </ScrollArea>
-                <Button onClick={addTask} variant="outline" className="mt-4">
+                ) : (
+                    <ScrollArea className="flex-1 pr-4 -mr-4">
+                        <div className="space-y-3">
+                            {tasks.map((task) => (
+                            <div key={task.id} className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50">
+                                <div className="flex-1">
+                                    <Label htmlFor={`task-name-${task.id}`} className="sr-only">Nombre de la tarea</Label>
+                                    <Input
+                                        id={`task-name-${task.id}`}
+                                        value={task.name}
+                                        onChange={(e) => updateTask(task.id, 'name', e.target.value)}
+                                        className="bg-background"
+                                    />
+                                </div>
+                                <div className="w-24">
+                                    <Label htmlFor={`task-hours-${task.id}`} className="sr-only">Horas</Label>
+                                    <Input
+                                        id={`task-hours-${task.id}`}
+                                        type="number"
+                                        value={task.hours}
+                                        onChange={(e) => updateTask(task.id, 'hours', e.target.value)}
+                                        className="text-center bg-background"
+                                        min="0"
+                                        step="0.5"
+                                    />
+                                </div>
+                                <Button variant="ghost" size="icon" onClick={() => removeTask(task.id)} className="text-destructive">
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                            ))}
+                        </div>
+                    </ScrollArea>
+                )}
+                <Button onClick={addTask} variant="outline" className="mt-4" disabled={isLoadingTasks}>
                     <Plus className="mr-2 h-4 w-4" /> Añadir Tarea
                 </Button>
             </div>
@@ -163,14 +236,16 @@ export function StrategyDetailDialog({ strategy, onOpenChange }: StrategyDetailD
                         <span>{formatCurrency(totalCost + strategy.monthly_budget)}</span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1 text-right">(Gestión + Presupuesto en Medios)</p>
+                     <Button onClick={handleUpdateProposal} className="w-full mt-4">
+                      <Save className="mr-2 h-4 w-4"/>
+                      Actualizar Propuesta de Gestión
+                    </Button>
                 </div>
             </div>
         </div>
         
         <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="secondary">Cerrar</Button>
-          </DialogClose>
+          <Button type="button" variant="secondary" onClick={handleSaveAndClose}>Guardar y Cerrar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

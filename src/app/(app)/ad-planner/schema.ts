@@ -1,5 +1,11 @@
-
 import { z } from 'zod';
+
+export const TaskSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  hours: z.number(),
+});
+export type Task = z.infer<typeof TaskSchema>;
 
 export const AdStrategySchema = z.object({
   platform: z.string().describe("Plataforma publicitaria (ej. Google Ads, Meta Ads, LinkedIn Ads)."),
@@ -8,6 +14,7 @@ export const AdStrategySchema = z.object({
   campaign_type: z.string().describe("Tipo de campaña recomendada (ej. Performance Max, Búsqueda, Video, Generación de Leads)."),
   ad_formats: z.array(z.string()).describe("Formatos de anuncio concretos a utilizar (ej. Anuncio de Texto Expandido, Anuncio de Carrusel, In-Stream)."),
   monthly_budget: z.number().describe("Presupuesto mensual recomendado para esta plataforma."),
+  tasks: z.array(TaskSchema).optional().describe("Desglose de tareas para implementar esta estrategia."),
 });
 
 export type Strategy = z.infer<typeof AdStrategySchema>;
@@ -25,6 +32,8 @@ const FeeProposalSchema = z.object({
 });
 
 export const CreateAdPlanOutputSchema = z.object({
+  url: z.string().url().describe("La URL que se analizó para generar el plan."),
+  objectives: z.array(z.string()).describe("Los objetivos de negocio que se usaron como base."),
   executive_summary: z.string().describe("Resumen ejecutivo del plan, explicando la lógica general y la estrategia propuesta."),
   target_audience: z.string().describe("Descripción detallada del público objetivo ideal (datos demográficos, intereses, comportamientos, puntos de dolor)."),
   strategies: z.array(AdStrategySchema).describe("Array de estrategias detalladas para cada plataforma recomendada."),

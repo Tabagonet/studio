@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
 import { StrategyDetailDialog } from './StrategyDetailDialog';
+import { formatCurrency } from '@/lib/utils';
 
 
 // Register fonts for PDF rendering
@@ -105,14 +106,15 @@ const AdPlanPDF = ({ plan, companyName, logoUrl }: { plan: CreateAdPlanOutput; c
 );
 
 
-const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(value);
-};
-
-export function AdPlanView({ plan, onReset, companyName, logoUrl }: { plan: CreateAdPlanOutput; onReset: () => void; companyName: string; logoUrl: string | null }) {
+export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }: { plan: CreateAdPlanOutput; onReset: () => void; companyName: string; logoUrl: string | null }) {
+    const [plan, setPlan] = React.useState<CreateAdPlanOutput>(initialPlan);
     const [isPdfLoading, setIsPdfLoading] = React.useState(false);
     const [detailedStrategy, setDetailedStrategy] = React.useState<Strategy | null>(null);
     const { toast } = useToast();
+
+    React.useEffect(() => {
+        setPlan(initialPlan);
+    }, [initialPlan]);
 
     const handleDownload = async () => {
         // Use an image proxy for the PDF to avoid CORS issues.
@@ -144,12 +146,18 @@ export function AdPlanView({ plan, onReset, companyName, logoUrl }: { plan: Crea
             setIsPdfLoading(false);
         }
     };
+
+    const handlePlanUpdate = (updatedPlan: CreateAdPlanOutput) => {
+        setPlan(updatedPlan);
+    };
     
     return (
         <div className="space-y-6 report-view">
              <StrategyDetailDialog 
+                plan={plan}
                 strategy={detailedStrategy} 
                 onOpenChange={(open) => !open && setDetailedStrategy(null)}
+                onPlanUpdate={handlePlanUpdate}
             />
 
             <div className="report-header hidden print:block">
