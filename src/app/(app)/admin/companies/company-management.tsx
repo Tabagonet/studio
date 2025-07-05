@@ -2,17 +2,19 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
 import type { Company } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Loader2, PlusCircle, Trash2, Users } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2, Users, Edit } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 export function CompanyManagement() {
     const [companies, setCompanies] = useState<Company[]>([]);
@@ -166,27 +168,32 @@ export function CompanyManagement() {
                                     </div>
                                 </TableCell>
                                 <TableCell className="text-right">
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="ghost" size="icon" disabled={isSubmitting}>
-                                                <Trash2 className="h-4 w-4 text-destructive" />
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>¿Estás seguro de eliminar "{company.name}"?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    Esta acción no se puede deshacer. Se eliminará la empresa y se desasignarán todos sus usuarios.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleDeleteCompany(company.id)} className={buttonVariants({ variant: "destructive" })}>
-                                                    Sí, eliminar empresa
-                                                </AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
+                                    <div className="flex items-center justify-end gap-2">
+                                        <Link href={`/settings/company?companyId=${company.id}`} className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }))}>
+                                           <Edit className="h-4 w-4" />
+                                        </Link>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="ghost" size="icon" disabled={isSubmitting}>
+                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>¿Estás seguro de eliminar "{company.name}"?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Esta acción no se puede deshacer. Se eliminará la empresa y se desasignarán todos sus usuarios.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDeleteCompany(company.id)} className={buttonVariants({ variant: "destructive" })}>
+                                                        Sí, eliminar empresa
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         )) : (

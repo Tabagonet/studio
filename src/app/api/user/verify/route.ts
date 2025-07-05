@@ -105,6 +105,27 @@ export async function GET(req: NextRequest) {
       const isSuperAdmin = email === SUPER_ADMIN_EMAIL;
       const newApiKey = uuidv4();
       const role = isSuperAdmin ? 'super_admin' : 'pending';
+      
+      let companyIdToAssign: string | null = null;
+      if (isSuperAdmin) {
+          const companyName = 'Grupo 4 alas S.L.';
+          const companiesRef = adminDb.collection('companies');
+          const companyQuery = await companiesRef.where('name', '==', companyName).limit(1).get();
+          if (companyQuery.empty) {
+              const newCompanyDoc = await companiesRef.add({
+                  name: companyName,
+                  createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                  taxId: 'B72686116',
+                  address: 'C/ Astrónoma Cecilia Payne, Edifico Centauro, Baj. Izq. 14014 Córdoba',
+                  phone: '',
+                  email: '',
+                  logoUrl: null,
+              });
+              companyIdToAssign = newCompanyDoc.id;
+          } else {
+              companyIdToAssign = companyQuery.docs[0].id;
+          }
+      }
 
       const newUser = {
         uid: uid,
@@ -117,7 +138,7 @@ export async function GET(req: NextRequest) {
         siteLimit: isSuperAdmin ? 999 : 1,
         apiKey: newApiKey,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        companyId: null,
+        companyId: companyIdToAssign,
       };
       
       const batch = adminDb.batch();

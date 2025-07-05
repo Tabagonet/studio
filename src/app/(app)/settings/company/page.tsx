@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -9,8 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Save, Building, Users } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
-import type { Company } from '@/lib/types';
+import type { Company, ProductPhoto } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ImageUploader } from '@/components/features/wizard/image-uploader';
+
 
 type EditableCompanyData = Omit<Company, 'id' | 'createdAt' | 'userCount'>;
 
@@ -24,23 +27,23 @@ const INITIAL_COMPANY_DATA: EditableCompanyData = {
 };
 
 export default function CompanySettingsPage() {
+    const searchParams = useSearchParams();
     const [companyData, setCompanyData] = useState<EditableCompanyData>(INITIAL_COMPANY_DATA);
+    const [logoPhotos, setLogoPhotos] = useState<ProductPhoto[]>([]);
+    
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
 
-    const [currentUser, setCurrentUser] = useState<{ role: string | null; companyId: string | null; } | null>(null);
+    const [currentUser, setCurrentUser] = useState<{ uid: string | null; role: string | null; companyId: string | null; } | null>(null);
     const [allCompanies, setAllCompanies] = useState<Company[]>([]);
     const [editingTargetId, setEditingTargetId] = useState<string | null>(null);
 
     const fetchAllCompaniesForSuperAdmin = useCallback(async (token: string) => {
         try {
-            const response = await fetch('/api/admin/companies', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const response = await fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } });
             if (response.ok) {
-                const data = await response.json();
-                setAllCompanies(data.companies);
+                setAllCompanies((await response.json()).companies);
             }
         } catch (error) {
             console.error("Failed to fetch all companies:", error);
@@ -56,19 +59,23 @@ export default function CompanySettingsPage() {
                 url.searchParams.append('companyId', companyId);
             }
             
-            const response = await fetch(url.toString(), {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-
+            const response = await fetch(url.toString(), { headers: { 'Authorization': `Bearer ${token}` } });
+            
+            let data = INITIAL_COMPANY_DATA;
             if (response.ok) {
-                const data = await response.json();
-                setCompanyData(data.company || INITIAL_COMPANY_DATA);
-            } else {
-                 setCompanyData(INITIAL_COMPANY_DATA);
+                const responseData = await response.json();
+                data = responseData.company || INITIAL_COMPANY_DATA;
             }
+            setCompanyData(data);
+
+            if (data.logoUrl) {
+                setLogoPhotos([{ id: 'logo', previewUrl: data.logoUrl, name: 'Logo de la empresa', status: 'completed', progress: 100 }]);
+            } else {
+                setLogoPhotos([]);
+            }
+
         } catch (error) {
             console.error("Error fetching company data:", error);
-            setCompanyData(INITIAL_COMPANY_DATA);
             toast({ title: "Error al Cargar Datos", description: "No se pudo obtener la información de la empresa.", variant: "destructive" });
         } finally {
             setIsLoading(false);
@@ -84,31 +91,25 @@ export default function CompanySettingsPage() {
                     const userData = await response.json();
                     setCurrentUser(userData);
 
+                    const targetIdFromUrl = searchParams.get('companyId');
+
                     if (userData.role === 'super_admin') {
                         await fetchAllCompaniesForSuperAdmin(token);
-                        // Default to editing own "company" (user_settings) if not otherwise set
-                        if (!editingTargetId) {
-                           setEditingTargetId(userData.uid);
-                           fetchCompanyData(user, null);
-                        } else {
-                           fetchCompanyData(user, editingTargetId === userData.uid ? null : editingTargetId);
-                        }
+                        const targetId = targetIdFromUrl || editingTargetId || userData.uid;
+                        setEditingTargetId(targetId);
+                        fetchCompanyData(user, targetId === userData.uid ? null : targetId);
                     } else { // Regular admin
                         setEditingTargetId(userData.companyId);
                         fetchCompanyData(user, userData.companyId);
                     }
-                } catch (e) {
-                    setIsLoading(false);
-                }
-            } else {
-                setIsLoading(false);
-            }
+                } catch (e) { setIsLoading(false); }
+            } else { setIsLoading(false); }
         });
         return () => unsubscribe();
-    }, [editingTargetId, fetchAllCompaniesForSuperAdmin, fetchCompanyData]);
+    }, [editingTargetId, searchParams, fetchAllCompaniesForSuperAdmin, fetchCompanyData]);
 
     const handleSave = async () => {
-        if (!editingTargetId) {
+        if (!editingTargetId && currentUser?.role !== 'admin') {
             toast({ title: "Error", description: "No se ha seleccionado una empresa para editar.", variant: "destructive" });
             return;
         }
@@ -116,29 +117,44 @@ export default function CompanySettingsPage() {
         const user = auth.currentUser;
         if (!user) {
             toast({ title: "No autenticado", variant: "destructive" });
-            setIsSaving(false);
-            return;
+            setIsSaving(false); return;
         }
 
         try {
             const token = await user.getIdToken();
-            const payload = {
-                companyId: (currentUser?.role === 'super_admin' && editingTargetId !== user.uid) ? editingTargetId : undefined,
-                data: companyData,
-            };
+            let finalData = { ...companyData };
 
+            // Handle logo upload if a new file is present
+            const newLogoPhoto = logoPhotos.find(p => p.file);
+            if (newLogoPhoto?.file) {
+                const formData = new FormData();
+                formData.append('imagen', newLogoPhoto.file);
+                const uploadResponse = await fetch('/api/upload-image', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData,
+                });
+                if (!uploadResponse.ok) throw new Error('Fallo al subir el logo.');
+                const imageData = await uploadResponse.json();
+                finalData.logoUrl = imageData.url;
+            } else if (logoPhotos.length === 0) {
+                finalData.logoUrl = null; // Logo was removed
+            }
+
+            const payload: any = { data: finalData };
+            if (currentUser?.role === 'super_admin' && editingTargetId !== currentUser.uid) {
+                payload.companyId = editingTargetId;
+            }
+            
             const response = await fetch('/api/user-settings/company', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(payload)
             });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || "Fallo al guardar los datos de la empresa.");
-            }
-
+            if (!response.ok) throw new Error((await response.json()).error || "Fallo al guardar los datos.");
+            
             toast({ title: "Datos Guardados", description: `La información de la empresa ha sido actualizada.` });
+            fetchCompanyData(user, editingTargetId === currentUser.uid ? null : editingTargetId);
         } catch (error: any) {
             toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
         } finally {
@@ -169,10 +185,7 @@ export default function CompanySettingsPage() {
                     <CardHeader><CardTitle>Selector de Entidad</CardTitle></CardHeader>
                     <CardContent>
                         <Label>Selecciona qué configuración de empresa deseas editar</Label>
-                        <Select
-                            value={editingTargetId || ''}
-                            onValueChange={setEditingTargetId}
-                        >
+                        <Select value={editingTargetId || ''} onValueChange={setEditingTargetId}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value={currentUser.uid}><Users className="inline-block mr-2 h-4 w-4" />Mis Ajustes (Super Admin)</SelectItem>
@@ -187,7 +200,7 @@ export default function CompanySettingsPage() {
 
             <Card>
                 <CardHeader><CardTitle>Información General y Fiscal</CardTitle></CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-6">
                     {isLoading ? (
                         <div className="space-y-4">
                             <div className="h-10 bg-muted rounded-md animate-pulse"></div>
@@ -196,7 +209,7 @@ export default function CompanySettingsPage() {
                         </div>
                     ) : (
                     <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <Label htmlFor="name">Nombre de la Empresa</Label>
                                 <Input id="name" name="name" value={companyData.name || ''} onChange={handleInputChange} placeholder="Ej: Mi Gran Empresa S.L." disabled={isSaving || (currentUser?.role === 'admin')} />
@@ -211,7 +224,7 @@ export default function CompanySettingsPage() {
                             <Label htmlFor="address">Dirección Fiscal</Label>
                             <Input id="address" name="address" value={companyData.address || ''} onChange={handleInputChange} placeholder="Ej: Calle Principal 123, 28001 Madrid, España" disabled={isSaving} />
                         </div>
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <Label htmlFor="phone">Teléfono de Contacto</Label>
                                 <Input id="phone" name="phone" value={companyData.phone || ''} onChange={handleInputChange} placeholder="Ej: +34 910 000 000" disabled={isSaving} />
@@ -222,12 +235,16 @@ export default function CompanySettingsPage() {
                             </div>
                         </div>
                          <div>
-                            <Label htmlFor="logoUrl">URL del Logo</Label>
-                            <Input id="logoUrl" name="logoUrl" value={companyData.logoUrl || ''} onChange={handleInputChange} placeholder="https://ejemplo.com/logo.png" disabled={isSaving} />
-                            <p className="text-xs text-muted-foreground mt-1">Sube tu logo a tu WordPress y pega aquí la URL completa.</p>
+                            <Label>Logo de la Empresa</Label>
+                             <ImageUploader
+                                photos={logoPhotos}
+                                onPhotosChange={setLogoPhotos}
+                                isProcessing={isSaving}
+                                maxPhotos={1}
+                            />
                         </div>
 
-                         <div className="flex justify-end pt-4">
+                         <div className="flex justify-end pt-4 border-t mt-4">
                             <Button onClick={handleSave} disabled={isSaving || isLoading}>
                                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                                 Guardar Datos
