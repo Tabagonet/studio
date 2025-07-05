@@ -5,20 +5,25 @@ import { adminAuth, adminDb } from '@/lib/firebase-admin';
 
 export const dynamic = 'force-dynamic';
 
-async function isAdmin(req: NextRequest): Promise<boolean> {
+async function isAdmin(req: NextRequest): Promise<{ isAdmin: boolean, uid: string | null, role: string | null }> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
-    if (!token) return false;
+    if (!token) return { isAdmin: false, uid: null, role: null };
     try {
         if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized");
         const decodedToken = await adminAuth.verifyIdToken(token);
         const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
-        return userDoc.exists && userDoc.data()?.role === 'admin';
-    } catch { return false; }
+        const role = userDoc.data()?.role;
+        const isUserAdmin = userDoc.exists && ['admin', 'super_admin'].includes(role);
+        return { isAdmin: isUserAdmin, uid: decodedToken.uid, role };
+    } catch {
+        return { isAdmin: false, uid: null, role: null };
+    }
 }
 
 
 export async function DELETE(req: NextRequest, { params }: { params: { userId: string } }) {
-    if (!await isAdmin(req)) {
+    const { isAdmin: isRequestingAdmin, uid: adminUid, role: adminRole } = await isAdmin(req);
+    if (!isRequestingAdmin) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     
@@ -28,22 +33,32 @@ export async function DELETE(req: NextRequest, { params }: { params: { userId: s
 
     const { userId } = params;
     
-    // Attempt to get the UID of the admin making the request
-    // This is a simplified stand-in for a proper middleware solution
-    let adminUid: string | null = null;
-    try {
-        const token = req.headers.get('Authorization')?.split('Bearer ')[1];
-        if (token) adminUid = (await adminAuth.verifyIdToken(token)).uid;
-    } catch (e) {
-        // ignore if token verification fails, the isAdmin check already passed
-    }
-    
     if (!userId) {
         return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
     if (userId === adminUid) {
         return NextResponse.json({ error: 'Admins cannot delete their own account.' }, { status: 400 });
+    }
+
+    const targetUserDoc = await adminDb.collection('users').doc(userId).get();
+    if (!targetUserDoc.exists) {
+        try {
+            await adminAuth.deleteUser(userId);
+        } catch (authError: any) {
+            if (authError.code !== 'auth/user-not-found') {
+                 console.error(`Error deleting user ${userId} from Auth:`, authError);
+            }
+        }
+        return NextResponse.json({ success: true, message: 'User not found in database, deletion command sent to Auth service.' });
+    }
+
+    const targetUserRole = targetUserDoc.data()?.role;
+    if (adminRole === 'admin' && (targetUserRole === 'admin' || targetUserRole === 'super_admin')) {
+         return NextResponse.json({ error: 'Admins cannot delete other admins or super admins.' }, { status: 403 });
+    }
+    if (targetUserRole === 'super_admin' && adminRole !== 'super_admin') {
+         return NextResponse.json({ error: 'Only a Super Admin can delete another Super Admin.' }, { status: 403 });
     }
     
     try {
@@ -52,9 +67,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { userId: s
         const userRef = adminDb.collection('users').doc(userId);
         const userSettingsRef = adminDb.collection('user_settings').doc(userId);
         
-        // Before deleting the user doc, get their API key to delete it from the lookup collection
-        const userDoc = await userRef.get();
-        const userData = userDoc.data();
+        const userData = targetUserDoc.data();
         if (userData?.apiKey) {
             const apiKeyRef = adminDb.collection('api_keys').doc(userData.apiKey);
             batch.delete(apiKeyRef);

@@ -12,7 +12,8 @@ async function isAdmin(req: NextRequest): Promise<boolean> {
         if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized");
         const decodedToken = await adminAuth.verifyIdToken(token);
         const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
-        return userDoc.exists && userDoc.data()?.role === 'admin';
+        const role = userDoc.data()?.role;
+        return userDoc.exists && ['admin', 'super_admin'].includes(role);
     } catch { return false; }
 }
 
