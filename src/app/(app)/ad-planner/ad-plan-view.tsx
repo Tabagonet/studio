@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CreateAdPlanOutput } from '@/ai/flows/create-ad-plan-flow';
 import { DollarSign, Printer, RotateCcw, Target, TrendingUp, Calendar, Zap, ClipboardCheck, Users, Megaphone } from 'lucide-react';
-import { Badge } from '../../ui/badge';
-import { Separator } from '../../ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 
 interface AdPlanViewProps {
     plan: CreateAdPlanOutput;
