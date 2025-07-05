@@ -1,49 +1,50 @@
 
 import { z } from 'zod';
+import { v4 as uuidv4 } from 'uuid';
 
 export const TaskSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  hours: z.number(),
+  id: z.string().default(() => uuidv4()),
+  name: z.string().default(''),
+  hours: z.number().default(0),
 });
 export type Task = z.infer<typeof TaskSchema>;
 
 export const AdStrategySchema = z.object({
-  platform: z.string().describe("Plataforma publicitaria (ej. Google Ads, Meta Ads, LinkedIn Ads)."),
-  strategy_rationale: z.string().describe("Justificación de por qué se ha elegido esta plataforma para los objetivos dados."),
-  funnel_stage: z.enum(['Awareness', 'Consideration', 'Conversion']).describe("Etapa del embudo de ventas a la que se dirige esta estrategia."),
-  campaign_type: z.string().describe("Tipo de campaña recomendada (ej. Performance Max, Búsqueda, Video, Generación de Leads)."),
-  ad_formats: z.array(z.string()).describe("Formatos de anuncio concretos a utilizar (ej. Anuncio de Texto Expandido, Anuncio de Carrusel, In-Stream)."),
-  monthly_budget: z.number().describe("Presupuesto mensual recomendado para esta plataforma."),
-  tasks: z.array(TaskSchema).optional().describe("Desglose de tareas para implementar esta estrategia."),
+  platform: z.string().describe("Plataforma publicitaria (ej. Google Ads, Meta Ads, LinkedIn Ads).").default(''),
+  strategy_rationale: z.string().describe("Justificación de por qué se ha elegido esta plataforma para los objetivos dados.").default(''),
+  funnel_stage: z.enum(['Awareness', 'Consideration', 'Conversion']).describe("Etapa del embudo de ventas a la que se dirige esta estrategia.").default('Awareness'),
+  campaign_type: z.string().describe("Tipo de campaña recomendada (ej. Performance Max, Búsqueda, Video, Generación de Leads).").default(''),
+  ad_formats: z.array(z.string()).describe("Formatos de anuncio concretos a utilizar (ej. Anuncio de Texto Expandido, Anuncio de Carrusel, In-Stream).").default([]),
+  monthly_budget: z.number().describe("Presupuesto mensual recomendado para esta plataforma.").default(0),
+  tasks: z.array(TaskSchema).optional().default([]).describe("Desglose de tareas para implementar esta estrategia."),
 });
 
 export type Strategy = z.infer<typeof AdStrategySchema>;
 
 const CalendarMilestoneSchema = z.object({
-  month: z.string().describe("Mes del hito (ej. 'Mes 1', 'Mes 2', 'Mes 3')."),
-  focus: z.string().describe("El enfoque principal o la meta para ese mes (ej. Configuración y Lanzamiento, Optimización A/B, Escalado)."),
-  actions: z.array(z.string()).describe("Acciones específicas y detalladas a realizar durante ese mes."),
+  month: z.string().describe("Mes del hito (ej. 'Mes 1', 'Mes 2', 'Mes 3').").default(''),
+  focus: z.string().describe("El enfoque principal o la meta para ese mes (ej. Configuración y Lanzamiento, Optimización A/B, Escalado).").default(''),
+  actions: z.array(z.string()).describe("Acciones específicas y detalladas a realizar durante ese mes.").default([]),
 });
 
 const FeeProposalSchema = z.object({
-    setup_fee: z.number().describe("Precio único por la configuración inicial de todas las campañas."),
-    management_fee: z.number().describe("Precio por la gestión mensual recurrente de las campañas."),
-    fee_description: z.string().describe("Descripción detallada de los servicios incluidos en los honorarios de gestión."),
+    setup_fee: z.number().describe("Precio único por la configuración inicial de todas las campañas.").default(0),
+    management_fee: z.number().describe("Precio por la gestión mensual recurrente de las campañas.").default(0),
+    fee_description: z.string().describe("Descripción detallada de los servicios incluidos en los honorarios de gestión.").default(''),
 });
 
 export const CreateAdPlanOutputSchema = z.object({
-  id: z.string().optional(), // The document ID from Firestore
-  createdAt: z.string().optional(), // The creation date as an ISO string
-  url: z.string().url().describe("La URL que se analizó para generar el plan."),
-  objectives: z.array(z.string()).describe("Los objetivos de negocio que se usaron como base."),
-  executive_summary: z.string().describe("Resumen ejecutivo del plan, explicando la lógica general y la estrategia propuesta."),
-  target_audience: z.string().describe("Descripción detallada del público objetivo ideal (datos demográficos, intereses, comportamientos, puntos de dolor)."),
-  strategies: z.array(AdStrategySchema).describe("Array de estrategias detalladas para cada plataforma recomendada."),
-  total_monthly_budget: z.number().describe("Suma total de los presupuestos mensuales de todas las plataformas."),
-  calendar: z.array(CalendarMilestoneSchema).describe("Calendario de implementación detallado para los primeros 3 meses."),
-  kpis: z.array(z.string()).describe("KPIs clave para medir el éxito de la campaña (ej. ROAS, CPA, CTR, Tasa de Conversión)."),
-  fee_proposal: FeeProposalSchema.describe("Propuesta de honorarios por la configuración y gestión."),
+  id: z.string().optional(),
+  createdAt: z.string().optional(),
+  url: z.string().url({ message: "La URL no es válida." }).or(z.literal('')).default('').describe("La URL que se analizó para generar el plan."),
+  objectives: z.array(z.string()).default([]).describe("Los objetivos de negocio que se usaron como base."),
+  executive_summary: z.string().default('').describe("Resumen ejecutivo del plan, explicando la lógica general y la estrategia propuesta."),
+  target_audience: z.string().default('').describe("Descripción detallada del público objetivo ideal (datos demográficos, intereses, comportamientos, puntos de dolor)."),
+  strategies: z.array(AdStrategySchema).default([]).describe("Array de estrategias detalladas para cada plataforma recomendada."),
+  total_monthly_budget: z.number().default(0).describe("Suma total de los presupuestos mensuales de todas las plataformas."),
+  calendar: z.array(CalendarMilestoneSchema).default([]).describe("Calendario de implementación detallado para los primeros 3 meses."),
+  kpis: z.array(z.string()).default([]).describe("KPIs clave para medir el éxito de la campaña (ej. ROAS, CPA, CTR, Tasa de Conversión)."),
+  fee_proposal: FeeProposalSchema.default({ setup_fee: 0, management_fee: 0, fee_description: '' }).describe("Propuesta de honorarios por la configuración y gestión."),
 });
 
 export type CreateAdPlanOutput = z.infer<typeof CreateAdPlanOutputSchema>;

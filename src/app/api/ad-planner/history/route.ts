@@ -1,7 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
-import type { CreateAdPlanOutput } from '@/app/(app)/ad-planner/schema';
+import { CreateAdPlanOutputSchema, type CreateAdPlanOutput } from '@/app/(app)/ad-planner/schema';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,46 +20,36 @@ export async function GET(req: NextRequest) {
     try {
         const snapshot = await adminDb.collection('ad_plans')
             .where('userId', '==', uid)
-            .get(); 
+            .get();
         
         if (snapshot.empty) {
             return NextResponse.json({ history: [] });
         }
 
-        const history = snapshot.docs.map(doc => {
-            try {
-                const data = doc.data();
-                if (!data || !data.createdAt || typeof data.createdAt.toDate !== 'function') {
-                    console.warn(`Skipping malformed ad plan history record (invalid createdAt): ${doc.id}`);
-                    return null;
-                }
-                
-                // Handle both old nested structure (data.planData) and new flat structure (data)
-                const planData = data.planData || data;
+        const historyPromises = snapshot.docs.map(async (doc) => {
+            const data = doc.data();
+            
+            // Handle old nested structure and new flat structure
+            const planDataToParse = data.planData || data;
 
-                // Ensure all fields are present to prevent frontend errors
-                const finalPlanData = {
-                    url: planData.url || '',
-                    objectives: planData.objectives || [],
-                    executive_summary: planData.executive_summary || '',
-                    target_audience: planData.target_audience || '',
-                    strategies: planData.strategies || [],
-                    total_monthly_budget: planData.total_monthly_budget || 0,
-                    calendar: planData.calendar || [],
-                    kpis: planData.kpis || [],
-                    fee_proposal: planData.fee_proposal || { setup_fee: 0, management_fee: 0, fee_description: '' },
-                };
+            // Add id and createdAt to the object before parsing
+            const fullDataToParse = {
+                ...planDataToParse,
+                id: doc.id,
+                createdAt: data.createdAt?.toDate()?.toISOString() || new Date(0).toISOString(),
+            };
+            
+            const result = CreateAdPlanOutputSchema.safeParse(fullDataToParse);
 
-                return {
-                    ...finalPlanData,
-                    id: doc.id,
-                    createdAt: data.createdAt.toDate().toISOString(),
-                } as CreateAdPlanOutput;
-            } catch (e) {
-                 console.error(`Error processing history doc ${doc.id}:`, e);
-                 return null;
+            if (!result.success) {
+                console.warn(`Skipping malformed ad plan history record ${doc.id}:`, result.error.flatten());
+                return null;
             }
-        }).filter(Boolean as any as (value: any) => value is NonNullable<any>); // Remove nulls from failed records
+
+            return result.data as CreateAdPlanOutput;
+        });
+        
+        const history = (await Promise.all(historyPromises)).filter(Boolean as any as (value: any) => value is NonNullable<any>);
 
         history.sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
 
