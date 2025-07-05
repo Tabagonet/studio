@@ -15,7 +15,7 @@ import { generateAdPlanAction } from './actions';
 import { AdPlanView } from './ad-plan-view';
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { Checkbox } from '@/components/ui/checkbox';
-import { AdPlanHistory, type AdPlanHistoryItem } from './history-list';
+import { AdPlanHistory } from './history-list';
 
 
 const objectives = [
@@ -31,7 +31,7 @@ export default function AdPlannerPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [adPlan, setAdPlan] = useState<CreateAdPlanOutput | null>(null);
     const [companyInfo, setCompanyInfo] = useState<{name: string, logoUrl: string | null} | null>(null);
-    const [history, setHistory] = useState<AdPlanHistoryItem[]>([]);
+    const [history, setHistory] = useState<CreateAdPlanOutput[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(true);
     const { toast } = useToast();
 
@@ -80,9 +80,12 @@ export default function AdPlannerPage() {
                 const historyResponse = await fetch('/api/ad-planner/history', { headers: { 'Authorization': `Bearer ${token}` } });
                 if (historyResponse.ok) {
                     setHistory((await historyResponse.json()).history);
+                } else {
+                    const errorData = await historyResponse.json();
+                    throw new Error(errorData.error || 'Failed to fetch history');
                 }
-            } catch (error) {
-                toast({ title: "Error al cargar historial", variant: "destructive" });
+            } catch (error: any) {
+                toast({ title: "Error al cargar historial", description: error.message, variant: "destructive" });
             } finally {
                 setIsLoadingHistory(false);
             }

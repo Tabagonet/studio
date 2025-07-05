@@ -10,16 +10,8 @@ import { es } from 'date-fns/locale';
 import { Badge } from "@/components/ui/badge";
 import type { CreateAdPlanOutput } from "./schema";
 
-export interface AdPlanHistoryItem {
-    id: string;
-    url: string;
-    objectives: string[];
-    createdAt: string; // ISO string
-    planData: CreateAdPlanOutput;
-}
-
 interface AdPlanHistoryProps {
-    history: AdPlanHistoryItem[];
+    history: CreateAdPlanOutput[];
     isLoading: boolean;
     onViewPlan: (plan: CreateAdPlanOutput) => void;
 }
@@ -65,15 +57,15 @@ export function AdPlanHistory({ history, isLoading, onViewPlan }: AdPlanHistoryP
                                 <TableCell className="font-medium truncate max-w-xs">
                                     <a href={item.url} target="_blank" rel="noopener noreferrer" className="hover:underline">{item.url}</a>
                                 </TableCell>
-                                <TableCell>{format(new Date(item.createdAt), "d MMM yyyy, HH:mm", { locale: es })}</TableCell>
+                                <TableCell>{item.createdAt ? format(new Date(item.createdAt), "d MMM yyyy, HH:mm", { locale: es }) : 'N/A'}</TableCell>
                                 <TableCell>
                                     <div className="flex flex-wrap gap-1">
-                                      {item.objectives.slice(0, 2).map(obj => <Badge key={obj} variant="outline" className="text-xs">{obj.substring(0, 25)}...</Badge>)}
-                                      {item.objectives.length > 2 && <Badge variant="outline">+{item.objectives.length - 2}</Badge>}
+                                      {(item.objectives || []).slice(0, 2).map(obj => <Badge key={obj} variant="outline" className="text-xs">{obj.substring(0, 25)}...</Badge>)}
+                                      {(item.objectives || []).length > 2 && <Badge variant="outline">+{item.objectives.length - 2}</Badge>}
                                     </div>
                                 </TableCell>
                                 <TableCell className="text-right">
-                                    <Button variant="outline" size="sm" onClick={() => onViewPlan(item.planData)}>
+                                    <Button variant="outline" size="sm" onClick={() => onViewPlan(item)}>
                                         <FileText className="mr-2 h-4 w-4" />
                                         Ver Plan
                                     </Button>

@@ -29,24 +29,20 @@ export async function GET(req: NextRequest) {
         const history = snapshot.docs.map(doc => {
             try {
                 const data = doc.data();
-
-                // Robust validation: ensures createdAt is a valid Firestore Timestamp
-                if (!data || !data.url || !data.objectives || !data.createdAt || typeof data.createdAt.toDate !== 'function') {
-                    console.warn(`Skipping malformed ad plan history record (invalid data or createdAt): ${doc.id}`);
+                if (!data || !data.createdAt || typeof data.createdAt.toDate !== 'function') {
+                    console.warn(`Skipping malformed ad plan history record (invalid createdAt): ${doc.id}`);
                     return null;
                 }
                 
-                // Exclude server-only fields before sending to client
-                const { userId, createdAt, ...planData } = data;
+                // Exclude server-only field
+                const { userId, ...planData } = data;
 
+                // Return the full plan object with ID and a properly formatted createdAt
                 return {
                     id: doc.id,
-                    url: data.url,
-                    objectives: data.objectives,
+                    ...planData,
                     createdAt: data.createdAt.toDate().toISOString(),
-                    // Reconstruct the full plan object for the client, including the ID
-                    planData: { id: doc.id, ...planData } as CreateAdPlanOutput,
-                };
+                } as CreateAdPlanOutput;
             } catch (e) {
                  console.error(`Error processing history doc ${doc.id}:`, e);
                  return null;
@@ -54,7 +50,7 @@ export async function GET(req: NextRequest) {
         }).filter(Boolean as any as (value: any) => value is NonNullable<any>); // Remove nulls from failed records
 
         // Sort in memory after fetching
-        history.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        history.sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
 
         return NextResponse.json({ history });
 
