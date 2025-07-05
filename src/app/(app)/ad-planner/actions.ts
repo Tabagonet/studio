@@ -1,6 +1,7 @@
 
 'use server';
-import { createAdPlan, CreateAdPlanInput, CreateAdPlanOutput } from "@/ai/flows/create-ad-plan-flow";
+import { createAdPlan } from "@/ai/flows/create-ad-plan-flow";
+import { CreateAdPlanInput, CreateAdPlanOutput } from "./schema";
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 
 export async function generateAdPlanAction(input: CreateAdPlanInput): Promise<{
