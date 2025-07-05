@@ -68,7 +68,7 @@ const AdPlanPDF = ({ plan, companyName, logoUrl }: { plan: CreateAdPlanOutput; c
     <Document>
         <Page size="A4" style={styles.page}>
             <View style={styles.header}>
-                <PdfImage style={styles.logo} src={logoUrl || 'https://placehold.co/100x100.png'} />
+                {logoUrl && <PdfImage style={styles.logo} src={logoUrl} />}
                 <Text style={styles.reportTitle}>Plan de Publicidad Digital</Text>
                 <Text style={styles.reportSubtitle}>Preparado para {companyName} por AutoPress AI el {new Date().toLocaleDateString('es-ES')}</Text>
             </View>
@@ -227,7 +227,7 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyName, logoUrl }
 
 
             <div className="report-header hidden print:block">
-                <Image src={logoUrl || "https://placehold.co/60x60.png"} alt="Logo" width={60} height={60} className="mx-auto" data-ai-hint="logo brand" />
+                {logoUrl && <Image src={logoUrl} alt="Logo" width={60} height={60} className="mx-auto" data-ai-hint="logo brand" />}
                 <h1 className="text-2xl font-bold mt-2">Plan de Publicidad Digital</h1>
                 <p className="text-sm text-gray-500">Preparado para {companyName} por AutoPress AI el {new Date().toLocaleDateString('es-ES')}</p>
             </div>
