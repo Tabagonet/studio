@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -14,11 +15,12 @@ import Image from 'next/image';
 Font.register({
   family: 'PT Sans',
   fonts: [
-    { src: 'https://fonts.gstatic.com/s/ptsans/v17/jizaRExUiTo99u79D0-ExdGM.ttf', fontWeight: 'normal' },
-    { src: 'https://fonts.gstatic.com/s/ptsans/v17/jizfRExUiTo99u79B_mh0OOtLQ.ttf', fontWeight: 'bold' },
-    { src: 'https://fonts.gstatic.com/s/ptsans/v17/jizYRExUiTo99u79D0e0w8KzUQ.ttf', fontStyle: 'italic' },
+    { src: 'https://github.com/google/fonts/raw/main/ofl/ptsans/PTSans-Regular.ttf' },
+    { src: 'https://github.com/google/fonts/raw/main/ofl/ptsans/PTSans-Bold.ttf', fontWeight: 'bold' },
+    { src: 'https://github.com/google/fonts/raw/main/ofl/ptsans/PTSans-Italic.ttf', fontStyle: 'italic' },
   ],
 });
+
 
 // Styles for the PDF document
 const styles = StyleSheet.create({

@@ -25,8 +25,18 @@ export async function generateAdPlanAction(
         const adPlan = await createAdPlan(input, uid);
         
         if (adminDb) {
+            // Increment AI usage count
             const userSettingsRef = adminDb.collection('user_settings').doc(uid);
             await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
+            
+            // Save the generated plan to a new collection
+            await adminDb.collection('ad_plans').add({
+                userId: uid,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                planData: adPlan,
+                url: input.url,
+                objectives: input.objectives,
+            });
         }
         
         return { data: adPlan };
