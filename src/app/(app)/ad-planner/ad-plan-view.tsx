@@ -15,9 +15,9 @@ import Image from 'next/image';
 Font.register({
   family: 'PT Sans',
   fonts: [
-    { src: 'https://github.com/google/fonts/raw/main/ofl/ptsans/PTSans-Regular.ttf' },
-    { src: 'https://github.com/google/fonts/raw/main/ofl/ptsans/PTSans-Bold.ttf', fontWeight: 'bold' },
-    { src: 'https://github.com/google/fonts/raw/main/ofl/ptsans/PTSans-Italic.ttf', fontStyle: 'italic' },
+    { src: 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ptsans/PTSans-Regular.ttf' },
+    { src: 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ptsans/PTSans-Bold.ttf', fontWeight: 'bold' },
+    { src: 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ptsans/PTSans-Italic.ttf', fontStyle: 'italic' },
   ],
 });
 
