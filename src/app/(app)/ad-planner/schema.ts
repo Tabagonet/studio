@@ -77,6 +77,7 @@ export const CreateAdPlanInputSchema = z.object({
   url: z.string().url({ message: "Por favor, introduce una URL válida." }),
   objectives: z.array(z.string()).min(1, { message: "Selecciona al menos un objetivo." }),
   additional_context: z.string().optional(),
+  plan_duration: z.string().default('3'),
 });
 
 export type CreateAdPlanInput = z.infer<typeof CreateAdPlanInputSchema>;

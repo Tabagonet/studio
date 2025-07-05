@@ -92,7 +92,7 @@ const AdPlanPDF = ({ plan, companyName, logoUrl }: { plan: CreateAdPlanOutput; c
             <View style={styles.twoColumnLayout}>
                 <View style={styles.column}><Text style={styles.sectionTitle}>KPIs</Text><View style={styles.kpiList}>{(plan.kpis || []).map((kpi, index) => <Text key={index} style={styles.kpiItem}>• {kpi}</Text>)}</View></View>
                 <View style={styles.column}>
-                    <Text style={styles.sectionTitle}>Calendario (3 meses)</Text>
+                    <Text style={styles.sectionTitle}>Calendario ({plan.calendar.length} meses)</Text>
                     {(plan.calendar || []).map((milestone, index) => (
                         <View key={index} style={styles.calendarItem}><Text style={styles.calendarFocus}>{milestone.month}: {milestone.focus}</Text>{(milestone.actions || []).map((action, i) => <Text key={i} style={{fontSize: 9, paddingLeft: 10}}>• {action}</Text>)}</View>
                     ))}
@@ -350,7 +350,7 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyName, logoUrl }
                     <CardContent><ul className="list-disc list-inside text-muted-foreground space-y-1">{(plan.kpis || []).map((kpi, index) => <li key={index}>{kpi}</li>)}</ul></CardContent>
                 </Card>
                 <Card>
-                    <CardHeader><CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5 text-primary" /> Calendario (Primeros 3 meses)</CardTitle></CardHeader>
+                    <CardHeader><CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5 text-primary" /> Calendario ({plan.calendar.length} meses)</CardTitle></CardHeader>
                     <CardContent className="space-y-4">
                          {(plan.calendar || []).map((milestone, index) => (
                             <div key={index} className="relative pl-6">

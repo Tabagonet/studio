@@ -17,6 +17,7 @@ import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AdPlanHistory } from './history-list';
 import { Textarea } from '@/components/ui/textarea';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 
 const objectives = [
@@ -42,6 +43,7 @@ export default function AdPlannerPage() {
             url: '',
             objectives: [],
             additional_context: '',
+            plan_duration: '3',
         },
     });
 
@@ -221,6 +223,48 @@ export default function AdPlannerPage() {
                                                     />
                                                 ))}
                                             </div>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="plan_duration"
+                                    render={({ field }) => (
+                                        <FormItem className="space-y-3">
+                                            <FormLabel>Duración del Plan</FormLabel>
+                                            <FormControl>
+                                                <RadioGroup
+                                                    onValueChange={field.onChange}
+                                                    defaultValue={field.value}
+                                                    className="flex flex-col sm:flex-row gap-4"
+                                                >
+                                                    <FormItem className="flex items-center space-x-2 space-y-0">
+                                                        <FormControl>
+                                                            <RadioGroupItem value="3" id="duration-3" />
+                                                        </FormControl>
+                                                        <FormLabel htmlFor="duration-3" className="font-normal">
+                                                            3 Meses
+                                                        </FormLabel>
+                                                    </FormItem>
+                                                    <FormItem className="flex items-center space-x-2 space-y-0">
+                                                        <FormControl>
+                                                            <RadioGroupItem value="6" id="duration-6" />
+                                                        </FormControl>
+                                                        <FormLabel htmlFor="duration-6" className="font-normal">
+                                                            6 Meses
+                                                        </FormLabel>
+                                                    </FormItem>
+                                                    <FormItem className="flex items-center space-x-2 space-y-0">
+                                                        <FormControl>
+                                                            <RadioGroupItem value="12" id="duration-12" />
+                                                        </FormControl>
+                                                        <FormLabel htmlFor="duration-12" className="font-normal">
+                                                            1 Año
+                                                        </FormLabel>
+                                                    </FormItem>
+                                                </RadioGroup>
+                                            </FormControl>
                                             <FormMessage />
                                         </FormItem>
                                     )}

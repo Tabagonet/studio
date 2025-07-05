@@ -33,10 +33,10 @@ Tu respuesta DEBE ser un único objeto JSON válido.
     -   "key_kpis": Array de 2-3 KPIs más importantes para ESTA ESTRATEGIA (ej. "ROAS > 4", "CPA < 20€").
     -   "creative_angle": El enfoque o mensaje principal para los anuncios de esta estrategia (ej. "Destacar la durabilidad y garantía del producto").
 4.  **total_monthly_budget:** Suma de todos los presupuestos mensuales de las estrategias.
-5.  **calendar:** Crea un plan detallado para 3 meses.
-    - "month": Mes 1, 2, 3.
-    - "focus": ej. Configuración y Lanzamiento.
-    - "actions": Lista de acciones DETALLADAS y específicas a realizar durante ese mes. Las acciones deben estar directamente relacionadas con la URL y los objetivos. Sé explícito.
+5.  **calendar:** Crea un plan detallado para {{plan_duration}} meses. Para cada mes, genera un objeto con las siguientes claves:
+    - "month": El número del mes (ej. 'Mes 1', 'Mes 2', etc.).
+    - "focus": El enfoque principal para ese mes (ej. "Configuración y Lanzamiento", "Optimización y Test A/B", "Escalado de Campañas").
+    - "actions": Lista de 3 a 5 acciones DETALLADAS y específicas a realizar durante ese mes. Las acciones deben estar directamente relacionadas con la URL, los objetivos y la duración total del plan. Sé explícito.
 6.  **kpis:** Lista de KPIs clave GENERALES para toda la campaña, incluyendo un objetivo numérico cuantificable para cada uno (ej. "ROAS General > 3.5", "CPA Total < 25€", "CTR > 2%").
 7.  **fee_proposal:** Propuesta de honorarios. Pon "setup_fee" y "management_fee" a 0. Genera una "fee_description" genérica sobre lo que suelen incluir los honorarios.
     - "setup_fee": 0.
