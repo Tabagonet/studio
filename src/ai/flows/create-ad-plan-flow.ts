@@ -40,7 +40,7 @@ Tu respuesta DEBE ser un único objeto JSON válido.
 6.  **kpis:** Lista de 4 a 6 KPIs clave GENERALES para toda la campaña. Incluye un objetivo numérico cuantificable y ambicioso para cada uno. Sé exhaustivo, incluyendo métricas de rendimiento, coste y visibilidad (ej. "ROAS General > 3.5", "CPA Total < 25€", "Tasa de Conversión > 3%", "CTR General > 2%", "CPC Medio < 1.10€", "Impresiones > 500,000/mes").
 7.  **fee_proposal:** Propuesta de honorarios.
     - "setup_fee": Un número que representa tu estimación del coste de configuración inicial. Debe ser razonable, por ejemplo, entre 200 y 500.
-    - "management_fee": Un número que representa tu estimación del coste de gestión mensual. Basa este cálculo en las horas que crees que se necesitarán para ejecutar las acciones del calendario, asumiendo una tarifa de 60€/hora.
+    - "management_fee": Estima un coste de gestión mensual razonable para ejecutar el plan. Basa tu estimación en la complejidad de las estrategias, la cantidad de trabajo descrita en el calendario y el presupuesto total en medios. El resultado debe ser un número.
     - "fee_description": Descripción genérica de los servicios que se suelen incluir en la cuota de gestión (ej: optimización de campañas, informes mensuales, etc.).
 `;
     if (!adminDb) return defaultPrompt;
