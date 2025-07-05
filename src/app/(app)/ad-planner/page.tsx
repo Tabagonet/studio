@@ -1,9 +1,8 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { CreateAdPlanInputSchema, type CreateAdPlanInput, type CreateAdPlanOutput } from './schema';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,13 +45,33 @@ export default function AdPlannerPage() {
             plan_duration: '3',
         },
     });
+    
+    const fetchHistory = useCallback(async () => {
+        setIsLoadingHistory(true);
+        const user = auth.currentUser;
+        if (!user) {
+            setIsLoadingHistory(false);
+            setHistory([]);
+            return;
+        }
+        try {
+            const token = await user.getIdToken();
+            const historyResponse = await fetch('/api/ad-planner/history', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (historyResponse.ok) {
+                setHistory((await historyResponse.json()).history);
+            } else {
+                throw new Error((await historyResponse.json()).error || 'Failed to fetch history');
+            }
+        } catch (error: any) {
+            toast({ title: "Error al cargar historial", description: error.message, variant: "destructive" });
+        } finally {
+            setIsLoadingHistory(false);
+        }
+    }, [toast]);
 
     useEffect(() => {
-        const fetchInitialData = async (user: FirebaseUser) => {
-            setIsLoadingHistory(true);
-            const token = await user.getIdToken();
-            
-            // Fetch Company Info
+        const fetchInitialCompanyInfo = async (user: FirebaseUser) => {
+             const token = await user.getIdToken();
             try {
                 const userVerifyResponse = await fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` }});
                 const userData = await userVerifyResponse.json();
@@ -78,33 +97,20 @@ export default function AdPlannerPage() {
                 console.error("Failed to fetch company info", e);
                 setCompanyInfo({ name: "AutoPress AI", logoUrl: null });
             }
-
-            // Fetch History
-            try {
-                const historyResponse = await fetch('/api/ad-planner/history', { headers: { 'Authorization': `Bearer ${token}` } });
-                if (historyResponse.ok) {
-                    setHistory((await historyResponse.json()).history);
-                } else {
-                    const errorData = await historyResponse.json();
-                    throw new Error(errorData.error || 'Failed to fetch history');
-                }
-            } catch (error: any) {
-                toast({ title: "Error al cargar historial", description: error.message, variant: "destructive" });
-            } finally {
-                setIsLoadingHistory(false);
-            }
         };
 
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             if (user) {
-                fetchInitialData(user);
+                fetchInitialCompanyInfo(user);
+                fetchHistory();
             } else {
-                setIsLoadingHistory(false);
                 setCompanyInfo(null);
+                setHistory([]);
+                setIsLoadingHistory(false);
             }
         });
         return () => unsubscribe();
-    }, [toast]);
+    }, [toast, fetchHistory]);
 
 
     async function onSubmit(values: CreateAdPlanInput) {
@@ -129,11 +135,7 @@ export default function AdPlannerPage() {
             } else if (result.data) {
                 setAdPlan(result.data);
                 toast({ title: "¡Plan generado con éxito!", description: "Revisa la estrategia propuesta a continuación." });
-                // Refetch history
-                const historyResponse = await fetch('/api/ad-planner/history', { headers: { 'Authorization': `Bearer ${token}` } });
-                if (historyResponse.ok) {
-                    setHistory((await historyResponse.json()).history);
-                }
+                fetchHistory();
             }
         } catch (error: any) {
             setIsLoading(false);
@@ -300,7 +302,7 @@ export default function AdPlannerPage() {
 
             {!adPlan && (
                 <div className="mt-8">
-                    <AdPlanHistory history={history} isLoading={isLoadingHistory} onViewPlan={handleViewHistory} />
+                    <AdPlanHistory history={history} isLoading={isLoadingHistory} onViewPlan={handleViewHistory} onHistoryUpdate={fetchHistory} />
                 </div>
             )}
         </div>

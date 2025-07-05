@@ -1,4 +1,3 @@
-
 'use server';
 import { createAdPlan } from "@/ai/flows/create-ad-plan-flow";
 import { 
@@ -247,5 +246,56 @@ export async function competitorAnalysisAction(
     } catch (error: any) {
         console.error('Error in competitorAnalysisAction:', error);
         return { error: error.message || 'An unknown error occurred while analyzing competitors.' };
+    }
+}
+
+
+export async function deleteAdPlansAction(
+    planIds: string[],
+    token: string
+): Promise<{ success: boolean; error?: string }> {
+    let uid: string;
+    try {
+        if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized");
+        const decodedToken = await adminAuth.verifyIdToken(token);
+        uid = decodedToken.uid;
+    } catch (error) {
+        console.error('Error verifying token in deleteAdPlansAction:', error);
+        return { success: false, error: 'Authentication failed. Unable to identify user.' };
+    }
+
+    if (!planIds || planIds.length === 0) {
+        return { success: false, error: 'No plan IDs provided for deletion.' };
+    }
+
+    try {
+        const batch = adminDb.batch();
+        const plansRef = adminDb.collection('ad_plans');
+        
+        if (planIds.length > 30) {
+             return { success: false, error: 'No se pueden eliminar más de 30 planes a la vez.' };
+        }
+
+        const snapshot = await plansRef.where(admin.firestore.FieldPath.documentId(), 'in', planIds).get();
+        
+        let authorizedDeletions = 0;
+        
+        snapshot.docs.forEach(doc => {
+            if (doc.data().userId === uid) {
+                batch.delete(doc.ref);
+                authorizedDeletions++;
+            }
+        });
+        
+        if (authorizedDeletions === 0 && planIds.length > 0) {
+             return { success: false, error: 'Permission denied. You do not own any of the selected plans.' };
+        }
+
+        await batch.commit();
+
+        return { success: true };
+    } catch (error: any) {
+        console.error(`Error deleting plans:`, error);
+        return { success: false, error: 'An unknown error occurred while deleting the plans.' };
     }
 }
