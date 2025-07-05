@@ -18,11 +18,11 @@ body {
     --popover: 0 0% 100%;
     --popover-foreground: 240 10% 3.9%;
 
-    --primary: 240 60% 96.1%; /* #E6E6FA Soft Lavender */
-    --primary-foreground: 240 5.9% 10%;
+    --primary: 177 70% 41.2%; /* #20B2AA Light Sea Green */
+    --primary-foreground: 0 0% 98%;
 
-    --secondary: 177 70% 41.2%; /* #20B2AA Light Sea Green */
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 240 60% 96.1%; /* #E6E6FA Soft Lavender */
+    --secondary-foreground: 240 5.9% 10%;
 
     --muted: 240 4.8% 95.9%;
     --muted-foreground: 240 3.8% 46.1%;
@@ -60,12 +60,12 @@ body {
     --popover: 240 10% 3.9%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 240 60% 30%; /* Darker Lavender for dark mode */
+    --primary: 177 70% 31.2%; /* Dark Sea Green */
     --primary-foreground: 0 0% 98%;
-    
-    --secondary: 177 70% 31.2%; /* Dark Sea Green */
-    --secondary-foreground: 0 0% 98%;
 
+    --secondary: 240 60% 30%; /* Darker Lavender for dark mode */
+    --secondary-foreground: 0 0% 98%;
+    
     --muted: 240 3.7% 15.9%;
     --muted-foreground: 240 5% 64.9%;
 
