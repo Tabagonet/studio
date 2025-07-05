@@ -63,11 +63,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-background to-accent/30 p-4">
       <Card className="w-full max-w-md shadow-2xl rounded-xl">
         <CardHeader className="text-center items-center">
-           <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" className="mx-auto mb-4 rounded-full">
-                <rect width="80" height="80" rx="40" fill="#E6E6FA"/>
-                <path d="M25 55L35 25L45 55M40 45H30" stroke="#20B2AA" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M50 55V25M50 25H60C65.5228 25 70 29.4772 70 35C70 40.5228 65.5228 45 60 45H50" stroke="#20B2AA" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+            <Image src="/images/logo.png" alt={`${APP_NAME} Logo`} width={80} height={80} className="mx-auto mb-4 rounded-full" />
           <CardTitle className="text-3xl font-bold tracking-tight font-headline text-foreground">{`Bienvenido a ${APP_NAME}`}</CardTitle>
           <CardDescription className="text-md text-muted-foreground pt-2">
             Inicia sesión para automatizar tu tienda y blog.
