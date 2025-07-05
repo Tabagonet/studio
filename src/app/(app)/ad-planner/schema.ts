@@ -105,3 +105,20 @@ export const GenerateStrategyTasksOutputSchema = z.object({
   tasks: z.array(AIGeneratedTaskSchema).describe("Una lista de 5 a 7 tareas concretas y accionables para ejecutar la estrategia."),
 });
 export type GenerateStrategyTasksOutput = z.infer<typeof GenerateStrategyTasksOutputSchema>;
+
+// === Schemas for Competitor Analysis Flow ===
+export const CompetitorAnalysisInputSchema = z.object({
+  url: z.string().url(),
+});
+export type CompetitorAnalysisInput = z.infer<typeof CompetitorAnalysisInputSchema>;
+
+export const CompetitorAnalysisOutputSchema = z.object({
+  competitors: z.array(z.object({
+    competitor_name: z.string().describe("El nombre de la empresa competidora."),
+    key_platforms: z.string().describe("Las plataformas publicitarias clave que utilizan (ej. Google Ads, Meta Ads)."),
+    estimated_monthly_budget: z.number().describe("Una estimación aproximada de su inversión publicitaria mensual en euros."),
+    strategy_summary: z.string().describe("Un resumen conciso de su estrategia publicitaria aparente."),
+    creative_angle: z.string().describe("El enfoque creativo principal o mensaje que utilizan en sus anuncios."),
+  })).describe("Una lista de 2 a 3 de los principales competidores encontrados."),
+});
+export type CompetitorAnalysisOutput = z.infer<typeof CompetitorAnalysisOutputSchema>;

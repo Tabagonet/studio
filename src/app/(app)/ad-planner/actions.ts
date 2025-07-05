@@ -8,10 +8,13 @@ import {
     type GenerateStrategyTasksOutput,
     type GenerateAdCreativesInput,
     type GenerateAdCreativesOutput,
+    type CompetitorAnalysisInput,
+    type CompetitorAnalysisOutput,
 } from "./schema";
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { generateStrategyTasks } from '@/ai/flows/generate-strategy-tasks-flow';
 import { generateAdCreatives } from '@/ai/flows/generate-ad-creatives-flow';
+import { competitorAnalysis } from "@/ai/flows/competitor-analysis-flow";
 
 
 export async function generateAdPlanAction(
@@ -173,5 +176,38 @@ export async function saveAdPlanAction(
     } catch (error: any) {
         console.error(`Error saving plan ${id}:`, error);
         return { success: false, error: 'An unknown error occurred while saving the plan.' };
+    }
+}
+
+
+export async function competitorAnalysisAction(
+    input: CompetitorAnalysisInput,
+    token: string
+): Promise<{
+    data?: CompetitorAnalysisOutput;
+    error?: string;
+}> {
+    let uid: string;
+    try {
+        if (!adminAuth) throw new Error("Firebase Admin not initialized");
+        const decodedToken = await adminAuth.verifyIdToken(token);
+        uid = decodedToken.uid;
+    } catch (error) {
+        console.error('Error verifying token in competitorAnalysisAction:', error);
+        return { error: 'Authentication failed. Unable to identify user.' };
+    }
+
+    try {
+        const analysis = await competitorAnalysis(input);
+        
+        if (adminDb) {
+            const userSettingsRef = adminDb.collection('user_settings').doc(uid);
+            await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
+        }
+        
+        return { data: analysis };
+    } catch (error: any) {
+        console.error('Error in competitorAnalysisAction:', error);
+        return { error: error.message || 'An unknown error occurred while analyzing competitors.' };
     }
 }

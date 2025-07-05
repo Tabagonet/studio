@@ -6,7 +6,7 @@ import { pdf, Document, Page, Text, View, StyleSheet, Font, Image as PdfImage } 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CreateAdPlanOutput, Strategy } from './schema';
-import { DollarSign, Printer, RotateCcw, Target, TrendingUp, Calendar, Zap, ClipboardCheck, Users, Megaphone, Lightbulb, MapPin, BarChart, Loader2, ListOrdered, Save, ClipboardPen, Info } from 'lucide-react';
+import { DollarSign, Printer, RotateCcw, Target, TrendingUp, Calendar, Zap, ClipboardCheck, Users, Megaphone, Lightbulb, MapPin, BarChart, Loader2, ListOrdered, Save, ClipboardPen, Info, Swords } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
@@ -20,6 +20,7 @@ import { saveAdPlanAction } from './actions';
 import { auth } from '@/lib/firebase';
 import { Tooltip, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Textarea } from '@/components/ui/textarea';
+import { CompetitorAnalysisDialog } from './CompetitorAnalysisDialog';
 
 
 // Register fonts for PDF rendering
@@ -116,6 +117,7 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyName, logoUrl }
     const [isSavingPlan, setIsSavingPlan] = React.useState(false);
     const [detailedStrategy, setDetailedStrategy] = React.useState<Strategy | null>(null);
     const [creativeStrategy, setCreativeStrategy] = React.useState<Strategy | null>(null);
+    const [isCompetitorAnalysisOpen, setIsCompetitorAnalysisOpen] = React.useState(false);
     const { toast } = useToast();
 
     const handleBudgetChange = (platform: string, newBudgetString: string) => {
@@ -241,6 +243,11 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyName, logoUrl }
                 onOpenChange={(open) => !open && setCreativeStrategy(null)}
                 onPlanUpdate={handleDialogPlanUpdate}
             />
+            <CompetitorAnalysisDialog
+                isOpen={isCompetitorAnalysisOpen}
+                onOpenChange={setIsCompetitorAnalysisOpen}
+                url={plan.url}
+            />
 
 
             <div className="report-header hidden print:block">
@@ -251,6 +258,9 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyName, logoUrl }
 
              <div className="flex flex-wrap gap-2 justify-end print-hide">
                 <Button variant="outline" onClick={onReset}><RotateCcw className="mr-2 h-4 w-4" /> Crear Nuevo Plan</Button>
+                 <Button variant="outline" onClick={() => setIsCompetitorAnalysisOpen(true)}>
+                    <Swords className="mr-2 h-4 w-4" /> Analizar Competencia
+                </Button>
                  <Button onClick={handleSavePlan} disabled={isSavingPlan}>
                     {isSavingPlan ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                     {isSavingPlan ? 'Guardando...' : 'Guardar Plan'}
