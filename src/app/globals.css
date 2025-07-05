@@ -101,6 +101,42 @@ body {
   }
 }
 
+/* Styles for Tiptap Editor */
+@layer base {
+  .ProseMirror {
+    @apply min-h-[300px] max-w-none rounded-b-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background;
+  }
+  .ProseMirror:focus {
+     @apply outline-none ring-2 ring-ring ring-offset-2;
+  }
+  .ProseMirror p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+    height: 0;
+  }
+
+  .ProseMirror h1, .ProseMirror h2, .ProseMirror h3, .ProseMirror h4 { @apply my-4 font-bold leading-tight; }
+  .ProseMirror h1 { @apply text-3xl; }
+  .ProseMirror h2 { @apply text-2xl; }
+  .ProseMirror h3 { @apply text-xl; }
+  .ProseMirror h4 { @apply text-lg; }
+  .ProseMirror p { @apply my-2 leading-relaxed; }
+  .ProseMirror ul, .ProseMirror ol { @apply my-4 ml-6 list-outside; }
+  .ProseMirror ul { @apply list-disc; }
+  .ProseMirror ol { @apply list-decimal; }
+  .ProseMirror blockquote { @apply my-4 border-l-4 pl-4 italic text-muted-foreground; }
+  .ProseMirror a { @apply text-primary underline; }
+  .ProseMirror img { @apply my-4 max-w-full h-auto rounded-md border; }
+
+  /* Toolbar button active state */
+  [data-tiptap-toolbar-button][data-active="true"] {
+    @apply bg-accent text-accent-foreground;
+  }
+}
+
+
 /* Print-specific styles */
 @media print {
   body {

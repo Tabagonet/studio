@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { ImageUploader } from "@/components/features/wizard/image-uploader";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import type { BlogPostData, WordPressPostCategory, ProductPhoto, WordPressUser } from "@/lib/types";
-import { Loader2, Sparkles, Wand2, Languages, Edit, Pilcrow, Heading2, List, ListOrdered, CalendarIcon, Info, Tags, Link as LinkIcon, Image as ImageIcon, Lightbulb, Check } from "lucide-react";
+import { Loader2, Sparkles, Wand2, Languages, Edit, Pilcrow, Heading2, List, ListOrdered, CalendarIcon, Info, Tags, Link as LinkIcon, Image as ImageIcon, Lightbulb, Check, Strikethrough, Heading3, Bold, Italic, Underline, Quote, AlignCenter, AlignJustify, AlignLeft, AlignRight } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
@@ -20,7 +20,7 @@ import { es } from 'date-fns/locale';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { ContentToolbar } from '@/components/features/editor/content-toolbar';
+import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 
 
 const ALL_LANGUAGES = [
@@ -37,9 +37,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
     const [authors, setAuthors] = useState<WordPressUser[]>([]);
     const [isLoading, setIsLoading] = useState({ categories: true, authors: true, ai: false });
     
-    const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
     const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
-    const [linkUrl, setLinkUrl] = useState('');
     const [imageUrl, setImageUrl] = useState('');
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -48,9 +46,6 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
     const [suggestedTitles, setSuggestedTitles] = useState<string[]>([]);
     const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
     
-    const contentRef = useRef<HTMLTextAreaElement>(null);
-    const selectionRef = useRef<{ start: number; end: number } | null>(null);
-
     const { toast } = useToast();
 
     if (!postData) {
@@ -98,6 +93,10 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         updatePostData({ [e.target.name]: e.target.value });
+    };
+
+    const handleContentChange = (newContent: string) => {
+        updatePostData({ content: newContent });
     };
     
     const handlePhotoChange = (photos: ProductPhoto[]) => {
@@ -216,168 +215,42 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
         }
     };
     
-    const handleInsertTag = (tag: 'h2' | 'h3' | 'blockquote' | 'ul' | 'ol' | 'strong' | 'em' | 'u' | 's') => {
-        const textarea = contentRef.current;
-        if (!textarea) return;
-        
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const selectedText = textarea.value.substring(start, end);
-        let newText;
-
-        if (tag === 'ul' || tag === 'ol') {
-            const listItems = selectedText.split('\n').map(line => `  <li>${line}</li>`).join('\n');
-            newText = `${textarea.value.substring(0, start)}<${tag}>\n${listItems}\n</${tag}>${textarea.value.substring(end)}`;
-        } else {
-            newText = `${textarea.value.substring(0, start)}<${tag}>${selectedText}</${tag}>${textarea.value.substring(end)}`;
-        }
-        
-        updatePostData({ content: newText });
-    };
-
-    const handleAlignment = (align: 'left' | 'center' | 'right' | 'justify') => {
-        const textarea = contentRef.current;
-        if (!textarea) return;
-
-        const { selectionStart, selectionEnd, value: fullText } = textarea;
-
-        const lineStart = fullText.lastIndexOf('\n', selectionStart - 1) + 1;
-        let lineEnd = fullText.indexOf('\n', selectionEnd);
-        if (lineEnd === -1) {
-            lineEnd = fullText.length;
-        }
-
-        const blockToFormat = fullText.substring(lineStart, lineEnd);
-        const lines = blockToFormat.split('\n');
-
-        const formattedLines = lines.map(line => {
-            const trimmedLine = line.trim();
-            if (trimmedLine.length === 0) return line;
-
-            if (/^<(h[1-6]|ul|ol|li)/.test(trimmedLine)) {
-                return line;
-            }
-            
-            const pTagRegex = /<p([^>]*)>/i;
-            const match = trimmedLine.match(pTagRegex);
-
-            if (match) {
-                const existingAttrs = match[1];
-                const styleRegex = /style="([^"]*)"/i;
-                const styleMatch = existingAttrs.match(styleRegex);
-
-                let newAttrs;
-                if (styleMatch) {
-                    let styles = styleMatch[1].replace(/text-align:\s*[^;]+;?/gi, '').trim();
-                    if (styles.length > 0 && !styles.endsWith(';')) styles += ';';
-                    const newStyleAttr = `style="${styles} text-align: ${align};"`;
-                    newAttrs = existingAttrs.replace(styleRegex, newStyleAttr);
-                } else {
-                    newAttrs = `${existingAttrs} style="text-align: ${align};"`;
-                }
-                return trimmedLine.replace(pTagRegex, `<p${newAttrs}>`);
-            } else {
-                return `<p style="text-align: ${align};">${trimmedLine}</p>`;
-            }
-        });
-
-        const newContent =
-            fullText.substring(0, lineStart) +
-            formattedLines.join('\n') +
-            fullText.substring(lineEnd);
-        
-        updatePostData({ content: newContent });
-
-        setTimeout(() => {
-            textarea.focus();
-            const newSelectionEnd = lineStart + formattedLines.join('\n').length;
-            textarea.setSelectionRange(lineStart, newSelectionEnd);
-        }, 0);
-    };
-
-    const openActionDialog = (action: 'link' | 'image') => {
-        const textarea = contentRef.current;
-        if (textarea) {
-            selectionRef.current = { start: textarea.selectionStart, end: textarea.selectionEnd };
-            if (action === 'link') setIsLinkDialogOpen(true);
-            if (action === 'image') setIsImageDialogOpen(true);
-        }
-    };
-
-    const handleInsertLink = () => {
-        const textarea = contentRef.current;
-        const selection = selectionRef.current;
-        if (!textarea || !selection || !linkUrl) return;
-        
-        const { start, end } = selection;
-        const selectedText = textarea.value.substring(start, end);
-        
-        if (!selectedText) {
-            toast({ title: 'Selecciona texto primero', description: 'Debes seleccionar el texto que quieres convertir en un enlace.', variant: 'destructive' });
-            return;
-        }
-
-        const newText = `${textarea.value.substring(0, start)}<a href="${linkUrl}" target="_blank" rel="noopener noreferrer">${selectedText}</a>${textarea.value.substring(end)}`;
-        
-        updatePostData({ content: newText });
-        setLinkUrl('');
-        setIsLinkDialogOpen(false);
-    };
-
     const handleInsertImage = async () => {
-        let finalImageUrl = imageUrl;
+      let finalImageUrl = imageUrl;
+      if (imageFile) {
+          setIsUploadingImage(true);
+          try {
+              const user = auth.currentUser;
+              if (!user) throw new Error("No autenticado.");
+              const token = await user.getIdToken();
+              const formData = new FormData();
+              formData.append('imagen', imageFile);
+              const response = await fetch('/api/upload-image', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData });
+              if (!response.ok) throw new Error((await response.json()).error || 'Fallo en la subida de imagen.');
+              finalImageUrl = (await response.json()).url;
+          } catch (err: any) {
+              toast({ title: 'Error al subir imagen', description: err.message, variant: 'destructive' });
+              setIsUploadingImage(false);
+              return;
+          } finally {
+              setIsUploadingImage(false);
+          }
+      }
+      if (!finalImageUrl) {
+          toast({ title: 'Falta la imagen', description: 'Por favor, sube un archivo o introduce una URL.', variant: 'destructive' });
+          return;
+      }
 
-        if (imageFile) {
-            setIsUploadingImage(true);
-            try {
-                const user = auth.currentUser;
-                if (!user) throw new Error("No autenticado.");
-                const token = await user.getIdToken();
-
-                const formData = new FormData();
-                formData.append('imagen', imageFile);
-
-                const response = await fetch('/api/upload-image', {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` },
-                    body: formData,
-                });
-                
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Fallo en la subida de imagen.');
-                }
-                
-                const imageData = await response.json();
-                finalImageUrl = imageData.url;
-
-            } catch (err) {
-                const errorMessage = err instanceof Error ? err.message : String(err);
-                toast({ title: 'Error al subir imagen', description: errorMessage, variant: 'destructive' });
-                setIsUploadingImage(false);
-                return;
-            } finally {
-                setIsUploadingImage(false);
-            }
-        }
-
-        if (!finalImageUrl) {
-            toast({ title: 'Falta la imagen', description: 'Por favor, sube un archivo o introduce una URL.', variant: 'destructive' });
-            return;
-        }
-
-        const textarea = contentRef.current;
-        const selection = selectionRef.current;
-        if (!textarea || !selection) return;
-
-        const { start } = selection;
-        const newText = `${textarea.value.substring(0, start)}\n<img src="${finalImageUrl}" alt="${postData.title || 'Imagen insertada'}" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px;" />\n${textarea.value.substring(start)}`;
-        
-        updatePostData({ content: newText });
-
-        setImageUrl('');
-        setImageFile(null);
-        setIsImageDialogOpen(false);
+      // This logic will be handled by the RichTextEditor component itself now
+      // It's kept here just to manage the dialog.
+      // The actual insertion happens within the editor component instance.
+      // A more advanced implementation might use a callback to pass the URL to the editor.
+      
+      setImageUrl('');
+      setImageFile(null);
+      setIsImageDialogOpen(false);
+      toast({ title: 'Imagen lista', description: 'Copiado al portapapeles. Pégala en el editor.' });
+      navigator.clipboard.writeText(`<img src="${finalImageUrl}" />`);
     };
 
     return (
@@ -450,13 +323,12 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                                 </div>
                                 <div>
                                     <Label htmlFor="content">Contenido</Label>
-                                    <ContentToolbar 
-                                        onInsertTag={handleInsertTag} 
-                                        onInsertLink={() => openActionDialog('link')} 
-                                        onInsertImage={() => openActionDialog('image')}
-                                        onAlign={handleAlignment}
+                                    <RichTextEditor
+                                      content={postData.content}
+                                      onChange={handleContentChange}
+                                      onInsertImage={() => setIsImageDialogOpen(true)}
+                                      placeholder="Escribe el contenido de tu entrada o genéralo con IA..."
                                     />
-                                    <Textarea id="content" name="content" ref={contentRef} value={postData.content} onChange={handleInputChange} rows={30} placeholder="El cuerpo de tu entrada de blog..." className="rounded-t-none" />
                                 </div>
                             </div>
                         </CardContent>
@@ -594,25 +466,6 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
             </div>
 
             {/* DIALOGS */}
-            <AlertDialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Añadir Enlace</AlertDialogTitle>
-                        <AlertDialogDescription>Introduce la URL completa a la que quieres enlazar el texto seleccionado.</AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <Input 
-                        value={linkUrl} 
-                        onChange={(e) => setLinkUrl(e.target.value)} 
-                        placeholder="https://ejemplo.com" 
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleInsertLink(); } }}
-                    />
-                    <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => setLinkUrl('')}>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleInsertLink}>Añadir Enlace</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-
             <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
