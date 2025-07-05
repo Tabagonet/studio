@@ -1,9 +1,14 @@
 
 'use server';
 import { createAdPlan } from "@/ai/flows/create-ad-plan-flow";
-import { CreateAdPlanInput, CreateAdPlanOutput } from "./schema";
+import { 
+    CreateAdPlanInput, 
+    CreateAdPlanOutput, 
+    type GenerateStrategyTasksInput,
+    type GenerateStrategyTasksOutput,
+} from "./schema";
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
-import { generateStrategyTasks, GenerateStrategyTasksInput, GenerateStrategyTasksOutput } from '@/ai/flows/generate-strategy-tasks-flow';
+import { generateStrategyTasks } from '@/ai/flows/generate-strategy-tasks-flow';
 
 
 export async function generateAdPlanAction(

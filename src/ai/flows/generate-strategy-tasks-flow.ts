@@ -1,31 +1,13 @@
-
 'use server';
 
-import { z } from 'zod';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Handlebars from 'handlebars';
+import { 
+  type GenerateStrategyTasksInput, 
+  type GenerateStrategyTasksOutput,
+  GenerateStrategyTasksOutputSchema
+} from '@/app/(app)/ad-planner/schema';
 
-// Schema for the flow input
-export const GenerateStrategyTasksInputSchema = z.object({
-  url: z.string().url(),
-  objectives: z.array(z.string()),
-  platform: z.string(),
-  campaign_type: z.string(),
-  funnel_stage: z.string(),
-  strategy_rationale: z.string(),
-});
-export type GenerateStrategyTasksInput = z.infer<typeof GenerateStrategyTasksInputSchema>;
-
-// Schema for the flow output
-const TaskOutputSchema = z.object({
-  name: z.string().describe("El nombre claro y conciso de la tarea a realizar."),
-  hours: z.number().describe("Una estimación realista de las horas necesarias para completar esta tarea."),
-});
-
-export const GenerateStrategyTasksOutputSchema = z.object({
-  tasks: z.array(TaskOutputSchema).describe("Una lista de 5 a 7 tareas concretas y accionables para ejecutar la estrategia."),
-});
-export type GenerateStrategyTasksOutput = z.infer<typeof GenerateStrategyTasksOutputSchema>;
 
 const TASKS_PROMPT = `Eres un director de proyectos de marketing digital. Tu tarea es analizar una estrategia publicitaria y desglosarla en tareas concretas y accionables, estimando las horas necesarias para cada una.
 Tu respuesta DEBE ser un único objeto JSON válido.

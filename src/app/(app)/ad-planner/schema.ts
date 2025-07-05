@@ -51,3 +51,27 @@ export const CreateAdPlanInputSchema = z.object({
 });
 
 export type CreateAdPlanInput = z.infer<typeof CreateAdPlanInputSchema>;
+
+
+// === Schemas for Generate Strategy Tasks Flow ===
+
+export const GenerateStrategyTasksInputSchema = z.object({
+  url: z.string().url(),
+  objectives: z.array(z.string()),
+  platform: z.string(),
+  campaign_type: z.string(),
+  funnel_stage: z.string(),
+  strategy_rationale: z.string(),
+});
+export type GenerateStrategyTasksInput = z.infer<typeof GenerateStrategyTasksInputSchema>;
+
+// This schema represents a task as returned by the AI (without a client-side ID)
+const AIGeneratedTaskSchema = z.object({
+  name: z.string().describe("El nombre claro y conciso de la tarea a realizar."),
+  hours: z.number().describe("Una estimación realista de las horas necesarias para completar esta tarea."),
+});
+
+export const GenerateStrategyTasksOutputSchema = z.object({
+  tasks: z.array(AIGeneratedTaskSchema).describe("Una lista de 5 a 7 tareas concretas y accionables para ejecutar la estrategia."),
+});
+export type GenerateStrategyTasksOutput = z.infer<typeof GenerateStrategyTasksOutputSchema>;
