@@ -64,6 +64,14 @@ export default function ConnectionsPage() {
 
     const { toast } = useToast();
 
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({
+            ...prev,
+            [name]: value
+        }));
+    };
+
     const fetchConnections = useCallback(async (user: FirebaseUser, targetCompanyId: string | null = null) => {
         setIsLoading(true);
         try {
@@ -387,4 +395,3 @@ export default function ConnectionsPage() {
         </div>
     );
 }
-
