@@ -73,7 +73,7 @@ export function AdPlanHistory({ history, isLoading, onViewPlan }: AdPlanHistoryP
                                     </div>
                                 </TableCell>
                                 <TableCell className="text-right">
-                                    <Button variant="outline" size="sm" onClick={() => onViewPlan({ ...item.planData, id: item.id })}>
+                                    <Button variant="outline" size="sm" onClick={() => onViewPlan(item.planData)}>
                                         <FileText className="mr-2 h-4 w-4" />
                                         Ver Plan
                                     </Button>

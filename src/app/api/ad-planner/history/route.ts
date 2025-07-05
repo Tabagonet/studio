@@ -18,9 +18,10 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        // 1. Simplified query to avoid composite index issues. Fetch all first.
         const snapshot = await adminDb.collection('ad_plans')
             .where('userId', '==', uid)
+            .orderBy('createdAt', 'desc')
+            .limit(50)
             .get();
         
         if (snapshot.empty) {
@@ -28,37 +29,30 @@ export async function GET(req: NextRequest) {
         }
 
         const history = snapshot.docs.map(doc => {
-            try { // 2. Add a try/catch block for each document to isolate errors.
+            try {
                 const data = doc.data();
 
-                if (!data || !data.planData || !data.url) {
-                    console.warn(`Skipping malformed ad plan history record: ${doc.id}`);
+                if (!data || !data.url || !data.objectives || !data.createdAt) {
+                     console.warn(`Skipping malformed ad plan history record: ${doc.id}`);
                     return null;
                 }
                 
-                const createdAt = (data.createdAt && typeof data.createdAt.toDate === 'function')
-                    ? data.createdAt.toDate() // Get the Date object first
-                    : new Date(0); 
+                // Exclude server-only fields before sending to client
+                const { userId, createdAt, ...planData } = data;
 
                 return {
                     id: doc.id,
                     url: data.url,
-                    objectives: data.objectives || [],
-                    createdAtDate: createdAt, // Temporary property for sorting
-                    planData: data.planData as CreateAdPlanOutput,
+                    objectives: data.objectives,
+                    createdAt: data.createdAt.toDate().toISOString(),
+                    // Reconstruct the full plan object for the client, including the ID
+                    planData: { id: doc.id, ...planData } as CreateAdPlanOutput,
                 };
             } catch (e) {
-                console.error(`Error processing history doc ${doc.id}:`, e);
-                return null; // Skip corrupted document
+                 console.error(`Error processing history doc ${doc.id}:`, e);
+                 return null;
             }
-        })
-        .filter((item): item is NonNullable<typeof item> => item !== null) // Type guard to remove nulls
-        .sort((a, b) => b.createdAtDate.getTime() - a.createdAtDate.getTime()) // 3. Sort in memory
-        .slice(0, 50) // 4. Limit results after sorting
-        .map(({ createdAtDate, ...rest }) => ({ // 5. Format the final output, removing the temp date object
-            ...rest,
-            createdAt: createdAtDate.toISOString(),
-        }));
+        }).filter(Boolean); // Remove nulls from failed records
 
         return NextResponse.json({ history });
 

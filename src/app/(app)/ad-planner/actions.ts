@@ -36,13 +36,12 @@ export async function generateAdPlanAction(
             const userSettingsRef = adminDb.collection('user_settings').doc(uid);
             await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
             
-            // Save the generated plan to a new collection
+            // Save the generated plan to a new collection with a flattened structure
+            const { id, ...planDataToSave } = adPlan; // id is undefined here, which is fine
             const newPlanRef = await adminDb.collection('ad_plans').add({
                 userId: uid,
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                planData: adPlan,
-                url: input.url,
-                objectives: input.objectives,
+                ...planDataToSave,
             });
 
             // Return the plan with its new ID
@@ -124,11 +123,7 @@ export async function saveAdPlanAction(
         // Sanitize the object to remove any `undefined` values that Firestore cannot handle.
         const sanitizedPlanData = JSON.parse(JSON.stringify(planData));
 
-        await planRef.update({
-            planData: sanitizedPlanData,
-            url: plan.url,
-            objectives: plan.objectives,
-        });
+        await planRef.update(sanitizedPlanData);
 
         return { success: true };
     } catch (error: any) {
