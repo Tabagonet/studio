@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState } from 'react';
@@ -64,7 +63,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-background to-accent/30 p-4">
       <Card className="w-full max-w-md shadow-2xl rounded-xl">
         <CardHeader className="text-center items-center">
-           <Image src="/images/logo.png" alt={`${APP_NAME} Logo`} width={80} height={80} className="mx-auto mb-4 rounded-full" data-ai-hint="logo brand" priority />
+           <Image src="https://placehold.co/80x80.png" alt={`${APP_NAME} Logo`} width={80} height={80} className="mx-auto mb-4 rounded-full" data-ai-hint="logo brand" priority />
           <CardTitle className="text-3xl font-bold tracking-tight font-headline text-foreground">{`Bienvenido a ${APP_NAME}`}</CardTitle>
           <CardDescription className="text-md text-muted-foreground pt-2">
             Inicia sesión para automatizar tu tienda y blog.

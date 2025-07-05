@@ -42,12 +42,12 @@ const styles = StyleSheet.create({
 });
 
 
-// PDF Document Component - Now accepts origin as a prop.
-const AdPlanPDF = ({ plan, origin, companyName, logoUrl }: { plan: CreateAdPlanOutput; origin: string, companyName: string, logoUrl: string | null }) => (
+// PDF Document Component
+const AdPlanPDF = ({ plan, companyName, logoUrl }: { plan: CreateAdPlanOutput; companyName: string; logoUrl: string | null }) => (
     <Document>
         <Page size="A4" style={styles.page}>
             <View style={styles.header}>
-                <PdfImage style={styles.logo} src={logoUrl || `${origin}/images/logo.png`} />
+                <PdfImage style={styles.logo} src={logoUrl || 'https://placehold.co/100x100.png'} />
                 <Text style={styles.reportTitle}>Plan de Publicidad Digital</Text>
                 <Text style={styles.reportSubtitle}>Preparado para {companyName} por AutoPress AI el {new Date().toLocaleDateString('es-ES')}</Text>
             </View>
@@ -97,27 +97,14 @@ const formatCurrency = (value: number) => {
 export function AdPlanView({ plan, onReset, companyName, logoUrl }: { plan: CreateAdPlanOutput; onReset: () => void; companyName: string; logoUrl: string | null }) {
     const [isPdfLoading, setIsPdfLoading] = React.useState(false);
     const { toast } = useToast();
-    const [origin, setOrigin] = React.useState('');
-
-    React.useEffect(() => {
-        if (typeof window !== 'undefined') {
-            setOrigin(window.location.origin);
-        }
-    }, []);
 
     const handleDownload = async () => {
-        if (!origin) {
-            toast({
-                title: 'Error',
-                description: 'No se pudo determinar el origen de la aplicación. Por favor, recarga la página.',
-                variant: 'destructive',
-            });
-            return;
-        }
+        // Use an image proxy for the PDF to avoid CORS issues.
+        const proxiedLogoUrl = logoUrl ? `/api/image-proxy?url=${encodeURIComponent(logoUrl)}` : null;
 
         setIsPdfLoading(true);
         try {
-            const blob = await pdf(<AdPlanPDF plan={plan} origin={origin} companyName={companyName} logoUrl={logoUrl} />).toBlob();
+            const blob = await pdf(<AdPlanPDF plan={plan} companyName={companyName} logoUrl={proxiedLogoUrl} />).toBlob();
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             const fileName = `plan_publicidad_${plan.executive_summary.substring(0, 20).replace(/\s/g, '_') || 'AutoPress'}.pdf`;
@@ -145,7 +132,7 @@ export function AdPlanView({ plan, onReset, companyName, logoUrl }: { plan: Crea
     return (
         <div className="space-y-6 report-view">
             <div className="report-header hidden print:block">
-                <Image src={logoUrl || "/images/logo.png"} alt="Logo" width={60} height={60} className="mx-auto" data-ai-hint="logo brand" />
+                <Image src={logoUrl || "https://placehold.co/60x60.png"} alt="Logo" width={60} height={60} className="mx-auto" data-ai-hint="logo brand" />
                 <h1 className="text-2xl font-bold mt-2">Plan de Publicidad Digital</h1>
                 <p className="text-sm text-gray-500">Preparado para {companyName} por AutoPress AI el {new Date().toLocaleDateString('es-ES')}</p>
             </div>
