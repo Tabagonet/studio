@@ -6,7 +6,7 @@ import { pdf, Document, Page, Text, View, StyleSheet, Font, Image as PdfImage } 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CreateAdPlanOutput, Strategy } from './schema';
-import { DollarSign, Printer, RotateCcw, Target, TrendingUp, Calendar, Zap, ClipboardCheck, Users, Megaphone, Lightbulb, MapPin, BarChart, Loader2, ListOrdered, Save } from 'lucide-react';
+import { DollarSign, Printer, RotateCcw, Target, TrendingUp, Calendar, Zap, ClipboardCheck, Users, Megaphone, Lightbulb, MapPin, BarChart, Loader2, ListOrdered, Save, ClipboardPen } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { saveAdPlanAction } from './actions';
 import { auth } from '@/lib/firebase';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 // Register fonts for PDF rendering
@@ -96,8 +97,7 @@ const AdPlanPDF = ({ plan, companyName, logoUrl }: { plan: CreateAdPlanOutput; c
                 </View>
             </View>
 
-            <View style={styles.feeProposalCard}><Text style={styles.sectionTitle}>Propuesta de Gestión</Text><Text style={styles.bodyText}>{plan.fee_proposal?.fee_description}</Text>
-                <View style={styles.feeContainer}>
+            <View style={styles.feeProposalCard}><Text style={styles.sectionTitle}>Propuesta de Gestión</Text><Text style={styles.bodyText}>{plan.fee_proposal?.fee_description || 'Descripción no disponible.'}</Text><View style={styles.feeContainer}>
                     <View style={styles.feeItem}><Text>Cuota de Configuración</Text><Text style={styles.monthlyBudget}>{formatCurrency(plan.fee_proposal?.setup_fee || 0)}</Text></View>
                     <View style={styles.feeItem}><Text>Gestión Mensual</Text><Text style={styles.monthlyBudget}>{formatCurrency(plan.fee_proposal?.management_fee || 0)}</Text></View>
                 </View>
@@ -123,6 +123,7 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
     const handleBudgetChange = (platform: string, newBudgetString: string) => {
         const newBudget = parseFloat(newBudgetString) || 0;
         setPlan(prevPlan => {
+            if (!prevPlan) return prevPlan;
             const updatedStrategies = prevPlan.strategies.map(s => 
                 s.platform === platform ? { ...s, monthly_budget: newBudget } : s
             );
@@ -137,6 +138,7 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
     };
 
     const handleSavePlan = async () => {
+        if (!plan) return;
         setIsSavingPlan(true);
         const user = auth.currentUser;
         if (!user) {
@@ -162,6 +164,7 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
     };
 
     const handleDownload = async () => {
+        if (!plan) return;
         // Use an image proxy for the PDF to avoid CORS issues.
         const proxiedLogoUrl = logoUrl ? `/api/image-proxy?url=${encodeURIComponent(logoUrl)}` : null;
 
@@ -199,6 +202,10 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
             setDetailedStrategy(newStrategy || null);
         }
     }, [detailedStrategy]); 
+    
+    if (!plan) {
+        return <Loader2 className="h-8 w-8 animate-spin" />;
+    }
     
     return (
         <div className="space-y-6 report-view">
@@ -262,10 +269,27 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
                                         <span className="font-bold text-lg text-muted-foreground">/ mes</span>
                                     </div>
                                 </div>
-                                <Button variant="outline" size="sm" onClick={() => setDetailedStrategy(strategy)}>
-                                    <ListOrdered className="mr-2 h-4 w-4" />
-                                    Planificar Tareas
-                                </Button>
+                                <div className="flex flex-wrap gap-2">
+                                    <Button variant="outline" size="sm" onClick={() => setDetailedStrategy(strategy)}>
+                                        <ListOrdered className="mr-2 h-4 w-4" />
+                                        Planificar Tareas
+                                    </Button>
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <div className="inline-block">
+                                                    <Button variant="outline" size="sm" disabled>
+                                                        <ClipboardPen className="mr-2 h-4 w-4" />
+                                                        Generar Creativos
+                                                    </Button>
+                                                </div>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>Próximamente: Genera textos e ideas visuales para los anuncios con IA.</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                </div>
                             </div>
                             <p className="text-sm text-muted-foreground italic"><Lightbulb className="inline-block mr-2 h-4 w-4" />{strategy.strategy_rationale}</p>
                             <div className="flex flex-wrap items-center gap-4 text-sm pt-2">
