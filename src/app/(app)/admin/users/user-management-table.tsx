@@ -307,10 +307,14 @@ export function UserManagementTable() {
                                                 )}
                                                 {u.status === 'active' && (
                                                     <>
-                                                         <DropdownMenuItem onSelect={() => { setSelectedUserForLimit(u); setNewSiteLimit(u.siteLimit); setIsLimitModalOpen(true); }}>
-                                                            <KeyRound className="mr-2 h-4 w-4" /> Fijar Límite de Sitios
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuSeparator />
+                                                        {currentUserRole === 'super_admin' && (
+                                                            <>
+                                                                <DropdownMenuItem onSelect={() => { setSelectedUserForLimit(u); setNewSiteLimit(u.siteLimit); setIsLimitModalOpen(true); }}>
+                                                                    <KeyRound className="mr-2 h-4 w-4" /> Fijar Límite de Sitios
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuSeparator />
+                                                            </>
+                                                        )}
                                                         
                                                         <DropdownMenuSub>
                                                             <DropdownMenuSubTrigger>

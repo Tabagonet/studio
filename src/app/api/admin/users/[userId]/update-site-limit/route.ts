@@ -5,25 +5,27 @@ import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
 
-async function isAdmin(req: NextRequest): Promise<boolean> {
+async function getRequestingUser(req: NextRequest): Promise<{uid: string; role: string} | null> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
-    if (!token) return false;
+    if (!token) return null;
     try {
         if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized");
         const decodedToken = await adminAuth.verifyIdToken(token);
         const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
-        const role = userDoc.data()?.role;
-        return userDoc.exists && ['admin', 'super_admin'].includes(role);
-    } catch { return false; }
+        if (!userDoc.exists) return null;
+        return { uid: decodedToken.uid, role: userDoc.data()?.role };
+    } catch { return null; }
 }
+
 
 const updateSiteLimitSchema = z.object({
   siteLimit: z.number().int().min(0, "El límite debe ser 0 o mayor."),
 });
 
 export async function POST(req: NextRequest, { params }: { params: { userId: string } }) {
-    if (!await isAdmin(req)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const requestingUser = await getRequestingUser(req);
+    if (requestingUser?.role !== 'super_admin') {
+        return NextResponse.json({ error: 'Forbidden: Only Super Admins can change site limits.' }, { status: 403 });
     }
 
     if (!adminDb) {
