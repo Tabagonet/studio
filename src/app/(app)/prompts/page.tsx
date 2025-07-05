@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Brain, Info, Save, Loader2, KeyRound } from "lucide-react";
+import { Brain, Info, Save, Loader2, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
@@ -90,7 +90,7 @@ Tu respuesta DEBE ser un único objeto JSON válido.
     },
     linkSuggestion: {
         label: "Blog: Sugerir Enlaces Internos",
-        default: `You are an expert SEO specialist, skilled in creating effective internal linking strategies. Your task is to analyze an article's content and a list of potential link targets from the same website. Identify the most relevant and natural opportunities to add internal links. Return a JSON object with a single key "suggestions", containing an array of up to 5 high-quality internal link suggestions.\n\n**Instructions:**\n1. Read the "currentContent" carefully.\n2. Review the "potentialTargets" list.\n3. Find specific phrases or keywords in the "currentContent" that would naturally link to one of the "potentialTargets".\n4. Do NOT suggest linking a phrase that is already inside an <a> HTML tag.\n5. Prioritize relevance and user experience.\n\n**Content to Analyze:**\n---\n{{{currentContent}}}\n---\n\n**Available pages to link to:**\n---\n{{#each potentialTargets}}- Title: {{{this.title}}}\n- URL: {{{this.link}}}{{/each}}\n---`
+        default: `You are an expert SEO specialist, skilled in creating effective internal linking strategies. Your task is to analyze an article's content and a list of potential link targets from the same website. Identify the most relevant and natural opportunities to add internal links. The response must be a single, valid JSON object with one key "suggestions", containing an array of up to 5 high-quality internal link suggestions.\n\n**Instructions:**\n1.  Read the "currentContent" carefully.\n2.  Review the "potentialTargets" list, which contains the titles and URLs of other pages on the site.\n3.  Find specific phrases or keywords in the "currentContent" that would naturally link to one of the "potentialTargets".\n4.  Do NOT suggest linking a phrase that is already inside an <a> HTML tag.\n5.  Prioritize relevance and user experience. The link should provide value to the reader.\n6.  Return a list of up to 5 of the best link suggestions. For each suggestion, provide the exact phrase to link from the original text, and the corresponding target URL and title.\n\n**Content to Analyze:**\n---\n{{{currentContent}}}\n---\n\n**Available pages to link to:**\n---\n{{#each potentialTargets}}\n- Title: {{{this.title}}}\n- URL: {{{this.link}}}\n{{/each}}\n---`
     },
     seoTechnicalAnalysis: {
         label: "SEO: Análisis Técnico",
@@ -192,6 +192,15 @@ export default function PromptsPage() {
             setIsSaving(false);
         }
     }
+    
+    const handleResetToDefault = () => {
+        const defaultPrompt = PROMPT_CONFIG[selectedPromptKey].default;
+        setPrompt(defaultPrompt);
+        toast({
+            title: "Plantilla Restaurada",
+            description: "Se ha cargado la plantilla original en el editor. Haz clic en Guardar para aplicarla.",
+        });
+    };
 
   return (
     <div className="container mx-auto py-8 space-y-8">
@@ -247,7 +256,11 @@ export default function PromptsPage() {
                         />
                     )}
                 </div>
-                <div className="flex justify-end">
+                <div className="flex flex-col sm:flex-row justify-end gap-2">
+                    <Button onClick={handleResetToDefault} variant="outline" disabled={isSaving || isLoading}>
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                        Restaurar Plantilla
+                    </Button>
                     <Button onClick={handleSave} disabled={isSaving || isLoading}>
                         {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                         {isSaving ? "Guardando..." : "Guardar Plantilla"}
