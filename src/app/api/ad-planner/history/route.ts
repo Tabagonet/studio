@@ -74,6 +74,9 @@ export async function GET(req: NextRequest) {
                         campaign_type: s.campaign_type || '',
                         ad_formats: s.ad_formats || [],
                         monthly_budget: typeof s.monthly_budget === 'number' ? s.monthly_budget : 0,
+                        targeting_suggestions: s.targeting_suggestions || [],
+                        key_kpis: s.key_kpis || [],
+                        creative_angle: s.creative_angle || '',
                         tasks: (s.tasks || []).map((t: any): Task => ({
                             id: t.id || '',
                             name: t.name || '',
