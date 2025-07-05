@@ -17,6 +17,8 @@ const userSchema = z.object({
   termsAccepted: z.boolean(),
   siteLimit: z.number().optional(),
   apiKey: z.string().uuid().optional(),
+  companyId: z.string().nullable().optional(),
+  companyName: z.string().nullable().optional(),
 });
 
 const SUPER_ADMIN_EMAIL = 'tabagonet@gmail.com';
@@ -81,6 +83,14 @@ export async function GET(req: NextRequest) {
           await adminDb.collection('api_keys').doc(newApiKey).set({ userId: uid, createdAt: admin.firestore.FieldValue.serverTimestamp() });
           userData.apiKey = newApiKey;
       }
+
+      // Add company info if it exists
+      if (userData.companyId) {
+          const companyDoc = await adminDb.collection('companies').doc(userData.companyId).get();
+          if (companyDoc.exists) {
+              userData.companyName = companyDoc.data()?.name || null;
+          }
+      }
       
       const roleToReturn = userData.role || 'pending';
       const validatedData = userSchema.safeParse({...userData, role: roleToReturn});
@@ -103,10 +113,11 @@ export async function GET(req: NextRequest) {
         photoURL: picture || null,
         role: role,
         status: isSuperAdmin ? 'active' : 'pending_approval',
-        termsAccepted: isSuperAdmin, // Admins auto-accept terms
-        siteLimit: isSuperAdmin ? 999 : 1, // Super Admins get unlimited, new users get 1
+        termsAccepted: isSuperAdmin, 
+        siteLimit: isSuperAdmin ? 999 : 1,
         apiKey: newApiKey,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        companyId: null,
       };
       
       const batch = adminDb.batch();
@@ -114,7 +125,6 @@ export async function GET(req: NextRequest) {
       batch.set(adminDb.collection('api_keys').doc(newApiKey), { userId: uid, createdAt: newUser.createdAt });
       await batch.commit();
 
-      // Set custom claims for the new user
       await adminAuth.setCustomUserClaims(uid, { role: role });
       
       if (newUser.status === 'pending_approval') {
@@ -122,16 +132,12 @@ export async function GET(req: NextRequest) {
           if (!adminsSnapshot.empty) {
               const notificationBatch = adminDb.batch();
               for (const adminDoc of adminsSnapshot.docs) {
-                  if (adminDoc.id === uid) continue; // Don't notify the user themselves
+                  if (adminDoc.id === uid) continue;
                   const notificationRef = adminDb.collection('notifications').doc();
                   notificationBatch.set(notificationRef, {
-                      recipientUid: adminDoc.id,
-                      type: 'new_user_pending',
-                      title: 'Nuevo Usuario Registrado',
+                      recipientUid: adminDoc.id, type: 'new_user_pending', title: 'Nuevo Usuario Registrado',
                       message: `El usuario ${newUser.displayName || newUser.email} está pendiente de aprobación.`,
-                      link: '/admin/users',
-                      read: false,
-                      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                      link: '/admin/users', read: false, createdAt: admin.firestore.FieldValue.serverTimestamp(),
                   });
               }
               await notificationBatch.commit();

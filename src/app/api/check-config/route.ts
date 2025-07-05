@@ -26,24 +26,37 @@ export async function GET(req: NextRequest) {
     firebaseAdminSdk: !!process.env.FIREBASE_SERVICE_ACCOUNT_JSON || (!!process.env.FIREBASE_PROJECT_ID && !!process.env.FIREBASE_PRIVATE_KEY && !!process.env.FIREBASE_CLIENT_EMAIL),
   };
 
-  // --- 3. Check User-Specific Config (from Firestore) ---
+  // --- 3. Check User/Company-Specific Config ---
   let userConfig = {
     wooCommerceConfigured: false,
     wordPressConfigured: false,
-    aiUsageCount: 0, // Add usage count
+    aiUsageCount: 0,
   };
   let activeStoreUrl: string | null = null;
+  let settingsSource: admin.firestore.DocumentData | undefined;
 
   if (adminDb) {
     try {
-      const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
-      if (userSettingsDoc.exists) {
-        const settings = userSettingsDoc.data();
-        const allConnections = settings?.connections;
-        const activeKey = settings?.activeConnectionKey;
-        
-        userConfig.aiUsageCount = settings?.aiUsageCount || 0;
+      const userDoc = await adminDb.collection('users').doc(uid).get();
+      const userData = userDoc.data();
+      
+      if (userData?.companyId) {
+        // User belongs to a company, get company settings
+        const companyDoc = await adminDb.collection('companies').doc(userData.companyId).get();
+        settingsSource = companyDoc.data();
+      } else {
+        // User is individual or Super Admin, get personal settings
+        const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+        settingsSource = userSettingsDoc.data();
+        if (settingsSource?.aiUsageCount !== undefined) {
+          userConfig.aiUsageCount = settingsSource.aiUsageCount;
+        }
+      }
 
+      if (settingsSource) {
+        const activeKey = settingsSource.activeConnectionKey;
+        const allConnections = settingsSource.connections;
+        
         if (activeKey && allConnections && allConnections[activeKey]) {
           const activeConnection = allConnections[activeKey];
           userConfig.wooCommerceConfigured = !!(activeConnection.wooCommerceStoreUrl && activeConnection.wooCommerceApiKey && activeConnection.wooCommerceApiSecret);
@@ -53,7 +66,6 @@ export async function GET(req: NextRequest) {
       }
     } catch (dbError) {
       console.error("Firestore error in /api/check-config:", dbError);
-      // Don't fail the request, just report as not configured
     }
   } else {
      console.warn("/api/check-config: Firestore is not available.");

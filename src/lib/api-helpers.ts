@@ -15,30 +15,50 @@ import sharp from 'sharp';
 interface ApiClients {
   wooApi: WooCommerceRestApiType | null;
   wpApi: AxiosInstance | null;
-  activeConnectionKey: string;
+  activeConnectionKey: string | null;
   settings: admin.firestore.DocumentData | undefined;
 }
 
 /**
- * Fetches the active user-specific credentials from Firestore and creates API clients.
- * This is a centralized helper to be used by server-side API routes.
- * Throws an error if credentials are not found or incomplete.
+ * Fetches the active user-specific or company-specific credentials and creates API clients.
+ * This function now determines context (user vs company) to fetch the correct settings.
  * @param {string} uid - The user's Firebase UID.
- * @returns {Promise<ApiClients>} An object containing initialized wooApi and wpApi clients.
+ * @returns {Promise<ApiClients>} An object containing initialized API clients and settings.
  */
 export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   if (!adminDb) {
     throw new Error('Firestore admin is not initialized.');
   }
-
-  const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
-  if (!userSettingsDoc.exists) {
-    throw new Error('No settings found for user. Please configure API connections.');
+  
+  const userDoc = await adminDb.collection('users').doc(uid).get();
+  if (!userDoc.exists) {
+      throw new Error('User record not found in database.');
   }
 
-  const settings = userSettingsDoc.data();
-  const allConnections = settings?.connections;
-  const activeConnectionKey = settings?.activeConnectionKey;
+  const userData = userDoc.data();
+  const companyId = userData?.companyId;
+
+  let settingsSource: admin.firestore.DocumentData | undefined;
+
+  if (companyId) {
+      // User belongs to a company, so get the company's settings
+      const companyDoc = await adminDb.collection('companies').doc(companyId).get();
+      if (!companyDoc.exists) {
+          throw new Error(`Company with ID ${companyId} not found.`);
+      }
+      settingsSource = companyDoc.data();
+  } else {
+      // User is individual (or Super Admin managing their own things), get personal settings
+      const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+      settingsSource = userSettingsDoc.data();
+  }
+  
+  if (!settingsSource) {
+      throw new Error('No settings found. Please configure API connections.');
+  }
+
+  const allConnections = settingsSource.connections;
+  const activeConnectionKey = settingsSource.activeConnectionKey;
 
   if (!activeConnectionKey || !allConnections || !allConnections[activeConnectionKey]) {
       throw new Error('No active API connection is configured. Please select or create one in Settings > Connections.');
@@ -58,7 +78,7 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
     applicationPassword: activeConnection.wordpressApplicationPassword,
   });
 
-  return { wooApi, wpApi, activeConnectionKey, settings };
+  return { wooApi, wpApi, activeConnectionKey, settings: settingsSource };
 }
 
 function extractHeadingsRecursive(elements: any[], widgets: ExtractedWidget[]): void {
