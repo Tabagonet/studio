@@ -18,10 +18,9 @@ export async function GET(req: NextRequest) {
     }
 
     try {
+        // 1. Simplified query to avoid composite index issues. Fetch all first.
         const snapshot = await adminDb.collection('ad_plans')
             .where('userId', '==', uid)
-            .orderBy('createdAt', 'desc')
-            .limit(50) // Limit to the last 50 plans for performance
             .get();
         
         if (snapshot.empty) {
@@ -29,26 +28,37 @@ export async function GET(req: NextRequest) {
         }
 
         const history = snapshot.docs.map(doc => {
-            const data = doc.data();
+            try { // 2. Add a try/catch block for each document to isolate errors.
+                const data = doc.data();
 
-            // More robust data check. If a record is missing essential data, skip it.
-            if (!data || !data.planData || !data.url) {
-                console.warn(`Skipping malformed ad plan history record: ${doc.id}`);
-                return null;
+                if (!data || !data.planData || !data.url) {
+                    console.warn(`Skipping malformed ad plan history record: ${doc.id}`);
+                    return null;
+                }
+                
+                const createdAt = (data.createdAt && typeof data.createdAt.toDate === 'function')
+                    ? data.createdAt.toDate() // Get the Date object first
+                    : new Date(0); 
+
+                return {
+                    id: doc.id,
+                    url: data.url,
+                    objectives: data.objectives || [],
+                    createdAtDate: createdAt, // Temporary property for sorting
+                    planData: data.planData as CreateAdPlanOutput,
+                };
+            } catch (e) {
+                console.error(`Error processing history doc ${doc.id}:`, e);
+                return null; // Skip corrupted document
             }
-            
-            const createdAt = (data.createdAt && typeof data.createdAt.toDate === 'function')
-                ? data.createdAt.toDate().toISOString()
-                : new Date(0).toISOString(); // Fallback to epoch time
-
-            return {
-                id: doc.id,
-                url: data.url,
-                objectives: data.objectives || [],
-                createdAt: createdAt,
-                planData: data.planData as CreateAdPlanOutput,
-            };
-        }).filter(item => item !== null); // Filter out any skipped (null) items
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null) // Type guard to remove nulls
+        .sort((a, b) => b.createdAtDate.getTime() - a.createdAtDate.getTime()) // 3. Sort in memory
+        .slice(0, 50) // 4. Limit results after sorting
+        .map(({ createdAtDate, ...rest }) => ({ // 5. Format the final output, removing the temp date object
+            ...rest,
+            createdAt: createdAtDate.toISOString(),
+        }));
 
         return NextResponse.json({ history });
 
