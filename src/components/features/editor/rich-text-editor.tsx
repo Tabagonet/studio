@@ -14,9 +14,10 @@ interface RichTextEditorProps {
   onChange: (richText: string) => void;
   onInsertImage: () => void;
   placeholder?: string;
+  stickyToolbar?: boolean;
 }
 
-export function RichTextEditor({ content, onChange, onInsertImage, placeholder }: RichTextEditorProps) {
+export function RichTextEditor({ content, onChange, onInsertImage, placeholder, stickyToolbar = false }: RichTextEditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -53,7 +54,7 @@ export function RichTextEditor({ content, onChange, onInsertImage, placeholder }
   
   return (
     <div>
-      <RichTextToolbar editor={editor} onInsertImage={onInsertImage} />
+      <RichTextToolbar editor={editor} onInsertImage={onInsertImage} sticky={stickyToolbar} />
       <EditorContent editor={editor} />
     </div>
   );
