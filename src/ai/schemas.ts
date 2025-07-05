@@ -54,3 +54,26 @@ export const SeoInterpretationOutputSchema = z.object({
 export type SeoInterpretationOutput = z.infer<
   typeof SeoInterpretationOutputSchema
 >;
+
+// === Schemas for Link Suggestion Flow ===
+
+export const SuggestLinksInputSchema = z.object({
+  currentContent: z.string().describe("The full HTML content of the article or page being edited."),
+  potentialTargets: z.array(z.object({
+    title: z.string(),
+    link: z.string(),
+  })).describe("A list of all available posts and pages on the site to link to."),
+});
+export type SuggestLinksInput = z.infer<typeof SuggestLinksInputSchema>;
+
+export const LinkSuggestionSchema = z.object({
+    phraseToLink: z.string().describe("The exact phrase from the source content that should be turned into a link."),
+    targetUrl: z.string().url().describe("The URL of the target page or post."),
+    targetTitle: z.string().describe("The title of the target page or post."),
+});
+export type LinkSuggestion = z.infer<typeof LinkSuggestionSchema>;
+
+export const SuggestLinksOutputSchema = z.object({
+    suggestions: z.array(LinkSuggestionSchema).describe("An array of up to 5 high-quality internal link suggestions."),
+});
+export type SuggestLinksOutput = z.infer<typeof SuggestLinksOutputSchema>;
