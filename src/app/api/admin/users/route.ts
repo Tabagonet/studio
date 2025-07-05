@@ -5,25 +5,35 @@ import { adminAuth, adminDb } from '@/lib/firebase-admin';
 
 export const dynamic = 'force-dynamic';
 
-// This function checks if the requesting user is an admin.
-async function isAdmin(req: NextRequest): Promise<boolean> {
+async function getAdminContext(req: NextRequest): Promise<{ uid: string | null; role: string | null; companyId: string | null }> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
-    if (!token) return false;
+    if (!token) return { uid: null, role: null, companyId: null };
 
     try {
         if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized");
         const decodedToken = await adminAuth.verifyIdToken(token);
         const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
-        const role = userDoc.data()?.role;
-        return userDoc.exists && ['admin', 'super_admin'].includes(role);
+        if (!userDoc.exists) {
+            return { uid: decodedToken.uid, role: null, companyId: null };
+        }
+        const data = userDoc.data()!;
+        return {
+            uid: decodedToken.uid,
+            role: data.role || null,
+            companyId: data.companyId || null,
+        };
     } catch (error) {
-        console.error("Admin check failed:", error);
-        return false;
+        console.error("Admin context check failed:", error);
+        return { uid: null, role: null, companyId: null };
     }
 }
 
+
 export async function GET(req: NextRequest) {
-    if (!await isAdmin(req)) {
+    const adminContext = await getAdminContext(req);
+    const isAuthorized = adminContext.role === 'admin' || adminContext.role === 'super_admin';
+
+    if (!isAuthorized) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -32,15 +42,27 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        const [usersSnapshot, companiesSnapshot] = await Promise.all([
-            adminDb.collection('users').orderBy('createdAt', 'desc').get(),
-            adminDb.collection('companies').get(),
-        ]);
-
+        const companiesSnapshot = await adminDb.collection('companies').get();
         const companiesMap = new Map<string, string>();
         companiesSnapshot.forEach(doc => {
             companiesMap.set(doc.id, doc.data().name);
         });
+        
+        // Base query
+        let usersQuery: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = adminDb.collection('users');
+
+        // If the user is an admin (but not a super_admin), filter by their companyId
+        if (adminContext.role === 'admin') {
+            if (!adminContext.companyId) {
+                // An admin who is not part of a company should not see any users.
+                return NextResponse.json({ users: [] });
+            }
+            usersQuery = usersQuery.where('companyId', '==', adminContext.companyId);
+        }
+        
+        // Super_admin query remains unfiltered, getting all users.
+
+        const usersSnapshot = await usersQuery.orderBy('createdAt', 'desc').get();
 
         const users = usersSnapshot.docs.map(doc => {
             const data = doc.data();
