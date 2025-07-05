@@ -225,6 +225,7 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
                 plan={plan}
                 strategy={creativeStrategy}
                 onOpenChange={(open) => !open && setCreativeStrategy(null)}
+                onPlanUpdate={handlePlanUpdate}
             />
 
 
@@ -259,7 +260,7 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-3"><Megaphone className="h-6 w-6 text-primary" /> Estrategias y Presupuesto</CardTitle>
-                    <CardDescription>Total mensual recomendado: <span className="font-bold text-lg text-primary">{formatCurrency(plan.total_monthly_budget)}</span></CardDescription>
+                    <CardDescription>Total mensual recomendado: <span className="font-bold text-lg text-primary">{formatCurrency(plan.total_monthly_budget || 0)}</span></CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     {(plan.strategies || []).map((strategy, index) => (

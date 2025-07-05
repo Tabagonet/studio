@@ -15,6 +15,7 @@ interface CreativeStudioDialogProps {
   plan: CreateAdPlanOutput | null;
   strategy: Strategy | null;
   onOpenChange: (open: boolean) => void;
+  onPlanUpdate: (updatedPlan: CreateAdPlanOutput) => void;
 }
 
 const CreativeItem = ({ title, content }: { title: string, content: string | string[] }) => {
@@ -45,13 +46,21 @@ const CreativeItem = ({ title, content }: { title: string, content: string | str
 };
 
 
-export function CreativeStudioDialog({ plan, strategy, onOpenChange }: CreativeStudioDialogProps) {
+export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdate }: CreativeStudioDialogProps) {
   const [creatives, setCreatives] = useState<GenerateAdCreativesOutput | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
     if (strategy && plan) {
+      // If creatives are already in the plan state, use them.
+      if (strategy.creatives) {
+        setCreatives(strategy.creatives);
+        setIsLoading(false);
+        return;
+      }
+
+      // Otherwise, fetch from AI.
       const fetchCreatives = async () => {
         setIsLoading(true);
         setCreatives(null);
@@ -78,6 +87,16 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange }: CreativeS
           }
 
           setCreatives(result.data);
+          
+          // Persist the newly generated creatives to the main plan state
+          const updatedPlan = {
+            ...plan,
+            strategies: plan.strategies.map(s => 
+              s.platform === strategy.platform ? { ...s, creatives: result.data } : s
+            )
+          };
+          onPlanUpdate(updatedPlan);
+
         } catch (error: any) {
           toast({ title: 'Error al Generar Creativos', description: error.message, variant: 'destructive' });
         } finally {
@@ -86,7 +105,7 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange }: CreativeS
       };
       fetchCreatives();
     }
-  }, [strategy, plan, toast]);
+  }, [strategy, plan, toast, onPlanUpdate]);
 
   if (!strategy || !plan) return null;
 
