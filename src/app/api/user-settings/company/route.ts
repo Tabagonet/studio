@@ -39,28 +39,27 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Firestore not configured' }, { status: 503 });
     }
     try {
-        const { uid, role, companyId: userCompanyId } = await getUserContext(req);
+        const { role, companyId: userCompanyId } = await getUserContext(req);
         const { searchParams } = new URL(req.url);
-        const targetCompanyId = searchParams.get('companyId');
+        const targetCompanyIdFromUrl = searchParams.get('companyId');
 
-        let settingsRef: FirebaseFirestore.DocumentReference;
+        let effectiveCompanyId: string | null = null;
+        if (role === 'super_admin') {
+            effectiveCompanyId = targetCompanyIdFromUrl || userCompanyId;
+        } else if (role === 'admin') {
+            effectiveCompanyId = userCompanyId;
+        }
 
-        if (role === 'super_admin' && targetCompanyId) {
-            settingsRef = adminDb.collection('companies').doc(targetCompanyId);
-        } else if (role === 'admin' && userCompanyId) {
-            settingsRef = adminDb.collection('companies').doc(userCompanyId);
-        } else if (role === 'super_admin' && !targetCompanyId) { // Super admin editing their own settings
-             return NextResponse.json({ company: { name: 'Ajustes Personales (Super Admin)' } });
+        if (effectiveCompanyId) {
+            const settingsRef = adminDb.collection('companies').doc(effectiveCompanyId);
+            const docSnap = await settingsRef.get();
+            if (!docSnap.exists) {
+                return NextResponse.json({ error: 'Company settings not found.' }, { status: 404 });
+            }
+            return NextResponse.json({ company: docSnap.data() });
         } else {
             return NextResponse.json({ error: 'No company configured or insufficient permissions.' }, { status: 404 });
         }
-
-        const docSnap = await settingsRef.get();
-        if (!docSnap.exists) {
-            return NextResponse.json({ error: 'Company settings not found.' }, { status: 404 });
-        }
-
-        return NextResponse.json({ company: docSnap.data() });
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
@@ -73,7 +72,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Firestore not configured' }, { status: 503 });
     }
     try {
-        const { uid, role, companyId: userCompanyId } = await getUserContext(req);
+        const { role, companyId: userCompanyId } = await getUserContext(req);
         const body = await req.json();
 
         const payloadSchema = z.object({
@@ -89,14 +88,20 @@ export async function POST(req: NextRequest) {
         const { companyId: targetCompanyId, data } = validation.data;
 
         let settingsRef;
+        let effectiveCompanyId: string | null = null;
 
-        if (role === 'super_admin' && targetCompanyId) {
-            settingsRef = adminDb.collection('companies').doc(targetCompanyId);
-        } else if (role === 'admin' && userCompanyId) {
-            settingsRef = adminDb.collection('companies').doc(userCompanyId);
-        } else {
+        if (role === 'super_admin') {
+            effectiveCompanyId = targetCompanyId || userCompanyId;
+        } else if (role === 'admin') {
+            // A regular admin can ONLY edit their own company. targetCompanyId from them should be ignored.
+            effectiveCompanyId = userCompanyId;
+        }
+
+        if (!effectiveCompanyId) {
              return NextResponse.json({ error: 'Forbidden. No permissions to save company data.' }, { status: 403 });
         }
+        
+        settingsRef = adminDb.collection('companies').doc(effectiveCompanyId);
         
         const { name, ...restOfData } = data;
         const updatePayload: any = restOfData;

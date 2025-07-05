@@ -108,7 +108,7 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
           )}>
             {photos.map((photo) => (
               <div key={photo.id} className={cn(
-                "relative group border rounded-lg overflow-hidden shadow-sm",
+                "relative group border rounded-lg overflow-hidden shadow-sm bg-muted/20",
                 maxPhotos === 1 ? "w-full aspect-video" : "aspect-square"
               )}>
                 <Image
@@ -116,7 +116,7 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
                   alt={`Vista previa de ${photo.name}`}
                   fill
                   sizes={maxPhotos === 1 ? "400px" : "(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"}
-                  className="object-cover"
+                  className="object-contain"
                 />
 
                 {!isProcessing && (
