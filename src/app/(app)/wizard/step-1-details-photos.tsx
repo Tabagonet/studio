@@ -4,7 +4,6 @@
 import React, { useState, useEffect } from 'react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
@@ -12,13 +11,16 @@ import { VariableProductManager } from '@/components/features/wizard/variable-pr
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
 import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory } from '@/lib/types';
 import { PRODUCT_TYPES, ALL_LANGUAGES } from '@/lib/constants';
-import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle } from "lucide-react";
+import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle, Image as ImageIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { useDebounce } from '@/hooks/use-debounce';
+import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+
 
 interface Step1DetailsPhotosProps {
   productData: ProductData;
@@ -46,6 +48,12 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   
   const debouncedSku = useDebounce(productData.sku, 500);
   const debouncedName = useDebounce(productData.name, 500);
+
+  // State for image insertion dialog
+  const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   useEffect(() => {
     const fetchCategories = async (token: string) => {
@@ -153,11 +161,20 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     if (debouncedSku) checkProductExistence('sku', debouncedSku);
     if (debouncedName) checkProductExistence('name', debouncedName);
 
-  }, [debouncedSku, debouncedName]);
+  }, [debouncedSku, debouncedName, toast]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     updateProductData({ [e.target.name]: e.target.value });
   };
+  
+  const handleShortDescriptionChange = (newContent: string) => {
+    updateProductData({ shortDescription: newContent });
+  };
+
+  const handleLongDescriptionChange = (newContent: string) => {
+    updateProductData({ longDescription: newContent });
+  };
+
 
   const handleSelectChange = (name: 'productType' | 'category', value: string) => {
     if (name === 'productType') {
@@ -332,8 +349,44 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     }
   };
 
+  const handleInsertImage = async () => {
+    let finalImageUrl = imageUrl;
+    if (imageFile) {
+        setIsUploadingImage(true);
+        try {
+            const user = auth.currentUser;
+            if (!user) throw new Error("No autenticado.");
+            const token = await user.getIdToken();
+            const formData = new FormData();
+            formData.append('imagen', imageFile);
+            const response = await fetch('/api/upload-image', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData });
+            if (!response.ok) throw new Error((await response.json()).error || 'Fallo en la subida de imagen.');
+            finalImageUrl = (await response.json()).url;
+        } catch (err: any) {
+            toast({ title: 'Error al subir imagen', description: err.message, variant: 'destructive' });
+            setIsUploadingImage(false);
+            return;
+        } finally {
+            setIsUploadingImage(false);
+        }
+    }
+    if (!finalImageUrl) {
+        toast({ title: 'Falta la imagen', description: 'Por favor, sube un archivo o introduce una URL.', variant: 'destructive' });
+        return;
+    }
+
+    const imgTag = `<img src="${finalImageUrl}" alt="${productData.name || 'Imagen insertada'}" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px;" />`;
+    // For simplicity, appending to the long description. A more complex implementation could insert at cursor.
+    updateProductData({ longDescription: productData.longDescription + `\n${imgTag}` });
+
+    setImageUrl('');
+    setImageFile(null);
+    setIsImageDialogOpen(false);
+  };
+
 
   return (
+    <>
     <div className="space-y-8">
       <Card>
         <CardHeader>
@@ -499,7 +552,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                         <div>
                             <Label htmlFor="shipping_class">Clase de envío</Label>
                             <Input id="shipping_class" name="shipping_class" value={productData.shipping_class} onChange={handleInputChange} placeholder="Introduce el slug de la clase de envío" disabled={isProcessing} />
-                            <p className="text-xs text-muted-foreground mt-1">Encuentra el slug en WooCommerce &gt; Ajustes &gt; Envío &gt; Clases de envío.</p>
+                            <p className="text-xs text-muted-foreground mt-1">Encuentra el slug en WooCommerce > Ajustes > Envío > Clases de envío.</p>
                         </div>
                     </div>
                 )}
@@ -530,27 +583,21 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                 <div className="border-t pt-6 space-y-6">
                   <div>
                       <Label htmlFor="shortDescription">Descripción Corta</Label>
-                      <Textarea
-                        id="shortDescription"
-                        name="shortDescription"
-                        value={productData.shortDescription}
-                        onChange={handleInputChange}
+                      <RichTextEditor
+                        content={productData.shortDescription}
+                        onChange={handleShortDescriptionChange}
+                        onInsertImage={() => setIsImageDialogOpen(true)}
                         placeholder="Un resumen atractivo y conciso de tu producto que será generado por la IA."
-                        rows={3}
-                        disabled={isProcessing || isGenerating}
                       />
                   </div>
                 
                   <div>
                       <Label htmlFor="longDescription">Descripción Larga</Label>
-                      <Textarea
-                        id="longDescription"
-                        name="longDescription"
-                        value={productData.longDescription}
-                        onChange={handleInputChange}
+                      <RichTextEditor
+                        content={productData.longDescription}
+                        onChange={handleLongDescriptionChange}
+                        onInsertImage={() => setIsImageDialogOpen(true)}
                         placeholder="Describe tu producto en detalle: características, materiales, usos, etc. La IA lo generará por ti."
-                        rows={6}
-                        disabled={isProcessing || isGenerating}
                       />
                   </div>
                 </div>
@@ -608,5 +655,38 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         </div>
       </div>
     </div>
+    <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Insertar Imagen</AlertDialogTitle>
+                <AlertDialogDescription>Sube una imagen o introduce una URL para insertarla en el contenido.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-4">
+                <div>
+                    <Label htmlFor="image-upload">Subir archivo</Label>
+                    <Input id="image-upload" type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
+                </div>
+                <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">O</span></div>
+                </div>
+                <div>
+                    <Label htmlFor="image-url">Insertar desde URL</Label>
+                    <Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" />
+                </div>
+            </div>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => { setImageUrl(''); setImageFile(null); }}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleInsertImage} disabled={isUploadingImage}>
+                    {isUploadingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Insertar Imagen
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

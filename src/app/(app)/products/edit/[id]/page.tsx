@@ -6,8 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Loader2, ArrowLeft, Save, Trash2 } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, Trash2, Image as ImageIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -19,6 +18,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ProductPreviewCard } from './product-preview-card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { buttonVariants } from '@/components/ui/button';
+import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 
 
 interface ProductEditState {
@@ -59,11 +59,27 @@ function EditProductPageContent() {
   
   const { toast } = useToast();
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!product) return;
     setProduct({ ...product, [e.target.name]: e.target.value });
   };
   
+  const handleShortDescriptionChange = (newContent: string) => {
+    if (!product) return;
+    setProduct({ ...product, short_description: newContent });
+  };
+
+  const handleLongDescriptionChange = (newContent: string) => {
+    if (!product) return;
+    setProduct({ ...product, description: newContent });
+  };
+
   const handleSelectChange = (name: 'status' | 'category_id', value: string) => {
     if (!product) return;
     const finalValue = name === 'category_id' ? (value ? parseInt(value, 10) : null) : value;
@@ -109,6 +125,7 @@ function EditProductPageContent() {
             const response = await fetch('/api/upload-image', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` },
+                body: formData,
             });
             if (!response.ok) throw new Error(`Error subiendo ${photo.name}`);
             const imageData = await response.json();
@@ -236,6 +253,43 @@ function EditProductPageContent() {
     fetchInitialData();
   }, [productId, toast]);
   
+  const handleInsertImage = async () => {
+    let finalImageUrl = imageUrl;
+    if (imageFile) {
+        setIsUploadingImage(true);
+        try {
+            const user = auth.currentUser;
+            if (!user) throw new Error("No autenticado.");
+            const token = await user.getIdToken();
+            const formData = new FormData();
+            formData.append('imagen', imageFile);
+            const response = await fetch('/api/upload-image', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData });
+            if (!response.ok) throw new Error((await response.json()).error || 'Fallo en la subida de imagen.');
+            finalImageUrl = (await response.json()).url;
+        } catch (err: any) {
+            toast({ title: 'Error al subir imagen', description: err.message, variant: 'destructive' });
+            setIsUploadingImage(false);
+            return;
+        } finally {
+            setIsUploadingImage(false);
+        }
+    }
+    if (!finalImageUrl) {
+        toast({ title: 'Falta la imagen', description: 'Por favor, sube un archivo o introduce una URL.', variant: 'destructive' });
+        return;
+    }
+
+    const imgTag = `<img src="${finalImageUrl}" alt="${product?.name || 'Imagen insertada'}" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px;" />`;
+    // For simplicity, appending to the long description. A more complex implementation could insert at cursor.
+    if (product) {
+      setProduct({ ...product, description: product.description + `\n${imgTag}` });
+    }
+
+    setImageUrl('');
+    setImageFile(null);
+    setIsImageDialogOpen(false);
+  };
+  
   if (isLoading) {
     return <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
   }
@@ -256,6 +310,7 @@ function EditProductPageContent() {
   }
 
   return (
+    <>
     <div className="container mx-auto py-8 space-y-6">
         <Card>
             <CardHeader>
@@ -303,8 +358,24 @@ function EditProductPageContent() {
                  <Card>
                     <CardHeader><CardTitle>Descripciones</CardTitle></CardHeader>
                     <CardContent className="space-y-4">
-                        <div><Label htmlFor="short_description">Descripción Corta</Label><Textarea id="short_description" name="short_description" value={product.short_description} onChange={handleInputChange} rows={4} /></div>
-                        <div><Label htmlFor="description">Descripción Larga</Label><Textarea id="description" name="description" value={product.description} onChange={handleInputChange} rows={10} /></div>
+                        <div>
+                            <Label htmlFor="short_description">Descripción Corta</Label>
+                            <RichTextEditor 
+                                content={product.short_description}
+                                onChange={handleShortDescriptionChange}
+                                onInsertImage={() => setIsImageDialogOpen(true)}
+                                placeholder="Escribe la descripción corta aquí..."
+                            />
+                        </div>
+                        <div>
+                            <Label htmlFor="description">Descripción Larga</Label>
+                            <RichTextEditor 
+                                content={product.description}
+                                onChange={handleLongDescriptionChange}
+                                onInsertImage={() => setIsImageDialogOpen(true)}
+                                placeholder="Escribe la descripción larga aquí..."
+                            />
+                        </div>
                     </CardContent>
                 </Card>
 
@@ -361,6 +432,39 @@ function EditProductPageContent() {
             </div>
         </div>
     </div>
+    <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Insertar Imagen</AlertDialogTitle>
+                <AlertDialogDescription>Sube una imagen o introduce una URL para insertarla en el contenido.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-4">
+                <div>
+                    <Label htmlFor="image-upload">Subir archivo</Label>
+                    <Input id="image-upload" type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
+                </div>
+                <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">O</span></div>
+                </div>
+                <div>
+                    <Label htmlFor="image-url">Insertar desde URL</Label>
+                    <Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" />
+                </div>
+            </div>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => { setImageUrl(''); setImageFile(null); }}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleInsertImage} disabled={isUploadingImage}>
+                    {isUploadingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Insertar Imagen
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
 
