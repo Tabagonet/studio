@@ -35,8 +35,9 @@ export default function CompanySettingsPage() {
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
 
-    const [currentUser, setCurrentUser] = useState<{ uid: string | null; role: string | null; companyId: string | null; } | null>(null);
+    const [currentUser, setCurrentUser] = useState<{ uid: string | null; role: string | null; companyId: string | null; companyName: string | null; } | null>(null);
     const [allCompanies, setAllCompanies] = useState<Company[]>([]);
+    const [isCompanyListLoading, setIsCompanyListLoading] = useState(false);
     const [editingTargetId, setEditingTargetId] = useState<string | null>(null);
 
     const fetchAllCompaniesForSuperAdmin = useCallback(async (token: string) => {
@@ -51,13 +52,17 @@ export default function CompanySettingsPage() {
     }, []);
 
     const fetchCompanyData = useCallback(async (user: FirebaseUser, companyId: string | null) => {
+        if (!companyId) {
+            setCompanyData(INITIAL_COMPANY_DATA);
+            setLogoPhotos([]);
+            setIsLoading(false);
+            return;
+        }
         setIsLoading(true);
         try {
             const token = await user.getIdToken();
             const url = new URL('/api/user-settings/company', window.location.origin);
-            if (companyId) {
-                url.searchParams.append('companyId', companyId);
-            }
+            url.searchParams.append('companyId', companyId);
             
             const response = await fetch(url.toString(), { headers: { 'Authorization': `Bearer ${token}` } });
             
@@ -65,7 +70,10 @@ export default function CompanySettingsPage() {
             if (response.ok) {
                 const responseData = await response.json();
                 data = responseData.company || INITIAL_COMPANY_DATA;
+            } else if(response.status !== 404) { // Don't toast for "not found"
+                 toast({ title: "Error al Cargar Datos", description: (await response.json()).error || "No se pudo obtener la información de la empresa.", variant: "destructive" });
             }
+
             setCompanyData(data);
 
             if (data.logoUrl) {
@@ -82,6 +90,12 @@ export default function CompanySettingsPage() {
         }
     }, [toast]);
     
+    const handleCompanySelection = (companyId: string) => {
+        setEditingTargetId(companyId);
+        const user = auth.currentUser;
+        if(user) fetchCompanyData(user, companyId);
+    }
+    
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
             if (user) {
@@ -95,22 +109,31 @@ export default function CompanySettingsPage() {
 
                     if (userData.role === 'super_admin') {
                         await fetchAllCompaniesForSuperAdmin(token);
-                        const targetId = targetIdFromUrl || editingTargetId || userData.uid;
-                        setEditingTargetId(targetId);
-                        fetchCompanyData(user, targetId === userData.uid ? null : targetId);
+                        const idToEdit = targetIdFromUrl || editingTargetId || userData.companyId;
+                        if (idToEdit) {
+                           setEditingTargetId(idToEdit);
+                           fetchCompanyData(user, idToEdit);
+                        } else {
+                            setIsLoading(false); // No company selected yet
+                        }
                     } else { // Regular admin
                         setEditingTargetId(userData.companyId);
                         fetchCompanyData(user, userData.companyId);
                     }
-                } catch (e) { setIsLoading(false); }
-            } else { setIsLoading(false); }
+                } catch (e) { 
+                    console.error("Failed to initialize company settings page:", e);
+                    setIsLoading(false); 
+                }
+            } else {
+                setIsLoading(false);
+            }
         });
         return () => unsubscribe();
-    }, [editingTargetId, searchParams, fetchAllCompaniesForSuperAdmin, fetchCompanyData]);
+    }, [searchParams, fetchAllCompaniesForSuperAdmin, fetchCompanyData]);
 
     const handleSave = async () => {
-        if (!editingTargetId && currentUser?.role !== 'admin') {
-            toast({ title: "Error", description: "No se ha seleccionado una empresa para editar.", variant: "destructive" });
+        if (currentUser?.role === 'super_admin' && !editingTargetId) {
+            toast({ title: "Error", description: "Debes seleccionar una empresa para editar.", variant: "destructive" });
             return;
         }
         setIsSaving(true);
@@ -124,7 +147,6 @@ export default function CompanySettingsPage() {
             const token = await user.getIdToken();
             let finalData = { ...companyData };
 
-            // Handle logo upload if a new file is present
             const newLogoPhoto = logoPhotos.find(p => p.file);
             if (newLogoPhoto?.file) {
                 const formData = new FormData();
@@ -138,11 +160,12 @@ export default function CompanySettingsPage() {
                 const imageData = await uploadResponse.json();
                 finalData.logoUrl = imageData.url;
             } else if (logoPhotos.length === 0) {
-                finalData.logoUrl = null; // Logo was removed
+                finalData.logoUrl = null;
             }
 
             const payload: any = { data: finalData };
-            if (currentUser?.role === 'super_admin' && editingTargetId !== currentUser.uid) {
+            if (currentUser?.role === 'super_admin') {
+                if (!editingTargetId) throw new Error("No hay una empresa seleccionada para editar.");
                 payload.companyId = editingTargetId;
             }
             
@@ -154,7 +177,7 @@ export default function CompanySettingsPage() {
             if (!response.ok) throw new Error((await response.json()).error || "Fallo al guardar los datos.");
             
             toast({ title: "Datos Guardados", description: `La información de la empresa ha sido actualizada.` });
-            fetchCompanyData(user, editingTargetId === currentUser.uid ? null : editingTargetId);
+            if (editingTargetId) fetchCompanyData(user, editingTargetId);
         } catch (error: any) {
             toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
         } finally {
@@ -182,13 +205,12 @@ export default function CompanySettingsPage() {
 
             {currentUser?.role === 'super_admin' && (
                 <Card>
-                    <CardHeader><CardTitle>Selector de Entidad</CardTitle></CardHeader>
+                    <CardHeader><CardTitle>Selector de Empresa</CardTitle></CardHeader>
                     <CardContent>
-                        <Label>Selecciona qué configuración de empresa deseas editar</Label>
-                        <Select value={editingTargetId || ''} onValueChange={setEditingTargetId}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
+                        <Label>Selecciona qué empresa deseas editar</Label>
+                        <Select value={editingTargetId || ''} onValueChange={handleCompanySelection}>
+                            <SelectTrigger><SelectValue placeholder="Elige una empresa..." /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value={currentUser.uid}><Users className="inline-block mr-2 h-4 w-4" />Mis Ajustes (Super Admin)</SelectItem>
                                 {allCompanies.map(company => (
                                     <SelectItem key={company.id} value={company.id}><Building className="inline-block mr-2 h-4 w-4" />{company.name}</SelectItem>
                                 ))}
@@ -201,11 +223,18 @@ export default function CompanySettingsPage() {
             <Card>
                 <CardHeader><CardTitle>Información General y Fiscal</CardTitle></CardHeader>
                 <CardContent className="space-y-6">
-                    {isLoading ? (
+                    {(isLoading || (currentUser?.role === 'super_admin' && !editingTargetId)) ? (
                         <div className="space-y-4">
-                            <div className="h-10 bg-muted rounded-md animate-pulse"></div>
-                            <div className="h-10 bg-muted rounded-md animate-pulse"></div>
-                            <div className="h-10 bg-muted rounded-md animate-pulse"></div>
+                            {currentUser?.role === 'super_admin' && !editingTargetId && (
+                                <p className="text-center text-muted-foreground p-4">Selecciona una empresa para empezar a editar.</p>
+                            )}
+                             {isLoading && (
+                                <>
+                                 <div className="h-10 bg-muted rounded-md animate-pulse"></div>
+                                 <div className="h-10 bg-muted rounded-md animate-pulse"></div>
+                                 <div className="h-10 bg-muted rounded-md animate-pulse"></div>
+                                </>
+                             )}
                         </div>
                     ) : (
                     <>

@@ -39,27 +39,21 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Firestore not configured' }, { status: 503 });
     }
     try {
-        const { role, companyId: userCompanyId } = await getUserContext(req);
+        await getUserContext(req); // Just for auth check
         const { searchParams } = new URL(req.url);
         const targetCompanyIdFromUrl = searchParams.get('companyId');
 
-        let effectiveCompanyId: string | null = null;
-        if (role === 'super_admin') {
-            effectiveCompanyId = targetCompanyIdFromUrl || userCompanyId;
-        } else if (role === 'admin') {
-            effectiveCompanyId = userCompanyId;
+        if (!targetCompanyIdFromUrl) {
+            return NextResponse.json({ error: 'Company ID is required.' }, { status: 400 });
         }
 
-        if (effectiveCompanyId) {
-            const settingsRef = adminDb.collection('companies').doc(effectiveCompanyId);
-            const docSnap = await settingsRef.get();
-            if (!docSnap.exists) {
-                return NextResponse.json({ error: 'Company settings not found.' }, { status: 404 });
-            }
-            return NextResponse.json({ company: docSnap.data() });
-        } else {
-            return NextResponse.json({ error: 'No company configured or insufficient permissions.' }, { status: 404 });
+        const settingsRef = adminDb.collection('companies').doc(targetCompanyIdFromUrl);
+        const docSnap = await settingsRef.get();
+
+        if (!docSnap.exists) {
+            return NextResponse.json({ company: null }, { status: 200 }); // Return null if not found
         }
+        return NextResponse.json({ company: docSnap.data() });
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
@@ -87,13 +81,14 @@ export async function POST(req: NextRequest) {
         
         const { companyId: targetCompanyId, data } = validation.data;
 
-        let settingsRef;
         let effectiveCompanyId: string | null = null;
 
         if (role === 'super_admin') {
-            effectiveCompanyId = targetCompanyId || userCompanyId;
+            effectiveCompanyId = targetCompanyId || null;
+             if (!effectiveCompanyId) {
+                return NextResponse.json({ error: 'Super Admins must specify a target companyId in the payload.' }, { status: 400 });
+            }
         } else if (role === 'admin') {
-            // A regular admin can ONLY edit their own company. targetCompanyId from them should be ignored.
             effectiveCompanyId = userCompanyId;
         }
 
@@ -101,7 +96,7 @@ export async function POST(req: NextRequest) {
              return NextResponse.json({ error: 'Forbidden. No permissions to save company data.' }, { status: 403 });
         }
         
-        settingsRef = adminDb.collection('companies').doc(effectiveCompanyId);
+        const settingsRef = adminDb.collection('companies').doc(effectiveCompanyId);
         
         const { name, ...restOfData } = data;
         const updatePayload: any = restOfData;
