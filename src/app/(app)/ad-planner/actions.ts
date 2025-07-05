@@ -6,9 +6,12 @@ import {
     CreateAdPlanOutput, 
     type GenerateStrategyTasksInput,
     type GenerateStrategyTasksOutput,
+    type GenerateAdCreativesInput,
+    type GenerateAdCreativesOutput,
 } from "./schema";
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { generateStrategyTasks } from '@/ai/flows/generate-strategy-tasks-flow';
+import { generateAdCreatives } from '@/ai/flows/generate-ad-creatives-flow';
 
 
 export async function generateAdPlanAction(
@@ -38,10 +41,19 @@ export async function generateAdPlanAction(
             
             // Save the generated plan to a new collection with a flattened structure
             const { id, ...planDataToSave } = adPlan; // id is undefined here, which is fine
+            
             const newPlanRef = await adminDb.collection('ad_plans').add({
                 userId: uid,
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                ...planDataToSave,
+                url: planDataToSave.url,
+                objectives: planDataToSave.objectives,
+                executive_summary: planDataToSave.executive_summary,
+                target_audience: planDataToSave.target_audience,
+                strategies: planDataToSave.strategies,
+                total_monthly_budget: planDataToSave.total_monthly_budget,
+                calendar: planDataToSave.calendar,
+                kpis: planDataToSave.kpis,
+                fee_proposal: planDataToSave.fee_proposal,
             });
 
             // Return the plan with its new ID
@@ -76,7 +88,6 @@ export async function generateStrategyTasksAction(
     try {
         const tasks = await generateStrategyTasks(input);
         
-        // We can increment usage count here as well
         if (adminDb) {
             const userSettingsRef = adminDb.collection('user_settings').doc(uid);
             await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
@@ -88,6 +99,39 @@ export async function generateStrategyTasksAction(
         return { error: error.message || 'An unknown error occurred while generating tasks.' };
     }
 }
+
+export async function generateAdCreativesAction(
+    input: GenerateAdCreativesInput, 
+    token: string
+): Promise<{
+    data?: GenerateAdCreativesOutput;
+    error?: string;
+}> {
+    let uid: string;
+    try {
+        if (!adminAuth) throw new Error("Firebase Admin not initialized");
+        const decodedToken = await adminAuth.verifyIdToken(token);
+        uid = decodedToken.uid;
+    } catch (error) {
+        console.error('Error verifying token in generateAdCreativesAction:', error);
+        return { error: 'Authentication failed. Unable to identify user.' };
+    }
+
+    try {
+        const creatives = await generateAdCreatives(input);
+        
+        if (adminDb) {
+            const userSettingsRef = adminDb.collection('user_settings').doc(uid);
+            await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
+        }
+        
+        return { data: creatives };
+    } catch (error: any) {
+        console.error('Error in generateAdCreativesAction:', error);
+        return { error: error.message || 'An unknown error occurred while generating creatives.' };
+    }
+}
+
 
 export async function saveAdPlanAction(
     plan: CreateAdPlanOutput,
@@ -115,12 +159,11 @@ export async function saveAdPlanAction(
         if (!doc.exists) {
             return { success: false, error: 'Plan not found.' };
         }
-        // Security check to ensure the user owns the plan they're trying to save.
+        
         if (doc.data()?.userId !== uid) {
             return { success: false, error: 'Permission denied. You do not own this plan.' };
         }
         
-        // Sanitize the object to remove any `undefined` values that Firestore cannot handle.
         const sanitizedPlanData = JSON.parse(JSON.stringify(planData));
 
         await planRef.update(sanitizedPlanData);

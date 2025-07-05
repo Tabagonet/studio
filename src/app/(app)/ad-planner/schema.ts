@@ -79,3 +79,23 @@ export const GenerateStrategyTasksOutputSchema = z.object({
   tasks: z.array(AIGeneratedTaskSchema).describe("Una lista de 5 a 7 tareas concretas y accionables para ejecutar la estrategia."),
 });
 export type GenerateStrategyTasksOutput = z.infer<typeof GenerateStrategyTasksOutputSchema>;
+
+
+// === Schemas for Generate Ad Creatives Flow ===
+export const GenerateAdCreativesInputSchema = z.object({
+  url: z.string().url(),
+  objectives: z.array(z.string()),
+  platform: z.string(),
+  campaign_type: z.string(),
+  funnel_stage: z.string(),
+  target_audience: z.string(),
+});
+export type GenerateAdCreativesInput = z.infer<typeof GenerateAdCreativesInputSchema>;
+
+export const GenerateAdCreativesOutputSchema = z.object({
+  headlines: z.array(z.string()).describe("Una lista de 3 a 5 titulares cortos y potentes para los anuncios (máx. 30-40 caracteres)."),
+  descriptions: z.array(z.string()).describe("Una lista de 2 a 3 descripciones persuasivas y más largas para el cuerpo del anuncio (máx. 90 caracteres)."),
+  cta_suggestions: z.array(z.string()).describe("Una lista de 2 a 3 sugerencias de Llamada a la Acción (CTA) claras y directas (ej. Comprar Ahora, Saber Más)."),
+  visual_ideas: z.array(z.string()).describe("Una lista de 2 a 3 ideas conceptuales para las imágenes o vídeos del anuncio."),
+});
+export type GenerateAdCreativesOutput = z.infer<typeof GenerateAdCreativesOutputSchema>;

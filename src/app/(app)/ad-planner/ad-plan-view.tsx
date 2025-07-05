@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
 import { StrategyDetailDialog } from './StrategyDetailDialog';
+import { CreativeStudioDialog } from './CreativeStudioDialog';
 import { formatCurrency } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -114,6 +115,7 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
     const [isPdfLoading, setIsPdfLoading] = React.useState(false);
     const [isSavingPlan, setIsSavingPlan] = React.useState(false);
     const [detailedStrategy, setDetailedStrategy] = React.useState<Strategy | null>(null);
+    const [creativeStrategy, setCreativeStrategy] = React.useState<Strategy | null>(null);
     const { toast } = useToast();
 
     React.useEffect(() => {
@@ -124,7 +126,7 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
         const newBudget = parseFloat(newBudgetString) || 0;
         setPlan(prevPlan => {
             if (!prevPlan) return prevPlan;
-            const updatedStrategies = prevPlan.strategies.map(s => 
+            const updatedStrategies = (prevPlan.strategies || []).map(s => 
                 s.platform === platform ? { ...s, monthly_budget: newBudget } : s
             );
             const newTotalBudget = updatedStrategies.reduce((sum, s) => sum + s.monthly_budget, 0);
@@ -201,7 +203,11 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
             const newStrategy = updatedPlan.strategies.find(s => s.platform === detailedStrategy.platform);
             setDetailedStrategy(newStrategy || null);
         }
-    }, [detailedStrategy]); 
+        if (creativeStrategy) {
+            const newStrategy = updatedPlan.strategies.find(s => s.platform === creativeStrategy.platform);
+            setCreativeStrategy(newStrategy || null);
+        }
+    }, [detailedStrategy, creativeStrategy]); 
     
     if (!plan) {
         return <Loader2 className="h-8 w-8 animate-spin" />;
@@ -215,6 +221,12 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
                 onOpenChange={(open) => !open && setDetailedStrategy(null)}
                 onPlanUpdate={handlePlanUpdate}
             />
+            <CreativeStudioDialog 
+                plan={plan}
+                strategy={creativeStrategy}
+                onOpenChange={(open) => !open && setCreativeStrategy(null)}
+            />
+
 
             <div className="report-header hidden print:block">
                 <Image src={logoUrl || "https://placehold.co/60x60.png"} alt="Logo" width={60} height={60} className="mx-auto" data-ai-hint="logo brand" />
@@ -274,21 +286,10 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
                                         <ListOrdered className="mr-2 h-4 w-4" />
                                         Planificar Tareas
                                     </Button>
-                                    <TooltipProvider>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <div className="inline-block">
-                                                    <Button variant="outline" size="sm" disabled>
-                                                        <ClipboardPen className="mr-2 h-4 w-4" />
-                                                        Generar Creativos
-                                                    </Button>
-                                                </div>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                                <p>Próximamente: Genera textos e ideas visuales para los anuncios con IA.</p>
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
+                                    <Button variant="outline" size="sm" onClick={() => setCreativeStrategy(strategy)}>
+                                        <ClipboardPen className="mr-2 h-4 w-4" />
+                                        Generar Creativos
+                                    </Button>
                                 </div>
                             </div>
                             <p className="text-sm text-muted-foreground italic"><Lightbulb className="inline-block mr-2 h-4 w-4" />{strategy.strategy_rationale}</p>
