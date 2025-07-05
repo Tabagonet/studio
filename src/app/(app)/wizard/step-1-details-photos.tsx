@@ -49,7 +49,6 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   const debouncedSku = useDebounce(productData.sku, 500);
   const debouncedName = useDebounce(productData.name, 500);
 
-  // State for image insertion dialog
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -386,306 +385,307 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
   return (
     <>
-    <div className="space-y-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>Paso 1: Detalles y Fotos</CardTitle>
-          <CardDescription>Completa la información básica y añade las imágenes de tu producto.</CardDescription>
-        </CardHeader>
-      </Card>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
-            <Card>
-              <CardHeader>
-                <CardTitle>Información del Producto</CardTitle>
-                <CardDescription>Define los detalles clave de tu producto. Las opciones cambiarán según el tipo que elijas.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <Label htmlFor="name">Nombre del Producto</Label>
-                    <Input id="name" name="name" value={productData.name} onChange={handleInputChange} placeholder="Ej: Camiseta de Algodón" disabled={isProcessing} />
-                    <StatusIndicator status={nameStatus.status} message={nameStatus.message} />
-                  </div>
-                  <div>
-                    <Label htmlFor="sku">SKU</Label>
-                    <Input id="sku" name="sku" value={productData.sku} onChange={handleInputChange} placeholder="Ej: CAM-ALG-AZ-M" disabled={isProcessing} />
-                    <StatusIndicator status={skuStatus.status} message={skuStatus.message} />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="productType">Tipo de Producto</Label>
-                  <Select name="productType" value={productData.productType} onValueChange={(value) => handleSelectChange('productType', value)} disabled={isProcessing}>
-                    <SelectTrigger id="productType">
-                      <SelectValue placeholder="Selecciona un tipo de producto" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PRODUCT_TYPES.map(type => (
-                        <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                 <div>
-                    <Label htmlFor="category">Categoría</Label>
-                    <div className="flex gap-2">
-                        <Select name="category" value={productData.category?.id.toString() || ''} onValueChange={(value) => handleSelectChange('category', value)} disabled={isProcessing || isLoadingCategories}>
-                        <SelectTrigger id="category">
-                            {isLoadingCategories ? (
-                            <div className="flex items-center">
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                <SelectValue placeholder="Cargando categorías..." />
-                            </div>
-                            ) : (
-                            <SelectValue placeholder="Selecciona una categoría existente..." />
-                            )}
-                        </SelectTrigger>
-                        <SelectContent>
-                            {!isLoadingCategories && wooCategories.length === 0 && <SelectItem value="" disabled>No hay categorías disponibles</SelectItem>}
-                            {wooCategories.map(cat => (
-                                <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                        </Select>
-                        <Input
-                            name="categoryPath"
-                            value={productData.categoryPath || ''}
-                            onChange={(e) => updateProductData({ categoryPath: e.target.value, category: null })}
-                            placeholder="O crea una nueva (Ej: Ropa > Camisetas)"
-                            disabled={isProcessing}
-                        />
-                    </div>
-                </div>
-
-                {productData.productType === 'simple' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t pt-6">
-                    <div>
-                      <Label htmlFor="regularPrice">Precio Regular (€)</Label>
-                      <Input id="regularPrice" name="regularPrice" type="number" value={productData.regularPrice} onChange={handleInputChange} placeholder="Ej: 29.99" disabled={isProcessing} />
-                    </div>
-                    <div>
-                      <Label htmlFor="salePrice">Precio de Oferta (€)</Label>
-                      <Input id="salePrice" name="salePrice" type="number" value={productData.salePrice} onChange={handleInputChange} placeholder="Opcional" disabled={isProcessing} />
-                    </div>
-                  </div>
-                )}
-                
-                {productData.productType === 'grouped' && (
-                    <div className="border-t pt-6 mt-6">
-                        <h3 className="text-lg font-medium mb-2">Productos Agrupados</h3>
-                        <p className="text-sm text-muted-foreground mb-4">Busca y selecciona los productos simples que formarán parte de este grupo.</p>
-                        <GroupedProductSelector 
-                            productIds={productData.groupedProductIds || []} 
-                            onProductIdsChange={(ids) => updateProductData({ groupedProductIds: ids })} 
-                        />
-                    </div>
-                )}
-
-                {productData.productType !== 'grouped' && (
-                    <div className="border-t pt-6 mt-6">
-                        <h3 className="text-lg font-medium mb-2">Atributos del Producto</h3>
-                        <p className="text-sm text-muted-foreground mb-4">Añade atributos como talla, color, etc. Para productos variables, marca la casilla "Para variaciones" y separa los valores con " | ".</p>
-                        {productData.attributes.map((attr, index) => (
-                           <div key={index} className="flex flex-col sm:flex-row items-start sm:items-end gap-2 p-3 border rounded-md bg-muted/20 mb-2">
-                                <div className="flex-1 w-full">
-                                    <Label htmlFor={`attrName-${index}`}>Nombre</Label>
-                                    <Input id={`attrName-${index}`} value={attr.name} onChange={(e) => handleAttributeChange(index, 'name', e.target.value)} placeholder="Ej: Color" disabled={isProcessing || isGenerating} />
-                                </div>
-                                <div className="flex-1 w-full">
-                                    <Label htmlFor={`attrValue-${index}`}>Valor(es)</Label>
-                                    <Input id={`attrValue-${index}`} value={attr.value} onChange={(e) => handleAttributeChange(index, 'value', e.target.value)} placeholder="Ej: Azul | Rojo | Verde" disabled={isProcessing || isGenerating} />
-                                </div>
-                                <div className="flex items-center gap-4 pt-2 sm:pt-0 sm:self-end sm:h-10">
-                                    {productData.productType === 'variable' && (
-                                        <div className="flex items-center space-x-2">
-                                            <Checkbox id={`attrVar-${index}`} checked={attr.forVariations} onCheckedChange={(checked) => handleAttributeChange(index, 'forVariations', !!checked)} disabled={isProcessing || isGenerating} />
-                                            <Label htmlFor={`attrVar-${index}`} className="text-sm font-normal whitespace-nowrap">Para variaciones</Label>
-                                        </div>
-                                    )}
-                                    <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" disabled={isProcessing || isGenerating} className="flex-shrink-0">
-                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                    </Button>
-                                </div>
-                            </div>
-                        ))}
-                        <Button type="button" variant="outline" onClick={addAttribute} className="mt-2" disabled={isProcessing || isGenerating}>
-                            <PlusCircle className="mr-2 h-4 w-4" /> Añadir Atributo
-                        </Button>
-                    </div>
-                )}
-
-                {productData.productType === 'variable' && (
-                    <div className="border-t pt-6 mt-6">
-                        <VariableProductManager productData={productData} updateProductData={updateProductData} />
-                    </div>
-                )}
-                
-                {productData.productType !== 'variable' && (
-                    <div className="border-t pt-6 mt-6 space-y-4">
-                        <h3 className="text-lg font-medium">Inventario y Envío</h3>
-                        <div className="flex items-center space-x-2">
-                            <Checkbox id="manage_stock" checked={productData.manage_stock} onCheckedChange={(checked) => updateProductData({ manage_stock: !!checked })} disabled={isProcessing} />
-                            <Label htmlFor="manage_stock" className="text-sm font-normal">Gestionar inventario a nivel de producto</Label>
-                        </div>
-                        {productData.manage_stock && (
-                            <div>
-                                <Label htmlFor="stockQuantity">Cantidad en Stock</Label>
-                                <Input id="stockQuantity" name="stockQuantity" type="number" value={productData.stockQuantity} onChange={handleInputChange} placeholder="Ej: 100" disabled={isProcessing} />
-                            </div>
-                        )}
-                        <div>
-                            <Label htmlFor="weight">Peso (kg)</Label>
-                            <Input id="weight" name="weight" type="number" value={productData.weight} onChange={handleInputChange} placeholder="Ej: 0.5" disabled={isProcessing} />
-                        </div>
-                        <div>
-                            <Label>Dimensiones (cm)</Label>
-                            <div className="grid grid-cols-3 gap-2">
-                                <Input name="length" value={productData.dimensions?.length} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), length: e.target.value } as any })} placeholder="Largo" disabled={isProcessing} />
-                                <Input name="width" value={productData.dimensions?.width} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), width: e.target.value } as any })} placeholder="Ancho" disabled={isProcessing} />
-                                <Input name="height" value={productData.dimensions?.height} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), height: e.target.value } as any })} placeholder="Alto" disabled={isProcessing} />
-                            </div>
-                        </div>
-                        <div>
-                            <Label htmlFor="shipping_class">Clase de envío</Label>
-                            <Input id="shipping_class" name="shipping_class" value={productData.shipping_class} onChange={handleInputChange} placeholder="Introduce el slug de la clase de envío" disabled={isProcessing} />
-                            <p className="text-xs text-muted-foreground mt-1">Encuentra el slug en WooCommerce > Ajustes > Envío > Clases de envío.</p>
-                        </div>
-                    </div>
-                )}
-
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Descripciones y Palabras Clave</CardTitle>
-                <CardDescription>Esta información es clave para el SEO y para informar a tus clientes.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                 <div>
-                  <Label htmlFor="keywords">Palabras Clave (separadas por comas)</Label>
-                  <Input id="keywords" name="keywords" value={productData.keywords} onChange={handleInputChange} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing || isGenerating} />
-                  <p className="text-xs text-muted-foreground mt-1">Ayudan a la IA y al SEO de tu producto.</p>
-                </div>
-
-                <div className="pt-2">
-                  <Button onClick={handleGenerateContentWithAI} disabled={isProcessing || isGenerating || !productData.name} className="w-full sm:w-auto">
-                      {isGenerating ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}
-                      {isGenerating ? "Generando..." : "Generar Contenido con IA"}
-                  </Button>
-                  {!productData.name && <p className="text-xs text-destructive mt-1">Introduce un nombre de producto para activar la IA.</p>}
-                </div>
-
-                <div className="border-t pt-6 space-y-6">
-                  <div>
-                      <Label htmlFor="shortDescription">Descripción Corta</Label>
-                      <RichTextEditor
-                        content={productData.shortDescription}
-                        onChange={handleShortDescriptionChange}
-                        onInsertImage={() => setIsImageDialogOpen(true)}
-                        placeholder="Un resumen atractivo y conciso de tu producto que será generado por la IA."
-                        size="small"
-                      />
-                  </div>
-                
-                  <div>
-                      <Label htmlFor="longDescription">Descripción Larga</Label>
-                      <RichTextEditor
-                        content={productData.longDescription}
-                        onChange={handleLongDescriptionChange}
-                        onInsertImage={() => setIsImageDialogOpen(true)}
-                        placeholder="Describe tu producto en detalle: características, materiales, usos, etc. La IA lo generará por ti."
-                      />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-        </div>
-        <div className="lg:col-span-1 space-y-8">
-            <Card>
-              <CardHeader>
-                <CardTitle>Imágenes del Producto</CardTitle>
-                <CardDescription>Sube las imágenes para tu producto. La primera se usará como principal.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} isProcessing={isProcessing || isGenerating} maxPhotos={15} />
-                <Button 
-                  onClick={handleGenerateImageMetadata} 
-                  disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} 
-                  className="w-full"
-                  variant="outline"
-                >
-                  {isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}
-                  {isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
+      <div className="space-y-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Paso 1: Detalles y Fotos</CardTitle>
+            <CardDescription>Completa la información básica y añade las imágenes de tu producto.</CardDescription>
+          </CardHeader>
+        </Card>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-8">
+              <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Languages /> Traducción (Opcional)</CardTitle>
-                    <CardDescription>Crea automáticamente copias de este producto en otros idiomas.</CardDescription>
+                  <CardTitle>Información del Producto</CardTitle>
+                  <CardDescription>Define los detalles clave de tu producto. Las opciones cambiarán según el tipo que elijas.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <Label htmlFor="name">Nombre del Producto</Label>
+                      <Input id="name" name="name" value={productData.name} onChange={handleInputChange} placeholder="Ej: Camiseta de Algodón" disabled={isProcessing} />
+                      <StatusIndicator status={nameStatus.status} message={nameStatus.message} />
+                    </div>
+                    <div>
+                      <Label htmlFor="sku">SKU</Label>
+                      <Input id="sku" name="sku" value={productData.sku} onChange={handleInputChange} placeholder="Ej: CAM-ALG-AZ-M" disabled={isProcessing} />
+                      <StatusIndicator status={skuStatus.status} message={skuStatus.message} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="productType">Tipo de Producto</Label>
+                    <Select name="productType" value={productData.productType} onValueChange={(value) => handleSelectChange('productType', value)} disabled={isProcessing}>
+                      <SelectTrigger id="productType">
+                        <SelectValue placeholder="Selecciona un tipo de producto" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PRODUCT_TYPES.map(type => (
+                          <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                   <div>
+                      <Label htmlFor="category">Categoría</Label>
+                      <div className="flex gap-2">
+                          <Select name="category" value={productData.category?.id.toString() || ''} onValueChange={(value) => handleSelectChange('category', value)} disabled={isProcessing || isLoadingCategories}>
+                          <SelectTrigger id="category">
+                              {isLoadingCategories ? (
+                              <div className="flex items-center">
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  <SelectValue placeholder="Cargando categorías..." />
+                              </div>
+                              ) : (
+                              <SelectValue placeholder="Selecciona una categoría existente..." />
+                              )}
+                          </SelectTrigger>
+                          <SelectContent>
+                              {!isLoadingCategories && wooCategories.length === 0 && <SelectItem value="" disabled>No hay categorías disponibles</SelectItem>}
+                              {wooCategories.map(cat => (
+                                  <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
+                              ))}
+                          </SelectContent>
+                          </Select>
+                          <Input
+                              name="categoryPath"
+                              value={productData.categoryPath || ''}
+                              onChange={(e) => updateProductData({ categoryPath: e.target.value, category: null })}
+                              placeholder="O crea una nueva (Ej: Ropa > Camisetas)"
+                              disabled={isProcessing}
+                          />
+                      </div>
+                  </div>
+
+                  {productData.productType === 'simple' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t pt-6">
+                      <div>
+                        <Label htmlFor="regularPrice">Precio Regular (€)</Label>
+                        <Input id="regularPrice" name="regularPrice" type="number" value={productData.regularPrice} onChange={handleInputChange} placeholder="Ej: 29.99" disabled={isProcessing} />
+                      </div>
+                      <div>
+                        <Label htmlFor="salePrice">Precio de Oferta (€)</Label>
+                        <Input id="salePrice" name="salePrice" type="number" value={productData.salePrice} onChange={handleInputChange} placeholder="Opcional" disabled={isProcessing} />
+                      </div>
+                    </div>
+                  )}
+                  
+                  {productData.productType === 'grouped' && (
+                      <div className="border-t pt-6 mt-6">
+                          <h3 className="text-lg font-medium mb-2">Productos Agrupados</h3>
+                          <p className="text-sm text-muted-foreground mb-4">Busca y selecciona los productos simples que formarán parte de este grupo.</p>
+                          <GroupedProductSelector 
+                              productIds={productData.groupedProductIds || []} 
+                              onProductIdsChange={(ids) => updateProductData({ groupedProductIds: ids })} 
+                          />
+                      </div>
+                  )}
+
+                  {productData.productType !== 'grouped' && (
+                      <div className="border-t pt-6 mt-6">
+                          <h3 className="text-lg font-medium mb-2">Atributos del Producto</h3>
+                          <p className="text-sm text-muted-foreground mb-4">Añade atributos como talla, color, etc. Para productos variables, marca la casilla "Para variaciones" y separa los valores con " | ".</p>
+                          {productData.attributes.map((attr, index) => (
+                             <div key={index} className="flex flex-col sm:flex-row items-start sm:items-end gap-2 p-3 border rounded-md bg-muted/20 mb-2">
+                                  <div className="flex-1 w-full">
+                                      <Label htmlFor={`attrName-${index}`}>Nombre</Label>
+                                      <Input id={`attrName-${index}`} value={attr.name} onChange={(e) => handleAttributeChange(index, 'name', e.target.value)} placeholder="Ej: Color" disabled={isProcessing || isGenerating} />
+                                  </div>
+                                  <div className="flex-1 w-full">
+                                      <Label htmlFor={`attrValue-${index}`}>Valor(es)</Label>
+                                      <Input id={`attrValue-${index}`} value={attr.value} onChange={(e) => handleAttributeChange(index, 'value', e.target.value)} placeholder="Ej: Azul | Rojo | Verde" disabled={isProcessing || isGenerating} />
+                                  </div>
+                                  <div className="flex items-center gap-4 pt-2 sm:pt-0 sm:self-end sm:h-10">
+                                      {productData.productType === 'variable' && (
+                                          <div className="flex items-center space-x-2">
+                                              <Checkbox id={`attrVar-${index}`} checked={attr.forVariations} onCheckedChange={(checked) => handleAttributeChange(index, 'forVariations', !!checked)} disabled={isProcessing || isGenerating} />
+                                              <Label htmlFor={`attrVar-${index}`} className="text-sm font-normal whitespace-nowrap">Para variaciones</Label>
+                                          </div>
+                                      )}
+                                      <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" disabled={isProcessing || isGenerating} className="flex-shrink-0">
+                                          <Trash2 className="h-4 w-4 text-destructive" />
+                                      </Button>
+                                  </div>
+                              </div>
+                          ))}
+                          <Button type="button" variant="outline" onClick={addAttribute} className="mt-2" disabled={isProcessing || isGenerating}>
+                              <PlusCircle className="mr-2 h-4 w-4" /> Añadir Atributo
+                          </Button>
+                      </div>
+                  )}
+
+                  {productData.productType === 'variable' && (
+                      <div className="border-t pt-6 mt-6">
+                          <VariableProductManager productData={productData} updateProductData={updateProductData} />
+                      </div>
+                  )}
+                  
+                  {productData.productType !== 'variable' && (
+                      <div className="border-t pt-6 mt-6 space-y-4">
+                          <h3 className="text-lg font-medium">Inventario y Envío</h3>
+                          <div className="flex items-center space-x-2">
+                              <Checkbox id="manage_stock" checked={productData.manage_stock} onCheckedChange={(checked) => updateProductData({ manage_stock: !!checked })} disabled={isProcessing} />
+                              <Label htmlFor="manage_stock" className="text-sm font-normal">Gestionar inventario a nivel de producto</Label>
+                          </div>
+                          {productData.manage_stock && (
+                              <div>
+                                  <Label htmlFor="stockQuantity">Cantidad en Stock</Label>
+                                  <Input id="stockQuantity" name="stockQuantity" type="number" value={productData.stockQuantity} onChange={handleInputChange} placeholder="Ej: 100" disabled={isProcessing} />
+                              </div>
+                          )}
+                          <div>
+                              <Label htmlFor="weight">Peso (kg)</Label>
+                              <Input id="weight" name="weight" type="number" value={productData.weight} onChange={handleInputChange} placeholder="Ej: 0.5" disabled={isProcessing} />
+                          </div>
+                          <div>
+                              <Label>Dimensiones (cm)</Label>
+                              <div className="grid grid-cols-3 gap-2">
+                                  <Input name="length" value={productData.dimensions?.length} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), length: e.target.value } as any })} placeholder="Largo" disabled={isProcessing} />
+                                  <Input name="width" value={productData.dimensions?.width} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), width: e.target.value } as any })} placeholder="Ancho" disabled={isProcessing} />
+                                  <Input name="height" value={productData.dimensions?.height} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), height: e.target.value } as any })} placeholder="Alto" disabled={isProcessing} />
+                              </div>
+                          </div>
+                          <div>
+                              <Label htmlFor="shipping_class">Clase de envío</Label>
+                              <Input id="shipping_class" name="shipping_class" value={productData.shipping_class} onChange={handleInputChange} placeholder="Introduce el slug de la clase de envío" disabled={isProcessing} />
+                              <p className="text-xs text-muted-foreground mt-1">Encuentra el slug en WooCommerce &gt; Ajustes &gt; Envío &gt; Clases de envío.</p>
+                          </div>
+                      </div>
+                  )}
+
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Descripciones y Palabras Clave</CardTitle>
+                  <CardDescription>Esta información es clave para el SEO y para informar a tus clientes.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                   <div>
+                    <Label htmlFor="keywords">Palabras Clave (separadas por comas)</Label>
+                    <Input id="keywords" name="keywords" value={productData.keywords} onChange={handleInputChange} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing || isGenerating} />
+                    <p className="text-xs text-muted-foreground mt-1">Ayudan a la IA y al SEO de tu producto.</p>
+                  </div>
+
+                  <div className="pt-2">
+                    <Button onClick={handleGenerateContentWithAI} disabled={isProcessing || isGenerating || !productData.name} className="w-full sm:w-auto">
+                        {isGenerating ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}
+                        {isGenerating ? "Generando..." : "Generar Contenido con IA"}
+                    </Button>
+                    {!productData.name && <p className="text-xs text-destructive mt-1">Introduce un nombre de producto para activar la IA.</p>}
+                  </div>
+
+                  <div className="border-t pt-6 space-y-6">
+                    <div>
+                        <Label htmlFor="shortDescription">Descripción Corta</Label>
+                        <RichTextEditor
+                          content={productData.shortDescription}
+                          onChange={handleShortDescriptionChange}
+                          onInsertImage={() => setIsImageDialogOpen(true)}
+                          placeholder="Un resumen atractivo y conciso de tu producto que será generado por la IA."
+                          size="small"
+                        />
+                    </div>
+                  
+                    <div>
+                        <Label htmlFor="longDescription">Descripción Larga</Label>
+                        <RichTextEditor
+                          content={productData.longDescription}
+                          onChange={handleLongDescriptionChange}
+                          onInsertImage={() => setIsImageDialogOpen(true)}
+                          placeholder="Describe tu producto en detalle: características, materiales, usos, etc. La IA lo generará por ti."
+                        />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+          </div>
+          <div className="lg:col-span-1 space-y-8">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Imágenes del Producto</CardTitle>
+                  <CardDescription>Sube las imágenes para tu producto. La primera se usará como principal.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div>
-                        <Label>Idioma de Origen</Label>
-                        <Select name="language" value={productData.language} onValueChange={handleSourceLanguageChange}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                {ALL_LANGUAGES.map(lang => (<SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div>
-                        <Label>Crear traducciones en:</Label>
-                         <div className="grid grid-cols-2 gap-2 pt-2">
-                            {availableTargetLanguages.map(lang => (
-                                <div key={lang.code} className="flex items-center space-x-2">
-                                    <Checkbox id={`lang-${lang.code}`} checked={productData.targetLanguages?.includes(lang.code)} onCheckedChange={() => handleLanguageToggle(lang.code)} />
-                                    <Label htmlFor={`lang-${lang.code}`} className="font-normal">{lang.name}</Label>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                  <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} isProcessing={isProcessing || isGenerating} maxPhotos={15} />
+                  <Button 
+                    onClick={handleGenerateImageMetadata} 
+                    disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} 
+                    className="w-full"
+                    variant="outline"
+                  >
+                    {isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}
+                    {isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}
+                  </Button>
                 </CardContent>
-            </Card>
+              </Card>
+
+              <Card>
+                  <CardHeader>
+                      <CardTitle className="flex items-center gap-2"><Languages /> Traducción (Opcional)</CardTitle>
+                      <CardDescription>Crea automáticamente copias de este producto en otros idiomas.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                      <div>
+                          <Label>Idioma de Origen</Label>
+                          <Select name="language" value={productData.language} onValueChange={handleSourceLanguageChange}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                  {ALL_LANGUAGES.map(lang => (<SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>))}
+                              </SelectContent>
+                          </Select>
+                      </div>
+                      <div>
+                          <Label>Crear traducciones en:</Label>
+                           <div className="grid grid-cols-2 gap-2 pt-2">
+                              {availableTargetLanguages.map(lang => (
+                                  <div key={lang.code} className="flex items-center space-x-2">
+                                      <Checkbox id={`lang-${lang.code}`} checked={productData.targetLanguages?.includes(lang.code)} onCheckedChange={() => handleLanguageToggle(lang.code)} />
+                                      <Label htmlFor={`lang-${lang.code}`} className="font-normal">{lang.name}</Label>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  </CardContent>
+              </Card>
+          </div>
         </div>
       </div>
-    </div>
-    <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>Insertar Imagen</AlertDialogTitle>
-                <AlertDialogDescription>Sube una imagen o introduce una URL para insertarla en el contenido.</AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="space-y-4">
-                <div>
-                    <Label htmlFor="image-upload">Subir archivo</Label>
-                    <Input id="image-upload" type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
-                </div>
-                <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-background px-2 text-muted-foreground">O</span></div>
-                </div>
-                <div>
-                    <Label htmlFor="image-url">Insertar desde URL</Label>
-                    <Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" />
-                </div>
-            </div>
-            <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => { setImageUrl(''); setImageFile(null); }}>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={handleInsertImage} disabled={isUploadingImage}>
-                    {isUploadingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Insertar Imagen
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
+      <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+                  <AlertDialogTitle>Insertar Imagen</AlertDialogTitle>
+                  <AlertDialogDescription>Sube una imagen o introduce una URL para insertarla en el contenido.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-4">
+                  <div>
+                      <Label htmlFor="image-upload">Subir archivo</Label>
+                      <Input id="image-upload" type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
+                  </div>
+                  <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                          <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                          <span className="bg-background px-2 text-muted-foreground">O</span></div>
+                  </div>
+                  <div>
+                      <Label htmlFor="image-url">Insertar desde URL</Label>
+                      <Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" />
+                  </div>
+              </div>
+              <AlertDialogFooter>
+                  <AlertDialogCancel onClick={() => { setImageUrl(''); setImageFile(null); }}>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleInsertImage} disabled={isUploadingImage}>
+                      {isUploadingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Insertar Imagen
+                  </AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
