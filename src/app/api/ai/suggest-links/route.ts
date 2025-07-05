@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
-import { suggestInternalLinks, SuggestLinksInput, SuggestLinksOutput } from '@/ai/flows/suggest-links-flow';
+import { suggestInternalLinks, SuggestLinksInput } from '@/ai/flows/suggest-links-flow';
 import { z } from 'zod';
 import { AxiosInstance } from 'axios';
 
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
             potentialTargets,
         };
 
-        const result = await suggestInternalLinks(flowInput);
+        const result = await suggestInternalLinks(flowInput, uid);
 
         return NextResponse.json(result);
 

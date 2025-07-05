@@ -8,6 +8,7 @@ import { getApiClientsForUser } from '@/lib/api-helpers';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SeoAnalysisRecord } from '@/lib/types';
 import type { AxiosInstance } from 'axios';
+import Handlebars from 'handlebars';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,6 +59,26 @@ const SeoInterpretationOutputSchema = z.object({
       "A bulleted list of 2-4 key areas for SEO improvement, focusing on high-level concepts rather than repeating the action plan."
     ),
 });
+
+const PROMPT_DEFAULTS: Record<string, string> = {
+    seoTechnicalAnalysis: `Analiza el siguiente contenido de una página web para optimización SEO (On-Page) y responde únicamente con un objeto JSON válido.\n\n**Datos de la Página:**\n- Título SEO: "{{title}}"\n- Meta Descripción: "{{metaDescription}}"\n- Palabra Clave Principal: "{{focusKeyword}}"\n- URL Canónica: "{{canonicalUrl}}"\n- Total de Imágenes: {{images.length}}\n- Imágenes sin 'alt': {{imagesWithoutAlt}}\n- Encabezado H1: "{{h1}}"\n- Primeros 300 caracteres del contenido: "{{textContent}}"\n\n**Instrucciones:**\nEvalúa cada uno de los siguientes puntos y devuelve un valor booleano (true/false) para cada uno en el objeto "checks". Además, proporciona sugerencias en el objeto "suggested".\n\n**"checks":**\n1. "titleContainsKeyword": ¿Contiene el "Título SEO" la "Palabra Clave Principal"?\n2. "titleIsGoodLength": ¿Tiene el "Título SEO" entre 30 y 65 caracteres?\n3. "metaDescriptionContainsKeyword": ¿Contiene la "Meta Descripción" la "Palabra Clave Principal"?\n4. "metaDescriptionIsGoodLength": ¿Tiene la "Meta Descripción" entre 50 y 160 caracteres?\n5. "keywordInFirstParagraph": ¿Contienen los "Primeros 300 caracteres del contenido" la "Palabra Clave Principal"?\n6. "contentHasImages": ¿Es el "Total de Imágenes" mayor que 0?\n7. "allImagesHaveAltText": ¿Es el número de "Imágenes sin 'alt'" igual a 0?\n8. "h1Exists": ¿Existe el "Encabezado H1" y no está vacío?\n9. "canonicalUrlExists": ¿Existe la "URL Canónica" y no está vacía?\n\n**"suggested":**\n- "title": Sugiere un "Título SEO" mejorado.\n- "metaDescription": Sugiere una "Meta Descripción" mejorada.\n- "focusKeyword": Sugiere la "Palabra Clave Principal" más apropiada para el contenido.`,
+    seoInterpretation: `You are a world-class SEO consultant analyzing a web page's on-page SEO data. The user has received the following raw data from an analysis tool. Your task is to interpret this data and provide a clear, actionable summary in Spanish. Generate a JSON object with four keys: "interpretation", "actionPlan", "positives", "improvements".\n\n**Analysis Data:**\n- Page Title: "{{title}}"\n- Meta Description: "{{metaDescription}}"\n- H1 Heading: "{{h1}}"\n- SEO Score: {{score}}/100\n- Technical SEO Checks (true = passed, false = failed):\n{{{checksSummary}}}`,
+};
+
+async function getPrompt(uid: string, promptKey: string): Promise<string> {
+    const defaultPrompt = PROMPT_DEFAULTS[promptKey];
+    if (!defaultPrompt) throw new Error(`Default prompt for key "${promptKey}" not found.`);
+    if (!adminDb) return defaultPrompt;
+
+    try {
+        const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+        return userSettingsDoc.data()?.prompts?.[promptKey] || defaultPrompt;
+    } catch (error) {
+        console.error(`Error fetching '${promptKey}' prompt, using default.`, error);
+        return defaultPrompt;
+    }
+}
+
 
 async function getPageContentFromScraping(url: string, wpApi: AxiosInstance | null) {
     try {
@@ -129,7 +150,7 @@ async function getPageContentFromScraping(url: string, wpApi: AxiosInstance | nu
         return {
             title: globalTitle,
             metaDescription,
-            focusKeyword: '', // To be enriched later if possible
+            focusKeyword: '',
             canonicalUrl,
             h1: $analysisArea.find('h1').first().text(),
             headings: $analysisArea.find('h1, h2, h3, h4, h5, h6').map((i, el) => ({
@@ -176,7 +197,6 @@ export async function POST(req: NextRequest) {
     let pageData;
 
     if (postId && postType && wpApi) {
-        // --- NEW LOGIC: Fetch internal content directly via API ---
         const endpoint = postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
         const response = await wpApi.get(endpoint, { params: { context: 'edit', '_': new Date().getTime() } });
         const post = response.data;
@@ -197,7 +217,6 @@ export async function POST(req: NextRequest) {
             textContent: $('body').text().replace(/\s\s+/g, ' ').trim(),
         };
     } else {
-        // --- FALLBACK: Scrape public URL ---
         const finalUrl = url.trim().startsWith('http') ? url : `https://${url}`;
         const urlWithCacheBust = new URL(finalUrl);
         urlWithCacheBust.searchParams.set('timestamp', Date.now().toString());
@@ -211,38 +230,12 @@ export async function POST(req: NextRequest) {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
     
-    const technicalAnalysisPrompt = `
-    Analiza el siguiente contenido de una página web para optimización SEO (On-Page) y responde únicamente con un objeto JSON válido.
-    
-    **Datos de la Página:**
-    - Título SEO: "${pageData.title}"
-    - Meta Descripción: "${pageData.metaDescription}"
-    - Palabra Clave Principal: "${pageData.focusKeyword}"
-    - URL Canónica: "${pageData.canonicalUrl || 'No encontrada'}"
-    - Total de Imágenes: ${pageData.images.length}
-    - Imágenes sin 'alt': ${pageData.images.filter((i: any) => !i.alt).length}
-    - Encabezado H1: "${pageData.h1}"
-    - Primeros 300 caracteres del contenido: "${pageData.textContent.substring(0, 300)}"
-
-    **Instrucciones:**
-    Evalúa cada uno de los siguientes puntos y devuelve un valor booleano (true/false) para cada uno en el objeto "checks". Además, proporciona sugerencias en el objeto "suggested".
-
-    **"checks":**
-    1.  "titleContainsKeyword": ¿Contiene el "Título SEO" la "Palabra Clave Principal"?
-    2.  "titleIsGoodLength": ¿Tiene el "Título SEO" entre 30 y 65 caracteres?
-    3.  "metaDescriptionContainsKeyword": ¿Contiene la "Meta Descripción" la "Palabra Clave Principal"?
-    4.  "metaDescriptionIsGoodLength": ¿Tiene la "Meta Descripción" entre 50 y 160 caracteres?
-    5.  "keywordInFirstParagraph": ¿Contienen los "Primeros 300 caracteres del contenido" la "Palabra Clave Principal"?
-    6.  "contentHasImages": ¿Es el "Total de Imágenes" mayor que 0?
-    7.  "allImagesHaveAltText": ¿Es el número de "Imágenes sin 'alt'" igual a 0?
-    8.  "h1Exists": ¿Existe el "Encabezado H1" y no está vacío?
-    9.  "canonicalUrlExists": ¿Existe la "URL Canónica" y no está vacía?
-
-    **"suggested":**
-    - "title": Sugiere un "Título SEO" mejorado.
-    - "metaDescription": Sugiere una "Meta Descripción" mejorada.
-    - "focusKeyword": Sugiere la "Palabra Clave Principal" más apropiada para el contenido.
-  `;
+    const technicalAnalysisTemplate = Handlebars.compile(await getPrompt(uid, 'seoTechnicalAnalysis'), { noEscape: true });
+    const technicalAnalysisPrompt = technicalAnalysisTemplate({
+        ...pageData,
+        imagesWithoutAlt: pageData.images.filter((i: any) => !i.alt).length,
+        textContent: pageData.textContent.substring(0, 300)
+    });
   
     const techResult = await model.generateContent(technicalAnalysisPrompt);
     const techResponse = await techResult.response;
@@ -260,9 +253,14 @@ export async function POST(req: NextRequest) {
 
     const fullAnalysis = { ...pageData, aiAnalysis: { ...aiAnalysis, score } };
     
-    // Now, generate the interpretation
-    const checksSummary = JSON.stringify(fullAnalysis.aiAnalysis.checks, null, 2);
-    let interpretationPrompt: string;
+    const interpretationTemplate = Handlebars.compile(await getPrompt(uid, 'seoInterpretation'), { noEscape: true });
+    let interpretationPrompt = interpretationTemplate({
+        title: fullAnalysis.title,
+        metaDescription: fullAnalysis.metaDescription,
+        h1: fullAnalysis.h1,
+        score: fullAnalysis.aiAnalysis.score,
+        checksSummary: JSON.stringify(fullAnalysis.aiAnalysis.checks, null, 2),
+    });
 
     if (score === 100) {
       interpretationPrompt = `You are a world-class SEO consultant analyzing a web page's on-page SEO data.
@@ -280,26 +278,6 @@ export async function POST(req: NextRequest) {
       - "actionPlan": Return an array with a single string: "¡Felicidades! No se requieren acciones prioritarias. ¡Sigue así!".
       - "positives": Create a list of 3-4 key SEO strengths of the page (e.g., "Título y meta descripción bien optimizados", "Buena estructura de encabezados").
       - "improvements": Return an array with a single string: "Actualmente, no hay áreas de mejora urgentes basadas en nuestro checklist.".
-      `;
-    } else {
-      interpretationPrompt = `You are a world-class SEO consultant analyzing a web page's on-page SEO data.
-      The user has received the following raw data from an analysis tool.
-      Your task is to interpret this data and provide a clear, actionable summary in Spanish.
-
-      **Analysis Data:**
-      - Page Title: "${fullAnalysis.title}"
-      - Meta Description: "${fullAnalysis.metaDescription}"
-      - H1 Heading: "${fullAnalysis.h1}"
-      - SEO Score: ${fullAnalysis.aiAnalysis.score}/100
-      - Technical SEO Checks (true = passed, false = failed):
-      ${checksSummary}
-
-      **Your Task:**
-      Based on all the data above, generate a JSON object with four keys: "interpretation", "actionPlan", "positives", "improvements".
-      - "interpretation": Write a narrative paragraph in Spanish that interprets the key findings. Explain WHY the score is what it is, focusing on the most critical elements based on the failed checks.
-      - "actionPlan": Create a list of the 3 to 5 most important, high-impact, actionable steps the user should take.
-      - "positives": Create a list of 2-4 key SEO strengths of the page.
-      - "improvements": Create a list of 2-4 key areas for SEO improvement, focusing on high-level concepts.
       `;
     }
     
