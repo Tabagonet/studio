@@ -113,6 +113,8 @@ export const CompetitorAnalysisInputSchema = z.object({
 export type CompetitorAnalysisInput = z.infer<typeof CompetitorAnalysisInputSchema>;
 
 export const CompetitorAnalysisOutputSchema = z.object({
+  id: z.string().optional(),
+  createdAt: z.string().optional(),
   competitors: z.array(z.object({
     competitor_name: z.string().describe("El nombre de la empresa competidora."),
     key_platforms: z.string().describe("Las plataformas publicitarias clave que utilizan (ej. Google Ads, Meta Ads)."),

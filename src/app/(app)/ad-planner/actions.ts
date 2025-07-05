@@ -184,12 +184,12 @@ export async function competitorAnalysisAction(
     input: CompetitorAnalysisInput,
     token: string
 ): Promise<{
-    data?: CompetitorAnalysisOutput;
+    data?: CompetitorAnalysisOutput & { id: string; createdAt: string; };
     error?: string;
 }> {
     let uid: string;
     try {
-        if (!adminAuth) throw new Error("Firebase Admin not initialized");
+        if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized");
         const decodedToken = await adminAuth.verifyIdToken(token);
         uid = decodedToken.uid;
     } catch (error) {
@@ -198,14 +198,52 @@ export async function competitorAnalysisAction(
     }
 
     try {
-        const analysis = await competitorAnalysis(input);
+        // 1. Generate the new analysis
+        const analysisData = await competitorAnalysis(input);
         
-        if (adminDb) {
-            const userSettingsRef = adminDb.collection('user_settings').doc(uid);
-            await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
+        if (!adminDb) {
+             throw new Error("Database not available to save analysis.");
         }
         
-        return { data: analysis };
+        // 2. Increment AI usage count
+        const userSettingsRef = adminDb.collection('user_settings').doc(uid);
+        await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
+
+        // 3. Prepare record for saving
+        const newAnalysisRecord = {
+            userId: uid,
+            url: input.url,
+            analysis: analysisData,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        const existingQuery = await adminDb.collection('competitor_analyses')
+            .where('userId', '==', uid)
+            .where('url', '==', input.url)
+            .limit(1)
+            .get();
+
+        let docId: string;
+        if (!existingQuery.empty) {
+            // Update existing document
+            const docRef = existingQuery.docs[0].ref;
+            await docRef.update(newAnalysisRecord);
+            docId = docRef.id;
+        } else {
+            // Create new document
+            const newDocRef = await adminDb.collection('competitor_analyses').add(newAnalysisRecord);
+            docId = newDocRef.id;
+        }
+        
+        // 4. Return the new analysis with its ID and timestamp for the client
+        return { 
+            data: {
+                id: docId,
+                createdAt: new Date().toISOString(), // Immediate feedback for client
+                ...analysisData
+            } 
+        };
+        
     } catch (error: any) {
         console.error('Error in competitorAnalysisAction:', error);
         return { error: error.message || 'An unknown error occurred while analyzing competitors.' };

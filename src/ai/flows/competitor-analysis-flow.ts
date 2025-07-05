@@ -14,14 +14,16 @@ const COMPETITOR_ANALYSIS_PROMPT = `Eres un analista de inteligencia competitiva
 {{url}}
 
 **Proceso de Análisis (Sigue estos pasos rigurosamente):**
-1.  **Comprensión del Negocio:** Primero, visita y analiza la URL para entender a fondo el negocio. Determina:
+1.  **Comprensión del Negocio y Ubicación:** Primero, visita y analiza la URL para entender a fondo el negocio. Determina:
     -   ¿Cuáles son sus productos o servicios principales? (Ej: "Servicios de fumigación con drones", "Venta de zapatos de cuero").
-    -   ¿Cuál es su mercado principal? (Ej: "Agricultores en España", "Consumidores de moda online").
+    -   ¿Cuál es su **área de servicio o mercado principal**? Sé específico. Si es una empresa de servicios locales, **identifica la ciudad o región** (Ej: "Servicios de topografía en Madrid, España", "Tienda online de moda para toda Europa"). Esta ubicación es CRÍTICA.
     -   ¿Es un negocio B2B o B2C?
 
-2.  **Identificación de Palabras Clave:** Basado en tu comprensión, genera 3-5 palabras clave de búsqueda que un cliente potencial usaría para encontrar esta empresa. (Ej: "drones fumigadores precio", "empresa de topografía con drones", "comprar zapatos de hombre online").
+2.  **Identificación de Palabras Clave:** Basado en tu comprensión, genera 3-5 palabras clave de búsqueda que un cliente potencial usaría. **Si el negocio es local, incluye la ubicación en las palabras clave** (Ej: "drones fumigadores precio Andalucía", "empresa de topografía Madrid").
 
-3.  **Búsqueda y Selección de Competidores:** Utilizando las palabras clave que identificaste, simula una búsqueda en Google para encontrar de 2 a 3 competidores **directos y relevantes**. Ignora marketplaces gigantes como Amazon, Alibaba o directorios generales, a menos que la empresa analizada sea de una escala similar. Enfócate en empresas que ofrezcan productos o servicios muy similares.
+3.  **Búsqueda y Selección de Competidores:** Utilizando las palabras clave que identificaste, simula una búsqueda en Google para encontrar de 2 a 3 competidores **directos y relevantes**. 
+    -   **Prioridad Geográfica:** Si el negocio es local, los competidores DEBEN ser de la misma área geográfica.
+    -   **Relevancia:** Enfócate en empresas que ofrezcan productos o servicios muy similares. Ignora marketplaces gigantes como Amazon, Alibaba o directorios generales.
 
 4.  **Análisis Publicitario:** Para cada competidor que has identificado, investiga y resume su actividad publicitaria online.
 
