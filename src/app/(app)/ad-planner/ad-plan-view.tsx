@@ -11,14 +11,14 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
 
-// Register fonts for PDF rendering from the official Google Fonts repository raw content
+// Register fonts for PDF rendering from a reliable CDN
 Font.register({
   family: 'PT Sans',
   fonts: [
-    { src: 'https://raw.githubusercontent.com/google/fonts/main/ofl/ptsans/PTSans-Regular.ttf' },
-    { src: 'https://raw.githubusercontent.com/google/fonts/main/ofl/ptsans/PTSans-Bold.ttf', fontWeight: 'bold' },
-    { src: 'https://raw.githubusercontent.com/google/fonts/main/ofl/ptsans/PTSans-Italic.ttf', fontStyle: 'italic' },
-    { src: 'https://raw.githubusercontent.com/google/fonts/main/ofl/ptsans/PTSans-BoldItalic.ttf', fontWeight: 'bold', fontStyle: 'italic' },
+    { src: 'https://unpkg.com/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-400-normal.ttf' },
+    { src: 'https://unpkg.com/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-700-normal.ttf', fontWeight: 'bold' },
+    { src: 'https://unpkg.com/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-400-italic.ttf', fontStyle: 'italic' },
+    { src: 'https://unpkg.com/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-700-italic.ttf', fontWeight: 'bold', fontStyle: 'italic' },
   ],
 });
 
