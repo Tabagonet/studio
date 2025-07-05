@@ -30,7 +30,7 @@ export default function AdminLayout({
 
         if (response.ok) {
           const userData = await response.json();
-          if (userData.role === 'admin') {
+          if (['admin', 'super_admin'].includes(userData.role)) {
             setIsAuthorized(true);
           } else {
             // Not an admin, send to dashboard
