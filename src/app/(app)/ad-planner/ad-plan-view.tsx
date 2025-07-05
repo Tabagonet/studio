@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { saveAdPlanAction } from './actions';
 import { auth } from '@/lib/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Textarea } from '@/components/ui/textarea';
 
 
 // Register fonts for PDF rendering
@@ -77,7 +78,7 @@ const AdPlanPDF = ({ plan, companyName, logoUrl }: { plan: CreateAdPlanOutput; c
             <View style={styles.section}><Text style={styles.sectionTitle}>Público Objetivo</Text><Text style={styles.bodyText}>{plan.target_audience.replace(/\\n/g, '\n')}</Text></View>
             
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Estrategias y Presupuesto ({formatCurrency(plan.total_monthly_budget)}/mes)</Text>
+                <Text style={styles.sectionTitle}>Estrategias y Presupuesto ({formatCurrency(plan.total_monthly_budget || 0)}/mes)</Text>
                 {(plan.strategies || []).map((strategy, index) => (
                     <View key={index} style={styles.strategyCard} wrap={false}>
                         <View style={styles.strategyHeader}><Text style={styles.platformTitle}>{strategy.platform}</Text><Text style={styles.monthlyBudget}>{formatCurrency(strategy.monthly_budget)} / mes</Text></View>
@@ -133,6 +134,22 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyName, logoUrl }
             total_monthly_budget: newTotalBudget,
         });
     };
+
+    const handleFeeChange = (field: 'setup_fee' | 'management_fee' | 'fee_description', value: string) => {
+        if (!plan) return;
+        const feeProposal = plan.fee_proposal || { setup_fee: 0, management_fee: 0, fee_description: '' };
+        
+        const updatedValue = field === 'fee_description' ? value : parseFloat(value) || 0;
+
+        onPlanUpdate({
+            ...plan,
+            fee_proposal: {
+                ...feeProposal,
+                [field]: updatedValue,
+            }
+        });
+    };
+
 
     const handleSavePlan = async () => {
         if (!plan) return;
@@ -287,13 +304,13 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyName, logoUrl }
                                     </div>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
-                                    <Button variant="outline" size="sm" onClick={() => setDetailedStrategy(strategy)}>
-                                        <ListOrdered className="mr-2 h-4 w-4" />
-                                        Planificar Tareas
-                                    </Button>
                                     <Button variant="outline" size="sm" onClick={() => setCreativeStrategy(strategy)}>
                                         <ClipboardPen className="mr-2 h-4 w-4" />
                                         Generar Creativos
+                                    </Button>
+                                    <Button variant="outline" size="sm" onClick={() => setDetailedStrategy(strategy)}>
+                                        <ListOrdered className="mr-2 h-4 w-4" />
+                                        Planificar Tareas
                                     </Button>
                                 </div>
                             </div>
@@ -331,11 +348,39 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyName, logoUrl }
             <Card className="bg-accent/50 border-primary/20">
                  <CardHeader><CardTitle className="flex items-center gap-3"><Zap className="h-6 w-6 text-primary" /> Propuesta de Gestión</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
-                    <p className="text-muted-foreground">{plan.fee_proposal?.fee_description || 'Descripción de la propuesta no disponible.'}</p>
+                    <div>
+                        <Label htmlFor="fee_description">Descripción de los servicios incluidos:</Label>
+                        <Textarea 
+                            id="fee_description"
+                            value={plan.fee_proposal?.fee_description || ''}
+                            onChange={(e) => handleFeeChange('fee_description', e.target.value)}
+                            className="mt-1 bg-background/70"
+                            rows={3}
+                            placeholder="Describe qué servicios incluye tu cuota de gestión (ej. optimización semanal, informes mensuales, etc.)"
+                        />
+                    </div>
                     <Separator />
-                    <div className="flex flex-col sm:flex-row sm:justify-around text-center gap-4">
-                        <div><p className="text-sm text-muted-foreground">Cuota de Configuración</p><p className="text-2xl font-bold">{formatCurrency(plan.fee_proposal?.setup_fee || 0)}</p></div>
-                        <div><p className="text-sm text-muted-foreground">Cuota de Gestión Mensual</p><p className="text-2xl font-bold">{formatCurrency(plan.fee_proposal?.management_fee || 0)}</p></div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-center">
+                        <div className="space-y-1">
+                            <Label htmlFor="setup_fee">Cuota de Configuración (€)</Label>
+                            <Input
+                                id="setup_fee"
+                                type="number"
+                                value={plan.fee_proposal?.setup_fee || 0}
+                                onChange={(e) => handleFeeChange('setup_fee', e.target.value)}
+                                className="text-2xl font-bold h-auto py-2 text-center"
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <Label htmlFor="management_fee">Cuota de Gestión Mensual (€)</Label>
+                            <Input
+                                id="management_fee"
+                                type="number"
+                                value={plan.fee_proposal?.management_fee || 0}
+                                onChange={(e) => handleFeeChange('management_fee', e.target.value)}
+                                className="text-2xl font-bold h-auto py-2 text-center"
+                            />
+                        </div>
                     </div>
                 </CardContent>
             </Card>
