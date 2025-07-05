@@ -110,32 +110,27 @@ const AdPlanPDF = ({ plan, companyName, logoUrl }: { plan: CreateAdPlanOutput; c
 );
 
 
-export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }: { plan: CreateAdPlanOutput; onReset: () => void; companyName: string; logoUrl: string | null }) {
-    const [plan, setPlan] = React.useState<CreateAdPlanOutput>(initialPlan);
+export function AdPlanView({ plan, onPlanUpdate, onReset, companyName, logoUrl }: { plan: CreateAdPlanOutput; onPlanUpdate: (plan: CreateAdPlanOutput) => void; onReset: () => void; companyName: string; logoUrl: string | null }) {
     const [isPdfLoading, setIsPdfLoading] = React.useState(false);
     const [isSavingPlan, setIsSavingPlan] = React.useState(false);
     const [detailedStrategy, setDetailedStrategy] = React.useState<Strategy | null>(null);
     const [creativeStrategy, setCreativeStrategy] = React.useState<Strategy | null>(null);
     const { toast } = useToast();
 
-    React.useEffect(() => {
-        setPlan(initialPlan);
-    }, [initialPlan]);
-
     const handleBudgetChange = (platform: string, newBudgetString: string) => {
         const newBudget = parseFloat(newBudgetString) || 0;
-        setPlan(prevPlan => {
-            if (!prevPlan) return prevPlan;
-            const updatedStrategies = (prevPlan.strategies || []).map(s => 
-                s.platform === platform ? { ...s, monthly_budget: newBudget } : s
-            );
-            const newTotalBudget = updatedStrategies.reduce((sum, s) => sum + s.monthly_budget, 0);
+        
+        if (!plan) return;
 
-            return {
-                ...prevPlan,
-                strategies: updatedStrategies,
-                total_monthly_budget: newTotalBudget,
-            };
+        const updatedStrategies = (plan.strategies || []).map(s => 
+            s.platform === platform ? { ...s, monthly_budget: newBudget } : s
+        );
+        const newTotalBudget = updatedStrategies.reduce((sum, s) => sum + s.monthly_budget, 0);
+
+        onPlanUpdate({
+            ...plan,
+            strategies: updatedStrategies,
+            total_monthly_budget: newTotalBudget,
         });
     };
 
@@ -197,8 +192,10 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
         }
     };
 
-    const handlePlanUpdate = React.useCallback((updatedPlan: CreateAdPlanOutput) => {
-        setPlan(updatedPlan);
+    const handleDialogPlanUpdate = React.useCallback((updatedPlan: CreateAdPlanOutput) => {
+        onPlanUpdate(updatedPlan);
+        
+        // This logic ensures the dialogs reflect the updated plan state correctly
         if (detailedStrategy) {
             const newStrategy = updatedPlan.strategies.find(s => s.platform === detailedStrategy.platform);
             setDetailedStrategy(newStrategy || null);
@@ -207,7 +204,7 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
             const newStrategy = updatedPlan.strategies.find(s => s.platform === creativeStrategy.platform);
             setCreativeStrategy(newStrategy || null);
         }
-    }, [detailedStrategy, creativeStrategy]); 
+    }, [detailedStrategy, creativeStrategy, onPlanUpdate]); 
     
     if (!plan) {
         return <Loader2 className="h-8 w-8 animate-spin" />;
@@ -219,13 +216,13 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
                 plan={plan}
                 strategy={detailedStrategy} 
                 onOpenChange={(open) => !open && setDetailedStrategy(null)}
-                onPlanUpdate={handlePlanUpdate}
+                onPlanUpdate={handleDialogPlanUpdate}
             />
             <CreativeStudioDialog 
                 plan={plan}
                 strategy={creativeStrategy}
                 onOpenChange={(open) => !open && setCreativeStrategy(null)}
-                onPlanUpdate={handlePlanUpdate}
+                onPlanUpdate={handleDialogPlanUpdate}
             />
 
 
