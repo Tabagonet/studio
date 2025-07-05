@@ -14,14 +14,13 @@ import { useToast } from '@/hooks/use-toast';
 
 
 // Register fonts for PDF rendering from a reliable CDN.
-// These are the correct URLs for the PT Sans font files.
 Font.register({
   family: 'PT Sans',
   fonts: [
-    { src: 'https://raw.githubusercontent.com/google/fonts/main/ofl/ptsans/PT_Sans-Regular.ttf' },
-    { src: 'https://raw.githubusercontent.com/google/fonts/main/ofl/ptsans/PT_Sans-Bold.ttf', fontWeight: 'bold' },
-    { src: 'https://raw.githubusercontent.com/google/fonts/main/ofl/ptsans/PT_Sans-Italic.ttf', fontStyle: 'italic' },
-    { src: 'https://raw.githubusercontent.com/google/fonts/main/ofl/ptsans/PT_Sans-BoldItalic.ttf', fontWeight: 'bold', fontStyle: 'italic' },
+    { src: 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ptsans/PT_Sans-Regular.ttf' },
+    { src: 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ptsans/PT_Sans-Bold.ttf', fontWeight: 'bold' },
+    { src: 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ptsans/PT_Sans-Italic.ttf', fontStyle: 'italic' },
+    { src: 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ptsans/PT_Sans-BoldItalic.ttf', fontWeight: 'bold', fontStyle: 'italic' },
   ],
 });
 
