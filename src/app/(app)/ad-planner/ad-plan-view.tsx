@@ -15,10 +15,10 @@ import Image from 'next/image';
 Font.register({
   family: 'PT Sans',
   fonts: [
-    { src: 'https://unpkg.com/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-400-normal.ttf' },
-    { src: 'https://unpkg.com/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-700-normal.ttf', fontWeight: 'bold' },
-    { src: 'https://unpkg.com/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-400-italic.ttf', fontStyle: 'italic' },
-    { src: 'https://unpkg.com/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-700-italic.ttf', fontWeight: 'bold', fontStyle: 'italic' },
+    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-400-normal.ttf' },
+    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-700-normal.ttf', fontWeight: 'bold' },
+    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-400-italic.ttf', fontStyle: 'italic' },
+    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-700-italic.ttf', fontWeight: 'bold', fontStyle: 'italic' },
   ],
 });
 
