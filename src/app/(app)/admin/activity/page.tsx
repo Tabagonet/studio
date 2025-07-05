@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, LineChart, History, Calendar, Download } from "lucide-react";
+import { Loader2, LineChart, History, Calendar, Download, Building } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase";
 import type { ActivityLog } from '@/lib/types';
@@ -264,8 +264,11 @@ export default function AdminActivityPage() {
                             {groupedUserStats.length > 0 ? groupedUserStats.map(group => (
                                 <React.Fragment key={group.companyName}>
                                     <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                        <TableCell colSpan={3} className="font-semibold text-primary">
-                                            {group.companyName}
+                                        <TableCell colSpan={3} className="py-3 text-lg font-semibold text-primary">
+                                            <div className="flex items-center gap-2">
+                                                <Building className="h-5 w-5" />
+                                                {group.companyName}
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                     {group.users.map(stat => (

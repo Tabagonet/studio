@@ -311,9 +311,9 @@ export function UserManagementTable() {
                     {groupedUsers.length > 0 ? groupedUsers.map((group) => (
                         <React.Fragment key={group.companyName}>
                             <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                <TableCell colSpan={6} className="font-semibold text-primary">
+                                <TableCell colSpan={6} className="py-3 text-lg font-semibold text-primary">
                                     <div className="flex items-center gap-2">
-                                        <Building className="h-4 w-4" />
+                                        <Building className="h-5 w-5" />
                                         {group.companyName}
                                     </div>
                                 </TableCell>

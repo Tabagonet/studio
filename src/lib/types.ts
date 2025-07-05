@@ -349,4 +349,9 @@ export interface Company {
   name: string;
   createdAt: string; // ISO String
   userCount?: number;
+  logoUrl?: string | null;
+  taxId?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
 }

@@ -40,6 +40,7 @@ export const NAV_GROUPS: NavGroup[] = [
    {
     title: 'Ajustes',
     items: [
+       { title: 'Datos de Empresa', href: '/settings/company', icon: Building, requiredRoles: ['admin', 'super_admin'] },
        { title: 'Gestión de Prompts IA', href: '/prompts', icon: Brain, requiredRoles: ['super_admin'] },
        { title: 'Configuración', href: '/settings', icon: Settings, requiredRoles: ['admin', 'super_admin'] },
     ]
