@@ -192,7 +192,7 @@ export async function competitorAnalysisAction(
         if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized");
         const decodedToken = await adminAuth.verifyIdToken(token);
         uid = decodedToken.uid;
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error verifying token in competitorAnalysisAction:', error);
         return { error: 'Authentication failed. Unable to identify user.' };
     }

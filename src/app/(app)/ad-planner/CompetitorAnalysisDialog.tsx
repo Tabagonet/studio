@@ -2,9 +2,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, Swords, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Loader2, Swords, RefreshCw, AlertTriangle, Lightbulb } from 'lucide-react';
 import type { CompetitorAnalysisOutput } from './schema';
 import { useToast } from '@/hooks/use-toast';
 import { competitorAnalysisAction } from './actions';
@@ -14,22 +14,28 @@ import { formatCurrency } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 
 interface CompetitorAnalysisDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   url: string;
+  initialContext?: string;
 }
 
-export function CompetitorAnalysisDialog({ isOpen, onOpenChange, url }: CompetitorAnalysisDialogProps) {
+export function CompetitorAnalysisDialog({ isOpen, onOpenChange, url, initialContext }: CompetitorAnalysisDialogProps) {
   const [analysis, setAnalysis] = useState<CompetitorAnalysisOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showContextPrompt, setShowContextPrompt] = useState(false);
+  const [additionalContext, setAdditionalContext] = useState(initialContext || '');
   const { toast } = useToast();
 
-  const generateNewAnalysis = useCallback(async () => {
+  const generateNewAnalysis = useCallback(async (context?: string) => {
     setIsLoading(true);
     setError(null);
+    setShowContextPrompt(false);
     const user = auth.currentUser;
     if (!user) {
       setError('Error de autenticación.');
@@ -39,13 +45,19 @@ export function CompetitorAnalysisDialog({ isOpen, onOpenChange, url }: Competit
 
     try {
       const token = await user.getIdToken();
-      const result = await competitorAnalysisAction({ url }, token);
+      const result = await competitorAnalysisAction({ url, additional_context: context || additionalContext }, token);
 
       if (result.error || !result.data) {
         throw new Error(result.error || 'La IA no pudo generar el análisis de competencia.');
       }
-      setAnalysis(result.data);
-      toast({ title: 'Análisis actualizado', description: 'Se ha generado un nuevo informe de competencia.' });
+      
+      if (result.data.competitors && result.data.competitors.length === 0) {
+        setShowContextPrompt(true); // If AI returns no competitors, ask user for more context.
+        setAnalysis(null);
+      } else {
+        setAnalysis(result.data);
+        toast({ title: 'Análisis actualizado', description: 'Se ha generado un nuevo informe de competencia.' });
+      }
 
     } catch (err: any) {
       setError(err.message);
@@ -53,12 +65,18 @@ export function CompetitorAnalysisDialog({ isOpen, onOpenChange, url }: Competit
     } finally {
       setIsLoading(false);
     }
-  }, [url, toast]);
+  }, [url, toast, additionalContext]);
+  
+  const handleContextSubmit = () => {
+    generateNewAnalysis(additionalContext);
+  };
   
   useEffect(() => {
     if (!isOpen) {
       setAnalysis(null);
       setError(null);
+      setShowContextPrompt(false);
+      setAdditionalContext(initialContext || '');
       return;
     }
 
@@ -80,15 +98,12 @@ export function CompetitorAnalysisDialog({ isOpen, onOpenChange, url }: Competit
 
         if (response.ok) {
           const data = await response.json();
-          // The API returns the full record: { id, createdAt, url, userId, analysis: { competitors: [...] } }
-          // We need to flatten it for the state.
           setAnalysis({
             id: data.id,
             createdAt: data.createdAt,
             competitors: data.analysis.competitors
           });
         } else if (response.status === 404) {
-          // Not found, generate the first analysis
           await generateNewAnalysis();
         } else {
           const errorData = await response.json();
@@ -102,7 +117,7 @@ export function CompetitorAnalysisDialog({ isOpen, onOpenChange, url }: Competit
     };
 
     fetchOrGenerate();
-  }, [isOpen, url, generateNewAnalysis]);
+  }, [isOpen, url, generateNewAnalysis, initialContext]);
 
 
   const renderContent = () => {
@@ -123,6 +138,28 @@ export function CompetitorAnalysisDialog({ isOpen, onOpenChange, url }: Competit
             </div>
         )
     }
+    if (showContextPrompt) {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center h-full text-center p-4">
+              <Lightbulb className="h-8 w-8 text-primary mb-2" />
+              <p className="font-semibold">Necesitamos más información</p>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                La IA no ha encontrado competidores claros. Ayúdale describiendo el negocio en una o dos frases.
+              </p>
+              <div className="w-full max-w-lg mt-4 text-left">
+                  <Label htmlFor="context-textarea">Describe el negocio y su ubicación</Label>
+                   <Textarea
+                    id="context-textarea"
+                    value={additionalContext}
+                    onChange={(e) => setAdditionalContext(e.target.value)}
+                    placeholder="Ejemplo: Empresa de servicios de fumigación con drones para agricultura en Andalucía."
+                    rows={3}
+                />
+              </div>
+            </div>
+        )
+    }
+
     if (analysis?.competitors?.length) {
       return (
          <ScrollArea className="h-full pr-2">
@@ -165,9 +202,11 @@ export function CompetitorAnalysisDialog({ isOpen, onOpenChange, url }: Competit
           <DialogTitle className="text-2xl flex items-center gap-2">
             <Swords className="h-6 w-6 text-primary" /> Análisis de Competencia
           </DialogTitle>
-          <DialogDescription>
-            Análisis de los competidores más relevantes para <code className="text-sm font-semibold">{url}</code> y sus estrategias publicitarias.
-          </DialogDescription>
+           {analysis && (
+              <DialogDescription>
+                Análisis de los competidores más relevantes para <code className="text-sm font-semibold">{url}</code> y sus estrategias publicitarias.
+             </DialogDescription>
+           )}
         </DialogHeader>
 
         <div className="flex-1 min-h-0 py-4">
@@ -180,13 +219,25 @@ export function CompetitorAnalysisDialog({ isOpen, onOpenChange, url }: Competit
                <p>Último análisis: {format(parseISO(analysis.createdAt), "d MMM yyyy, HH:mm", { locale: es })}</p>
              )}
            </div>
-          <div className="flex gap-2">
-             <Button type="button" variant="outline" onClick={generateNewAnalysis} disabled={isLoading}>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Volver a Analizar
-              </Button>
-             <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>Cerrar</Button>
-          </div>
+          
+           {showContextPrompt ? (
+             <div className="flex gap-2">
+                <DialogClose asChild><Button type="button" variant="secondary">Cancelar</Button></DialogClose>
+                <Button onClick={handleContextSubmit} disabled={isLoading || !additionalContext.trim()}>
+                   <RefreshCw className="mr-2 h-4 w-4" />
+                    Volver a Analizar con Contexto
+                </Button>
+             </div>
+           ) : (
+             <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={() => generateNewAnalysis()} disabled={isLoading}>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Volver a Analizar
+                </Button>
+                <DialogClose asChild><Button type="button" variant="secondary">Cerrar</Button></DialogClose>
+             </div>
+           )}
+
         </DialogFooter>
       </DialogContent>
     </Dialog>

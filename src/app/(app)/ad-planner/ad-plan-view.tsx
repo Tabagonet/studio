@@ -247,6 +247,7 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyName, logoUrl }
                 isOpen={isCompetitorAnalysisOpen}
                 onOpenChange={setIsCompetitorAnalysisOpen}
                 url={plan.url}
+                initialContext={plan.additional_context}
             />
 
 

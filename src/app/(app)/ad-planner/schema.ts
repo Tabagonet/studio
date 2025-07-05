@@ -109,6 +109,7 @@ export type GenerateStrategyTasksOutput = z.infer<typeof GenerateStrategyTasksOu
 // === Schemas for Competitor Analysis Flow ===
 export const CompetitorAnalysisInputSchema = z.object({
   url: z.string().url(),
+  additional_context: z.string().optional(),
 });
 export type CompetitorAnalysisInput = z.infer<typeof CompetitorAnalysisInputSchema>;
 
