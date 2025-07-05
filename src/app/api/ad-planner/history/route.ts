@@ -20,9 +20,7 @@ export async function GET(req: NextRequest) {
     try {
         const snapshot = await adminDb.collection('ad_plans')
             .where('userId', '==', uid)
-            .orderBy('createdAt', 'desc')
-            .limit(50)
-            .get();
+            .get(); // Fetch all and sort in-memory for robustness
         
         if (snapshot.empty) {
             return NextResponse.json({ history: [] });
@@ -32,8 +30,9 @@ export async function GET(req: NextRequest) {
             try {
                 const data = doc.data();
 
-                if (!data || !data.url || !data.objectives || !data.createdAt) {
-                     console.warn(`Skipping malformed ad plan history record: ${doc.id}`);
+                // Robust validation: ensures createdAt is a valid Firestore Timestamp
+                if (!data || !data.url || !data.objectives || !data.createdAt || typeof data.createdAt.toDate !== 'function') {
+                    console.warn(`Skipping malformed ad plan history record (invalid data or createdAt): ${doc.id}`);
                     return null;
                 }
                 
@@ -52,7 +51,10 @@ export async function GET(req: NextRequest) {
                  console.error(`Error processing history doc ${doc.id}:`, e);
                  return null;
             }
-        }).filter(Boolean); // Remove nulls from failed records
+        }).filter(Boolean as any as (value: any) => value is NonNullable<any>); // Remove nulls from failed records
+
+        // Sort in memory after fetching
+        history.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
         return NextResponse.json({ history });
 
