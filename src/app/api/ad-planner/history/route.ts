@@ -18,10 +18,10 @@ export async function GET(req: NextRequest) {
     }
 
     try {
+        // Removed .orderBy() to prevent index-related errors. Sorting will be done in-memory.
         const snapshot = await adminDb.collection('ad_plans')
             .where('userId', '==', uid)
-            .orderBy('createdAt', 'desc')
-            .limit(50) // Limiting for safety
+            .limit(50) 
             .get();
         
         if (snapshot.empty) {
@@ -34,25 +34,19 @@ export async function GET(req: NextRequest) {
             try {
                 const data = doc.data();
 
-                // Robust date handling
                 let createdAtDate: Date;
                 if (data.createdAt && typeof data.createdAt.toDate === 'function') {
-                    // Firestore Timestamp
                     createdAtDate = data.createdAt.toDate();
                 } else if (typeof data.createdAt === 'string') {
-                    // ISO String
                     createdAtDate = new Date(data.createdAt);
                 } else {
-                    // Fallback
                     createdAtDate = new Date(0);
                 }
                 
                 if (isNaN(createdAtDate.getTime())) {
-                    // If parsing still results in an invalid date, use a fallback
                     createdAtDate = new Date(0);
                 }
-
-                // Safely construct the plan object, providing defaults for every possible missing field.
+                
                 const plan: CreateAdPlanOutput = {
                     id: doc.id,
                     createdAt: createdAtDate.toISOString(),
@@ -80,7 +74,7 @@ export async function GET(req: NextRequest) {
                         ad_formats: s.ad_formats || [],
                         monthly_budget: typeof s.monthly_budget === 'number' ? s.monthly_budget : 0,
                         tasks: (s.tasks || []).map((t: any): Task => ({
-                            id: t.id || '', // Note: uuid generation is client-side
+                            id: t.id || '',
                             name: t.name || '',
                             hours: typeof t.hours === 'number' ? t.hours : 0,
                         })),
@@ -88,12 +82,12 @@ export async function GET(req: NextRequest) {
                 };
                 history.push(plan);
             } catch (innerError: any) {
-                // If a single document fails to process, log it and continue.
-                // This prevents one bad record from crashing the entire API endpoint.
                 console.error(`Failed to process document ${doc.id}:`, innerError.message);
-                // Optionally, you could push a placeholder or just skip it. Skipping is safer.
             }
         }
+        
+        // Sort the results in-memory after fetching and processing.
+        history.sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
 
         return NextResponse.json({ history });
 
