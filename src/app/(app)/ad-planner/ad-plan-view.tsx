@@ -76,22 +76,22 @@ const AdPlanPDF = ({ plan, companyName, logoUrl }: { plan: CreateAdPlanOutput; c
             
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Estrategias y Presupuesto ({formatCurrency(plan.total_monthly_budget)}/mes)</Text>
-                {plan.strategies.map((strategy, index) => (
+                {(plan.strategies || []).map((strategy, index) => (
                     <View key={index} style={styles.strategyCard} wrap={false}>
                         <View style={styles.strategyHeader}><Text style={styles.platformTitle}>{strategy.platform}</Text><Text style={styles.monthlyBudget}>{formatCurrency(strategy.monthly_budget)} / mes</Text></View>
                         <Text style={styles.strategyRationale}>{strategy.strategy_rationale}</Text>
                         <View style={styles.badgeContainer}><Text style={styles.badge}>Fase: {strategy.funnel_stage}</Text><Text style={styles.badge}>Campaña: {strategy.campaign_type}</Text></View>
-                        <View style={[styles.badgeContainer, { marginTop: 8 }]}>{strategy.ad_formats.map(format => <Text key={format} style={styles.badge}>{format}</Text>)}</View>
+                        <View style={[styles.badgeContainer, { marginTop: 8 }]}>{(strategy.ad_formats || []).map(format => <Text key={format} style={styles.badge}>{format}</Text>)}</View>
                     </View>
                 ))}
             </View>
 
             <View style={styles.twoColumnLayout}>
-                <View style={styles.column}><Text style={styles.sectionTitle}>KPIs</Text><View style={styles.kpiList}>{plan.kpis.map((kpi, index) => <Text key={index} style={styles.kpiItem}>• {kpi}</Text>)}</View></View>
+                <View style={styles.column}><Text style={styles.sectionTitle}>KPIs</Text><View style={styles.kpiList}>{(plan.kpis || []).map((kpi, index) => <Text key={index} style={styles.kpiItem}>• {kpi}</Text>)}</View></View>
                 <View style={styles.column}>
                     <Text style={styles.sectionTitle}>Calendario (3 meses)</Text>
-                    {plan.calendar.map((milestone, index) => (
-                        <View key={index} style={styles.calendarItem}><Text style={styles.calendarFocus}>{milestone.month}: {milestone.focus}</Text>{milestone.actions.map((action, i) => <Text key={i} style={{fontSize: 9, paddingLeft: 10}}>• {action}</Text>)}</View>
+                    {(plan.calendar || []).map((milestone, index) => (
+                        <View key={index} style={styles.calendarItem}><Text style={styles.calendarFocus}>{milestone.month}: {milestone.focus}</Text>{(milestone.actions || []).map((action, i) => <Text key={i} style={{fontSize: 9, paddingLeft: 10}}>• {action}</Text>)}</View>
                     ))}
                 </View>
             </View>
@@ -243,7 +243,7 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
                     <CardDescription>Total mensual recomendado: <span className="font-bold text-lg text-primary">{formatCurrency(plan.total_monthly_budget)}</span></CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    {plan.strategies.map((strategy, index) => (
+                    {(plan.strategies || []).map((strategy, index) => (
                         <div key={index} className="p-4 border rounded-lg space-y-3 bg-muted/20">
                            <div className="flex flex-col sm:flex-row sm:justify-between items-start gap-3">
                                 <div>
@@ -272,7 +272,7 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
                                 <div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-muted-foreground" /><span>Fase del embudo: <Badge>{strategy.funnel_stage}</Badge></span></div>
                                 <div className="flex items-center gap-2"><BarChart className="h-4 w-4 text-muted-foreground" /><span>Tipo de campaña: <Badge>{strategy.campaign_type}</Badge></span></div>
                             </div>
-                            <div className="flex flex-wrap gap-2 pt-2"><span className="text-sm font-medium mr-2">Formatos:</span>{strategy.ad_formats.map(format => <Badge key={format} variant="outline">{format}</Badge>)}</div>
+                            <div className="flex flex-wrap gap-2 pt-2"><span className="text-sm font-medium mr-2">Formatos:</span>{(strategy.ad_formats || []).map(format => <Badge key={format} variant="outline">{format}</Badge>)}</div>
                         </div>
                     ))}
                 </CardContent>
@@ -281,17 +281,17 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                  <Card>
                     <CardHeader><CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5 text-primary" /> KPIs de Seguimiento</CardTitle></CardHeader>
-                    <CardContent><ul className="list-disc list-inside text-muted-foreground space-y-1">{plan.kpis.map((kpi, index) => <li key={index}>{kpi}</li>)}</ul></CardContent>
+                    <CardContent><ul className="list-disc list-inside text-muted-foreground space-y-1">{(plan.kpis || []).map((kpi, index) => <li key={index}>{kpi}</li>)}</ul></CardContent>
                 </Card>
                 <Card>
                     <CardHeader><CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5 text-primary" /> Calendario (Primeros 3 meses)</CardTitle></CardHeader>
                     <CardContent className="space-y-4">
-                         {plan.calendar.map((milestone, index) => (
+                         {(plan.calendar || []).map((milestone, index) => (
                             <div key={index} className="relative pl-6">
                                 <div className="absolute left-0 top-1 h-full w-px bg-border"></div>
                                 <div className="absolute left-[-5px] top-1.5 h-3 w-3 rounded-full bg-primary"></div>
                                 <h4 className="font-semibold">{milestone.month}: {milestone.focus}</h4>
-                                <ul className="list-disc list-inside text-sm text-muted-foreground pl-2 mt-1 space-y-0.5">{milestone.actions.map((action, i) => <li key={i}>{action}</li>)}</ul>
+                                <ul className="list-disc list-inside text-sm text-muted-foreground pl-2 mt-1 space-y-0.5">{(milestone.actions || []).map((action, i) => <li key={i}>{action}</li>)}</ul>
                             </div>
                          ))}
                     </CardContent>
