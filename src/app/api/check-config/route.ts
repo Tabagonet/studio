@@ -37,20 +37,24 @@ export async function GET(req: NextRequest) {
 
   if (adminDb) {
     try {
+      // Always fetch user-specific settings first for things like AI usage
+      const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+      if (userSettingsDoc.exists) {
+        userConfig.aiUsageCount = userSettingsDoc.data()?.aiUsageCount || 0;
+      }
+
+      // Now determine the source for connection settings
       const userDoc = await adminDb.collection('users').doc(uid).get();
       const userData = userDoc.data();
-      
+
       if (userData?.companyId) {
-        // User belongs to a company, get company settings
+        // User belongs to a company, get company settings for connections
         const companyDoc = await adminDb.collection('companies').doc(userData.companyId).get();
         settingsSource = companyDoc.data();
       } else {
-        // User is individual or Super Admin, get personal settings
-        const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+        // User is individual or Super Admin, use personal settings for connections
+        // We already fetched user_settings, so we can reuse it
         settingsSource = userSettingsDoc.data();
-        if (settingsSource?.aiUsageCount !== undefined) {
-          userConfig.aiUsageCount = settingsSource.aiUsageCount;
-        }
       }
 
       if (settingsSource) {
