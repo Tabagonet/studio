@@ -1,6 +1,7 @@
 
 'use client';
 
+import { useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
@@ -57,6 +58,18 @@ export function RichTextEditor({ content, onChange, onInsertImage, placeholder, 
       },
     },
   });
+
+  useEffect(() => {
+    if (editor && !editor.isDestroyed) {
+      const editorContent = editor.getHTML();
+      // Only update if the prop content is different from the editor's content
+      // to avoid infinite loops and unnecessary updates.
+      if (content !== editorContent) {
+        // Use `setContent` to update the editor state when the 'content' prop changes
+        editor.commands.setContent(content, false); // false to prevent firing 'onUpdate' and causing a loop
+      }
+    }
+  }, [content, editor]);
   
   return (
     <div className="rounded-md border border-input bg-transparent ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
