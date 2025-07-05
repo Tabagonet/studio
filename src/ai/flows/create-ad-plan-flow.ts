@@ -17,13 +17,13 @@ Tu respuesta DEBE ser un único objeto JSON válido.
 
 **Instrucciones del Plan:**
 1.  **executive_summary:** Resume la estrategia general en 2-3 párrafos.
-2.  **target_audience:** Describe al público objetivo detalladamente (demografía, intereses, puntos de dolor).
+2.  **target_audience:** Describe al público objetivo detalladamente (demografía, intereses, puntos de dolor). El resultado DEBE ser un único string de texto, usando saltos de línea (\\n) para separar conceptos si es necesario.
 3.  **strategies:** Propón estrategias para cada plataforma.
-    -   "platform": ej. Google Ads, Meta Ads.
+    -   "platform": Plataforma publicitaria (DEBE ser un solo string, ej. Google Ads, Meta Ads).
     -   "strategy_rationale": Justifica por qué esta plataforma es adecuada.
     -   "funnel_stage": (Awareness, Consideration, Conversion).
-    -   "campaign_type": ej. Performance Max, Búsqueda, Shopping.
-    -   "ad_formats": ej. Video, Carrusel.
+    -   "campaign_type": Elige el tipo de campaña MÁS RECOMENDADO (DEBE ser un solo string, ej. Performance Max, Búsqueda).
+    -   "ad_formats": Lista de formatos de anuncio concretos a utilizar (ej. Video, Carrusel).
     -   "monthly_budget": número.
 4.  **total_monthly_budget:** Suma de todos los presupuestos.
 5.  **calendar:** Crea un plan para 3 meses.
