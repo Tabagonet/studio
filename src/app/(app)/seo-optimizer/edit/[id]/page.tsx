@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
@@ -288,7 +287,6 @@ function EditPageContent() {
                 <CardContent>
                     <Label htmlFor="content">Editor de Contenido</Label>
                     <RichTextEditor
-                      stickyToolbar
                       content={post.content as string}
                       onChange={handleContentChange}
                       onInsertImage={() => setIsImageDialogOpen(true)}

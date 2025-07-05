@@ -104,10 +104,10 @@ body {
 /* Styles for Tiptap Editor */
 @layer base {
   .ProseMirror {
-    @apply min-h-[300px] max-w-none rounded-b-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background;
+    @apply max-w-none;
   }
   .ProseMirror:focus {
-     @apply outline-none ring-2 ring-ring ring-offset-2;
+     @apply outline-none;
   }
   .ProseMirror p.is-editor-empty:first-child::before {
     content: attr(data-placeholder);

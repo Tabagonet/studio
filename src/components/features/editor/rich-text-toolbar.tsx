@@ -14,10 +14,9 @@ import { cn } from '@/lib/utils';
 type Props = {
   editor: Editor | null;
   onInsertImage: () => void;
-  sticky?: boolean;
 };
 
-export const RichTextToolbar = ({ editor, onInsertImage, sticky = false }: Props) => {
+export const RichTextToolbar = ({ editor, onInsertImage }: Props) => {
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   
@@ -51,10 +50,7 @@ export const RichTextToolbar = ({ editor, onInsertImage, sticky = false }: Props
 
   return (
     <>
-      <div className={cn(
-        "flex items-center gap-1 mb-0 rounded-t-md border-b-0 border bg-muted p-1 flex-wrap",
-        sticky && "sticky top-0 z-30 bg-muted/95 backdrop-blur-sm"
-      )}>
+      <div className={cn("flex items-center gap-1 mb-0 rounded-t-md border-b bg-muted p-1 flex-wrap")}>
         {/* Text Formatting */}
         <Button type="button" variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleBold().run()} disabled={!editor.can().chain().focus().toggleBold().run()} data-active={editor.isActive('bold')} data-tiptap-toolbar-button title="Negrita" className="h-8 w-8">
           <Bold className="h-4 w-4" />
