@@ -3,53 +3,61 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { CreateAdPlanInput, CreateAdPlanOutput, CreateAdPlanOutputSchema } from '@/app/(app)/ad-planner/schema';
+import { adminAuth, adminDb } from '@/lib/firebase-admin';
 
-export async function createAdPlan(input: CreateAdPlanInput): Promise<CreateAdPlanOutput> {
+// Helper to fetch the custom prompt from Firestore
+async function getAdPlanPrompt(uid: string): Promise<string> {
+    const defaultPrompt = `Eres un estratega senior de marketing digital. Tu tarea es analizar una URL y un objetivo de negocio para crear un plan de publicidad profesional.
+Tu respuesta DEBE ser un único objeto JSON válido.
+
+**Contexto:**
+- URL: {{url}}
+- Objetivos de la Campaña: {{#each objectives}}- {{this}} {{/each}}
+
+**Instrucciones del Plan:**
+1.  **executive_summary:** Resume la estrategia general en 2-3 párrafos.
+2.  **target_audience:** Describe al público objetivo detalladamente (demografía, intereses, puntos de dolor).
+3.  **strategies:** Propón estrategias para cada plataforma.
+    -   "platform": ej. Google Ads, Meta Ads.
+    -   "strategy_rationale": Justifica por qué esta plataforma es adecuada.
+    -   "funnel_stage": (Awareness, Consideration, Conversion).
+    -   "campaign_type": ej. Performance Max, Búsqueda, Shopping.
+    -   "ad_formats": ej. Video, Carrusel.
+    -   "monthly_budget": número.
+4.  **total_monthly_budget:** Suma de todos los presupuestos.
+5.  **calendar:** Crea un plan para 3 meses.
+    - "month": Mes 1, 2, 3.
+    - "focus": ej. Configuración y Lanzamiento.
+    - "actions": Lista de acciones concretas.
+6.  **kpis:** Lista de KPIs clave (ej. ROAS, CPA, CTR).
+7.  **fee_proposal:** Propuesta de honorarios.
+    - "setup_fee": número.
+    - "management_fee": número.
+    - "fee_description": Qué incluyen los honorarios.
+`;
+    if (!adminDb) return defaultPrompt;
+    try {
+        const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+        return userSettingsDoc.data()?.prompts?.adPlan || defaultPrompt;
+    } catch (error) {
+        console.error("Error fetching 'adPlan' prompt, using default.", error);
+        return defaultPrompt;
+    }
+}
+
+
+export async function createAdPlan(input: CreateAdPlanInput, uid: string): Promise<CreateAdPlanOutput> {
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
-  const prompt = `
-    Eres un estratega senior de marketing digital y publicidad online. Tu tarea es analizar una web y un objetivo de negocio para crear un plan de publicidad digital profesional, detallado y listo para presentar a un cliente.
+  const rawPrompt = await getAdPlanPrompt(uid);
 
-    **Contexto:**
-    - URL a analizar: ${input.url}
-    - Objetivo principal de la campaña: "${input.objective}"
-
-    **Instrucciones:**
-    1.  Analiza el contenido de la URL para entender el producto, servicio, y público actual.
-    2.  Basado en el objetivo, desarrolla una estrategia de publicidad digital coherente.
-    3.  Define las plataformas más adecuadas (Google, Meta, LinkedIn, etc.), el presupuesto y las acciones.
-    4.  Crea un calendario de implementación para los primeros 3 meses.
-    5.  Propón una estructura de honorarios profesional.
-    6.  Tu respuesta DEBE ser un único objeto JSON válido, sin comentarios, texto introductorio, ni markdown \`\`\`.
-
-    **Estructura JSON Requerida:**
-    {
-      "executive_summary": "string (Resumen ejecutivo del plan, explicando la lógica general.)",
-      "target_audience": "string (Descripción detallada del público objetivo ideal.)",
-      "strategies": [{
-        "platform": "string (Plataforma publicitaria (ej. Google Ads, Meta Ads, LinkedIn Ads).)",
-        "strategy": "string (Descripción de la estrategia para esta plataforma.)",
-        "ad_formats": ["string (Formatos de anuncio recomendados (ej. Búsqueda, Display, Video, Lead Gen Form).)")],
-        "monthly_budget": "number (Presupuesto mensual recomendado para esta plataforma.)"
-      }],
-      "total_monthly_budget": "number (Suma total de los presupuestos mensuales de todas las plataformas.)",
-      "calendar": [{
-        "month": "string (Mes del hito (ej. 'Mes 1', 'Mes 2').)",
-        "focus": "string (El enfoque principal o la meta para ese mes.)",
-        "actions": ["string (Acciones específicas a realizar durante ese mes.)"]
-      }],
-      "kpis": ["string (KPIs clave para medir el éxito (ej. CPA, ROAS, CTR).)")],
-      "fee_proposal": {
-        "setup_fee": "number (Precio por la configuración inicial de las campañas.)",
-        "management_fee": "number (Precio por la gestión mensual recurrente.)",
-        "fee_description": "string (Descripción de los servicios incluidos en los honorarios.)"
-      }
-    }
-
-    Analiza la URL y el objetivo, y genera el objeto JSON completo con tu plan estratégico.
-  `;
-
+  // A simple Handlebars-like replacement
+  const objectivesString = input.objectives.map(o => `- ${o}`).join('\n');
+  const prompt = rawPrompt
+    .replace(/{{url}}/g, input.url)
+    .replace(/{{#each objectives}}.*{{this}}.*{{\/each}}/g, objectivesString);
+  
   const result = await model.generateContent(prompt);
   const responseText = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
   const parsedJson = JSON.parse(responseText);

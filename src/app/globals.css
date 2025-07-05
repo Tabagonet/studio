@@ -9,7 +9,7 @@ body {
 
 @layer base {
   :root {
-    --background: 0 0% 96.1%; /* #F5F5F5 Very Light Gray */
+    --background: 240 60% 98%; /* Very Light Gray */
     --foreground: 240 10% 3.9%;
 
     --card: 0 0% 100%;
@@ -18,28 +18,28 @@ body {
     --popover: 0 0% 100%;
     --popover-foreground: 240 10% 3.9%;
 
-    --primary: 177 70% 41.2%; /* #20B2AA Light Sea Green */
-    --primary-foreground: 0 0% 100%; /* White */
+    --primary: 240 60% 96.1%; /* #E6E6FA Soft Lavender */
+    --primary-foreground: 240 5.9% 10%;
 
-    --secondary: 240 4.8% 92.9%; /* Lighter gray for secondary elements */
-    --secondary-foreground: 240 5.9% 10%;
+    --secondary: 177 70% 41.2%; /* #20B2AA Light Sea Green */
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 240 4.8% 92.9%;
+    --muted: 240 4.8% 95.9%;
     --muted-foreground: 240 3.8% 46.1%;
 
-    --accent: 240 60% 96.9%; /* #E6E6FA Soft Lavender */
-    --accent-foreground: 177 70% 31.2%; /* Darker sea green for text on lavender */
+    --accent: 177 70% 95%; /* Lighter Sea Green */
+    --accent-foreground: 177 70% 31.2%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
     --border: 240 5.9% 90%;
-    --input: 0 0% 100%; /* White inputs on light gray background */
-    --ring: 177 70% 41.2%; /* Primary color for rings */
+    --input: 240 5.9% 90%;
+    --ring: 177 70% 41.2%;
 
     --radius: 0.5rem;
 
-    /* Sidebar specific colors */
+     /* Sidebar specific colors */
     --sidebar-background: 0 0% 100%; /* White sidebar */
     --sidebar-foreground: 240 10% 20%; /* Darker text for sidebar */
     --sidebar-primary: 177 70% 41.2%; /* Light Sea Green for active/hover */
@@ -60,16 +60,16 @@ body {
     --popover: 240 10% 3.9%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 177 70% 51.2%; /* Slightly lighter Sea Green for dark mode */
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 240 3.7% 15.9%;
+    --primary: 240 60% 30%; /* Darker Lavender for dark mode */
+    --primary-foreground: 0 0% 98%;
+    
+    --secondary: 177 70% 31.2%; /* Dark Sea Green */
     --secondary-foreground: 0 0% 98%;
 
     --muted: 240 3.7% 15.9%;
     --muted-foreground: 240 5% 64.9%;
 
-    --accent: 240 60% 20%; /* Darker Lavender for dark mode */
+    --accent: 177 70% 15%; /* Darker Sea Green */
     --accent-foreground: 0 0% 98%;
 
     --destructive: 0 62.8% 30.6%;
@@ -140,12 +140,13 @@ body {
 /* Print-specific styles */
 @media print {
   body {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
     font-size: 10pt;
     background-color: #fff !important;
+    color: #000 !important;
   }
-
+  
   .print-hide {
     display: none !important;
   }
@@ -153,13 +154,53 @@ body {
   main {
     padding: 0 !important;
     margin: 0 !important;
+    background-color: #fff !important;
   }
 
-  /* Ensure cards in the report don't have shadows or excessive borders */
   .report-view .card {
     border: 1px solid #ddd !important;
     box-shadow: none !important;
     page-break-inside: avoid;
+    background-color: #fff !important;
+    color: #000 !important;
+  }
+
+  .report-view .card-header, .report-view .card-content {
+     background-color: #fff !important;
+  }
+
+  .report-view .text-primary, .report-view .text-secondary {
+    color: #20B2AA !important; /* Light Sea Green */
+  }
+
+  .report-view .text-muted-foreground {
+    color: #555 !important;
+  }
+
+  .report-view .bg-primary, .report-view .bg-secondary {
+    background-color: #20B2AA !important; /* Light Sea Green */
+  }
+
+  .report-view .bg-accent\/50 {
+    background-color: #F0F8FF !important; /* AliceBlue as a substitute for lavender */
+  }
+  
+  .report-view .border-primary\/20 {
+    border-color: #20B2AA !important;
+  }
+
+  .report-view .badge {
+    background-color: #f0f0f0 !important;
+    color: #333 !important;
+    border: 1px solid #ccc !important;
+  }
+
+  .report-header {
+    display: block !important;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #333;
+    text-align: center;
   }
   
   @page {

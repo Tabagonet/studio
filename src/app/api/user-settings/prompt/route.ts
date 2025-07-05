@@ -6,8 +6,7 @@ import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
 
-// Helper function to get user UID and user settings document from request
-async function getUserSettings(req: NextRequest): Promise<{ uid: string; settings: admin.firestore.DocumentData | undefined }> {
+async function getUserContext(req: NextRequest): Promise<{ uid: string; settings: admin.firestore.DocumentData | undefined; settingsRef: admin.firestore.DocumentReference }> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) throw new Error('Authentication required.');
 
@@ -16,28 +15,28 @@ async function getUserSettings(req: NextRequest): Promise<{ uid: string; setting
     const uid = decodedToken.uid;
 
     if (!adminDb) throw new Error('Firestore not configured on server.');
-    const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
     
-    return { uid, settings: userSettingsDoc.data() };
+    // For prompts, we always edit the SUPER ADMIN's personal settings, as they are the only ones with access.
+    const settingsRef = adminDb.collection('user_settings').doc(uid);
+    const settingsDoc = await settingsRef.get();
+    
+    return { uid, settings: settingsDoc.data(), settingsRef };
 }
 
-// GET handler to fetch the prompt for the ACTIVE connection
+
 export async function GET(req: NextRequest) {
     try {
-        const { settings } = await getUserSettings(req);
-        
-        const activeKey = settings?.activeConnectionKey;
-        const connections = settings?.connections;
-        let prompt: string | null = null;
-        
-        if (activeKey && connections && connections[activeKey]) {
-            prompt = connections[activeKey].promptTemplate || null;
+        const { settings } = await getUserContext(req);
+        const { searchParams } = new URL(req.url);
+        const promptKey = searchParams.get('key');
+
+        if (!promptKey) {
+            return NextResponse.json({ error: 'Prompt key is required.' }, { status: 400 });
         }
 
-        return NextResponse.json({ 
-            prompt: prompt,
-            activeConnectionKey: activeKey || null,
-        });
+        const prompt = settings?.prompts?.[promptKey] || null;
+        
+        return NextResponse.json({ prompt });
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
@@ -47,14 +46,15 @@ export async function GET(req: NextRequest) {
     }
 }
 
-// POST handler to save the prompt TO the ACTIVE connection
+
 export async function POST(req: NextRequest) {
     try {
-        const { uid, settings } = await getUserSettings(req);
+        const { settingsRef } = await getUserContext(req);
         const body = await req.json();
 
         const promptSchema = z.object({
             prompt: z.string().min(1, 'La plantilla no puede estar vacía'),
+            promptKey: z.string().min(1, 'La clave de la plantilla es obligatoria'),
         });
         
         const validationResult = promptSchema.safeParse(body);
@@ -62,21 +62,16 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Datos inválidos', details: validationResult.error.flatten() }, { status: 400 });
         }
         
-        const { prompt } = validationResult.data;
-        const activeKey = settings?.activeConnectionKey;
-
-        if (!activeKey) {
-            return NextResponse.json({ error: 'No active connection set.', message: 'Debes tener una conexión activa para guardar una plantilla específica.' }, { status: 400 });
-        }
+        const { prompt, promptKey } = validationResult.data;
         
-        const userSettingsRef = adminDb!.collection('user_settings').doc(uid);
+        // Use dot notation to update a specific prompt within the prompts map
+        await settingsRef.set({
+            prompts: {
+                [promptKey]: prompt
+            }
+        }, { merge: true });
 
-        // Use dot notation in an update call to set the nested property
-        await userSettingsRef.update({
-            [`connections.${activeKey}.promptTemplate`]: prompt
-        });
-
-        return NextResponse.json({ success: true, message: 'Plantilla guardada correctamente.', activeConnectionKey: activeKey });
+        return NextResponse.json({ success: true, message: 'Plantilla guardada correctamente.', promptKey: promptKey });
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         console.error('Error saving user prompt:', error);

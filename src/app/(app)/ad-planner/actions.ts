@@ -3,25 +3,40 @@
 import { createAdPlan } from "@/ai/flows/create-ad-plan-flow";
 import { CreateAdPlanInput, CreateAdPlanOutput } from "./schema";
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
+import { headers } from 'next/headers';
+
+
+async function getUidFromRequest(): Promise<string | null> {
+    const authorization = headers().get('Authorization');
+    if (!authorization?.startsWith('Bearer ')) {
+        return null;
+    }
+    const token = authorization.split('Bearer ')[1];
+    try {
+        if (!adminAuth) throw new Error("Firebase Admin not initialized");
+        const decodedToken = await adminAuth.verifyIdToken(token);
+        return decodedToken.uid;
+    } catch (error) {
+        console.error('Error verifying token in generateAdPlanAction:', error);
+        return null;
+    }
+}
 
 export async function generateAdPlanAction(input: CreateAdPlanInput): Promise<{
     data?: CreateAdPlanOutput;
     error?: string;
 }> {
     try {
-        const adPlan = await createAdPlan(input);
+        const uid = await getUidFromRequest();
+        if (!uid) {
+            return { error: 'Authentication failed. Unable to identify user.' };
+        }
+
+        const adPlan = await createAdPlan(input, uid);
         
-        // This is a server action, so we can get the user and increment usage here
-        // Note: This relies on the action being called from an authenticated context,
-        // which is enforced by the AdPlannerLayout.
-        // A more robust solution might pass the token, but this is simpler.
-        const users = await adminAuth.listUsers();
-        // This is a simplification; in a real app, you'd get the current user's ID
-        // from the session or another secure mechanism. For this context, we assume
-        // a single user or handle usage tracking differently.
-        const superAdmin = users.users.find(u => u.email === 'tabagonet@gmail.com');
-        if (adminDb && superAdmin) {
-            const userSettingsRef = adminDb.collection('user_settings').doc(superAdmin.uid);
+        // This is a server action, so we can increment usage here.
+        if (adminDb) {
+            const userSettingsRef = adminDb.collection('user_settings').doc(uid);
             await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
         }
         

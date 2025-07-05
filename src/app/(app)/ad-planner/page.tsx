@@ -9,11 +9,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Sparkles, Megaphone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { generateAdPlanAction } from './actions';
 import { AdPlanView } from './ad-plan-view';
+import { auth } from '@/lib/firebase';
+import { Checkbox } from '@/components/ui/checkbox';
+
 
 const objectives = [
     "Aumentar las ventas de un producto/servicio específico",
@@ -21,6 +23,7 @@ const objectives = [
     "Aumentar el reconocimiento de marca (brand awareness)",
     "Impulsar el tráfico a la web o a una landing page",
     "Incrementar los seguidores y la interacción en redes sociales",
+    "Fidelizar clientes existentes y aumentar el LTV",
 ];
 
 export default function AdPlannerPage() {
@@ -32,7 +35,7 @@ export default function AdPlannerPage() {
         resolver: zodResolver(CreateAdPlanInputSchema),
         defaultValues: {
             url: '',
-            objective: '',
+            objectives: [],
         },
     });
 
@@ -40,15 +43,28 @@ export default function AdPlannerPage() {
         setIsLoading(true);
         setAdPlan(null);
         toast({ title: "Generando plan de publicidad...", description: "La IA está analizando la web y preparando tu estrategia. Esto puede tardar un momento." });
+        
+        const user = auth.currentUser;
+        if (!user) {
+            toast({ variant: 'destructive', title: "Error de autenticación", description: "Por favor, inicia sesión de nuevo." });
+            setIsLoading(false);
+            return;
+        }
 
-        const result = await generateAdPlanAction(values);
+        try {
+            const token = await user.getIdToken();
+            const result = await generateAdPlanAction(values);
 
-        setIsLoading(false);
-        if (result.error) {
-            toast({ variant: 'destructive', title: "Error al generar el plan", description: result.error });
-        } else if (result.data) {
-            setAdPlan(result.data);
-            toast({ title: "¡Plan generado con éxito!", description: "Revisa la estrategia propuesta a continuación." });
+            setIsLoading(false);
+            if (result.error) {
+                toast({ variant: 'destructive', title: "Error al generar el plan", description: result.error });
+            } else if (result.data) {
+                setAdPlan(result.data);
+                toast({ title: "¡Plan generado con éxito!", description: "Revisa la estrategia propuesta a continuación." });
+            }
+        } catch (error: any) {
+            setIsLoading(false);
+            toast({ variant: 'destructive', title: "Error de Red", description: error.message });
         }
     }
 
@@ -57,7 +73,7 @@ export default function AdPlannerPage() {
             <Card>
                 <CardHeader>
                     <div className="flex items-center space-x-3">
-                        <Megaphone className="h-8 w-8 text-primary" />
+                        <Megaphone className="h-8 w-8 text-secondary" />
                         <div>
                             <CardTitle>Planificador de Publicidad con IA</CardTitle>
                             <CardDescription>Genera planes de publicidad digital profesionales para cualquier web.</CardDescription>
@@ -90,22 +106,45 @@ export default function AdPlannerPage() {
                                 />
                                 <FormField
                                     control={form.control}
-                                    name="objective"
-                                    render={({ field }) => (
+                                    name="objectives"
+                                    render={() => (
                                         <FormItem>
-                                            <FormLabel>Objetivo Principal</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Selecciona un objetivo..." />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    {objectives.map((obj) => (
-                                                        <SelectItem key={obj} value={obj}>{obj}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                             <FormLabel>Objetivos de la Campaña</FormLabel>
+                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {objectives.map((item) => (
+                                                    <FormField
+                                                    key={item}
+                                                    control={form.control}
+                                                    name="objectives"
+                                                    render={({ field }) => {
+                                                        return (
+                                                        <FormItem
+                                                            key={item}
+                                                            className="flex flex-row items-start space-x-3 space-y-0"
+                                                        >
+                                                            <FormControl>
+                                                            <Checkbox
+                                                                checked={field.value?.includes(item)}
+                                                                onCheckedChange={(checked) => {
+                                                                return checked
+                                                                    ? field.onChange([...field.value, item])
+                                                                    : field.onChange(
+                                                                        field.value?.filter(
+                                                                        (value) => value !== item
+                                                                        )
+                                                                    )
+                                                                }}
+                                                            />
+                                                            </FormControl>
+                                                            <FormLabel className="font-normal">
+                                                            {item}
+                                                            </FormLabel>
+                                                        </FormItem>
+                                                        )
+                                                    }}
+                                                    />
+                                                ))}
+                                            </div>
                                             <FormMessage />
                                         </FormItem>
                                     )}

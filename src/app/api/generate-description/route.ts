@@ -25,6 +25,41 @@ const ImageMetaOnlySchema = z.object({
   imageDescription: z.string().describe('A detailed description for the image media library entry.'),
 });
 
+async function getProductDescriptionPrompt(uid: string): Promise<string> {
+    const defaultPrompt = `You are an expert e-commerce copywriter and SEO specialist.
+Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
+The response must be a valid JSON object. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
+
+**Input Information:**
+- **Product Name:** {{productName}}
+- **Language for output:** {{language}}
+- **Product Type:** {{productType}}
+- **User-provided Keywords (for inspiration):** {{keywords}}
+- **Contained Products (for "Grouped" type only):**
+{{{groupedProductsList}}}
+
+**Instructions:**
+Generate a JSON object with the following keys. Adapt the content to the product name provided.
+
+a.  **"shortDescription":** A concise and engaging summary in {{language}}.
+b.  **"longDescription":** A detailed description in {{language}}. Use HTML tags like <strong>, <em>, and <br> for formatting.
+c.  **"keywords":** A comma-separated list of 5-10 relevant SEO keywords in English.
+d.  **"imageTitle":** A concise, SEO-friendly title for product images.
+e.  **"imageAltText":** A descriptive alt text for SEO.
+f.  **"imageCaption":** An engaging caption for the image.
+g.  **"imageDescription":** A detailed description for the image media library entry.
+
+Generate the complete JSON object based on your research of "{{productName}}".`;
+    if (!adminDb) return defaultPrompt;
+    try {
+        const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+        return userSettingsDoc.data()?.prompts?.productDescription || defaultPrompt;
+    } catch (error) {
+        console.error("Error fetching 'productDescription' prompt, using default.", error);
+        return defaultPrompt;
+    }
+}
+
 
 export async function POST(req: NextRequest) {
   let uid: string;
@@ -60,7 +95,7 @@ export async function POST(req: NextRequest) {
     const clientInput = validationResult.data;
     
     // Fetch clients and settings ONCE
-    const { wooApi, settings } = await getApiClientsForUser(uid);
+    const { wooApi } = await getApiClientsForUser(uid);
     
     let groupedProductsList = 'N/A';
     if (clientInput.productType === 'grouped' && clientInput.groupedProductIds && clientInput.groupedProductIds.length > 0) {
@@ -85,33 +120,10 @@ export async function POST(req: NextRequest) {
 
     if (clientInput.mode === 'image_meta_only') {
       outputSchema = ImageMetaOnlySchema;
-      promptTemplate = `You are an expert e-commerce copywriter and SEO specialist.
-Your task is to generate ONLY the SEO metadata for product images.
-The response must be a single, valid JSON object with the following keys: "imageTitle", "imageAltText", "imageCaption", "imageDescription".
-
-**Input Information:**
-- **Product Name:** {{productName}}
-- **Product Type:** {{productType}}
-- **User-provided Keywords (for inspiration):** {{keywords}}
-
-Generate the JSON object based on your research of "{{productName}}".`;
+      promptTemplate = await getProductDescriptionPrompt(uid); // Use the same base prompt
     } else { // full_product
       outputSchema = FullProductOutputSchema;
-      const activeKey = settings?.activeConnectionKey;
-      const customPrompt = activeKey ? settings?.connections?.[activeKey]?.promptTemplate : null;
-
-      promptTemplate = customPrompt || `You are an expert e-commerce copywriter and SEO specialist.
-Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
-The response must be a single, valid JSON object with the following keys: "shortDescription", "longDescription", "keywords", "imageTitle", "imageAltText", "imageCaption", "imageDescription". Do not include markdown backticks (\`\`\`) or the word "json" in your response.
-
-**Input Information:**
-- **Product Name:** {{productName}}
-- **Language for output:** {{language}}
-- **Product Type:** {{productType}}
-- **User-provided Keywords (for inspiration):** {{keywords}}
-- **Contained Products (for "Grouped" type only):** {{{groupedProductsList}}}
-
-Generate the complete JSON object based on your research of "{{productName}}".`;
+      promptTemplate = await getProductDescriptionPrompt(uid);
     }
 
     const template = Handlebars.compile(promptTemplate, { noEscape: true });
