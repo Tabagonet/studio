@@ -78,6 +78,12 @@ export async function GET(req: NextRequest) {
                             name: t.name || '',
                             hours: typeof t.hours === 'number' ? t.hours : 0,
                         })),
+                        creatives: s.creatives ? {
+                            headlines: s.creatives.headlines || [],
+                            descriptions: s.creatives.descriptions || [],
+                            cta_suggestions: s.creatives.cta_suggestions || [],
+                            visual_ideas: s.creatives.visual_ideas || [],
+                        } : undefined,
                     })),
                 };
                 history.push(plan);
