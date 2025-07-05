@@ -1,7 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
-import { CreateAdPlanOutputSchema, type CreateAdPlanOutput } from '@/app/(app)/ad-planner/schema';
+import type { CreateAdPlanOutput, Strategy, Task } from '@/app/(app)/ad-planner/schema';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,38 +20,56 @@ export async function GET(req: NextRequest) {
     try {
         const snapshot = await adminDb.collection('ad_plans')
             .where('userId', '==', uid)
+            .orderBy('createdAt', 'desc')
             .get();
         
         if (snapshot.empty) {
             return NextResponse.json({ history: [] });
         }
 
-        const historyPromises = snapshot.docs.map(async (doc) => {
-            const data = doc.data();
-            
-            // Handle old nested structure and new flat structure
-            const planDataToParse = data.planData || data;
+        const history: CreateAdPlanOutput[] = [];
 
-            // Add id and createdAt to the object before parsing
-            const fullDataToParse = {
-                ...planDataToParse,
+        for (const doc of snapshot.docs) {
+            const data = doc.data();
+
+            // Safely construct the plan object, providing defaults for every possible missing field.
+            // This is more robust than relying on Zod's .default() during parsing,
+            // as it handles null/undefined fields from the DB directly.
+            const plan: CreateAdPlanOutput = {
                 id: doc.id,
                 createdAt: data.createdAt?.toDate()?.toISOString() || new Date(0).toISOString(),
+                url: data.url || '',
+                objectives: data.objectives || [],
+                executive_summary: data.executive_summary || '',
+                target_audience: data.target_audience || '',
+                total_monthly_budget: typeof data.total_monthly_budget === 'number' ? data.total_monthly_budget : 0,
+                kpis: data.kpis || [],
+                calendar: (data.calendar || []).map((c: any) => ({
+                    month: c.month || '',
+                    focus: c.focus || '',
+                    actions: c.actions || [],
+                })),
+                fee_proposal: {
+                    setup_fee: data.fee_proposal?.setup_fee || 0,
+                    management_fee: data.fee_proposal?.management_fee || 0,
+                    fee_description: data.fee_proposal?.fee_description || '',
+                },
+                strategies: (data.strategies || []).map((s: any): Strategy => ({
+                    platform: s.platform || '',
+                    strategy_rationale: s.strategy_rationale || '',
+                    funnel_stage: s.funnel_stage || 'Awareness',
+                    campaign_type: s.campaign_type || '',
+                    ad_formats: s.ad_formats || [],
+                    monthly_budget: typeof s.monthly_budget === 'number' ? s.monthly_budget : 0,
+                    tasks: (s.tasks || []).map((t: any): Task => ({
+                        id: t.id || '', // Note: uuid generation is client-side
+                        name: t.name || '',
+                        hours: typeof t.hours === 'number' ? t.hours : 0,
+                    })),
+                })),
             };
-            
-            const result = CreateAdPlanOutputSchema.safeParse(fullDataToParse);
-
-            if (!result.success) {
-                console.warn(`Skipping malformed ad plan history record ${doc.id}:`, result.error.flatten());
-                return null;
-            }
-
-            return result.data as CreateAdPlanOutput;
-        });
-        
-        const history = (await Promise.all(historyPromises)).filter(Boolean as any as (value: any) => value is NonNullable<any>);
-
-        history.sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
+            history.push(plan);
+        }
 
         return NextResponse.json({ history });
 
