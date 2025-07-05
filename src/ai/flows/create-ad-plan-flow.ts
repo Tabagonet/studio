@@ -3,7 +3,8 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { CreateAdPlanInput, CreateAdPlanOutput, CreateAdPlanOutputSchema } from '@/app/(app)/ad-planner/schema';
-import { adminAuth, adminDb } from '@/lib/firebase-admin';
+import { adminDb } from '@/lib/firebase-admin';
+import Handlebars from 'handlebars';
 
 // Helper to fetch the custom prompt from Firestore
 async function getAdPlanPrompt(uid: string): Promise<string> {
@@ -48,18 +49,16 @@ Tu respuesta DEBE ser un único objeto JSON válido.
 
 export async function createAdPlan(input: CreateAdPlanInput, uid: string): Promise<CreateAdPlanOutput> {
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
 
   const rawPrompt = await getAdPlanPrompt(uid);
 
-  // A simple Handlebars-like replacement
-  const objectivesString = input.objectives.map(o => `- ${o}`).join('\n');
-  const prompt = rawPrompt
-    .replace(/{{url}}/g, input.url)
-    .replace(/{{#each objectives}}.*{{this}}.*{{\/each}}/g, objectivesString);
+  // Use Handlebars for robust templating
+  const template = Handlebars.compile(rawPrompt, { noEscape: true });
+  const prompt = template(input);
   
   const result = await model.generateContent(prompt);
-  const responseText = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+  const responseText = result.response.text();
   const parsedJson = JSON.parse(responseText);
   
   return CreateAdPlanOutputSchema.parse(parsedJson);
