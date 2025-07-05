@@ -6,7 +6,7 @@ import { pdf, Document, Page, Text, View, StyleSheet, Font, Image as PdfImage } 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CreateAdPlanOutput, Strategy } from './schema';
-import { DollarSign, Printer, RotateCcw, Target, TrendingUp, Calendar, Zap, ClipboardCheck, Users, Megaphone, Lightbulb, MapPin, BarChart, Loader2, ListOrdered } from 'lucide-react';
+import { DollarSign, Printer, RotateCcw, Target, TrendingUp, Calendar, Zap, ClipboardCheck, Users, Megaphone, Lightbulb, MapPin, BarChart, Loader2, ListOrdered, Save } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
@@ -15,6 +15,8 @@ import { StrategyDetailDialog } from './StrategyDetailDialog';
 import { formatCurrency } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { saveAdPlanAction } from './actions';
+import { auth } from '@/lib/firebase';
 
 
 // Register fonts for PDF rendering
@@ -110,6 +112,7 @@ const AdPlanPDF = ({ plan, companyName, logoUrl }: { plan: CreateAdPlanOutput; c
 export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }: { plan: CreateAdPlanOutput; onReset: () => void; companyName: string; logoUrl: string | null }) {
     const [plan, setPlan] = React.useState<CreateAdPlanOutput>(initialPlan);
     const [isPdfLoading, setIsPdfLoading] = React.useState(false);
+    const [isSavingPlan, setIsSavingPlan] = React.useState(false);
     const [detailedStrategy, setDetailedStrategy] = React.useState<Strategy | null>(null);
     const { toast } = useToast();
 
@@ -120,7 +123,6 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
     const handleBudgetChange = (platform: string, newBudgetString: string) => {
         const newBudget = parseFloat(newBudgetString) || 0;
         setPlan(prevPlan => {
-            if (!prevPlan) return null;
             const updatedStrategies = prevPlan.strategies.map(s => 
                 s.platform === platform ? { ...s, monthly_budget: newBudget } : s
             );
@@ -132,6 +134,31 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
                 total_monthly_budget: newTotalBudget,
             };
         });
+    };
+
+    const handleSavePlan = async () => {
+        setIsSavingPlan(true);
+        const user = auth.currentUser;
+        if (!user) {
+            toast({ title: "No autenticado", variant: "destructive" });
+            setIsSavingPlan(false);
+            return;
+        }
+        
+        try {
+            const token = await user.getIdToken();
+            const result = await saveAdPlanAction(plan, token);
+
+            if (result.success) {
+                toast({ title: "¡Plan Guardado!", description: "Tus cambios se han guardado correctamente." });
+            } else {
+                throw new Error(result.error || "No se pudo guardar el plan.");
+            }
+        } catch (error: any) {
+            toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
+        } finally {
+            setIsSavingPlan(false);
+        }
     };
 
     const handleDownload = async () => {
@@ -167,13 +194,11 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
 
     const handlePlanUpdate = React.useCallback((updatedPlan: CreateAdPlanOutput) => {
         setPlan(updatedPlan);
-        // When the plan is updated from the dialog, we need to find the new strategy object
-        // within the new plan object to avoid the dialog holding a stale reference.
         if (detailedStrategy) {
             const newStrategy = updatedPlan.strategies.find(s => s.platform === detailedStrategy.platform);
             setDetailedStrategy(newStrategy || null);
         }
-    }, [detailedStrategy]); // Dependency on detailedStrategy is correct here
+    }, [detailedStrategy]); 
     
     return (
         <div className="space-y-6 report-view">
@@ -192,6 +217,10 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
 
              <div className="flex flex-wrap gap-2 justify-end print-hide">
                 <Button variant="outline" onClick={onReset}><RotateCcw className="mr-2 h-4 w-4" /> Crear Nuevo Plan</Button>
+                 <Button onClick={handleSavePlan} disabled={isSavingPlan}>
+                    {isSavingPlan ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    {isSavingPlan ? 'Guardando...' : 'Guardar Plan'}
+                </Button>
                  <Button onClick={handleDownload} disabled={isPdfLoading}>
                     {isPdfLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
                     {isPdfLoading ? 'Generando PDF...' : 'Descargar PDF'}

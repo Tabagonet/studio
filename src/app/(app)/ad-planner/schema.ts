@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 
 export const TaskSchema = z.object({
@@ -32,6 +33,7 @@ const FeeProposalSchema = z.object({
 });
 
 export const CreateAdPlanOutputSchema = z.object({
+  id: z.string().optional(), // The document ID from Firestore
   url: z.string().url().describe("La URL que se analizó para generar el plan."),
   objectives: z.array(z.string()).describe("Los objetivos de negocio que se usaron como base."),
   executive_summary: z.string().describe("Resumen ejecutivo del plan, explicando la lógica general y la estrategia propuesta."),
