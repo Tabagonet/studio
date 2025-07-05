@@ -120,9 +120,12 @@ export async function saveAdPlanAction(
         if (doc.data()?.userId !== uid) {
             return { success: false, error: 'Permission denied. You do not own this plan.' };
         }
+        
+        // Sanitize the object to remove any `undefined` values that Firestore cannot handle.
+        const sanitizedPlanData = JSON.parse(JSON.stringify(planData));
 
         await planRef.update({
-            planData: planData,
+            planData: sanitizedPlanData,
             url: plan.url,
             objectives: plan.objectives,
         });
