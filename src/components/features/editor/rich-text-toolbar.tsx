@@ -49,7 +49,7 @@ export const RichTextToolbar = ({ editor, onInsertImage }: Props) => {
 
   return (
     <>
-      <div className="flex items-center gap-1 mb-0 rounded-t-md border-b-0 border bg-muted p-1 flex-wrap sticky top-0 z-10">
+      <div className="flex items-center gap-1 mb-0 rounded-t-md border-b-0 border bg-muted p-1 flex-wrap sticky top-14 z-10">
         {/* Text Formatting */}
         <Button type="button" variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleBold().run()} disabled={!editor.can().chain().focus().toggleBold().run()} data-active={editor.isActive('bold')} data-tiptap-toolbar-button title="Negrita" className="h-8 w-8">
           <Bold className="h-4 w-4" />
