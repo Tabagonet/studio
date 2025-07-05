@@ -52,13 +52,22 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        const { uid, role, companyId } = await getUserContext(req);
+        const { uid, role } = await getUserContext(req);
+        const targetCompanyId = req.nextUrl.searchParams.get('companyId');
         let settingsDoc;
         
-        if (role === 'admin' && companyId) {
-            settingsDoc = await adminDb.collection('companies').doc(companyId).get();
-        } else { // super_admin or individual user
-            settingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+        if (role === 'super_admin' && targetCompanyId) {
+             settingsDoc = await adminDb.collection('companies').doc(targetCompanyId).get();
+        } else {
+            // Regular admins or super admins fetching their own data will get their settings
+            const userDoc = await adminDb.collection('users').doc(uid).get();
+            const companyId = userDoc.data()?.companyId;
+
+            if (role === 'admin' && companyId) {
+                 settingsDoc = await adminDb.collection('companies').doc(companyId).get();
+            } else {
+                 settingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+            }
         }
 
         if (settingsDoc.exists) {
@@ -71,7 +80,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ allConnections: {}, activeConnectionKey: null });
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-        console.error('Error fetching user connections:', error);
+        console.error('Error fetching connections:', error);
         return NextResponse.json({ error: errorMessage || 'Authentication required' }, { status: 401 });
     }
 }
@@ -82,13 +91,14 @@ export async function POST(req: NextRequest) {
     }
     
     try {
-        const { uid, role, companyId } = await getUserContext(req);
+        const { uid, role, companyId: userCompanyId } = await getUserContext(req);
         const body = await req.json();
 
         const payloadSchema = z.object({
             key: z.string().min(1, "Key is required"),
             connectionData: connectionDataSchema,
             setActive: z.boolean().optional().default(false),
+            companyId: z.string().optional(), // For super_admin editing a specific company
         });
 
         const validationResult = payloadSchema.safeParse(body);
@@ -96,11 +106,15 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid data', details: validationResult.error.flatten() }, { status: 400 });
         }
         
-        const { key, connectionData, setActive } = validationResult.data;
+        const { key, connectionData, setActive, companyId: targetCompanyId } = validationResult.data;
 
         let settingsRef;
-        if (role === 'admin' && companyId) {
-            settingsRef = adminDb.collection('companies').doc(companyId);
+        let isUpdate = false;
+
+        if (role === 'super_admin' && targetCompanyId) {
+            settingsRef = adminDb.collection('companies').doc(targetCompanyId);
+        } else if (role === 'admin' && userCompanyId) {
+            settingsRef = adminDb.collection('companies').doc(userCompanyId);
         } else if (role === 'super_admin') {
             settingsRef = adminDb.collection('user_settings').doc(uid);
         } else {
@@ -108,16 +122,19 @@ export async function POST(req: NextRequest) {
         }
         
         const settingsSnap = await settingsRef.get();
-        const settingsData = settingsSnap.data();
-        const currentConnections = settingsData?.connections || {};
-
-        if (role === 'admin') {
+        if (settingsSnap.exists) {
+            const settingsData = settingsSnap.data();
+            const currentConnections = settingsData?.connections || {};
+            isUpdate = Object.prototype.hasOwnProperty.call(currentConnections, key);
+        }
+        
+        // Site limit check for non-super admins creating a new connection
+        if (role !== 'super_admin') {
             const userDoc = await adminDb.collection('users').doc(uid).get();
             const siteLimit = userDoc.data()?.siteLimit ?? 1;
-            const connectionCount = Object.keys(currentConnections).length;
-            const isUpdate = Object.prototype.hasOwnProperty.call(currentConnections, key);
+            const connectionCount = settingsSnap.exists ? Object.keys(settingsSnap.data()?.connections || {}).length : 0;
             if (!isUpdate && connectionCount >= siteLimit) {
-                 return NextResponse.json({ error: `Límite de sitios alcanzado. El plan de tu empresa permite ${siteLimit} sitio(s).` }, { status: 403 });
+                 return NextResponse.json({ error: `Límite de sitios alcanzado. Tu plan permite ${siteLimit} sitio(s).` }, { status: 403 });
             }
         }
         
@@ -163,20 +180,25 @@ export async function DELETE(req: NextRequest) {
     }
 
     try {
-        const { uid, role, companyId } = await getUserContext(req);
+        const { uid, role, companyId: userCompanyId } = await getUserContext(req);
         const body = await req.json();
 
-        const payloadSchema = z.object({ key: z.string().min(1, "Key is required") });
+        const payloadSchema = z.object({
+             key: z.string().min(1, "Key is required"),
+             companyId: z.string().optional(), // For super_admin
+        });
         const validationResult = payloadSchema.safeParse(body);
         if (!validationResult.success) {
             return NextResponse.json({ error: 'Invalid data', details: validationResult.error.flatten() }, { status: 400 });
         }
         
-        const { key } = validationResult.data;
+        const { key, companyId: targetCompanyId } = validationResult.data;
 
         let settingsRef;
-        if (role === 'admin' && companyId) {
-            settingsRef = adminDb.collection('companies').doc(companyId);
+        if (role === 'super_admin' && targetCompanyId) {
+            settingsRef = adminDb.collection('companies').doc(targetCompanyId);
+        } else if (role === 'admin' && userCompanyId) {
+            settingsRef = adminDb.collection('companies').doc(userCompanyId);
         } else if (role === 'super_admin') {
             settingsRef = adminDb.collection('user_settings').doc(uid);
         } else {
@@ -185,6 +207,9 @@ export async function DELETE(req: NextRequest) {
         
         const doc = await settingsRef.get();
         const currentData = doc.data();
+        if (!doc.exists || !currentData?.connections?.[key]) {
+             return NextResponse.json({ success: true, message: 'Connection already deleted.' });
+        }
 
         const updatePayload: { [key: string]: any } = {
             [`connections.${key}`]: admin.firestore.FieldValue.delete()
