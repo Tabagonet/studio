@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { pdf, Document, Page, Text, View, StyleSheet, Font, Image as PdfImage } from '@react-pdf/renderer';
+import { pdf, Document, Page, Text, View, StyleSheet, Image as PdfImage } from '@react-pdf/renderer';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CreateAdPlanOutput } from './schema';
@@ -11,35 +11,22 @@ import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
 
-
-// Register fonts for PDF rendering from Google's reliable font CDN.
-Font.register({
-  family: 'PT Sans',
-  fonts: [
-    { src: 'https://fonts.gstatic.com/s/ptsans/v17/jizaRExUiTo99u79D0-ExdGM.ttf' },
-    { src: 'https://fonts.gstatic.com/s/ptsans/v17/jizfRExUiTo99u79B_mh0O6tKA.ttf', fontWeight: 'bold' },
-    { src: 'https://fonts.gstatic.com/s/ptsans/v17/jizYRExUiTo99u79plgnE8M.ttf', fontStyle: 'italic' },
-    { src: 'https://fonts.gstatic.com/s/ptsans/v17/jizdRExUiTo99u79anF5Rm1gGg.ttf', fontWeight: 'bold', fontStyle: 'italic' },
-  ],
-});
-
-
-// Styles for the PDF document
+// Styles for the PDF document using the standard Helvetica font
 const styles = StyleSheet.create({
-  page: { fontFamily: 'PT Sans', fontSize: 10, paddingTop: 35, paddingBottom: 65, paddingHorizontal: 35, lineHeight: 1.5, color: '#333333' },
+  page: { fontFamily: 'Helvetica', fontSize: 10, paddingTop: 35, paddingBottom: 65, paddingHorizontal: 35, lineHeight: 1.5, color: '#333333' },
   header: { textAlign: 'center', marginBottom: 20, borderBottomWidth: 2, borderBottomColor: '#E6E6FA', paddingBottom: 10 },
   logo: { width: 60, height: 60, marginLeft: 'auto', marginRight: 'auto', marginBottom: 10 },
-  reportTitle: { fontSize: 24, fontWeight: 'bold', color: '#20B2AA', marginBottom: 4 },
+  reportTitle: { fontFamily: 'Helvetica-Bold', fontSize: 24, color: '#20B2AA', marginBottom: 4 },
   reportSubtitle: { fontSize: 10, color: '#888888' },
   section: { marginBottom: 15 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#20B2AA', marginBottom: 8, borderBottomWidth: 1, borderBottomColor: '#E6E6FA', paddingBottom: 4, textTransform: 'uppercase' },
+  sectionTitle: { fontFamily: 'Helvetica-Bold', fontSize: 16, color: '#20B2AA', marginBottom: 8, borderBottomWidth: 1, borderBottomColor: '#E6E6FA', paddingBottom: 4, textTransform: 'uppercase' },
   bodyText: { fontSize: 10, textAlign: 'justify' },
-  preformattedText: { fontSize: 10, backgroundColor: '#F5F5F5', padding: 10, borderRadius: 4 },
+  preformattedText: { fontSize: 10, fontFamily: 'Helvetica', backgroundColor: '#F5F5F5', padding: 10, borderRadius: 4 },
   strategyCard: { borderWidth: 1, borderColor: '#E6E6FA', borderRadius: 5, padding: 12, marginBottom: 10, backgroundColor: '#FFFFFF' },
   strategyHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
-  platformTitle: { fontSize: 14, fontWeight: 'bold', color: '#20B2AA' },
-  monthlyBudget: { fontSize: 14, fontWeight: 'bold' },
-  strategyRationale: { fontSize: 9, fontStyle: 'italic', color: '#555555', marginBottom: 8 },
+  platformTitle: { fontFamily: 'Helvetica-Bold', fontSize: 14, color: '#20B2AA' },
+  monthlyBudget: { fontFamily: 'Helvetica-Bold', fontSize: 14 },
+  strategyRationale: { fontFamily: 'Helvetica-Oblique', fontSize: 9, color: '#555555', marginBottom: 8 },
   badgeContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 5 },
   badge: { backgroundColor: '#E6E6FA', color: '#240a5e', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, fontSize: 9 },
   twoColumnLayout: { flexDirection: 'row', gap: 20 },
@@ -47,12 +34,13 @@ const styles = StyleSheet.create({
   kpiList: { paddingLeft: 10 },
   kpiItem: { marginBottom: 2 },
   calendarItem: { marginBottom: 8 },
-  calendarFocus: { fontWeight: 'bold' },
+  calendarFocus: { fontFamily: 'Helvetica-Bold' },
   feeProposalCard: { backgroundColor: 'rgba(32, 178, 170, 0.1)', borderWidth: 1, borderColor: 'rgba(32, 178, 170, 0.3)', borderRadius: 5, padding: 12 },
   feeContainer: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#E6E6FA' },
   feeItem: { textAlign: 'center' },
   pageNumber: { position: 'absolute', fontSize: 8, bottom: 30, left: 0, right: 0, textAlign: 'center', color: 'grey' },
 });
+
 
 // PDF Document Component - Now accepts origin as a prop.
 const AdPlanPDF = ({ plan, origin, companyName, logoUrl }: { plan: CreateAdPlanOutput; origin: string, companyName: string, logoUrl: string | null }) => (
