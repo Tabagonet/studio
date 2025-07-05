@@ -16,7 +16,7 @@ Tu respuesta DEBE ser un único objeto JSON válido.
 - Objetivos de la Campaña: {{#each objectives}}- {{this}} {{/each}}
 {{#if additional_context}}
 - Información Adicional Clave del Negocio (proporcionada por el usuario):
-{{additional_context}}
+{{{additional_context}}}
 {{/if}}
 
 **Instrucciones del Plan:**
@@ -36,9 +36,9 @@ Tu respuesta DEBE ser un único objeto JSON válido.
 5.  **calendar:** Crea un plan detallado para 3 meses.
     - "month": Mes 1, 2, 3.
     - "focus": ej. Configuración y Lanzamiento.
-    - "actions": Lista de acciones DETALLADAS y específicas a realizar durante ese mes. Sé explícito.
-6.  **kpis:** Lista de KPIs clave GENERALES para toda la campaña (ej. ROAS, CPA, CTR).
-7.  **fee_proposal:** Propuesta de honorarios. No inventes los números. Pon "setup_fee" y "management_fee" a 0. Genera una "fee_description" genérica sobre lo que suelen incluir los honorarios.
+    - "actions": Lista de acciones DETALLADAS y específicas a realizar durante ese mes. Las acciones deben estar directamente relacionadas con la URL y los objetivos. Sé explícito.
+6.  **kpis:** Lista de KPIs clave GENERALES para toda la campaña, incluyendo un objetivo numérico cuantificable para cada uno (ej. "ROAS General > 3.5", "CPA Total < 25€", "CTR > 2%").
+7.  **fee_proposal:** Propuesta de honorarios. Pon "setup_fee" y "management_fee" a 0. Genera una "fee_description" genérica sobre lo que suelen incluir los honorarios.
     - "setup_fee": 0.
     - "management_fee": 0.
     - "fee_description": Descripción genérica de los servicios.
