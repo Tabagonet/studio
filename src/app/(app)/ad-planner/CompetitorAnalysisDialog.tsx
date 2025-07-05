@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -62,7 +63,7 @@ export function CompetitorAnalysisDialog({ isOpen, onOpenChange, url }: Competit
             <Swords className="h-6 w-6 text-primary" /> Análisis de Competencia
           </DialogTitle>
           <DialogDescription>
-            La IA ha investigado a tus competidores y sus estrategias publicitarias.
+            Análisis de los competidores más relevantes para <code className="text-sm font-semibold">{url}</code> y sus estrategias publicitarias.
           </DialogDescription>
         </DialogHeader>
 
