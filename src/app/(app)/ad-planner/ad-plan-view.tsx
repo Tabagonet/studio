@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { saveAdPlanAction } from './actions';
 import { auth } from '@/lib/firebase';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Textarea } from '@/components/ui/textarea';
 
 
@@ -304,9 +304,9 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyName, logoUrl }
                                     </div>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
-                                    <Button variant="outline" size="sm" onClick={() => setCreativeStrategy(strategy)}>
+                                     <Button variant="outline" size="sm" onClick={() => setCreativeStrategy(strategy)}>
                                         <ClipboardPen className="mr-2 h-4 w-4" />
-                                        Generar Creativos
+                                        Estudio Creativo
                                     </Button>
                                     <Button variant="outline" size="sm" onClick={() => setDetailedStrategy(strategy)}>
                                         <ListOrdered className="mr-2 h-4 w-4" />
@@ -320,6 +320,25 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyName, logoUrl }
                                 <div className="flex items-center gap-2"><BarChart className="h-4 w-4 text-muted-foreground" /><span>Tipo de campaña: <Badge>{strategy.campaign_type}</Badge></span></div>
                             </div>
                             <div className="flex flex-wrap gap-2 pt-2"><span className="text-sm font-medium mr-2">Formatos:</span>{(strategy.ad_formats || []).map(format => <Badge key={format} variant="outline">{format}</Badge>)}</div>
+                            <Separator className="my-3" />
+                            <div className="space-y-3 text-sm">
+                                <div>
+                                    <h4 className="font-semibold flex items-center gap-2 mb-1"><Users className="h-4 w-4 text-primary"/> Sugerencias de Segmentación</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                        {(strategy.targeting_suggestions || []).map(suggestion => <Badge key={suggestion} variant="secondary">{suggestion}</Badge>)}
+                                    </div>
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold flex items-center gap-2 mb-1"><TrendingUp className="h-4 w-4 text-primary"/> KPIs Clave de la Estrategia</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                        {(strategy.key_kpis || []).map(kpi => <Badge key={kpi} variant="secondary">{kpi}</Badge>)}
+                                    </div>
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold flex items-center gap-2 mb-1"><Lightbulb className="h-4 w-4 text-primary"/> Ángulo Creativo</h4>
+                                    <p className="text-muted-foreground">{strategy.creative_angle}</p>
+                                </div>
+                            </div>
                         </div>
                     ))}
                 </CardContent>

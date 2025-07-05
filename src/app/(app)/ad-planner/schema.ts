@@ -35,6 +35,9 @@ export const AdStrategySchema = z.object({
   campaign_type: z.string().describe("Tipo de campaña recomendada (ej. Performance Max, Búsqueda, Video, Generación de Leads).").default(''),
   ad_formats: z.array(z.string()).describe("Formatos de anuncio concretos a utilizar (ej. Anuncio de Texto Expandido, Anuncio de Carrusel, In-Stream).").default([]),
   monthly_budget: z.number().describe("Presupuesto mensual recomendado para esta plataforma.").default(0),
+  targeting_suggestions: z.array(z.string()).describe("Sugerencias de segmentación específicas para esta plataforma (ej. Lookalike, Intereses, Remarketing).").default([]),
+  key_kpis: z.array(z.string()).describe("Los 2-3 KPIs más importantes para esta estrategia específica (ej. ROAS, CPA).").default([]),
+  creative_angle: z.string().describe("El enfoque creativo o mensaje principal para los anuncios de esta estrategia.").default(''),
   tasks: z.array(TaskSchema).optional().default([]).describe("Desglose de tareas para implementar esta estrategia."),
   creatives: GenerateAdCreativesOutputSchema.optional().describe("Creativos publicitarios generados por la IA para esta estrategia."),
 });

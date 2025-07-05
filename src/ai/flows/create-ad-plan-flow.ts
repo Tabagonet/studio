@@ -28,17 +28,20 @@ Tu respuesta DEBE ser un único objeto JSON válido.
     -   "funnel_stage": Elige UNA de las siguientes opciones: 'Awareness', 'Consideration', 'Conversion'.
     -   "campaign_type": Elige el tipo de campaña MÁS RECOMENDADO (DEBE ser un solo string, ej. Performance Max, Búsqueda).
     -   "ad_formats": Lista de formatos de anuncio concretos a utilizar (ej. Video, Carrusel).
-    -   "monthly_budget": número.
-4.  **total_monthly_budget:** Suma de todos los presupuestos.
-5.  **calendar:** Crea un plan para 3 meses.
+    -   "monthly_budget": número que representa la inversión en medios recomendada para esta plataforma.
+    -   "targeting_suggestions": Array de 2-4 sugerencias de segmentación específicas para esta plataforma (ej. "Lookalike de clientes", "Intereses en jardinería", "Remarketing a visitantes de la web").
+    -   "key_kpis": Array de 2-3 KPIs más importantes para ESTA ESTRATEGIA (ej. "ROAS > 4", "CPA < 20€").
+    -   "creative_angle": El enfoque o mensaje principal para los anuncios de esta estrategia (ej. "Destacar la durabilidad y garantía del producto").
+4.  **total_monthly_budget:** Suma de todos los presupuestos mensuales de las estrategias.
+5.  **calendar:** Crea un plan detallado para 3 meses.
     - "month": Mes 1, 2, 3.
     - "focus": ej. Configuración y Lanzamiento.
     - "actions": Lista de acciones DETALLADAS y específicas a realizar durante ese mes. Sé explícito.
-6.  **kpis:** Lista de KPIs clave (ej. ROAS, CPA, CTR).
-7.  **fee_proposal:** Propuesta de honorarios.
-    - "setup_fee": número.
-    - "management_fee": número.
-    - "fee_description": Qué incluyen los honorarios.
+6.  **kpis:** Lista de KPIs clave GENERALES para toda la campaña (ej. ROAS, CPA, CTR).
+7.  **fee_proposal:** Propuesta de honorarios. No inventes los números. Pon "setup_fee" y "management_fee" a 0. Genera una "fee_description" genérica sobre lo que suelen incluir los honorarios.
+    - "setup_fee": 0.
+    - "management_fee": 0.
+    - "fee_description": Descripción genérica de los servicios.
 `;
     if (!adminDb) return defaultPrompt;
     try {
