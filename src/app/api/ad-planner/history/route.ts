@@ -30,11 +30,17 @@ export async function GET(req: NextRequest) {
 
         const history = snapshot.docs.map(doc => {
             const data = doc.data();
+            
+            // Defensive check to prevent errors if createdAt is missing or not a timestamp
+            const createdAt = (data.createdAt && typeof data.createdAt.toDate === 'function')
+                ? data.createdAt.toDate().toISOString()
+                : new Date(0).toISOString(); // Fallback to epoch time
+
             return {
                 id: doc.id,
-                url: data.url,
-                objectives: data.objectives,
-                createdAt: data.createdAt.toDate().toISOString(),
+                url: data.url || 'URL no encontrada',
+                objectives: data.objectives || [],
+                createdAt: createdAt,
                 planData: data.planData as CreateAdPlanOutput,
             };
         });
