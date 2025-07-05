@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
         
         // Super_admin query remains unfiltered, getting all users.
 
-        const usersSnapshot = await usersQuery.orderBy('createdAt', 'desc').get();
+        const usersSnapshot = await usersQuery.get();
 
         const users = usersSnapshot.docs.map(doc => {
             const data = doc.data();
