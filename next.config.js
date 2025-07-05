@@ -3,8 +3,6 @@
 const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: [
-      '@genkit-ai/core',
-      '@genkit-ai/googleai',
       'zod',
       '@woocommerce/woocommerce-rest-api',
       'axios',
