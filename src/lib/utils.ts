@@ -1,5 +1,5 @@
 
-import { clsx, type ClassValue } from "clsx"
+import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { ParsedNameData } from './types';
 
@@ -9,7 +9,7 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatCurrency(value: number) {
     return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(value);
-};
+}
 
 
 /**

@@ -147,9 +147,15 @@ export function AdPlanView({ plan: initialPlan, onReset, companyName, logoUrl }:
         }
     };
 
-    const handlePlanUpdate = (updatedPlan: CreateAdPlanOutput) => {
+    const handlePlanUpdate = React.useCallback((updatedPlan: CreateAdPlanOutput) => {
         setPlan(updatedPlan);
-    };
+        // When the plan is updated from the dialog, we need to find the new strategy object
+        // within the new plan object to avoid the dialog holding a stale reference.
+        if (detailedStrategy) {
+            const newStrategy = updatedPlan.strategies.find(s => s.platform === detailedStrategy.platform);
+            setDetailedStrategy(newStrategy || null);
+        }
+    }, [detailedStrategy]); // Dependency on detailedStrategy is correct here
     
     return (
         <div className="space-y-6 report-view">
