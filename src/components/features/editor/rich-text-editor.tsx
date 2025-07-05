@@ -8,15 +8,17 @@ import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import { RichTextToolbar } from './rich-text-toolbar';
+import { cn } from '@/lib/utils';
 
 interface RichTextEditorProps {
   content: string;
   onChange: (richText: string) => void;
   onInsertImage: () => void;
   placeholder?: string;
+  size?: 'default' | 'small';
 }
 
-export function RichTextEditor({ content, onChange, onInsertImage, placeholder }: RichTextEditorProps) {
+export function RichTextEditor({ content, onChange, onInsertImage, placeholder, size = 'default' }: RichTextEditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -46,7 +48,11 @@ export function RichTextEditor({ content, onChange, onInsertImage, placeholder }
     },
     editorProps: {
       attributes: {
-        class: 'prose prose-sm sm:prose-base dark:prose-invert max-w-none focus:outline-none px-3 py-2 min-h-[300px] max-h-[400px] overflow-y-auto',
+        class: cn(
+            'prose prose-sm sm:prose-base dark:prose-invert max-w-none focus:outline-none px-3 py-2 overflow-y-auto',
+            size === 'default' && 'min-h-[300px] max-h-[400px]',
+            size === 'small' && 'min-h-[120px] max-h-[200px]',
+        ),
       },
     },
   });

@@ -376,7 +376,6 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     }
 
     const imgTag = `<img src="${finalImageUrl}" alt="${productData.name || 'Imagen insertada'}" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px;" />`;
-    // For simplicity, appending to the long description. A more complex implementation could insert at cursor.
     updateProductData({ longDescription: productData.longDescription + `\n${imgTag}` });
 
     setImageUrl('');
@@ -588,6 +587,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                         onChange={handleShortDescriptionChange}
                         onInsertImage={() => setIsImageDialogOpen(true)}
                         placeholder="Un resumen atractivo y conciso de tu producto que será generado por la IA."
+                        size="small"
                       />
                   </div>
                 
@@ -686,7 +686,6 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                 </AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
-    </AlertDialog>
     </>
   );
 }

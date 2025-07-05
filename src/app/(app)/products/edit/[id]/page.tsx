@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, Suspense } from 'react';
@@ -365,6 +364,7 @@ function EditProductPageContent() {
                                 onChange={handleShortDescriptionChange}
                                 onInsertImage={() => setIsImageDialogOpen(true)}
                                 placeholder="Escribe la descripción corta aquí..."
+                                size="small"
                             />
                         </div>
                         <div>
@@ -463,7 +463,6 @@ function EditProductPageContent() {
                 </AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
-    </AlertDialog>
     </>
   );
 }
