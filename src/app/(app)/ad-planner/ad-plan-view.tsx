@@ -13,14 +13,14 @@ import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
 
 
-// Register fonts for PDF rendering from a reliable CDN.
+// Register fonts for PDF rendering from Google's reliable font CDN.
 Font.register({
   family: 'PT Sans',
   fonts: [
-    { src: 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ptsans/PT_Sans-Regular.ttf' },
-    { src: 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ptsans/PT_Sans-Bold.ttf', fontWeight: 'bold' },
-    { src: 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ptsans/PT_Sans-Italic.ttf', fontStyle: 'italic' },
-    { src: 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ptsans/PT_Sans-BoldItalic.ttf', fontWeight: 'bold', fontStyle: 'italic' },
+    { src: 'https://fonts.gstatic.com/s/ptsans/v17/jizaRExUiTo99u79D0-ExdGM.ttf' },
+    { src: 'https://fonts.gstatic.com/s/ptsans/v17/jizfRExUiTo99u79B_mh0O6tKA.ttf', fontWeight: 'bold' },
+    { src: 'https://fonts.gstatic.com/s/ptsans/v17/jizYRExUiTo99u79plgnE8M.ttf', fontStyle: 'italic' },
+    { src: 'https://fonts.gstatic.com/s/ptsans/v17/jizdRExUiTo99u79anF5Rm1gGg.ttf', fontWeight: 'bold', fontStyle: 'italic' },
   ],
 });
 
@@ -56,13 +56,13 @@ const styles = StyleSheet.create({
 });
 
 // PDF Document Component - Now accepts origin as a prop.
-const AdPlanPDF = ({ plan, origin }: { plan: CreateAdPlanOutput; origin: string }) => (
+const AdPlanPDF = ({ plan, origin, companyName, logoUrl }: { plan: CreateAdPlanOutput; origin: string, companyName: string, logoUrl: string | null }) => (
     <Document>
         <Page size="A4" style={styles.page}>
             <View style={styles.header}>
-                <PdfImage style={styles.logo} src={`${origin}/images/logo.png`} />
+                <PdfImage style={styles.logo} src={logoUrl || `${origin}/images/logo.png`} />
                 <Text style={styles.reportTitle}>Plan de Publicidad Digital</Text>
-                <Text style={styles.reportSubtitle}>Preparado por AutoPress AI el {new Date().toLocaleDateString('es-ES')}</Text>
+                <Text style={styles.reportSubtitle}>Preparado para {companyName} por AutoPress AI el {new Date().toLocaleDateString('es-ES')}</Text>
             </View>
 
             <View style={styles.section}><Text style={styles.sectionTitle}>Resumen Ejecutivo</Text><Text style={styles.bodyText}>{plan.executive_summary}</Text></View>
@@ -107,7 +107,7 @@ const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(value);
 };
 
-export function AdPlanView({ plan, onReset }: { plan: CreateAdPlanOutput; onReset: () => void; }) {
+export function AdPlanView({ plan, onReset, companyName, logoUrl }: { plan: CreateAdPlanOutput; onReset: () => void; companyName: string; logoUrl: string | null }) {
     const [isPdfLoading, setIsPdfLoading] = React.useState(false);
     const { toast } = useToast();
     const [origin, setOrigin] = React.useState('');
@@ -130,7 +130,7 @@ export function AdPlanView({ plan, onReset }: { plan: CreateAdPlanOutput; onRese
 
         setIsPdfLoading(true);
         try {
-            const blob = await pdf(<AdPlanPDF plan={plan} origin={origin} />).toBlob();
+            const blob = await pdf(<AdPlanPDF plan={plan} origin={origin} companyName={companyName} logoUrl={logoUrl} />).toBlob();
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             const fileName = `plan_publicidad_${plan.executive_summary.substring(0, 20).replace(/\s/g, '_') || 'AutoPress'}.pdf`;
@@ -158,9 +158,9 @@ export function AdPlanView({ plan, onReset }: { plan: CreateAdPlanOutput; onRese
     return (
         <div className="space-y-6 report-view">
             <div className="report-header hidden print:block">
-                <Image src="/images/logo.png" alt="Logo" width={60} height={60} className="mx-auto" data-ai-hint="logo brand" />
+                <Image src={logoUrl || "/images/logo.png"} alt="Logo" width={60} height={60} className="mx-auto" data-ai-hint="logo brand" />
                 <h1 className="text-2xl font-bold mt-2">Plan de Publicidad Digital</h1>
-                <p className="text-sm text-gray-500">Preparado por AutoPress AI el {new Date().toLocaleDateString('es-ES')}</p>
+                <p className="text-sm text-gray-500">Preparado para {companyName} por AutoPress AI el {new Date().toLocaleDateString('es-ES')}</p>
             </div>
 
              <div className="flex flex-wrap gap-2 justify-end print-hide">
