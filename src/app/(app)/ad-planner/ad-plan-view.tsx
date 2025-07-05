@@ -13,14 +13,15 @@ import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
 
 
-// Register fonts for PDF rendering from a reliable CDN
+// Register fonts for PDF rendering from a reliable CDN.
+// These are the correct URLs for the PT Sans font files.
 Font.register({
   family: 'PT Sans',
   fonts: [
-    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-400-normal.ttf' },
-    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-700-normal.ttf', fontWeight: 'bold' },
-    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-400-italic.ttf', fontStyle: 'italic' },
-    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/pt-sans@5.0.8/files/pt-sans-latin-700-italic.ttf', fontWeight: 'bold', fontStyle: 'italic' },
+    { src: 'https://raw.githubusercontent.com/google/fonts/main/ofl/ptsans/PT_Sans-Regular.ttf' },
+    { src: 'https://raw.githubusercontent.com/google/fonts/main/ofl/ptsans/PT_Sans-Bold.ttf', fontWeight: 'bold' },
+    { src: 'https://raw.githubusercontent.com/google/fonts/main/ofl/ptsans/PT_Sans-Italic.ttf', fontStyle: 'italic' },
+    { src: 'https://raw.githubusercontent.com/google/fonts/main/ofl/ptsans/PT_Sans-BoldItalic.ttf', fontWeight: 'bold', fontStyle: 'italic' },
   ],
 });
 
@@ -55,59 +56,52 @@ const styles = StyleSheet.create({
   pageNumber: { position: 'absolute', fontSize: 8, bottom: 30, left: 0, right: 0, textAlign: 'center', color: 'grey' },
 });
 
-// PDF Document Component
-const AdPlanPDF = ({ plan }: { plan: CreateAdPlanOutput }) => {
-    const [origin, setOrigin] = React.useState('');
-    React.useEffect(() => { setOrigin(window.location.origin); }, []);
+// PDF Document Component - Now accepts origin as a prop.
+const AdPlanPDF = ({ plan, origin }: { plan: CreateAdPlanOutput; origin: string }) => (
+    <Document>
+        <Page size="A4" style={styles.page}>
+            <View style={styles.header}>
+                <PdfImage style={styles.logo} src={`${origin}/images/logo.png`} />
+                <Text style={styles.reportTitle}>Plan de Publicidad Digital</Text>
+                <Text style={styles.reportSubtitle}>Preparado por AutoPress AI el {new Date().toLocaleDateString('es-ES')}</Text>
+            </View>
 
-    if (!origin) return null; // Or a loading document
+            <View style={styles.section}><Text style={styles.sectionTitle}>Resumen Ejecutivo</Text><Text style={styles.bodyText}>{plan.executive_summary}</Text></View>
+            <View style={styles.section}><Text style={styles.sectionTitle}>Público Objetivo</Text><Text style={styles.bodyText}>{plan.target_audience.replace(/\\n/g, '\n')}</Text></View>
+            
+            <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Estrategias y Presupuesto ({formatCurrency(plan.total_monthly_budget)}/mes)</Text>
+                {plan.strategies.map((strategy, index) => (
+                    <View key={index} style={styles.strategyCard} wrap={false}>
+                        <View style={styles.strategyHeader}><Text style={styles.platformTitle}>{strategy.platform}</Text><Text style={styles.monthlyBudget}>{formatCurrency(strategy.monthly_budget)} / mes</Text></View>
+                        <Text style={styles.strategyRationale}>{strategy.strategy_rationale}</Text>
+                        <View style={styles.badgeContainer}><Text style={styles.badge}>Fase: {strategy.funnel_stage}</Text><Text style={styles.badge}>Campaña: {strategy.campaign_type}</Text></View>
+                        <View style={[styles.badgeContainer, { marginTop: 8 }]}>{strategy.ad_formats.map(format => <Text key={format} style={styles.badge}>{format}</Text>)}</View>
+                    </View>
+                ))}
+            </View>
 
-    return (
-        <Document>
-            <Page size="A4" style={styles.page}>
-                <View style={styles.header}>
-                    <PdfImage style={styles.logo} src={`${origin}/images/logo.png`} />
-                    <Text style={styles.reportTitle}>Plan de Publicidad Digital</Text>
-                    <Text style={styles.reportSubtitle}>Preparado por AutoPress AI el {new Date().toLocaleDateString('es-ES')}</Text>
-                </View>
-
-                <View style={styles.section}><Text style={styles.sectionTitle}>Resumen Ejecutivo</Text><Text style={styles.bodyText}>{plan.executive_summary}</Text></View>
-                <View style={styles.section}><Text style={styles.sectionTitle}>Público Objetivo</Text><Text style={styles.bodyText}>{plan.target_audience.replace(/\\n/g, '\n')}</Text></View>
-                
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Estrategias y Presupuesto ({formatCurrency(plan.total_monthly_budget)}/mes)</Text>
-                    {plan.strategies.map((strategy, index) => (
-                        <View key={index} style={styles.strategyCard} wrap={false}>
-                            <View style={styles.strategyHeader}><Text style={styles.platformTitle}>{strategy.platform}</Text><Text style={styles.monthlyBudget}>{formatCurrency(strategy.monthly_budget)} / mes</Text></View>
-                            <Text style={styles.strategyRationale}>{strategy.strategy_rationale}</Text>
-                            <View style={styles.badgeContainer}><Text style={styles.badge}>Fase: {strategy.funnel_stage}</Text><Text style={styles.badge}>Campaña: {strategy.campaign_type}</Text></View>
-                            <View style={[styles.badgeContainer, { marginTop: 8 }]}>{strategy.ad_formats.map(format => <Text key={format} style={styles.badge}>{format}</Text>)}</View>
-                        </View>
+            <View style={styles.twoColumnLayout}>
+                <View style={styles.column}><Text style={styles.sectionTitle}>KPIs</Text><View style={styles.kpiList}>{plan.kpis.map((kpi, index) => <Text key={index} style={styles.kpiItem}>• {kpi}</Text>)}</View></View>
+                <View style={styles.column}>
+                    <Text style={styles.sectionTitle}>Calendario (3 meses)</Text>
+                    {plan.calendar.map((milestone, index) => (
+                        <View key={index} style={styles.calendarItem}><Text style={styles.calendarFocus}>{milestone.month}: {milestone.focus}</Text>{milestone.actions.map((action, i) => <Text key={i} style={{fontSize: 9, paddingLeft: 10}}>• {action}</Text>)}</View>
                     ))}
                 </View>
+            </View>
 
-                <View style={styles.twoColumnLayout}>
-                    <View style={styles.column}><Text style={styles.sectionTitle}>KPIs</Text><View style={styles.kpiList}>{plan.kpis.map((kpi, index) => <Text key={index} style={styles.kpiItem}>• {kpi}</Text>)}</View></View>
-                    <View style={styles.column}>
-                        <Text style={styles.sectionTitle}>Calendario (3 meses)</Text>
-                        {plan.calendar.map((milestone, index) => (
-                            <View key={index} style={styles.calendarItem}><Text style={styles.calendarFocus}>{milestone.month}: {milestone.focus}</Text>{milestone.actions.map((action, i) => <Text key={i} style={{fontSize: 9, paddingLeft: 10}}>• {action}</Text>)}</View>
-                        ))}
-                    </View>
+            <View style={styles.feeProposalCard}><Text style={styles.sectionTitle}>Propuesta de Gestión</Text><Text style={styles.bodyText}>{plan.fee_proposal.fee_description}</Text>
+                <View style={styles.feeContainer}>
+                    <View style={styles.feeItem}><Text>Cuota de Configuración</Text><Text style={styles.monthlyBudget}>{formatCurrency(plan.fee_proposal.setup_fee)}</Text></View>
+                    <View style={styles.feeItem}><Text>Gestión Mensual</Text><Text style={styles.monthlyBudget}>{formatCurrency(plan.fee_proposal.management_fee)}</Text></View>
                 </View>
+            </View>
 
-                <View style={styles.feeProposalCard}><Text style={styles.sectionTitle}>Propuesta de Gestión</Text><Text style={styles.bodyText}>{plan.fee_proposal.fee_description}</Text>
-                    <View style={styles.feeContainer}>
-                        <View style={styles.feeItem}><Text>Cuota de Configuración</Text><Text style={styles.monthlyBudget}>{formatCurrency(plan.fee_proposal.setup_fee)}</Text></View>
-                        <View style={styles.feeItem}><Text>Gestión Mensual</Text><Text style={styles.monthlyBudget}>{formatCurrency(plan.fee_proposal.management_fee)}</Text></View>
-                    </View>
-                </View>
-
-                <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} fixed />
-            </Page>
-        </Document>
-    );
-};
+            <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} fixed />
+        </Page>
+    </Document>
+);
 
 
 const formatCurrency = (value: number) => {
@@ -117,11 +111,27 @@ const formatCurrency = (value: number) => {
 export function AdPlanView({ plan, onReset }: { plan: CreateAdPlanOutput; onReset: () => void; }) {
     const [isPdfLoading, setIsPdfLoading] = React.useState(false);
     const { toast } = useToast();
+    const [origin, setOrigin] = React.useState('');
+
+    React.useEffect(() => {
+        if (typeof window !== 'undefined') {
+            setOrigin(window.location.origin);
+        }
+    }, []);
 
     const handleDownload = async () => {
+        if (!origin) {
+            toast({
+                title: 'Error',
+                description: 'No se pudo determinar el origen de la aplicación. Por favor, recarga la página.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
         setIsPdfLoading(true);
         try {
-            const blob = await pdf(<AdPlanPDF plan={plan} />).toBlob();
+            const blob = await pdf(<AdPlanPDF plan={plan} origin={origin} />).toBlob();
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             const fileName = `plan_publicidad_${plan.executive_summary.substring(0, 20).replace(/\s/g, '_') || 'AutoPress'}.pdf`;
