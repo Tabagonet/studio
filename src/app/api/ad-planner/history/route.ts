@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     try {
         const snapshot = await adminDb.collection('ad_plans')
             .where('userId', '==', uid)
-            .get(); // Fetch all and sort in-memory for robustness
+            .get(); 
         
         if (snapshot.empty) {
             return NextResponse.json({ history: [] });
@@ -34,13 +34,25 @@ export async function GET(req: NextRequest) {
                     return null;
                 }
                 
-                // Exclude server-only field
-                const { userId, ...planData } = data;
+                // Handle both old nested structure (data.planData) and new flat structure (data)
+                const planData = data.planData || data;
 
-                // Return the full plan object with ID and a properly formatted createdAt
+                // Ensure all fields are present to prevent frontend errors
+                const finalPlanData = {
+                    url: planData.url || '',
+                    objectives: planData.objectives || [],
+                    executive_summary: planData.executive_summary || '',
+                    target_audience: planData.target_audience || '',
+                    strategies: planData.strategies || [],
+                    total_monthly_budget: planData.total_monthly_budget || 0,
+                    calendar: planData.calendar || [],
+                    kpis: planData.kpis || [],
+                    fee_proposal: planData.fee_proposal || { setup_fee: 0, management_fee: 0, fee_description: '' },
+                };
+
                 return {
+                    ...finalPlanData,
                     id: doc.id,
-                    ...planData,
                     createdAt: data.createdAt.toDate().toISOString(),
                 } as CreateAdPlanOutput;
             } catch (e) {
@@ -49,7 +61,6 @@ export async function GET(req: NextRequest) {
             }
         }).filter(Boolean as any as (value: any) => value is NonNullable<any>); // Remove nulls from failed records
 
-        // Sort in memory after fetching
         history.sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
 
         return NextResponse.json({ history });
