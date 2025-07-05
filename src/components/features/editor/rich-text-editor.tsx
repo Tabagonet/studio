@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -23,7 +24,7 @@ export function RichTextEditor({ content, onChange, onInsertImage, placeholder, 
     extensions: [
       StarterKit.configure({
         heading: {
-          levels: [2, 3],
+          levels: [1, 2, 3],
         },
       }),
       Underline,

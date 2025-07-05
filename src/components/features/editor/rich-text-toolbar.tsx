@@ -1,8 +1,9 @@
+
 'use client';
 
 import { type Editor } from '@tiptap/react';
 import {
-  Bold, Strikethrough, Italic, List, ListOrdered, Heading2, Heading3, Quote, AlignLeft, AlignCenter, AlignRight, AlignJustify, Underline, Link as LinkIcon, Image as ImageIcon
+  Bold, Strikethrough, Italic, List, ListOrdered, Heading1, Heading2, Heading3, Quote, AlignLeft, AlignCenter, AlignRight, AlignJustify, Underline, Link as LinkIcon, Image as ImageIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCallback, useState } from 'react';
@@ -50,7 +51,7 @@ export const RichTextToolbar = ({ editor, onInsertImage }: Props) => {
 
   return (
     <>
-      <div className={cn("flex items-center gap-1 mb-0 rounded-t-md border-b bg-muted p-1 flex-wrap")}>
+      <div className={cn("sticky top-0 z-10 flex items-center gap-1 mb-0 rounded-t-md border-b bg-muted p-1 flex-wrap")}>
         {/* Text Formatting */}
         <Button type="button" variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleBold().run()} disabled={!editor.can().chain().focus().toggleBold().run()} data-active={editor.isActive('bold')} data-tiptap-toolbar-button title="Negrita" className="h-8 w-8">
           <Bold className="h-4 w-4" />
@@ -67,6 +68,9 @@ export const RichTextToolbar = ({ editor, onInsertImage }: Props) => {
 
         {/* Block Formatting */}
         <div className="flex items-center gap-1 border-l ml-1 pl-1">
+           <Button type="button" variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} data-active={editor.isActive('heading', { level: 1 })} data-tiptap-toolbar-button title="Encabezado 1" className="h-8 w-8">
+            <Heading1 className="h-4 w-4" />
+          </Button>
           <Button type="button" variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} data-active={editor.isActive('heading', { level: 2 })} data-tiptap-toolbar-button title="Encabezado 2" className="h-8 w-8">
             <Heading2 className="h-4 w-4" />
           </Button>
