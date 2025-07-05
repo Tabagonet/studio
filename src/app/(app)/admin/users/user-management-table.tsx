@@ -8,13 +8,14 @@ import { auth } from '@/lib/firebase';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, UserCheck, UserX, MoreHorizontal, Trash2, Shield, User, KeyRound, Briefcase, BarChart, FileSignature, BookCopy, Search } from 'lucide-react';
+import { Loader2, UserCheck, UserX, MoreHorizontal, Trash2, Shield, User, KeyRound, Briefcase, BarChart, FileSignature, BookCopy, Search, Building } from 'lucide-react';
 import Image from 'next/image';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuPortal } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import type { Company } from '@/lib/types';
 
 type UserRole = 'super_admin' | 'admin' | 'content_manager' | 'product_manager' | 'seo_analyst' | 'pending' | 'user';
 
@@ -36,10 +37,13 @@ interface User {
   role: UserRole;
   status: 'active' | 'rejected' | 'pending_approval';
   siteLimit: number;
+  companyId: string | null;
+  companyName: string | null;
 }
 
 export function UserManagementTable() {
     const [users, setUsers] = useState<User[]>([]);
+    const [companies, setCompanies] = useState<Company[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState<string | null>(null);
     const { toast } = useToast();
@@ -51,7 +55,7 @@ export function UserManagementTable() {
     const [selectedUserForLimit, setSelectedUserForLimit] = useState<User | null>(null);
     const [newSiteLimit, setNewSiteLimit] = useState<number | string>('');
 
-    const fetchUsers = useCallback(async () => {
+    const fetchUsersAndCompanies = useCallback(async () => {
         setIsLoading(true);
         const user = auth.currentUser;
         if (!user) {
@@ -62,9 +66,10 @@ export function UserManagementTable() {
 
         try {
             const token = await user.getIdToken();
-            const [usersResponse, verifyResponse] = await Promise.all([
+            const [usersResponse, verifyResponse, companiesResponse] = await Promise.all([
                 fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } })
+                fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } })
             ]);
 
             if (!usersResponse.ok) {
@@ -75,13 +80,17 @@ export function UserManagementTable() {
                 const userData = await verifyResponse.json();
                 setCurrentUserRole(userData.role);
             }
+            if (companiesResponse.ok) {
+                const companyData = await companiesResponse.json();
+                setCompanies(companyData.companies);
+            }
 
             const data = await usersResponse.json();
             setUsers(data.users);
 
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            toast({ title: "Error al Cargar Usuarios", description: errorMessage, variant: "destructive" });
+            toast({ title: "Error al Cargar Datos", description: errorMessage, variant: "destructive" });
         } finally {
             setIsLoading(false);
         }
@@ -90,14 +99,15 @@ export function UserManagementTable() {
     useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged((user) => {
             if (user) {
-                fetchUsers();
+                fetchUsersAndCompanies();
             } else {
                 setIsLoading(false);
                 setUsers([]);
+                setCompanies([]);
             }
         });
         return () => unsubscribe();
-    }, [fetchUsers]);
+    }, [fetchUsersAndCompanies]);
     
     const performApiCall = async (url: string, method: string, body: any, successMessage: string) => {
         const user = auth.currentUser;
@@ -120,7 +130,7 @@ export function UserManagementTable() {
                 throw new Error(errorData.error || 'La operación falló.');
             }
             toast({ title: "Éxito", description: successMessage });
-            fetchUsers();
+            fetchUsersAndCompanies();
             return true;
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
@@ -147,6 +157,17 @@ export function UserManagementTable() {
             'POST',
             { role: newRole },
             "El rol del usuario ha sido actualizado."
+        );
+        setIsUpdating(null);
+    };
+    
+    const handleAssignCompany = async (targetUid: string, companyId: string) => {
+        setIsUpdating(targetUid);
+        await performApiCall(
+            `/api/admin/users/${targetUid}/assign-company`,
+            'POST',
+            { companyId },
+            "El usuario ha sido asignado a la empresa."
         );
         setIsUpdating(null);
     };
@@ -190,7 +211,7 @@ export function UserManagementTable() {
                 throw new Error(errorData.error || 'La operación falló.');
             }
             toast({ title: "Éxito", description: "El usuario ha sido eliminado." });
-            fetchUsers();
+            fetchUsersAndCompanies();
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             toast({ title: "Error al Eliminar", description: errorMessage, variant: "destructive" });
@@ -254,6 +275,7 @@ export function UserManagementTable() {
                         <TableHead className="w-[300px]">Usuario</TableHead>
                         <TableHead>Email</TableHead>
                         <TableHead>Rol</TableHead>
+                        <TableHead>Empresa</TableHead>
                         <TableHead>Límite Sitios</TableHead>
                         <TableHead>Estado</TableHead>
                         <TableHead className="text-right w-[100px]">Acciones</TableHead>
@@ -273,6 +295,13 @@ export function UserManagementTable() {
                                 <Badge variant="outline" className="capitalize">
                                     {ROLE_NAMES[u.role] || u.role}
                                 </Badge>
+                            </TableCell>
+                             <TableCell>
+                                {u.companyName ? (
+                                    <Badge variant="secondary">{u.companyName}</Badge>
+                                ) : (
+                                    <span className="text-xs text-muted-foreground">No asignado</span>
+                                )}
                             </TableCell>
                             <TableCell className="text-center font-medium">
                                 {u.siteLimit >= 999 ? 'Ilimitado' : u.siteLimit}
@@ -312,6 +341,21 @@ export function UserManagementTable() {
                                                                 <DropdownMenuItem onSelect={() => { setSelectedUserForLimit(u); setNewSiteLimit(u.siteLimit); setIsLimitModalOpen(true); }}>
                                                                     <KeyRound className="mr-2 h-4 w-4" /> Fijar Límite de Sitios
                                                                 </DropdownMenuItem>
+                                                                <DropdownMenuSub>
+                                                                    <DropdownMenuSubTrigger>
+                                                                        <Building className="mr-2 h-4 w-4" /> Asignar a Empresa
+                                                                    </DropdownMenuSubTrigger>
+                                                                    <DropdownMenuPortal>
+                                                                        <DropdownMenuSubContent>
+                                                                            {companies.map(company => (
+                                                                                <DropdownMenuItem key={company.id} onSelect={() => handleAssignCompany(u.uid, company.id)}>
+                                                                                    {company.name}
+                                                                                </DropdownMenuItem>
+                                                                            ))}
+                                                                            {companies.length === 0 && <DropdownMenuItem disabled>No hay empresas creadas</DropdownMenuItem>}
+                                                                        </DropdownMenuSubContent>
+                                                                    </DropdownMenuPortal>
+                                                                </DropdownMenuSub>
                                                                 <DropdownMenuSeparator />
                                                             </>
                                                         )}
@@ -365,7 +409,7 @@ export function UserManagementTable() {
                         </TableRow>
                     )) : (
                         <TableRow>
-                            <TableCell colSpan={6} className="h-24 text-center">
+                            <TableCell colSpan={7} className="h-24 text-center">
                                 No se encontraron usuarios.
                             </TableCell>
                         </TableRow>

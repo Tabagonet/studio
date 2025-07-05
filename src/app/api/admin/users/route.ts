@@ -32,11 +32,21 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        const usersSnapshot = await adminDb.collection('users').orderBy('createdAt', 'desc').get();
+        const [usersSnapshot, companiesSnapshot] = await Promise.all([
+            adminDb.collection('users').orderBy('createdAt', 'desc').get(),
+            adminDb.collection('companies').get(),
+        ]);
+
+        const companiesMap = new Map<string, string>();
+        companiesSnapshot.forEach(doc => {
+            companiesMap.set(doc.id, doc.data().name);
+        });
+
         const users = usersSnapshot.docs.map(doc => {
             const data = doc.data();
-            // Fallback for users created before timestamp field was added
             const createdAt = data.createdAt ? data.createdAt.toDate().toISOString() : new Date(0).toISOString();
+            const companyId = data.companyId || null;
+
             return {
                 uid: doc.id,
                 email: data.email || '',
@@ -44,8 +54,10 @@ export async function GET(req: NextRequest) {
                 photoURL: data.photoURL || '',
                 role: data.role || 'pending',
                 status: data.status || 'pending_approval',
-                siteLimit: data.siteLimit ?? 1, // Default to 1 if not set
+                siteLimit: data.siteLimit ?? 1,
                 createdAt: createdAt,
+                companyId: companyId,
+                companyName: companyId ? (companiesMap.get(companyId) || 'Empresa Eliminada') : null,
             };
         });
 
