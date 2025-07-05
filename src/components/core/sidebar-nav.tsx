@@ -1,4 +1,5 @@
 
+
 // src/components/core/sidebar-nav.tsx
 "use client";
 
@@ -122,7 +123,13 @@ export function SidebarNav() {
     }
 
     return NAV_GROUPS.map((group) => {
-      const visibleItems = group.items.filter(item => !item.adminOnly || userRole === 'admin');
+      const visibleItems = group.items.filter(item => {
+        if (userRole === 'super_admin') return true; // Super admin sees everything
+        if (!item.requiredRoles) return true; // No roles required, visible to all
+        if (!userRole) return false; // Not logged in, can't see role-restricted items
+        return item.requiredRoles.includes(userRole);
+      });
+      
       if (visibleItems.length === 0) return null;
 
       return (

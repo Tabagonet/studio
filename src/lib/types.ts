@@ -11,7 +11,7 @@ export interface NavItem {
   label?: string;
   disabled?: boolean;
   external?: boolean;
-  adminOnly?: boolean;
+  requiredRoles?: string[];
 }
 
 export interface NavGroup {

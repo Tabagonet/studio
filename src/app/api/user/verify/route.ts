@@ -1,3 +1,4 @@
+
 // src/app/api/user/verify/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
@@ -11,14 +12,14 @@ const userSchema = z.object({
   email: z.string().email().or(z.literal('')),
   displayName: z.string().nullable(),
   photoURL: z.string().url().nullable(),
-  role: z.enum(['admin', 'user', 'pending']),
+  role: z.enum(['super_admin', 'admin', 'content_manager', 'product_manager', 'seo_analyst', 'pending']),
   status: z.enum(['active', 'rejected', 'pending_approval']),
   termsAccepted: z.boolean(),
   siteLimit: z.number().optional(),
   apiKey: z.string().uuid().optional(),
 });
 
-const ADMIN_EMAIL = 'tabagonet@gmail.com';
+const SUPER_ADMIN_EMAIL = 'tabagonet@gmail.com';
 
 export async function GET(req: NextRequest) {
   let decodedToken;
@@ -49,28 +50,29 @@ export async function GET(req: NextRequest) {
       // User exists, return their data
       const userData = userDoc.data()!;
 
-      // --- Admin Override ---
-      const isAdmin = userData.email === ADMIN_EMAIL;
-      const needsAdminUpdate = isAdmin && (userData.role !== 'admin' || userData.status !== 'active' || userData.siteLimit !== 999);
-      if (needsAdminUpdate) {
-          console.log(`Applying admin override for ${ADMIN_EMAIL}`);
-          const adminUpdate: any = { role: 'admin', status: 'active', siteLimit: 999 };
+      // --- Super Admin Override ---
+      const isSuperAdmin = userData.email === SUPER_ADMIN_EMAIL;
+      const needsSuperAdminUpdate = isSuperAdmin && (userData.role !== 'super_admin' || userData.status !== 'active' || userData.siteLimit !== 999);
+      if (needsSuperAdminUpdate) {
+          console.log(`Applying Super Admin override for ${SUPER_ADMIN_EMAIL}`);
+          const adminUpdate: any = { role: 'super_admin', status: 'active', siteLimit: 999 };
           if (!userData.apiKey) {
             adminUpdate.apiKey = uuidv4();
             await adminDb.collection('api_keys').doc(adminUpdate.apiKey).set({ userId: uid });
           }
           await userRef.update(adminUpdate);
+          await adminAuth.setCustomUserClaims(uid, { role: 'super_admin' });
           
           const updatedUserData = { ...userData, ...adminUpdate };
           const validatedData = userSchema.safeParse(updatedUserData);
           
           if (!validatedData.success) {
-               console.error("Admin override user data is invalid:", validatedData.error);
+               console.error("Super Admin override user data is invalid:", validatedData.error);
                return NextResponse.json({ error: "Invalid admin override data." }, { status: 500 });
           }
           return NextResponse.json(validatedData.data);
       }
-      // --- End Admin Override ---
+      // --- End Super Admin Override ---
       
        // Ensure existing users have an API key if they are missing one
       if (!userData.apiKey) {
@@ -89,18 +91,19 @@ export async function GET(req: NextRequest) {
 
     } else {
       // User does not exist, create a new user.
-      const isAdmin = email === ADMIN_EMAIL;
+      const isSuperAdmin = email === SUPER_ADMIN_EMAIL;
       const newApiKey = uuidv4();
+      const role = isSuperAdmin ? 'super_admin' : 'pending';
 
       const newUser = {
         uid: uid,
         email: email || '',
         displayName: name || null,
         photoURL: picture || null,
-        role: isAdmin ? 'admin' : 'pending',
-        status: isAdmin ? 'active' : 'pending_approval',
-        termsAccepted: isAdmin, // Admins auto-accept terms
-        siteLimit: isAdmin ? 999 : 1, // Admins get unlimited, new users get 1
+        role: role,
+        status: isSuperAdmin ? 'active' : 'pending_approval',
+        termsAccepted: isSuperAdmin, // Admins auto-accept terms
+        siteLimit: isSuperAdmin ? 999 : 1, // Super Admins get unlimited, new users get 1
         apiKey: newApiKey,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       };
@@ -109,9 +112,12 @@ export async function GET(req: NextRequest) {
       batch.set(userRef, newUser);
       batch.set(adminDb.collection('api_keys').doc(newApiKey), { userId: uid, createdAt: newUser.createdAt });
       await batch.commit();
+
+      // Set custom claims for the new user
+      await adminAuth.setCustomUserClaims(uid, { role: role });
       
       if (newUser.status === 'pending_approval') {
-          const adminsSnapshot = await adminDb.collection('users').where('role', '==', 'admin').get();
+          const adminsSnapshot = await adminDb.collection('users').where('role', 'in', ['admin', 'super_admin']).get();
           if (!adminsSnapshot.empty) {
               const notificationBatch = adminDb.batch();
               for (const adminDoc of adminsSnapshot.docs) {

@@ -17,37 +17,37 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'WooCommerce',
     items: [
-      { title: 'Asistente de Creación', href: '/wizard', icon: Wand2 },
-      { title: 'Gestión de Productos', href: '/batch', icon: Layers },
-      { title: 'Proceso en Lotes', href: '/batch-process', icon: UploadCloud },
+      { title: 'Asistente de Creación', href: '/wizard', icon: Wand2, requiredRoles: ['admin', 'product_manager'] },
+      { title: 'Gestión de Productos', href: '/batch', icon: Layers, requiredRoles: ['admin', 'product_manager'] },
+      { title: 'Proceso en Lotes', href: '/batch-process', icon: UploadCloud, requiredRoles: ['admin', 'product_manager'] },
     ]
   },
   {
     title: 'Blog',
     items: [
-       { title: 'Creador de Entradas', href: '/blog-creator', icon: Newspaper },
-       { title: 'Gestión de Entradas', href: '/blog', icon: ClipboardList },
+       { title: 'Creador de Entradas', href: '/blog-creator', icon: Newspaper, requiredRoles: ['admin', 'content_manager'] },
+       { title: 'Gestión de Entradas', href: '/blog', icon: ClipboardList, requiredRoles: ['admin', 'content_manager'] },
     ]
   },
   {
     title: 'Herramientas',
     items: [
-       { title: 'Optimizador SEO', href: '/seo-optimizer', icon: SearchCheck },
-       { title: 'Clonador de Contenido', href: '/content-cloner', icon: Copy },
+       { title: 'Optimizador SEO', href: '/seo-optimizer', icon: SearchCheck, requiredRoles: ['admin', 'content_manager', 'product_manager', 'seo_analyst'] },
+       { title: 'Clonador de Contenido', href: '/content-cloner', icon: Copy, requiredRoles: ['admin', 'content_manager', 'product_manager'] },
     ]
   },
    {
     title: 'Ajustes',
     items: [
-       { title: 'Gestión de Prompts IA', href: '/prompts', icon: Brain },
-       { title: 'Configuración', href: '/settings', icon: Settings },
+       { title: 'Gestión de Prompts IA', href: '/prompts', icon: Brain, requiredRoles: ['admin'] },
+       { title: 'Configuración', href: '/settings', icon: Settings, requiredRoles: ['admin'] },
     ]
   },
   {
     title: 'Administración',
     items: [
-      { title: 'Gestión de Usuarios', href: '/admin/users', icon: Users, adminOnly: true },
-      { title: 'Actividad de Usuarios', href: '/admin/activity', icon: LineChart, adminOnly: true },
+      { title: 'Gestión de Usuarios', href: '/admin/users', icon: Users, requiredRoles: ['admin'] },
+      { title: 'Actividad de Usuarios', href: '/admin/activity', icon: LineChart, requiredRoles: ['admin'] },
     ]
   }
 ];

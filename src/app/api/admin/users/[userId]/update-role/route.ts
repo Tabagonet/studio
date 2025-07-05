@@ -1,4 +1,5 @@
 
+
 // src/app/api/admin/users/[userId]/update-role/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -13,12 +14,13 @@ async function isAdmin(req: NextRequest): Promise<boolean> {
         if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized");
         const decodedToken = await adminAuth.verifyIdToken(token);
         const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
-        return userDoc.exists && userDoc.data()?.role === 'admin';
+        // Allow both admin and super_admin to perform this action
+        return userDoc.exists && ['admin', 'super_admin'].includes(userDoc.data()?.role);
     } catch { return false; }
 }
 
 const updateRoleSchema = z.object({
-  role: z.enum(['admin', 'user']),
+  role: z.enum(['admin', 'content_manager', 'product_manager', 'seo_analyst', 'user']),
 });
 
 export async function POST(req: NextRequest, { params }: { params: { userId: string } }) {

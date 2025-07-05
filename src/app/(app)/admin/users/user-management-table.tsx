@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -7,20 +8,32 @@ import { auth } from '@/lib/firebase';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, UserCheck, UserX, MoreHorizontal, Trash2, Shield, User, KeyRound } from 'lucide-react';
+import { Loader2, UserCheck, UserX, MoreHorizontal, Trash2, Shield, User, KeyRound, Briefcase, BarChart, FileSignature, BookCopy, Search } from 'lucide-react';
 import Image from 'next/image';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuPortal } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+
+type UserRole = 'super_admin' | 'admin' | 'content_manager' | 'product_manager' | 'seo_analyst' | 'pending' | 'user';
+
+const ROLE_NAMES: Record<UserRole, string> = {
+    super_admin: 'Super Admin',
+    admin: 'Administrador',
+    content_manager: 'Gestor de Contenido',
+    product_manager: 'Gestor de Productos',
+    seo_analyst: 'Analista SEO',
+    pending: 'Pendiente',
+    user: 'Usuario (obsoleto)',
+};
 
 interface User {
   uid: string;
   email: string;
   displayName: string;
   photoURL: string;
-  role: 'admin' | 'user' | 'pending';
+  role: UserRole;
   status: 'active' | 'rejected' | 'pending_approval';
   siteLimit: number;
 }
@@ -30,7 +43,8 @@ export function UserManagementTable() {
     const [isLoading, setIsLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState<string | null>(null);
     const { toast } = useToast();
-    const currentAdminUid = auth.currentUser?.uid;
+    const currentAdmin = auth.currentUser;
+    const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
     
     // State for site limit modal
     const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
@@ -48,16 +62,21 @@ export function UserManagementTable() {
 
         try {
             const token = await user.getIdToken();
-            const response = await fetch('/api/admin/users', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const [usersResponse, verifyResponse] = await Promise.all([
+                fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } })
+            ]);
 
-            if (!response.ok) {
-                const errorData = await response.json();
+            if (!usersResponse.ok) {
+                const errorData = await usersResponse.json();
                 throw new Error(errorData.error || 'Failed to fetch users.');
             }
+            if(verifyResponse.ok) {
+                const userData = await verifyResponse.json();
+                setCurrentUserRole(userData.role);
+            }
 
-            const data = await response.json();
+            const data = await usersResponse.json();
             setUsers(data.users);
 
         } catch (error) {
@@ -121,7 +140,7 @@ export function UserManagementTable() {
         setIsUpdating(null);
     };
 
-    const handleUpdateRole = async (targetUid: string, newRole: 'admin' | 'user') => {
+    const handleUpdateRole = async (targetUid: string, newRole: UserRole) => {
         setIsUpdating(targetUid);
         await performApiCall(
             `/api/admin/users/${targetUid}/update-role`,
@@ -250,7 +269,11 @@ export function UserManagementTable() {
                                 </div>
                             </TableCell>
                             <TableCell className="text-muted-foreground">{u.email}</TableCell>
-                            <TableCell><Badge variant="outline" className="capitalize">{u.role}</Badge></TableCell>
+                            <TableCell>
+                                <Badge variant="outline" className="capitalize">
+                                    {ROLE_NAMES[u.role] || u.role}
+                                </Badge>
+                            </TableCell>
                             <TableCell className="text-center font-medium">
                                 {u.siteLimit >= 999 ? 'Ilimitado' : u.siteLimit}
                             </TableCell>
@@ -264,7 +287,7 @@ export function UserManagementTable() {
                                     <AlertDialog>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" className="h-8 w-8 p-0" disabled={u.uid === currentAdminUid}>
+                                                <Button variant="ghost" className="h-8 w-8 p-0" disabled={u.uid === currentAdmin?.uid || u.role === 'super_admin'}>
                                                     <span className="sr-only">Abrir menú</span>
                                                     <MoreHorizontal className="h-4 w-4" />
                                                 </Button>
@@ -288,16 +311,23 @@ export function UserManagementTable() {
                                                             <KeyRound className="mr-2 h-4 w-4" /> Fijar Límite de Sitios
                                                         </DropdownMenuItem>
                                                         <DropdownMenuSeparator />
-                                                        {u.role === 'user' && (
-                                                            <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'admin')}>
-                                                                <Shield className="mr-2 h-4 w-4" /> Hacer Admin
-                                                            </DropdownMenuItem>
-                                                        )}
-                                                        {u.role === 'admin' && (
-                                                            <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'user')}>
-                                                                <User className="mr-2 h-4 w-4" /> Hacer Usuario
-                                                            </DropdownMenuItem>
-                                                        )}
+                                                        
+                                                        <DropdownMenuSub>
+                                                            <DropdownMenuSubTrigger>
+                                                                <Briefcase className="mr-2 h-4 w-4" /> Cambiar Rol
+                                                            </DropdownMenuSubTrigger>
+                                                            <DropdownMenuPortal>
+                                                                <DropdownMenuSubContent>
+                                                                    {currentUserRole === 'super_admin' && (
+                                                                        <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'admin')}><Shield className="mr-2 h-4 w-4" /> Administrador</DropdownMenuItem>
+                                                                    )}
+                                                                    <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'content_manager')}><FileSignature className="mr-2 h-4 w-4" /> Gestor de Contenido</DropdownMenuItem>
+                                                                    <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'product_manager')}><BookCopy className="mr-2 h-4 w-4" /> Gestor de Productos</DropdownMenuItem>
+                                                                    <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'seo_analyst')}><Search className="mr-2 h-4 w-4" /> Analista SEO</DropdownMenuItem>
+                                                                </DropdownMenuSubContent>
+                                                            </DropdownMenuPortal>
+                                                        </DropdownMenuSub>
+
                                                         <DropdownMenuItem onSelect={() => handleUpdateStatus(u.uid, 'rejected')} className="text-destructive focus:text-destructive">
                                                           <UserX className="mr-2 h-4 w-4" /> Suspender
                                                         </DropdownMenuItem>
