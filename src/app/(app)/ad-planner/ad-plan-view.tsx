@@ -6,7 +6,7 @@ import { pdf, Document, Page, Text, View, StyleSheet, Font, Image as PdfImage } 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CreateAdPlanOutput, Strategy } from './schema';
-import { DollarSign, Printer, RotateCcw, Target, TrendingUp, Calendar, Zap, ClipboardCheck, Users, Megaphone, Lightbulb, MapPin, BarChart, Loader2, ListOrdered, Save, ClipboardPen } from 'lucide-react';
+import { DollarSign, Printer, RotateCcw, Target, TrendingUp, Calendar, Zap, ClipboardCheck, Users, Megaphone, Lightbulb, MapPin, BarChart, Loader2, ListOrdered, Save, ClipboardPen, Info } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
@@ -248,6 +248,13 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyName, logoUrl }
                 <CardHeader><CardTitle className="flex items-center gap-3"><ClipboardCheck className="h-6 w-6 text-primary" /> Resumen Ejecutivo</CardTitle></CardHeader>
                 <CardContent><p className="text-muted-foreground leading-relaxed">{plan.executive_summary}</p></CardContent>
             </Card>
+
+            {plan.additional_context && (
+                 <Card>
+                    <CardHeader><CardTitle className="flex items-center gap-3"><Info className="h-6 w-6 text-primary" /> Contexto Adicional</CardTitle></CardHeader>
+                    <CardContent><p className="text-muted-foreground whitespace-pre-line">{plan.additional_context}</p></CardContent>
+                </Card>
+            )}
 
             <Card>
                 <CardHeader><CardTitle className="flex items-center gap-3"><Target className="h-6 w-6 text-primary" /> Público Objetivo</CardTitle></CardHeader>

@@ -65,6 +65,7 @@ export const CreateAdPlanOutputSchema = z.object({
   calendar: z.array(CalendarMilestoneSchema).default([]).describe("Calendario de implementación detallado para los primeros 3 meses."),
   kpis: z.array(z.string()).default([]).describe("KPIs clave para medir el éxito de la campaña (ej. ROAS, CPA, CTR, Tasa de Conversión)."),
   fee_proposal: FeeProposalSchema.default({ setup_fee: 0, management_fee: 0, fee_description: '' }).describe("Propuesta de honorarios por la configuración y gestión."),
+  additional_context: z.string().optional().describe("Contexto adicional proporcionado por el usuario."),
 });
 
 export type CreateAdPlanOutput = z.infer<typeof CreateAdPlanOutputSchema>;
@@ -72,6 +73,7 @@ export type CreateAdPlanOutput = z.infer<typeof CreateAdPlanOutputSchema>;
 export const CreateAdPlanInputSchema = z.object({
   url: z.string().url({ message: "Por favor, introduce una URL válida." }),
   objectives: z.array(z.string()).min(1, { message: "Selecciona al menos un objetivo." }),
+  additional_context: z.string().optional(),
 });
 
 export type CreateAdPlanInput = z.infer<typeof CreateAdPlanInputSchema>;

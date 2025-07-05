@@ -16,6 +16,7 @@ import { AdPlanView } from './ad-plan-view';
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AdPlanHistory } from './history-list';
+import { Textarea } from '@/components/ui/textarea';
 
 
 const objectives = [
@@ -40,6 +41,7 @@ export default function AdPlannerPage() {
         defaultValues: {
             url: '',
             objectives: [],
+            additional_context: '',
         },
     });
 
@@ -160,7 +162,7 @@ export default function AdPlannerPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>Crear Nuevo Plan</CardTitle>
-                        <CardDescription>Introduce la URL y el objetivo principal de la campaña.</CardDescription>
+                        <CardDescription>Introduce la URL y los objetivos. Añade contexto para un plan más preciso.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Form {...form}>
@@ -219,6 +221,23 @@ export default function AdPlannerPage() {
                                                     />
                                                 ))}
                                             </div>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                 <FormField
+                                    control={form.control}
+                                    name="additional_context"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Contexto Adicional (Opcional)</FormLabel>
+                                            <FormControl>
+                                                <Textarea 
+                                                    placeholder="Añade aquí cualquier información que la IA deba conocer y que no esté en la web. Por ejemplo: 'Somos una empresa familiar con 50 años de historia' o 'Queremos promocionar nuestro nuevo producto XYZ que es eco-friendly'." 
+                                                    {...field}
+                                                    rows={4}
+                                                />
+                                            </FormControl>
                                             <FormMessage />
                                         </FormItem>
                                     )}

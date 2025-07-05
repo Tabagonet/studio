@@ -56,6 +56,7 @@ export async function GET(req: NextRequest) {
                     target_audience: data.target_audience || '',
                     total_monthly_budget: typeof data.total_monthly_budget === 'number' ? data.total_monthly_budget : 0,
                     kpis: data.kpis || [],
+                    additional_context: data.additional_context || '',
                     calendar: (data.calendar || []).map((c: any) => ({
                         month: c.month || '',
                         focus: c.focus || '',

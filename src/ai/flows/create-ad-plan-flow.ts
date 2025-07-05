@@ -14,6 +14,10 @@ Tu respuesta DEBE ser un único objeto JSON válido.
 **Contexto:**
 - URL: {{url}}
 - Objetivos de la Campaña: {{#each objectives}}- {{this}} {{/each}}
+{{#if additional_context}}
+- Información Adicional Clave del Negocio (proporcionada por el usuario):
+{{additional_context}}
+{{/if}}
 
 **Instrucciones del Plan:**
 1.  **executive_summary:** Resume la estrategia general en 2-3 párrafos. El resultado DEBE ser un único string de texto.
@@ -29,7 +33,7 @@ Tu respuesta DEBE ser un único objeto JSON válido.
 5.  **calendar:** Crea un plan para 3 meses.
     - "month": Mes 1, 2, 3.
     - "focus": ej. Configuración y Lanzamiento.
-    - "actions": Lista de acciones concretas.
+    - "actions": Lista de acciones DETALLADAS y específicas a realizar durante ese mes. Sé explícito.
 6.  **kpis:** Lista de KPIs clave (ej. ROAS, CPA, CTR).
 7.  **fee_proposal:** Propuesta de honorarios.
     - "setup_fee": número.
@@ -66,6 +70,7 @@ export async function createAdPlan(input: CreateAdPlanInput, uid: string): Promi
       ...parsedJson,
       url: input.url,
       objectives: input.objectives,
+      additional_context: input.additional_context,
   };
   
   return CreateAdPlanOutputSchema.parse(finalPlan);

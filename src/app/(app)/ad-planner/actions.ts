@@ -54,6 +54,7 @@ export async function generateAdPlanAction(
                 calendar: planDataToSave.calendar,
                 kpis: planDataToSave.kpis,
                 fee_proposal: planDataToSave.fee_proposal,
+                additional_context: planDataToSave.additional_context,
             });
 
             // Return the plan with its new ID
