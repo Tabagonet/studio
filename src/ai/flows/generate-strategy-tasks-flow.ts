@@ -1,11 +1,13 @@
 'use server';
-
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import Handlebars from 'handlebars';
+/**
+ * @fileOverview A strategy tasks generation AI agent.
+ */
+import {ai} from '@/ai/genkit';
 import { 
+  GenerateStrategyTasksInputSchema,
   type GenerateStrategyTasksInput, 
-  type GenerateStrategyTasksOutput,
-  GenerateStrategyTasksOutputSchema
+  GenerateStrategyTasksOutputSchema,
+  type GenerateStrategyTasksOutput
 } from '@/app/(app)/ad-planner/schema';
 
 
@@ -32,16 +34,26 @@ Basado en la estrategia anterior, genera una lista de 5 a 7 tareas detalladas pa
 
 Genera la lista de tareas.`;
 
-export async function generateStrategyTasks(input: GenerateStrategyTasksInput): Promise<GenerateStrategyTasksOutput> {
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
+const prompt = ai.definePrompt({
+  name: 'generateStrategyTasksPrompt',
+  input: { schema: GenerateStrategyTasksInputSchema },
+  output: { schema: GenerateStrategyTasksOutputSchema },
+  prompt: TASKS_PROMPT,
+});
 
-  const template = Handlebars.compile(TASKS_PROMPT, { noEscape: true });
-  const prompt = template(input);
-  
-  const result = await model.generateContent(prompt);
-  const responseText = result.response.text();
-  const parsedJson = JSON.parse(responseText);
-  
-  return GenerateStrategyTasksOutputSchema.parse(parsedJson);
+const generateStrategyTasksFlow = ai.defineFlow(
+  {
+    name: 'generateStrategyTasksFlow',
+    inputSchema: GenerateStrategyTasksInputSchema,
+    outputSchema: GenerateStrategyTasksOutputSchema,
+  },
+  async (input) => {
+    const { output } = await prompt(input);
+    return output!;
+  }
+);
+
+
+export async function generateStrategyTasks(input: GenerateStrategyTasksInput): Promise<GenerateStrategyTasksOutput> {
+  return generateStrategyTasksFlow(input);
 }

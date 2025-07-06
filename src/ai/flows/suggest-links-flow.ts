@@ -1,27 +1,31 @@
 'use server';
 /**
  * @fileOverview An AI flow for suggesting internal links within content.
- *
- * - suggestInternalLinks - A function that suggests internal links.
  */
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import {ai} from '@/ai/genkit';
+import {z} from 'genkit';
 import { 
     type SuggestLinksOutput, 
     SuggestLinksOutputSchema 
 } from '@/ai/schemas';
 
-export async function suggestInternalLinks(prompt: string): Promise<SuggestLinksOutput> {
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
-  
-  const result = await model.generateContent(prompt);
-
-  if (!result || !result.response) {
-      throw new Error("AI returned an invalid or empty response.");
+const suggestInternalLinksFlow = ai.defineFlow(
+  {
+    name: 'suggestInternalLinksFlow',
+    inputSchema: z.string(), // The prompt string
+    outputSchema: SuggestLinksOutputSchema,
+  },
+  async (prompt) => {
+    const { output } = await ai.generate({
+        model: 'googleai/gemini-1.5-flash-latest',
+        prompt: prompt,
+        output: { schema: SuggestLinksOutputSchema },
+    });
+    return output!;
   }
-  
-  const responseText = result.response.text();
-  const parsedJson = JSON.parse(responseText);
+);
 
-  return SuggestLinksOutputSchema.parse(parsedJson);
+export async function suggestInternalLinks(prompt: string): Promise<SuggestLinksOutput> {
+  const result = await suggestInternalLinksFlow(prompt);
+  return SuggestLinksOutputSchema.parse(result);
 }

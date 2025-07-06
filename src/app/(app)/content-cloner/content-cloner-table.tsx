@@ -183,8 +183,9 @@ export function ContentClonerTable() {
                 mainItem = groupItems.find(p => p.lang === 'es') || groupItems[0];
                 
                 if (mainItem) {
-                    mainItem.subRows = groupItems.filter(p => p.id !== mainItem.id);
-                    roots.push(mainItem);
+                    const definedMainItem = mainItem;
+                    definedMainItem.subRows = groupItems.filter(p => p.id !== definedMainItem.id);
+                    roots.push(definedMainItem);
                     groupItems.forEach(groupItem => processedIds.add(groupItem.id));
                 }
             }

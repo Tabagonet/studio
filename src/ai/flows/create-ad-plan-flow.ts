@@ -1,11 +1,11 @@
-
 'use server';
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { CreateAdPlanInput, CreateAdPlanOutput, CreateAdPlanOutputSchema } from '@/app/(app)/ad-planner/schema';
+
+import {ai} from '@/ai/genkit';
+import {z} from 'genkit';
+import { CreateAdPlanInputSchema, type CreateAdPlanInput, CreateAdPlanOutput, CreateAdPlanOutputSchema } from '@/app/(app)/ad-planner/schema';
 import { adminDb } from '@/lib/firebase-admin';
 import Handlebars from 'handlebars';
 
-// Helper to fetch the custom prompt from Firestore
 async function getAdPlanPrompt(uid: string): Promise<string> {
     const defaultPrompt = `Eres un experto de talla mundial en marketing digital, producto digital y posicionamiento de marca. Tienes acceso a una base de datos con múltiples estrategias probadas para distintos sectores (moda, tecnología, ecommerce, salud, educación, consultoría, logística, restauración, etc.) y debes generar una estrategia personalizada y ganadora.
 Tu respuesta DEBE ser un único objeto JSON válido, sin comentarios ni markdown.
@@ -55,7 +55,6 @@ Ahora, genera el plan estratégico completo en formato JSON.`;
     if (!adminDb) return defaultPrompt;
     try {
         const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
-        // Fallback to the new prompt if the old one 'adPlan' is fetched.
         return userSettingsDoc.data()?.prompts?.adPlan || defaultPrompt;
     } catch (error) {
         console.error("Error fetching 'adPlan' prompt, using default.", error);
@@ -63,35 +62,50 @@ Ahora, genera el plan estratégico completo en formato JSON.`;
     }
 }
 
+const CreateAdPlanFlowInputSchema = CreateAdPlanInputSchema.extend({
+    uid: z.string()
+});
+type CreateAdPlanFlowInput = z.infer<typeof CreateAdPlanFlowInputSchema>;
+
+
+const createAdPlanFlow = ai.defineFlow(
+  {
+    name: 'createAdPlanFlow',
+    inputSchema: CreateAdPlanFlowInputSchema,
+    outputSchema: CreateAdPlanOutputSchema,
+  },
+  async (input) => {
+    const rawPrompt = await getAdPlanPrompt(input.uid);
+    const template = Handlebars.compile(rawPrompt, { noEscape: true });
+    const finalPrompt = template(input);
+    
+    const { output } = await ai.generate({
+        model: 'googleai/gemini-1.5-flash-latest',
+        prompt: finalPrompt,
+        output: { schema: CreateAdPlanOutputSchema },
+    });
+
+    return output!;
+  }
+);
 
 export async function createAdPlan(input: CreateAdPlanInput, uid: string): Promise<CreateAdPlanOutput> {
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
-
-  const rawPrompt = await getAdPlanPrompt(uid);
-
-  // Use Handlebars for robust templating
-  const template = Handlebars.compile(rawPrompt, { noEscape: true });
-  const prompt = template(input);
+  const result = await createAdPlanFlow({ ...input, uid });
   
-  const result = await model.generateContent(prompt);
-  const responseText = result.response.text();
-  const parsedJson = JSON.parse(responseText);
-
-  // Data cleaning step to coerce budget numbers from string to number if needed.
-  if (parsedJson.total_monthly_budget && typeof parsedJson.total_monthly_budget === 'string') {
-    parsedJson.total_monthly_budget = parseFloat(parsedJson.total_monthly_budget);
+  // Data cleaning step
+  if (result.total_monthly_budget && typeof result.total_monthly_budget === 'string') {
+    result.total_monthly_budget = parseFloat(result.total_monthly_budget);
   }
-  if (parsedJson.fee_proposal) {
-    if (typeof parsedJson.fee_proposal.setup_fee === 'string') {
-        parsedJson.fee_proposal.setup_fee = parseFloat(parsedJson.fee_proposal.setup_fee);
+  if (result.fee_proposal) {
+    if (typeof result.fee_proposal.setup_fee === 'string') {
+        result.fee_proposal.setup_fee = parseFloat(result.fee_proposal.setup_fee);
     }
-    if (typeof parsedJson.fee_proposal.management_fee === 'string') {
-        parsedJson.fee_proposal.management_fee = parseFloat(parsedJson.fee_proposal.management_fee);
+    if (typeof result.fee_proposal.management_fee === 'string') {
+        result.fee_proposal.management_fee = parseFloat(result.fee_proposal.management_fee);
     }
   }
-  if (parsedJson.strategies && Array.isArray(parsedJson.strategies)) {
-      parsedJson.strategies.forEach((strategy: any) => {
+  if (result.strategies && Array.isArray(result.strategies)) {
+      result.strategies.forEach((strategy: any) => {
           if (strategy.monthly_budget && typeof strategy.monthly_budget === 'string') {
               strategy.monthly_budget = parseFloat(strategy.monthly_budget);
           }
@@ -100,7 +114,7 @@ export async function createAdPlan(input: CreateAdPlanInput, uid: string): Promi
 
   // Add the original input URL and objectives to the final plan object
   const finalPlan = {
-      ...parsedJson,
+      ...result,
       url: input.url,
       objectives: input.objectives,
       additional_context: input.additional_context,

@@ -1,11 +1,13 @@
 'use server';
-
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import Handlebars from 'handlebars';
+/**
+ * @fileOverview An ad creatives generation AI agent.
+ */
+import {ai} from '@/ai/genkit';
 import { 
+  GenerateAdCreativesInputSchema,
   type GenerateAdCreativesInput,
+  GenerateAdCreativesOutputSchema,
   type GenerateAdCreativesOutput,
-  GenerateAdCreativesOutputSchema
 } from '@/app/(app)/ad-planner/schema';
 
 const CREATIVES_PROMPT = `Eres un director creativo y copywriter senior en una agencia de marketing digital. Tu tarea es generar creativos publicitarios impactantes basados en una estrategia definida.
@@ -28,16 +30,25 @@ Basado en el contexto, genera los siguientes recursos para la campaña:
 
 Genera la respuesta en formato JSON.`;
 
-export async function generateAdCreatives(input: GenerateAdCreativesInput): Promise<GenerateAdCreativesOutput> {
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
+const prompt = ai.definePrompt({
+  name: 'generateAdCreativesPrompt',
+  input: { schema: GenerateAdCreativesInputSchema },
+  output: { schema: GenerateAdCreativesOutputSchema },
+  prompt: CREATIVES_PROMPT,
+});
 
-  const template = Handlebars.compile(CREATIVES_PROMPT, { noEscape: true });
-  const prompt = template(input);
-  
-  const result = await model.generateContent(prompt);
-  const responseText = result.response.text();
-  const parsedJson = JSON.parse(responseText);
-  
-  return GenerateAdCreativesOutputSchema.parse(parsedJson);
+const generateAdCreativesFlow = ai.defineFlow(
+  {
+    name: 'generateAdCreativesFlow',
+    inputSchema: GenerateAdCreativesInputSchema,
+    outputSchema: GenerateAdCreativesOutputSchema,
+  },
+  async (input) => {
+    const { output } = await prompt(input);
+    return output!;
+  }
+);
+
+export async function generateAdCreatives(input: GenerateAdCreativesInput): Promise<GenerateAdCreativesOutput> {
+  return generateAdCreativesFlow(input);
 }

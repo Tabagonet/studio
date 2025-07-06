@@ -1,11 +1,13 @@
 'use server';
-
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import Handlebars from 'handlebars';
+/**
+ * @fileOverview A competitor analysis AI agent.
+ */
+import {ai} from '@/ai/genkit';
 import {
+  CompetitorAnalysisInputSchema,
   type CompetitorAnalysisInput,
+  CompetitorAnalysisOutputSchema,
   type CompetitorAnalysisOutput,
-  CompetitorAnalysisOutputSchema
 } from '@/app/(app)/ad-planner/schema';
 
 const COMPETITOR_ANALYSIS_PROMPT = `Eres un analista de inteligencia competitiva de clase mundial, especializado en marketing digital y SEO. Tu tarea es realizar un análisis de competencia para la empresa en la URL proporcionada. Tu respuesta DEBE ser un único objeto JSON válido.
@@ -53,23 +55,33 @@ const COMPETITOR_ANALYSIS_PROMPT = `Eres un analista de inteligencia competitiva
 
 Genera el análisis ahora. Si no encuentras competidores relevantes, devuelve un array vacío para la clave "competitors".`;
 
-export async function competitorAnalysis(input: CompetitorAnalysisInput): Promise<CompetitorAnalysisOutput> {
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
+const prompt = ai.definePrompt({
+  name: 'competitorAnalysisPrompt',
+  input: { schema: CompetitorAnalysisInputSchema },
+  output: { schema: CompetitorAnalysisOutputSchema },
+  prompt: COMPETITOR_ANALYSIS_PROMPT,
+});
 
-  const template = Handlebars.compile(COMPETITOR_ANALYSIS_PROMPT, { noEscape: true });
-  const prompt = template(input);
-  
-  const result = await model.generateContent(prompt);
-  const responseText = result.response.text();
-  const parsedJson = JSON.parse(responseText);
-  
-  // Data cleaning step to prevent malformed data from breaking the app
-  if (parsedJson.competitors && Array.isArray(parsedJson.competitors)) {
-    parsedJson.competitors = parsedJson.competitors.filter((c: any) => 
+const competitorAnalysisFlow = ai.defineFlow(
+  {
+    name: 'competitorAnalysisFlow',
+    inputSchema: CompetitorAnalysisInputSchema,
+    outputSchema: CompetitorAnalysisOutputSchema,
+  },
+  async (input) => {
+    const { output } = await prompt(input);
+    return output!;
+  }
+);
+
+
+export async function competitorAnalysis(input: CompetitorAnalysisInput): Promise<CompetitorAnalysisOutput> {
+  const result = await competitorAnalysisFlow(input);
+  // Data cleaning step
+  if (result.competitors && Array.isArray(result.competitors)) {
+    result.competitors = result.competitors.filter((c: any) => 
       c && typeof c.competitor_name === 'string' && c.competitor_name.trim() !== ''
     );
   }
-  
-  return CompetitorAnalysisOutputSchema.parse(parsedJson);
+  return CompetitorAnalysisOutputSchema.parse(result);
 }
