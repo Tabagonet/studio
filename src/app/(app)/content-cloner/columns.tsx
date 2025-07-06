@@ -5,11 +5,9 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowUpDown, ChevronRight } from "lucide-react";
-import type { ContentItem as RawContentItem } from "@/lib/types";
+import type { HierarchicalContentItem, ContentItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-
-type ContentItem = RawContentItem & { subRows: ContentItem[] };
 
 const getStatusText = (status: ContentItem['status']) => {
     const statusMap: { [key: string]: string } = {
@@ -23,7 +21,7 @@ const getStatusText = (status: ContentItem['status']) => {
     return statusMap[status] || status;
 };
 
-export const getColumns = (): ColumnDef<ContentItem>[] => [
+export const getColumns = (): ColumnDef<HierarchicalContentItem>[] => [
   {
     id: "select",
     header: ({ table }) => (
