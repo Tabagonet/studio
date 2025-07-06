@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 const analyzeUrlSchema = z.object({
   url: z.string().min(1, "La URL no puede estar vacía."),
   postId: z.number().optional(),
-  postType: z.enum(['Post', 'Page']).optional(),
+  postType: z.enum(['Post', 'Page', 'Producto']).optional(),
 });
 
 const aiChecksSchema = z.object({
@@ -197,7 +197,17 @@ export async function POST(req: NextRequest) {
     let pageData;
 
     if (postId && postType && wpApi) {
-        const endpoint = postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
+        let endpoint: string;
+        if (postType === 'Post') {
+            endpoint = `/posts/${postId}`;
+        } else if (postType === 'Page') {
+            endpoint = `/pages/${postId}`;
+        } else if (postType === 'Producto') {
+            endpoint = `/products/${postId}`;
+        } else {
+            throw new Error(`Unsupported post type for analysis: ${postType}`);
+        }
+
         const response = await wpApi.get(endpoint, { params: { context: 'edit', '_': new Date().getTime() } });
         const post = response.data;
         const htmlContent = post.content?.rendered || '';
