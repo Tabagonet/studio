@@ -32,6 +32,10 @@ const companyUpdateSchema = z.object({
   phone: z.string().optional().nullable(),
   email: z.string().email("Formato de email inválido.").optional().nullable(),
   logoUrl: z.string().url("Formato de URL inválido.").optional().nullable(),
+  seoHourlyRate: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : parseFloat(String(val))),
+    z.number().positive("El precio debe ser un número positivo.").optional().nullable()
+  ),
 });
 
 export async function GET(req: NextRequest) {

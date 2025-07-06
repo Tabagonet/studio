@@ -17,6 +17,7 @@ import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AdPlanHistory } from './history-list';
 import { Textarea } from '@/components/ui/textarea';
+import type { Company } from '@/lib/types';
 
 
 const objectives = [
@@ -31,7 +32,7 @@ const objectives = [
 export default function AdPlannerPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [adPlan, setAdPlan] = useState<CreateAdPlanOutput | null>(null);
-    const [companyInfo, setCompanyInfo] = useState<{name: string, logoUrl: string | null} | null>(null);
+    const [companyInfo, setCompanyInfo] = useState<Company | null>(null);
     const [history, setHistory] = useState<CreateAdPlanOutput[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(true);
     const { toast } = useToast();
@@ -74,9 +75,9 @@ export default function AdPlannerPage() {
             try {
                 const userVerifyResponse = await fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` }});
                 const userData = await userVerifyResponse.json();
-                let companyName = "AutoPress AI";
-                let logoUrl = null;
 
+                // For super admins, we try to find a specific default company.
+                // For regular admins, we use their assigned companyId.
                 const companyIdToFetch = userData.role === 'super_admin' 
                     ? (await (await fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } })).json()).companies.find((c: any) => c.name === 'Grupo 4 alas S.L.')?.id
                     : userData.companyId;
@@ -86,15 +87,18 @@ export default function AdPlannerPage() {
                     if (companyResponse.ok) {
                         const companyData = await companyResponse.json();
                         if (companyData.company) {
-                            companyName = companyData.company.name;
-                            logoUrl = companyData.company.logoUrl;
+                           setCompanyInfo(companyData.company);
+                           return; // Exit after setting company info
                         }
                     }
                 }
-                setCompanyInfo({ name: companyName, logoUrl: logoUrl });
+                
+                // Fallback if no company info is fetched
+                setCompanyInfo(null);
+
             } catch (e) {
                 console.error("Failed to fetch company info", e);
-                setCompanyInfo({ name: "AutoPress AI", logoUrl: null });
+                setCompanyInfo(null);
             }
         };
 
@@ -255,7 +259,7 @@ export default function AdPlannerPage() {
                 </Card>
             )}
 
-            {adPlan && companyInfo && <AdPlanView plan={adPlan} onPlanUpdate={setAdPlan} onReset={() => setAdPlan(null)} companyInfo={companyInfo} />}
+            {adPlan && <AdPlanView plan={adPlan} onPlanUpdate={setAdPlan} onReset={() => setAdPlan(null)} companyInfo={companyInfo} />}
 
             {!adPlan && (
                 <div className="mt-8">

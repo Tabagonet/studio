@@ -15,12 +15,13 @@ import { StrategyDetailDialog } from './StrategyDetailDialog';
 import { CreativeStudioDialog } from './CreativeStudioDialog';
 import { formatCurrency } from '@/lib/utils';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import type { Company } from '@/lib/types';
 
 interface AdPlanViewProps {
   plan: CreateAdPlanOutput;
   onPlanUpdate: (plan: CreateAdPlanOutput) => void;
   onReset: () => void;
-  companyInfo: { name: string; logoUrl: string | null };
+  companyInfo: Company | null;
 }
 
 export function AdPlanView({ plan, onPlanUpdate, onReset, companyInfo }: AdPlanViewProps) {
@@ -74,6 +75,7 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyInfo }: AdPlanV
             <StrategyDetailDialog
                 plan={plan}
                 strategy={selectedStrategyForTasks}
+                companyInfo={companyInfo}
                 onOpenChange={(open) => !open && setSelectedStrategyForTasks(null)}
                 onPlanUpdate={onPlanUpdate}
             />

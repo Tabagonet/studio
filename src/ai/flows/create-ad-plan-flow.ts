@@ -44,7 +44,7 @@ Genera un objeto JSON con las siguientes claves principales:
 7.  **"calendar"**: (array de objetos) Un calendario para los primeros 3 meses. Cada objeto tiene:
     -   "month": (string) ej. "Mes 1".
     -   "focus": (string) El enfoque principal para ese mes.
-    -   "actions": (array of strings) 3-5 acciones concretas para ese mes.
+    -   "actions": (array of strings) Una lista detallada de 5 a 7 acciones concretas para ese mes. Incluye la creación de contenido específico (ej. "Escribir 2 artículos de blog sobre X"), configuración de campañas (ej. "Lanzar campaña de PMax con creativos A/B"), y optimizaciones (ej. "Revisar audiencias de remarketing").
 8.  **"extra_recommendations"**: (array of strings) 2-4 recomendaciones extra sobre posicionamiento, tono, storytelling, o experiencia de usuario.
 9.  **"fee_proposal"**: (object) Una propuesta de honorarios de agencia estándar.
     -   "setup_fee": (number) Un coste de configuración inicial (ej. 1500).

@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Loader2, Save, Building, Users } from "lucide-react";
+import { Loader2, Save, Building, Users, DollarSign } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import type { Company, ProductPhoto } from '@/lib/types';
@@ -24,6 +24,7 @@ const INITIAL_COMPANY_DATA: EditableCompanyData = {
     address: '',
     phone: '',
     email: '',
+    seoHourlyRate: 10,
 };
 
 export default function CompanySettingsPage() {
@@ -261,6 +262,13 @@ export default function CompanySettingsPage() {
                             <div>
                                 <Label htmlFor="email">Email de Contacto</Label>
                                 <Input id="email" name="email" type="email" value={companyData.email || ''} onChange={handleInputChange} placeholder="Ej: contacto@empresa.com" disabled={isSaving} />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <Label htmlFor="seoHourlyRate" className="flex items-center gap-2"><DollarSign className="h-4 w-4" />Precio Hora SEO (€)</Label>
+                                <Input id="seoHourlyRate" name="seoHourlyRate" type="number" value={companyData.seoHourlyRate || ''} onChange={handleInputChange} placeholder="10" disabled={isSaving} />
+                                <p className="text-xs text-muted-foreground mt-1">Este valor se usará por defecto en el Planificador de Publicidad.</p>
                             </div>
                         </div>
                          <div>

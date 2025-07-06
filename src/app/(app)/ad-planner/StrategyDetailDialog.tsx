@@ -14,19 +14,32 @@ import { useToast } from '@/hooks/use-toast';
 import { generateStrategyTasksAction } from './actions';
 import { auth } from '@/lib/firebase';
 import { formatCurrency } from '@/lib/utils';
+import type { Company } from '@/lib/types';
+
 
 interface StrategyDetailDialogProps {
   plan: CreateAdPlanOutput | null;
   strategy: Strategy | null;
+  companyInfo: Company | null;
   onOpenChange: (open: boolean) => void;
   onPlanUpdate: (updatedPlan: CreateAdPlanOutput) => void;
 }
 
-export function StrategyDetailDialog({ plan, strategy, onOpenChange, onPlanUpdate }: StrategyDetailDialogProps) {
+export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange, onPlanUpdate }: StrategyDetailDialogProps) {
   const [hourlyRate, setHourlyRate] = useState(60);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoadingTasks, setIsLoadingTasks] = useState(false);
   const { toast } = useToast();
+
+  // Set the hourly rate from company settings if available, otherwise default to 60.
+  useEffect(() => {
+    if (companyInfo?.seoHourlyRate) {
+        setHourlyRate(companyInfo.seoHourlyRate);
+    } else {
+        setHourlyRate(60); // Default value
+    }
+  }, [companyInfo]);
+
 
   useEffect(() => {
     if (strategy && plan) {
