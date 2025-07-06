@@ -20,6 +20,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { ALL_LANGUAGES } from '@/lib/constants';
 import { v4 as uuidv4 } from 'uuid';
+import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
 
 // Staged product type
 interface StagedProduct {
@@ -218,16 +219,21 @@ export default function BatchProcessPage() {
         csvData.forEach(row => {
             if(row.sku && typeof row.sku === 'string') csvMap.set(row.sku.trim(), row);
         });
-
+        
         const imagesBySku = new Map<string, File[]>();
+        const productNamesFromImages = new Map<string, string>();
+
         imageFiles.forEach(file => {
-            const skuMatch = file.name.match(/^([a-zA-Z0-9_-]+)-/);
-            const sku = skuMatch ? skuMatch[1] : null;
+            const { sku, extractedProductName } = extractProductNameAndAttributesFromFilename(file.name);
             if (sku) {
                 if (!imagesBySku.has(sku)) {
                     imagesBySku.set(sku, []);
                 }
                 imagesBySku.get(sku)!.push(file);
+
+                if (!productNamesFromImages.has(sku) && extractedProductName) {
+                    productNamesFromImages.set(sku, extractedProductName);
+                }
             }
         });
         
@@ -247,7 +253,7 @@ export default function BatchProcessPage() {
                         if (checkResult.exists) {
                             return {
                                 id: sku,
-                                name: row.nombre || 'Nombre no encontrado',
+                                name: row.nombre || productNamesFromImages.get(sku) || `Producto de SKU: ${sku}`,
                                 csvData: row,
                                 images: matchingImages.sort((a,b) => a.name.localeCompare(b.name)),
                                 status: 'duplicate',
@@ -266,7 +272,7 @@ export default function BatchProcessPage() {
                 const hasImages = matchingImages.length > 0;
                 return {
                     id: sku,
-                    name: row.nombre || 'Nombre no encontrado',
+                    name: row.nombre || productNamesFromImages.get(sku) || `Producto de SKU: ${sku}`,
                     csvData: row,
                     images: matchingImages.sort((a,b) => a.name.localeCompare(b.name)),
                     status: hasImages ? 'ready' : 'missing_images',
@@ -287,9 +293,10 @@ export default function BatchProcessPage() {
 
         imagesBySku.forEach((images, sku) => {
             if (!processedSkus.has(sku)) {
+                 const productName = productNamesFromImages.get(sku) || `Producto de SKU: ${sku}`;
                 combined.push({
                     id: sku,
-                    name: `Producto de SKU: ${sku}`,
+                    name: productName,
                     images: images.sort((a,b) => a.name.localeCompare(b.name)),
                     csvData: {},
                     status: 'missing_csv_data',
@@ -547,9 +554,14 @@ export default function BatchProcessPage() {
         <AlertDescription>
           <ol className="list-decimal list-inside space-y-3 mt-2">
             <li>
-              <strong>Prepara tus Imágenes:</strong> Nombra cada foto con el patrón <strong><code>SKU-NUMERO.jpg</code></strong>. El <strong>SKU</strong> debe coincidir exactamente con el de tu CSV. El <strong>NÚMERO</strong> (`-1`, `-2`, etc.) las agrupa y ordena (la `-1` será la imagen principal).
+              <strong>Prepara tus Imágenes:</strong> Nombra cada foto con el patrón <strong><code>SKU-NOMBRE_PRODUCTO_DETALLADO-NUMERO.jpg</code></strong>.
+               <ul className="list-disc list-inside pl-6 mt-2 text-sm space-y-1">
+                  <li>El <strong>SKU</strong> debe coincidir con tu CSV.</li>
+                  <li>El <strong>NOMBRE_PRODUCTO_DETALLADO</strong> (con guiones bajos en lugar de espacios) proporciona contexto a la IA.</li>
+                  <li>El <strong>NÚMERO</strong> (`-1`, `-2`, etc.) las ordena, siendo `-1` la imagen principal.</li>
+              </ul>
               <br />
-              <em className="text-xs">Ejemplo: `TSHIRT-COOL-1.jpg`, `TSHIRT-COOL-2.jpg`.</em>
+              <em className="text-xs">Ejemplo: <code>FOV1-AMPOLLAS_ANTICAIDA_ADENOSINA-1.png</code></em>
             </li>
             <li>
               <strong>Prepara tu archivo CSV:</strong> Descarga nuestra plantilla. Contiene todas las columnas necesarias para crear productos <strong>simples</strong> y <strong>variables</strong>.

@@ -200,6 +200,7 @@ export interface ParsedNameData {
   extractedProductName: string;
   potentialAttributes: string[];
   normalizedProductName: string;
+  sku?: string;
 }
 
 export type SubmissionStatus = 'idle' | 'processing' | 'success' | 'error';

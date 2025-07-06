@@ -194,11 +194,20 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   };
 
   const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
-    if (!productData.name && newPhotos.length > 0) {
+    // Check if product name and SKU are empty, and if there are new photos
+    if ((!productData.name || !productData.sku) && newPhotos.length > 0) {
       const firstNewFile = newPhotos.find(p => p && p.file);
       if (firstNewFile) {
-        const { extractedProductName } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
-        updateProductData({ photos: newPhotos, name: extractedProductName });
+        const { extractedProductName, sku } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
+        // Create an update object, only setting fields if they are empty
+        const updates: Partial<ProductData> = { photos: newPhotos };
+        if (!productData.name && extractedProductName) {
+            updates.name = extractedProductName;
+        }
+        if (!productData.sku && sku) {
+            updates.sku = sku;
+        }
+        updateProductData(updates);
         return;
       }
     }

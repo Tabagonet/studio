@@ -14,74 +14,51 @@ export function formatCurrency(value: number) {
 
 /**
  * Extracts product name and potential attributes from a filename.
- * Example: "AGAVE CAVANILLESII-1.jpg" -> name: "Agave Cavanillesii", attributes: ["1"]
- * Example: "My Product_Blue_Large-002.png" -> name: "My Product Blue Large", attributes: ["002"]
- * This is a basic implementation and can be significantly improved.
+ * Example: "FOV1-AMPOLLAS_ANTICAIDA_ADENOSINA-1.png" -> 
+ * sku: "FOV1", name: "AMPOLLAS ANTICAIDA ADENOSINA"
  * @param originalFilename The original filename.
- * @param contextName Optional name from product context, if available, to refine extraction.
  * @returns ParsedNameData object.
  */
 export function extractProductNameAndAttributesFromFilename(
-  originalFilename: string,
-  contextName?: string
+  originalFilename: string
 ): ParsedNameData {
   if (!originalFilename) {
     return {
-      extractedProductName: 'Unknown Product',
+      extractedProductName: '',
       potentialAttributes: [],
-      normalizedProductName: 'unknownproduct',
+      normalizedProductName: '',
+      sku: '',
     };
   }
 
-  // Prefer contextName if provided and seems more complete
-  let namePart = contextName || originalFilename;
-  
-  // Remove extension
-  namePart = namePart.substring(0, namePart.lastIndexOf('.')) || namePart;
+  const nameWithoutExt = originalFilename.substring(0, originalFilename.lastIndexOf('.'));
+  const firstHyphenIndex = nameWithoutExt.indexOf('-');
+  const lastHyphenIndex = nameWithoutExt.lastIndexOf('-');
 
-  // Attempt to split by common delimiters for attributes/numbering
-  const parts = namePart.split(/[-_](?=\d+$)|[-_](?=[cC]opy\d*$)|[-_](?=[vV]ariation\d*$)/);
-  let extractedProductName = parts[0];
-  const potentialAttributes: string[] = parts.slice(1).map(p => p.trim()).filter(p => p);
-
-  // Further refine product name if it was from filename
-  if (!contextName) {
-      // Replace hyphens/underscores with spaces, then capitalize words
-      extractedProductName = extractedProductName
-        .replace(/[-_]/g, ' ')
-        .trim()
-        .split(' ')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-        .join(' ');
-  } else {
-      // If contextName was used, assume it's already well-formatted
-      extractedProductName = contextName.trim();
+  // Handle cases with no hyphens or only one hyphen (e.g., "SKU.jpg", "SKU-1.jpg")
+  if (firstHyphenIndex === -1 || firstHyphenIndex === lastHyphenIndex) {
+    const parts = nameWithoutExt.split('-');
+    const sku = parts[0] || '';
+    const potentialAttribute = parts[1] || '';
+    return {
+      extractedProductName: sku, // Fallback to SKU as name
+      potentialAttributes: potentialAttribute ? [potentialAttribute] : [],
+      sku: sku,
+      normalizedProductName: sku.toLowerCase(),
+    };
   }
 
+  // Standard case: SKU-NAME-NUMBER.ext
+  const sku = nameWithoutExt.substring(0, firstHyphenIndex).trim();
+  const productNameWithUnderscores = nameWithoutExt.substring(firstHyphenIndex + 1, lastHyphenIndex).trim();
+  const photoNumber = nameWithoutExt.substring(lastHyphenIndex + 1).trim();
 
-  // If no attributes extracted from suffix, and namePart had internal delimiters,
-  // try to see if those were intended as part of the name vs attributes
-  if (potentialAttributes.length === 0 && !contextName) {
-    const subParts = extractedProductName.split(' ');
-    if (subParts.length > 1) {
-        const lastPart = subParts[subParts.length - 1];
-        // If last part is a number or common variation indicator, consider it an attribute
-        if (/^\d+$/.test(lastPart) || /^[mMlLxX]+[sS]?$/.test(lastPart) /* S, M, L, XL, XXL etc */) {
-            // This logic can be much more sophisticated
-            // For now, let's assume if contextName wasn't given, such parts were for numbering/variation.
-        }
-    }
-  }
+  const extractedProductName = productNameWithUnderscores.replace(/_/g, ' ').trim();
   
-  // Normalize for use in prompts or as keywords
-  const normalizedProductName = extractedProductName
-    .toLowerCase()
-    .replace(/\s+/g, ' ') // Normalize multiple spaces
-    .trim();
-
   return {
-    extractedProductName: extractedProductName.trim() || 'Unnamed Product',
-    potentialAttributes,
-    normalizedProductName,
+    extractedProductName: extractedProductName,
+    potentialAttributes: [photoNumber],
+    sku: sku,
+    normalizedProductName: extractedProductName.toLowerCase().replace(/\s+/g, ' ').trim(),
   };
 }
