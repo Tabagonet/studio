@@ -51,12 +51,16 @@ export async function generateAdPlanAction(
                 url: planDataToSave.url,
                 objectives: planDataToSave.objectives,
                 additional_context: planDataToSave.additional_context,
-                executive_summary: planDataToSave.executive_summary,
-                target_audience: planDataToSave.target_audience,
+                
+                // Comprehensive strategy fields
+                buyer_persona: planDataToSave.buyer_persona,
+                value_proposition: planDataToSave.value_proposition,
+                funnel: planDataToSave.funnel,
                 strategies: planDataToSave.strategies,
                 total_monthly_budget: planDataToSave.total_monthly_budget,
+                recommended_tools: planDataToSave.recommended_tools,
                 calendar: planDataToSave.calendar,
-                kpis: planDataToSave.kpis,
+                extra_recommendations: planDataToSave.extra_recommendations,
                 fee_proposal: planDataToSave.fee_proposal,
             });
 

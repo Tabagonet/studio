@@ -7,7 +7,7 @@ import Handlebars from 'handlebars';
 
 // Helper to fetch the custom prompt from Firestore
 async function getAdPlanPrompt(uid: string): Promise<string> {
-    const defaultPrompt = `Eres un estratega senior de marketing digital. Tu tarea es analizar una URL, unos objetivos y un contexto opcional para crear un plan de publicidad profesional y detallado.
+    const defaultPrompt = `Eres un experto de talla mundial en marketing digital, producto digital y posicionamiento de marca. Tienes acceso a una base de datos con múltiples estrategias probadas para distintos sectores (moda, tecnología, ecommerce, salud, educación, consultoría, logística, restauración, etc.) y debes generar una estrategia personalizada y ganadora.
 Tu respuesta DEBE ser un único objeto JSON válido, sin comentarios ni markdown.
 
 **INFORMACIÓN DE ENTRADA:**
@@ -18,48 +18,38 @@ Tu respuesta DEBE ser un único objeto JSON válido, sin comentarios ni markdown
 {{{additional_context}}}
 {{/if}}
 
-**PROCESO DE ANÁLISIS Y GENERACIÓN (Sigue estos pasos):**
-1.  **Análisis Inicial:**
-    - Visita y analiza la URL para comprender el negocio. Usa el contexto adicional como la fuente de verdad principal.
-    - **Infiere** el tipo de producto/servicio (ej: moda, app, ecommerce, salud, formación online, consultoría, transporte, restaurante…).
-    - **Infiere** el público objetivo principal (edad, género, ubicación, intereses, comportamiento de compra). Si no puedes determinarlo, descríbelo de forma genérica para el sector.
-    - **Estima** un presupuesto mensual total y realista para un negocio de este tipo. Sé concreto (ej. 3000, 8000, 15000).
+**PROCESO DE GENERACIÓN JSON (Sigue estos pasos y estructura):**
+Genera un objeto JSON con las siguientes claves principales:
 
-2.  **Generación de Estrategia JSON (Salida):**
-    Genera un objeto JSON con las siguientes claves:
-
-    -   "executive_summary": (string) Un resumen ejecutivo de la estrategia general en 2-3 párrafos.
-    -   "target_audience": (string) Describe el perfil psicográfico del cliente ideal en un párrafo.
-    -   "total_monthly_budget": (number) La suma total de los presupuestos de todas las estrategias.
-    -   "strategies": (array de objetos) Propón de 2 a 4 estrategias, una para cada plataforma principal (ej. Google Ads, Meta Ads). Cada objeto debe tener:
-        -   "platform": (string) El nombre de la plataforma (ej. "Google Ads").
-        -   "strategy_rationale": (string) Justificación de por qué esta plataforma es adecuada.
-        -   "funnel_stage": (string, enum: "Awareness", "Consideration", "Conversion") La fase del embudo a la que se dirige principalmente.
-        -   "campaign_type": (string) El tipo de campaña recomendado (ej. "Performance Max", "Búsqueda", "Shopping", "Tráfico a la web").
-        -   "ad_formats": (array of strings) Los formatos de anuncio sugeridos (ej. "Anuncios de Búsqueda", "Anuncios de Display", "Video Ads", "Carrusel").
-        -   "monthly_budget": (number) El presupuesto mensual estimado para ESTA plataforma.
-        -   "targeting_suggestions": (array of strings) 2-3 ideas concretas de segmentación (ej. "Públicos afines: 'amantes de la moda sostenible'", "Remarketing a visitantes de los últimos 30 días", "Palabras clave: 'comprar zapatos de cuero Madrid'").
-        -   "key_kpis": (array of strings) 2 KPIs clave para esta estrategia (ej. "ROAS", "Coste por Lead").
-        -   "creative_angle": (string) El enfoque creativo principal (ej. "Énfasis en la calidad artesanal y el confort", "Ofertas y descuentos por tiempo limitado").
-    -   "kpis": (array of strings) 4-5 KPIs generales para medir el éxito de TODA la estrategia.
-    -   "calendar": (array de objetos) Un calendario para los primeros 3 meses. Cada objeto tiene:
-        -   "month": (string) ej. "Mes 1".
-        -   "focus": (string) El enfoque para ese mes.
-        -   "actions": (array of strings) 3-5 acciones concretas para ese mes.
-    -   "fee_proposal": (object) Propuesta de honorarios.
-        -   "setup_fee": (number) Un coste de configuración inicial.
-        -   "management_fee": (number) Una cuota de gestión mensual.
-        -   "fee_description": (string) Explica qué incluyen los honorarios.
-
-**BASES ESTRATÉGICAS POR SECTOR (Usa como inspiración):**
--   **Moda/Ropa:** Fuerte enfoque visual (Reels, carruseles), storytelling emocional, marketing de influencers, promociones por temporada.
--   **Tecnología/SaaS:** Demos de producto, campañas de instalación de apps, retención por email, contenido educativo en vídeo, remarketing web.
--   **Ecommerce/Local:** Geolocalización, Google My Business, SEO local, ventas flash, email de fidelización.
--   **Consultoría/Servicios:** Marca personal, lead magnets (guías, webinars), LinkedIn, testimonios.
--   **Transporte/Industrial:** Marketing B2B, Google Ads orientado a soluciones, casos de éxito, LinkedIn.
--   **Educación/Cursos:** Minicursos gratuitos, clases en vivo, funnels por email, YouTube.
--   **Salud/Bienestar:** Contenido empático y educativo, prueba gratuita o consulta inicial, reputación y reseñas.
--   **Restauración/Delivery:** Fotografía de alta calidad, promociones horarias (2x1), campañas geolocalizadas.
+1.  **"buyer_persona"**: (string) Describe el perfil psicográfico del cliente ideal en un párrafo detallado. Incluye edad, género, ubicación, intereses, y puntos de dolor.
+2.  **"value_proposition"**: (string) Define la propuesta de valor clara y diferencial del negocio en una o dos frases. ¿Qué lo hace único?
+3.  **"funnel"**: (array de objetos) Describe el embudo de conversión completo en 5 etapas (Awareness, Consideration, Conversion, Retention, Referral). Para cada etapa, crea un objeto con:
+    -   "stage_name": (string) ej. "Awareness (Notoriedad)".
+    -   "description": (string) Breve descripción del objetivo de esta fase.
+    -   "channels": (array of strings) Canales recomendados para esta fase (ej. "Meta Ads", "SEO").
+    -   "content_types": (array of strings) Tipos de contenido para esos canales (ej. "Reels inspiradores", "Artículos de blog 'Cómo...'").
+    -   "kpis": (array of strings) KPIs clave para medir el éxito en esta fase (ej. "Alcance", "Impresiones").
+4.  **"strategies"**: (array de objetos) Esta es la sección del **plan de medios interactivo**. Propón 2-4 estrategias, una por plataforma principal. Cada objeto debe tener:
+    -   "platform": (string) El nombre de la plataforma (ej. "Google Ads").
+    -   "strategy_rationale": (string) Justificación de por qué esta plataforma es adecuada.
+    -   "funnel_stage": (string, enum: "Awareness", "Consideration", "Conversion") La fase principal del embudo a la que apunta esta estrategia.
+    -   "campaign_type": (string) El tipo de campaña recomendado (ej. "Performance Max", "Tráfico a la web").
+    -   "ad_formats": (array of strings) Formatos de anuncio sugeridos (ej. "Anuncios de Búsqueda", "Video Ads").
+    -   "monthly_budget": (number) Presupuesto mensual estimado para ESTA plataforma.
+    -   "targeting_suggestions": (array of strings) 2-3 ideas concretas de segmentación (ej. "Públicos afines: 'amantes de la moda'", "Remarketing a visitantes").
+    -   "key_kpis": (array of strings) 2 KPIs clave para esta estrategia (ej. "ROAS", "Coste por Lead").
+    -   "creative_angle": (string) El enfoque creativo principal (ej. "Énfasis en la calidad y el confort", "Ofertas y descuentos").
+5.  **"total_monthly_budget"**: (number) La suma total de los \`monthly_budget\` de todas las estrategias.
+6.  **"recommended_tools"**: (array of strings) 3-5 herramientas recomendadas para ejecutar la estrategia (ej. "Semrush para SEO", "Mailchimp para email", "Meta Business Suite").
+7.  **"calendar"**: (array de objetos) Un calendario para los primeros 3 meses. Cada objeto tiene:
+    -   "month": (string) ej. "Mes 1".
+    -   "focus": (string) El enfoque principal para ese mes.
+    -   "actions": (array of strings) 3-5 acciones concretas para ese mes.
+8.  **"extra_recommendations"**: (array of strings) 2-4 recomendaciones extra sobre posicionamiento, tono, storytelling, o experiencia de usuario.
+9.  **"fee_proposal"**: (object) Una propuesta de honorarios de agencia estándar.
+    -   "setup_fee": (number) Un coste de configuración inicial (ej. 1500).
+    -   "management_fee": (number) Una cuota de gestión mensual (ej. 2500).
+    -   "fee_description": (string) Explica qué incluyen los honorarios (ej. "Setup y gestión de campañas, reporting mensual, optimización continua.").
 
 Ahora, genera el plan estratégico completo en formato JSON.`;
     if (!adminDb) return defaultPrompt;

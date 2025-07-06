@@ -1,9 +1,37 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
-import type { CreateAdPlanOutput, Strategy, Task } from '@/app/(app)/ad-planner/schema';
+import type { CreateAdPlanOutput, Strategy, Task, GenerateAdCreativesOutput } from '@/app/(app)/ad-planner/schema';
 
 export const dynamic = 'force-dynamic';
+
+const FunnelStageSchemaForHistory = {
+    stage_name: '',
+    description: '',
+    channels: [],
+    content_types: [],
+    kpis: [],
+};
+
+const StrategySchemaForHistory = {
+    platform: '',
+    strategy_rationale: '',
+    funnel_stage: 'Consideration' as const,
+    campaign_type: '',
+    ad_formats: [],
+    monthly_budget: 0,
+    targeting_suggestions: [],
+    key_kpis: [],
+    creative_angle: '',
+    tasks: [],
+    creatives: undefined,
+};
+
+const FeeProposalSchemaForHistory = {
+    setup_fee: 0,
+    management_fee: 0,
+    fee_description: '',
+};
 
 export async function GET(req: NextRequest) {
     let uid: string;
@@ -18,7 +46,6 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        // Removed .orderBy() to prevent index-related errors. Sorting will be done in-memory.
         const snapshot = await adminDb.collection('ad_plans')
             .where('userId', '==', uid)
             .limit(50) 
@@ -52,31 +79,18 @@ export async function GET(req: NextRequest) {
                     createdAt: createdAtDate.toISOString(),
                     url: data.url || '',
                     objectives: data.objectives || [],
-                    executive_summary: data.executive_summary || '',
-                    target_audience: data.target_audience || '',
-                    total_monthly_budget: typeof data.total_monthly_budget === 'number' ? data.total_monthly_budget : 0,
-                    kpis: data.kpis || [],
                     additional_context: data.additional_context || '',
-                    calendar: (data.calendar || []).map((c: any) => ({
-                        month: c.month || '',
-                        focus: c.focus || '',
-                        actions: c.actions || [],
+                    
+                    buyer_persona: data.buyer_persona || '',
+                    value_proposition: data.value_proposition || '',
+                    funnel: (data.funnel || []).map((f: any) => ({
+                        ...FunnelStageSchemaForHistory,
+                        ...f,
                     })),
-                    fee_proposal: {
-                        setup_fee: typeof data.fee_proposal?.setup_fee === 'number' ? data.fee_proposal.setup_fee : 0,
-                        management_fee: typeof data.fee_proposal?.management_fee === 'number' ? data.fee_proposal.management_fee : 0,
-                        fee_description: data.fee_proposal?.fee_description || '',
-                    },
                     strategies: (data.strategies || []).map((s: any): Strategy => ({
-                        platform: s.platform || '',
-                        strategy_rationale: s.strategy_rationale || '',
-                        funnel_stage: s.funnel_stage || 'Awareness',
-                        campaign_type: s.campaign_type || '',
-                        ad_formats: s.ad_formats || [],
+                        ...StrategySchemaForHistory,
+                        ...s,
                         monthly_budget: typeof s.monthly_budget === 'number' ? s.monthly_budget : 0,
-                        targeting_suggestions: s.targeting_suggestions || [],
-                        key_kpis: s.key_kpis || [],
-                        creative_angle: s.creative_angle || '',
                         tasks: (s.tasks || []).map((t: any): Task => ({
                             id: t.id || '',
                             name: t.name || '',
@@ -89,6 +103,20 @@ export async function GET(req: NextRequest) {
                             visual_ideas: s.creatives.visual_ideas || [],
                         } : undefined,
                     })),
+                    total_monthly_budget: typeof data.total_monthly_budget === 'number' ? data.total_monthly_budget : 0,
+                    recommended_tools: data.recommended_tools || [],
+                    calendar: (data.calendar || []).map((c: any) => ({
+                        month: c.month || '',
+                        focus: c.focus || '',
+                        actions: c.actions || [],
+                    })),
+                    extra_recommendations: data.extra_recommendations || [],
+                    fee_proposal: {
+                        ...FeeProposalSchemaForHistory,
+                        ...(data.fee_proposal || {}),
+                        setup_fee: typeof data.fee_proposal?.setup_fee === 'number' ? data.fee_proposal.setup_fee : 0,
+                        management_fee: typeof data.fee_proposal?.management_fee === 'number' ? data.fee_proposal.management_fee : 0,
+                    },
                 };
                 history.push(plan);
             } catch (innerError: any) {
@@ -96,7 +124,6 @@ export async function GET(req: NextRequest) {
             }
         }
         
-        // Sort the results in-memory after fetching and processing.
         history.sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
 
         return NextResponse.json({ history });

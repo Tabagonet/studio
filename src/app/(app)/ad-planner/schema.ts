@@ -50,6 +50,8 @@ export const TaskSchema = z.object({
 export type Task = z.infer<typeof TaskSchema>;
 
 // === NEW, COMPREHENSIVE AD PLAN SCHEMAS ===
+
+// Represents a single, actionable strategy for the media plan
 const StrategySchema = z.object({
   platform: z.string(),
   strategy_rationale: z.string(),
@@ -65,6 +67,16 @@ const StrategySchema = z.object({
 });
 export type Strategy = z.infer<typeof StrategySchema>;
 
+// Represents a stage in the overall marketing funnel
+const FunnelStageSchema = z.object({
+  stage_name: z.string().describe("Nombre de la etapa del embudo (ej. Awareness, Consideration)"),
+  description: z.string().describe("Descripción del objetivo de esta fase."),
+  channels: z.array(z.string()).describe("Canales recomendados para esta fase."),
+  content_types: z.array(z.string()).describe("Tipos de contenido recomendados."),
+  kpis: z.array(z.string()).describe("KPIs clave para medir esta fase."),
+});
+
+// The main output schema for the entire advertising plan
 export const CreateAdPlanOutputSchema = z.object({
   id: z.string().optional(),
   createdAt: z.string().optional(),
@@ -72,21 +84,27 @@ export const CreateAdPlanOutputSchema = z.object({
   objectives: z.array(z.string()).default([]),
   additional_context: z.string().optional(),
   
-  executive_summary: z.string(),
-  target_audience: z.string(),
+  // High-level strategy
+  buyer_persona: z.string().describe("Perfil psicográfico del cliente ideal."),
+  value_proposition: z.string().describe("Propuesta de valor clara y diferencial."),
   
+  // Detailed funnel breakdown
+  funnel: z.array(FunnelStageSchema).describe("Embudo de conversión completo por etapas."),
+  
+  // Actionable media plan
   strategies: z.array(StrategySchema),
-  
   total_monthly_budget: z.number(),
   
+  // Supporting materials
+  recommended_tools: z.array(z.string()).describe("Herramientas recomendadas para la estrategia."),
   calendar: z.array(z.object({
     month: z.string(),
     focus: z.string(),
     actions: z.array(z.string()),
   })),
+  extra_recommendations: z.array(z.string()).describe("Recomendaciones extra sobre posicionamiento, tono, etc."),
 
-  kpis: z.array(z.string()),
-
+  // Financials
   fee_proposal: z.object({
     setup_fee: z.number(),
     management_fee: z.number(),
@@ -96,12 +114,12 @@ export const CreateAdPlanOutputSchema = z.object({
 
 export type CreateAdPlanOutput = z.infer<typeof CreateAdPlanOutputSchema>;
 
+// Schema for the initial user input form
 export const CreateAdPlanInputSchema = z.object({
   url: z.string().url({ message: "Por favor, introduce una URL válida." }),
   objectives: z.array(z.string()).min(1, { message: "Selecciona al menos un objetivo." }),
   additional_context: z.string().optional(),
 });
-
 export type CreateAdPlanInput = z.infer<typeof CreateAdPlanInputSchema>;
 
 
