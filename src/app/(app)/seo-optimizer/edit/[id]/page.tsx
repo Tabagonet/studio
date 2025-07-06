@@ -105,7 +105,21 @@ function EditPageContent() {
 
     try {
       const token = await user.getIdToken();
-      const apiPath = postType === 'Post' ? `/api/wordpress/posts/${postId}` : `/api/wordpress/pages/${postId}`;
+      let apiPath: string;
+      switch (postType) {
+        case 'Post':
+          apiPath = `/api/wordpress/posts/${postId}`;
+          break;
+        case 'Page':
+          apiPath = `/api/wordpress/pages/${postId}`;
+          break;
+        case 'Producto':
+          apiPath = `/api/wordpress/products/${postId}`;
+          break;
+        default:
+          throw new Error(`Unsupported content type: ${postType}`);
+      }
+      
       const postResponse = await fetch(`${apiPath}?context=edit&bust=${new Date().getTime()}`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
       if (!postResponse.ok) throw new Error((await postResponse.json()).error || `Failed to fetch ${postType} data.`);
       
@@ -190,7 +204,22 @@ function EditPageContent() {
         if (applyAiMetaToFeatured && post.featuredMediaId && post.meta._yoast_wpseo_focuskw) {
              payload.featured_image_metadata = { title: post.title, alt_text: post.meta._yoast_wpseo_focuskw };
         }
-        const apiPath = postType === 'Post' ? `/api/wordpress/posts/${postId}` : `/api/wordpress/pages/${postId}`;
+        
+        let apiPath: string;
+        switch (postType) {
+          case 'Post':
+            apiPath = `/api/wordpress/posts/${postId}`;
+            break;
+          case 'Page':
+            apiPath = `/api/wordpress/pages/${postId}`;
+            break;
+          case 'Producto':
+            apiPath = `/api/wordpress/products/${postId}`;
+            break;
+          default:
+            throw new Error(`Unsupported content type: ${postType}`);
+        }
+
         const response = await fetch(apiPath, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
