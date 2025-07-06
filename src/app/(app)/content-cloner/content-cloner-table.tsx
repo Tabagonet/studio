@@ -30,7 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getColumns } from "./columns"; 
-import type { ContentItem as RawContentItem } from "@/lib/types";
+import type { HierarchicalContentItem } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, ChevronDown, Copy } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -40,7 +40,6 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 
-type ContentItem = RawContentItem & { subRows: ContentItem[] };
 type CloningStatus = 'pending' | 'cloning' | 'translating' | 'updating' | 'success' | 'failed';
 type CloningProgress = Record<string, { title: string; status: CloningStatus; message: string; progress: number }>;
 
@@ -92,7 +91,7 @@ const CloningProgressDialog = ({ open, progressData, onDone }: { open: boolean, 
 
 
 export function ContentClonerTable() {
-  const [data, setData] = React.useState<ContentItem[]>([]);
+  const [data, setData] = React.useState<HierarchicalContentItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -150,7 +149,7 @@ export function ContentClonerTable() {
         const errorData = await response.json();
         throw new Error(errorData.error || 'No se pudo cargar el contenido del sitio.');
       }
-      const { content }: { content: RawContentItem[] } = await response.json();
+      const { content }: { content: HierarchicalContentItem[] } = await response.json();
 
       setData(content);
 
@@ -162,37 +161,48 @@ export function ContentClonerTable() {
     }
   }, []);
 
-  const tableData = React.useMemo((): ContentItem[] => {
+  const tableData = React.useMemo((): HierarchicalContentItem[] => {
     if (!data) return [];
 
-    const itemsById = new Map<number, ContentItem>(data.map((p) => [p.id, { ...p, subRows: [] }]));
-    const roots: ContentItem[] = [];
+    const itemsById = new Map<number, HierarchicalContentItem>(data.map((p) => [p.id, { ...p, subRows: [] }]));
+    const roots: HierarchicalContentItem[] = [];
     const processedIds = new Set<number>();
 
     data.forEach((item) => {
         if (processedIds.has(item.id)) return;
 
-        const translationIds = Object.values(item.translations || {});
-        if (translationIds.length > 1) {
-            const groupItems = translationIds
+        let mainItem: HierarchicalContentItem | undefined;
+        const translationIds = new Set(Object.values(item.translations || {}));
+        
+        if (translationIds.size > 1) {
+            const groupItems = Array.from(translationIds)
                 .map(id => itemsById.get(id))
-                .filter((p): p is ContentItem => !!p);
+                .filter((p): p is HierarchicalContentItem => !!p);
             
             if (groupItems.length > 0) {
-                const mainPost = groupItems.find(p => p.lang === 'es') || groupItems.find(p => p.lang === languageFilter) || groupItems[0];
-                if (mainPost) {
-                    mainPost.subRows = groupItems.filter(p => p.id !== mainPost.id);
-                    roots.push(mainPost);
+                mainItem = groupItems.find(p => p.lang === 'es') || groupItems[0];
+                
+                if (mainItem) {
+                    mainItem.subRows = groupItems.filter(p => p.id !== mainItem.id);
+                    roots.push(mainItem);
                     groupItems.forEach(groupItem => processedIds.add(groupItem.id));
                 }
             }
         } else {
-            roots.push({ ...item, subRows: [] });
-            processedIds.add(item.id);
+            mainItem = itemsById.get(item.id);
+            if(mainItem) {
+                roots.push({ ...mainItem, subRows: [] });
+                processedIds.add(mainItem.id);
+            }
         }
     });
+    
+    let filteredRoots = roots;
+    if (languageFilter !== 'all') {
+      filteredRoots = roots.filter(item => item.lang === languageFilter);
+    }
 
-    return roots.sort((a,b) => a.title.localeCompare(b.title));
+    return filteredRoots.sort((a,b) => a.title.localeCompare(b.title));
   }, [data, languageFilter]);
 
 
@@ -355,19 +365,19 @@ export function ContentClonerTable() {
             }}
         />
 
-        <div className="flex items-center justify-between">
-            <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+             <div className="flex flex-wrap gap-2 w-full md:w-auto">
                 <Input
                   placeholder="Filtrar por título..."
                   value={(table.getColumn('title')?.getFilterValue() as string) ?? ''}
                   onChange={(event) => table.getColumn('title')?.setFilterValue(event.target.value)}
-                  className="max-w-sm"
+                  className="w-full sm:w-auto sm:min-w-[200px] flex-grow"
                 />
                  <Select
                     value={(table.getColumn('type')?.getFilterValue() as string) ?? 'all'}
                     onValueChange={(value) => table.getColumn('type')?.setFilterValue(value === 'all' ? undefined : value)}
                 >
-                    <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectTrigger className="w-full sm:w-auto sm:min-w-[180px] flex-grow">
                         <SelectValue placeholder="Filtrar por tipo..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -381,7 +391,7 @@ export function ContentClonerTable() {
                     value={(table.getColumn('status')?.getFilterValue() as string) ?? 'all'}
                     onValueChange={(value) => table.getColumn('status')?.setFilterValue(value === 'all' ? undefined : value)}
                 >
-                    <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectTrigger className="w-full sm:w-auto sm:min-w-[180px] flex-grow">
                         <SelectValue placeholder="Filtrar por estado..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -396,7 +406,7 @@ export function ContentClonerTable() {
             </div>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="outline" disabled={selectedRowCount === 0 || isCloning}>
+                    <Button variant="outline" disabled={selectedRowCount === 0 || isCloning} className="w-full md:w-auto">
                         <ChevronDown className="mr-2 h-4 w-4" />
                         Acciones ({selectedRowCount})
                     </Button>
