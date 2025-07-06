@@ -16,7 +16,8 @@ import type { ContentImage, ExtractedWidget } from '@/lib/types';
 
 interface SeoAnalyzerPost {
   title: string;
-  content: string | ExtractedWidget[]; 
+  content: string | ExtractedWidget[];
+  short_description?: string;
   meta: {
       _yoast_wpseo_title: string;
       _yoast_wpseo_metadesc: string;
@@ -201,8 +202,9 @@ export function SeoAnalyzer({
     const keyword = (post.meta._yoast_wpseo_focuskw || '').trim().toLowerCase();
     if (!keyword) return [];
     
-    const seoTitle = (post.meta._yoast_wpseo_title || '').trim();
-    const metaDescription = (post.meta._yoast_wpseo_metadesc || '').trim();
+    const effectiveSeoTitle = (post.meta._yoast_wpseo_title || post.title || '').trim();
+    const effectiveMetaDescription = (post.meta._yoast_wpseo_metadesc || (post.postType === 'Producto' ? post.short_description : '') || '').trim();
+
     const contentText = typeof post.content === 'string' ? post.content : (post.content || []).map(w => w.text).join(' ');
     const plainContent = contentText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     const firstParagraph = plainContent.substring(0, 600).toLowerCase();
@@ -211,29 +213,29 @@ export function SeoAnalyzer({
     return [
       {
         id: 'keywordInTitle',
-        pass: seoTitle.toLowerCase().includes(keyword),
+        pass: effectiveSeoTitle.toLowerCase().includes(keyword),
         text: <>La palabra clave (<strong>{keyword}</strong>) aparece en el <strong>título SEO</strong>.</>,
         fixable: true,
         aiMode: 'enhance_title'
       },
       {
         id: 'titleLength',
-        pass: seoTitle.length >= 30 && seoTitle.length <= 65,
-        text: <>El título SEO tiene una longitud adecuada ({seoTitle.length} de 30-65 caracteres).</>,
+        pass: effectiveSeoTitle.length >= 30 && effectiveSeoTitle.length <= 65,
+        text: <>El título SEO tiene una longitud adecuada ({effectiveSeoTitle.length} de 30-65 caracteres).</>,
         fixable: true,
         aiMode: 'enhance_title'
       },
       {
         id: 'keywordInMetaDesc',
-        pass: metaDescription.toLowerCase().includes(keyword),
+        pass: effectiveMetaDescription.toLowerCase().includes(keyword),
         text: <>La palabra clave aparece en la <strong>meta descripción</strong>.</>,
         fixable: true,
         aiMode: 'generate_meta_description'
       },
       {
         id: 'metaDescLength',
-        pass: metaDescription.length >= 50 && metaDescription.length <= 160,
-        text: <>La meta descripción tiene una longitud adecuada ({metaDescription.length} de 50-160 caracteres).</>,
+        pass: effectiveMetaDescription.length >= 50 && effectiveMetaDescription.length <= 160,
+        text: <>La meta descripción tiene una longitud adecuada ({effectiveMetaDescription.length} de 50-160 caracteres).</>,
         fixable: true,
         aiMode: 'generate_meta_description'
       },
@@ -327,5 +329,3 @@ export function SeoAnalyzer({
     </div>
   );
 }
-
-    

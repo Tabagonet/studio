@@ -25,6 +25,7 @@ import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 interface PostEditState {
   title: string;
   content: string | ExtractedWidget[]; 
+  short_description?: string;
   meta: {
       _yoast_wpseo_title: string;
       _yoast_wpseo_metadesc: string;
@@ -128,6 +129,7 @@ function EditPageContent() {
       
       const loadedPost: PostEditState = {
         title: postData.title.rendered || '', content: postData.content.rendered,
+        short_description: postData.short_description,
         meta: {
             _yoast_wpseo_title: (typeof postData.meta?._yoast_wpseo_title === 'string') ? postData.meta._yoast_wpseo_title : '',
             _yoast_wpseo_metadesc: postData.meta?._yoast_wpseo_metadesc || '',
@@ -365,5 +367,3 @@ export default function SeoEditPage() {
         </Suspense>
     )
 }
-
-    

@@ -57,6 +57,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const transformed = {
       title: { rendered: productData.name },
       content: { rendered: productData.description || '' }, // Use description for content
+      short_description: productData.short_description || '',
       link: productData.permalink,
       meta: {
           _yoast_wpseo_title: getMetaValue('_yoast_wpseo_title') || productData.name,
