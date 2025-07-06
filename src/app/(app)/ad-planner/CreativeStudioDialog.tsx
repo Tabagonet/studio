@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -79,7 +78,7 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdat
             platform: strategy.platform,
             campaign_type: strategy.campaign_type,
             funnel_stage: strategy.funnel_stage,
-            target_audience: plan.target_audience,
+            target_audience: plan.buyer_persona,
           }, token);
 
           if (result.error || !result.data) {
