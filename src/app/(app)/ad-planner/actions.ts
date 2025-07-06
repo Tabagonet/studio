@@ -48,19 +48,16 @@ export async function generateAdPlanAction(
             const newPlanRef = await adminDb.collection('ad_plans').add({
                 userId: uid,
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                // Basic Info
                 url: planDataToSave.url,
                 objectives: planDataToSave.objectives,
                 additional_context: planDataToSave.additional_context,
-                // New Strategy Fields
-                buyer_persona: planDataToSave.buyer_persona,
-                value_proposition: planDataToSave.value_proposition,
-                funnel: planDataToSave.funnel,
-                media_plan: planDataToSave.media_plan,
-                recommended_tools: planDataToSave.recommended_tools,
-                key_performance_indicators: planDataToSave.key_performance_indicators,
-                content_calendar: planDataToSave.content_calendar,
-                strategic_recommendations: planDataToSave.strategic_recommendations,
+                executive_summary: planDataToSave.executive_summary,
+                target_audience: planDataToSave.target_audience,
+                strategies: planDataToSave.strategies,
+                total_monthly_budget: planDataToSave.total_monthly_budget,
+                calendar: planDataToSave.calendar,
+                kpis: planDataToSave.kpis,
+                fee_proposal: planDataToSave.fee_proposal,
             });
 
             // Return the plan with its new ID
