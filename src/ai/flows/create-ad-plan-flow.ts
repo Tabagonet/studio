@@ -28,7 +28,7 @@ Genera un objeto JSON con las siguientes claves principales:
     -   "description": (string) Breve descripción del objetivo de esta fase.
     -   "channels": (array of strings) Canales recomendados para esta fase (ej. "Meta Ads", "SEO").
     -   "content_types": (array of strings) Tipos de contenido para esos canales (ej. "Reels inspiradores", "Artículos de blog 'Cómo...'").
-    -   "kpis": (array of strings) KPIs clave para medir el éxito en esta fase (ej. "Alcance", "Impresiones").
+    -   "kpis": (array of strings) KPIs clave con objetivos numéricos para medir el éxito en esta fase (ej. "Alcance > 100.000", "Impresiones > 500.000", "CTR > 2%", "CPC < 0.50€").
 4.  **"strategies"**: (array de objetos) Esta es la sección del **plan de medios interactivo**. Propón 2-4 estrategias, una por plataforma principal. Cada objeto debe tener:
     -   "platform": (string) El nombre de la plataforma (ej. "Google Ads").
     -   "strategy_rationale": (string) Justificación de por qué esta plataforma es adecuada.
@@ -37,7 +37,7 @@ Genera un objeto JSON con las siguientes claves principales:
     -   "ad_formats": (array of strings) Formatos de anuncio sugeridos (ej. "Anuncios de Búsqueda", "Video Ads").
     -   "monthly_budget": (number) Presupuesto mensual estimado para ESTA plataforma.
     -   "targeting_suggestions": (array of strings) 2-3 ideas concretas de segmentación (ej. "Públicos afines: 'amantes de la moda'", "Remarketing a visitantes").
-    -   "key_kpis": (array of strings) 2 KPIs clave para esta estrategia (ej. "ROAS", "Coste por Lead").
+    -   "key_kpis": (array of strings) 2 KPIs clave con objetivos numéricos para esta estrategia (ej. "ROAS > 4", "Coste por Lead < 30€").
     -   "creative_angle": (string) El enfoque creativo principal (ej. "Énfasis en la calidad y el confort", "Ofertas y descuentos").
 5.  **"total_monthly_budget"**: (number) La suma total de los \`monthly_budget\` de todas las estrategias.
 6.  **"recommended_tools"**: (array of strings) 3-5 herramientas recomendadas para ejecutar la estrategia (ej. "Semrush para SEO", "Mailchimp para email", "Meta Business Suite").
