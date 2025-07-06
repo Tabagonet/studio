@@ -11,7 +11,7 @@ import { VariableProductManager } from '@/components/features/wizard/variable-pr
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
 import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory } from '@/lib/types';
 import { PRODUCT_TYPES, ALL_LANGUAGES } from '@/lib/constants';
-import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle, Image as ImageIcon, Link2 } from "lucide-react";
+import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle, Image as ImageIcon, Link as LinkIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
@@ -21,7 +21,7 @@ import { useDebounce } from '@/hooks/use-debounce';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
-import { type SuggestLinksOutput, type LinkSuggestion } from '@/ai/schemas';
+import type { SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
 
 
 interface Step1DetailsPhotosProps {
@@ -194,17 +194,14 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   };
 
   const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
-    // Check if product name and SKU are empty, and if there are new photos
-    if ((!productData.name || !productData.sku) && newPhotos.length > 0) {
+    // Check if product SKU is empty, and if there are new photos
+    if (!productData.sku && newPhotos.length > 0) {
       const firstNewFile = newPhotos.find(p => p && p.file);
       if (firstNewFile) {
-        const { extractedProductName, sku } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
+        const { sku } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
         // Create an update object, only setting fields if they are empty
         const updates: Partial<ProductData> = { photos: newPhotos };
-        if (!productData.name && extractedProductName) {
-            updates.name = extractedProductName;
-        }
-        if (!productData.sku && sku) {
+        if (sku) {
             updates.sku = sku;
         }
         updateProductData(updates);
