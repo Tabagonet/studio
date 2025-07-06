@@ -1,11 +1,8 @@
 
-
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress, findOrCreateTags, extractElementorHeadings } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/api-helpers';
 import { z } from 'zod';
-import axios from 'axios';
-import * as cheerio from 'cheerio';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,15 +11,9 @@ const slugify = (text: string) => {
     return text.toString().toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-').replace(/^-+$/, '');
 };
 
-const postUpdateSchema = z.object({
+const productUpdateSchema = z.object({
     title: z.string().optional(),
     content: z.string().optional(),
-    status: z.enum(['publish', 'draft', 'pending', 'private', 'future']).optional(),
-    author: z.number().optional().nullable(),
-    categories: z.array(z.number()).optional(),
-    tags: z.string().optional(),
-    featured_media: z.number().optional().nullable(),
-    featured_image_src: z.string().url().optional(),
     meta: z.object({
         _yoast_wpseo_title: z.string().optional(),
         _yoast_wpseo_metadesc: z.string().optional(),
@@ -38,6 +29,7 @@ const postUpdateSchema = z.object({
     })).optional(),
 });
 
+
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
@@ -45,86 +37,47 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
     const uid = (await adminAuth.verifyIdToken(token)).uid;
     
-    const { wpApi } = await getApiClientsForUser(uid);
-    if (!wpApi) {
-        throw new Error('WordPress API is not configured for the active connection.');
+    const { wooApi } = await getApiClientsForUser(uid);
+    if (!wooApi) {
+        throw new Error('WooCommerce API is not configured for the active connection.');
     }
 
     const productId = params.id;
     if (!productId) return NextResponse.json({ error: 'Product ID is required.' }, { status: 400 });
 
-    const response = await wpApi.get(`/products/${productId}`, { params: { _embed: true, context: 'edit' } });
-    
+    const response = await wooApi.get(`products/${productId}`);
     const productData = response.data;
-    
-    const contentIsJsonArray = (productData.content?.rendered || '').trim().startsWith('[');
-    const isElementor = !!productData.meta?._elementor_version || contentIsJsonArray;
 
-    const adminUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '/wp-admin/');
-    const elementorEditLink = isElementor ? `${adminUrl}post.php?post=${productId}&action=elementor` : null;
-    const adminEditLink = `${adminUrl}post.php?post=${productId}&action=edit`;
-
-    let finalContent;
-    if (isElementor && productData.meta?._elementor_data) {
-        finalContent = extractElementorHeadings(productData.meta._elementor_data);
-    } else {
-        // For products, 'description' is often used instead of 'content'
-        finalContent = productData.content?.rendered || productData.description?.rendered || '';
-    }
-    
-    const pageLink = productData.link;
-    let scrapedImages: any[] = [];
-    if (pageLink && wpApi) {
-        try {
-            const scrapeResponse = await axios.get(pageLink, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36', 'Cache-Control': 'no-cache' } });
-            const html = scrapeResponse.data;
-            const $ = cheerio.load(html);
-            
-            const $contentArea = $('main').length ? $('main') : $('article').length ? $('article') : $('body');
-            $contentArea.find('header, footer, nav').remove();
-
-            const foundImageIds = new Set<number>();
-
-            $contentArea.find('img').each((i, el) => {
-                const classList = $(el).attr('class') || '';
-                const match = classList.match(/wp-image-(\d+)/);
-                const mediaId = match ? parseInt(match[1], 10) : null;
-                if (mediaId) {
-                    foundImageIds.add(mediaId);
-                }
-            });
-            
-            if (foundImageIds.size > 0) {
-                 const mediaResponse = await wpApi.get('/media', {
-                    params: { include: Array.from(foundImageIds).join(','), per_page: 100, _fields: 'id,alt_text,source_url' }
-                });
-
-                if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
-                     scrapedImages = mediaResponse.data.map((mediaItem: any) => ({
-                        id: mediaItem.source_url, 
-                        src: mediaItem.source_url,
-                        alt: mediaItem.alt_text || '',
-                        mediaId: mediaItem.id,
-                    }));
-                }
-            }
-        } catch (scrapeError) {
-            console.warn(`Could not scrape ${pageLink} for live image data:`, scrapeError);
-        }
-    }
-    
-
-    const transformed = {
-      ...productData,
-      content: { ...productData.content, rendered: finalContent },
-      featured_image_url: productData._embedded?.['wp:featuredmedia']?.[0]?.source_url || null,
-      featured_media: productData.featured_media,
-      isElementor,
-      elementorEditLink,
-      adminEditLink,
-      scrapedImages,
+    const getMetaValue = (key: string) => {
+        const meta = productData.meta_data.find((m: any) => m.key === key);
+        return meta ? meta.value : '';
     };
+
+    // Map to a structure consistent with posts/pages for the frontend editor
+    const transformed = {
+      title: { rendered: productData.name },
+      content: { rendered: productData.description || '' }, // Use description for content
+      link: productData.permalink,
+      meta: {
+          _yoast_wpseo_title: getMetaValue('_yoast_wpseo_title') || productData.name,
+          _yoast_wpseo_metadesc: getMetaValue('_yoast_wpseo_metadesc') || productData.short_description || '',
+          _yoast_wpseo_focuskw: getMetaValue('_yoast_wpseo_focuskw'),
+      },
+      featured_media: productData.images?.[0]?.id || null,
+      featured_image_url: productData.images?.[0]?.src || null,
+      isElementor: false, // Products generally don't use Elementor for their main content
+      elementorEditLink: null,
+      adminEditLink: productData.permalink ? `${new URL(productData.permalink).origin}/wp-admin/post.php?post=${productData.id}&action=edit` : null,
+      scrapedImages: (productData.images || []).map((img: any) => ({
+          id: img.src,
+          src: img.src,
+          alt: img.alt || '',
+          mediaId: img.id,
+      })),
+    };
+
     return NextResponse.json(transformed);
+
   } catch (error: any) {
     console.error(`Error fetching product ${params.id}:`, error.response?.data || error.message);
     const errorMessage = error.response?.data?.message || 'Failed to fetch product details.';
@@ -140,38 +93,32 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
     const uid = (await adminAuth.verifyIdToken(token)).uid;
     
-    const { wpApi } = await getApiClientsForUser(uid);
-    if (!wpApi) {
-        throw new Error('WordPress API is not configured for the active connection.');
+    const { wooApi, wpApi } = await getApiClientsForUser(uid);
+    if (!wooApi || !wpApi) {
+        throw new Error('Both WooCommerce & WordPress APIs must be configured.');
     }
 
     const productId = Number(params.id);
     if (!productId) return NextResponse.json({ error: 'Product ID is required.' }, { status: 400 });
 
     const body = await req.json();
-    const validation = postUpdateSchema.safeParse(body);
+    const validation = productUpdateSchema.safeParse(body);
     if (!validation.success) return NextResponse.json({ error: 'Invalid data.', details: validation.error.flatten() }, { status: 400 });
     
-    const { tags, featured_image_src, featured_image_metadata, image_alt_updates, ...productPayload } = validation.data;
+    const { title, content, meta, featured_image_metadata, image_alt_updates } = validation.data;
     
-    if (tags !== undefined) {
-        const tagNames = tags.split(',').map(t => t.trim()).filter(Boolean);
-        (productPayload as any).tags = await findOrCreateTags(tagNames, wpApi);
+    const wooPayload: any = {};
+    if (title) wooPayload.name = title;
+    // Map the 'content' field from the editor back to WooCommerce's 'description' field
+    if (content !== undefined) wooPayload.description = content;
+    
+    if (meta) {
+        wooPayload.meta_data = Object.entries(meta).map(([key, value]) => ({ key, value }));
     }
+
+    const response = await wooApi.put(`products/${productId}`, wooPayload);
     
-    if (featured_image_src) {
-        const seoFilename = `${slugify(productPayload.title || 'product')}-${productId}.jpg`;
-        (productPayload as any).featured_media = await uploadImageToWordPress(featured_image_src, seoFilename, {
-            title: productPayload.title || 'Product Image',
-            alt_text: productPayload.title || '',
-            caption: '',
-            description: productPayload.content?.substring(0, 100) || '',
-        }, wpApi);
-    }
-    
-    // For products, the endpoint is /products, not /posts
-    const response = await wpApi.post(`/products/${productId}`, productPayload);
-    
+    // The logic for updating image metadata still needs the WordPress API, as media items are managed by WordPress core.
     if (featured_image_metadata && response.data.featured_media) {
         try {
             await wpApi.post(`/media/${response.data.featured_media}`, {
