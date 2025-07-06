@@ -99,19 +99,23 @@ export async function POST(req: NextRequest) {
                         write({ id: original_id, status: 'updating', message: 'Traducción completa, actualizando...', progress: 75 });
 
                         const { title: translatedTitle, ...translatedContent } = translated;
-                        const updatePayload: any = { title: translatedTitle, status: 'draft' };
+                        const updatePayload: any = { status: 'draft' };
 
-                        if (isElementor) {
-                            const translatedTexts = translatedContent.content.split('|||');
-                            updatePayload.meta = { _elementor_data: JSON.stringify(replaceElementorTexts(JSON.parse(JSON.stringify(elementorData)), translatedTexts)) };
-                        } else if (post_type === 'product') {
+                        if (post_type === 'product') {
+                            updatePayload.name = translatedTitle; // Use 'name' for products
                             updatePayload.short_description = translatedContent.short_description;
                             updatePayload.description = translatedContent.description;
                             if (originalPost.sku) {
                                 updatePayload.sku = `${originalPost.sku}-${target_lang.toUpperCase()}`;
                             }
                         } else {
-                            updatePayload.content = translatedContent.content;
+                             updatePayload.title = translatedTitle; // Use 'title' for posts/pages
+                             if (isElementor) {
+                                const translatedTexts = translatedContent.content.split('|||');
+                                updatePayload.meta = { _elementor_data: JSON.stringify(replaceElementorTexts(JSON.parse(JSON.stringify(elementorData)), translatedTexts)) };
+                            } else {
+                                updatePayload.content = translatedContent.content;
+                            }
                         }
                         
                         if (post_type === 'product') {

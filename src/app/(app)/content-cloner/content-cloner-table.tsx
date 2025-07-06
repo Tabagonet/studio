@@ -151,43 +151,7 @@ export function ContentClonerTable() {
       }
       const { content }: { content: RawContentItem[] } = await response.json();
 
-      const dataMap = new Map<number, ContentItem>(
-        content.map((item: RawContentItem) => [item.id, { ...item, subRows: [] }])
-      );
-      
-      const roots: ContentItem[] = [];
-      const processedIds = new Set<number>();
-
-      content.forEach((item) => {
-        if (processedIds.has(item.id)) {
-          return; 
-        }
-
-        if (item.translations && Object.keys(item.translations).length > 1) {
-          const translationIds = Object.values(item.translations);
-          const mainPostId = Math.min(...translationIds);
-          
-          const mainPost = dataMap.get(mainPostId);
-
-          if (mainPost) {
-            mainPost.subRows = translationIds
-              .filter(id => id !== mainPostId)
-              .map(id => dataMap.get(id))
-              .filter((p): p is ContentItem => !!p);
-            
-            roots.push(mainPost);
-            translationIds.forEach(id => processedIds.add(id));
-          }
-        } else {
-            const rootPost = dataMap.get(item.id);
-            if (rootPost) {
-              roots.push(rootPost);
-              processedIds.add(item.id);
-            }
-        }
-      });
-
-      setData(roots);
+      setData(content);
 
     } catch (err: any) {
       setError(err.message);
@@ -196,6 +160,42 @@ export function ContentClonerTable() {
       setIsLoading(false);
     }
   }, []);
+
+  const tableData = React.useMemo((): ContentItem[] => {
+    if (!data) return [];
+
+    const itemsById = new Map<number, ContentItem>(data.map((p) => [p.id, { ...p, subRows: [] }]));
+    const roots: ContentItem[] = [];
+    const processedIds = new Set<number>();
+
+    itemsById.forEach((item) => {
+        if (processedIds.has(item.id)) return;
+
+        const translationIds = Object.values(item.translations || {});
+        if (translationIds.length > 1) {
+            const groupItems = translationIds
+                .map(id => itemsById.get(id))
+                .filter((p): p is ContentItem => !!p);
+            
+            if (groupItems.length > 0) {
+                // Designate the first item of the group as the root for display
+                const mainPost = groupItems[0];
+                mainPost.subRows = groupItems.slice(1);
+                roots.push(mainPost);
+
+                // Mark all items in this group as processed
+                groupItems.forEach(groupItem => processedIds.add(groupItem.id));
+            }
+        } else {
+            // It's a standalone item
+            roots.push(item);
+            processedIds.add(item.id);
+        }
+    });
+
+    return roots.sort((a,b) => a.title.localeCompare(b.title));
+  }, [data]);
+
 
   React.useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -290,7 +290,7 @@ export function ContentClonerTable() {
   const columns = React.useMemo(() => getColumns(), []);
 
   const table = useReactTable({
-    data,
+    data: tableData,
     columns,
     state: {
       sorting,
