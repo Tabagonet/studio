@@ -55,22 +55,29 @@ export async function GET(req: NextRequest) {
       throw new Error('WordPress API is not configured for the active connection.');
     }
 
-    const [posts, pages] = await Promise.all([
+    const [posts, pages, products] = await Promise.all([
         fetchAllPaginatedContent(wpApi, '/posts'),
         fetchAllPaginatedContent(wpApi, '/pages'),
+        fetchAllPaginatedContent(wpApi, '/products'), // Fetch products as well
     ]);
 
-    const combinedContent = [...posts, ...pages].map(item => ({
-        id: item.id,
-        title: item.meta?._yoast_wpseo_title || item.title?.rendered || 'Sin Título',
-        type: item.type === 'post' ? 'Post' : 'Page',
-        link: item.link,
-        status: item.status,
-        parent: item.parent || 0,
-        lang: item.lang || null,
-        translations: item.translations || {},
-        modified: item.modified,
-    }));
+    const combinedContent = [...posts, ...pages, ...products].map(item => {
+        let itemType: 'Post' | 'Page' | 'Producto' = 'Post';
+        if (item.type === 'page') itemType = 'Page';
+        if (item.type === 'product') itemType = 'Producto';
+
+        return {
+            id: item.id,
+            title: item.title?.rendered || 'Sin Título',
+            type: itemType,
+            link: item.link,
+            status: item.status,
+            parent: item.parent || 0,
+            lang: item.lang || null,
+            translations: item.translations || {},
+            modified: item.modified,
+        }
+    });
 
     return NextResponse.json({ content: combinedContent });
 

@@ -285,6 +285,7 @@ export function ContentClonerTable() {
                         <SelectItem value="all">Todos los Tipos</SelectItem>
                         <SelectItem value="Post">Entradas</SelectItem>
                         <SelectItem value="Page">Páginas</SelectItem>
+                        <SelectItem value="Producto">Productos</SelectItem>
                     </SelectContent>
                 </Select>
             </div>

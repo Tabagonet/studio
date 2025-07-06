@@ -1,7 +1,7 @@
 
 
 import type { LucideIcon } from 'lucide-react';
-import type { SeoInterpretationOutput } from '@/ai/schemas';
+import type { SeoInterpretationOutput, SuggestLinksInput, SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
 
 // Core navigation type, kept for UI layout
 export interface NavItem {
@@ -249,7 +249,7 @@ export interface UserNotification {
 export interface ContentItem {
   id: number;
   title: string;
-  type: 'Post' | 'Page';
+  type: 'Post' | 'Page' | 'Producto';
   link: string;
   status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
   parent: number;
@@ -324,7 +324,7 @@ export interface SeoAnalysisRecord {
     interpretation?: SeoInterpretationOutput;
 }
 
-export type { SeoInterpretationOutput };
+export type { SeoInterpretationOutput, SuggestLinksInput, SuggestLinksOutput, LinkSuggestion };
 
 export interface BlogStats {
   total: number;

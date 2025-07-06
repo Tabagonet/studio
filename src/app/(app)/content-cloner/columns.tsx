@@ -81,7 +81,14 @@ export const getColumns = (): ColumnDef<ContentItem>[] => [
   {
     accessorKey: 'type',
     header: 'Tipo',
-    cell: ({ getValue }) => <Badge variant={getValue<string>() === 'Post' ? "secondary" : "outline"}>{getValue<string>()}</Badge>
+    cell: ({ getValue }) => {
+      const type = getValue<string>();
+      let variant: "secondary" | "outline" | "default" = "secondary";
+      if (type === 'Page') variant = 'outline';
+      if (type === 'Producto') variant = 'default';
+
+      return <Badge variant={variant}>{type}</Badge>
+    }
   },
   {
     accessorKey: 'status',

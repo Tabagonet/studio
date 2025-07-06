@@ -73,20 +73,23 @@ export async function POST(req: NextRequest) {
                 if (!post_type) {
                     throw new Error('Plugin did not return a post_type for the cloned item.');
                 }
-                const postTypeEndpoint = post_type === 'page' ? 'pages' : 'posts';
+                const postTypeEndpoint = post_type === 'page' ? 'pages' : (post_type === 'product' ? 'products' : 'posts');
 
                 const { data: originalPost } = await wpApi.get(`/${postTypeEndpoint}/${original_id}?context=edit`);
                 
-                let textsToTranslate: { title: string, content: string };
+                let textsToTranslate: { [key: string]: string } = { title: originalPost.title.rendered };
                 let elementorData = null;
                 const isElementor = originalPost.meta && originalPost.meta._elementor_data;
 
                 if (isElementor) {
                     elementorData = JSON.parse(originalPost.meta._elementor_data);
                     const elementorTexts = collectElementorTexts(elementorData);
-                    textsToTranslate = { title: originalPost.title.rendered, content: elementorTexts.join('|||') };
+                    textsToTranslate['content'] = elementorTexts.join('|||');
+                } else if (post_type === 'product') {
+                     textsToTranslate['short_description'] = originalPost.short_description || '';
+                     textsToTranslate['description'] = originalPost.description || '';
                 } else {
-                    textsToTranslate = { title: originalPost.title.rendered, content: originalPost.content.rendered };
+                    textsToTranslate['content'] = originalPost.content.rendered;
                 }
                 
                 const translateResponse = await fetch(`${baseUrl}/api/translate`, {
@@ -108,18 +111,22 @@ export async function POST(req: NextRequest) {
                 const translated = await translateResponse.json();
 
                 if (!translated) throw new Error("AI failed to translate content.");
-                const { title: translatedTitle, content: translatedContentString } = translated;
+                const { title: translatedTitle, ...translatedContent } = translated;
 
                 const updatePayload: any = {
                     title: translatedTitle,
                     status: 'draft',
                 };
                 if (isElementor) {
-                    const translatedTexts = translatedContentString.split('|||');
+                    const translatedTexts = translatedContent.content.split('|||');
                     const newElementorData = replaceElementorTexts(JSON.parse(JSON.stringify(elementorData)), translatedTexts);
                     updatePayload.meta = { _elementor_data: JSON.stringify(newElementorData) };
-                } else {
-                    updatePayload.content = translatedContentString;
+                } else if (post_type === 'product') {
+                    updatePayload.short_description = translatedContent.short_description;
+                    updatePayload.description = translatedContent.description;
+                }
+                else {
+                    updatePayload.content = translatedContent.content;
                 }
                 
                 await wpApi.post(`/${postTypeEndpoint}/${clone_id}`, updatePayload);
