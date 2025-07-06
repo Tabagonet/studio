@@ -88,6 +88,26 @@ export async function createAdPlan(input: CreateAdPlanInput, uid: string): Promi
   const responseText = result.response.text();
   const parsedJson = JSON.parse(responseText);
 
+  // Data cleaning step to coerce budget numbers from string to number if needed.
+  if (parsedJson.total_monthly_budget && typeof parsedJson.total_monthly_budget === 'string') {
+    parsedJson.total_monthly_budget = parseFloat(parsedJson.total_monthly_budget);
+  }
+  if (parsedJson.fee_proposal) {
+    if (typeof parsedJson.fee_proposal.setup_fee === 'string') {
+        parsedJson.fee_proposal.setup_fee = parseFloat(parsedJson.fee_proposal.setup_fee);
+    }
+    if (typeof parsedJson.fee_proposal.management_fee === 'string') {
+        parsedJson.fee_proposal.management_fee = parseFloat(parsedJson.fee_proposal.management_fee);
+    }
+  }
+  if (parsedJson.strategies && Array.isArray(parsedJson.strategies)) {
+      parsedJson.strategies.forEach((strategy: any) => {
+          if (strategy.monthly_budget && typeof strategy.monthly_budget === 'string') {
+              strategy.monthly_budget = parseFloat(strategy.monthly_budget);
+          }
+      });
+  }
+
   // Add the original input URL and objectives to the final plan object
   const finalPlan = {
       ...parsedJson,
