@@ -55,8 +55,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
     // Map to a structure consistent with posts/pages for the frontend editor
     const transformed = {
-      title: { rendered: productData.name },
-      content: { rendered: productData.description || '' }, // Use description for content
+      title: productData.name, // Return a flat string
+      content: { rendered: productData.description || '' }, // Keep object structure for compatibility
       short_description: productData.short_description || '',
       link: productData.permalink,
       meta: {
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       },
       featured_media: productData.images?.[0]?.id || null,
       featured_image_url: productData.images?.[0]?.src || null,
-      isElementor: false, // Products generally don't use Elementor for their main content
+      isElementor: false,
       elementorEditLink: null,
       adminEditLink: productData.permalink ? `${new URL(productData.permalink).origin}/wp-admin/post.php?post=${productData.id}&action=edit` : null,
       scrapedImages: (productData.images || []).map((img: any) => ({

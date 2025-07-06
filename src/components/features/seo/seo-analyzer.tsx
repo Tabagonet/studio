@@ -202,8 +202,9 @@ export function SeoAnalyzer({
     const keyword = (post.meta._yoast_wpseo_focuskw || '').trim().toLowerCase();
     if (!keyword) return [];
     
-    const effectiveSeoTitle = (post.meta._yoast_wpseo_title || post.title || '').trim();
-    const effectiveMetaDescription = (post.meta._yoast_wpseo_metadesc || (post.postType === 'Producto' ? post.short_description : '') || '').trim();
+    // The API now provides the fallback directly in the meta field.
+    const effectiveSeoTitle = (post.meta._yoast_wpseo_title || '').trim();
+    const effectiveMetaDescription = (post.meta._yoast_wpseo_metadesc || '').trim();
 
     const contentText = typeof post.content === 'string' ? post.content : (post.content || []).map(w => w.text).join(' ');
     const plainContent = contentText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();

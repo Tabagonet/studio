@@ -66,10 +66,10 @@ const PROMPT_DEFAULTS: Record<string, string> = {
 
 Generate a JSON object with four keys: "interpretation", "actionPlan", "positives", "improvements".
 
-- **"interpretation"**: A narrative paragraph in Spanish explaining the most important SEO data points in a simple, easy-to-understand way.
-- **"actionPlan"**: An array of strings, where each string is a specific, actionable step to improve the page's SEO. Provide 3-5 steps.
-- **"positives"**: An array of strings, where each string is a key SEO strength of the page. Provide 2-4 strengths.
-- **"improvements"**: An array of strings, where each string is a key area for SEO improvement. Provide 2-4 areas.
+-   **"interpretation"**: A narrative paragraph in Spanish explaining the most important SEO data points in a simple, easy-to-understand way.
+-   **"actionPlan"**: An array of strings, where each string is a specific, actionable step to improve the page's SEO. Provide 3-5 steps.
+-   **"positives"**: An array of strings, where each string is a key SEO strength of the page. Provide 2-4 strengths.
+-   **"improvements"**: An array of strings, where each string is a key area for SEO improvement. Provide 2-4 areas.
 
 The values for "actionPlan", "positives", and "improvements" MUST be arrays of strings, even if there is only one item.
 
@@ -230,7 +230,7 @@ export async function POST(req: NextRequest) {
                 metaDescription: getMetaValue('_yoast_wpseo_metadesc') || product.short_description || '',
                 focusKeyword: getMetaValue('_yoast_wpseo_focuskw') || '',
                 canonicalUrl: product.permalink || '',
-                h1: '', // Product pages don't usually have a clear H1 in the description
+                h1: product.name || '', // A product's H1 is its name.
                 headings: $('h1, h2, h3, h4, h5, h6').map((i, el) => ({ tag: (el as cheerio.TagElement).name, text: $(el).text() })).get(),
                 images: (product.images || []).map((img: any) => ({ src: img.src, alt: img.alt || '' })),
                 textContent: cheerio.load(product.description || '').text().replace(/\s\s+/g, ' ').trim(),
