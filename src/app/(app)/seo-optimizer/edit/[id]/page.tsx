@@ -36,6 +36,7 @@ interface PostEditState {
   featuredImageUrl?: string | null;
   featuredMediaId?: number | null;
   link?: string;
+  postType: 'Post' | 'Page' | 'Producto';
 }
 
 
@@ -45,7 +46,7 @@ function EditPageContent() {
   const searchParams = useSearchParams();
 
   const postId = Number(params.id);
-  const postType = searchParams.get('type') || 'Post';
+  const postType = (searchParams.get('type') as 'Post' | 'Page' | 'Producto') || 'Post';
     
   const [post, setPost] = useState<PostEditState | null>(null);
   const [contentImages, setContentImages] = useState<ContentImage[]>([]);
@@ -135,6 +136,7 @@ function EditPageContent() {
         isElementor: postData.isElementor || false, elementorEditLink: postData.elementorEditLink || null,
         adminEditLink: postData.adminEditLink || null, featuredImageUrl: postData.featured_image_url || null,
         featuredMediaId: postData.featured_media || null, link: postData.link,
+        postType: postType,
       };
 
       try {
@@ -249,12 +251,12 @@ function EditPageContent() {
     <div className="container mx-auto py-8 space-y-6">
         <Card>
             <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
                         <CardTitle>Centro de Acción SEO</CardTitle>
                         <CardDescription>Editando: {post.title}</CardDescription>
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="flex flex-wrap gap-2">
                         <Button variant="outline" onClick={() => router.back()}>
                             <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Informe
                         </Button>
@@ -363,3 +365,5 @@ export default function SeoEditPage() {
         </Suspense>
     )
 }
+
+    

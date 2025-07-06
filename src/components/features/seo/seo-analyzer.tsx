@@ -27,6 +27,7 @@ interface SeoAnalyzerPost {
   adminEditLink?: string | null;
   featuredImageUrl?: string | null;
   link?: string;
+  postType: 'Post' | 'Page' | 'Producto';
 }
 
 interface SeoAnalyzerProps {
@@ -110,6 +111,7 @@ export function SeoAnalyzer({
             existingTitle: post.meta._yoast_wpseo_title || post.title,
             existingContent: typeof post.content === 'string' ? post.content : '',
             keywords: post.meta._yoast_wpseo_focuskw || '',
+            postType: post.postType,
         };
         const response = await fetch('/api/generate-blog-post', {
             method: 'POST',
@@ -325,3 +327,5 @@ export function SeoAnalyzer({
     </div>
   );
 }
+
+    
