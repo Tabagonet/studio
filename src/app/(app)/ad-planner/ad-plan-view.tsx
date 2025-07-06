@@ -81,14 +81,14 @@ export function AdPlanView({ plan, onPlanUpdate, onReset }: { plan: CreateAdPlan
                 <CardHeader><CardTitle className="flex items-center gap-3"><Megaphone className="h-6 w-6 text-primary" /> Embudo de Conversión</CardTitle></CardHeader>
                 <CardContent>
                     <Accordion type="single" collapsible className="w-full" defaultValue="awareness">
-                        {Object.entries(plan.funnel).map(([stage, details]) => (
+                        {plan.funnel && Object.entries(plan.funnel).map(([stage, details]) => (
                              <AccordionItem value={stage} key={stage}>
                                 <AccordionTrigger className="text-lg font-semibold capitalize">{stage}</AccordionTrigger>
                                 <AccordionContent className="space-y-4 pt-2">
                                     <p className="font-medium text-primary">{details.objective}</p>
-                                    <div className="flex flex-wrap gap-2"><span className="text-sm font-semibold">Canales:</span>{details.channels.map(item => <Badge key={item} variant="secondary">{item}</Badge>)}</div>
-                                    <div className="flex flex-wrap gap-2"><span className="text-sm font-semibold">Contenidos:</span>{details.content_types.map(item => <Badge key={item} variant="outline">{item}</Badge>)}</div>
-                                    <div className="flex flex-wrap gap-2"><span className="text-sm font-semibold">KPIs:</span>{details.kpis.map(item => <Badge key={item} variant="secondary">{item}</Badge>)}</div>
+                                    <div className="flex flex-wrap gap-2"><span className="text-sm font-semibold">Canales:</span>{(details.channels ?? []).map(item => <Badge key={item} variant="secondary">{item}</Badge>)}</div>
+                                    <div className="flex flex-wrap gap-2"><span className="text-sm font-semibold">Contenidos:</span>{(details.content_types ?? []).map(item => <Badge key={item} variant="outline">{item}</Badge>)}</div>
+                                    <div className="flex flex-wrap gap-2"><span className="text-sm font-semibold">KPIs:</span>{(details.kpis ?? []).map(item => <Badge key={item} variant="secondary">{item}</Badge>)}</div>
                                 </AccordionContent>
                              </AccordionItem>
                         ))}
@@ -100,14 +100,14 @@ export function AdPlanView({ plan, onPlanUpdate, onReset }: { plan: CreateAdPlan
                 <Card>
                     <CardHeader><CardTitle className="flex items-center gap-2"><BarChart3 className="h-6 w-6 text-primary" /> Plan de Medios</CardTitle></CardHeader>
                     <CardContent className="space-y-4">
-                        <div><h4 className="font-semibold mb-1">Distribución de Presupuesto</h4><p className="text-sm text-muted-foreground">{plan.media_plan.budget_distribution}</p></div>
+                        <div><h4 className="font-semibold mb-1">Distribución de Presupuesto</h4><p className="text-sm text-muted-foreground">{plan.media_plan?.budget_distribution}</p></div>
                         <Separator />
-                        <div><h4 className="font-semibold mb-1">Sugerencias de Campañas</h4><ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">{plan.media_plan.campaign_suggestions.map((item, i) => <li key={i}>{item}</li>)}</ul></div>
+                        <div><h4 className="font-semibold mb-1">Sugerencias de Campañas</h4><ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">{(plan.media_plan?.campaign_suggestions ?? []).map((item, i) => <li key={i}>{item}</li>)}</ul></div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader><CardTitle className="flex items-center gap-2"><Wrench className="h-6 w-6 text-primary" /> Herramientas Recomendadas</CardTitle></CardHeader>
-                    <CardContent className="space-y-3">{plan.recommended_tools.map((item, i) => <div key={i}><p className="font-semibold text-sm">{item.category}</p><p className="text-sm text-muted-foreground">{item.tools}</p></div>)}</CardContent>
+                    <CardContent className="space-y-3">{(plan.recommended_tools ?? []).map((item, i) => <div key={i}><p className="font-semibold text-sm">{item.category}</p><p className="text-sm text-muted-foreground">{item.tools}</p></div>)}</CardContent>
                 </Card>
             </div>
             
@@ -115,9 +115,9 @@ export function AdPlanView({ plan, onPlanUpdate, onReset }: { plan: CreateAdPlan
                  <CardHeader><CardTitle className="flex items-center gap-3"><Zap className="h-6 w-6 text-primary" /> Recomendaciones Estratégicas</CardTitle></CardHeader>
                  <CardContent className="space-y-4">
                     <Accordion type="multiple" className="w-full">
-                        <AccordionItem value="pos"><AccordionTrigger>Posicionamiento</AccordionTrigger><AccordionContent><p className="text-muted-foreground">{plan.strategic_recommendations.positioning}</p></AccordionContent></AccordionItem>
-                        <AccordionItem value="tone"><AccordionTrigger>Tono de Voz</AccordionTrigger><AccordionContent><p className="text-muted-foreground">{plan.strategic_recommendations.tone_of_voice}</p></AccordionContent></AccordionItem>
-                        <AccordionItem value="diff"><AccordionTrigger>Diferenciación</AccordionTrigger><AccordionContent><p className="text-muted-foreground">{plan.strategic_recommendations.differentiation}</p></AccordionContent></AccordionItem>
+                        <AccordionItem value="pos"><AccordionTrigger>Posicionamiento</AccordionTrigger><AccordionContent><p className="text-muted-foreground">{plan.strategic_recommendations?.positioning}</p></AccordionContent></AccordionItem>
+                        <AccordionItem value="tone"><AccordionTrigger>Tono de Voz</AccordionTrigger><AccordionContent><p className="text-muted-foreground">{plan.strategic_recommendations?.tone_of_voice}</p></AccordionContent></AccordionItem>
+                        <AccordionItem value="diff"><AccordionTrigger>Diferenciación</AccordionTrigger><AccordionContent><p className="text-muted-foreground">{plan.strategic_recommendations?.differentiation}</p></AccordionContent></AccordionItem>
                     </Accordion>
                  </CardContent>
             </Card>
@@ -125,17 +125,17 @@ export function AdPlanView({ plan, onPlanUpdate, onReset }: { plan: CreateAdPlan
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                  <Card>
                     <CardHeader><CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5 text-primary" /> KPIs Globales</CardTitle></CardHeader>
-                    <CardContent><ul className="list-disc list-inside text-muted-foreground space-y-1">{plan.key_performance_indicators.map((kpi, index) => <li key={index}>{kpi}</li>)}</ul></CardContent>
+                    <CardContent><ul className="list-disc list-inside text-muted-foreground space-y-1">{(plan.key_performance_indicators ?? []).map((kpi, index) => <li key={index}>{kpi}</li>)}</ul></CardContent>
                 </Card>
                 <Card>
                     <CardHeader><CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5 text-primary" /> Calendario de Acciones</CardTitle></CardHeader>
                     <CardContent className="space-y-4">
-                         {plan.content_calendar.map((milestone, index) => (
+                         {(plan.content_calendar ?? []).map((milestone, index) => (
                             <div key={index} className="relative pl-6">
                                 <div className="absolute left-0 top-1 h-full w-px bg-border"></div>
                                 <div className="absolute left-[-5px] top-1.5 h-3 w-3 rounded-full bg-primary"></div>
                                 <h4 className="font-semibold">{milestone.month}: {milestone.focus}</h4>
-                                <ul className="list-disc list-inside text-sm text-muted-foreground pl-2 mt-1 space-y-0.5">{milestone.actions.map((action, i) => <li key={i}>{action}</li>)}</ul>
+                                <ul className="list-disc list-inside text-sm text-muted-foreground pl-2 mt-1 space-y-0.5">{(milestone.actions ?? []).map((action, i) => <li key={i}>{action}</li>)}</ul>
                             </div>
                          ))}
                     </CardContent>
