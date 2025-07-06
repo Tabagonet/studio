@@ -5,7 +5,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CreateAdPlanOutput } from './schema';
-import { TrendingUp, Calendar, Zap, Users, Megaphone, Lightbulb, BarChart3, Loader2, Save, Info, Swords, Tool } from 'lucide-react';
+import { TrendingUp, Calendar, Zap, Users, Megaphone, Lightbulb, BarChart3, Loader2, Save, Info, Swords, Wrench } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
@@ -106,7 +106,7 @@ export function AdPlanView({ plan, onPlanUpdate, onReset }: { plan: CreateAdPlan
                     </CardContent>
                 </Card>
                 <Card>
-                    <CardHeader><CardTitle className="flex items-center gap-2"><Tool className="h-6 w-6 text-primary" /> Herramientas Recomendadas</CardTitle></CardHeader>
+                    <CardHeader><CardTitle className="flex items-center gap-2"><Wrench className="h-6 w-6 text-primary" /> Herramientas Recomendadas</CardTitle></CardHeader>
                     <CardContent className="space-y-3">{plan.recommended_tools.map((item, i) => <div key={i}><p className="font-semibold text-sm">{item.category}</p><p className="text-sm text-muted-foreground">{item.tools}</p></div>)}</CardContent>
                 </Card>
             </div>
