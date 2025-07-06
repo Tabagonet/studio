@@ -1,10 +1,11 @@
+
 'use client';
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CreateAdPlanOutput } from './schema';
-import { Target, TrendingUp, Calendar, Zap, ClipboardCheck, Users, Megaphone, Lightbulb, BarChart, Loader2, Save, Info, Swords, Tool, ChevronRight, Briefcase, Handshake } from 'lucide-react';
+import { TrendingUp, Calendar, Zap, Users, Megaphone, Lightbulb, BarChart3, Loader2, Save, Info, Swords, Tool } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
@@ -97,7 +98,7 @@ export function AdPlanView({ plan, onPlanUpdate, onReset }: { plan: CreateAdPlan
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
-                    <CardHeader><CardTitle className="flex items-center gap-2"><BarChart className="h-6 w-6 text-primary" /> Plan de Medios</CardTitle></CardHeader>
+                    <CardHeader><CardTitle className="flex items-center gap-2"><BarChart3 className="h-6 w-6 text-primary" /> Plan de Medios</CardTitle></CardHeader>
                     <CardContent className="space-y-4">
                         <div><h4 className="font-semibold mb-1">Distribución de Presupuesto</h4><p className="text-sm text-muted-foreground">{plan.media_plan.budget_distribution}</p></div>
                         <Separator />
