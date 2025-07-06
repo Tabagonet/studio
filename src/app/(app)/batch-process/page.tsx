@@ -357,8 +357,14 @@ export default function BatchProcessPage() {
 
             // 1. AI Content Generation
             updateProductProcessingStatus(product.id, 'processing', 'Generando contenido con IA...', 5);
+            
+            // Use the first image's filename for detailed AI context. Fallback to product name.
+            const aiContextName = product.images.length > 0
+                ? extractProductNameAndAttributesFromFilename(product.images[0].name).extractedProductName
+                : product.name;
+
             const aiPayload = {
-                productName: product.name,
+                productName: aiContextName,
                 productType: product.csvData.tipo || 'simple',
                 keywords: product.csvData.etiquetas || '',
                 language: sourceLang,
@@ -554,19 +560,19 @@ export default function BatchProcessPage() {
         <AlertDescription>
           <ol className="list-decimal list-inside space-y-3 mt-2">
             <li>
-              <strong>Prepara tus Imágenes:</strong> Nombra cada foto con el patrón <strong><code>SKU-NOMBRE_PRODUCTO_DETALLADO-NUMERO.jpg</code></strong>.
+              <strong>Prepara tus Imágenes:</strong> Nombra cada foto con el patrón <strong><code>SKU-NOMBRE_PRODUCTO_DESCRIPTIVO-NUMERO.jpg</code></strong>.
                <ul className="list-disc list-inside pl-6 mt-2 text-sm space-y-1">
                   <li>El <strong>SKU</strong> debe coincidir con tu CSV.</li>
-                  <li>El <strong>NOMBRE_PRODUCTO_DETALLADO</strong> (con guiones bajos en lugar de espacios) proporciona contexto a la IA.</li>
+                  <li>El <strong>NOMBRE_PRODUCTO_DESCRIPTIVO</strong> (con guiones en lugar de espacios) proporciona contexto a la IA.</li>
                   <li>El <strong>NÚMERO</strong> (`-1`, `-2`, etc.) las ordena, siendo `-1` la imagen principal.</li>
               </ul>
               <br />
-              <em className="text-xs">Ejemplo: <code>FOV1-AMPOLLAS_ANTICAIDA_ADENOSINA-1.png</code></em>
+              <em className="text-xs">Ejemplo: <code>FOV1-AMPOLLAS_ANTICAIDA_ADENOSINA_FORTIFICANTE-1.png</code></em>
             </li>
             <li>
               <strong>Prepara tu archivo CSV:</strong> Descarga nuestra plantilla. Contiene todas las columnas necesarias para crear productos <strong>simples</strong> y <strong>variables</strong>.
               <ul className="list-disc list-inside pl-6 mt-2 text-sm space-y-1">
-                  <li><strong>Columnas Clave:</strong> <code>sku</code> y <code>nombre</code> son obligatorios. El <code>nombre</code> se usará para la IA.</li>
+                  <li><strong>Columnas Clave:</strong> <code>sku</code> y <code>nombre</code> son importantes. El <code>nombre</code> del CSV se usará como el título final del producto en tu tienda.</li>
                    <li><strong>Traducciones:</strong> Usa la columna <code>traducir_a</code> para indicar los idiomas de destino, separados por coma. Ej: <code>English,French</code>.</li>
                   <li><strong>Categorías:</strong> Usa <code>&gt;</code> para indicar jerarquía. Ej: <code>{'Ropa > Camisetas'}</code>.</li>
                   <li><strong>Productos Variables:</strong>
