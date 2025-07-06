@@ -21,7 +21,7 @@ import { useDebounce } from '@/hooks/use-debounce';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
-import type { SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
+import { type SuggestLinksOutput, type LinkSuggestion } from '@/ai/schemas';
 
 
 interface Step1DetailsPhotosProps {
@@ -256,8 +256,11 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         if (!user) throw new Error("No autenticado.");
         const token = await user.getIdToken();
 
+        const aiContextName = extractProductNameAndAttributesFromFilename(productData.photos[0]?.name || '').extractedProductName || productData.name;
+
         const payload = {
-            productName: productData.name,
+            baseProductName: productData.name,
+            productName: aiContextName,
             productType: productData.productType,
             keywords: productData.keywords,
             language: productData.language,
@@ -287,6 +290,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const aiContent = await response.json();
         
         updateProductData({
+            name: aiContent.name,
             shortDescription: aiContent.shortDescription,
             longDescription: aiContent.longDescription,
             keywords: aiContent.keywords,
@@ -296,7 +300,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             imageDescription: aiContent.imageDescription,
         });
 
-        toast({ title: "¡Contenido generado!", description: "La IA ha rellenado las descripciones, palabras clave y metadatos de imagen." });
+        toast({ title: "¡Contenido generado!", description: "La IA ha rellenado el nombre, descripciones, palabras clave y metadatos de imagen." });
 
     } catch (error: any) {
         toast({ title: "Error de IA", description: error.message, variant: "destructive", duration: 10000 });

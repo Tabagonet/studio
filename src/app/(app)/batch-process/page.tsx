@@ -358,12 +358,11 @@ export default function BatchProcessPage() {
             // 1. AI Content Generation
             updateProductProcessingStatus(product.id, 'processing', 'Generando contenido con IA...', 5);
             
-            // Use the first image's filename for detailed AI context. Fallback to product name.
-            const aiContextName = product.images.length > 0
-                ? extractProductNameAndAttributesFromFilename(product.images[0].name).extractedProductName
-                : product.name;
+            const aiContextName = extractProductNameAndAttributesFromFilename(product.images[0]?.name || '').extractedProductName || product.name;
+            const baseName = product.csvData.nombre || product.name;
 
             const aiPayload = {
+                baseProductName: baseName,
                 productName: aiContextName,
                 productType: product.csvData.tipo || 'simple',
                 keywords: product.csvData.etiquetas || '',
@@ -457,7 +456,8 @@ export default function BatchProcessPage() {
             updateProductProcessingStatus(product.id, 'processing', 'Creando producto original...', 50);
             const sourceLangSlug = ALL_LANGUAGES.find(l => l.code === sourceLang)?.slug || 'es';
             const originalProductData: ProductData = {
-                name: product.name, sku: product.id, productType: product.csvData.tipo || 'simple',
+                name: aiContent.name, // Use AI-generated name
+                sku: product.id, productType: product.csvData.tipo || 'simple',
                 regularPrice: product.csvData.precio_regular || '', salePrice: product.csvData.precio_oferta || '',
                 manage_stock: product.csvData.gestionar_stock === '1',
                 stockQuantity: product.csvData.stock_inicial || '',
@@ -567,7 +567,7 @@ export default function BatchProcessPage() {
                   <li>El <strong>NÚMERO</strong> (`-1`, `-2`, etc.) las ordena, siendo `-1` la imagen principal.</li>
               </ul>
               <br />
-              <em className="text-xs">Ejemplo: <code>FOV1-AMPOLLAS_ANTICAIDA_ADENOSINA_FORTIFICANTE-1.png</code></em>
+              <em className="text-xs">Ejemplo: <code>FOV1-AMPOLLAS_ANTICAIDA_ADENOSINA-1.png</code></em>
             </li>
             <li>
               <strong>Prepara tu archivo CSV:</strong> Descarga nuestra plantilla. Contiene todas las columnas necesarias para crear productos <strong>simples</strong> y <strong>variables</strong>.
