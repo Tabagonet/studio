@@ -81,7 +81,7 @@ export function SeoPageListTable({ data, scores, onAnalyzePage, onViewReport }: 
                 .filter((p): p is HierarchicalContentItem => !!p);
 
             if (groupItems.length > 0) {
-                mainItem = groupItems.find(p => p.lang === languageFilter) || groupItems[0];
+                mainItem = groupItems.find(p => p.lang === 'es') || groupItems[0];
                 
                 if (mainItem) {
                     mainItem.subRows = groupItems.filter(p => p.id !== mainItem!.id);
@@ -133,7 +133,14 @@ export function SeoPageListTable({ data, scores, onAnalyzePage, onViewReport }: 
       {
         accessorKey: 'type',
         header: 'Tipo',
-        cell: ({ getValue }) => <Badge variant={getValue<string>() === 'Post' ? "secondary" : "outline"}>{getValue<string>()}</Badge>
+        cell: ({ getValue }) => {
+          const type = getValue<string>();
+          let variant: "secondary" | "outline" | "default" = "secondary";
+          if (type === 'Page') variant = 'outline';
+          if (type === 'Producto') variant = 'default';
+
+          return <Badge variant={variant}>{type}</Badge>
+        }
       },
       {
         accessorKey: 'status',
@@ -228,6 +235,7 @@ export function SeoPageListTable({ data, scores, onAnalyzePage, onViewReport }: 
                 <SelectItem value="all">Todos los Tipos</SelectItem>
                 <SelectItem value="Post">Entradas (Posts)</SelectItem>
                 <SelectItem value="Page">Páginas</SelectItem>
+                <SelectItem value="Producto">Productos</SelectItem>
             </SelectContent>
         </Select>
         <Select
