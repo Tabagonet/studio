@@ -2,7 +2,7 @@
 /*
 Plugin Name: AutoPress AI Helper
 Description: Añade endpoints a la REST API para gestionar traducciones, stock y otras funciones personalizadas para AutoPress AI.
-Version: 1.18
+Version: 1.19
 Author: intelvisual@intelvisual.es
 */
 
@@ -212,7 +212,7 @@ function autopress_ai_register_rest_endpoints() {
             'posts_per_page' => -1, 
             'post_status' => ['publish', 'draft', 'pending', 'private', 'future', 'trash'], 
             'fields' => 'ids',
-            // The meta_query is kept as a fallback for other potential Elementor types not caught by post type.
+            'lang' => '', // Force Polylang to return posts from all languages
             'meta_query'  => [
                 [
                     'key'     => '_elementor_template_type',
