@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -98,7 +97,24 @@ Tu respuesta DEBE ser un único objeto JSON válido.
     },
     seoInterpretation: {
         label: "SEO: Interpretación de Informe",
-        default: `You are a world-class SEO consultant analyzing a web page's on-page SEO data. The user has received the following raw data from an analysis tool. Your task is to interpret this data and provide a clear, actionable summary in Spanish. Generate a JSON object with four keys: "interpretation", "actionPlan", "positives", "improvements".\n\n**Analysis Data:**\n- Page Title: "{{title}}"\n- Meta Description: "{{metaDescription}}"\n- H1 Heading: "{{h1}}"\n- SEO Score: {{score}}/100\n- Technical SEO Checks (true = passed, false = failed):\n{{{checksSummary}}}`
+        default: `You are a world-class SEO consultant analyzing a web page's on-page SEO data. The user has received the following raw data from an analysis tool. Your task is to interpret this data and provide a clear, actionable summary in Spanish. 
+
+Generate a JSON object with four keys: "interpretation", "actionPlan", "positives", "improvements".
+
+-   **"interpretation"**: A narrative paragraph in Spanish explaining the most important SEO data points in a simple, easy-to-understand way.
+-   **"actionPlan"**: An array of strings, where each string is a specific, actionable step to improve the page's SEO. Provide 3-5 steps.
+-   **"positives"**: An array of strings, where each string is a key SEO strength of the page. Provide 2-4 strengths.
+-   **"improvements"**: An array of strings, where each string is a key area for SEO improvement. Provide 2-4 areas.
+
+The values for "actionPlan", "positives", and "improvements" MUST be arrays of strings, even if there is only one item.
+
+**Analysis Data:**
+- Page Title: "{{title}}"
+- Meta Description: "{{metaDescription}}"
+- H1 Heading: "{{h1}}"
+- SEO Score: {{score}}/100
+- Technical SEO Checks (true = passed, false = failed):
+{{{checksSummary}}}`
     },
 };
 
