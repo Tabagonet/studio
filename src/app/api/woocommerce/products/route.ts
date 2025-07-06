@@ -63,7 +63,6 @@ export async function POST(request: NextRequest) {
 
         const wooPayload: any = {
             name: finalProductData.name, type: finalProductData.productType,
-            ...(finalProductData.shouldSaveSku !== false && finalProductData.sku && { sku: finalProductData.sku }),
             description: finalProductData.longDescription, short_description: finalProductData.shortDescription,
             categories: finalCategoryId ? [{ id: finalCategoryId }] : [],
             images: wordpressImageIds, attributes: wooAttributes,
@@ -74,6 +73,11 @@ export async function POST(request: NextRequest) {
             shipping_class: finalProductData.shipping_class || undefined,
             manage_stock: finalProductData.manage_stock,
         };
+        
+        if (finalProductData.shouldSaveSku !== false) {
+             wooPayload.sku = finalProductData.sku;
+        }
+
 
         if (finalProductData.productType === 'simple') {
             wooPayload.regular_price = finalProductData.regularPrice;

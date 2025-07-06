@@ -38,7 +38,7 @@ export function ProductWizard() {
     );
   };
 
-  const handleCreateProduct = async () => {
+  const handleCreateProduct = useCallback(async () => {
     setCurrentStep(4);
     
     const initialSteps: SubmissionStep[] = [];
@@ -120,7 +120,7 @@ export function ProductWizard() {
                 };
                 const translateResponse = await fetch(`/api/translate`, { 
                     method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
-                    body: JSON.stringify({ contentToTranslate: contentToTranslate, targetLanguage: lang }) 
+                    body: JSON.stringify({ contentToTranslate, targetLanguage: lang }) 
                 });
                 if (!translateResponse.ok) {
                     const errorData = await translateResponse.json();
@@ -172,7 +172,7 @@ export function ProductWizard() {
         toast({ title: 'Proceso Interrumpido', description: error.message, variant: 'destructive' });
         setSubmissionStatus('error');
     }
-  };
+  }, [productData, toast, steps]);
 
 
   useEffect(() => {
