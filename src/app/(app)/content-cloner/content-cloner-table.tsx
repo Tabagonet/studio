@@ -111,6 +111,7 @@ export function ContentClonerTable() {
 
 
   const { toast } = useToast();
+  const [languageFilter, setLanguageFilter] = React.useState('all');
 
   const availableTargetLanguages = React.useMemo(() => {
     const langSet = new Set<string>();
@@ -168,7 +169,7 @@ export function ContentClonerTable() {
     const roots: ContentItem[] = [];
     const processedIds = new Set<number>();
 
-    itemsById.forEach((item) => {
+    data.forEach((item) => {
         if (processedIds.has(item.id)) return;
 
         const translationIds = Object.values(item.translations || {});
@@ -178,23 +179,21 @@ export function ContentClonerTable() {
                 .filter((p): p is ContentItem => !!p);
             
             if (groupItems.length > 0) {
-                // Designate the first item of the group as the root for display
-                const mainPost = groupItems[0];
-                mainPost.subRows = groupItems.slice(1);
-                roots.push(mainPost);
-
-                // Mark all items in this group as processed
-                groupItems.forEach(groupItem => processedIds.add(groupItem.id));
+                const mainPost = groupItems.find(p => p.lang === 'es') || groupItems.find(p => p.lang === languageFilter) || groupItems[0];
+                if (mainPost) {
+                    mainPost.subRows = groupItems.filter(p => p.id !== mainPost.id);
+                    roots.push(mainPost);
+                    groupItems.forEach(groupItem => processedIds.add(groupItem.id));
+                }
             }
         } else {
-            // It's a standalone item
-            roots.push(item);
+            roots.push({ ...item, subRows: [] });
             processedIds.add(item.id);
         }
     });
 
     return roots.sort((a,b) => a.title.localeCompare(b.title));
-  }, [data]);
+  }, [data, languageFilter]);
 
 
   React.useEffect(() => {
@@ -376,6 +375,22 @@ export function ContentClonerTable() {
                         <SelectItem value="Post">Entradas</SelectItem>
                         <SelectItem value="Page">Páginas</SelectItem>
                         <SelectItem value="Producto">Productos</SelectItem>
+                    </SelectContent>
+                </Select>
+                <Select
+                    value={(table.getColumn('status')?.getFilterValue() as string) ?? 'all'}
+                    onValueChange={(value) => table.getColumn('status')?.setFilterValue(value === 'all' ? undefined : value)}
+                >
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                        <SelectValue placeholder="Filtrar por estado..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">Todos los Estados</SelectItem>
+                        <SelectItem value="publish">Publicado</SelectItem>
+                        <SelectItem value="draft">Borrador</SelectItem>
+                        <SelectItem value="pending">Pendiente</SelectItem>
+                        <SelectItem value="private">Privado</SelectItem>
+                        <SelectItem value="trash">En Papelera</SelectItem>
                     </SelectContent>
                 </Select>
             </div>

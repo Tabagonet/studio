@@ -204,7 +204,7 @@ export function ProductDataTable() {
                   .filter((p): p is HierarchicalProduct => !!p);
 
               if (groupPosts.length > 0) {
-                  mainPost = groupPosts.find(p => p.lang === selectedLanguage) || groupPosts[0];
+                  mainPost = groupPosts.find(p => p.lang === 'es') || groupPosts.find(p => p.lang === selectedLanguage) || groupPosts[0];
                   if (mainPost) {
                       mainPost.subRows = groupPosts.filter(p => p.id !== mainPost!.id);
                       groupPosts.forEach(p => processedIds.add(p.id));

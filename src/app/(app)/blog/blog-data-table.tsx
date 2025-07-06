@@ -171,31 +171,25 @@ export function BlogDataTable() {
                   .filter((p): p is HierarchicalBlogPost => !!p);
 
               if (groupPosts.length > 0) {
-                  // Find the post that matches the selected language, or fall back to the first one in the group
-                  mainPost = groupPosts.find(p => p.lang === selectedLanguage) || groupPosts[0];
+                  mainPost = groupPosts.find(p => p.lang === 'es') || groupPosts.find(p => p.lang === selectedLanguage) || groupPosts[0];
                   
-                  // If a main post for the group was determined, process the group
                   if (mainPost) {
                       mainPost.subRows = groupPosts.filter(p => p.id !== mainPost!.id);
                       groupPosts.forEach(p => processedIds.add(p.id));
                   }
               } else {
-                  // This case happens when a post has translations, but none of them are on the current page of results.
-                  // We treat this post as a standalone root for now.
                   mainPost = postsById.get(post.id);
                   if (mainPost) {
                       processedIds.add(mainPost.id);
                   }
               }
           } else {
-              // This is a post with no translations, or the API didn't provide them.
               mainPost = postsById.get(post.id);
               if (mainPost) {
                   processedIds.add(mainPost.id);
               }
           }
           
-          // Add the determined mainPost to the roots if it exists and matches the language filter
           if (mainPost && (selectedLanguage === 'all' || mainPost.lang === selectedLanguage)) {
               roots.push(mainPost);
           }
@@ -455,7 +449,7 @@ export function BlogDataTable() {
         table.resetRowSelection();
         fetchData();
         fetchStats();
-    } catch (error) {
+    } catch (error: any) {
         const errorMessage = error instanceof Error ? error.message : String(error);
          toast({ title: "Error al enlazar", description: errorMessage, variant: "destructive" });
     } finally {
