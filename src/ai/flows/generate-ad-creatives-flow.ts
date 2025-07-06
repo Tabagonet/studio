@@ -2,7 +2,8 @@
 /**
  * @fileOverview An ad creatives generation AI agent.
  */
-import {ai} from '@/ai/genkit';
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import Handlebars from 'handlebars';
 import { 
   GenerateAdCreativesInputSchema,
   type GenerateAdCreativesInput,
@@ -30,25 +31,21 @@ Basado en el contexto, genera los siguientes recursos para la campaña:
 
 Genera la respuesta en formato JSON.`;
 
-const prompt = ai.definePrompt({
-  name: 'generateAdCreativesPrompt',
-  input: { schema: GenerateAdCreativesInputSchema },
-  output: { schema: GenerateAdCreativesOutputSchema },
-  prompt: CREATIVES_PROMPT,
-});
-
-const generateAdCreativesFlow = ai.defineFlow(
-  {
-    name: 'generateAdCreativesFlow',
-    inputSchema: GenerateAdCreativesInputSchema,
-    outputSchema: GenerateAdCreativesOutputSchema,
-  },
-  async (input) => {
-    const { output } = await prompt(input);
-    return output!;
-  }
-);
-
 export async function generateAdCreatives(input: GenerateAdCreativesInput): Promise<GenerateAdCreativesOutput> {
-  return generateAdCreativesFlow(input);
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
+
+    const template = Handlebars.compile(CREATIVES_PROMPT, { noEscape: true });
+    const finalPrompt = template(input);
+    
+    const result = await model.generateContent(finalPrompt);
+    const response = await result.response;
+    let rawJson;
+    try {
+        rawJson = JSON.parse(response.text());
+    } catch(e) {
+        throw new Error("La IA devolvió una respuesta JSON inválida.");
+    }
+
+    return GenerateAdCreativesOutputSchema.parse(rawJson);
 }

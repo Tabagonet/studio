@@ -1,8 +1,7 @@
 'use server';
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
-import { CreateAdPlanInputSchema, type CreateAdPlanInput, CreateAdPlanOutput, CreateAdPlanOutputSchema } from '@/app/(app)/ad-planner/schema';
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { type CreateAdPlanInput, CreateAdPlanOutput, CreateAdPlanOutputSchema } from '@/app/(app)/ad-planner/schema';
 import { adminDb } from '@/lib/firebase-admin';
 import Handlebars from 'handlebars';
 
@@ -62,50 +61,37 @@ Ahora, genera el plan estratégico completo en formato JSON.`;
     }
 }
 
-const CreateAdPlanFlowInputSchema = CreateAdPlanInputSchema.extend({
-    uid: z.string()
-});
-type CreateAdPlanFlowInput = z.infer<typeof CreateAdPlanFlowInputSchema>;
-
-
-const createAdPlanFlow = ai.defineFlow(
-  {
-    name: 'createAdPlanFlow',
-    inputSchema: CreateAdPlanFlowInputSchema,
-    outputSchema: CreateAdPlanOutputSchema,
-  },
-  async (input) => {
-    const rawPrompt = await getAdPlanPrompt(input.uid);
-    const template = Handlebars.compile(rawPrompt, { noEscape: true });
-    const finalPrompt = template(input);
-    
-    const { output } = await ai.generate({
-        model: 'googleai/gemini-1.5-flash-latest',
-        prompt: finalPrompt,
-        output: { schema: CreateAdPlanOutputSchema },
-    });
-
-    return output!;
-  }
-);
-
 export async function createAdPlan(input: CreateAdPlanInput, uid: string): Promise<CreateAdPlanOutput> {
-  const result = await createAdPlanFlow({ ...input, uid });
+  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
+
+  const rawPrompt = await getAdPlanPrompt(uid);
+  const template = Handlebars.compile(rawPrompt, { noEscape: true });
+  const finalPrompt = template(input);
+  
+  const result = await model.generateContent(finalPrompt);
+  const response = await result.response;
+  let rawJson;
+  try {
+      rawJson = JSON.parse(response.text());
+  } catch(e) {
+      throw new Error("La IA devolvió una respuesta JSON inválida.");
+  }
   
   // Data cleaning step
-  if (result.total_monthly_budget && typeof result.total_monthly_budget === 'string') {
-    result.total_monthly_budget = parseFloat(result.total_monthly_budget);
+  if (rawJson.total_monthly_budget && typeof rawJson.total_monthly_budget === 'string') {
+    rawJson.total_monthly_budget = parseFloat(rawJson.total_monthly_budget);
   }
-  if (result.fee_proposal) {
-    if (typeof result.fee_proposal.setup_fee === 'string') {
-        result.fee_proposal.setup_fee = parseFloat(result.fee_proposal.setup_fee);
+  if (rawJson.fee_proposal) {
+    if (typeof rawJson.fee_proposal.setup_fee === 'string') {
+        rawJson.fee_proposal.setup_fee = parseFloat(rawJson.fee_proposal.setup_fee);
     }
-    if (typeof result.fee_proposal.management_fee === 'string') {
-        result.fee_proposal.management_fee = parseFloat(result.fee_proposal.management_fee);
+    if (typeof rawJson.fee_proposal.management_fee === 'string') {
+        rawJson.fee_proposal.management_fee = parseFloat(rawJson.fee_proposal.management_fee);
     }
   }
-  if (result.strategies && Array.isArray(result.strategies)) {
-      result.strategies.forEach((strategy: any) => {
+  if (rawJson.strategies && Array.isArray(rawJson.strategies)) {
+      rawJson.strategies.forEach((strategy: any) => {
           if (strategy.monthly_budget && typeof strategy.monthly_budget === 'string') {
               strategy.monthly_budget = parseFloat(strategy.monthly_budget);
           }
@@ -114,7 +100,7 @@ export async function createAdPlan(input: CreateAdPlanInput, uid: string): Promi
 
   // Add the original input URL and objectives to the final plan object
   const finalPlan = {
-      ...result,
+      ...rawJson,
       url: input.url,
       objectives: input.objectives,
       additional_context: input.additional_context,

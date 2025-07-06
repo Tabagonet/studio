@@ -2,9 +2,9 @@
 /**
  * @fileOverview A competitor analysis AI agent.
  */
-import {ai} from '@/ai/genkit';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import Handlebars from 'handlebars';
 import {
-  CompetitorAnalysisInputSchema,
   type CompetitorAnalysisInput,
   CompetitorAnalysisOutputSchema,
   type CompetitorAnalysisOutput,
@@ -55,33 +55,28 @@ const COMPETITOR_ANALYSIS_PROMPT = `Eres un analista de inteligencia competitiva
 
 Genera el análisis ahora. Si no encuentras competidores relevantes, devuelve un array vacío para la clave "competitors".`;
 
-const prompt = ai.definePrompt({
-  name: 'competitorAnalysisPrompt',
-  input: { schema: CompetitorAnalysisInputSchema },
-  output: { schema: CompetitorAnalysisOutputSchema },
-  prompt: COMPETITOR_ANALYSIS_PROMPT,
-});
-
-const competitorAnalysisFlow = ai.defineFlow(
-  {
-    name: 'competitorAnalysisFlow',
-    inputSchema: CompetitorAnalysisInputSchema,
-    outputSchema: CompetitorAnalysisOutputSchema,
-  },
-  async (input) => {
-    const { output } = await prompt(input);
-    return output!;
-  }
-);
-
-
 export async function competitorAnalysis(input: CompetitorAnalysisInput): Promise<CompetitorAnalysisOutput> {
-  const result = await competitorAnalysisFlow(input);
-  // Data cleaning step
-  if (result.competitors && Array.isArray(result.competitors)) {
-    result.competitors = result.competitors.filter((c: any) => 
-      c && typeof c.competitor_name === 'string' && c.competitor_name.trim() !== ''
-    );
-  }
-  return CompetitorAnalysisOutputSchema.parse(result);
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
+
+    const template = Handlebars.compile(COMPETITOR_ANALYSIS_PROMPT, { noEscape: true });
+    const finalPrompt = template(input);
+    
+    const result = await model.generateContent(finalPrompt);
+    const response = await result.response;
+    let rawJson;
+    try {
+        rawJson = JSON.parse(response.text());
+    } catch(e) {
+        throw new Error("La IA devolvió una respuesta JSON inválida.");
+    }
+  
+    // Data cleaning step
+    if (rawJson.competitors && Array.isArray(rawJson.competitors)) {
+      rawJson.competitors = rawJson.competitors.filter((c: any) => 
+        c && typeof c.competitor_name === 'string' && c.competitor_name.trim() !== ''
+      );
+    }
+    
+    return CompetitorAnalysisOutputSchema.parse(rawJson);
 }
