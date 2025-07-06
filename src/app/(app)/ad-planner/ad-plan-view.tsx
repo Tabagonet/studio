@@ -5,22 +5,16 @@ import React from 'react';
 import { pdf, Document, Page, Text, View, StyleSheet, Font, Image as PdfImage } from '@react-pdf/renderer';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { CreateAdPlanOutput, Strategy } from './schema';
-import { DollarSign, Printer, RotateCcw, Target, TrendingUp, Calendar, Zap, ClipboardCheck, Users, Megaphone, Lightbulb, MapPin, BarChart, Loader2, ListOrdered, Save, ClipboardPen, Info, Swords } from 'lucide-react';
+import type { CreateAdPlanOutput } from './schema';
+import { Target, TrendingUp, Calendar, Zap, ClipboardCheck, Users, Megaphone, Lightbulb, BarChart, Loader2, Save, Info, Swords, Tool, ChevronRight, Briefcase, Handshake } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
-import { StrategyDetailDialog } from './StrategyDetailDialog';
-import { CreativeStudioDialog } from './CreativeStudioDialog';
-import { formatCurrency } from '@/lib/utils';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { saveAdPlanAction } from './actions';
 import { auth } from '@/lib/firebase';
-import { Tooltip, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Textarea } from '@/components/ui/textarea';
 import { CompetitorAnalysisDialog } from './CompetitorAnalysisDialog';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 
 // Register fonts for PDF rendering
@@ -29,10 +23,8 @@ Font.register({
     fonts: [
         { src: 'https://fonts.gstatic.com/s/ptsans/v17/jizaRExUiTo99u79D0-ExdGM.ttf', fontWeight: 'normal' },
         { src: 'https://fonts.gstatic.com/s/ptsans/v17/jizfRExUiTo99u79B_mh0OOtLQ.ttf', fontWeight: 'bold' },
-        { src: 'https://fonts.gstatic.com/s/ptsans/v17/jizcRExUiTo99u79D0eEwMOpbA.ttf', fontStyle: 'italic' },
     ]
 });
-
 
 // Styles for the PDF document
 const styles = StyleSheet.create({
@@ -41,26 +33,16 @@ const styles = StyleSheet.create({
   logo: { width: 60, height: 60, marginLeft: 'auto', marginRight: 'auto', marginBottom: 10 },
   reportTitle: { fontFamily: 'Helvetica-Bold', fontSize: 24, color: '#20B2AA', marginBottom: 4 },
   reportSubtitle: { fontSize: 10, color: '#888888' },
-  section: { marginBottom: 15 },
+  section: { marginBottom: 15, pageBreakInside: 'avoid' },
   sectionTitle: { fontFamily: 'Helvetica-Bold', fontSize: 16, color: '#20B2AA', marginBottom: 8, borderBottomWidth: 1, borderBottomColor: '#E6E6FA', paddingBottom: 4, textTransform: 'uppercase' },
+  subsectionTitle: { fontFamily: 'Helvetica-Bold', fontSize: 12, color: '#333333', marginTop: 10, marginBottom: 5 },
   bodyText: { fontSize: 10, textAlign: 'justify' },
-  preformattedText: { fontSize: 10, fontFamily: 'Helvetica', backgroundColor: '#F5F5F5', padding: 10, borderRadius: 4 },
-  strategyCard: { borderWidth: 1, borderColor: '#E6E6FA', borderRadius: 5, padding: 12, marginBottom: 10, backgroundColor: '#FFFFFF' },
-  strategyHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
-  platformTitle: { fontFamily: 'Helvetica-Bold', fontSize: 14, color: '#20B2AA' },
-  monthlyBudget: { fontFamily: 'Helvetica-Bold', fontSize: 14 },
-  strategyRationale: { fontFamily: 'Helvetica-Oblique', fontSize: 9, color: '#555555', marginBottom: 8 },
-  badgeContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 5 },
-  badge: { backgroundColor: '#E6E6FA', color: '#240a5e', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, fontSize: 9 },
+  listItem: { flexDirection: 'row', marginBottom: 2 },
+  bullet: { width: 10, fontSize: 10, marginRight: 5 },
   twoColumnLayout: { flexDirection: 'row', gap: 20 },
   column: { flex: 1 },
-  kpiList: { paddingLeft: 10 },
-  kpiItem: { marginBottom: 2 },
-  calendarItem: { marginBottom: 8 },
-  calendarFocus: { fontFamily: 'Helvetica-Bold' },
-  feeProposalCard: { backgroundColor: 'rgba(32, 178, 170, 0.1)', borderWidth: 1, borderColor: 'rgba(32, 178, 170, 0.3)', borderRadius: 5, padding: 12 },
-  feeContainer: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#E6E6FA' },
-  feeItem: { textAlign: 'center' },
+  badgeContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 5 },
+  badge: { backgroundColor: '#E6E6FA', color: '#240a5e', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, fontSize: 9 },
   pageNumber: { position: 'absolute', fontSize: 8, bottom: 30, left: 0, right: 0, textAlign: 'center', color: 'grey' },
 });
 
@@ -71,39 +53,54 @@ const AdPlanPDF = ({ plan, companyName, logoUrl }: { plan: CreateAdPlanOutput; c
         <Page size="A4" style={styles.page}>
             <View style={styles.header}>
                 {logoUrl && <PdfImage style={styles.logo} src={logoUrl} />}
-                <Text style={styles.reportTitle}>Plan de Publicidad Digital</Text>
+                <Text style={styles.reportTitle}>Plan de Marketing Digital</Text>
                 <Text style={styles.reportSubtitle}>Preparado para {companyName} por AutoPress AI el {new Date().toLocaleDateString('es-ES')}</Text>
             </View>
 
-            <View style={styles.section}><Text style={styles.sectionTitle}>Resumen Ejecutivo</Text><Text style={styles.bodyText}>{plan.executive_summary}</Text></View>
-            <View style={styles.section}><Text style={styles.sectionTitle}>Público Objetivo</Text><Text style={styles.bodyText}>{plan.target_audience.replace(/\\n/g, '\n')}</Text></View>
+            <View style={styles.section}><Text style={styles.sectionTitle}>Buyer Persona</Text><Text style={styles.bodyText}>{plan.buyer_persona}</Text></View>
+            <View style={styles.section}><Text style={styles.sectionTitle}>Propuesta de Valor</Text><Text style={styles.bodyText}>{plan.value_proposition}</Text></View>
             
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Estrategias y Presupuesto ({formatCurrency(plan.total_monthly_budget || 0)}/mes)</Text>
-                {(plan.strategies || []).map((strategy, index) => (
-                    <View key={index} style={styles.strategyCard} wrap={false}>
-                        <View style={styles.strategyHeader}><Text style={styles.platformTitle}>{strategy.platform}</Text><Text style={styles.monthlyBudget}>{formatCurrency(strategy.monthly_budget)} / mes</Text></View>
-                        <Text style={styles.strategyRationale}>{strategy.strategy_rationale}</Text>
-                        <View style={styles.badgeContainer}><Text style={styles.badge}>Fase: {strategy.funnel_stage}</Text><Text style={styles.badge}>Campaña: {strategy.campaign_type}</Text></View>
-                        <View style={[styles.badgeContainer, { marginTop: 8 }]}>{(strategy.ad_formats || []).map(format => <Text key={format} style={styles.badge}>{format}</Text>)}</View>
+                <Text style={styles.sectionTitle}>Embudo de Conversión</Text>
+                {Object.entries(plan.funnel).map(([stage, details]) => (
+                    <View key={stage} style={{ marginBottom: 10, pageBreakInside: 'avoid' }}>
+                        <Text style={styles.subsectionTitle}>{stage.charAt(0).toUpperCase() + stage.slice(1)}</Text>
+                        <Text style={styles.bodyText}><Text style={{fontFamily: 'Helvetica-Bold'}}>Objetivo:</Text> {details.objective}</Text>
+                        <Text style={styles.bodyText}><Text style={{fontFamily: 'Helvetica-Bold'}}>Canales:</Text> {details.channels.join(', ')}</Text>
+                        <Text style={styles.bodyText}><Text style={{fontFamily: 'Helvetica-Bold'}}>Contenidos:</Text> {details.content_types.join(', ')}</Text>
+                        <Text style={styles.bodyText}><Text style={{fontFamily: 'Helvetica-Bold'}}>KPIs:</Text> {details.kpis.join(', ')}</Text>
                     </View>
                 ))}
             </View>
-
-            <View style={styles.twoColumnLayout}>
-                <View style={styles.column}><Text style={styles.sectionTitle}>KPIs</Text><View style={styles.kpiList}>{(plan.kpis || []).map((kpi, index) => <Text key={index} style={styles.kpiItem}>• {kpi}</Text>)}</View></View>
-                <View style={styles.column}>
-                    <Text style={styles.sectionTitle}>Calendario ({plan.calendar.length} meses)</Text>
-                    {(plan.calendar || []).map((milestone, index) => (
-                        <View key={index} style={styles.calendarItem}><Text style={styles.calendarFocus}>{milestone.month}: {milestone.focus}</Text>{(milestone.actions || []).map((action, i) => <Text key={i} style={{fontSize: 9, paddingLeft: 10}}>• {action}</Text>)}</View>
-                    ))}
-                </View>
+            
+            <View style={styles.section}>
+                 <Text style={styles.sectionTitle}>Plan de Medios</Text>
+                 <Text style={styles.subsectionTitle}>Distribución de Presupuesto</Text>
+                 <Text style={styles.bodyText}>{plan.media_plan.budget_distribution}</Text>
+                 <Text style={styles.subsectionTitle}>Sugerencias de Campañas</Text>
+                 {plan.media_plan.campaign_suggestions.map((item, index) => <View key={index} style={styles.listItem}><Text style={styles.bullet}>•</Text><Text style={styles.bodyText}>{item}</Text></View>)}
             </View>
 
-            <View style={styles.feeProposalCard}><Text style={styles.sectionTitle}>Propuesta de Gestión</Text><Text style={styles.bodyText}>{plan.fee_proposal?.fee_description || 'Descripción no disponible.'}</Text><View style={styles.feeContainer}>
-                    <View style={styles.feeItem}><Text>Cuota de Configuración</Text><Text style={styles.monthlyBudget}>{formatCurrency(plan.fee_proposal?.setup_fee || 0)}</Text></View>
-                    <View style={styles.feeItem}><Text>Gestión Mensual</Text><Text style={styles.monthlyBudget}>{formatCurrency(plan.fee_proposal?.management_fee || 0)}</Text></View>
-                </View>
+            <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Recomendaciones Estratégicas</Text>
+                <Text style={styles.subsectionTitle}>Posicionamiento</Text><Text style={styles.bodyText}>{plan.strategic_recommendations.positioning}</Text>
+                <Text style={styles.subsectionTitle}>Tono de Voz</Text><Text style={styles.bodyText}>{plan.strategic_recommendations.tone_of_voice}</Text>
+                <Text style={styles.subsectionTitle}>Diferenciación</Text><Text style={styles.bodyText}>{plan.strategic_recommendations.differentiation}</Text>
+            </View>
+            
+            <View style={styles.section}>
+                 <Text style={styles.sectionTitle}>KPIs Globales</Text>
+                 {plan.key_performance_indicators.map((item, index) => <View key={index} style={styles.listItem}><Text style={styles.bullet}>•</Text><Text style={styles.bodyText}>{item}</Text></View>)}
+            </View>
+
+            <View style={styles.section}>
+                 <Text style={styles.sectionTitle}>Calendario de Contenidos</Text>
+                  {plan.content_calendar.map((item, index) => (
+                    <View key={index} style={{ marginBottom: 8, pageBreakInside: 'avoid' }}>
+                      <Text style={styles.subsectionTitle}>{item.month}: {item.focus}</Text>
+                      {item.actions.map((action, i) => <View key={i} style={styles.listItem}><Text style={styles.bullet}>•</Text><Text style={styles.bodyText}>{action}</Text></View>)}
+                    </View>
+                  ))}
             </View>
 
             <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} fixed />
@@ -115,43 +112,8 @@ const AdPlanPDF = ({ plan, companyName, logoUrl }: { plan: CreateAdPlanOutput; c
 export function AdPlanView({ plan, onPlanUpdate, onReset, companyName, logoUrl }: { plan: CreateAdPlanOutput; onPlanUpdate: (plan: CreateAdPlanOutput) => void; onReset: () => void; companyName: string; logoUrl: string | null }) {
     const [isPdfLoading, setIsPdfLoading] = React.useState(false);
     const [isSavingPlan, setIsSavingPlan] = React.useState(false);
-    const [detailedStrategy, setDetailedStrategy] = React.useState<Strategy | null>(null);
-    const [creativeStrategy, setCreativeStrategy] = React.useState<Strategy | null>(null);
     const [isCompetitorAnalysisOpen, setIsCompetitorAnalysisOpen] = React.useState(false);
     const { toast } = useToast();
-
-    const handleBudgetChange = (platform: string, newBudgetString: string) => {
-        const newBudget = parseFloat(newBudgetString) || 0;
-        
-        if (!plan) return;
-
-        const updatedStrategies = (plan.strategies || []).map(s => 
-            s.platform === platform ? { ...s, monthly_budget: newBudget } : s
-        );
-        const newTotalBudget = updatedStrategies.reduce((sum, s) => sum + s.monthly_budget, 0);
-
-        onPlanUpdate({
-            ...plan,
-            strategies: updatedStrategies,
-            total_monthly_budget: newTotalBudget,
-        });
-    };
-
-    const handleFeeChange = (field: 'setup_fee' | 'management_fee' | 'fee_description', value: string) => {
-        if (!plan) return;
-        const feeProposal = plan.fee_proposal || { setup_fee: 0, management_fee: 0, fee_description: '' };
-        
-        const updatedValue = field === 'fee_description' ? value : parseFloat(value) || 0;
-
-        onPlanUpdate({
-            ...plan,
-            fee_proposal: {
-                ...feeProposal,
-                [field]: updatedValue,
-            }
-        });
-    };
-
 
     const handleSavePlan = async () => {
         if (!plan) return;
@@ -181,15 +143,13 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyName, logoUrl }
 
     const handleDownload = async () => {
         if (!plan) return;
-        // Use an image proxy for the PDF to avoid CORS issues.
         const proxiedLogoUrl = logoUrl ? `/api/image-proxy?url=${encodeURIComponent(logoUrl)}` : null;
-
         setIsPdfLoading(true);
         try {
             const blob = await pdf(<AdPlanPDF plan={plan} companyName={companyName} logoUrl={proxiedLogoUrl} />).toBlob();
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
-            const fileName = `plan_publicidad_${plan.executive_summary.substring(0, 20).replace(/\s/g, '_') || 'AutoPress'}.pdf`;
+            const fileName = `plan_marketing_${(plan.url || 'website').replace(/https?:\/\//, '').split('/')[0]}.pdf`;
             
             link.href = url;
             link.setAttribute('download', fileName);
@@ -201,29 +161,11 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyName, logoUrl }
             
         } catch (error) {
             console.error("Failed to generate PDF:", error);
-            toast({
-                title: "Error al generar PDF",
-                description: "No se pudo crear el documento. Revisa la consola para más detalles.",
-                variant: "destructive",
-            });
+            toast({ title: "Error al generar PDF", variant: "destructive" });
         } finally {
             setIsPdfLoading(false);
         }
     };
-
-    const handleDialogPlanUpdate = React.useCallback((updatedPlan: CreateAdPlanOutput) => {
-        onPlanUpdate(updatedPlan);
-        
-        // This logic ensures the dialogs reflect the updated plan state correctly
-        if (detailedStrategy) {
-            const newStrategy = updatedPlan.strategies.find(s => s.platform === detailedStrategy.platform);
-            setDetailedStrategy(newStrategy || null);
-        }
-        if (creativeStrategy) {
-            const newStrategy = updatedPlan.strategies.find(s => s.platform === creativeStrategy.platform);
-            setCreativeStrategy(newStrategy || null);
-        }
-    }, [detailedStrategy, creativeStrategy, onPlanUpdate]); 
     
     if (!plan) {
         return <Loader2 className="h-8 w-8 animate-spin" />;
@@ -231,18 +173,6 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyName, logoUrl }
     
     return (
         <div className="space-y-6 report-view">
-             <StrategyDetailDialog 
-                plan={plan}
-                strategy={detailedStrategy} 
-                onOpenChange={(open) => !open && setDetailedStrategy(null)}
-                onPlanUpdate={handleDialogPlanUpdate}
-            />
-            <CreativeStudioDialog 
-                plan={plan}
-                strategy={creativeStrategy}
-                onOpenChange={(open) => !open && setCreativeStrategy(null)}
-                onPlanUpdate={handleDialogPlanUpdate}
-            />
             <CompetitorAnalysisDialog
                 isOpen={isCompetitorAnalysisOpen}
                 onOpenChange={setIsCompetitorAnalysisOpen}
@@ -250,33 +180,19 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyName, logoUrl }
                 initialContext={plan.additional_context}
             />
 
-
             <div className="report-header hidden print:block">
                 {logoUrl && <Image src={logoUrl} alt="Logo" width={60} height={60} className="mx-auto" data-ai-hint="logo brand" />}
-                <h1 className="text-2xl font-bold mt-2">Plan de Publicidad Digital</h1>
+                <h1 className="text-2xl font-bold mt-2">Plan de Marketing Digital</h1>
                 <p className="text-sm text-gray-500">Preparado para {companyName} por AutoPress AI el {new Date().toLocaleDateString('es-ES')}</p>
             </div>
 
              <div className="flex flex-wrap gap-2 justify-end print-hide">
-                <Button variant="outline" onClick={onReset}><RotateCcw className="mr-2 h-4 w-4" /> Crear Nuevo Plan</Button>
-                 <Button variant="outline" onClick={() => setIsCompetitorAnalysisOpen(true)}>
-                    <Swords className="mr-2 h-4 w-4" /> Analizar Competencia
-                </Button>
-                 <Button onClick={handleSavePlan} disabled={isSavingPlan}>
-                    {isSavingPlan ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                    {isSavingPlan ? 'Guardando...' : 'Guardar Plan'}
-                </Button>
-                 <Button onClick={handleDownload} disabled={isPdfLoading}>
-                    {isPdfLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
-                    {isPdfLoading ? 'Generando PDF...' : 'Descargar PDF'}
-                </Button>
+                <Button variant="outline" onClick={onReset}><Zap className="mr-2 h-4 w-4" /> Crear Nuevo Plan</Button>
+                <Button variant="outline" onClick={() => setIsCompetitorAnalysisOpen(true)}><Swords className="mr-2 h-4 w-4" /> Analizar Competencia</Button>
+                <Button onClick={handleSavePlan} disabled={isSavingPlan}>{isSavingPlan ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Guardar Plan</Button>
+                <Button onClick={handleDownload} disabled={isPdfLoading}>{isPdfLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ClipboardCheck className="mr-2 h-4 w-4" />} Descargar Informe</Button>
             </div>
             
-            <Card>
-                <CardHeader><CardTitle className="flex items-center gap-3"><ClipboardCheck className="h-6 w-6 text-primary" /> Resumen Ejecutivo</CardTitle></CardHeader>
-                <CardContent><p className="text-muted-foreground leading-relaxed">{plan.executive_summary}</p></CardContent>
-            </Card>
-
             {plan.additional_context && (
                  <Card>
                     <CardHeader><CardTitle className="flex items-center gap-3"><Info className="h-6 w-6 text-primary" /> Contexto Adicional</CardTitle></CardHeader>
@@ -284,136 +200,76 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyName, logoUrl }
                 </Card>
             )}
 
-            <Card>
-                <CardHeader><CardTitle className="flex items-center gap-3"><Target className="h-6 w-6 text-primary" /> Público Objetivo</CardTitle></CardHeader>
-                <CardContent><p className="text-muted-foreground whitespace-pre-line">{plan.target_audience}</p></CardContent>
-            </Card>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card><CardHeader><CardTitle className="flex items-center gap-3"><Users className="h-6 w-6 text-primary" /> Buyer Persona</CardTitle></CardHeader><CardContent><p className="text-muted-foreground leading-relaxed">{plan.buyer_persona}</p></CardContent></Card>
+                <Card><CardHeader><CardTitle className="flex items-center gap-3"><Lightbulb className="h-6 w-6 text-primary" /> Propuesta de Valor</CardTitle></CardHeader><CardContent><p className="text-muted-foreground leading-relaxed">{plan.value_proposition}</p></CardContent></Card>
+            </div>
             
             <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-3"><Megaphone className="h-6 w-6 text-primary" /> Estrategias y Presupuesto</CardTitle>
-                    <CardDescription>Total mensual recomendado: <span className="font-bold text-lg text-primary">{formatCurrency(plan.total_monthly_budget || 0)}</span></CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    {(plan.strategies || []).map((strategy, index) => (
-                        <div key={index} className="p-4 border rounded-lg space-y-3 bg-muted/20">
-                           <div className="flex flex-col sm:flex-row sm:justify-between items-start gap-3">
-                                <div>
-                                    <h3 className="text-xl font-semibold text-primary">{strategy.platform}</h3>
-                                    <div className="flex items-center gap-2 mt-2">
-                                        <Label htmlFor={`budget-${strategy.platform}`} className="sr-only">Presupuesto mensual</Label>
-                                        <Input
-                                            id={`budget-${strategy.platform}`}
-                                            type="number"
-                                            value={strategy.monthly_budget}
-                                            onChange={(e) => handleBudgetChange(strategy.platform, e.target.value)}
-                                            className="w-32 font-bold text-lg"
-                                            min="0"
-                                            step="10"
-                                        />
-                                        <span className="font-bold text-lg text-muted-foreground">/ mes</span>
-                                    </div>
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                     <Button variant="outline" size="sm" onClick={() => setCreativeStrategy(strategy)}>
-                                        <ClipboardPen className="mr-2 h-4 w-4" />
-                                        Estudio Creativo
-                                    </Button>
-                                    <Button variant="outline" size="sm" onClick={() => setDetailedStrategy(strategy)}>
-                                        <ListOrdered className="mr-2 h-4 w-4" />
-                                        Planificar Tareas
-                                    </Button>
-                                </div>
-                            </div>
-                            <p className="text-sm text-muted-foreground italic"><Lightbulb className="inline-block mr-2 h-4 w-4" />{strategy.strategy_rationale}</p>
-                            <div className="flex flex-wrap items-center gap-4 text-sm pt-2">
-                                <div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-muted-foreground" /><span>Fase del embudo: <Badge>{strategy.funnel_stage}</Badge></span></div>
-                                <div className="flex items-center gap-2"><BarChart className="h-4 w-4 text-muted-foreground" /><span>Tipo de campaña: <Badge>{strategy.campaign_type}</Badge></span></div>
-                            </div>
-                            <div className="flex flex-wrap gap-2 pt-2"><span className="text-sm font-medium mr-2">Formatos:</span>{(strategy.ad_formats || []).map(format => <Badge key={format} variant="outline">{format}</Badge>)}</div>
-                            <Separator className="my-3" />
-                            <div className="space-y-3 text-sm">
-                                <div>
-                                    <h4 className="font-semibold flex items-center gap-2 mb-1"><Users className="h-4 w-4 text-primary"/> Sugerencias de Segmentación</h4>
-                                    <div className="flex flex-wrap gap-2">
-                                        {(strategy.targeting_suggestions || []).map(suggestion => <Badge key={suggestion} variant="secondary">{suggestion}</Badge>)}
-                                    </div>
-                                </div>
-                                <div>
-                                    <h4 className="font-semibold flex items-center gap-2 mb-1"><TrendingUp className="h-4 w-4 text-primary"/> KPIs Clave de la Estrategia</h4>
-                                    <div className="flex flex-wrap gap-2">
-                                        {(strategy.key_kpis || []).map(kpi => <Badge key={kpi} variant="secondary">{kpi}</Badge>)}
-                                    </div>
-                                </div>
-                                <div>
-                                    <h4 className="font-semibold flex items-center gap-2 mb-1"><Lightbulb className="h-4 w-4 text-primary"/> Ángulo Creativo</h4>
-                                    <p className="text-muted-foreground">{strategy.creative_angle}</p>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
+                <CardHeader><CardTitle className="flex items-center gap-3"><Megaphone className="h-6 w-6 text-primary" /> Embudo de Conversión</CardTitle></CardHeader>
+                <CardContent>
+                    <Accordion type="single" collapsible className="w-full" defaultValue="awareness">
+                        {Object.entries(plan.funnel).map(([stage, details]) => (
+                             <AccordionItem value={stage} key={stage}>
+                                <AccordionTrigger className="text-lg font-semibold capitalize">{stage}</AccordionTrigger>
+                                <AccordionContent className="space-y-4 pt-2">
+                                    <p className="font-medium text-primary">{details.objective}</p>
+                                    <div className="flex flex-wrap gap-2"><span className="text-sm font-semibold">Canales:</span>{details.channels.map(item => <Badge key={item} variant="secondary">{item}</Badge>)}</div>
+                                    <div className="flex flex-wrap gap-2"><span className="text-sm font-semibold">Contenidos:</span>{details.content_types.map(item => <Badge key={item} variant="outline">{item}</Badge>)}</div>
+                                    <div className="flex flex-wrap gap-2"><span className="text-sm font-semibold">KPIs:</span>{details.kpis.map(item => <Badge key={item} variant="secondary">{item}</Badge>)}</div>
+                                </AccordionContent>
+                             </AccordionItem>
+                        ))}
+                    </Accordion>
                 </CardContent>
             </Card>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                 <Card>
-                    <CardHeader><CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5 text-primary" /> KPIs de Seguimiento</CardTitle></CardHeader>
-                    <CardContent><ul className="list-disc list-inside text-muted-foreground space-y-1">{(plan.kpis || []).map((kpi, index) => <li key={index}>{kpi}</li>)}</ul></CardContent>
+                <Card>
+                    <CardHeader><CardTitle className="flex items-center gap-2"><BarChart className="h-6 w-6 text-primary" /> Plan de Medios</CardTitle></CardHeader>
+                    <CardContent className="space-y-4">
+                        <div><h4 className="font-semibold mb-1">Distribución de Presupuesto</h4><p className="text-sm text-muted-foreground">{plan.media_plan.budget_distribution}</p></div>
+                        <Separator />
+                        <div><h4 className="font-semibold mb-1">Sugerencias de Campañas</h4><ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">{plan.media_plan.campaign_suggestions.map((item, i) => <li key={i}>{item}</li>)}</ul></div>
+                    </CardContent>
                 </Card>
                 <Card>
-                    <CardHeader><CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5 text-primary" /> Calendario ({plan.calendar.length} meses)</CardTitle></CardHeader>
+                    <CardHeader><CardTitle className="flex items-center gap-2"><Tool className="h-6 w-6 text-primary" /> Herramientas Recomendadas</CardTitle></CardHeader>
+                    <CardContent className="space-y-3">{plan.recommended_tools.map((item, i) => <div key={i}><p className="font-semibold text-sm">{item.category}</p><p className="text-sm text-muted-foreground">{item.tools}</p></div>)}</CardContent>
+                </Card>
+            </div>
+            
+            <Card>
+                 <CardHeader><CardTitle className="flex items-center gap-3"><Zap className="h-6 w-6 text-primary" /> Recomendaciones Estratégicas</CardTitle></CardHeader>
+                 <CardContent className="space-y-4">
+                    <Accordion type="multiple" className="w-full">
+                        <AccordionItem value="pos"><AccordionTrigger>Posicionamiento</AccordionTrigger><AccordionContent><p className="text-muted-foreground">{plan.strategic_recommendations.positioning}</p></AccordionContent></AccordionItem>
+                        <AccordionItem value="tone"><AccordionTrigger>Tono de Voz</AccordionTrigger><AccordionContent><p className="text-muted-foreground">{plan.strategic_recommendations.tone_of_voice}</p></AccordionContent></AccordionItem>
+                        <AccordionItem value="diff"><AccordionTrigger>Diferenciación</AccordionTrigger><AccordionContent><p className="text-muted-foreground">{plan.strategic_recommendations.differentiation}</p></AccordionContent></AccordionItem>
+                    </Accordion>
+                 </CardContent>
+            </Card>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                 <Card>
+                    <CardHeader><CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5 text-primary" /> KPIs Globales</CardTitle></CardHeader>
+                    <CardContent><ul className="list-disc list-inside text-muted-foreground space-y-1">{plan.key_performance_indicators.map((kpi, index) => <li key={index}>{kpi}</li>)}</ul></CardContent>
+                </Card>
+                <Card>
+                    <CardHeader><CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5 text-primary" /> Calendario de Acciones</CardTitle></CardHeader>
                     <CardContent className="space-y-4">
-                         {(plan.calendar || []).map((milestone, index) => (
+                         {plan.content_calendar.map((milestone, index) => (
                             <div key={index} className="relative pl-6">
                                 <div className="absolute left-0 top-1 h-full w-px bg-border"></div>
                                 <div className="absolute left-[-5px] top-1.5 h-3 w-3 rounded-full bg-primary"></div>
                                 <h4 className="font-semibold">{milestone.month}: {milestone.focus}</h4>
-                                <ul className="list-disc list-inside text-sm text-muted-foreground pl-2 mt-1 space-y-0.5">{(milestone.actions || []).map((action, i) => <li key={i}>{action}</li>)}</ul>
+                                <ul className="list-disc list-inside text-sm text-muted-foreground pl-2 mt-1 space-y-0.5">{milestone.actions.map((action, i) => <li key={i}>{action}</li>)}</ul>
                             </div>
                          ))}
                     </CardContent>
                 </Card>
             </div>
-            
-            <Card className="bg-accent/50 border-primary/20">
-                 <CardHeader><CardTitle className="flex items-center gap-3"><Zap className="h-6 w-6 text-primary" /> Propuesta de Gestión</CardTitle></CardHeader>
-                <CardContent className="space-y-4">
-                    <div>
-                        <Label htmlFor="fee_description">Descripción de los servicios incluidos:</Label>
-                        <Textarea 
-                            id="fee_description"
-                            value={plan.fee_proposal?.fee_description || ''}
-                            onChange={(e) => handleFeeChange('fee_description', e.target.value)}
-                            className="mt-1 bg-background/70"
-                            rows={3}
-                            placeholder="Describe qué servicios incluye tu cuota de gestión (ej. optimización semanal, informes mensuales, etc.)"
-                        />
-                    </div>
-                    <Separator />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-center">
-                        <div className="space-y-1">
-                            <Label htmlFor="setup_fee">Cuota de Configuración (€)</Label>
-                            <Input
-                                id="setup_fee"
-                                type="number"
-                                value={plan.fee_proposal?.setup_fee || 0}
-                                onChange={(e) => handleFeeChange('setup_fee', e.target.value)}
-                                className="text-2xl font-bold h-auto py-2 text-center"
-                            />
-                        </div>
-                        <div className="space-y-1">
-                            <Label htmlFor="management_fee">Cuota de Gestión Mensual (€)</Label>
-                            <Input
-                                id="management_fee"
-                                type="number"
-                                value={plan.fee_proposal?.management_fee || 0}
-                                onChange={(e) => handleFeeChange('management_fee', e.target.value)}
-                                className="text-2xl font-bold h-auto py-2 text-center"
-                            />
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+
         </div>
     );
 }

@@ -1,15 +1,7 @@
 
 import { z } from 'zod';
-import { v4 as uuidv4 } from 'uuid';
 
-export const TaskSchema = z.object({
-  id: z.string().default(() => uuidv4()),
-  name: z.string().default(''),
-  hours: z.number().default(0),
-});
-export type Task = z.infer<typeof TaskSchema>;
-
-// === Schemas for Generate Ad Creatives Flow ===
+// === Schemas for Generate Ad Creatives Flow (NOW DEPRECATED within ad-plan-view) ===
 export const GenerateAdCreativesInputSchema = z.object({
   url: z.string().url(),
   objectives: z.array(z.string()),
@@ -21,70 +13,14 @@ export const GenerateAdCreativesInputSchema = z.object({
 export type GenerateAdCreativesInput = z.infer<typeof GenerateAdCreativesInputSchema>;
 
 export const GenerateAdCreativesOutputSchema = z.object({
-  headlines: z.array(z.string()).describe("Una lista de 3 a 5 titulares cortos y potentes para los anuncios (máx. 30-40 caracteres)."),
-  descriptions: z.array(z.string()).describe("Una lista de 2 a 3 descripciones persuasivas y más largas para el cuerpo del anuncio (máx. 90 caracteres)."),
-  cta_suggestions: z.array(z.string()).describe("Una lista de 2 a 3 sugerencias de Llamada a la Acción (CTA) claras y directas (ej. Comprar Ahora, Saber Más)."),
-  visual_ideas: z.array(z.string()).describe("Una lista de 2 a 3 ideas conceptuales para las imágenes o vídeos del anuncio."),
+  headlines: z.array(z.string()),
+  descriptions: z.array(z.string()),
+  cta_suggestions: z.array(z.string()),
+  visual_ideas: z.array(z.string()),
 });
 export type GenerateAdCreativesOutput = z.infer<typeof GenerateAdCreativesOutputSchema>;
 
-export const AdStrategySchema = z.object({
-  platform: z.string().describe("Plataforma publicitaria (ej. Google Ads, Meta Ads, LinkedIn Ads).").default(''),
-  strategy_rationale: z.string().describe("Justificación de por qué se ha elegido esta plataforma para los objetivos dados.").default(''),
-  funnel_stage: z.enum(['Awareness', 'Consideration', 'Conversion']).describe("Etapa del embudo de ventas a la que se dirige esta estrategia.").default('Awareness'),
-  campaign_type: z.string().describe("Tipo de campaña recomendada (ej. Performance Max, Búsqueda, Video, Generación de Leads).").default(''),
-  ad_formats: z.array(z.string()).describe("Formatos de anuncio concretos a utilizar (ej. Anuncio de Texto Expandido, Anuncio de Carrusel, In-Stream).").default([]),
-  monthly_budget: z.number().describe("Presupuesto mensual recomendado para esta plataforma.").default(0),
-  targeting_suggestions: z.array(z.string()).describe("Sugerencias de segmentación específicas para esta plataforma (ej. Lookalike, Intereses, Remarketing).").default([]),
-  key_kpis: z.array(z.string()).describe("Los 2-3 KPIs más importantes para esta estrategia específica (ej. ROAS, CPA).").default([]),
-  creative_angle: z.string().describe("El enfoque creativo o mensaje principal para los anuncios de esta estrategia.").default(''),
-  tasks: z.array(TaskSchema).optional().default([]).describe("Desglose de tareas para implementar esta estrategia."),
-  creatives: GenerateAdCreativesOutputSchema.optional().describe("Creativos publicitarios generados por la IA para esta estrategia."),
-});
-
-export type Strategy = z.infer<typeof AdStrategySchema>;
-
-const CalendarMilestoneSchema = z.object({
-  month: z.string().describe("Mes del hito (ej. 'Mes 1', 'Mes 2', 'Mes 3').").default(''),
-  focus: z.string().describe("El enfoque principal o la meta para ese mes (ej. Configuración y Lanzamiento, Optimización A/B, Escalado).").default(''),
-  actions: z.array(z.string()).describe("Acciones específicas y detalladas a realizar durante ese mes.").default([]),
-});
-
-const FeeProposalSchema = z.object({
-    setup_fee: z.number().describe("Precio único por la configuración inicial de todas las campañas.").default(0),
-    management_fee: z.number().describe("Precio por la gestión mensual recurrente de las campañas.").default(0),
-    fee_description: z.string().describe("Descripción detallada de los servicios incluidos en los honorarios de gestión.").default(''),
-});
-
-export const CreateAdPlanOutputSchema = z.object({
-  id: z.string().optional(),
-  createdAt: z.string().optional(),
-  url: z.string().url({ message: "La URL no es válida." }).or(z.literal('')).default('').describe("La URL que se analizó para generar el plan."),
-  objectives: z.array(z.string()).default([]).describe("Los objetivos de negocio que se usaron como base."),
-  executive_summary: z.string().default('').describe("Resumen ejecutivo del plan, explicando la lógica general y la estrategia propuesta."),
-  target_audience: z.string().default('').describe("Descripción detallada del público objetivo ideal (datos demográficos, intereses, comportamientos, puntos de dolor)."),
-  strategies: z.array(AdStrategySchema).default([]).describe("Array de estrategias detalladas para cada plataforma recomendada."),
-  total_monthly_budget: z.number().default(0).describe("Suma total de los presupuestos mensuales de todas las plataformas."),
-  calendar: z.array(CalendarMilestoneSchema).default([]).describe("Calendario de implementación detallado para los primeros 3 meses."),
-  kpis: z.array(z.string()).default([]).describe("KPIs clave para medir el éxito de la campaña (ej. ROAS, CPA, CTR, Tasa de Conversión)."),
-  fee_proposal: FeeProposalSchema.default({ setup_fee: 0, management_fee: 0, fee_description: '' }).describe("Propuesta de honorarios por la configuración y gestión."),
-  additional_context: z.string().optional().describe("Contexto adicional proporcionado por el usuario."),
-});
-
-export type CreateAdPlanOutput = z.infer<typeof CreateAdPlanOutputSchema>;
-
-export const CreateAdPlanInputSchema = z.object({
-  url: z.string().url({ message: "Por favor, introduce una URL válida." }),
-  objectives: z.array(z.string()).min(1, { message: "Selecciona al menos un objetivo." }),
-  additional_context: z.string().optional(),
-  plan_duration: z.string().default('3'),
-});
-
-export type CreateAdPlanInput = z.infer<typeof CreateAdPlanInputSchema>;
-
-
-// === Schemas for Generate Strategy Tasks Flow ===
-
+// === Schemas for Generate Strategy Tasks Flow (NOW DEPRECATED within ad-plan-view) ===
 export const GenerateStrategyTasksInputSchema = z.object({
   url: z.string().url(),
   objectives: z.array(z.string()),
@@ -95,16 +31,94 @@ export const GenerateStrategyTasksInputSchema = z.object({
 });
 export type GenerateStrategyTasksInput = z.infer<typeof GenerateStrategyTasksInputSchema>;
 
-// This schema represents a task as returned by the AI (without a client-side ID)
 const AIGeneratedTaskSchema = z.object({
-  name: z.string().describe("El nombre claro y conciso de la tarea a realizar."),
-  hours: z.number().describe("Una estimación realista de las horas necesarias para completar esta tarea."),
+  name: z.string(),
+  hours: z.number(),
 });
 
 export const GenerateStrategyTasksOutputSchema = z.object({
-  tasks: z.array(AIGeneratedTaskSchema).describe("Una lista de 5 a 7 tareas concretas y accionables para ejecutar la estrategia."),
+  tasks: z.array(AIGeneratedTaskSchema),
 });
 export type GenerateStrategyTasksOutput = z.infer<typeof GenerateStrategyTasksOutputSchema>;
+
+
+// === NEW, COMPREHENSIVE AD PLAN SCHEMAS ===
+
+const FunnelStageSchema = z.object({
+    objective: z.string().describe("El objetivo clave para esta etapa del embudo."),
+    channels: z.array(z.string()).describe("Lista de canales específicos recomendados."),
+    content_types: z.array(z.string()).describe("Lista de tipos de contenido sugeridos para los canales."),
+    kpis: z.array(z.string()).describe("Lista de KPIs para medir el éxito en esta etapa."),
+});
+
+const MediaPlanSchema = z.object({
+    budget_distribution: z.string().describe("Descripción de cómo se distribuiría el presupuesto."),
+    campaign_suggestions: z.array(z.string()).describe("Ideas concretas de campañas a lanzar."),
+});
+
+const RecommendedToolSchema = z.object({
+    category: z.string().describe("Categoría de la herramienta (ej. CRM, Analítica)."),
+    tools: z.string().describe("Nombres de las herramientas recomendadas."),
+});
+
+const ContentCalendarSchema = z.object({
+    month: z.string().describe("El mes del plan (ej. 'Mes 1')."),
+    focus: z.string().describe("El enfoque principal para ese mes."),
+    actions: z.array(z.string()).describe("Lista de acciones detalladas para el mes."),
+});
+
+const StrategicRecommendationsSchema = z.object({
+    positioning: z.string().describe("Recomendación sobre cómo posicionar la marca."),
+    tone_of_voice: z.string().describe("Tono de comunicación sugerido."),
+    differentiation: z.string().describe("Ideas clave para diferenciarse de la competencia."),
+});
+
+
+export const CreateAdPlanOutputSchema = z.object({
+  id: z.string().optional(),
+  createdAt: z.string().optional(),
+  url: z.string().url({ message: "La URL no es válida." }).or(z.literal('')).default(''),
+  objectives: z.array(z.string()).default([]),
+  additional_context: z.string().optional(),
+  
+  buyer_persona: z.string().describe("Descripción del perfil psicográfico del cliente ideal."),
+  value_proposition: z.string().describe("Propuesta de valor clara y diferencial del negocio."),
+  
+  funnel: z.object({
+    awareness: FunnelStageSchema,
+    interest: FunnelStageSchema,
+    consideration: FunnelStageSchema,
+    conversion: FunnelStageSchema,
+    retention: FunnelStageSchema,
+    referral: FunnelStageSchema,
+  }).describe("Embudo de conversión completo dividido en 6 etapas."),
+
+  media_plan: MediaPlanSchema.describe("Plan de medios con distribución de presupuesto y sugerencias de campaña."),
+  
+  recommended_tools: z.array(RecommendedToolSchema).describe("Lista de herramientas recomendadas por categoría."),
+
+  key_performance_indicators: z.array(z.string()).describe("KPIs generales para medir el éxito de toda la estrategia."),
+  
+  content_calendar: z.array(ContentCalendarSchema).describe("Calendario de contenidos y acciones mes a mes."),
+
+  strategic_recommendations: StrategicRecommendationsSchema.describe("Recomendaciones estratégicas adicionales sobre posicionamiento, tono y diferenciación."),
+});
+
+export type CreateAdPlanOutput = z.infer<typeof CreateAdPlanOutputSchema>;
+// This is a placeholder now, as the new output is much more detailed
+export type Strategy = {};
+export type Task = {};
+
+
+export const CreateAdPlanInputSchema = z.object({
+  url: z.string().url({ message: "Por favor, introduce una URL válida." }),
+  objectives: z.array(z.string()).min(1, { message: "Selecciona al menos un objetivo." }),
+  additional_context: z.string().optional(),
+  plan_duration: z.string().default('3'),
+});
+
+export type CreateAdPlanInput = z.infer<typeof CreateAdPlanInputSchema>;
+
 
 // === Schemas for Competitor Analysis Flow ===
 export const CompetitorAnalysisInputSchema = z.object({
