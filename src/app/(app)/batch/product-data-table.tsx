@@ -835,6 +835,7 @@ export function ProductDataTable() {
                 <SelectItem value="draft">Borrador</SelectItem>
                 <SelectItem value="pending">Pendiente</SelectItem>
                 <SelectItem value="private">Privado</SelectItem>
+                <SelectItem value="trash">En Papelera</SelectItem>
               </SelectContent>
             </Select>
              <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
@@ -993,5 +994,3 @@ export function ProductDataTable() {
     </div>
   )
 }
-
-    

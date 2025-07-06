@@ -115,9 +115,14 @@ export const getColumns = (
         draft: 'Borrador',
         pending: 'Pendiente',
         private: 'Privado',
+        trash: 'En Papelera',
       }[status] || status;
       
-      return <div className="text-center"><Badge variant={status === 'publish' ? 'default' : 'secondary'}>{statusText}</Badge></div>
+      let variant: "default" | "secondary" | "destructive" = 'secondary';
+      if (status === 'publish') variant = 'default';
+      if (status === 'trash') variant = 'destructive';
+
+      return <div className="text-center"><Badge variant={variant}>{statusText}</Badge></div>
     }
   },
   {

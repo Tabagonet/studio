@@ -18,6 +18,7 @@ const getStatusText = (status: ContentItem['status']) => {
         pending: 'Pendiente',
         private: 'Privado',
         future: 'Programado',
+        trash: 'En Papelera',
     };
     return statusMap[status] || status;
 };
@@ -93,7 +94,14 @@ export const getColumns = (): ColumnDef<ContentItem>[] => [
   {
     accessorKey: 'status',
     header: 'Estado',
-    cell: ({ getValue }) => <Badge variant={getValue<string>() === 'publish' ? 'default' : 'secondary'}>{getStatusText(getValue<ContentItem['status']>())}</Badge>
+    cell: ({ getValue }) => {
+        const status = getValue<ContentItem['status']>();
+        let variant: "default" | "secondary" | "destructive" = "secondary";
+        if (status === 'publish') variant = "default";
+        if (status === 'trash') variant = "destructive";
+
+        return <Badge variant={variant}>{getStatusText(status)}</Badge>;
+    }
   },
   {
     accessorKey: 'lang',

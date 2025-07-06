@@ -1,5 +1,5 @@
 
-"use client"
+"use client";
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
@@ -507,6 +507,7 @@ export function BlogDataTable() {
                 <SelectItem value="pending">Pendiente</SelectItem>
                 <SelectItem value="private">Privado</SelectItem>
                 <SelectItem value="future">Programado</SelectItem>
+                <SelectItem value="trash">En Papelera</SelectItem>
               </SelectContent>
             </Select>
              <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
@@ -586,5 +587,3 @@ export function BlogDataTable() {
     </div>
   )
 }
-
-    

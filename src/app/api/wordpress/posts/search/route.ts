@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     } else {
         // If 'all' or no status is selected, fetch all relevant statuses.
         // By default, the WP API only returns 'publish' status.
-        params.status = 'publish,future,draft,pending,private';
+        params.status = 'publish,future,draft,pending,private,trash';
     }
     
     if (category && category !== 'all') params.categories = [category];

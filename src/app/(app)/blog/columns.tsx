@@ -103,9 +103,14 @@ export const getColumns = (
         pending: 'Pendiente',
         private: 'Privado',
         future: 'Programado',
+        trash: 'En Papelera',
       };
       
-      return <Badge variant={status === 'publish' ? 'default' : 'secondary'}>{statusText[status] || status}</Badge>
+      let variant: "default" | "secondary" | "destructive" = 'secondary';
+      if (status === 'publish') variant = 'default';
+      if (status === 'trash') variant = 'destructive';
+
+      return <Badge variant={variant}>{statusText[status] || status}</Badge>
     }
   },
   {
