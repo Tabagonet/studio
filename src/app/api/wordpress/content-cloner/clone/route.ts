@@ -42,8 +42,8 @@ export async function POST(req: NextRequest) {
         const { post_ids, target_lang } = validation.data;
         const target_lang_name = LANG_CODE_MAP[target_lang] || target_lang;
         
-        const { wpApi } = await getApiClientsForUser(uid);
-        if (!wpApi) throw new Error('WordPress API is not configured');
+        const { wpApi, wooApi } = await getApiClientsForUser(uid);
+        if (!wpApi || !wooApi) throw new Error('Both WordPress and WooCommerce APIs must be configured');
         
         const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
         if (!siteUrl) throw new Error("Could not determine base site URL.");
@@ -63,7 +63,6 @@ export async function POST(req: NextRequest) {
 
         const successfullyClonedPairs = cloneResponse.data.success || [];
 
-        // Get the base URL for internal fetch calls
         const baseUrl = req.nextUrl.origin;
 
         // === 2. TRANSLATE AND UPDATE EACH CLONE ===
@@ -75,11 +74,18 @@ export async function POST(req: NextRequest) {
                 }
                 const postTypeEndpoint = post_type === 'page' ? 'pages' : (post_type === 'product' ? 'products' : 'posts');
 
-                const { data: originalPost } = await wpApi.get(`/${postTypeEndpoint}/${original_id}?context=edit`);
+                let originalPost;
+                if (post_type === 'product') {
+                    const { data } = await wooApi.get(`products/${original_id}`);
+                    originalPost = data;
+                } else {
+                    const { data } = await wpApi.get(`/${postTypeEndpoint}/${original_id}?context=edit`);
+                    originalPost = data;
+                }
                 
-                let textsToTranslate: { [key: string]: string } = { title: originalPost.title.rendered };
+                let textsToTranslate: { [key: string]: string } = { title: originalPost.name || originalPost.title.rendered };
                 let elementorData = null;
-                const isElementor = originalPost.meta && originalPost.meta._elementor_data;
+                const isElementor = post_type === 'page' && originalPost.meta && originalPost.meta._elementor_data;
 
                 if (isElementor) {
                     elementorData = JSON.parse(originalPost.meta._elementor_data);
@@ -129,7 +135,12 @@ export async function POST(req: NextRequest) {
                     updatePayload.content = translatedContent.content;
                 }
                 
-                await wpApi.post(`/${postTypeEndpoint}/${clone_id}`, updatePayload);
+                if (post_type === 'product') {
+                    await wooApi.put(`products/${clone_id}`, updatePayload);
+                } else {
+                    await wpApi.post(`/${postTypeEndpoint}/${clone_id}`, updatePayload);
+                }
+
                 finalResults.success.push(pair);
 
             } catch (error: any) {
