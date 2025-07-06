@@ -233,7 +233,7 @@ export async function POST(req: NextRequest) {
                 h1: product.name || '', // A product's H1 is its name.
                 headings: $('h1, h2, h3, h4, h5, h6').map((i, el) => ({ tag: (el as cheerio.TagElement).name, text: $(el).text() })).get(),
                 images: (product.images || []).map((img: any) => ({ src: img.src, alt: img.alt || '' })),
-                textContent: cheerio.load(product.description || '').text().replace(/\s\s+/g, ' ').trim(),
+                textContent: $('body').text().replace(/\s\s+/g, ' ').trim(),
             };
         } else if (postType === 'Post' || postType === 'Page') {
             if (!wpApi) { throw new Error('La API de WordPress no está configurada.'); }
@@ -360,3 +360,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'La IA falló: ' + error.message }, { status: 500 });
   }
 }
+
+    

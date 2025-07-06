@@ -10,6 +10,7 @@ const nextConfig = {
       'form-data',
       '@google/generative-ai',
       'cheerio',
+      'handlebars',
       'debug',
       'supports-color',
       'sharp',
