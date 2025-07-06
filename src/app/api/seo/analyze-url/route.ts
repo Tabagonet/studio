@@ -193,39 +193,54 @@ export async function POST(req: NextRequest) {
     }
     
     const { url, postId, postType } = validation.data;
-    const { wpApi } = await getApiClientsForUser(uid);
+    const { wooApi, wpApi } = await getApiClientsForUser(uid);
     let pageData;
 
-    if (postId && postType && wpApi) {
-        let endpoint: string;
-        if (postType === 'Post') {
-            endpoint = `/posts/${postId}`;
-        } else if (postType === 'Page') {
-            endpoint = `/pages/${postId}`;
-        } else if (postType === 'Producto') {
-            endpoint = `/products/${postId}`;
+    if (postId && postType) {
+        if (postType === 'Producto') {
+            if (!wooApi) { throw new Error('La API de WooCommerce no está configurada.'); }
+            const response = await wooApi.get(`products/${postId}`);
+            const product = response.data;
+            const getMetaValue = (key: string) => {
+                const meta = product.meta_data.find((m: any) => m.key === key);
+                return meta ? meta.value : '';
+            };
+            const yoastTitle = getMetaValue('_yoast_wpseo_title');
+            const $ = cheerio.load(product.description || '');
+
+            pageData = {
+                title: yoastTitle || product.name || '',
+                metaDescription: getMetaValue('_yoast_wpseo_metadesc') || product.short_description || '',
+                focusKeyword: getMetaValue('_yoast_wpseo_focuskw') || '',
+                canonicalUrl: product.permalink || '',
+                h1: '', // Product pages don't usually have a clear H1 in the description
+                headings: $('h1, h2, h3, h4, h5, h6').map((i, el) => ({ tag: (el as cheerio.TagElement).name, text: $(el).text() })).get(),
+                images: (product.images || []).map((img: any) => ({ src: img.src, alt: img.alt || '' })),
+                textContent: cheerio.load(product.description || '').text().replace(/\s\s+/g, ' ').trim(),
+            };
+        } else if (postType === 'Post' || postType === 'Page') {
+            if (!wpApi) { throw new Error('La API de WordPress no está configurada.'); }
+            const endpoint = postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
+            const response = await wpApi.get(endpoint, { params: { context: 'edit', '_': new Date().getTime() } });
+            const post = response.data;
+            const $ = cheerio.load(post.content?.rendered || '');
+
+            const yoastTitle = post.meta?._yoast_wpseo_title;
+            const finalTitle = (typeof yoastTitle === 'string' && yoastTitle.trim() !== '') ? yoastTitle.trim() : post.title?.rendered || '';
+
+            pageData = {
+                title: finalTitle,
+                metaDescription: post.meta?._yoast_wpseo_metadesc || '',
+                focusKeyword: post.meta?._yoast_wpseo_focuskw || '',
+                canonicalUrl: post.link || '',
+                h1: $('h1').first().text(),
+                headings: $('h1, h2, h3, h4, h5, h6').map((i, el) => ({ tag: (el as cheerio.TagElement).name, text: $(el).text() })).get(),
+                images: $('img').map((i, el) => ({ src: $(el).attr('src') || '', alt: $(el).attr('alt') || '' })).get(),
+                textContent: $('body').text().replace(/\s\s+/g, ' ').trim(),
+            };
         } else {
             throw new Error(`Unsupported post type for analysis: ${postType}`);
         }
-
-        const response = await wpApi.get(endpoint, { params: { context: 'edit', '_': new Date().getTime() } });
-        const post = response.data;
-        const htmlContent = post.content?.rendered || '';
-        const $ = cheerio.load(htmlContent);
-
-        const yoastTitle = post.meta?._yoast_wpseo_title;
-        const finalTitle = (typeof yoastTitle === 'string' && yoastTitle.trim() !== '') ? yoastTitle.trim() : post.title?.rendered || '';
-
-        pageData = {
-            title: finalTitle,
-            metaDescription: post.meta?._yoast_wpseo_metadesc || '',
-            focusKeyword: post.meta?._yoast_wpseo_focuskw || '',
-            canonicalUrl: post.link || '',
-            h1: $('h1').first().text(),
-            headings: $('h1, h2, h3, h4, h5, h6').map((i, el) => ({ tag: (el as cheerio.TagElement).name, text: $(el).text() })).get(),
-            images: $('img').map((i, el) => ({ src: $(el).attr('src') || '', alt: $(el).attr('alt') || '' })).get(),
-            textContent: $('body').text().replace(/\s\s+/g, ' ').trim(),
-        };
     } else {
         const finalUrl = url.trim().startsWith('http') ? url : `https://${url}`;
         const urlWithCacheBust = new URL(finalUrl);
