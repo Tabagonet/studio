@@ -119,7 +119,7 @@ export interface BlogPostSearchResult {
   id: number;
   title: string;
   link: string;
-  status: 'publish' | 'draft' | 'pending' | 'future' | 'private';
+  status: 'publish' | 'draft' | 'pending' | 'future' | 'private' | 'trash';
   date_created: string;
   author_name: string;
   featured_image_url: string | null;
@@ -176,7 +176,7 @@ export interface ProductSearchResult {
   image: string | null;
   sku: string;
   type: ProductType;
-  status: 'draft' | 'pending' | 'private' | 'publish';
+  status: 'draft' | 'pending' | 'private' | 'publish' | 'trash';
   stock_status: 'instock' | 'outofstock' | 'onbackorder';
   categories: { id: number; name: string }[];
   date_created: string | null;
@@ -251,7 +251,7 @@ export interface ContentItem {
   title: string;
   type: 'Post' | 'Page' | 'Producto';
   link: string;
-  status: 'publish' | 'draft' | 'pending' | 'private' | 'future';
+  status: 'publish' | 'draft' | 'pending' | 'private' | 'future' | 'trash';
   parent: number;
   lang?: string;
   translations?: Record<string, number>;
