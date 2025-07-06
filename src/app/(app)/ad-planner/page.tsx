@@ -298,7 +298,7 @@ export default function AdPlannerPage() {
                 </Card>
             )}
 
-            {adPlan && companyInfo && <AdPlanView plan={adPlan} onPlanUpdate={setAdPlan} onReset={() => setAdPlan(null)} companyName={companyInfo.name} logoUrl={companyInfo.logoUrl} />}
+            {adPlan && companyInfo && <AdPlanView plan={adPlan} onPlanUpdate={setAdPlan} onReset={() => setAdPlan(null)} />}
 
             {!adPlan && (
                 <div className="mt-8">
