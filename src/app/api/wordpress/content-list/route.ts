@@ -2,42 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
-import type { AxiosInstance } from 'axios';
 
 export const dynamic = 'force-dynamic';
-
-async function fetchAllPaginatedContent(wpApi: AxiosInstance, endpoint: string) {
-    let allContent: any[] = [];
-    let page = 1;
-    const perPage = 100;
-    
-    while (true) {
-        const response = await wpApi.get(endpoint, {
-            params: {
-                per_page: perPage,
-                page: page,
-                context: 'view', // context=view is necessary for register_rest_field
-                status: 'publish,future,draft,pending,private',
-                // Request only necessary fields for performance, including our custom ones.
-                _fields: 'id,title,type,link,status,parent,lang,translations,meta,modified',
-            },
-        });
-
-        if (response.data.length === 0) {
-            break; // No more content to fetch
-        }
-
-        allContent = allContent.concat(response.data);
-
-        const totalPages = response.headers['x-wp-totalpages'];
-        if (!totalPages || page >= parseInt(totalPages, 10)) {
-            break;
-        }
-        page++;
-    }
-    return allContent;
-}
-
 
 export async function GET(req: NextRequest) {
   try {
@@ -55,31 +21,17 @@ export async function GET(req: NextRequest) {
       throw new Error('WordPress API is not configured for the active connection.');
     }
 
-    const [posts, pages, products] = await Promise.all([
-        fetchAllPaginatedContent(wpApi, '/posts'),
-        fetchAllPaginatedContent(wpApi, '/pages'),
-        fetchAllPaginatedContent(wpApi, '/products'), // Fetch products as well
-    ]);
+    // New logic: Call the custom endpoint which is more efficient
+    const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
+    if (!siteUrl) {
+      throw new Error("Could not determine base site URL from WordPress API configuration.");
+    }
+    const customEndpointUrl = `${siteUrl}/wp-json/custom/v1/content-list`;
 
-    const combinedContent = [...posts, ...pages, ...products].map(item => {
-        let itemType: 'Post' | 'Page' | 'Producto' = 'Post';
-        if (item.type === 'page') itemType = 'Page';
-        if (item.type === 'product') itemType = 'Producto';
+    const response = await wpApi.get(customEndpointUrl);
 
-        return {
-            id: item.id,
-            title: item.title?.rendered || 'Sin Título',
-            type: itemType,
-            link: item.link,
-            status: item.status,
-            parent: item.parent || 0,
-            lang: item.lang || null,
-            translations: item.translations || {},
-            modified: item.modified,
-        }
-    });
-
-    return NextResponse.json({ content: combinedContent });
+    // The custom endpoint already returns the data in the desired format
+    return NextResponse.json({ content: response.data.content });
 
   } catch (error: any) {
     let errorMessage = 'Failed to fetch content list.';
@@ -89,6 +41,10 @@ export async function GET(req: NextRequest) {
         errorMessage = error.response.data.message;
     } else if (error.message) {
         errorMessage = error.message;
+    }
+    
+    if (error.response?.status === 404) {
+      errorMessage = 'Endpoint /custom/v1/content-list no encontrado. Por favor, actualiza el plugin "AutoPress AI Helper" en tu WordPress a la última versión.';
     }
     
     console.error(`[API /content-list] Critical error: ${errorMessage}`);
