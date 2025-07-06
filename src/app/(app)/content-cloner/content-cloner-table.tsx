@@ -35,8 +35,61 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, ChevronDown, Copy } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogHeader, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
 
 type ContentItem = RawContentItem & { subRows: ContentItem[] };
+type CloningStatus = 'pending' | 'cloning' | 'translating' | 'updating' | 'success' | 'failed';
+type CloningProgress = Record<string, { title: string; status: CloningStatus; message: string; progress: number }>;
+
+const CloningProgressDialog = ({ open, progressData, onDone }: { open: boolean, progressData: CloningProgress, onDone: () => void }) => {
+    const isDone = React.useMemo(() => 
+        Object.values(progressData).every(p => p.status === 'success' || p.status === 'failed'),
+    [progressData]);
+    
+    const getStatusColor = (status: CloningStatus) => {
+        switch(status) {
+            case 'success': return 'text-green-500';
+            case 'failed': return 'text-destructive';
+            default: return 'text-muted-foreground';
+        }
+    }
+
+    return (
+        <Dialog open={open}>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>Proceso de Clonación en Lote</DialogTitle>
+                    <DialogDescription>
+                        {isDone ? 'El proceso ha finalizado.' : 'Clonando y traduciendo el contenido seleccionado...'}
+                    </DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="max-h-[60vh] my-4 pr-4">
+                    <div className="space-y-4">
+                        {Object.entries(progressData).map(([id, item]) => (
+                            <div key={id}>
+                                <div className="flex justify-between items-center mb-1">
+                                    <p className="text-sm font-medium truncate pr-4">{item.title}</p>
+                                    <p className={`text-sm font-semibold capitalize ${getStatusColor(item.status)}`}>
+                                        {item.status === 'pending' ? 'En cola' : item.status}
+                                    </p>
+                                </div>
+                                <Progress value={item.progress} />
+                                <p className="text-xs text-muted-foreground mt-1">{item.message}</p>
+                            </div>
+                        ))}
+                    </div>
+                </ScrollArea>
+                <DialogFooter>
+                    <Button onClick={onDone} disabled={!isDone}>Cerrar</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
 
 export function ContentClonerTable() {
   const [data, setData] = React.useState<ContentItem[]>([]);
@@ -53,6 +106,8 @@ export function ContentClonerTable() {
   const [isCloneDialogOpen, setIsCloneDialogOpen] = React.useState(false);
   const [targetLang, setTargetLang] = React.useState<string>("");
   const [isCloning, setIsCloning] = React.useState(false);
+  const [isProgressDialogOpen, setIsProgressDialogOpen] = React.useState(false);
+  const [cloningProgress, setCloningProgress] = React.useState<CloningProgress>({});
 
 
   const { toast } = useToast();
@@ -105,7 +160,7 @@ export function ContentClonerTable() {
 
       content.forEach((item) => {
         if (processedIds.has(item.id)) {
-          return; // Skip if already part of another group
+          return; 
         }
 
         if (item.translations && Object.keys(item.translations).length > 1) {
@@ -124,7 +179,6 @@ export function ContentClonerTable() {
             translationIds.forEach(id => processedIds.add(id));
           }
         } else {
-            // It's a standalone post
             const rootPost = dataMap.get(item.id);
             if (rootPost) {
               roots.push(rootPost);
@@ -156,6 +210,8 @@ export function ContentClonerTable() {
 
   const handleBatchClone = async () => {
     setIsCloning(true);
+    setIsCloneDialogOpen(false);
+    
     const selectedRows = table.getSelectedRowModel().rows;
     const post_ids = selectedRows.map(row => row.original.id);
     
@@ -172,35 +228,60 @@ export function ContentClonerTable() {
         return;
     }
 
+    const initialProgress: CloningProgress = {};
+    selectedRows.forEach(row => {
+        initialProgress[row.original.id] = { title: row.original.title, status: 'pending', message: 'En cola...', progress: 0 };
+    });
+    setCloningProgress(initialProgress);
+    setIsProgressDialogOpen(true);
+
     try {
         const token = await user.getIdToken();
-        toast({ title: `Iniciando clonación y traducción...`, description: `Procesando ${post_ids.length} elemento(s). Esto puede tardar.` });
-
         const response = await fetch('/api/wordpress/content-cloner/clone', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ post_ids, target_lang: targetLang })
         });
-
-        const result = await response.json();
-        if (!response.ok) {
-            throw new Error(result.message || 'Error en el servidor al clonar.');
+        
+        if (!response.body) {
+          throw new Error("La respuesta no es un stream.");
         }
 
-        const successCount = result.data?.success?.length || 0;
-        const failedCount = result.data?.failed?.length || 0;
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
 
-        toast({
-            title: "¡Clonación en Lote Exitosa!",
-            description: `${successCount} elemento(s) clonado(s) y ${failedCount} fallido(s).`,
-            variant: failedCount > 0 ? "destructive" : "default"
-        });
+        while(true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value, { stream: true });
+          const jsonObjects = chunk.split('\n').filter(s => s.trim() !== '');
 
-        fetchData(); // Refresh the table
+          jsonObjects.forEach(jsonStr => {
+            try {
+              const update = JSON.parse(jsonStr);
+              setCloningProgress(prev => ({
+                ...prev,
+                [update.id]: {
+                  ...prev[update.id],
+                  status: update.status,
+                  message: update.message,
+                  progress: update.progress
+                }
+              }));
+            } catch (e) {
+                console.error("Error parsing JSON chunk from stream:", jsonStr, e);
+            }
+          });
+        }
+        
+        toast({ title: "Proceso finalizado", description: "La clonación en lote ha terminado. Revisa los resultados en el diálogo." });
+        fetchData();
         table.resetRowSelection();
-        setIsCloneDialogOpen(false);
+
     } catch (error: any) {
         toast({ title: 'Error al Clonar', description: error.message, variant: 'destructive' });
+        setIsProgressDialogOpen(false);
     } finally {
         setIsCloning(false);
     }
@@ -265,6 +346,15 @@ export function ContentClonerTable() {
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
+
+        <CloningProgressDialog 
+            open={isProgressDialogOpen} 
+            progressData={cloningProgress} 
+            onDone={() => {
+                setIsProgressDialogOpen(false);
+                setCloningProgress({});
+            }}
+        />
 
         <div className="flex items-center justify-between">
             <div className="flex flex-col sm:flex-row gap-2">
