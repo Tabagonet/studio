@@ -35,9 +35,10 @@ Secret keys and configuration values are stored in environment variables. The pr
 
     -   `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` & `RECAPTCHA_SECRET_KEY`:
         -   Go to the [Google reCAPTCHA v3 Admin Console](https://www.google.com/recaptcha/admin/create).
-        -   Register your site (for local development, you can use `localhost`).
-        -   Copy the "Site Key" and paste it as the value for `NEXT_PUBLIC_RECAPTCHA_SITE_KEY`.
-        -   Copy the "Secret Key" and paste it as the value for `RECAPTCHA_SECRET_KEY`.
+        -   Register a new site. In the **Domains** section, you must add the hostname of the environment where the app is running. Google needs to know which domains are allowed to use your keys.
+        -   **For local development:** If you are running `npm run dev` on your own machine, add `localhost`.
+        -   **For Firebase Studio:** The app runs on a unique domain. Look at your browser's address bar. The URL will look something like `https://1234.cluster-xyz.cloudworkstations.dev`. Add just the hostname part (e.g., `1234.cluster-xyz.cloudworkstations.dev`) to the list of allowed domains in your reCAPTCHA settings.
+        -   After registering the domain(s), copy the "Site Key" and "Secret Key" into your `.env.local` file.
 
     -   `FIREBASE_SERVICE_ACCOUNT_JSON`:
         -   Go to your Firebase project console.
