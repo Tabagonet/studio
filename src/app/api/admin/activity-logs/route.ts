@@ -72,7 +72,9 @@ export async function GET(req: NextRequest) {
             const user = usersMap.get(logData.userId) || { displayName: 'Usuario Eliminado', email: '', photoURL: '', companyId: null, companyName: null };
             return {
                 id: doc.id,
-                ...logData,
+                userId: logData.userId,
+                action: logData.action,
+                details: logData.details,
                 timestamp: logData.timestamp.toDate().toISOString(),
                 user: user
             };
