@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Loader2, Sparkles, Megaphone } from 'lucide-react';
+import { Loader2, Sparkles, Megaphone, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { generateAdPlanAction } from './actions';
 import { AdPlanView } from './ad-plan-view';
@@ -127,6 +127,77 @@ export default function AdPlannerPage() {
         return () => unsubscribe();
     }, [toast, fetchHistory]);
 
+    const handleDownloadForm = () => {
+        const formText = `
+CUESTIONARIO DE PLANIFICACIÓN DE ESTRATEGIA DIGITAL - AutoPress AI
+==============================================================
+
+**URL del Sitio Web a Analizar:**
+
+
+**Objetivos Generales de la Campaña (marcar los que apliquen):**
+- [ ] Aumentar las ventas de un producto/servicio específico
+- [ ] Generar leads cualificados (formularios, suscripciones)
+- [ ] Aumentar el reconocimiento de marca (brand awareness)
+- [ ] Impulsar el tráfico a la web o a una landing page
+- [ ] Incrementar los seguidores y la interacción en redes sociales
+- [ ] Fidelizar clientes existentes y aumentar el LTV
+
+--------------------------------------------------------------
+**OPTIMIZACIÓN ADICIONAL (OPCIONAL)**
+--------------------------------------------------------------
+
+**1. Información de la Empresa y Propuesta de Valor**
+   - Información General de la Empresa (Misión, visión, valores, historia, etc.):
+   
+
+
+   - Propuesta de Valor y Diferenciación (¿Qué os hace únicos y diferentes de la competencia?):
+   
+
+
+**2. Público Objetivo y Competencia**
+   - Público Objetivo (Describe a tu cliente ideal, sus problemas y necesidades.):
+   
+
+
+   - Competencia y Mercado (Describe a tus principales competidores y cómo percibes el mercado.):
+   
+
+
+**3. Objetivos y Personalidad**
+   - Objetivo Principal Prioritario (Ej: Generar 10 leads cualificados este mes):
+   
+
+   - Presupuesto Mensual Máximo Indicado (Seleccionar uno):
+     - [ ] < 500€
+     - [ ] 500€ - 1.500€
+     - [ ] 1.500€ - 3.000€
+     - [ ] > 3.000€
+
+   - Personalidad de Marca (Adjetivos Clave - marcar los que apliquen):
+     - [ ] Profesional y Técnico
+     - [ ] Cercano y Amigable
+     - [ ] Lujoso y Elegante
+     - [ ] Vibrante y Moderno
+     - [ ] Eco-consciente y Natural
+     - [ ] Divertido y Juvenil
+
+**4. Contexto Adicional (Catch-all)**
+   - Otros Detalles Importantes (Añade aquí cualquier otra información que la IA deba conocer y que no encaje en las secciones anteriores.):
+   
+
+        `;
+        const blob = new Blob([formText.trim()], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'cuestionario-plan-publicidad.txt';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
 
     async function onSubmit(values: CreateAdPlanInput) {
         setIsLoading(true);
@@ -180,10 +251,18 @@ export default function AdPlannerPage() {
             {!adPlan && (
                 <Card>
                     <CardHeader>
-                        <CardTitle>Crear Nuevo Plan</CardTitle>
-                        <CardDescription>
-                            Introduce la URL y los objetivos. Para un plan más preciso, puedes rellenar opcionalmente cualquiera de las siguientes secciones. Cuanta más información proporciones, más detallada será la estrategia.
-                        </CardDescription>
+                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                            <div>
+                                <CardTitle>Crear Nuevo Plan</CardTitle>
+                                <CardDescription>
+                                    Introduce la URL y los objetivos. Puedes rellenar los campos opcionales para un plan más preciso.
+                                </CardDescription>
+                            </div>
+                            <Button variant="outline" onClick={handleDownloadForm}>
+                                <Download className="mr-2 h-4 w-4" />
+                                Descargar Cuestionario
+                            </Button>
+                        </div>
                     </CardHeader>
                     <CardContent>
                         <Form {...form}>
@@ -202,10 +281,10 @@ export default function AdPlannerPage() {
                                     )}
                                 />
                                 
-                                <Accordion type="multiple" className="w-full pt-4 border-t">
+                                <Accordion type="multiple" className="w-full pt-4 border-t" defaultValue={['item-3']}>
                                     <AccordionItem value="item-1">
                                         <AccordionTrigger>
-                                            <h3 className="text-lg font-semibold">1. Información de la Empresa y Propuesta de Valor</h3>
+                                            <h3 className="text-lg font-semibold">1. Información de la Empresa (Opcional)</h3>
                                         </AccordionTrigger>
                                         <AccordionContent className="space-y-6 pt-4">
                                              <FormField
@@ -233,7 +312,7 @@ export default function AdPlannerPage() {
                                     
                                      <AccordionItem value="item-2">
                                         <AccordionTrigger>
-                                            <h3 className="text-lg font-semibold">2. Público Objetivo y Competencia</h3>
+                                            <h3 className="text-lg font-semibold">2. Público y Mercado (Opcional)</h3>
                                         </AccordionTrigger>
                                         <AccordionContent className="space-y-6 pt-4">
                                             <FormField
@@ -298,7 +377,7 @@ export default function AdPlannerPage() {
                                             <FormField
                                                 control={form.control} name="priorityObjective" render={({ field }) => (
                                                     <FormItem>
-                                                        <FormLabel>Objetivo Principal Prioritario</FormLabel>
+                                                        <FormLabel>Objetivo Principal Prioritario (Opcional)</FormLabel>
                                                         <FormControl><Input placeholder="Ej: Generar 10 leads cualificados este mes" {...field} /></FormControl>
                                                         <FormMessage />
                                                     </FormItem>
@@ -307,7 +386,7 @@ export default function AdPlannerPage() {
                                             <FormField
                                                 control={form.control} name="monthlyBudget" render={({ field }) => (
                                                     <FormItem>
-                                                        <FormLabel>Presupuesto Mensual Máximo Indicado</FormLabel>
+                                                        <FormLabel>Presupuesto Mensual Máximo (Opcional)</FormLabel>
                                                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                                                             <FormControl>
                                                                 <SelectTrigger><SelectValue placeholder="Selecciona un rango de presupuesto..." /></SelectTrigger>
@@ -326,7 +405,7 @@ export default function AdPlannerPage() {
                                             <FormField
                                                 control={form.control} name="brandPersonality" render={() => (
                                                     <FormItem>
-                                                        <FormLabel>Personalidad de Marca (Adjetivos Clave)</FormLabel>
+                                                        <FormLabel>Personalidad de Marca (Opcional)</FormLabel>
                                                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                                             {brandPersonalities.map((item) => (
                                                                 <FormField key={item.id} control={form.control} name="brandPersonality"
@@ -357,14 +436,14 @@ export default function AdPlannerPage() {
                                     
                                      <AccordionItem value="item-4">
                                         <AccordionTrigger>
-                                            <h3 className="text-lg font-semibold">4. Contexto Adicional (Catch-all)</h3>
+                                            <h3 className="text-lg font-semibold">4. Contexto Adicional (Opcional)</h3>
                                         </AccordionTrigger>
                                         <AccordionContent className="space-y-6 pt-4">
                                              <FormField
                                                 control={form.control} name="additionalContext" render={({ field }) => (
                                                     <FormItem>
                                                         <FormLabel>Otros Detalles Importantes</FormLabel>
-                                                        <FormDescription>Añade aquí cualquier otra información que la IA deba conocer y que no encaje en las secciones anteriores.</FormDescription>
+                                                        <FormDescription>Pega aquí la información de tu cuestionario o añade cualquier otra cosa que la IA deba conocer y que no encaje en las secciones anteriores.</FormDescription>
                                                         <FormControl><Textarea placeholder="Ej: Queremos evitar un tono demasiado informal..." {...field} rows={6} /></FormControl>
                                                         <FormMessage />
                                                     </FormItem>
