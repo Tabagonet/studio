@@ -4,6 +4,7 @@ import { adminAuth, adminDb } from '@/lib/firebase-admin';
 
 export const dynamic = 'force-dynamic';
 
+// Helper to get admin context from the request
 async function getAdminContext(req: NextRequest): Promise<{ uid: string | null; role: string | null; companyId: string | null }> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) return { uid: null, role: null, companyId: null };
@@ -28,24 +29,25 @@ async function getAdminContext(req: NextRequest): Promise<{ uid: string | null; 
 
 export async function GET(req: NextRequest) {
     const adminContext = await getAdminContext(req);
-    const isAuthorized = adminContext.role === 'admin' || adminContext.role === 'super_admin';
     
-    if (!isAuthorized) {
+    // Authorization check
+    if (!adminContext.role || !['admin', 'super_admin'].includes(adminContext.role)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+
     if (!adminDb) {
         return NextResponse.json({ error: 'Firestore not configured' }, { status: 503 });
     }
 
     try {
-        // 1. Fetch all companies and create a map
+        // Step 1: Fetch all companies to map their names
         const companiesSnapshot = await adminDb.collection('companies').get();
         const companiesMap = new Map<string, string>();
         companiesSnapshot.forEach(doc => {
             companiesMap.set(doc.id, doc.data().name);
         });
 
-        // 2. Fetch all users and create a map with company info
+        // Step 2: Fetch all users to create a detailed user map
         const usersSnapshot = await adminDb.collection('users').get();
         const usersMap = new Map<string, any>();
         usersSnapshot.forEach(doc => {
@@ -60,12 +62,13 @@ export async function GET(req: NextRequest) {
             });
         });
 
-        // 3. Fetch all activity logs, limited to the most recent 200 for performance
+        // Step 3: Fetch the 200 most recent activity logs
         const logsSnapshot = await adminDb.collection('activity_logs').orderBy('timestamp', 'desc').limit(200).get();
         
-        // 4. Combine logs with user data and then filter based on role
-        const logs = logsSnapshot.docs.map(doc => {
+        // Step 4: Map logs to include user details, creating an enriched list
+        const allEnrichedLogs = logsSnapshot.docs.map(doc => {
             const logData = doc.data();
+            // Use the user map, providing a fallback for deleted users
             const user = usersMap.get(logData.userId) || { displayName: 'Usuario Eliminado', email: '', photoURL: '', companyId: null, companyName: null };
             return {
                 id: doc.id,
@@ -73,16 +76,25 @@ export async function GET(req: NextRequest) {
                 timestamp: logData.timestamp.toDate().toISOString(),
                 user: user
             };
-        }).filter(log => {
-            // If the user is a super_admin, they see everything.
+        });
+
+        // Step 5: Filter the enriched logs based on the admin's role
+        const filteredLogs = allEnrichedLogs.filter(log => {
+            // Super admins see all logs
             if (adminContext.role === 'super_admin') {
                 return true;
             }
-            // If the user is a regular admin, they only see logs from their own company.
-            return log.user.companyId === adminContext.companyId;
+            // Regular admins only see logs from users in their own company
+            // This also works if the admin has no company (companyId is null),
+            // in which case they will only see logs from other users with no company.
+            if (adminContext.role === 'admin') {
+                return log.user.companyId === adminContext.companyId;
+            }
+            // Should not be reached due to initial auth check, but as a safeguard:
+            return false;
         });
 
-        return NextResponse.json({ logs });
+        return NextResponse.json({ logs: filteredLogs });
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
