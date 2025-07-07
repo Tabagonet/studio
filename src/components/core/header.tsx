@@ -67,47 +67,48 @@ const ConnectionStatusIndicator = ({ status, isLoading }: { status: ConfigStatus
         <Link href="/settings/connections" className="flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Gestionar conexiones">
             <span className="hidden md:inline font-medium">{hostname}</span>
             
-            {status.activePlatform === 'woocommerce' && (
-                <div className="flex items-center gap-2 flex-shrink-0">
-                    <Tooltip>
-                        <TooltipTrigger>
-                           <Store className={cn("h-4 w-4", status.wooCommerceConfigured ? "text-green-500" : "text-destructive")} />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <p>WooCommerce: {status.wooCommerceConfigured ? "Configurado" : "No Configurado"}</p>
-                        </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                        <TooltipTrigger>
-                           <Globe className={cn("h-4 w-4", status.wordPressConfigured ? "text-green-500" : "text-destructive")} />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <p>WordPress: {status.wordPressConfigured ? "Configurado" : "No Configurado"}</p>
-                        </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                        <TooltipTrigger>
-                           <PlugZap className={cn("h-4 w-4", status.pluginActive ? "text-green-500" : "text-destructive")} />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <p>Plugin AutoPress AI: {status.pluginActive ? "Activo" : "No Detectado"}</p>
-                        </TooltipContent>
-                    </Tooltip>
-                </div>
-            )}
-
-            {status.activePlatform === 'shopify' && (
-                 <div className="flex items-center gap-2 flex-shrink-0">
-                     <Tooltip>
-                        <TooltipTrigger>
-                           <ShopifyIcon className={cn("h-4 w-4", status.shopifyConfigured ? "text-green-500" : "text-destructive")} />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <p>Shopify: {status.shopifyConfigured ? "Configurado" : "No Configurado"}</p>
-                        </TooltipContent>
-                    </Tooltip>
-                 </div>
-            )}
+            <div className="flex items-center gap-2 flex-shrink-0">
+                {status.activePlatform === 'woocommerce' && (
+                    <div className="flex items-center gap-2">
+                        <Tooltip>
+                            <TooltipTrigger>
+                            <Store className={cn("h-4 w-4", status.wooCommerceConfigured ? "text-green-500" : "text-destructive")} />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>WooCommerce: {status.wooCommerceConfigured ? "Configurado" : "No Configurado"}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                            <TooltipTrigger>
+                            <Globe className={cn("h-4 w-4", status.wordPressConfigured ? "text-green-500" : "text-destructive")} />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>WordPress: {status.wordPressConfigured ? "Configurado" : "No Configurado"}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                            <TooltipTrigger>
+                            <PlugZap className={cn("h-4 w-4", status.pluginActive ? "text-green-500" : "text-destructive")} />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Plugin AutoPress AI: {status.pluginActive ? "Activo" : "No Detectado"}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </div>
+                )}
+                {status.activePlatform === 'shopify' && (
+                    <div className="flex items-center gap-2">
+                        <Tooltip>
+                            <TooltipTrigger>
+                            <ShopifyIcon className={cn("h-4 w-4", status.shopifyConfigured ? "text-green-500" : "text-destructive")} />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Shopify: {status.shopifyConfigured ? "Configurado" : "No Configurado"}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </div>
+                )}
+            </div>
         </Link>
     </TooltipProvider>
   );

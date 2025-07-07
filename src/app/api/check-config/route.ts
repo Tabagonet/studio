@@ -53,35 +53,25 @@ export async function GET(req: NextRequest) {
     const targetUserId = searchParams.get('userId');
     const targetCompanyId = searchParams.get('companyId');
 
-    let entityPlatform: 'woocommerce' | 'shopify' | null = null;
-
     if (userRole === 'super_admin' && (targetUserId || targetCompanyId)) {
         if (targetCompanyId) {
             const companyDoc = await adminDb.collection('companies').doc(targetCompanyId).get();
             settingsSource = companyDoc.data();
-            entityPlatform = settingsSource?.platform || null;
         } else if (targetUserId) {
-            const userSettingsDoc = await adminDb.collection('user_settings').doc(targetUserId).get();
-            settingsSource = userSettingsDoc.data();
-            const targetUserDoc = await adminDb.collection('users').doc(targetUserId).get();
-            entityPlatform = targetUserDoc.data()?.platform || null;
+            settingsSource = (await adminDb.collection('user_settings').doc(targetUserId).get()).data();
         }
     } else {
         const userDoc = await adminDb.collection('users').doc(uid).get();
         const userData = userDoc.data();
-        entityPlatform = userData?.platform || null;
         if (userData?.companyId) {
             const companyDoc = await adminDb.collection('companies').doc(userData.companyId).get();
             settingsSource = companyDoc.data();
-            entityPlatform = settingsSource?.platform || entityPlatform;
         } else {
             const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
             settingsSource = userSettingsDoc.data();
         }
     }
     
-    activePlatform = entityPlatform;
-
     const loggedInUserSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
     if (loggedInUserSettingsDoc.exists) {
         userConfig.aiUsageCount = loggedInUserSettingsDoc.data()?.aiUsageCount || 0;
@@ -97,6 +87,13 @@ export async function GET(req: NextRequest) {
         userConfig.wordPressConfigured = !!(activeConnection.wordpressApiUrl && activeConnection.wordpressUsername && activeConnection.wordpressApplicationPassword);
         userConfig.shopifyConfigured = !!(activeConnection.shopifyStoreUrl && activeConnection.shopifyApiPassword);
         activeStoreUrl = activeConnection.wooCommerceStoreUrl || activeConnection.wordpressApiUrl || activeConnection.shopifyStoreUrl || null;
+
+        // Determine active platform based on configured fields in the active connection
+        if (userConfig.shopifyConfigured) {
+          activePlatform = 'shopify';
+        } else if (userConfig.wooCommerceConfigured || userConfig.wordPressConfigured) {
+          activePlatform = 'woocommerce';
+        }
 
         if (userConfig.wordPressConfigured) {
           const { wordpressApiUrl: url, wordpressUsername: username, wordpressApplicationPassword: applicationPassword } = activeConnection;
