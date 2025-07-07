@@ -17,6 +17,7 @@ const defaultPrivacyPolicy = `
   <li><strong>Datos de Conexión:</strong> Para que el Servicio funcione, debes proporcionar credenciales para servicios de terceros, como las claves API de WooCommerce y las contraseñas de aplicación de WordPress ("Datos de Conexión"). Estos datos se almacenan de forma segura en nuestra base de datos (Firestore) y se asocian exclusivamente a tu cuenta de usuario.</li>
   <li><strong>Contenido Generado por el Usuario:</strong> Recopilamos la información que proporcionas directamente al Servicio, lo que incluye, entre otros, los prompts de IA personalizados que guardas, los nombres de productos, los SKUs y los archivos (imágenes, CSVs) que subes para su procesamiento.</li>
   <li><strong>Datos de Uso y Acciones:</strong> Registramos información sobre cómo interactúas con el Servicio. Esto incluye acciones como la creación de productos, modificaciones, uso de funciones de IA y las conexiones utilizadas. Estos registros ("Logs de Acciones") se asocian a tu cuenta y se utilizan para fines estadísticos y de monitorización por parte del administrador del sistema.</li>
+  <li><strong>Información de Prospectos (Chatbot):</strong> A través de nuestro chatbot público, podemos recopilar información de contacto (nombre, email) e información sobre el negocio (URL, objetivos, presupuesto) de clientes potenciales que interactúan voluntariamente con él.</li>
 </ul>
 
 <h3>2. Cómo Usamos tu Información</h3>
@@ -25,7 +26,8 @@ const defaultPrivacyPolicy = `
   <li><strong>Para proporcionar y mantener el Servicio:</strong> Usamos tus Datos de Conexión para interactuar con tus tiendas de WooCommerce y WordPress, y el Contenido Generado por el Usuario para llevar a cabo las acciones que solicitas (por ejemplo, crear un producto).</li>
   <li><strong>Para gestionar tu cuenta:</strong> Incluyendo la comunicación contigo sobre tu cuenta y el proceso de aprobación de nuevos usuarios.</li>
   <li><strong>Para mejorar el Servicio:</strong> Analizamos los Datos de Uso para entender cómo se utiliza la aplicación, identificar problemas y planificar nuevas funcionalidades.</li>
-  <li><strong>Para fines administrativos y de seguridad:</strong> El administrador del sistema tiene acceso a los Logs de Acciones para monitorizar la actividad, garantizar el correcto funcionamiento y la seguridad del Servicio.</li>
+  <li><strong>Para fines administrativos y de seguridad:</strong> El administrador del sistema tiene acceso a los Logs de Acciones para monitorizar la actividad, garantizar el correcto funcionamiento y la seguridad del Servicio. Los datos de prospectos se utilizan para fines comerciales legítimos de seguimiento.</li>
+  <li><strong>Para proteger nuestros servicios:</strong> Usamos Google reCAPTCHA en nuestro chatbot para protegerlo contra spam y abuso.</li>
 </ul>
 
 <h3>3. Cómo Compartimos tu Información</h3>
@@ -43,7 +45,7 @@ const defaultPrivacyPolicy = `
 <p>Tienes derecho a acceder, corregir o solicitar la eliminación de tus datos personales. Puedes gestionar tus Datos de Conexión directamente desde la sección de "Configuración" de la aplicación. Para solicitar la eliminación de tu cuenta y todos los datos asociados, por favor, contáctanos.</p>
 
 <h3>6. Cookies y Tecnologías Similares</h3>
-<p>Utilizamos cookies estrictamente necesarias para el funcionamiento del Servicio, principalmente para gestionar tu sesión de autenticación a través de Firebase. No utilizamos cookies de seguimiento o publicitarias de terceros.</p>
+<p>Utilizamos cookies estrictamente necesarias para el funcionamiento del Servicio, principalmente para gestionar tu sesión de autenticación a través de Firebase. Nuestro banner de cookies te informa de este uso. No utilizamos cookies de seguimiento o publicitarias de terceros.</p>
 
 <h3>7. Privacidad de los Niños</h3>
 <p>Nuestro Servicio no está dirigido a menores de 13 años. No recopilamos intencionadamente información de identificación personal de niños menores de 13 años.</p>

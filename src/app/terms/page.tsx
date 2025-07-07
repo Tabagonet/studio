@@ -19,11 +19,12 @@ const defaultTerms = `
 
 <h3>2. Uso del Servicio</h3>
 <p>
-  El Servicio está diseñado para ayudarte a automatizar la creación y gestión de productos en tus tiendas de WooCommerce. Aceptas utilizar el Servicio solo para los fines previstos y de conformidad con todas las leyes y regulaciones aplicables.
+  El Servicio está diseñado para ayudarte a automatizar la creación y gestión de productos, contenido y estrategias de marketing para tus sitios web de WooCommerce y WordPress. Aceptas utilizar el Servicio solo para los fines previstos y de conformidad con todas las leyes y regulaciones aplicables.
 </p>
 <ul>
-  <li><strong>Credenciales API:</strong> Eres el único responsable de obtener y proteger tus credenciales API (claves de WooCommerce, contraseñas de aplicación de WordPress). Debes asegurarte de que tienes los permisos necesarios para utilizar estas credenciales.</li>
+  <li><strong>Credenciales API:</strong> Eres el único responsable de obtener y proteger tus credenciales API (claves de WooCommerce, contraseñas de aplicación de WordPress). Debes asegurarte de que tienes los permisos necesarios para utilizar estas credenciales. Al introducirlas en nuestro Servicio, nos autorizas a actuar en tu nombre para realizar las acciones que solicites en tus sitios web.</li>
   <li><strong>Conducta del Usuario:</strong> No debes utilizar el Servicio para ningún propósito ilegal o no autorizado. Aceptas no interferir ni interrumpir el Servicio o los servidores y redes conectados al Servicio.</li>
+  <li><strong>Uso de IA:</strong> El Servicio utiliza modelos de inteligencia artificial para generar contenido. Eres responsable de revisar, editar y verificar la exactitud y adecuación de todo el contenido generado por la IA antes de publicarlo en tus sitios web. No nos hacemos responsables de la precisión, legalidad o idoneidad del contenido generado.</li>
 </ul>
 
 <h3>3. Contenido del Usuario</h3>
@@ -49,14 +50,14 @@ const defaultTerms = `
   En ningún caso ${`Grupo 4 alas S.L.`} será responsable de ninguna pérdida o daño, incluida la pérdida de datos, la interrupción del negocio o cualquier otro daño resultante de tu uso o incapacidad para usar el Servicio o de errores en tus tiendas conectados al Servicio.
 </p>
 
-<h3>7. Cambios en los Términos</h3>
-<p>
-  Nos reservamos el derecho, a nuestra entera discreción, de modificar o reemplazar estos Términos en cualquier momento. Si una revisión es material, intentaremos proporcionar un aviso con al menos 30 días de antelación antes de que los nuevos términos entren en vigor.
-</p>
-
-<h3>8. Ley Aplicable</h3>
+<h3>7. Ley Aplicable</h3>
 <p>
   Estos Términos se regirán e interpretarán de acuerdo con las leyes de ${`España`}, sin tener en cuenta sus disposiciones sobre conflictos de leyes.
+</p>
+
+<h3>8. Cambios en los Términos</h3>
+<p>
+  Nos reservamos el derecho, a nuestra entera discreción, de modificar o reemplazar estos Términos en cualquier momento. Si una revisión es material, intentaremos proporcionar un aviso con al menos 30 días de antelación antes de que los nuevos términos entren en vigor.
 </p>
 
 <h3>9. Contacto</h3>
