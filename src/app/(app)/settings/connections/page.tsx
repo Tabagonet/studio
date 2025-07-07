@@ -238,7 +238,10 @@ export default function ConnectionsPage() {
     }, [fetchConnections]);
 
      useEffect(() => {
-        if (!editingTarget.id) {
+        const targetId = editingTarget.id;
+        const targetType = editingTarget.type;
+
+        if (!targetId) {
             setSelectedEntityStatus(null);
             return;
         }
@@ -254,10 +257,10 @@ export default function ConnectionsPage() {
             try {
                 const token = await user.getIdToken();
                 const url = new URL('/api/check-config', window.location.origin);
-                if (editingTarget.type === 'company') {
-                    url.searchParams.append('companyId', editingTarget.id);
+                if (targetType === 'company') {
+                    url.searchParams.append('companyId', targetId);
                 } else { // 'user'
-                    url.searchParams.append('userId', editingTarget.id);
+                    url.searchParams.append('userId', targetId);
                 }
 
                 const response = await fetch(url.toString(), {
