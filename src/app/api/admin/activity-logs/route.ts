@@ -84,12 +84,16 @@ export async function GET(req: NextRequest) {
             if (adminContext.role === 'super_admin') {
                 return true;
             }
-            // Regular admins only see logs from users in their own company
-            // This also works if the admin has no company (companyId is null),
-            // in which case they will only see logs from other users with no company.
+            
             if (adminContext.role === 'admin') {
-                return log.user.companyId === adminContext.companyId;
+                // If the admin has a company, they see all logs from that company.
+                if (adminContext.companyId) {
+                    return log.user.companyId === adminContext.companyId;
+                }
+                // If the admin has NO company, they only see their OWN logs.
+                return log.userId === adminContext.uid;
             }
+            
             // Should not be reached due to initial auth check, but as a safeguard:
             return false;
         });
