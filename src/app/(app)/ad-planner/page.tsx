@@ -144,38 +144,48 @@ CUESTIONARIO DE PLANIFICACIÓN DE ESTRATEGIA DIGITAL - AutoPress AI
 - [ ] Fidelizar clientes existentes y aumentar el LTV
 
 --------------------------------------------------------------
-**OPTIMIZACIÓN ADICIONAL (OPCIONAL)**
+**1. INFORMACIÓN DE LA EMPRESA Y PROPUESTA DE VALOR**
 --------------------------------------------------------------
 
-**1. Información de la Empresa y Propuesta de Valor**
-   - Información General de la Empresa (Misión, visión, valores, historia, etc.):
+   **Información General de la Empresa:**
+   (Misión, visión, valores, historia, etc.)
    
 
 
-   - Propuesta de Valor y Diferenciación (¿Qué os hace únicos y diferentes de la competencia?):
+   **Propuesta de Valor y Diferenciación:**
+   (¿Qué os hace únicos y diferentes de la competencia?)
    
 
 
-**2. Público Objetivo y Competencia**
-   - Público Objetivo (Describe a tu cliente ideal, sus problemas y necesidades.):
+--------------------------------------------------------------
+**2. PÚBLICO OBJETIVO Y COMPETENCIA**
+--------------------------------------------------------------
+
+   **Público Objetivo:**
+   (Describe a tu cliente ideal, sus problemas y necesidades.)
    
 
 
-   - Competencia y Mercado (Describe a tus principales competidores y cómo percibes el mercado.):
+   **Competencia y Mercado:**
+   (Describe a tus principales competidores y cómo percibes el mercado.)
    
 
 
-**3. Objetivos y Personalidad**
-   - Objetivo Principal Prioritario (Ej: Generar 10 leads cualificados este mes):
+--------------------------------------------------------------
+**3. OBJETIVOS Y PERSONALIDAD**
+--------------------------------------------------------------
+
+   **Objetivo Principal Prioritario:**
+   (De todos los objetivos, si solo pudieras elegir uno para los próximos 3 meses, ¿cuál sería? Ej: Generar 10 leads cualificados este mes.)
    
 
-   - Presupuesto Mensual Máximo Indicado (Seleccionar uno):
+   **Presupuesto Mensual Máximo Indicado (Seleccionar uno):**
      - [ ] < 500€
      - [ ] 500€ - 1.500€
      - [ ] 1.500€ - 3.000€
      - [ ] > 3.000€
 
-   - Personalidad de Marca (Adjetivos Clave - marcar los que apliquen):
+   **Personalidad de Marca (Adjetivos Clave - marcar los que apliquen):**
      - [ ] Profesional y Técnico
      - [ ] Cercano y Amigable
      - [ ] Lujoso y Elegante
@@ -183,8 +193,12 @@ CUESTIONARIO DE PLANIFICACIÓN DE ESTRATEGIA DIGITAL - AutoPress AI
      - [ ] Eco-consciente y Natural
      - [ ] Divertido y Juvenil
 
-**4. Contexto Adicional (Catch-all)**
-   - Otros Detalles Importantes (Añade aquí cualquier otra información que la IA deba conocer y que no encaje en las secciones anteriores.):
+--------------------------------------------------------------
+**4. CONTEXTO ADICIONAL (Catch-all)**
+--------------------------------------------------------------
+
+   **Otros Detalles Importantes:**
+   (Añade aquí cualquier otra información que la IA deba conocer y que no encaje en las secciones anteriores. Puedes pegar información de otros cuestionarios aquí.)
    
 
         `;
@@ -255,7 +269,7 @@ CUESTIONARIO DE PLANIFICACIÓN DE ESTRATEGIA DIGITAL - AutoPress AI
                             <div>
                                 <CardTitle>Crear Nuevo Plan</CardTitle>
                                 <CardDescription>
-                                    Introduce la URL y los objetivos. Puedes rellenar los campos opcionales para un plan más preciso.
+                                    Introduce la URL y los objetivos. Las secciones opcionales mejorarán la precisión del plan.
                                 </CardDescription>
                             </div>
                             <Button variant="outline" onClick={handleDownloadForm}>
@@ -281,75 +295,20 @@ CUESTIONARIO DE PLANIFICACIÓN DE ESTRATEGIA DIGITAL - AutoPress AI
                                     )}
                                 />
                                 
-                                <Accordion type="multiple" className="w-full pt-4 border-t" defaultValue={['item-3']}>
-                                    <AccordionItem value="item-1">
+                                <Accordion type="multiple" className="w-full pt-4 border-t">
+                                     <AccordionItem value="item-main">
                                         <AccordionTrigger>
-                                            <h3 className="text-lg font-semibold">1. Información de la Empresa (Opcional)</h3>
+                                            <h3 className="text-lg font-semibold">Objetivos Principales</h3>
                                         </AccordionTrigger>
-                                        <AccordionContent className="space-y-6 pt-4">
-                                             <FormField
-                                                control={form.control} name="companyInfo" render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel>Información General de la Empresa</FormLabel>
-                                                        <FormDescription>Misión, visión, valores, historia, etc.</FormDescription>
-                                                        <FormControl><Textarea placeholder="Somos una empresa familiar con 50 años de historia..." {...field} rows={6} /></FormControl>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
+                                         <AccordionContent className="space-y-6 pt-4">
                                             <FormField
-                                                control={form.control} name="valueProposition" render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel>Propuesta de Valor y Diferenciación</FormLabel>
-                                                         <FormDescription>¿Qué os hace únicos y diferentes de la competencia?</FormDescription>
-                                                        <FormControl><Textarea placeholder="Nuestra propuesta de valor es..." {...field} rows={4} /></FormControl>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                    
-                                     <AccordionItem value="item-2">
-                                        <AccordionTrigger>
-                                            <h3 className="text-lg font-semibold">2. Público y Mercado (Opcional)</h3>
-                                        </AccordionTrigger>
-                                        <AccordionContent className="space-y-6 pt-4">
-                                            <FormField
-                                                control={form.control} name="targetAudience" render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel>Público Objetivo</FormLabel>
-                                                        <FormDescription>Describe a tu cliente ideal, sus problemas y necesidades.</FormDescription>
-                                                        <FormControl><Textarea placeholder="Nuestro cliente ideal es una mujer de 30-45 años..." {...field} rows={6} /></FormControl>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                             <FormField
-                                                control={form.control} name="competitors" render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel>Competencia y Mercado</FormLabel>
-                                                         <FormDescription>Describe a tus principales competidores y cómo percibes el mercado.</FormDescription>
-                                                        <FormControl><Textarea placeholder="Nuestros principales competidores son X e Y..." {...field} rows={4} /></FormControl>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                        </AccordionContent>
-                                    </AccordionItem>
-
-                                    <AccordionItem value="item-3">
-                                        <AccordionTrigger>
-                                            <h3 className="text-lg font-semibold">3. Objetivos y Personalidad</h3>
-                                        </AccordionTrigger>
-                                        <AccordionContent className="space-y-6 pt-4">
-                                             <FormField
                                                 control={form.control}
                                                 name="objectives"
                                                 render={() => (
                                                     <FormItem>
                                                         <FormLabel>Objetivos Generales de la Campaña</FormLabel>
-                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        <FormDescription>Selecciona todos los que apliquen.</FormDescription>
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                                                             {objectives.map((item) => (
                                                                 <FormField key={item} control={form.control} name="objectives"
                                                                     render={({ field }) => (
@@ -374,39 +333,52 @@ CUESTIONARIO DE PLANIFICACIÓN DE ESTRATEGIA DIGITAL - AutoPress AI
                                                     </FormItem>
                                                 )}
                                             />
-                                            <FormField
-                                                control={form.control} name="priorityObjective" render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel>Objetivo Principal Prioritario (Opcional)</FormLabel>
-                                                        <FormControl><Input placeholder="Ej: Generar 10 leads cualificados este mes" {...field} /></FormControl>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                            <FormField
-                                                control={form.control} name="monthlyBudget" render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel>Presupuesto Mensual Máximo (Opcional)</FormLabel>
-                                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                            <FormControl>
-                                                                <SelectTrigger><SelectValue placeholder="Selecciona un rango de presupuesto..." /></SelectTrigger>
-                                                            </FormControl>
-                                                            <SelectContent>
-                                                                <SelectItem value="<500€">&lt; 500€</SelectItem>
-                                                                <SelectItem value="500€-1500€">500€ - 1.500€</SelectItem>
-                                                                <SelectItem value="1500€-3000€">1.500€ - 3.000€</SelectItem>
-                                                                <SelectItem value=">3000€">&gt; 3.000€</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
+                                         </AccordionContent>
+                                     </AccordionItem>
+                                </Accordion>
+
+                                 <Accordion type="multiple" className="w-full pt-4 border-t">
+                                    <AccordionItem value="item-1">
+                                        <AccordionTrigger>
+                                            <h3 className="text-lg font-semibold">Optimización Adicional (Opcional)</h3>
+                                        </AccordionTrigger>
+                                        <AccordionContent className="space-y-6 pt-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <FormField
+                                                    control={form.control} name="priorityObjective" render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>1. Objetivo Principal Prioritario</FormLabel>
+                                                            <FormControl><Input placeholder="Ej: Generar 10 leads cualificados este mes" {...field} /></FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                 <FormField
+                                                    control={form.control} name="monthlyBudget" render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>2. Presupuesto Mensual Máximo</FormLabel>
+                                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                                <FormControl>
+                                                                    <SelectTrigger><SelectValue placeholder="Selecciona un rango..." /></SelectTrigger>
+                                                                </FormControl>
+                                                                <SelectContent>
+                                                                    <SelectItem value="<500€">&lt; 500€</SelectItem>
+                                                                    <SelectItem value="500€-1500€">500€ - 1.500€</SelectItem>
+                                                                    <SelectItem value="1500€-3000€">1.500€ - 3.000€</SelectItem>
+                                                                    <SelectItem value=">3000€">&gt; 3.000€</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </div>
                                             <FormField
                                                 control={form.control} name="brandPersonality" render={() => (
                                                     <FormItem>
-                                                        <FormLabel>Personalidad de Marca (Opcional)</FormLabel>
-                                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                                        <FormLabel>3. Personalidad de Marca</FormLabel>
+                                                         <FormDescription>Selecciona los adjetivos que mejor describan la marca.</FormDescription>
+                                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-2">
                                                             {brandPersonalities.map((item) => (
                                                                 <FormField key={item.id} control={form.control} name="brandPersonality"
                                                                     render={({ field }) => (
@@ -431,26 +403,53 @@ CUESTIONARIO DE PLANIFICACIÓN DE ESTRATEGIA DIGITAL - AutoPress AI
                                                     </FormItem>
                                                 )}
                                             />
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                    
-                                     <AccordionItem value="item-4">
-                                        <AccordionTrigger>
-                                            <h3 className="text-lg font-semibold">4. Contexto Adicional (Opcional)</h3>
-                                        </AccordionTrigger>
-                                        <AccordionContent className="space-y-6 pt-4">
+                                             <FormField
+                                                control={form.control} name="companyInfo" render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>4. Información General de la Empresa</FormLabel>
+                                                        <FormControl><Textarea placeholder="Misión, visión, valores, historia, etc." {...field} rows={4} /></FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control} name="valueProposition" render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>5. Propuesta de Valor y Diferenciación</FormLabel>
+                                                        <FormControl><Textarea placeholder="¿Qué os hace únicos y diferentes de la competencia?" {...field} rows={4} /></FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control} name="targetAudience" render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>6. Público Objetivo y sus Problemas</FormLabel>
+                                                        <FormControl><Textarea placeholder="Describe a tu cliente ideal, sus problemas y necesidades." {...field} rows={4} /></FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                             <FormField
+                                                control={form.control} name="competitors" render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>7. Competencia y Mercado</FormLabel>
+                                                        <FormControl><Textarea placeholder="Describe a tus principales competidores y cómo percibes el mercado." {...field} rows={4} /></FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
                                              <FormField
                                                 control={form.control} name="additionalContext" render={({ field }) => (
                                                     <FormItem>
-                                                        <FormLabel>Otros Detalles Importantes</FormLabel>
-                                                        <FormDescription>Pega aquí la información de tu cuestionario o añade cualquier otra cosa que la IA deba conocer y que no encaje en las secciones anteriores.</FormDescription>
-                                                        <FormControl><Textarea placeholder="Ej: Queremos evitar un tono demasiado informal..." {...field} rows={6} /></FormControl>
+                                                        <FormLabel>8. Contexto Adicional (Notas Finales)</FormLabel>
+                                                        <FormControl><Textarea placeholder="Pega aquí la información de tu cuestionario o añade cualquier otra cosa que la IA deba conocer." {...field} rows={6} /></FormControl>
                                                         <FormMessage />
                                                     </FormItem>
                                                 )}
                                             />
                                         </AccordionContent>
-                                     </AccordionItem>
+                                    </AccordionItem>
                                 </Accordion>
 
                                 <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
@@ -473,3 +472,4 @@ CUESTIONARIO DE PLANIFICACIÓN DE ESTRATEGIA DIGITAL - AutoPress AI
         </div>
     );
 }
+
