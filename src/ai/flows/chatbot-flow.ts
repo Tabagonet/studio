@@ -34,9 +34,13 @@ const CHATBOT_PROMPT_TEMPLATE = `Eres un asistente de estrategia digital amigabl
 6.  **Finalización:** Una vez que tengas el email, agradece y finaliza la conversación emitiendo la palabra "FIN".
 
 **Historial de la Conversación Actual:**
+{{#if history}}
 {{{history}}}
+{{else}}
+(No hay historial. Empieza la conversación con el "Saludo Inicial".)
+{{/if}}
 
-Ahora, continúa la conversación. Formula la siguiente pregunta o finaliza si has completado todos los pasos.`;
+Ahora, basándote en el flujo definido y el historial, continúa la conversación. Formula la siguiente pregunta o finaliza si has completado todos los pasos.`;
 
 const safetySettings = [
     { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
