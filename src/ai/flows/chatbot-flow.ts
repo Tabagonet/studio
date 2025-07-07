@@ -140,8 +140,12 @@ export async function getChatbotResponse(messages: Message[]): Promise<string> {
 
     let scrapedContent: string | null = null;
     let existingProspectData: any = null;
+    
+    // Filter to get only user messages
+    const userMessages = messages.filter(msg => msg.role === 'user');
 
-    if (messages.length === 1) { // Only on the first user message
+    // Only scrape and check DB on the very first message from the user
+    if (userMessages.length === 1) {
         const url = findUrlInMessages(messages);
         if (url) {
             scrapedContent = await scrapeUrl(url);

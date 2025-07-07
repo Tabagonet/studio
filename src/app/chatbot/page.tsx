@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -30,35 +31,46 @@ function ChatbotComponent() {
     const { toast } = useToast();
     const { executeRecaptcha } = useGoogleReCaptcha();
 
-    // This useEffect hook is now responsible for initiating the conversation.
-    // It will only run when `executeRecaptcha` becomes available.
-    useEffect(() => {
-        // Ensure this only runs once when the component mounts and reCAPTCHA is ready.
-        if (executeRecaptcha && messages.length === 0 && !isLoading) {
-            const startConversation = async () => {
-                setIsLoading(true);
-                try {
-                    const recaptchaToken = await executeRecaptcha('chatbot_interaction');
-                    const response = await fetch('/api/chatbot', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ messages: [], recaptchaToken })
-                    });
-                    if (!response.ok) {
-                         const errorData = await response.json();
-                         throw new Error(errorData.error || 'Failed to start conversation');
-                    }
-                    const data = await response.json();
-                    setMessages([{ id: 'start-1', role: 'model', content: data.response }]);
-                } catch (error: any) {
-                    toast({ title: "Error del Chatbot", description: error.message, variant: "destructive" });
-                } finally {
-                    setIsLoading(false);
-                }
-            };
-            startConversation();
+    const startConversation = useCallback(async () => {
+        if (!executeRecaptcha) {
+            console.log("reCAPTCHA not available yet");
+            return;
+        }
+        
+        if (messages.length > 0 || isLoading) {
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const recaptchaToken = await executeRecaptcha('chatbot_interaction');
+            if (!recaptchaToken) {
+                throw new Error("Could not get reCAPTCHA token.");
+            }
+            const response = await fetch('/api/chatbot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ messages: [], recaptchaToken })
+            });
+
+            if (!response.ok) {
+                 const errorData = await response.json();
+                 throw new Error(errorData.error || 'Failed to start conversation');
+            }
+            
+            const data = await response.json();
+            setMessages([{ id: 'start-1', role: 'model', content: data.response }]);
+
+        } catch (error: any) {
+            toast({ title: "Error del Chatbot", description: error.message, variant: "destructive" });
+        } finally {
+            setIsLoading(false);
         }
     }, [executeRecaptcha, messages.length, isLoading, toast]);
+
+    useEffect(() => {
+        startConversation();
+    }, [startConversation]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -88,6 +100,9 @@ function ChatbotComponent() {
 
         try {
             const recaptchaToken = await executeRecaptcha('chatbot_interaction');
+            if (!recaptchaToken) {
+                throw new Error("Could not get reCAPTCHA token.");
+            }
 
             const response = await fetch('/api/chatbot', {
                 method: 'POST',
@@ -172,24 +187,9 @@ function ChatbotComponent() {
                         </div>
                     </ScrollArea>
                 </CardContent>
-                <CardFooter className="border-t p-4">
-                    {isComplete ? (
-                        <div className="text-sm text-center text-muted-foreground w-full">
-                            <p>Gracias por tu tiempo. Nos pondremos en contacto contigo pronto.</p>
-                            <p className="text-xs mt-2">
-                                Puedes consultar nuestros{' '}
-                                <Link href="/terms" className="underline hover:text-primary">
-                                    Términos de Servicio
-                                </Link>
-                                {' y '}
-                                <Link href="/privacy" className="underline hover:text-primary">
-                                    Política de Privacidad
-                                </Link>
-                                .
-                            </p>
-                        </div>
-                    ) : (
-                        <form onSubmit={handleSendMessage} className="w-full flex items-center gap-2">
+                <CardFooter className="border-t p-4 flex flex-col gap-3">
+                    {!isComplete ? (
+                         <form onSubmit={handleSendMessage} className="w-full flex items-center gap-2">
                             <Input
                                 ref={inputRef}
                                 value={input}
@@ -197,11 +197,26 @@ function ChatbotComponent() {
                                 placeholder="Escribe tu respuesta..."
                                 disabled={isLoading || isComplete}
                             />
-                            <Button type="submit" size="icon" disabled={isLoading || isComplete}>
+                            <Button type="submit" size="icon" disabled={isLoading || isComplete || !input.trim()}>
                                 <Send className="h-4 w-4" />
                             </Button>
                         </form>
-                    )}
+                    ) : null}
+                     <div className="text-xs text-center text-muted-foreground w-full">
+                        Puedes consultar nuestros{' '}
+                        <Link href="/terms" className="underline hover:text-primary">
+                            Términos de Servicio
+                        </Link>
+                        ,{' '}
+                        <Link href="/privacy" className="underline hover:text-primary">
+                            Política de Privacidad
+                        </Link>
+                        {' y '}
+                        <Link href="/cookies" className="underline hover:text-primary">
+                            Política de Cookies
+                        </Link>
+                        .
+                    </div>
                 </CardFooter>
             </Card>
         </div>
