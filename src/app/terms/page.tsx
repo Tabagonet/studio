@@ -5,6 +5,7 @@ import { APP_NAME } from "@/lib/constants";
 import { adminDb } from '@/lib/firebase-admin';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0; // Ensure the page is always re-rendered
 
 const defaultTerms = `
 <h1>Términos y Condiciones del Servicio</h1>

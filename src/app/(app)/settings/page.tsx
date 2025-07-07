@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { KeyRound, DatabaseZap, Download, Upload, Info, BrainCircuit, Loader2, ExternalLink, Server, Store, Globe, Trash2, Eye, EyeOff, ShieldCheck, Save } from "lucide-react";
+import { KeyRound, DatabaseZap, Download, Upload, Info, BrainCircuit, Loader2, ExternalLink, Server, Store, Globe, Trash2, Eye, EyeOff, ShieldCheck, Save, Cookie } from "lucide-react";
 import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -21,7 +21,7 @@ type ServerConfigStatus = {
   wooCommerceConfigured: boolean;
   wordPressConfigured: boolean;
   firebaseAdminSdk: boolean;
-  recaptchaConfigured: boolean; // Added
+  recaptchaConfigured: boolean;
   apiKey: string | null;
 };
 
@@ -60,7 +60,7 @@ export default function SettingsPage() {
   const [isCleaningOrphans, setIsCleaningOrphans] = useState(false);
   const [isApiKeyVisible, setIsApiKeyVisible] = useState(false);
   
-  const [legalTexts, setLegalTexts] = useState({ privacyPolicy: '', termsOfService: '' });
+  const [legalTexts, setLegalTexts] = useState({ privacyPolicy: '', termsOfService: '', cookiePolicy: '' });
   const [isLoadingLegal, setIsLoadingLegal] = useState(true);
   const [isSavingLegal, setIsSavingLegal] = useState(false);
   
@@ -300,7 +300,7 @@ export default function SettingsPage() {
     }
   };
   
-  const handleLegalContentChange = (field: 'privacyPolicy' | 'termsOfService', content: string) => {
+  const handleLegalContentChange = (field: 'privacyPolicy' | 'termsOfService' | 'cookiePolicy', content: string) => {
     setLegalTexts(prev => ({ ...prev, [field]: content }));
   };
 
@@ -451,8 +451,11 @@ export default function SettingsPage() {
       {userRole === 'super_admin' && (
         <Card className="shadow-lg">
             <CardHeader>
-                <CardTitle>Textos Legales</CardTitle>
-                <CardDescription>Edita el contenido de las páginas de política de privacidad y términos de servicio. Puedes usar HTML.</CardDescription>
+                 <div className="flex items-center space-x-2">
+                    <Cookie className="h-6 w-6 text-primary" />
+                    <CardTitle>Textos Legales</CardTitle>
+                </div>
+                <CardDescription>Edita el contenido de las páginas de política de privacidad, términos de servicio y política de cookies. Puedes usar HTML.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                 {isLoadingLegal ? (
@@ -460,6 +463,8 @@ export default function SettingsPage() {
                         <Skeleton className="h-8 w-1/4" />
                         <Skeleton className="h-32 w-full" />
                         <Skeleton className="h-8 w-1/4" />
+                        <Skeleton className="h-32 w-full" />
+                         <Skeleton className="h-8 w-1/4" />
                         <Skeleton className="h-32 w-full" />
                     </div>
                 ) : (
@@ -480,6 +485,15 @@ export default function SettingsPage() {
                                 onChange={(newContent) => handleLegalContentChange('termsOfService', newContent)}
                                 onInsertImage={handleDummyInsertImage}
                                 placeholder="Introduce los términos y condiciones del servicio aquí."
+                            />
+                        </div>
+                         <div>
+                            <Label>Política de Cookies</Label>
+                             <RichTextEditor
+                                content={legalTexts.cookiePolicy}
+                                onChange={(newContent) => handleLegalContentChange('cookiePolicy', newContent)}
+                                onInsertImage={handleDummyInsertImage}
+                                placeholder="Introduce el texto de la política de cookies aquí."
                             />
                         </div>
                         <div className="flex justify-end pt-4 border-t mt-4">

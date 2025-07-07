@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState } from 'react';
@@ -87,10 +88,14 @@ export default function LoginPage() {
             Al continuar, aceptas nuestros{' '}
             <Link href="/terms" className="underline hover:text-primary">
               Términos de Servicio
-            </Link>{' '}
-            y nuestra{' '}
+            </Link>
+            ,{' '}
             <Link href="/privacy" className="underline hover:text-primary">
               Política de Privacidad
+            </Link>
+            , y{' '}
+            <Link href="/cookies" className="underline hover:text-primary">
+              Política de Cookies
             </Link>
             .
           </p>

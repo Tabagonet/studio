@@ -1,10 +1,11 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
-import { APP_NAME } from "@/lib/constants";
+import { APP_NAME, SUPPORT_EMAIL } from "@/lib/constants";
 import { adminDb } from '@/lib/firebase-admin';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0; // Ensure the page is always re-rendered
 
 const defaultPrivacyPolicy = `
 <h1>Política de Privacidad</h1>
