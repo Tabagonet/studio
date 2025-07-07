@@ -181,7 +181,9 @@ export default function AdPlannerPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>Crear Nuevo Plan</CardTitle>
-                        <CardDescription>Introduce la URL y los objetivos. Para un plan más preciso, despliega las opciones adicionales.</CardDescription>
+                        <CardDescription>
+                            Introduce la URL y los objetivos. Para un plan más preciso, puedes rellenar opcionalmente cualquiera de las siguientes secciones. Cuanta más información proporciones, más detallada será la estrategia.
+                        </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Form {...form}>
