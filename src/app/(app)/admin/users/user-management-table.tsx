@@ -165,13 +165,13 @@ export function UserManagementTable() {
         setIsUpdating(null);
     };
     
-    const handleAssignCompany = async (targetUid: string, companyId: string) => {
+    const handleAssignCompany = async (targetUid: string, companyId: string | null) => {
         setIsUpdating(targetUid);
         await performApiCall(
             `/api/admin/users/${targetUid}/assign-company`,
             'POST',
             { companyId },
-            "El usuario ha sido asignado a la empresa."
+            "La asignación de empresa del usuario ha sido actualizada."
         );
         setIsUpdating(null);
     };
@@ -376,6 +376,11 @@ export function UserManagementTable() {
                                                                             </DropdownMenuSubTrigger>
                                                                             <DropdownMenuPortal>
                                                                                 <DropdownMenuSubContent>
+                                                                                    <DropdownMenuItem onSelect={() => handleAssignCompany(u.uid, null)}>
+                                                                                        <UserX className="mr-2 h-4 w-4" />
+                                                                                        Desasignar (Sin Empresa)
+                                                                                    </DropdownMenuItem>
+                                                                                    <DropdownMenuSeparator />
                                                                                     {companies.map(company => (
                                                                                         <DropdownMenuItem key={company.id} onSelect={() => handleAssignCompany(u.uid, company.id)}>
                                                                                             {company.name}

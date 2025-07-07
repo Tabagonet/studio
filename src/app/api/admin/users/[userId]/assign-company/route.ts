@@ -20,7 +20,7 @@ async function isSuperAdmin(req: NextRequest): Promise<boolean> {
 }
 
 const assignCompanySchema = z.object({
-  companyId: z.string().min(1, "Company ID is required."),
+  companyId: z.string().nullable(),
 });
 
 export async function POST(req: NextRequest, { params }: { params: { userId: string } }) {
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest, { params }: { params: { userId: str
         
         await userRef.update({ companyId });
         
-        return NextResponse.json({ success: true, message: `Usuario asignado a la empresa correctamente.` });
+        return NextResponse.json({ success: true, message: `La asignación de empresa del usuario ha sido actualizada.` });
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
