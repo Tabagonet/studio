@@ -13,7 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator, SelectLabel, SelectGroup } from '@/components/ui/select';
 import type { Company } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { Tooltip, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 
 interface ConnectionData {
@@ -479,9 +479,7 @@ export default function ConnectionsPage() {
             <Card>
                 <CardHeader><CardTitle>Selector de Perfil de Conexión</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
-                     {currentUser?.role === 'super_admin' && (
-                        <ConnectionStatusIndicator status={selectedEntityStatus} isLoading={isCheckingStatus} />
-                     )}
+                     <ConnectionStatusIndicator status={selectedEntityStatus} isLoading={isCheckingStatus} />
                     <div className="flex-1">
                         <Label htmlFor="profile-selector">Selecciona un perfil para editar o añade uno nuevo</Label>
                         <Select value={selectedKey} onValueChange={setSelectedKey} disabled={isSaving || isLoading}>
