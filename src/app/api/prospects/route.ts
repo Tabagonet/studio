@@ -1,7 +1,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebase-admin';
+import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import type { Prospect } from '@/lib/types';
+import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,19 +40,16 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        // This is a placeholder. We will fetch from a 'prospects' collection in the future.
-        // For now, return an empty array to allow UI development.
-        let prospects: Prospect[] = [];
-
-        // Example future implementation:
-        /*
-        let query = adminDb.collection('prospects');
-        if (adminContext.role === 'admin' && adminContext.companyId) {
-            // If we decide prospects belong to companies/agencies
-            // query = query.where('assignedCompanyId', '==', adminContext.companyId);
-        }
+        let query: FirebaseFirestore.Query = adminDb.collection('prospects');
+        
+        // In a future multi-tenant setup, an admin would only see their company's prospects
+        // if (adminContext.role === 'admin' && adminContext.companyId) {
+        //     query = query.where('assignedToCompanyId', '==', adminContext.companyId);
+        // }
+        
         const snapshot = await query.orderBy('createdAt', 'desc').get();
-        prospects = snapshot.docs.map(doc => {
+        
+        const prospects: Prospect[] = snapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,
@@ -61,10 +59,9 @@ export async function GET(req: NextRequest) {
                 status: data.status,
                 createdAt: data.createdAt.toDate().toISOString(),
                 source: data.source,
-                notes: data.notes || '',
+                inquiryData: data.inquiryData || {},
             }
-        })
-        */
+        });
 
         return NextResponse.json({ prospects });
 
@@ -72,5 +69,60 @@ export async function GET(req: NextRequest) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         console.error("Error fetching prospects:", error);
         return NextResponse.json({ error: 'Failed to fetch prospects', details: errorMessage }, { status: 500 });
+    }
+}
+
+const createProspectSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email('Invalid email format'),
+  companyUrl: z.string().url('Invalid URL format'),
+  inquiryData: z.record(z.any()).optional(),
+});
+
+export async function POST(req: NextRequest) {
+    // This endpoint can be called publicly by the chatbot, so no admin check needed
+     if (!adminDb || !admin.firestore.FieldValue) {
+        return NextResponse.json({ error: 'Firestore not configured' }, { status: 503 });
+    }
+    try {
+        const body = await req.json();
+        const validation = createProspectSchema.safeParse(body);
+
+        if (!validation.success) {
+            return NextResponse.json({ error: 'Invalid data', details: validation.error.flatten() }, { status: 400 });
+        }
+        
+        const { name, email, companyUrl, inquiryData } = validation.data;
+
+        const newProspectRef = adminDb.collection('prospects').doc();
+        await newProspectRef.set({
+            name,
+            email,
+            companyUrl,
+            inquiryData: inquiryData || {},
+            status: 'new',
+            source: 'chatbot',
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        
+        // Notify admins about the new prospect
+        const adminsSnapshot = await adminDb.collection('users').where('role', 'in', ['admin', 'super_admin']).get();
+        if (!adminsSnapshot.empty) {
+            const notificationBatch = adminDb.batch();
+            for (const adminDoc of adminsSnapshot.docs) {
+                const notificationRef = adminDb.collection('notifications').doc();
+                notificationBatch.set(notificationRef, {
+                    recipientUid: adminDoc.id, type: 'new_prospect', title: 'Nuevo Prospecto Capturado',
+                    message: `El prospecto ${name} (${companyUrl}) ha completado el cuestionario.`,
+                    link: '/prospects', read: false, createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+            }
+            await notificationBatch.commit();
+        }
+
+        return NextResponse.json({ success: true, message: 'Prospect created successfully.' }, { status: 201 });
+    } catch (error: any) {
+        console.error("Error creating prospect:", error);
+        return NextResponse.json({ error: 'Failed to create prospect', details: error.message }, { status: 500 });
     }
 }

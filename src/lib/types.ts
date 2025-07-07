@@ -243,7 +243,7 @@ export interface UserNotification {
   message: string;
   link?: string;
   read: boolean;
-  createdAt: string; // ISO date string
+  createdAt: string;
 }
 
 export interface ContentItem {
@@ -360,7 +360,10 @@ export interface Prospect {
   status: 'new' | 'contacted' | 'converted' | 'archived';
   createdAt: string; // ISO String
   source: string;
-  notes?: string;
-  // This will hold the raw conversation or summary from the chatbot
-  rawInquiry?: Record<string, any>; 
+  inquiryData?: {
+    objective?: string;
+    businessDescription?: string;
+    targetAudience?: string;
+    competitors?: string;
+  };
 }
