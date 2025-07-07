@@ -23,21 +23,16 @@ const chatbotRequestSchema = z.object({
 
 async function verifyRecaptcha(token: string | undefined) {
     const secretKey = process.env.RECAPTCHA_SECRET_KEY;
+
+    // This is a server configuration error. If the key is missing, the feature should not work.
     if (!secretKey) {
-        console.warn("reCAPTCHA secret key not configured. Skipping verification.");
-        // In a production environment, you might want to fail here if the key is missing.
-        // For development, we allow it to proceed.
-        return true;
+        console.error("RECAPTCHA_SECRET_KEY is not set in environment variables. Chatbot verification is not possible.");
+        throw new Error("El servicio de chatbot no está configurado correctamente en el servidor.");
     }
 
-    // If the client explicitly signals that reCAPTCHA isn't ready, we can be lenient on the initial load.
-    if (token === 'not-available') {
-        console.warn("Client-side reCAPTCHA was not ready. Proceeding without verification for this request.");
-        return true;
-    }
-    
-    if (!token) {
-        throw new Error("El token de reCAPTCHA es requerido.");
+    // If the token is missing or 'not-available', the request is invalid.
+    if (!token || token === 'not-available') {
+        throw new Error("Verificación de seguridad reCAPTCHA fallida. Por favor, refresca la página e inténtalo de nuevo.");
     }
     
     const verificationUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${token}`;
@@ -45,14 +40,21 @@ async function verifyRecaptcha(token: string | undefined) {
     try {
         const response = await axios.post(verificationUrl);
         const { success, score } = response.data;
+
+        // For v3, it's best practice to check the score. 0.5 is a common threshold.
         if (!success || score < 0.5) {
-            console.warn("reCAPTCHA verification failed:", response.data['error-codes']);
-            throw new Error("Verificación de reCAPTCHA fallida. Por favor, inténtelo de nuevo.");
+            console.warn(`reCAPTCHA verification failed or score too low. Score: ${score}`, response.data['error-codes']);
+            throw new Error("La verificación de reCAPTCHA ha fallado. Inténtalo de nuevo.");
         }
         return true;
     } catch (error: any) {
-        console.error("Error during reCAPTCHA verification request:", error.message);
-        throw new Error("No se pudo verificar el reCAPTCHA. Inténtelo de nuevo más tarde.");
+        // Rethrow our specific errors
+        if (error.message.includes("La verificación de reCAPTCHA ha fallado")) {
+            throw error;
+        }
+        // Handle network errors or other issues
+        console.error("Error during reCAPTCHA verification API request:", error.message);
+        throw new Error("No se pudo contactar con el servicio de reCAPTCHA. Inténtalo de nuevo más tarde.");
     }
 }
 
