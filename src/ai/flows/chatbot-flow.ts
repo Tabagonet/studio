@@ -47,7 +47,7 @@ const CHATBOT_PROMPT_TEMPLATE = `Eres un asistente de estrategia digital amigabl
     *   **Pregunta:** "Para que los anuncios tengan el tono correcto, ¿cómo describirías la personalidad de tu marca en una o dos palabras? (Ej: profesional, cercana, lujosa, divertida...)"
     
 8.  **Presupuesto Mensual:**
-    *   **Pregunta:** "Ya casi estamos. Para darnos una idea de la escala, ¿cuál es el presupuesto mensual aproximado que piensas invertir en publicidad? (Ej: 100€, 500€, más de 1000€...)"
+    *   **Pregunta:** "Ya casi estamos. Para darnos una idea de la escala, ¿cuál es el presupuesto mensual aproximado que piensas invertir en publicidad? Elige una de estas opciones: '50€-250€', '250€-500€', '500€-1500€', o '>1500€'."
 
 9.  **Transición a la Captura (El Gancho Dinámico):** Una vez que tengas el presupuesto, **analiza el objetivo principal del cliente que has recopilado en el historial.** Basándote en ESE objetivo, **crea un "gancho" personalizado y relevante** que le dé una razón poderosa para compartir su información. Por ejemplo, si su objetivo es "vender más", podrías sugerir ideas de campañas de shopping. Si es "más visibilidad", podrías mencionar estrategias de redes sociales. La idea es que tu sugerencia sea una vista previa de la estrategia que se podría crear. **Finaliza esta transición pidiendo su nombre.**
 
@@ -152,9 +152,15 @@ export async function extractDataFromConversation(messages: Message[]) {
     const conversationText = messages.map(m => m.content).join('\n\n');
 
     const extract = (regex: RegExp) => {
-        const matches = conversationText.match(regex);
-        // Get the last match if multiple summaries were generated (e.g., after a correction)
-        return matches ? (matches[matches.length - 1] || '').trim() : '';
+        // Use matchAll to correctly handle capture groups with the global flag
+        const matches = [...conversationText.matchAll(regex)];
+        if (matches.length > 0) {
+            // Get the last match
+            const lastMatch = matches[matches.length - 1];
+            // Return the first capturing group, which is the clean value
+            return (lastMatch[1] || '').trim();
+        }
+        return '';
     };
 
     return {

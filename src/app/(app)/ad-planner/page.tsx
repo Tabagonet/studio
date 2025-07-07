@@ -93,15 +93,42 @@ export default function AdPlannerPage() {
         const url = searchParams.get('url');
         if (url) {
             form.setValue('url', url);
-            form.setValue('priorityObjective', searchParams.get('priorityObjective') || '');
+            
+            // Handle priority objective (text input)
+            const priorityObjective = searchParams.get('priorityObjective') || '';
+            form.setValue('priorityObjective', priorityObjective);
+            
+            // If the free-text objective happens to match a predefined one, check the box.
+            if (priorityObjective && objectives.includes(priorityObjective)) {
+                form.setValue('objectives', [priorityObjective]);
+            }
+
+            // Handle other text fields
             form.setValue('companyInfo', searchParams.get('companyInfo') || '');
             form.setValue('valueProposition', searchParams.get('valueProposition') || '');
             form.setValue('targetAudience', searchParams.get('targetAudience') || '');
             form.setValue('competitors', searchParams.get('competitors') || '');
-            form.setValue('monthlyBudget', searchParams.get('monthlyBudget') || '');
+            
+            // Handle monthly budget (Select component)
+            const monthlyBudget = searchParams.get('monthlyBudget') || '';
+            // The value from chatbot could be 'más de 1500€'. The Select value is '>1500€'.
+            let budgetValue = monthlyBudget;
+            if (monthlyBudget.toLowerCase().includes('más de 1500')) {
+                budgetValue = '>1500€';
+            }
+            form.setValue('monthlyBudget', budgetValue);
+
+            // Handle brand personality (checkboxes)
             const personality = searchParams.get('brandPersonality');
             if (personality) {
-                 form.setValue('brandPersonality', [personality]);
+                const personalityKeywords = personality.toLowerCase().split(/, | /).filter(Boolean);
+                const matchingLabels = brandPersonalities
+                    .filter(bp => personalityKeywords.some(kw => bp.label.toLowerCase().includes(kw)))
+                    .map(bp => bp.label);
+                
+                if (matchingLabels.length > 0) {
+                    form.setValue('brandPersonality', matchingLabels);
+                }
             }
         }
     }, [searchParams, form]);
@@ -377,7 +404,7 @@ CUESTIONARIO GENERAL PARA EMPRESAS - PLANIFICACIÓN DE ESTRATEGIA DIGITAL
                                                     control={form.control} name="monthlyBudget" render={({ field }) => (
                                                         <FormItem>
                                                             <FormLabel>2. Presupuesto Mensual Máximo</FormLabel>
-                                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                            <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
                                                                 <FormControl>
                                                                     <SelectTrigger><SelectValue placeholder="Selecciona un rango..." /></SelectTrigger>
                                                                 </FormControl>
