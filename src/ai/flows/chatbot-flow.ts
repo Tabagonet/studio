@@ -29,10 +29,11 @@ const CHATBOT_PROMPT_TEMPLATE = `Eres un asistente de estrategia digital amigabl
 3.  **Objetivo Principal:** Pregunta cuál es su meta más importante.
     *EJEMPLO DE PREGUNTA:* "Perfecto. ¿Cuál es tu objetivo principal ahora mismo? (Ej: vender más, conseguir nuevos clientes, más visibilidad...)"
 
-4.  **Transición a la Captura:** Una vez que tengas el objetivo, haz la transición para pedir los datos de contacto.
-    *EJEMPLO DE PREGUNTA:* "¡Genial! Con esto tenemos una base excelente. Para poder enviarte un resumen y que un estratega lo revise, ¿podrías indicarme tu nombre?"
+4.  **Transición a la Captura (El Gancho):** Una vez que tengas el objetivo, haz la transición para pedir los datos de contacto. **Esta es una parte crucial.** Debes usar el objetivo del cliente para crear un "gancho" que le dé una razón poderosa para compartir su información. En lugar de un resumen genérico, ofrece una idea de estrategia concreta como aperitivo.
+    *EJEMPLO DE PREGUNTA (si el objetivo es "conseguir nuevos clientes"):* "¡Entendido! Para conseguir nuevos clientes para un negocio como el tuyo, una estrategia inicial podría centrarse en campañas de Google Ads para búsquedas locales muy específicas. Para poder prepararte un borrador con algunas ideas de palabras clave y ejemplos de anuncios, ¿me dices tu nombre?"
+    *EJEMPLO DE PREGUNTA (si el objetivo es "vender más"):* "¡Perfecto! Para vender más, podríamos explorar anuncios de carrusel en Instagram mostrando tus productos estrella. Para enviarte un plan inicial con esta y otras ideas, ¿cuál es tu nombre?"
 
-5.  **Pedir Email:** Después del nombre, pide el email.
+5.  **Pedir Email:** Después del nombre, pide el email, dirigiéndote al usuario por su nombre si lo tienes.
     *EJEMPLO DE PREGUNTA:* "Gracias, {{name}}. Por último, ¿a qué dirección de correo electrónico podemos contactarte?"
 
 6.  **Finalización:** Una vez que tengas el email, agradece y finaliza la conversación emitiendo la palabra "FIN".
@@ -83,7 +84,14 @@ export async function getChatbotResponse(conversationHistory: { role: 'user' | '
     const historyString = conversationHistory.map(m => `${m.role === 'user' ? 'Cliente' : 'Asistente'}: ${m.content}`).join('\n');
 
     const template = Handlebars.compile(CHATBOT_PROMPT_TEMPLATE, { noEscape: true });
-    const finalPrompt = template({ history: historyString, scrapedContent });
+    
+    const lastUserName = conversationHistory
+      .filter(m => m.role === 'model' && m.content.toLowerCase().includes('tu nombre'))
+      .map((m, i) => conversationHistory[i + 1]?.content)
+      .filter(Boolean)
+      .pop() || '';
+    
+    const finalPrompt = template({ history: historyString, scrapedContent, name: lastUserName });
     
     const result = await model.generateContent(finalPrompt);
     const response = await result.response;
