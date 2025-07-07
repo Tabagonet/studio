@@ -15,6 +15,8 @@ import type { Company } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { ShopifyIcon } from '@/components/core/icons';
+import Link from 'next/link';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface ConnectionData {
     wooCommerceStoreUrl: string;
@@ -56,15 +58,14 @@ const INITIAL_STATE: ConnectionData = {
     shopifyApiPassword: '',
 };
 
-function getHostname(url: string): string | null {
+function getHostname(url: string | null): string | null {
+    if (!url) return null;
     try {
-        if (!url) return null;
-        if (!url.startsWith('http')) {
-            url = `https://${url}`;
-        }
-        return new URL(url).hostname;
+        const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+        const parsedUrl = new URL(fullUrl);
+        return parsedUrl.hostname.replace(/^www\./, '');
     } catch (e) {
-        return null;
+        return url; // Fallback to the original string if URL parsing fails
     }
 }
 
@@ -92,7 +93,7 @@ const ConnectionStatusIndicator = ({ status, isLoading }: { status: SelectedEnti
   return (
     <TooltipProvider delayDuration={100}>
         <div className="flex items-center justify-between gap-3 text-sm border p-3 rounded-md">
-            <span className="text-muted-foreground truncate" title={hostname || ''}>Conectado a: <strong className="text-foreground">{hostname}</strong></span>
+            <span className="text-muted-foreground truncate" title={hostname || ''}>Conexión activa: <strong className="text-foreground">{hostname}</strong></span>
             
             {status.activePlatform === 'woocommerce' && (
                 <div className="flex items-center gap-2 flex-shrink-0">
@@ -241,6 +242,8 @@ export default function ConnectionsPage() {
                 } else {
                     newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones' };
                 }
+            } else { // Regular 'user'
+                 newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones' };
             }
             
             if (newEditingTarget) {
@@ -354,7 +357,6 @@ export default function ConnectionsPage() {
         const urlsToValidate = [
             { name: 'WooCommerce', url: formData.wooCommerceStoreUrl },
             { name: 'WordPress', url: formData.wordpressApiUrl },
-            { name: 'Shopify', url: formData.shopifyStoreUrl }
         ];
 
         for (const item of urlsToValidate) {
@@ -459,7 +461,13 @@ export default function ConnectionsPage() {
     const description = currentUser?.role === 'super_admin' ? 'Como Super Admin, puedes gestionar tus conexiones o las de cualquier empresa o usuario.' : 'Gestiona las credenciales para conectar tu empresa con servicios externos como WooCommerce y WordPress.';
     
     if (isDataLoading) {
-        return <div className="flex h-64 w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /><p className="ml-2 text-muted-foreground">Cargando datos de usuario...</p></div>;
+        return (
+             <div className="container mx-auto py-8 space-y-6">
+                <Skeleton className="h-28" />
+                <Skeleton className="h-24" />
+                <Skeleton className="h-96" />
+            </div>
+        );
     }
 
     return (
@@ -519,7 +527,7 @@ export default function ConnectionsPage() {
             )}
 
             <Card>
-                <CardHeader><CardTitle>Selector de Perfil de Conexión</CardTitle></CardHeader>
+                <CardHeader><CardTitle>Perfiles de Conexión</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                      <ConnectionStatusIndicator status={selectedEntityStatus} isLoading={isCheckingStatus} />
                     <div className="flex-1">

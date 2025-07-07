@@ -27,12 +27,23 @@ import { cn } from '@/lib/utils';
 import { ShopifyIcon } from './icons';
 
 interface ConfigStatus {
-    storeUrl: string | null;
+    activeStoreUrl: string | null;
     wooCommerceConfigured: boolean;
     wordPressConfigured: boolean;
     shopifyConfigured: boolean;
     pluginActive: boolean;
     activePlatform: 'woocommerce' | 'shopify' | null;
+}
+
+function getHostname(url: string | null): string | null {
+    if (!url) return null;
+    try {
+        const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+        const parsedUrl = new URL(fullUrl);
+        return parsedUrl.hostname.replace(/^www\./, '');
+    } catch (e) {
+        return url; // Fallback to the original string if URL parsing fails
+    }
 }
 
 const ConnectionStatusIndicator = ({ status, isLoading }: { status: ConfigStatus | null, isLoading: boolean }) => {
@@ -48,68 +59,56 @@ const ConnectionStatusIndicator = ({ status, isLoading }: { status: ConfigStatus
       </Link>
     );
   }
-
-  let url: URL;
-  try {
-    const fullUrl = status.activeStoreUrl.startsWith('http') ? status.activeStoreUrl : `https://${status.activeStoreUrl}`;
-    url = new URL(fullUrl);
-    if (url.protocol !== 'https:') throw new Error('Solo HTTPS');
-  } catch (e) {
-    return (
-      <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-destructive" title="URL de tienda inválida. Click para corregir.">
-        <Globe className="h-4 w-4" />
-        <span className="hidden md:inline">URL Inválida</span>
-      </Link>
-    );
-  }
-
-  const hostname = url.hostname;
+  
+  const hostname = getHostname(status.activeStoreUrl);
 
   return (
     <TooltipProvider delayDuration={100}>
-      <Link href="/settings/connections" className="flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Gestionar conexiones">
-        <span className="hidden md:inline">{hostname}</span>
-        {status.activePlatform === 'shopify' && (
-           <div className="flex items-center gap-2 flex-shrink-0">
-               <Tooltip>
-                   <TooltipTrigger>
-                      <ShopifyIcon className={cn("h-4 w-4", status.shopifyConfigured ? "text-green-500" : "text-destructive")} />
-                   </TooltipTrigger>
-                   <TooltipContent>
-                       <p>Shopify: {status.shopifyConfigured ? "Configurado" : "No Configurado"}</p>
-                   </TooltipContent>
-               </Tooltip>
-           </div>
-        )}
-        {status.activePlatform === 'woocommerce' && (
-           <div className="flex items-center gap-2 flex-shrink-0">
-               <Tooltip>
-                   <TooltipTrigger>
-                      <Store className={cn("h-4 w-4", status.wooCommerceConfigured ? "text-green-500" : "text-destructive")} />
-                   </TooltipTrigger>
-                   <TooltipContent>
-                       <p>WooCommerce: {status.wooCommerceConfigured ? "Configurado" : "No Configurado"}</p>
-                   </TooltipContent>
-               </Tooltip>
-               <Tooltip>
-                   <TooltipTrigger>
-                      <Globe className={cn("h-4 w-4", status.wordPressConfigured ? "text-green-500" : "text-destructive")} />
-                   </TooltipTrigger>
-                   <TooltipContent>
-                       <p>WordPress: {status.wordPressConfigured ? "Configurado" : "No Configurado"}</p>
-                   </TooltipContent>
-               </Tooltip>
-               <Tooltip>
-                   <TooltipTrigger>
-                      <PlugZap className={cn("h-4 w-4", status.pluginActive ? "text-green-500" : "text-destructive")} />
-                   </TooltipTrigger>
-                   <TooltipContent>
-                       <p>Plugin AutoPress AI: {status.pluginActive ? "Activo" : "No Detectado"}</p>
-                   </TooltipContent>
-               </Tooltip>
-           </div>
-        )}
-      </Link>
+        <Link href="/settings/connections" className="flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Gestionar conexiones">
+            <span className="hidden md:inline font-medium">{hostname}</span>
+            
+            {status.activePlatform === 'woocommerce' && (
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    <Tooltip>
+                        <TooltipTrigger>
+                           <Store className={cn("h-4 w-4", status.wooCommerceConfigured ? "text-green-500" : "text-destructive")} />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>WooCommerce: {status.wooCommerceConfigured ? "Configurado" : "No Configurado"}</p>
+                        </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger>
+                           <Globe className={cn("h-4 w-4", status.wordPressConfigured ? "text-green-500" : "text-destructive")} />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>WordPress: {status.wordPressConfigured ? "Configurado" : "No Configurado"}</p>
+                        </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger>
+                           <PlugZap className={cn("h-4 w-4", status.pluginActive ? "text-green-500" : "text-destructive")} />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Plugin AutoPress AI: {status.pluginActive ? "Activo" : "No Detectado"}</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </div>
+            )}
+
+            {status.activePlatform === 'shopify' && (
+                 <div className="flex items-center gap-2 flex-shrink-0">
+                     <Tooltip>
+                        <TooltipTrigger>
+                           <ShopifyIcon className={cn("h-4 w-4", status.shopifyConfigured ? "text-green-500" : "text-destructive")} />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Shopify: {status.shopifyConfigured ? "Configurado" : "No Configurado"}</p>
+                        </TooltipContent>
+                    </Tooltip>
+                 </div>
+            )}
+        </Link>
     </TooltipProvider>
   );
 };
@@ -172,7 +171,7 @@ export function Header() {
         if (response.ok) {
           const data = await response.json();
           setConfigStatus({
-            storeUrl: data.activeStoreUrl,
+            activeStoreUrl: data.activeStoreUrl,
             wooCommerceConfigured: data.wooCommerceConfigured,
             wordPressConfigured: data.wordPressConfigured,
             shopifyConfigured: data.shopifyConfigured,
