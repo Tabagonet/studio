@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, LineChart, History, Calendar, Download, Building } from "lucide-react";
+import { Loader2, LineChart, History, Calendar, Download, Building, Store } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase";
 import type { ActivityLog } from '@/lib/types';
@@ -15,6 +15,7 @@ import Image from 'next/image';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import Papa from 'papaparse';
+import { ShopifyIcon } from '@/components/core/icons';
 
 
 interface UserStat {
@@ -25,10 +26,12 @@ interface UserStat {
     productCount: number;
     connections: Set<string>;
     companyName: string | null;
+    platform: string | null;
 }
 
 type GroupedUserStats = {
     companyName: string;
+    platform: string | null;
     users: UserStat[];
 }
 
@@ -62,7 +65,6 @@ export default function AdminActivityPage() {
                 }
 
                 const data = await response.json();
-                // Sorting is now done on the server, but we can keep client sort as a fallback
                 const sortedLogs = data.logs.sort((a: ActivityLog, b: ActivityLog) => 
                    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
                 );
@@ -119,6 +121,7 @@ export default function AdminActivityPage() {
                     productCount: 0,
                     connections: new Set<string>(),
                     companyName: log.user.companyName || null,
+                    platform: log.user.platform || null,
                 };
             }
             stats[log.userId].productCount++;
@@ -144,6 +147,7 @@ export default function AdminActivityPage() {
 
         return Object.entries(groups).map(([companyName, users]) => ({
             companyName,
+            platform: users[0]?.platform || null,
             users: users.sort((a,b) => b.productCount - a.productCount)
         })).sort((a,b) => {
             if (a.companyName === 'Sin Empresa Asignada') return 1;
@@ -268,6 +272,12 @@ export default function AdminActivityPage() {
                                             <div className="flex items-center gap-2">
                                                 <Building className="h-5 w-5" />
                                                 {group.companyName}
+                                                {group.platform && (
+                                                    <Badge variant={group.platform === 'shopify' ? 'default' : 'secondary'} className={group.platform === 'shopify' ? 'bg-[#7ab55c] text-white' : ''}>
+                                                        {group.platform === 'shopify' ? <ShopifyIcon className="h-4 w-4 mr-1.5 -ml-0.5" /> : <Store className="h-4 w-4 mr-1.5 -ml-0.5" />}
+                                                        {group.platform === 'shopify' ? 'Shopify' : 'WooCommerce'}
+                                                    </Badge>
+                                                )}
                                             </div>
                                         </TableCell>
                                     </TableRow>

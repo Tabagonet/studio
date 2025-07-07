@@ -40,11 +40,15 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        // Step 1: Fetch all companies to map their names
+        // Step 1: Fetch all companies to map their names and platforms
         const companiesSnapshot = await adminDb.collection('companies').get();
-        const companiesMap = new Map<string, string>();
+        const companiesMap = new Map<string, { name: string, platform: string | null }>();
         companiesSnapshot.forEach(doc => {
-            companiesMap.set(doc.id, doc.data().name);
+            const data = doc.data();
+            companiesMap.set(doc.id, {
+                name: data.name,
+                platform: data.platform || null
+            });
         });
 
         // Step 2: Fetch all users to create a detailed user map
@@ -53,12 +57,14 @@ export async function GET(req: NextRequest) {
         usersSnapshot.forEach(doc => {
             const data = doc.data();
             const companyId = data.companyId || null;
+            const companyInfo = companyId ? companiesMap.get(companyId) : null;
             usersMap.set(doc.id, {
                 displayName: data.displayName || 'No Name',
                 email: data.email || '',
                 photoURL: data.photoURL || '',
                 companyId: companyId,
-                companyName: companyId ? (companiesMap.get(companyId) || null) : null
+                companyName: companyInfo ? companyInfo.name : null,
+                platform: companyInfo ? companyInfo.platform : (data.platform || null) // Effective platform
             });
         });
 
@@ -69,7 +75,7 @@ export async function GET(req: NextRequest) {
         const allEnrichedLogs = logsSnapshot.docs.map(doc => {
             const logData = doc.data();
             // Use the user map, providing a fallback for deleted users
-            const user = usersMap.get(logData.userId) || { displayName: 'Usuario Eliminado', email: '', photoURL: '', companyId: null, companyName: null };
+            const user = usersMap.get(logData.userId) || { displayName: 'Usuario Eliminado', email: '', photoURL: '', companyId: null, companyName: null, platform: null };
             return {
                 id: doc.id,
                 userId: logData.userId,
