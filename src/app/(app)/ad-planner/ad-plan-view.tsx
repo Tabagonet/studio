@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -24,11 +25,25 @@ interface AdPlanViewProps {
   companyInfo: Company | null;
 }
 
+const InfoCard = ({ title, content }: { title: string, content?: string | null }) => {
+    if (!content) return null;
+    return (
+        <Card>
+            <CardHeader><CardTitle className="flex items-center gap-3"><Info className="h-6 w-6 text-primary" /> {title}</CardTitle></CardHeader>
+            <CardContent>
+                <ScrollArea className="h-48 rounded-md border bg-muted/20 p-4">
+                    <p className="text-sm text-muted-foreground whitespace-pre-line">{content}</p>
+                </ScrollArea>
+            </CardContent>
+        </Card>
+    );
+};
+
+
 export function AdPlanView({ plan, onPlanUpdate, onReset, companyInfo }: AdPlanViewProps) {
     const [isSavingPlan, setIsSavingPlan] = useState(false);
     const [isCompetitorAnalysisOpen, setIsCompetitorAnalysisOpen] = useState(false);
     
-    // State for managing dialogs
     const [selectedStrategyForTasks, setSelectedStrategyForTasks] = useState<Strategy | null>(null);
     const [selectedStrategyForCreatives, setSelectedStrategyForCreatives] = useState<Strategy | null>(null);
 
@@ -70,7 +85,7 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyInfo }: AdPlanV
                 isOpen={isCompetitorAnalysisOpen}
                 onOpenChange={setIsCompetitorAnalysisOpen}
                 url={plan.url}
-                initialContext={plan.additional_context}
+                initialContext={plan.additionalContext}
             />
             <StrategyDetailDialog
                 plan={plan}
@@ -91,28 +106,34 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyInfo }: AdPlanV
                 <Button variant="outline" onClick={() => setIsCompetitorAnalysisOpen(true)}><Swords className="mr-2 h-4 w-4" /> Analizar Competencia</Button>
                 <Button onClick={handleSavePlan} disabled={isSavingPlan}>{isSavingPlan ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Guardar Plan</Button>
             </div>
-            
-            {plan.additional_context && (
-                 <Card>
-                    <CardHeader><CardTitle className="flex items-center gap-3"><Info className="h-6 w-6 text-primary" /> Contexto Adicional Proporcionado</CardTitle></CardHeader>
-                    <CardContent>
-                      <ScrollArea className="h-48 rounded-md border bg-muted/20 p-4">
-                        <p className="text-sm text-muted-foreground whitespace-pre-line">{plan.additional_context}</p>
-                      </ScrollArea>
-                    </CardContent>
-                </Card>
-            )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card>
-                    <CardHeader><CardTitle className="flex items-center gap-3"><Users className="h-6 w-6 text-primary" /> Buyer Persona</CardTitle></CardHeader>
-                    <CardContent><p className="text-muted-foreground leading-relaxed whitespace-pre-line">{plan.buyer_persona}</p></CardContent>
-                </Card>
-                <Card>
-                    <CardHeader><CardTitle className="flex items-center gap-3"><Target className="h-6 w-6 text-primary" /> Propuesta de Valor</CardTitle></CardHeader>
-                    <CardContent><p className="text-muted-foreground leading-relaxed whitespace-pre-line">{plan.value_proposition}</p></CardContent>
-                </Card>
-            </div>
+            <Accordion type="multiple" defaultValue={['item-1', 'item-2']}>
+                <AccordionItem value="item-1">
+                    <AccordionTrigger className="text-xl font-bold">Resumen Estratégico</AccordionTrigger>
+                    <AccordionContent className="pt-4 space-y-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <Card>
+                                <CardHeader><CardTitle className="flex items-center gap-3"><Users className="h-6 w-6 text-primary" /> Buyer Persona</CardTitle></CardHeader>
+                                <CardContent><p className="text-muted-foreground leading-relaxed whitespace-pre-line">{plan.buyer_persona}</p></CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader><CardTitle className="flex items-center gap-3"><Target className="h-6 w-6 text-primary" /> Propuesta de Valor</CardTitle></CardHeader>
+                                <CardContent><p className="text-muted-foreground leading-relaxed whitespace-pre-line">{plan.value_proposition}</p></CardContent>
+                            </Card>
+                        </div>
+                    </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="item-2">
+                    <AccordionTrigger className="text-xl font-bold">Contexto Proporcionado</AccordionTrigger>
+                    <AccordionContent className="pt-4 space-y-6">
+                        <InfoCard title="Información de la Empresa" content={plan.companyInfo} />
+                        <InfoCard title="Propuesta de Valor y Diferenciación" content={plan.valueProposition} />
+                        <InfoCard title="Público Objetivo y Problemas" content={plan.targetAudience} />
+                        <InfoCard title="Competencia y Mercado" content={plan.competitors} />
+                        <InfoCard title="Contexto Adicional (Notas Finales)" content={plan.additionalContext} />
+                    </AccordionContent>
+                </AccordionItem>
+            </Accordion>
             
              <Card>
                 <CardHeader>

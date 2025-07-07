@@ -42,30 +42,12 @@ export async function generateAdPlanAction(
             const userSettingsRef = adminDb.collection('user_settings').doc(uid);
             await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
             
-            // Save the generated plan to a new collection with a flattened structure
-            const { id, ...planDataToSave } = adPlan; // id is undefined here, which is fine
+            const { id, ...planDataToSave } = adPlan;
             
             const newPlanRef = await adminDb.collection('ad_plans').add({
                 userId: uid,
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                // Input data
-                url: planDataToSave.url,
-                objectives: planDataToSave.objectives,
-                additional_context: planDataToSave.additional_context,
-                priorityObjective: planDataToSave.priorityObjective,
-                brandPersonality: planDataToSave.brandPersonality,
-                monthlyBudget: planDataToSave.monthlyBudget,
-                
-                // Comprehensive strategy fields
-                buyer_persona: planDataToSave.buyer_persona,
-                value_proposition: planDataToSave.value_proposition,
-                funnel: planDataToSave.funnel,
-                strategies: planDataToSave.strategies,
-                total_monthly_budget: planDataToSave.total_monthly_budget,
-                recommended_tools: planDataToSave.recommended_tools,
-                calendar: planDataToSave.calendar,
-                extra_recommendations: planDataToSave.extra_recommendations,
-                fee_proposal: planDataToSave.fee_proposal,
+                ...planDataToSave
             });
 
             // Return the plan with its new ID

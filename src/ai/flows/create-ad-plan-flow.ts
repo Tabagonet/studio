@@ -7,60 +7,70 @@ import { adminDb } from '@/lib/firebase-admin';
 import Handlebars from 'handlebars';
 
 async function getAdPlanPrompt(uid: string): Promise<string> {
-    const defaultPrompt = `Eres un experto de talla mundial en marketing digital, producto digital y posicionamiento de marca. Tu tarea es generar una estrategia publicitaria completa, profesional y personalizada.
+    const defaultPrompt = `Eres un estratega de marketing digital de clase mundial. Tu tarea es generar una estrategia publicitaria completa, profesional y personalizada.
 Tu respuesta DEBE ser un único objeto JSON válido, sin comentarios ni markdown.
 
-**INFORMACIÓN DE ENTRADA PRINCIPAL:**
+**INFORMACIÓN PROPORCIONADA (debes usar esta información como la fuente principal de verdad):**
 - URL del negocio: {{url}}
-- Objetivos de la campaña: {{#each objectives}}- {{this}}{{/each}}
+- Objetivos Generales de la Campaña: {{#each objectives}}- {{this}}{{/each}}
 
-**CONTEXTO ESTRATÉGICO ADICIONAL (PRIORIDAD MÁXIMA):**
+{{#if companyInfo}}
+- **Información de la Empresa (Misión, Visión, etc.):** {{{companyInfo}}}
+{{/if}}
+{{#if valueProposition}}
+- **Propuesta de Valor y Diferenciación:** {{{valueProposition}}}
+{{/if}}
+{{#if targetAudience}}
+- **Público Objetivo y sus Problemas:** {{{targetAudience}}}
+{{/if}}
+{{#if competitors}}
+- **Competencia y Mercado:** {{{competitors}}}
+{{/if}}
 {{#if priorityObjective}}
-- **Objetivo Principal Prioritario:** {{{priorityObjective}}}
+- **Objetivo Principal Prioritario (MÁXIMA PRIORIDAD):** {{{priorityObjective}}}
 {{/if}}
 {{#if monthlyBudget}}
 - **Presupuesto Máximo Indicado:** {{{monthlyBudget}}}
 {{/if}}
 {{#if brandPersonality.length}}
-- **Personalidad de Marca Clave:** {{#each brandPersonality}}{{#if @index}}, {{/if}}{{this}}{{/each}}
+- **Personalidad de Marca Clave (Adjetivos):** {{#each brandPersonality}}{{#if @index}}, {{/if}}{{this}}{{/each}}
 {{/if}}
-{{#if additional_context}}
-- **Contexto Adicional General:**
-{{{additional_context}}}
+{{#if additionalContext}}
+- **Contexto Adicional General (Notas Finales):** {{{additionalContext}}}
 {{/if}}
 
 **PROCESO DE GENERACIÓN JSON (Sigue estos pasos y estructura):**
 Genera un objeto JSON con las siguientes claves principales:
 
-1.  **"buyer_persona"**: (string) Describe el perfil psicográfico del cliente ideal en un párrafo detallado. Incluye edad, género, ubicación, intereses, y puntos de dolor.
-2.  **"value_proposition"**: (string) Define la propuesta de valor clara y diferencial del negocio en una o dos frases. ¿Qué lo hace único?
+1.  **"buyer_persona"**: (string) Describe el perfil psicográfico del cliente ideal en un párrafo detallado. Sintetiza la información de "Público Objetivo".
+2.  **"value_proposition"**: (string) Define la propuesta de valor clara y diferencial del negocio en una o dos frases. Sintetiza la información de "Propuesta de Valor".
 3.  **"funnel"**: (array de objetos) Describe el embudo de conversión completo en 5 etapas (Awareness, Consideration, Conversion, Retention, Referral). Para cada etapa, crea un objeto con:
     -   "stage_name": (string) ej. "Awareness (Notoriedad)".
     -   "description": (string) Breve descripción del objetivo de esta fase.
-    -   "channels": (array of strings) Canales recomendados para esta fase (ej. "Meta Ads", "SEO").
+    -   "channels": (array of strings) Canales recomendados (ej. "Meta Ads", "SEO").
     -   "content_types": (array of strings) Tipos de contenido para esos canales (ej. "Reels inspiradores", "Artículos de blog 'Cómo...'").
-    -   "kpis": (array of strings) KPIs clave con objetivos numéricos para medir el éxito en esta fase (ej. "Alcance > 100.000", "Impresiones > 500.000", "CTR > 2%", "CPC < 0.50€").
-4.  **"strategies"**: (array de objetos) Esta es la sección del **plan de medios interactivo**. Propón 2-4 estrategias, una por plataforma principal. Cada objeto debe tener:
+    -   "kpis": (array of strings) KPIs clave con objetivos numéricos para medir el éxito (ej. "Alcance > 100.000", "Impresiones > 500.000", "CTR > 2%", "CPC < 0.50€").
+4.  **"strategies"**: (array de objetos) El plan de medios interactivo. Propón 2-4 estrategias, una por plataforma. Cada objeto debe tener:
     -   "platform": (string) El nombre de la plataforma (ej. "Google Ads").
     -   "strategy_rationale": (string) Justificación de por qué esta plataforma es adecuada.
-    -   "funnel_stage": (string, enum: "Awareness", "Consideration", "Conversion") La fase principal del embudo a la que apunta esta estrategia.
-    -   "campaign_type": (string) El tipo de campaña recomendado (ej. "Performance Max", "Tráfico a la web").
-    -   "ad_formats": (array of strings) Formatos de anuncio sugeridos (ej. "Anuncios de Búsqueda", "Video Ads").
-    -   "monthly_budget": (number) Presupuesto mensual estimado para ESTA plataforma.
-    -   "targeting_suggestions": (array of strings) 2-3 ideas concretas de segmentación (ej. "Públicos afines: 'amantes de la moda'", "Remarketing a visitantes").
-    -   "key_kpis": (array of strings) 2 KPIs clave con objetivos numéricos para esta estrategia (ej. "ROAS > 4", "Coste por Lead < 30€").
-    -   "creative_angle": (string) El enfoque creativo principal (ej. "Énfasis en la calidad y el confort", "Ofertas y descuentos").
+    -   "funnel_stage": (string, enum: "Awareness", "Consideration", "Conversion") La fase principal del embudo.
+    -   "campaign_type": (string) El tipo de campaña recomendado (ej. "Performance Max").
+    -   "ad_formats": (array of strings) Formatos de anuncio (ej. "Anuncios de Búsqueda").
+    -   "monthly_budget": (number) Presupuesto mensual estimado para ESTA plataforma, considerando el presupuesto total si se indica.
+    -   "targeting_suggestions": (array of strings) 2-3 ideas concretas de segmentación.
+    -   "key_kpis": (array of strings) 2 KPIs clave con objetivos numéricos para esta estrategia (ej. "ROAS > 4").
+    -   "creative_angle": (string) El enfoque creativo principal (ej. "Énfasis en la calidad", "Ofertas y descuentos").
 5.  **"total_monthly_budget"**: (number) La suma total de los \`monthly_budget\` de todas las estrategias.
-6.  **"recommended_tools"**: (array of strings) 3-5 herramientas recomendadas para ejecutar la estrategia (ej. "Semrush para SEO", "Mailchimp para email", "Meta Business Suite").
+6.  **"recommended_tools"**: (array of strings) 3-5 herramientas recomendadas (ej. "Semrush", "Mailchimp").
 7.  **"calendar"**: (array de objetos) Un calendario para los primeros 3 meses. Cada objeto tiene:
     -   "month": (string) ej. "Mes 1".
-    -   "focus": (string) El enfoque principal para ese mes.
-    -   "actions": (array of strings) Una lista detallada de 5 a 7 acciones concretas para ese mes. Incluye la creación de contenido específico (ej. "Escribir 2 artículos de blog sobre X"), configuración de campañas (ej. "Lanzar campaña de PMax con creativos A/B"), y optimizaciones (ej. "Revisar audiencias de remarketing").
-8.  **"extra_recommendations"**: (array of strings) 2-4 recomendaciones extra sobre posicionamiento, tono, storytelling, o experiencia de usuario.
+    -   "focus": (string) El enfoque principal del mes.
+    -   "actions": (array of strings) Una lista detallada de 5 a 7 acciones concretas para ese mes.
+8.  **"extra_recommendations"**: (array of strings) 2-4 recomendaciones extra sobre posicionamiento o UX.
 9.  **"fee_proposal"**: (object) Una propuesta de honorarios de agencia estándar.
-    -   "setup_fee": (number) Un coste de configuración inicial (ej. 1500).
-    -   "management_fee": (number) Una cuota de gestión mensual (ej. 2500).
-    -   "fee_description": (string) Explica qué incluyen los honorarios (ej. "Setup y gestión de campañas, reporting mensual, optimización continua.").
+    -   "setup_fee": (number) Coste de configuración inicial (ej. 1500).
+    -   "management_fee": (number) Cuota de gestión mensual (ej. 2500).
+    -   "fee_description": (string) Explica qué incluyen los honorarios.
 
 Ahora, genera el plan estratégico completo en formato JSON.`;
     if (!adminDb) return defaultPrompt;
@@ -113,12 +123,7 @@ export async function createAdPlan(input: CreateAdPlanInput, uid: string): Promi
   // Add the original input to the final plan object for persistence
   const finalPlan = {
       ...rawJson,
-      url: input.url,
-      objectives: input.objectives,
-      additional_context: input.additional_context,
-      priorityObjective: input.priorityObjective,
-      brandPersonality: input.brandPersonality,
-      monthlyBudget: input.monthlyBudget,
+      ...input, // Add all input fields to the output
   };
   
   return CreateAdPlanOutputSchema.parse(finalPlan);
