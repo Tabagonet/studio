@@ -34,6 +34,7 @@ interface UserData {
   role: string | null;
   platform: 'woocommerce' | 'shopify' | null;
   companyPlatform: 'woocommerce' | 'shopify' | null;
+  companyName?: string | null;
 }
 
 export default function DashboardPage() {
@@ -49,9 +50,10 @@ export default function DashboardPage() {
     setIsLoading(true);
     try {
         const token = await user.getIdToken();
-        const [userResponse, configResponse] = await Promise.all([
+        const [userResponse, configResponse, logsResponse] = await Promise.all([
             fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } }),
-            fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` } })
+            fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` } }),
+            fetch('/api/user/activity-logs', { headers: { 'Authorization': `Bearer ${token}` } })
         ]);
 
         if (!userResponse.ok) throw new Error('No se pudo verificar el usuario.');
@@ -60,17 +62,11 @@ export default function DashboardPage() {
 
         if (!configResponse.ok) throw new Error('No se pudo verificar la configuración.');
         setConfigStatus(await configResponse.json());
-
-        const effectivePlatform = fetchedUserData.companyPlatform || fetchedUserData.platform;
         
-        if (effectivePlatform === 'woocommerce' || fetchedUserData.role === 'super_admin') {
-            const logsResponse = await fetch('/api/user/activity-logs', { headers: { 'Authorization': `Bearer ${token}` } });
-            if (!logsResponse.ok) throw new Error('No se pudo cargar la actividad.');
-            const logsData = await logsResponse.json();
-            setLogs(logsData.logs.sort((a: ActivityLog, b: ActivityLog) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-        } else {
-            setLogs([]); // Clear logs for non-woocommerce users
-        }
+        if (!logsResponse.ok) throw new Error('No se pudo cargar la actividad.');
+        const logsData = await logsResponse.json();
+        setLogs(logsData.logs.sort((a: ActivityLog, b: ActivityLog) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+
     } catch (error: any) {
         toast({ title: 'Error al cargar el panel', description: error.message, variant: 'destructive' });
         setUserData(null); setConfigStatus(null); setLogs([]);
@@ -156,6 +152,31 @@ export default function DashboardPage() {
     URL.revokeObjectURL(url);
   };
   
+  const getStatsTitle = () => {
+    if (userData?.role === 'super_admin') return "Actividad Global de la Plataforma";
+    if (userData?.role === 'admin') return `Actividad de la Empresa: ${userData.companyName || ''}`;
+    return "Tu Actividad";
+  };
+
+  const getStatsSubtitle = (period: string | undefined) => {
+    const periodText = period || '';
+    if (userData?.role === 'super_admin') return `En toda la plataforma (${periodText})`;
+    if (userData?.role === 'admin') return `En tu empresa (${periodText})`;
+    return periodText;
+  }
+  
+  const getTotalSubtitle = () => {
+    if (userData?.role === 'super_admin') return "En toda la plataforma";
+    if (userData?.role === 'admin') return "En tu empresa";
+    return "Creados con la aplicación";
+  }
+
+  const getRecentActivityTitle = () => {
+      if (userData?.role === 'super_admin') return "Actividad Reciente Global";
+      if (userData?.role === 'admin') return "Actividad Reciente de la Empresa";
+      return "Tu Actividad Reciente";
+  };
+
   const isSuperAdmin = userData?.role === 'super_admin';
   const effectivePlatform = userData?.companyPlatform || userData?.platform;
   const showWooCommerce = isSuperAdmin || effectivePlatform === 'woocommerce';
@@ -272,22 +293,22 @@ export default function DashboardPage() {
         <>
           <section aria-labelledby="statistics-title">
             <div className="flex justify-between items-center mb-4">
-                <h2 id="statistics-title" className="text-xl font-semibold text-foreground font-headline">Tu Actividad</h2>
+                <h2 id="statistics-title" className="text-xl font-semibold text-foreground font-headline">{getStatsTitle()}</h2>
                 <Select value={filter} onValueChange={(value: FilterType) => setFilter(value)}>
                     <SelectTrigger className="w-[180px]"><Calendar className="mr-2 h-4 w-4" /><SelectValue placeholder="Seleccionar periodo" /></SelectTrigger>
                     <SelectContent>{filterOptions.map(option => (<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>))}</SelectContent>
                 </Select>
             </div>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-              <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Productos Creados</CardTitle><BarChart3 className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{stats.productsInPeriod}</div><p className="text-xs text-muted-foreground">{filterOptions.find(f => f.value === filter)?.label}</p></CardContent></Card>
-              <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total Productos Histórico</CardTitle><Layers className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{stats.totalProducts}</div><p className="text-xs text-muted-foreground">Creados con la aplicación</p></CardContent></Card>
+              <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Productos Creados</CardTitle><BarChart3 className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{stats.productsInPeriod}</div><p className="text-xs text-muted-foreground">{getStatsSubtitle(filterOptions.find(f => f.value === filter)?.label)}</p></CardContent></Card>
+              <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total Productos Histórico</CardTitle><Layers className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{stats.totalProducts}</div><p className="text-xs text-muted-foreground">{getTotalSubtitle()}</p></CardContent></Card>
               <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Webs Utilizadas</CardTitle><LinkIcon className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{stats.connectionsUsed}</div><p className="text-xs text-muted-foreground">Conexiones API activas usadas</p></CardContent></Card>
-              <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Generaciones con IA</CardTitle><BrainCircuit className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{configStatus?.aiUsageCount || 0}</div><p className="text-xs text-muted-foreground">Total de usos de la API de IA</p></CardContent></Card>
+              <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">{userData?.role === 'user' ? 'Generaciones con IA' : 'Tus Generaciones con IA'}</CardTitle><BrainCircuit className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{configStatus?.aiUsageCount || 0}</div><p className="text-xs text-muted-foreground">{userData?.role === 'user' ? 'Total de usos de la API de IA' : 'Esta es una métrica personal'}</p></CardContent></Card>
             </div>
           </section>
 
           <section aria-labelledby="recent-activity-title">
-            <h2 id="recent-activity-title" className="text-xl font-semibold mb-4 text-foreground font-headline">Actividad Reciente</h2>
+            <h2 id="recent-activity-title" className="text-xl font-semibold mb-4 text-foreground font-headline">{getRecentActivityTitle()}</h2>
             <Card className="shadow-lg rounded-lg">
                 <CardHeader className="flex flex-row items-center justify-between">
                      <CardTitle className="text-lg font-medium">Últimos Productos Procesados</CardTitle>
