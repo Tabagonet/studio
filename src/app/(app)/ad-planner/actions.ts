@@ -48,9 +48,13 @@ export async function generateAdPlanAction(
             const newPlanRef = await adminDb.collection('ad_plans').add({
                 userId: uid,
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                // Input data
                 url: planDataToSave.url,
                 objectives: planDataToSave.objectives,
                 additional_context: planDataToSave.additional_context,
+                priorityObjective: planDataToSave.priorityObjective,
+                brandPersonality: planDataToSave.brandPersonality,
+                monthlyBudget: planDataToSave.monthlyBudget,
                 
                 // Comprehensive strategy fields
                 buyer_persona: planDataToSave.buyer_persona,

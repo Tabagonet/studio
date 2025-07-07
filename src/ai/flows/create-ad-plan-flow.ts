@@ -1,3 +1,4 @@
+
 'use server';
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -6,14 +7,25 @@ import { adminDb } from '@/lib/firebase-admin';
 import Handlebars from 'handlebars';
 
 async function getAdPlanPrompt(uid: string): Promise<string> {
-    const defaultPrompt = `Eres un experto de talla mundial en marketing digital, producto digital y posicionamiento de marca. Tienes acceso a una base de datos con múltiples estrategias probadas para distintos sectores (moda, tecnología, ecommerce, salud, educación, consultoría, logística, restauración, etc.) y debes generar una estrategia personalizada y ganadora.
+    const defaultPrompt = `Eres un experto de talla mundial en marketing digital, producto digital y posicionamiento de marca. Tu tarea es generar una estrategia publicitaria completa, profesional y personalizada.
 Tu respuesta DEBE ser un único objeto JSON válido, sin comentarios ni markdown.
 
-**INFORMACIÓN DE ENTRADA:**
+**INFORMACIÓN DE ENTRADA PRINCIPAL:**
 - URL del negocio: {{url}}
 - Objetivos de la campaña: {{#each objectives}}- {{this}}{{/each}}
+
+**CONTEXTO ESTRATÉGICO ADICIONAL (PRIORIDAD MÁXIMA):**
+{{#if priorityObjective}}
+- **Objetivo Principal Prioritario:** {{{priorityObjective}}}
+{{/if}}
+{{#if monthlyBudget}}
+- **Presupuesto Máximo Indicado:** {{{monthlyBudget}}}
+{{/if}}
+{{#if brandPersonality.length}}
+- **Personalidad de Marca Clave:** {{#each brandPersonality}}{{#if @index}}, {{/if}}{{this}}{{/each}}
+{{/if}}
 {{#if additional_context}}
-- Contexto Adicional Clave (prioridad máxima):
+- **Contexto Adicional General:**
 {{{additional_context}}}
 {{/if}}
 
@@ -98,12 +110,15 @@ export async function createAdPlan(input: CreateAdPlanInput, uid: string): Promi
       });
   }
 
-  // Add the original input URL and objectives to the final plan object
+  // Add the original input to the final plan object for persistence
   const finalPlan = {
       ...rawJson,
       url: input.url,
       objectives: input.objectives,
       additional_context: input.additional_context,
+      priorityObjective: input.priorityObjective,
+      brandPersonality: input.brandPersonality,
+      monthlyBudget: input.monthlyBudget,
   };
   
   return CreateAdPlanOutputSchema.parse(finalPlan);

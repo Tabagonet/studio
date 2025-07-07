@@ -18,6 +18,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { AdPlanHistory } from './history-list';
 import { Textarea } from '@/components/ui/textarea';
 import type { Company } from '@/lib/types';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 const objectives = [
@@ -27,6 +29,15 @@ const objectives = [
     "Impulsar el tráfico a la web o a una landing page",
     "Incrementar los seguidores y la interacción en redes sociales",
     "Fidelizar clientes existentes y aumentar el LTV",
+];
+
+const brandPersonalities = [
+    { id: 'profesional', label: 'Profesional y Técnico' },
+    { id: 'cercano', label: 'Cercano y Amigable' },
+    { id: 'lujoso', label: 'Lujoso y Elegante' },
+    { id: 'vibrante', label: 'Vibrante y Moderno' },
+    { id: 'eco', label: 'Eco-consciente y Natural' },
+    { id: 'divertido', label: 'Divertido y Juvenil' },
 ];
 
 export default function AdPlannerPage() {
@@ -42,6 +53,9 @@ export default function AdPlannerPage() {
         defaultValues: {
             url: '',
             objectives: [],
+            priorityObjective: '',
+            brandPersonality: [],
+            monthlyBudget: '',
             additional_context: '',
         },
     });
@@ -169,7 +183,7 @@ export default function AdPlannerPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>Crear Nuevo Plan</CardTitle>
-                        <CardDescription>Introduce la URL y los objetivos. Añade contexto para un plan más preciso.</CardDescription>
+                        <CardDescription>Introduce la URL y los objetivos. Para un plan más preciso, despliega las opciones adicionales.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Form {...form}>
@@ -210,9 +224,9 @@ export default function AdPlannerPage() {
                                                                 checked={field.value?.includes(item)}
                                                                 onCheckedChange={(checked) => {
                                                                 return checked
-                                                                    ? field.onChange([...field.value, item])
+                                                                    ? field.onChange([...(field.value || []), item])
                                                                     : field.onChange(
-                                                                        field.value?.filter(
+                                                                        (field.value || [])?.filter(
                                                                         (value) => value !== item
                                                                         )
                                                                     )
@@ -232,23 +246,104 @@ export default function AdPlannerPage() {
                                         </FormItem>
                                     )}
                                 />
-                                 <FormField
-                                    control={form.control}
-                                    name="additional_context"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Contexto Adicional (Opcional)</FormLabel>
-                                            <FormControl>
-                                                <Textarea 
-                                                    placeholder="Añade aquí cualquier información que la IA deba conocer y que no esté en la web. Por ejemplo: 'Somos una empresa familiar con 50 años de historia' o 'Queremos promocionar nuestro nuevo producto XYZ que es eco-friendly'." 
-                                                    {...field}
-                                                    rows={4}
-                                                />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                                
+                                <Accordion type="single" collapsible className="w-full pt-4 border-t">
+                                    <AccordionItem value="item-1">
+                                        <AccordionTrigger>
+                                            <h3 className="text-lg font-semibold">Optimización Adicional (Opcional)</h3>
+                                        </AccordionTrigger>
+                                        <AccordionContent className="space-y-6 pt-4">
+                                            <FormField
+                                                control={form.control}
+                                                name="priorityObjective"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>Objetivo Principal Prioritario</FormLabel>
+                                                        <FormControl>
+                                                            <Input placeholder="Ej: Generar 10 leads cualificados este mes" {...field} />
+                                                        </FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="monthlyBudget"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>Presupuesto Mensual Máximo Indicado</FormLabel>
+                                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                            <FormControl>
+                                                                <SelectTrigger><SelectValue placeholder="Selecciona un rango de presupuesto..." /></SelectTrigger>
+                                                            </FormControl>
+                                                            <SelectContent>
+                                                                <SelectItem value="<500€">&lt; 500€</SelectItem>
+                                                                <SelectItem value="500€-1500€">500€ - 1.500€</SelectItem>
+                                                                <SelectItem value="1500€-3000€">1.500€ - 3.000€</SelectItem>
+                                                                <SelectItem value=">3000€">&gt; 3.000€</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="brandPersonality"
+                                                render={() => (
+                                                    <FormItem>
+                                                        <FormLabel>Personalidad de Marca (Adjetivos Clave)</FormLabel>
+                                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                                            {brandPersonalities.map((item) => (
+                                                                <FormField
+                                                                    key={item.id}
+                                                                    control={form.control}
+                                                                    name="brandPersonality"
+                                                                    render={({ field }) => {
+                                                                        return (
+                                                                            <FormItem key={item.id} className="flex flex-row items-start space-x-3 space-y-0">
+                                                                                <FormControl>
+                                                                                    <Checkbox
+                                                                                        checked={field.value?.includes(item.label)}
+                                                                                        onCheckedChange={(checked) => {
+                                                                                            return checked
+                                                                                                ? field.onChange([...(field.value || []), item.label])
+                                                                                                : field.onChange((field.value || [])?.filter((value) => value !== item.label))
+                                                                                        }}
+                                                                                    />
+                                                                                </FormControl>
+                                                                                <FormLabel className="font-normal">{item.label}</FormLabel>
+                                                                            </FormItem>
+                                                                        )
+                                                                    }}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="additional_context"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>Contexto Adicional General</FormLabel>
+                                                        <FormControl>
+                                                            <Textarea 
+                                                                placeholder="Añade aquí cualquier información que la IA deba conocer y que no esté en la web. Por ejemplo: 'Somos una empresa familiar con 50 años de historia' o 'Queremos promocionar nuestro nuevo producto XYZ que es eco-friendly'." 
+                                                                {...field}
+                                                                rows={6}
+                                                            />
+                                                        </FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                </Accordion>
+
                                 <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
                                     {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                                     {isLoading ? 'Generando...' : 'Generar Plan Estratégico'}

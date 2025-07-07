@@ -83,6 +83,9 @@ export const CreateAdPlanOutputSchema = z.object({
   url: z.string().url({ message: "La URL no es válida." }).or(z.literal('')).default(''),
   objectives: z.array(z.string()).default([]),
   additional_context: z.string().optional(),
+  priorityObjective: z.string().optional(),
+  brandPersonality: z.array(z.string()).optional(),
+  monthlyBudget: z.string().optional(),
   
   // High-level strategy
   buyer_persona: z.string().describe("Perfil psicográfico del cliente ideal."),
@@ -118,6 +121,9 @@ export type CreateAdPlanOutput = z.infer<typeof CreateAdPlanOutputSchema>;
 export const CreateAdPlanInputSchema = z.object({
   url: z.string().url({ message: "Por favor, introduce una URL válida." }),
   objectives: z.array(z.string()).min(1, { message: "Selecciona al menos un objetivo." }),
+  priorityObjective: z.string().optional(),
+  brandPersonality: z.array(z.string()).optional(),
+  monthlyBudget: z.string().optional(),
   additional_context: z.string().optional(),
 });
 export type CreateAdPlanInput = z.infer<typeof CreateAdPlanInputSchema>;
