@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -66,7 +67,7 @@ Genera un objeto JSON con las siguientes claves principales:
     -   "month": (string) ej. "Mes 1".
     -   "focus": (string) El enfoque principal del mes.
     -   "actions": (array of strings) Una lista detallada de 5 a 7 acciones concretas para ese mes.
-8.  **"extra_recommendations"**: (array of strings) 2-4 recomendaciones extra sobre posicionamiento o UX.
+8.  **"extra_recommendations"**: (array de strings) Basado en tu análisis de la URL proporcionada, ofrece 2-4 recomendaciones clave sobre SEO técnico o mejoras de experiencia de usuario (UX) que podrían impactar directamente en el rendimiento de las campañas (ej. velocidad de carga, optimización móvil, CTAs poco claros, etc.).
 9.  **"fee_proposal"**: (object) Una propuesta de honorarios de agencia estándar.
     -   "setup_fee": (number) Coste de configuración inicial (ej. 1500).
     -   "management_fee": (number) Cuota de gestión mensual (ej. 2500).
