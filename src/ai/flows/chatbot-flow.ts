@@ -35,12 +35,13 @@ const CHATBOT_PROMPT_TEMPLATE = `Eres un asistente de estrategia digital amigabl
 5.  **Pedir Email:** Después del nombre, pide el email, dirigiéndote al usuario por su nombre si lo tienes.
     *EJEMPLO DE PREGUNTA:* "Gracias, {{name}}. Por último, ¿a qué dirección de correo electrónico podemos contactarte?"
 
-6.  **Confirmación de Datos (¡NUEVO!):** Una vez que tengas el email, ANTES de finalizar, DEBES presentar un resumen de la información clave recopilada y pedir confirmación.
+6.  **Confirmación de Datos:** Una vez que tengas el email, ANTES de finalizar, DEBES presentar un resumen de la información clave recopilada y pedir confirmación.
     *   **Contexto Necesario:** Para este paso, te proporcionaré los siguientes datos extraídos de la conversación: \`{{name}}\`, \`{{email}}\`, \`{{objective}}\`, \`{{businessDescription}}\`. Asegúrate de que todos los campos tengan valor antes de mostrar el resumen. Si falta alguno, vuelve a la pregunta correspondiente del flujo.
-    *   **EJEMPLO DE PREGUNTA:** "¡Perfecto, gracias! Antes de terminar, ¿podemos revisar que todo esté correcto?\\n\\n- **Nombre:** {{name}}\\n- **Email:** {{email}}\\n- **Objetivo:** {{objective}}\\n- **Descripción:** {{businessDescription}}\\n\\nSi algo no es correcto, dime qué quieres cambiar (por ejemplo, 'cambiar email'). Si todo está bien, simplemente confirma."
+    *   **EJEMPLO DE PREGUNTA:** "¡Perfecto, gracias! Antes de terminar, ¿podemos revisar que todo esté correcto?\\n\\n- **Nombre:** {{name}}\\n- **Email:** {{email}}\\n- **Objetivo:** {{objective}}\\n- **Descripción:** {{businessDescription}}\\n\\nSi algo no es correcto, indícame qué dato quieres cambiar y su nuevo valor. Si todo está bien, simplemente confirma."
 
-7.  **Manejo de Correcciones:** Si el usuario indica que algo es incorrecto (ej: "el email está mal", "cambia el nombre"), DEBES preguntar por la información correcta y luego volver a mostrar el resumen de confirmación del paso 6. NO finalices la conversación.
-    *   EJEMPLO DE RESPUESTA A CORRECCIÓN: "Entendido, disculpa. ¿Cuál sería el dato correcto para [campo a corregir]?"
+7.  **Manejo de Correcciones (Adaptativo):** Si el usuario indica que algo es incorrecto, actúa de forma inteligente:
+    *   **Si el usuario YA proporciona el dato correcto** en su mensaje (ej: "Mi nombre es Pablo", "el email es pablo@test.com"), **NO vuelvas a preguntar**. Simplemente actualiza el dato internamente (yo me encargo de pasártelo actualizado en los campos {{name}}, {{email}}, etc.), di algo como "¡Corregido! Gracias, {{name}}." y vuelve a mostrar el resumen de confirmación del paso 6 con los datos actualizados.
+    *   **Si el usuario SOLO indica el error** (ej: "el email está mal", "mi nombre no es ese"), entonces SÍ debes preguntar cuál es el dato correcto. EJEMPLO: "Entendido, disculpa. ¿Cuál sería el email correcto?"
 
 8.  **Finalización:** Solo cuando el usuario confirme explícitamente que los datos del resumen son correctos (ej: "sí", "todo bien", "correcto"), tu ÚLTIMA respuesta DEBE ser únicamente la palabra "FIN".
 
@@ -83,22 +84,36 @@ function extractDataFromConversation(messages: { role: 'user' | 'model'; content
         'correo': 'email',
     };
 
+    // This loop establishes the base data from the Q&A flow
     for (let i = 0; i < messages.length; i++) {
-        if (messages[i].role === 'model') {
+        if (messages[i].role === 'model' && messages[i+1]?.role === 'user') {
             const botQuestion = messages[i].content.toLowerCase();
-            const nextMessage = messages[i + 1];
-
-            if (nextMessage && nextMessage.role === 'user') {
-                for (const keyword in questionKeywords) {
-                    if (botQuestion.includes(keyword)) {
-                        const key = questionKeywords[keyword];
-                        data[key] = nextMessage.content;
-                        break; 
-                    }
+            for (const keyword in questionKeywords) {
+                if (botQuestion.includes(keyword)) {
+                    const key = questionKeywords[keyword];
+                    data[key] = messages[i+1].content;
+                    break;
                 }
             }
         }
     }
+    
+    // This loop looks for explicit corrections from the user. It can overwrite the base data.
+    for (const message of messages) {
+        if (message.role === 'user') {
+            const originalText = message.content;
+            
+            const nameMatch = originalText.match(/mi nombre es (.*)/i);
+            if (nameMatch && nameMatch[1]) data.name = nameMatch[1].trim();
+
+            const emailMatch = originalText.match(/(?:mi email es|mi correo es) (.*)/i);
+            if (emailMatch && emailMatch[1]) data.email = emailMatch[1].trim();
+
+            const objectiveMatch = originalText.match(/(?:mi objetivo es|el objetivo es) (.*)/i);
+            if (objectiveMatch && objectiveMatch[1]) data.objective = objectiveMatch[1].trim();
+        }
+    }
+
     return data;
 }
 

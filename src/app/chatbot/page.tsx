@@ -24,7 +24,7 @@ export default function ChatbotPage() {
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isComplete, setIsComplete] = useState(false);
-    const scrollAreaRef = useRef<HTMLDivElement>(null);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
 
@@ -51,12 +51,7 @@ export default function ChatbotPage() {
     }, [toast]);
 
     useEffect(() => {
-        if (scrollAreaRef.current) {
-            scrollAreaRef.current.scrollTo({
-                top: scrollAreaRef.current.scrollHeight,
-                behavior: 'smooth'
-            });
-        }
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         if (!isLoading && !isComplete) {
             inputRef.current?.focus();
         }
@@ -115,7 +110,7 @@ export default function ChatbotPage() {
                     </div>
                 </CardHeader>
                 <CardContent className="flex-1 p-0 overflow-hidden">
-                    <ScrollArea className="h-full" ref={scrollAreaRef}>
+                    <ScrollArea className="h-full">
                         <div className="p-6 space-y-6">
                             {messages.map(message => (
                                 <div key={message.id} className={cn("flex items-start gap-3", message.role === 'user' && "justify-end")}>
@@ -149,6 +144,7 @@ export default function ChatbotPage() {
                                     </div>
                                 </div>
                             )}
+                             <div ref={messagesEndRef} />
                         </div>
                     </ScrollArea>
                 </CardContent>
