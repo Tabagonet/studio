@@ -2,7 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import type * as admin from 'firebase-admin';
-import { createWordPressApi } from '@/lib/api-helpers';
 import axios from 'axios';
 
 export const dynamic = 'force-dynamic';
