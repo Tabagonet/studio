@@ -5,7 +5,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Prospect } from "@/lib/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown, MoreHorizontal, Briefcase, Trash2 } from "lucide-react";
+import { ArrowUpDown, MoreHorizontal, FileText, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,8 +16,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { buttonVariants } from "@/components/ui/button";
 
-export const getColumns = (): ColumnDef<Prospect>[] => [
+export const getColumns = (
+    onDelete: (prospectId: string) => void,
+    onViewDetails: (prospect: Prospect) => void,
+    isDeleting: string | null
+): ColumnDef<Prospect>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -32,6 +38,7 @@ export const getColumns = (): ColumnDef<Prospect>[] => [
         checked={row.getIsSelected()}
         onCheckedChange={(value) => row.toggleSelected(!!value)}
         aria-label="Select row"
+        disabled={isDeleting === row.original.id}
       />
     ),
     enableSorting: false,
@@ -86,25 +93,45 @@ export const getColumns = (): ColumnDef<Prospect>[] => [
     cell: ({ row }) => {
       const prospect = row.original;
       return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Abrir menú</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-            <DropdownMenuItem disabled>
-                <Briefcase className="mr-2 h-4 w-4" />
-                Convertir a Plan
-            </DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive focus:text-destructive">
-                <Trash2 className="mr-2 h-4 w-4" />
-                Eliminar Prospecto
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+         <AlertDialog>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0" disabled={isDeleting === prospect.id}>
+                <span className="sr-only">Abrir menú</span>
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+               <DropdownMenuItem onClick={() => onViewDetails(prospect)}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Ver Detalles
+              </DropdownMenuItem>
+              <AlertDialogTrigger asChild>
+                <DropdownMenuItem className="text-destructive focus:text-destructive">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Eliminar Prospecto
+                </DropdownMenuItem>
+              </AlertDialogTrigger>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>¿Eliminar Prospecto?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Esta acción eliminará permanentemente al prospecto <strong>{prospect.name}</strong>. ¿Estás seguro?
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={() => onDelete(prospect.id)} 
+                      className={buttonVariants({ variant: "destructive" })}>
+                        Sí, eliminar
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
       );
     },
   },

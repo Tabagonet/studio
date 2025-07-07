@@ -30,15 +30,19 @@ import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { deleteProspectAction } from './actions';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { ProspectDetailDialog } from './ProspectDetailDialog';
 
 
 export function ProspectsTable() {
   const [data, setData] = React.useState<Prospect[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [isDeleting, setIsDeleting] = React.useState<string | null>(null);
   
   const [sorting, setSorting] = React.useState<SortingState>([{ id: 'createdAt', desc: true }]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
+
+  const [prospectToView, setProspectToView] = React.useState<Prospect | null>(null);
 
   const { toast } = useToast();
 
@@ -72,27 +76,54 @@ export function ProspectsTable() {
     });
     return () => unsubscribe();
   }, [fetchData]);
-  
-  const handleDeleteSelected = async () => {
-    const selectedIds = table.getSelectedRowModel().rows.map(row => row.original.id);
-    if (selectedIds.length === 0) return;
 
+  const handleDeleteProspect = async (prospectId: string) => {
+    setIsDeleting(prospectId);
     const user = auth.currentUser;
     if (!user) {
       toast({ title: 'No autenticado', variant: 'destructive' });
+      setIsDeleting(null);
       return;
     }
     const token = await user.getIdToken();
-    
-    toast({ title: `Eliminando ${selectedIds.length} prospecto(s)...`});
-    
-    const results = await Promise.all(
-      selectedIds.map(id => deleteProspectAction(id, token))
-    );
+    const result = await deleteProspectAction(prospectId, token);
 
-    const successes = results.filter(r => r.success).length;
-    const failures = results.length - successes;
+    if (result.success) {
+      toast({ title: 'Prospecto eliminado' });
+      fetchData(); // Refresh data
+    } else {
+      toast({ title: 'Error al eliminar', description: result.error, variant: 'destructive' });
+    }
+    setIsDeleting(null);
+  };
+  
+  const handleDeleteSelected = async () => {
+    const selectedRows = table.getSelectedRowModel().rows;
+    if (selectedRows.length === 0) return;
+    
+    setIsDeleting('batch'); // Indicate batch deletion is in progress
+    const user = auth.currentUser;
+    if (!user) {
+      toast({ title: 'No autenticado', variant: 'destructive' });
+      setIsDeleting(null);
+      return;
+    }
+    const token = await user.getIdToken();
 
+    toast({ title: `Eliminando ${selectedRows.length} prospecto(s)...`});
+    
+    let successes = 0;
+    let failures = 0;
+
+    for (const row of selectedRows) {
+      const result = await deleteProspectAction(row.original.id, token);
+      if (result.success) {
+        successes++;
+      } else {
+        failures++;
+      }
+    }
+    
     if (successes > 0) {
       toast({ title: 'Prospectos eliminados', description: `${successes} prospecto(s) han sido eliminados.` });
       fetchData(); // Refresh data
@@ -101,10 +132,11 @@ export function ProspectsTable() {
     if (failures > 0) {
       toast({ title: 'Error al eliminar', description: `${failures} prospecto(s) no pudieron ser eliminados.`, variant: 'destructive' });
     }
+    setIsDeleting(null);
   }
 
 
-  const columns = React.useMemo(() => getColumns(), []);
+  const columns = React.useMemo(() => getColumns(handleDeleteProspect, setProspectToView, isDeleting), [isDeleting]);
 
   const table = useReactTable({
     data,
@@ -127,6 +159,7 @@ export function ProspectsTable() {
 
   return (
     <div className="w-full space-y-4">
+      <ProspectDetailDialog prospect={prospectToView} onOpenChange={() => setProspectToView(null)} />
       <div className="flex items-center justify-between">
          <Input
           placeholder="Filtrar por nombre..."
@@ -139,8 +172,8 @@ export function ProspectsTable() {
         {selectedRowCount > 0 && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive">
-                <Trash2 className="mr-2 h-4 w-4" />
+              <Button variant="destructive" disabled={!!isDeleting}>
+                {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
                 Eliminar ({selectedRowCount})
               </Button>
             </AlertDialogTrigger>

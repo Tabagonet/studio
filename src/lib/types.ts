@@ -363,7 +363,10 @@ export interface Prospect {
   inquiryData?: {
     objective?: string;
     businessDescription?: string;
+    valueProposition?: string;
     targetAudience?: string;
     competitors?: string;
+    brandPersonality?: string;
+    monthlyBudget?: string;
   };
 }

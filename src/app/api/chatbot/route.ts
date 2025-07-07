@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getChatbotResponse } from '@/ai/flows/chatbot-flow';
+import { getChatbotResponse, extractDataFromConversation } from '@/ai/flows/chatbot-flow';
 import { adminDb } from '@/lib/firebase-admin';
 
 export const dynamic = 'force-dynamic';
@@ -8,45 +8,6 @@ export const dynamic = 'force-dynamic';
 interface Message {
     role: 'user' | 'model';
     content: string;
-}
-
-// Helper to extract collected data from conversation history
-function extractDataFromConversation(messages: Message[]): Record<string, string> {
-    const data: Record<string, string> = {};
-    const questionKeywords: Record<string, keyof typeof data> = {
-        'url': 'companyUrl',
-        'web': 'companyUrl',
-        'página': 'companyUrl',
-        'negocio': 'businessDescription',
-        'describir': 'businessDescription',
-        'objetivo': 'objective',
-        'meta': 'objective',
-        'nombre': 'name',
-        'llamas': 'name',
-        'email': 'email',
-        'correo': 'email',
-    };
-
-    for (let i = 0; i < messages.length; i++) {
-        if (messages[i].role === 'model') {
-            const botQuestion = messages[i].content.toLowerCase();
-            const nextMessage = messages[i + 1];
-
-            if (nextMessage && nextMessage.role === 'user') {
-                for (const keyword in questionKeywords) {
-                    if (botQuestion.includes(keyword)) {
-                        const key = questionKeywords[keyword];
-                        // Assign the user's answer to the corresponding key.
-                        // This will overwrite previous assignments if the bot asks a similar question,
-                        // which is fine as we only care about the last given answer for each piece of data.
-                        data[key] = nextMessage.content;
-                        break; 
-                    }
-                }
-            }
-        }
-    }
-    return data;
 }
 
 export async function POST(req: NextRequest) {
@@ -73,6 +34,11 @@ export async function POST(req: NextRequest) {
                     inquiryData: {
                         objective: inquiryData.objective,
                         businessDescription: inquiryData.businessDescription,
+                        valueProposition: inquiryData.valueProposition,
+                        targetAudience: inquiryData.targetAudience,
+                        competitors: inquiryData.competitors,
+                        brandPersonality: inquiryData.brandPersonality,
+                        monthlyBudget: inquiryData.monthlyBudget,
                     },
                 }),
             });

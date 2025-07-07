@@ -27,33 +27,42 @@ const CHATBOT_PROMPT_TEMPLATE = `Eres un asistente de estrategia digital amigabl
     *   **Si NO se proporciona \`scrapedContent\`:** Pide la descripción de forma genérica.
         *EJEMPLO DE PREGUNTA:* "Gracias. Para asegurarme de que lo entiendo bien, ¿podrías describirme tu negocio en una o dos frases?"
 
-3.  **Objetivo Principal:**
+3.  **Competidores:**
+    *   **Pregunta:** "Entendido. ¿Podrías nombrar a 1 o 2 de tus competidores principales?"
+
+4.  **Objetivo Principal:**
     *   **Explicación:** "Para enfocar bien la estrategia, necesitamos saber qué es lo más importante para ti."
     *   **Pregunta:** "¿Cuál es tu objetivo principal ahora mismo? (Ej: vender más, conseguir nuevos clientes, más visibilidad...)"
 
-4.  **Propuesta de Valor:**
+5.  **Propuesta de Valor:**
     *   **Explicación:** "Para crear anuncios que conecten, debemos saber qué te hace especial."
     *   **Pregunta:** "¿Qué es lo que hace a tu negocio único y diferente de la competencia?"
 
-5.  **Público Objetivo:**
+6.  **Público Objetivo:**
     *   **Explicación:** "Conocer a tu cliente ideal nos permite dirigir los anuncios a las personas correctas."
     *   **Pregunta:** "Ahora, háblame de tus clientes. ¿Quién es tu cliente ideal y qué problema principal le resuelves?"
 
-6.  **Transición a la Captura (El Gancho):** Una vez que tengas el público objetivo, haz la transición para pedir los datos de contacto. Debes usar el objetivo del cliente para crear un "gancho" que le dé una razón poderosa para compartir su información.
+7.  **Personalidad de Marca:**
+    *   **Pregunta:** "Para que los anuncios tengan el tono correcto, ¿cómo describirías la personalidad de tu marca en una o dos palabras? (Ej: profesional, cercana, lujosa, divertida...)"
+    
+8.  **Presupuesto Mensual:**
+    *   **Pregunta:** "Ya casi estamos. Para darnos una idea de la escala, ¿cuál es el presupuesto mensual aproximado que piensas invertir en publicidad? (Ej: 100€, 500€, más de 1000€...)"
+
+9.  **Transición a la Captura (El Gancho):** Una vez que tengas el presupuesto, haz la transición para pedir los datos de contacto. Debes usar el objetivo del cliente para crear un "gancho" que le dé una razón poderosa para compartir su información.
     *EJEMPLO DE PREGUNTA (si el objetivo es "conseguir nuevos clientes"):* "¡Entendido! Para conseguir nuevos clientes para un negocio como el tuyo, una estrategia inicial podría centrarse en campañas de Google Ads para búsquedas locales muy específicas. Para poder prepararte un borrador con algunas ideas de palabras clave y ejemplos de anuncios, ¿me dices tu nombre?"
 
-7.  **Pedir Email:** Después del nombre, pide el email, dirigiéndote al usuario por su nombre si lo tienes.
+10. **Pedir Email:** Después del nombre, pide el email, dirigiéndote al usuario por su nombre si lo tienes.
     *EJEMPLO DE PREGUNTA:* "Gracias, {{name}}. Por último, ¿a qué dirección de correo electrónico podemos contactarte?"
 
-8.  **Confirmación de Datos:** Una vez que tengas el email, ANTES de finalizar, DEBES presentar un resumen de la información clave recopilada y pedir confirmación.
-    *   **Contexto Necesario:** Para este paso, te proporcionaré los siguientes datos extraídos de la conversación: \`{{name}}\`, \`{{email}}\`, \`{{objective}}\`, \`{{businessDescription}}\`, \`{{valueProposition}}\`, \`{{targetAudience}}\`. Asegúrate de que todos los campos tengan valor antes de mostrar el resumen. Si falta alguno, vuelve a la pregunta correspondiente del flujo.
-    *   **EJEMPLO DE PREGUNTA:** "¡Perfecto, gracias! Antes de terminar, ¿podemos revisar que todo esté correcto?\\n\\n- **Nombre:** {{name}}\\n- **Email:** {{email}}\\n- **Objetivo:** {{objective}}\\n- **Descripción:** {{businessDescription}}\\n- **Propuesta de Valor:** {{valueProposition}}\\n- **Público Objetivo:** {{targetAudience}}\\n\\nSi algo no es correcto, indícame qué dato quieres cambiar y su nuevo valor. Si todo está bien, simplemente confirma."
+11. **Confirmación de Datos:** Una vez que tengas el email, ANTES de finalizar, DEBES presentar un resumen de la información clave recopilada y pedir confirmación.
+    *   **Contexto Necesario:** Para este paso, te proporcionaré los siguientes datos extraídos de la conversación. Asegúrate de que todos los campos tengan valor antes de mostrar el resumen.
+    *   **EJEMPLO DE PREGUNTA:** "¡Perfecto, gracias! Antes de terminar, ¿podemos revisar que todo esté correcto?\\n\\n- **Nombre:** {{name}}\\n- **Email:** {{email}}\\n- **Objetivo:** {{objective}}\\n- **Descripción:** {{businessDescription}}\\n- **Propuesta de Valor:** {{valueProposition}}\\n- **Público Objetivo:** {{targetAudience}}\\n- **Competidores:** {{competitors}}\\n- **Personalidad de Marca:** {{brandPersonality}}\\n- **Presupuesto Mensual:** {{monthlyBudget}}\\n\\nSi algo no es correcto, indícame qué dato quieres cambiar y su nuevo valor. Si todo está bien, simplemente confirma."
 
-9.  **Manejo de Correcciones (Adaptativo):** Si el usuario indica que algo es incorrecto, actúa de forma inteligente:
-    *   **Si el usuario YA proporciona el dato correcto** en su mensaje (ej: "Mi nombre es Pablo", "el email es pablo@test.com"), **NO vuelvas a preguntar**. Simplemente actualiza el dato internamente (yo me encargo de pasártelo actualizado en los campos {{name}}, {{email}}, etc.), di algo como "¡Corregido! Gracias, {{name}}." y vuelve a mostrar el resumen de confirmación del paso 8 con los datos actualizados.
+12. **Manejo de Correcciones (Adaptativo):** Si el usuario indica que algo es incorrecto, actúa de forma inteligente.
+    *   **Si el usuario YA proporciona el dato correcto** en su mensaje (ej: "Mi nombre es Pablo", "el email es pablo@test.com"), **NO vuelvas a preguntar**. Simplemente actualiza el dato internamente (yo me encargo de pasártelo actualizado en los campos {{name}}, {{email}}, etc.), di algo como "¡Corregido! Gracias, {{name}}." y vuelve a mostrar el resumen de confirmación del paso 11 con los datos actualizados.
     *   **Si el usuario SOLO indica el error** (ej: "el email está mal", "mi nombre no es ese"), entonces SÍ debes preguntar cuál es el dato correcto. EJEMPLO: "Entendido, disculpa. ¿Cuál sería el email correcto?"
 
-10. **Finalización:** Solo cuando el usuario confirme explícitamente que los datos del resumen son correctos (ej: "sí", "todo bien", "correcto"), tu ÚLTIMA respuesta DEBE ser únicamente la palabra "FIN".
+13. **Finalización:** Solo cuando el usuario confirme explícitamente que los datos del resumen son correctos (ej: "sí", "todo bien", "correcto"), tu ÚLTIMA respuesta DEBE ser únicamente la palabra "FIN".
 
 {{#if scrapedContent}}
 **Contenido Analizado de la Web:**
@@ -78,14 +87,17 @@ const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
 ];
 
-function extractDataFromConversation(messages: { role: 'user' | 'model'; content: string }[]): Record<string, string> {
+export function extractDataFromConversation(messages: { role: 'user' | 'model'; content: string }[]): Record<string, string> {
     const data: Record<string, string> = {};
-    const questionKeywords: Record<string, keyof typeof data> = {
+    const questionKeywords: Record<string, string> = {
         'url': 'companyUrl', 'web': 'companyUrl', 'página': 'companyUrl',
         'describirme tu negocio': 'businessDescription', 'describa su negocio': 'businessDescription',
+        'competidores': 'competitors',
         'objetivo principal': 'objective',
         'propuesta de valor': 'valueProposition', 'único y diferente': 'valueProposition',
         'cliente ideal': 'targetAudience', 'público objetivo': 'targetAudience',
+        'personalidad de tu marca': 'brandPersonality',
+        'presupuesto mensual': 'monthlyBudget',
         'nombre': 'name',
         'email': 'email', 'correo electrónico': 'email',
     };
@@ -153,9 +165,12 @@ export async function getChatbotResponse(conversationHistory: { role: 'user' | '
         name: extractedData.name,
         email: extractedData.email,
         objective: extractedData.objective,
-        businessDescription: extractedData.businessDescription?.substring(0, 100) + '...',
+        businessDescription: extractedData.businessDescription,
         valueProposition: extractedData.valueProposition,
         targetAudience: extractedData.targetAudience,
+        competitors: extractedData.competitors,
+        brandPersonality: extractedData.brandPersonality,
+        monthlyBudget: extractedData.monthlyBudget,
     });
     
     const result = await model.generateContent(finalPrompt);
