@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -173,7 +174,20 @@ function ChatbotComponent() {
                 </CardContent>
                 <CardFooter className="border-t p-4">
                     {isComplete ? (
-                        <p className="text-sm text-center text-muted-foreground w-full">Gracias por tu tiempo. Nos pondremos en contacto contigo pronto.</p>
+                        <div className="text-sm text-center text-muted-foreground w-full">
+                            <p>Gracias por tu tiempo. Nos pondremos en contacto contigo pronto.</p>
+                            <p className="text-xs mt-2">
+                                Puedes consultar nuestros{' '}
+                                <Link href="/terms" className="underline hover:text-primary">
+                                    Términos de Servicio
+                                </Link>
+                                {' y '}
+                                <Link href="/privacy" className="underline hover:text-primary">
+                                    Política de Privacidad
+                                </Link>
+                                .
+                            </p>
+                        </div>
                     ) : (
                         <form onSubmit={handleSendMessage} className="w-full flex items-center gap-2">
                             <Input
