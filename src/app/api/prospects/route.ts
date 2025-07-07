@@ -107,9 +107,13 @@ export async function POST(req: NextRequest) {
             for (const adminDoc of adminsSnapshot.docs) {
                 const notificationRef = adminDb.collection('notifications').doc();
                 notificationBatch.set(notificationRef, {
-                    recipientUid: adminDoc.id, type: 'new_prospect', title: 'Nuevo Prospecto Capturado',
+                    recipientUid: adminDoc.id,
+                    type: 'new_prospect',
+                    title: 'Nuevo Prospecto Capturado',
                     message: `El prospecto ${name} (${companyUrl}) ha completado el cuestionario.`,
-                    link: '/prospects', read: false, createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    link: '/prospects',
+                    read: false,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 });
             }
             await notificationBatch.commit();
