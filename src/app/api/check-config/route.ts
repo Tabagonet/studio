@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
   const globalConfig = {
     googleAiApiKey: !!process.env.GOOGLE_API_KEY,
     firebaseAdminSdk: !!process.env.FIREBASE_SERVICE_ACCOUNT_JSON || (!!process.env.FIREBASE_PROJECT_ID && !!process.env.FIREBASE_PRIVATE_KEY && !!process.env.FIREBASE_CLIENT_EMAIL),
+    recaptchaConfigured: !!(process.env.RECAPTCHA_SECRET_KEY && process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY),
   };
 
   let userConfig = {

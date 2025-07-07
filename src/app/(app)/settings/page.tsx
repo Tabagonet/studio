@@ -6,13 +6,14 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { KeyRound, DatabaseZap, Download, Upload, Info, BrainCircuit, Loader2, ExternalLink, Server, Store, Globe, Trash2, Eye, EyeOff } from "lucide-react";
-import { auth } from '@/lib/firebase';
+import { KeyRound, DatabaseZap, Download, Upload, Info, BrainCircuit, Loader2, ExternalLink, Server, Store, Globe, Trash2, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { Textarea } from '@/components/ui/textarea';
 
 
 type ServerConfigStatus = {
@@ -20,6 +21,7 @@ type ServerConfigStatus = {
   wooCommerceConfigured: boolean;
   wordPressConfigured: boolean;
   firebaseAdminSdk: boolean;
+  recaptchaConfigured: boolean; // Added
   apiKey: string | null;
 };
 
@@ -57,51 +59,62 @@ export default function SettingsPage() {
   const [isCleaning, setIsCleaning] = useState(false);
   const [isCleaningOrphans, setIsCleaningOrphans] = useState(false);
   const [isApiKeyVisible, setIsApiKeyVisible] = useState(false);
+  
+  const [legalTexts, setLegalTexts] = useState({ privacyPolicy: '', termsOfService: '' });
+  const [isLoadingLegal, setIsLoadingLegal] = useState(true);
+  const [isSavingLegal, setIsSavingLegal] = useState(false);
+  
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const fetchConfigStatus = async () => {
+    const fetchConfigAndUserData = async () => {
       const unsubscribe = auth.onAuthStateChanged(async (user) => {
         unsubscribe(); 
         if (user) {
+          setIsLoadingConfig(true);
+          setIsLoadingLegal(true);
           try {
             const token = await user.getIdToken();
-            const response = await fetch('/api/check-config', {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const roleResponse = await fetch('/api/user/verify', {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-
-            if (!response.ok || !roleResponse.ok) {
-              const errorData = await response.json().catch(() => ({}));
-              throw new Error(errorData.error || `Error del servidor: ${response.status}`);
-            }
             
-            const configData: any = await response.json();
+            const configResponse = await fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` } });
+            const roleResponse = await fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } });
+
+            if (!configResponse.ok) throw new Error(`Error del servidor (config): ${configResponse.status}`);
+            if (!roleResponse.ok) throw new Error(`Error del servidor (verify): ${roleResponse.status}`);
+            
+            const configData: any = await configResponse.json();
             const userData: any = await roleResponse.json();
             
             setUserRole(userData.role);
             setServerConfig({ ...configData, apiKey: userData.apiKey });
+            setIsLoadingConfig(false);
+
+            if (userData.role === 'super_admin') {
+                const legalResponse = await fetch('/api/settings/legal', { headers: { 'Authorization': `Bearer ${token}` } });
+                if (legalResponse.ok) {
+                    setLegalTexts(await legalResponse.json());
+                }
+                 setIsLoadingLegal(false);
+            } else {
+                 setIsLoadingLegal(false);
+            }
 
           } catch (error: any) {
-            toast({
-              title: "Error al verificar configuración",
-              description: error.message,
-              variant: "destructive"
-            });
+            toast({ title: "Error al verificar configuración", description: error.message, variant: "destructive" });
             setServerConfig(null); 
-          } finally {
+            setUserRole(null);
             setIsLoadingConfig(false);
+            setIsLoadingLegal(false);
           }
         } else {
             setIsLoadingConfig(false);
+            setIsLoadingLegal(false);
         }
       });
     };
 
-    fetchConfigStatus();
+    fetchConfigAndUserData();
   }, [toast]);
   
   const handleExportSettings = async () => {
@@ -262,9 +275,35 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSaveLegal = async () => {
+    setIsSavingLegal(true);
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: 'Error de autenticación', variant: 'destructive' });
+        setIsSavingLegal(false);
+        return;
+    }
+    
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/settings/legal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(legalTexts),
+        });
+        if (!response.ok) throw new Error((await response.json()).error || 'Fallo al guardar los textos.');
+        toast({ title: 'Textos Legales Guardados', description: 'El contenido de las políticas ha sido actualizado.' });
+    } catch(e: any) {
+         toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
+    } finally {
+        setIsSavingLegal(false);
+    }
+  };
+
 
   const firebaseAdminHint = "Esta clave (FIREBASE_SERVICE_ACCOUNT_JSON) es para toda la aplicación y se configura en el archivo .env del servidor.";
   const googleAiApiKeyHint = "Esta clave (GOOGLE_API_KEY) es para toda la aplicación y se configura en el archivo .env del servidor. Obtén una clave gratis desde Google AI Studio.";
+  const recaptchaHint = "Las claves de reCAPTCHA (RECAPTCHA_SECRET_KEY y NEXT_PUBLIC_RECAPTCHA_SITE_KEY) son globales y se configuran en el .env del servidor.";
 
   return (
     <div className="container mx-auto py-8 space-y-8">
@@ -359,6 +398,13 @@ export default function SettingsPage() {
             </Label>
              <StatusBadge status={serverConfig?.googleAiApiKey} loading={isLoadingConfig} />
           </div>
+          <div title={recaptchaHint} className="flex items-center justify-between p-3 border rounded-md bg-muted/30 cursor-help">
+            <Label className="flex items-center cursor-help">
+              <ShieldCheck className="h-4 w-4 mr-2 text-green-600" />
+              Configuración reCAPTCHA (Global)
+            </Label>
+            <StatusBadge status={serverConfig?.recaptchaConfigured} loading={isLoadingConfig} />
+          </div>
           
           {/* PER-USER SETTINGS */}
           <div className="flex items-center justify-between p-3 border rounded-md">
@@ -389,6 +435,57 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+      
+      {userRole === 'super_admin' && (
+        <Card className="shadow-lg">
+            <CardHeader>
+                <CardTitle>Textos Legales</CardTitle>
+                <CardDescription>Edita el contenido de las páginas de política de privacidad y términos de servicio. Puedes usar HTML.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                {isLoadingLegal ? (
+                    <div className="space-y-4">
+                        <Skeleton className="h-8 w-1/4" />
+                        <Skeleton className="h-32 w-full" />
+                        <Skeleton className="h-8 w-1/4" />
+                        <Skeleton className="h-32 w-full" />
+                    </div>
+                ) : (
+                    <>
+                        <div>
+                            <Label htmlFor="privacyPolicy">Política de Privacidad</Label>
+                            <Textarea
+                                id="privacyPolicy"
+                                value={legalTexts.privacyPolicy}
+                                onChange={(e) => setLegalTexts(prev => ({...prev, privacyPolicy: e.target.value}))}
+                                rows={10}
+                                className="font-mono text-xs"
+                                placeholder="Introduce el texto de la política de privacidad aquí."
+                            />
+                        </div>
+                        <div>
+                            <Label htmlFor="termsOfService">Términos de Servicio</Label>
+                            <Textarea
+                                id="termsOfService"
+                                value={legalTexts.termsOfService}
+                                onChange={(e) => setLegalTexts(prev => ({...prev, termsOfService: e.target.value}))}
+                                rows={10}
+                                className="font-mono text-xs"
+                                placeholder="Introduce los términos y condiciones del servicio aquí."
+                            />
+                        </div>
+                        <div className="flex justify-end">
+                            <Button onClick={handleSaveLegal} disabled={isSavingLegal}>
+                                {isSavingLegal ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                Guardar Textos Legales
+                            </Button>
+                        </div>
+                    </>
+                )}
+            </CardContent>
+        </Card>
+      )}
+
 
       <Card className="shadow-lg">
         <CardHeader>
