@@ -80,6 +80,7 @@ export async function GET(req: NextRequest) {
                 createdAt: createdAt,
                 companyId: companyId,
                 companyName: companyId ? (companiesMap.get(companyId) || 'Empresa Eliminada') : null,
+                platform: data.platform || null,
             };
         });
 

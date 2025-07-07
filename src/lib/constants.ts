@@ -1,7 +1,8 @@
 
 
-import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList, SearchCheck, Copy, Building, Megaphone, Briefcase } from 'lucide-react';
+import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList, SearchCheck, Copy, Building, Megaphone, Briefcase, Store } from 'lucide-react';
 import type { NavItem, ProductType, ProductData, BlogPostData, NavGroup } from '@/lib/types';
+import { ShopifyIcon } from '@/components/core/icons';
 
 export const APP_NAME = "AutoPress AI";
 export const SUPPORT_EMAIL = "intelvisual@intelvisual.es";
@@ -16,14 +17,23 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     title: 'WooCommerce',
+    requiredPlatform: 'woocommerce',
     items: [
       { title: 'Asistente de Creación', href: '/wizard', icon: Wand2, requiredRoles: ['admin', 'super_admin', 'product_manager'] },
       { title: 'Gestión de Productos', href: '/batch', icon: Layers, requiredRoles: ['admin', 'super_admin', 'product_manager'] },
       { title: 'Proceso en Lotes', href: '/batch-process', icon: UploadCloud, requiredRoles: ['admin', 'super_admin', 'product_manager'] },
     ]
   },
+   {
+    title: 'Shopify',
+    requiredPlatform: 'shopify',
+    items: [
+      { title: 'Panel de Shopify', href: '/shopify', icon: ShopifyIcon, requiredRoles: ['admin', 'super_admin', 'product_manager'], disabled: true },
+    ]
+  },
   {
     title: 'Blog',
+    requiredPlatform: 'woocommerce',
     items: [
        { title: 'Creador de Entradas', href: '/blog-creator', icon: Newspaper, requiredRoles: ['admin', 'super_admin', 'content_manager'] },
        { title: 'Gestión de Entradas', href: '/blog', icon: ClipboardList, requiredRoles: ['admin', 'super_admin', 'content_manager'] },
@@ -31,6 +41,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     title: 'Herramientas',
+    requiredPlatform: 'woocommerce',
     items: [
        { title: 'Planificador de Publicidad', href: '/ad-planner', icon: Megaphone, requiredRoles: ['super_admin'] },
        { title: 'Optimizador SEO', href: '/seo-optimizer', icon: SearchCheck, requiredRoles: ['admin', 'super_admin', 'content_manager', 'product_manager', 'seo_analyst'] },

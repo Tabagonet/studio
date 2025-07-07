@@ -7,7 +7,7 @@ import type { SeoInterpretationOutput, SuggestLinksInput, SuggestLinksOutput, Li
 export interface NavItem {
   title: string;
   href: string;
-  icon: LucideIcon;
+  icon: LucideIcon | React.ComponentType<any>;
   label?: string;
   disabled?: boolean;
   external?: boolean;
@@ -17,6 +17,7 @@ export interface NavItem {
 export interface NavGroup {
   title: string;
   items: NavItem[];
+  requiredPlatform?: 'woocommerce' | 'shopify';
 }
 
 export type UploadStatus = 'pending' | 'uploading' | 'completed' | 'error';

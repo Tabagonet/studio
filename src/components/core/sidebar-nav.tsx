@@ -21,28 +21,38 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '../ui/skeleton';
 
+interface UserData {
+  role: string | null;
+  platform?: 'woocommerce' | 'shopify' | null;
+  companyPlatform?: 'woocommerce' | 'shopify' | null;
+}
+
+interface ConfigStatus {
+  wooCommerceConfigured: boolean;
+  wordPressConfigured: boolean;
+}
+
 export function SidebarNav() {
   const pathname = usePathname();
   const { toast } = useToast();
   const router = useRouter();
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [configStatus, setConfigStatus] = useState<{ wooCommerceConfigured: boolean; wordPressConfigured: boolean } | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [configStatus, setConfigStatus] = useState<ConfigStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchUserAndConfigData = async (user: FirebaseUser) => {
     try {
       const token = await user.getIdToken();
       
-      const [roleResponse, configResponse] = await Promise.all([
+      const [userResponse, configResponse] = await Promise.all([
         fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` }})
       ]);
 
-      if (roleResponse.ok) {
-        const userData = await roleResponse.json();
-        setUserRole(userData.role);
+      if (userResponse.ok) {
+        setUserData(await userResponse.json());
       } else {
-        setUserRole(null);
+        setUserData(null);
       }
 
       if(configResponse.ok) {
@@ -53,7 +63,7 @@ export function SidebarNav() {
 
     } catch (error) {
       console.error("Failed to fetch user/config for sidebar", error);
-      setUserRole(null);
+      setUserData(null);
       setConfigStatus({ wooCommerceConfigured: false, wordPressConfigured: false });
     } finally {
       setIsLoading(false);
@@ -66,7 +76,7 @@ export function SidebarNav() {
         setIsLoading(true);
         fetchUserAndConfigData(user);
       } else {
-        setUserRole(null);
+        setUserData(null);
         setConfigStatus(null);
         setIsLoading(false);
       }
@@ -122,12 +132,19 @@ export function SidebarNav() {
       )
     }
 
+    const effectivePlatform = userData?.companyPlatform || userData?.platform;
+
     return NAV_GROUPS.map((group) => {
       const visibleItems = group.items.filter(item => {
-        if (userRole === 'super_admin') return true; // Super admin sees everything
-        if (!item.requiredRoles) return true; // No roles required, visible to all
-        if (!userRole) return false; // Not logged in, can't see role-restricted items
-        return item.requiredRoles.includes(userRole);
+        if (userData?.role === 'super_admin') return true;
+        
+        const hasRequiredRole = !item.requiredRoles || (userData?.role && item.requiredRoles.includes(userData.role));
+        if (!hasRequiredRole) return false;
+        
+        const hasRequiredPlatform = !group.requiredPlatform || (effectivePlatform && group.requiredPlatform === effectivePlatform);
+        if (!hasRequiredPlatform) return false;
+
+        return true;
       });
       
       if (visibleItems.length === 0) return null;
@@ -139,14 +156,15 @@ export function SidebarNav() {
             let isDisabled = !!item.disabled;
             let tooltipText = item.title;
             
-            if (group.title === 'WooCommerce' && (!configStatus || !configStatus.wooCommerceConfigured)) {
+            if (group.requiredPlatform === 'woocommerce' && (!configStatus || !configStatus.wooCommerceConfigured || !configStatus.wordPressConfigured)) {
               isDisabled = true;
-              tooltipText = "Configuración de WooCommerce incompleta";
+              tooltipText = "Configuración de WooCommerce/WordPress incompleta";
             }
-            if (group.title === 'Blog' && (!configStatus || !configStatus.wordPressConfigured)) {
-              isDisabled = true;
-              tooltipText = "Configuración de WordPress incompleta";
-            }
+            // Future-proofing for Shopify
+            // if (group.requiredPlatform === 'shopify' && (!configStatus || !configStatus.shopifyConfigured)) {
+            //   isDisabled = true;
+            //   tooltipText = "Configuración de Shopify incompleta";
+            // }
 
             return (
               <SidebarMenuItem key={item.href}>

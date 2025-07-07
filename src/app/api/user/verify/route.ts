@@ -19,6 +19,8 @@ const userSchema = z.object({
   apiKey: z.string().uuid().optional(),
   companyId: z.string().nullable().optional(),
   companyName: z.string().nullable().optional(),
+  platform: z.enum(['woocommerce', 'shopify']).optional().nullable(),
+  companyPlatform: z.enum(['woocommerce', 'shopify']).optional().nullable(),
 });
 
 const SUPER_ADMIN_EMAIL = 'tabagonet@gmail.com';
@@ -88,7 +90,9 @@ export async function GET(req: NextRequest) {
       if (userData.companyId) {
           const companyDoc = await adminDb.collection('companies').doc(userData.companyId).get();
           if (companyDoc.exists) {
-              userData.companyName = companyDoc.data()?.name || null;
+              const companyData = companyDoc.data();
+              userData.companyName = companyData?.name || null;
+              userData.companyPlatform = companyData?.platform || null;
           }
       }
       
