@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User, Globe, Store } from "lucide-react";
+import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User, Globe, Store, PlugZap } from "lucide-react";
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -35,6 +35,7 @@ interface BasicUser {
 interface SelectedEntityStatus {
     wooCommerceConfigured: boolean;
     wordPressConfigured: boolean;
+    pluginActive: boolean;
     activeStoreUrl: string | null;
 }
 
@@ -95,10 +96,18 @@ const ConnectionStatusIndicator = ({ status, isLoading }: { status: SelectedEnti
                 </Tooltip>
                 <Tooltip>
                     <TooltipTrigger>
-                        <Globe className={cn("h-4 w-4", status.wordPressConfigured ? "text-green-500" : "text-destructive")} />
+                       <Globe className={cn("h-4 w-4", status.wordPressConfigured ? "text-green-500" : "text-destructive")} />
                     </TooltipTrigger>
                     <TooltipContent>
                         <p>WordPress: {status.wordPressConfigured ? "Configurado" : "No Configurado"}</p>
+                    </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                    <TooltipTrigger>
+                        <PlugZap className={cn("h-4 w-4", status.pluginActive ? "text-green-500" : "text-destructive")} />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p>Plugin AutoPress AI: {status.pluginActive ? "Activo" : "No Detectado"}</p>
                     </TooltipContent>
                 </Tooltip>
             </div>
@@ -448,7 +457,8 @@ export default function ConnectionsPage() {
                             <SelectTrigger><SelectValue placeholder="Elige una entidad..." /></SelectTrigger>
                             <SelectContent>
                                 <SelectGroup>
-                                    <SelectItem value="user:self"><Users className="inline-block mr-2 h-4 w-4" />Mis Conexiones (Super Admin)</SelectItem>
+                                  <SelectLabel>Super Admin</SelectLabel>
+                                  <SelectItem value="user:self"><Users className="inline-block mr-2 h-4 w-4" />Mis Conexiones (Super Admin)</SelectItem>
                                 </SelectGroup>
                                 
                                 {allCompanies.length > 0 && <SelectSeparator />}

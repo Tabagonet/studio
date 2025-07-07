@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { UserCircle, LogOut, Settings as SettingsIcon, Globe, Bell, Loader2, Store } from "lucide-react";
+import { UserCircle, LogOut, Settings as SettingsIcon, Globe, Bell, Loader2, Store, PlugZap } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +30,7 @@ interface ConfigStatus {
     storeUrl: string | null;
     wooCommerceConfigured: boolean;
     wordPressConfigured: boolean;
+    pluginActive: boolean;
 }
 
 export function Header() {
@@ -92,6 +93,7 @@ export function Header() {
             storeUrl: data.activeStoreUrl,
             wooCommerceConfigured: data.wooCommerceConfigured,
             wordPressConfigured: data.wordPressConfigured,
+            pluginActive: data.pluginActive,
           });
         } else {
           setConfigStatus(null);
@@ -206,7 +208,7 @@ export function Header() {
         <TooltipProvider delayDuration={100}>
             <Link href="/settings/connections" className="flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Gestionar conexiones">
                 <span className="hidden md:inline">{hostname}</span>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                     <Tooltip>
                         <TooltipTrigger>
                            <Store className={cn("h-4 w-4", configStatus.wooCommerceConfigured ? "text-green-500" : "text-destructive")} />
@@ -221,6 +223,14 @@ export function Header() {
                         </TooltipTrigger>
                         <TooltipContent>
                             <p>WordPress: {configStatus.wordPressConfigured ? "Configurado" : "No Configurado"}</p>
+                        </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger>
+                           <PlugZap className={cn("h-4 w-4", configStatus.pluginActive ? "text-green-500" : "text-destructive")} />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Plugin AutoPress AI: {configStatus.pluginActive ? "Activo" : "No Detectado"}</p>
                         </TooltipContent>
                     </Tooltip>
                 </div>

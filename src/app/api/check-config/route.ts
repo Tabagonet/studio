@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import type * as admin from 'firebase-admin';
+import { createWordPressApi } from '@/lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,7 @@ export async function GET(req: NextRequest) {
   let userConfig = {
     wooCommerceConfigured: false,
     wordPressConfigured: false,
+    pluginActive: false,
     aiUsageCount: 0,
   };
   let activeStoreUrl: string | null = null;
@@ -40,7 +42,7 @@ export async function GET(req: NextRequest) {
 
   if (!adminDb) {
       console.warn("/api/check-config: Firestore is not available.");
-      return NextResponse.json({ ...globalConfig, ...userConfig, activeStoreUrl: null });
+      return NextResponse.json({ ...globalConfig, ...userConfig, activeStoreUrl: null, pluginActive: false });
   }
 
   try {
@@ -85,6 +87,29 @@ export async function GET(req: NextRequest) {
         userConfig.wooCommerceConfigured = !!(activeConnection.wooCommerceStoreUrl && activeConnection.wooCommerceApiKey && activeConnection.wooCommerceApiSecret);
         userConfig.wordPressConfigured = !!(activeConnection.wordpressApiUrl && activeConnection.wordpressUsername && activeConnection.wordpressApplicationPassword);
         activeStoreUrl = activeConnection.wooCommerceStoreUrl || activeConnection.wordpressApiUrl || null;
+
+        // New plugin check logic
+        if (userConfig.wordPressConfigured) {
+          const wpApi = createWordPressApi({
+            url: activeConnection.wordpressApiUrl,
+            username: activeConnection.wordpressUsername,
+            applicationPassword: activeConnection.wordpressApplicationPassword,
+          });
+          
+          if (wpApi) {
+            try {
+              const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
+              const statusEndpoint = `${siteUrl}/wp-json/custom/v1/status`;
+              const response = await wpApi.get(statusEndpoint);
+              if (response.status === 200 && response.data?.status === 'ok') {
+                userConfig.pluginActive = true;
+              }
+            } catch (pluginError) {
+              console.warn(`Plugin status check failed for ${activeConnection.wordpressApiUrl}:`, (pluginError as any).message);
+              userConfig.pluginActive = false;
+            }
+          }
+        }
       }
     }
 
