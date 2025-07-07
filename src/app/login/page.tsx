@@ -85,7 +85,7 @@ export default function LoginPage() {
             Iniciar Sesión con Google
           </Button>
           <p className="text-xs text-center text-muted-foreground px-4">
-            Al continuar, aceptas nuestros{' '}
+            Al iniciar sesión, aceptas nuestros{' '}
             <Link href="/terms" className="underline hover:text-primary">
               Términos de Servicio
             </Link>
