@@ -100,11 +100,11 @@ export async function POST(req: NextRequest) {
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         
-        // Notify admins about the new prospect
-        const adminsSnapshot = await adminDb.collection('users').where('role', 'in', ['admin', 'super_admin']).get();
-        if (!adminsSnapshot.empty) {
+        // Notify ONLY super admins about the new prospect
+        const superAdminsSnapshot = await adminDb.collection('users').where('role', '==', 'super_admin').get();
+        if (!superAdminsSnapshot.empty) {
             const notificationBatch = adminDb.batch();
-            for (const adminDoc of adminsSnapshot.docs) {
+            for (const adminDoc of superAdminsSnapshot.docs) {
                 const notificationRef = adminDb.collection('notifications').doc();
                 notificationBatch.set(notificationRef, {
                     recipientUid: adminDoc.id,
