@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import type * as admin from 'firebase-admin';
 import { createWordPressApi } from '@/lib/api-helpers';
+import axios from 'axios';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,24 +91,23 @@ export async function GET(req: NextRequest) {
 
         // New plugin check logic
         if (userConfig.wordPressConfigured) {
-          const wpApi = createWordPressApi({
-            url: activeConnection.wordpressApiUrl,
-            username: activeConnection.wordpressUsername,
-            applicationPassword: activeConnection.wordpressApplicationPassword,
-          });
+          const { url, username, applicationPassword } = activeConnection;
+          const token = Buffer.from(`${username}:${applicationPassword}`, 'utf8').toString('base64');
+          const siteUrl = url.startsWith('http') ? url : `https://${url}`;
+          const statusEndpoint = `${siteUrl.replace(/\/$/, '')}/wp-json/custom/v1/status`;
           
-          if (wpApi) {
-            try {
-              const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
-              const statusEndpoint = `${siteUrl}/wp-json/custom/v1/status`;
-              const response = await wpApi.get(statusEndpoint);
-              if (response.status === 200 && response.data?.status === 'ok') {
-                userConfig.pluginActive = true;
-              }
-            } catch (pluginError) {
-              console.warn(`Plugin status check failed for ${activeConnection.wordpressApiUrl}:`, (pluginError as any).message);
-              userConfig.pluginActive = false;
+          try {
+            const response = await axios.get(statusEndpoint, {
+              headers: { 'Authorization': `Basic ${token}` },
+              timeout: 10000,
+            });
+
+            if (response.status === 200 && response.data?.status === 'ok') {
+              userConfig.pluginActive = true;
             }
+          } catch (pluginError) {
+            console.warn(`Plugin status check failed for ${url}:`, (pluginError as any).message);
+            userConfig.pluginActive = false;
           }
         }
       }
