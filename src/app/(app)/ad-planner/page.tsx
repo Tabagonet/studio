@@ -129,8 +129,8 @@ export default function AdPlannerPage() {
 
     const handleDownloadForm = () => {
         const formText = `
-CUESTIONARIO DE PLANIFICACIÓN DE ESTRATEGIA DIGITAL - AutoPress AI
-==============================================================
+CUESTIONARIO GENERAL PARA EMPRESAS - PLANIFICACIÓN DE ESTRATEGIA DIGITAL
+========================================================================
 
 **URL del Sitio Web a Analizar:**
 
@@ -180,10 +180,10 @@ CUESTIONARIO DE PLANIFICACIÓN DE ESTRATEGIA DIGITAL - AutoPress AI
    
 
    **Presupuesto Mensual Máximo Indicado (Seleccionar uno):**
-     - [ ] < 500€
+     - [ ] 50€ - 250€
+     - [ ] 250€ - 500€
      - [ ] 500€ - 1.500€
-     - [ ] 1.500€ - 3.000€
-     - [ ] > 3.000€
+     - [ ] > 1.500€
 
    **Personalidad de Marca (Adjetivos Clave - marcar los que apliquen):**
      - [ ] Profesional y Técnico
@@ -362,10 +362,10 @@ CUESTIONARIO DE PLANIFICACIÓN DE ESTRATEGIA DIGITAL - AutoPress AI
                                                                     <SelectTrigger><SelectValue placeholder="Selecciona un rango..." /></SelectTrigger>
                                                                 </FormControl>
                                                                 <SelectContent>
-                                                                    <SelectItem value="<500€">&lt; 500€</SelectItem>
+                                                                    <SelectItem value="50€-250€">50€ - 250€</SelectItem>
+                                                                    <SelectItem value="250€-500€">250€ - 500€</SelectItem>
                                                                     <SelectItem value="500€-1500€">500€ - 1.500€</SelectItem>
-                                                                    <SelectItem value="1500€-3000€">1.500€ - 3.000€</SelectItem>
-                                                                    <SelectItem value=">3000€">&gt; 3.000€</SelectItem>
+                                                                    <SelectItem value=">1500€">&gt; 1.500€</SelectItem>
                                                                 </SelectContent>
                                                             </Select>
                                                             <FormMessage />
