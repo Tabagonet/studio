@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CreateAdPlanOutput, Strategy } from './schema';
-import { Calendar, Zap, Users, Target, Megaphone, Lightbulb, BarChart3, Loader2, Save, Info, Swords, Wrench } from 'lucide-react';
+import { Calendar, Zap, Users, Target, Megaphone, Lightbulb, BarChart3, Loader2, Save, Info, Swords, Wrench, Star, DollarSign, Palette } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { saveAdPlanAction } from './actions';
 import { auth } from '@/lib/firebase';
@@ -17,6 +17,7 @@ import { formatCurrency } from '@/lib/utils';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import type { Company } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 
 interface AdPlanViewProps {
   plan: CreateAdPlanOutput;
@@ -34,6 +35,29 @@ const InfoCard = ({ title, content }: { title: string, content?: string | null }
                 <ScrollArea className="h-48 rounded-md border bg-muted/20 p-4">
                     <p className="text-sm text-muted-foreground whitespace-pre-line">{content}</p>
                 </ScrollArea>
+            </CardContent>
+        </Card>
+    );
+};
+
+const SimpleInfoCard = ({ title, content, icon: Icon }: { title: string, content?: string | string[] | null, icon: React.ElementType }) => {
+    if (!content || (Array.isArray(content) && content.length === 0)) return null;
+    return (
+        <Card>
+            <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                    <Icon className="h-4 w-4 text-primary" />
+                    <span>{title}</span>
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                {Array.isArray(content) ? (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                        {content.map((item, index) => <Badge key={index} variant="secondary" className="text-sm">{item}</Badge>)}
+                    </div>
+                ) : (
+                    <p className="text-md text-muted-foreground">{content}</p>
+                )}
             </CardContent>
         </Card>
     );
@@ -126,6 +150,11 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyInfo }: AdPlanV
                 <AccordionItem value="item-2">
                     <AccordionTrigger className="text-xl font-bold">Contexto Proporcionado</AccordionTrigger>
                     <AccordionContent className="pt-4 space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                            <SimpleInfoCard title="Objetivo Prioritario" content={plan.priorityObjective} icon={Star} />
+                            <SimpleInfoCard title="Presupuesto Indicado" content={plan.monthlyBudget} icon={DollarSign} />
+                            <SimpleInfoCard title="Personalidad de Marca" content={plan.brandPersonality} icon={Palette} />
+                        </div>
                         <InfoCard title="Información de la Empresa" content={plan.companyInfo} />
                         <InfoCard title="Propuesta de Valor y Diferenciación" content={plan.valueProposition} />
                         <InfoCard title="Público Objetivo y Problemas" content={plan.targetAudience} />
