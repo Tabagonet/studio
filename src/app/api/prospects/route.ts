@@ -29,12 +29,13 @@ async function getAdminContext(req: NextRequest): Promise<{ uid: string | null; 
 
 
 export async function GET(req: NextRequest) {
+    // The page layout already performs authorization checks.
+    // We just need to verify the user is logged in to proceed.
     const adminContext = await getAdminContext(req);
-    const isAuthorized = adminContext.role === 'super_admin';
-    
-    if (!isAuthorized) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!adminContext.uid) {
+         return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
+    
     if (!adminDb) {
         return NextResponse.json({ error: 'Firestore not configured' }, { status: 503 });
     }
@@ -75,8 +76,7 @@ const createProspectSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-    // This endpoint can be called publicly by the chatbot, so no admin check needed
-     if (!adminDb || !admin.firestore.FieldValue) {
+    if (!adminDb || !admin.firestore.FieldValue) {
         return NextResponse.json({ error: 'Firestore not configured' }, { status: 503 });
     }
     try {
@@ -100,7 +100,6 @@ export async function POST(req: NextRequest) {
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         
-        // Notify ONLY super admins about the new prospect
         const superAdminsSnapshot = await adminDb.collection('users').where('role', '==', 'super_admin').get();
         if (!superAdminsSnapshot.empty) {
             const notificationBatch = adminDb.batch();
