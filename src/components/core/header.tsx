@@ -211,39 +211,49 @@ export function Header() {
         <TooltipProvider delayDuration={100}>
             <Link href="/settings/connections" className="flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Gestionar conexiones">
                 <span className="hidden md:inline">{hostname}</span>
-                <div className="flex items-center gap-2">
-                    <Tooltip>
-                        <TooltipTrigger>
-                           <Store className={cn("h-4 w-4", configStatus.wooCommerceConfigured ? "text-green-500" : "text-destructive")} />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <p>WooCommerce: {configStatus.wooCommerceConfigured ? "Configurado" : "No Configurado"}</p>
-                        </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                        <TooltipTrigger>
-                           <ShopifyIcon className={cn("h-4 w-4", configStatus.shopifyConfigured ? "text-green-500" : "text-destructive")} />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <p>Shopify: {configStatus.shopifyConfigured ? "Configurado" : "No Configurado"}</p>
-                        </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                        <TooltipTrigger>
-                           <Globe className={cn("h-4 w-4", configStatus.wordPressConfigured ? "text-green-500" : "text-destructive")} />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <p>WordPress: {configStatus.wordPressConfigured ? "Configurado" : "No Configurado"}</p>
-                        </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                        <TooltipTrigger>
-                           <PlugZap className={cn("h-4 w-4", configStatus.pluginActive ? "text-green-500" : "text-destructive")} />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <p>Plugin AutoPress AI: {configStatus.pluginActive ? "Activo" : "No Detectado"}</p>
-                        </TooltipContent>
-                    </Tooltip>
+                <div className="flex items-center gap-3">
+                    {/* Shopify Group */}
+                    <div className="flex items-center gap-2">
+                        <Tooltip>
+                            <TooltipTrigger>
+                               <ShopifyIcon className={cn("h-4 w-4", configStatus.shopifyConfigured ? "text-green-500" : "text-destructive")} />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Shopify: {configStatus.shopifyConfigured ? "Configurado" : "No Configurado"}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </div>
+                    
+                    {/* Separator */}
+                    <div className="h-4 w-px bg-border" />
+                    
+                    {/* WordPress/WooCommerce Group */}
+                    <div className="flex items-center gap-2">
+                        <Tooltip>
+                            <TooltipTrigger>
+                               <Store className={cn("h-4 w-4", configStatus.wooCommerceConfigured ? "text-green-500" : "text-destructive")} />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>WooCommerce: {configStatus.wooCommerceConfigured ? "Configurado" : "No Configurado"}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                            <TooltipTrigger>
+                               <Globe className={cn("h-4 w-4", configStatus.wordPressConfigured ? "text-green-500" : "text-destructive")} />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>WordPress: {configStatus.wordPressConfigured ? "Configurado" : "No Configurado"}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                            <TooltipTrigger>
+                               <PlugZap className={cn("h-4 w-4", configStatus.pluginActive ? "text-green-500" : "text-destructive")} />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Plugin AutoPress AI: {configStatus.pluginActive ? "Activo" : "No Detectado"}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </div>
                 </div>
             </Link>
         </TooltipProvider>
