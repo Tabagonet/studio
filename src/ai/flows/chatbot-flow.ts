@@ -94,7 +94,7 @@ interface Message {
 }
 
 const findUrlInMessages = (messages: Message[]): string | null => {
-    const urlRegex = /(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?/i;
+    const urlRegex = /(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/i;
     for (const message of messages) {
         if (message.role === 'user') {
             const match = message.content.match(urlRegex);
