@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A competitor analysis AI agent.
@@ -55,9 +56,20 @@ const COMPETITOR_ANALYSIS_PROMPT = `Eres un analista de inteligencia competitiva
 
 Genera el análisis ahora. Si no encuentras competidores relevantes, devuelve un array vacío para la clave "competitors".`;
 
+const safetySettings = [
+    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
+    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+];
+
 export async function competitorAnalysis(input: CompetitorAnalysisInput): Promise<CompetitorAnalysisOutput> {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
+    const model = genAI.getGenerativeModel({ 
+        model: "gemini-1.5-flash-latest", 
+        generationConfig: { responseMimeType: "application/json" },
+        safetySettings
+    });
 
     const template = Handlebars.compile(COMPETITOR_ANALYSIS_PROMPT, { noEscape: true });
     const finalPrompt = template(input);
@@ -71,7 +83,6 @@ export async function competitorAnalysis(input: CompetitorAnalysisInput): Promis
         throw new Error("La IA devolvió una respuesta JSON inválida.");
     }
   
-    // Data cleaning step
     if (rawJson.competitors && Array.isArray(rawJson.competitors)) {
       rawJson.competitors = rawJson.competitors.filter((c: any) => 
         c && typeof c.competitor_name === 'string' && c.competitor_name.trim() !== ''

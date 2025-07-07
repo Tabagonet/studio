@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -84,9 +83,20 @@ Ahora, genera el plan estratégico completo en formato JSON.`;
     }
 }
 
+const safetySettings = [
+    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
+    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+];
+
 export async function createAdPlan(input: CreateAdPlanInput, uid: string): Promise<CreateAdPlanOutput> {
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
+  const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash-latest", 
+      generationConfig: { responseMimeType: "application/json" },
+      safetySettings
+  });
 
   const rawPrompt = await getAdPlanPrompt(uid);
   const template = Handlebars.compile(rawPrompt, { noEscape: true });
@@ -101,7 +111,6 @@ export async function createAdPlan(input: CreateAdPlanInput, uid: string): Promi
       throw new Error("La IA devolvió una respuesta JSON inválida.");
   }
   
-  // Data cleaning step
   if (rawJson.total_monthly_budget && typeof rawJson.total_monthly_budget === 'string') {
     rawJson.total_monthly_budget = parseFloat(rawJson.total_monthly_budget);
   }
@@ -121,10 +130,9 @@ export async function createAdPlan(input: CreateAdPlanInput, uid: string): Promi
       });
   }
 
-  // Add the original input to the final plan object for persistence
   const finalPlan = {
       ...rawJson,
-      ...input, // Add all input fields to the output
+      ...input,
   };
   
   return CreateAdPlanOutputSchema.parse(finalPlan);

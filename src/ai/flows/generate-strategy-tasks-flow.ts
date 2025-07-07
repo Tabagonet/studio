@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A strategy tasks generation AI agent.
@@ -34,9 +35,20 @@ Basado en la estrategia anterior, genera una lista de 5 a 7 tareas detalladas pa
 
 Genera la lista de tareas.`;
 
+const safetySettings = [
+    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
+    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+];
+
 export async function generateStrategyTasks(input: GenerateStrategyTasksInput): Promise<GenerateStrategyTasksOutput> {
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
+  const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash-latest", 
+      generationConfig: { responseMimeType: "application/json" },
+      safetySettings
+  });
 
   const template = Handlebars.compile(TASKS_PROMPT, { noEscape: true });
   const finalPrompt = template(input);
