@@ -10,7 +10,7 @@ async function getUserContext(req: NextRequest): Promise<{ uid: string; role: st
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) throw new Error('Authentication token not provided.');
     
-    if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
+    if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized.");
     const decodedToken = await adminAuth.verifyIdToken(token);
     const uid = decodedToken.uid;
 
@@ -111,14 +111,16 @@ export async function POST(req: NextRequest) {
         let settingsRef;
         let isUpdate = false;
 
+        // Determine the correct settings document to update based on user role and action
         if (role === 'super_admin' && targetCompanyId) {
             settingsRef = adminDb.collection('companies').doc(targetCompanyId);
         } else if (role === 'admin' && userCompanyId) {
             settingsRef = adminDb.collection('companies').doc(userCompanyId);
-        } else if (role === 'super_admin') {
+        } else if (role === 'super_admin' || role === 'admin') {
+            // Super_admin managing their own, or an Admin without a company
             settingsRef = adminDb.collection('user_settings').doc(uid);
         } else {
-             return NextResponse.json({ error: 'Forbidden. No permissions to save connections.' }, { status: 403 });
+             return NextResponse.json({ error: 'Forbidden. User role does not have permissions to save connections.' }, { status: 403 });
         }
         
         const settingsSnap = await settingsRef.get();
@@ -199,7 +201,7 @@ export async function DELETE(req: NextRequest) {
             settingsRef = adminDb.collection('companies').doc(targetCompanyId);
         } else if (role === 'admin' && userCompanyId) {
             settingsRef = adminDb.collection('companies').doc(userCompanyId);
-        } else if (role === 'super_admin') {
+        } else if (role === 'super_admin' || role === 'admin') {
             settingsRef = adminDb.collection('user_settings').doc(uid);
         } else {
              return NextResponse.json({ error: 'Forbidden. No permissions to delete connections.' }, { status: 403 });

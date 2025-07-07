@@ -57,28 +57,22 @@ export default function ConnectionsPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     
-    const [currentUser, setCurrentUser] = useState<{ role: string | null; companyId: string | null; companyName: string | null; } | null>(null);
+    const [currentUser, setCurrentUser] = useState<{ uid: string | null; role: string | null; companyId: string | null; companyName: string | null; } | null>(null);
     const [companies, setCompanies] = useState<Company[]>([]);
     const [isCompanyListLoading, setIsCompanyListLoading] = useState(false);
-    const [editingTarget, setEditingTarget] = useState<{ type: 'user' | 'company'; id: string | null; name: string }>({ type: 'user', id: null, name: 'Mis Conexiones (Super Admin)' });
+    
+    // This state now holds the context of what is being edited
+    const [editingTarget, setEditingTarget] = useState<{ type: 'user' | 'company'; id: string | null; name: string }>({ type: 'user', id: null, name: 'Mis Conexiones' });
 
     const { toast } = useToast();
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({
-            ...prev,
-            [name]: value
-        }));
-    };
-
-    const fetchConnections = useCallback(async (user: FirebaseUser, targetCompanyId: string | null = null) => {
+    const fetchConnections = useCallback(async (user: FirebaseUser, targetType: 'user' | 'company', targetId: string | null) => {
         setIsLoading(true);
         try {
             const token = await user.getIdToken();
             const url = new URL('/api/user-settings/connections', window.location.origin);
-            if (targetCompanyId) {
-                url.searchParams.append('companyId', targetCompanyId);
+            if (targetType === 'company' && targetId) {
+                url.searchParams.append('companyId', targetId);
             }
             
             const response = await fetch(url.toString(), {
@@ -98,57 +92,74 @@ export default function ConnectionsPage() {
                     setSelectedKey('new');
                     setFormData(INITIAL_STATE);
                 }
+            } else {
+                throw new Error((await response.json()).error || "Fallo al cargar las conexiones.");
             }
         } catch (error) {
             console.error("Error fetching connections:", error);
-            toast({ title: "Error al cargar conexiones", variant: "destructive" });
+            const errorMessage = error instanceof Error ? error.message : "Error desconocido.";
+            toast({ title: "Error al Cargar Conexiones", description: errorMessage, variant: "destructive" });
         } finally {
             setIsLoading(false);
         }
     }, [toast]);
-
-    const fetchInitialData = async (user: FirebaseUser) => {
-        const token = await user.getIdToken();
-        
-        // Fetch user role and company info
-        const verifyResponse = await fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } });
-        if (!verifyResponse.ok) {
-            toast({ title: "Error de autenticación", variant: "destructive" });
-            setIsLoading(false); return;
-        }
-        const userData = await verifyResponse.json();
-        setCurrentUser(userData);
-
-        if (userData.role === 'super_admin') {
-            setIsCompanyListLoading(true);
-            try {
-                const companiesResponse = await fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } });
-                if (companiesResponse.ok) {
-                    const companyData = await companiesResponse.json();
-                    setCompanies(companyData.companies);
-                }
-            } catch (error) {
-                toast({ title: "Error al cargar lista de empresas", variant: "destructive"});
-            } finally {
-                setIsCompanyListLoading(false);
-            }
-        }
-        
-        // Determine which connections to fetch based on role and editing target
-        const isSuperAdminEditingCompany = userData.role === 'super_admin' && editingTarget.type === 'company';
-        await fetchConnections(user, isSuperAdminEditingCompany ? editingTarget.id : null);
-    };
-
+    
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
+        const fetchInitialData = async (user: FirebaseUser) => {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!response.ok) throw new Error("Failed to verify user.");
+            const userData = await response.json();
+            setCurrentUser(userData);
+
+            let newEditingTarget = { ...editingTarget };
+
+            if (userData.role === 'super_admin') {
+                setIsCompanyListLoading(true);
+                try {
+                    const companiesResponse = await fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } });
+                    if (companiesResponse.ok) setCompanies((await companiesResponse.json()).companies);
+                } finally {
+                    setIsCompanyListLoading(false);
+                }
+                newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)' };
+            } else if (userData.role === 'admin') {
+                if (userData.companyId) {
+                    newEditingTarget = { type: 'company', id: userData.companyId, name: userData.companyName || 'Mi Empresa' };
+                } else {
+                    newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones' };
+                }
+            }
+            setEditingTarget(newEditingTarget);
+            await fetchConnections(user, newEditingTarget.type, newEditingTarget.id);
+        };
+        
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
-                fetchInitialData(user);
+                setIsLoading(true);
+                await fetchInitialData(user);
             } else {
                 setIsLoading(false);
             }
         });
         return () => unsubscribe();
-    }, [editingTarget.id]); // Re-fetch when editing target changes
+    }, []); // Run only once on mount
+
+    const handleTargetChange = (value: string) => {
+        const user = auth.currentUser;
+        if (!user) return;
+        
+        let newEditingTarget;
+        if (value === 'user') {
+            newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)' };
+        } else {
+            const company = companies.find(c => c.id === value);
+            newEditingTarget = { type: 'company', id: value, name: company?.name || 'Empresa Desconocida' };
+        }
+        setEditingTarget(newEditingTarget);
+        fetchConnections(user, newEditingTarget.type, newEditingTarget.id);
+    };
+
 
     useEffect(() => {
         const connectionKeys = Object.keys(allConnections);
@@ -157,7 +168,6 @@ export default function ConnectionsPage() {
         } else if (allConnections[selectedKey]) {
             setFormData(allConnections[selectedKey]);
         } else if (connectionKeys.length > 0) {
-            // If selectedKey is stale, default to first available
             setSelectedKey(connectionKeys[0]);
         } else {
             setSelectedKey('new');
@@ -203,7 +213,7 @@ export default function ConnectionsPage() {
         try {
             const token = await user.getIdToken();
             const payload: any = { key, connectionData: formData, setActive: true };
-            if (currentUser?.role === 'super_admin' && editingTarget.type === 'company') {
+            if (editingTarget.type === 'company') {
                 payload.companyId = editingTarget.id;
             }
 
@@ -220,7 +230,7 @@ export default function ConnectionsPage() {
             
             toast({ title: "Conexión Guardada", description: `Los datos para '${key}' han sido guardados y activados.` });
             window.dispatchEvent(new Event('connections-updated'));
-            await fetchConnections(user, editingTarget.type === 'company' ? editingTarget.id : null);
+            await fetchConnections(user, editingTarget.type, editingTarget.id);
             setSelectedKey(key);
         } catch (error: any) {
             toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
@@ -241,7 +251,7 @@ export default function ConnectionsPage() {
         try {
             const token = await user.getIdToken();
             const payload: any = { key: selectedKey };
-             if (currentUser?.role === 'super_admin' && editingTarget.type === 'company') {
+             if (editingTarget.type === 'company') {
                 payload.companyId = editingTarget.id;
             }
             
@@ -253,7 +263,7 @@ export default function ConnectionsPage() {
             
             toast({ title: "Conexión Eliminada", description: `El perfil para '${selectedKey}' ha sido eliminado.` });
             window.dispatchEvent(new Event('connections-updated'));
-            await fetchConnections(user, editingTarget.type === 'company' ? editingTarget.id : null);
+            await fetchConnections(user, editingTarget.type, editingTarget.id);
         } catch (error: any) {
             toast({ title: "Error al Eliminar", description: error.message, variant: "destructive" });
         } finally {
@@ -262,7 +272,7 @@ export default function ConnectionsPage() {
     };
     
     const connectionKeys = Object.keys(allConnections);
-    const title = currentUser?.role === 'super_admin' ? `Editando Conexiones para: ${editingTarget.name}` : `Conexiones API para ${currentUser?.companyName}`;
+    const title = currentUser?.role === 'super_admin' ? `Editando Conexiones para: ${editingTarget.name}` : `Conexiones API para ${currentUser?.companyName || 'Mis Conexiones'}`;
     const description = currentUser?.role === 'super_admin' ? 'Como Super Admin, puedes gestionar tus conexiones o las de cualquier empresa.' : 'Gestiona las credenciales para conectar tu empresa con servicios externos como WooCommerce y WordPress.';
     
     if (isLoading) {
@@ -290,17 +300,10 @@ export default function ConnectionsPage() {
                         <Label>Selecciona qué configuración deseas editar</Label>
                         <Select
                             value={editingTarget.type === 'company' ? editingTarget.id || '' : 'user'}
-                            onValueChange={(value) => {
-                                if (value === 'user') {
-                                    setEditingTarget({ type: 'user', id: null, name: 'Mis Conexiones (Super Admin)' });
-                                } else {
-                                    const company = companies.find(c => c.id === value);
-                                    setEditingTarget({ type: 'company', id: value, name: company?.name || 'Empresa Desconocida' });
-                                }
-                            }}
+                            onValueChange={handleTargetChange}
                             disabled={isSaving || isCompanyListLoading}
                         >
-                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectTrigger><SelectValue placeholder="Elige una entidad..." /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="user"><Users className="inline-block mr-2 h-4 w-4" />Mis Conexiones (Super Admin)</SelectItem>
                                 {companies.map(company => (
@@ -388,7 +391,7 @@ export default function ConnectionsPage() {
                 <div className="flex flex-col-reverse gap-4 md:flex-row">
                     <Button onClick={handleSave} disabled={isSaving || isDeleting} className="w-full md:w-auto">
                         {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                        {isSaving ? "Guardando..." : `Guardar y Activar para ${editingTarget.type === 'company' ? 'Empresa' : 'mí'}`}
+                        {isSaving ? "Guardando..." : `Guardar y Activar para ${editingTarget.type === 'company' ? 'la Empresa' : 'mí'}`}
                     </Button>
                 </div>
             </div>
