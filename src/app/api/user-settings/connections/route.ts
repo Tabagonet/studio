@@ -52,25 +52,30 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        const { uid, role } = await getUserContext(req);
+        const { uid, role, companyId: userCompanyId } = await getUserContext(req);
         const targetCompanyId = req.nextUrl.searchParams.get('companyId');
+        const targetUserId = req.nextUrl.searchParams.get('userId');
         let settingsDoc;
         
-        if (role === 'super_admin' && targetCompanyId) {
-             settingsDoc = await adminDb.collection('companies').doc(targetCompanyId).get();
-        } else {
-            // Regular admins or super admins fetching their own data will get their settings
-            const userDoc = await adminDb.collection('users').doc(uid).get();
-            const companyId = userDoc.data()?.companyId;
-
-            if (role === 'admin' && companyId) {
-                 settingsDoc = await adminDb.collection('companies').doc(companyId).get();
+        if (role === 'super_admin') {
+            if (targetUserId) {
+                settingsDoc = await adminDb.collection('user_settings').doc(targetUserId).get();
+            } else if (targetCompanyId) {
+                settingsDoc = await adminDb.collection('companies').doc(targetCompanyId).get();
+            } else {
+                settingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+            }
+        } else if (role === 'admin') {
+            if (userCompanyId) {
+                 settingsDoc = await adminDb.collection('companies').doc(userCompanyId).get();
             } else {
                  settingsDoc = await adminDb.collection('user_settings').doc(uid).get();
             }
+        } else {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        if (settingsDoc.exists) {
+        if (settingsDoc && settingsDoc.exists) {
             const data = settingsDoc.data();
             return NextResponse.json({
                 allConnections: data?.connections || {},
@@ -98,7 +103,8 @@ export async function POST(req: NextRequest) {
             key: z.string().min(1, "Key is required"),
             connectionData: connectionDataSchema,
             setActive: z.boolean().optional().default(false),
-            companyId: z.string().optional(), // For super_admin editing a specific company
+            companyId: z.string().optional(),
+            userId: z.string().optional(),
         });
 
         const validationResult = payloadSchema.safeParse(body);
@@ -106,19 +112,25 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid data', details: validationResult.error.flatten() }, { status: 400 });
         }
         
-        const { key, connectionData, setActive, companyId: targetCompanyId } = validationResult.data;
+        const { key, connectionData, setActive, companyId: targetCompanyId, userId: targetUserId } = validationResult.data;
 
         let settingsRef;
         let isUpdate = false;
-
-        // Determine the correct settings document to update based on user role and action
-        if (role === 'super_admin' && targetCompanyId) {
-            settingsRef = adminDb.collection('companies').doc(targetCompanyId);
-        } else if (role === 'admin' && userCompanyId) {
-            settingsRef = adminDb.collection('companies').doc(userCompanyId);
-        } else if (role === 'super_admin' || role === 'admin') {
-            // Super_admin managing their own, or an Admin without a company
-            settingsRef = adminDb.collection('user_settings').doc(uid);
+        
+        if (role === 'super_admin') {
+            if (targetCompanyId) {
+                settingsRef = adminDb.collection('companies').doc(targetCompanyId);
+            } else if (targetUserId) {
+                settingsRef = adminDb.collection('user_settings').doc(targetUserId);
+            } else {
+                settingsRef = adminDb.collection('user_settings').doc(uid);
+            }
+        } else if (role === 'admin') {
+            if (userCompanyId) {
+                settingsRef = adminDb.collection('companies').doc(userCompanyId);
+            } else {
+                settingsRef = adminDb.collection('user_settings').doc(uid);
+            }
         } else {
              return NextResponse.json({ error: 'Forbidden. User role does not have permissions to save connections.' }, { status: 403 });
         }
@@ -130,14 +142,14 @@ export async function POST(req: NextRequest) {
             isUpdate = Object.prototype.hasOwnProperty.call(currentConnections, key);
         }
         
-        // Site limit check for non-super admins creating a new connection
-        if (role !== 'super_admin') {
-            const userDoc = await adminDb.collection('users').doc(uid).get();
-            const siteLimit = userDoc.data()?.siteLimit ?? 1;
-            const connectionCount = settingsSnap.exists ? Object.keys(settingsSnap.data()?.connections || {}).length : 0;
-            if (!isUpdate && connectionCount >= siteLimit) {
-                 return NextResponse.json({ error: `Límite de sitios alcanzado. Tu plan permite ${siteLimit} sitio(s).` }, { status: 403 });
-            }
+        const isEditingOwnSettings = !targetCompanyId && (!targetUserId || targetUserId === uid);
+        if (isEditingOwnSettings) {
+             const userDoc = await adminDb.collection('users').doc(uid).get();
+             const siteLimit = userDoc.data()?.siteLimit ?? 1;
+             const connectionCount = settingsSnap.exists ? Object.keys(settingsSnap.data()?.connections || {}).length : 0;
+             if (!isUpdate && connectionCount >= siteLimit) {
+                  return NextResponse.json({ error: `Límite de sitios alcanzado. Tu plan permite ${siteLimit} sitio(s).` }, { status: 403 });
+             }
         }
         
         await settingsRef.set({
@@ -187,22 +199,31 @@ export async function DELETE(req: NextRequest) {
 
         const payloadSchema = z.object({
              key: z.string().min(1, "Key is required"),
-             companyId: z.string().optional(), // For super_admin
+             companyId: z.string().optional(),
+             userId: z.string().optional(),
         });
         const validationResult = payloadSchema.safeParse(body);
         if (!validationResult.success) {
             return NextResponse.json({ error: 'Invalid data', details: validationResult.error.flatten() }, { status: 400 });
         }
         
-        const { key, companyId: targetCompanyId } = validationResult.data;
+        const { key, companyId: targetCompanyId, userId: targetUserId } = validationResult.data;
 
         let settingsRef;
-        if (role === 'super_admin' && targetCompanyId) {
-            settingsRef = adminDb.collection('companies').doc(targetCompanyId);
-        } else if (role === 'admin' && userCompanyId) {
-            settingsRef = adminDb.collection('companies').doc(userCompanyId);
-        } else if (role === 'super_admin' || role === 'admin') {
-            settingsRef = adminDb.collection('user_settings').doc(uid);
+        if (role === 'super_admin') {
+            if (targetCompanyId) {
+                settingsRef = adminDb.collection('companies').doc(targetCompanyId);
+            } else if (targetUserId) {
+                settingsRef = adminDb.collection('user_settings').doc(targetUserId);
+            } else {
+                settingsRef = adminDb.collection('user_settings').doc(uid);
+            }
+        } else if (role === 'admin') {
+            if (userCompanyId) {
+                settingsRef = adminDb.collection('companies').doc(userCompanyId);
+            } else {
+                settingsRef = adminDb.collection('user_settings').doc(uid);
+            }
         } else {
              return NextResponse.json({ error: 'Forbidden. No permissions to delete connections.' }, { status: 403 });
         }

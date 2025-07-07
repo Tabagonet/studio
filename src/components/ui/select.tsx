@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -105,7 +106,7 @@ const SelectLabel = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Label
     ref={ref}
-    className={cn("py-1.5 pl-8 pr-2 text-sm font-semibold", className)}
+    className={cn("py-1.5 pl-2 pr-2 text-xs font-semibold text-muted-foreground", className)}
     {...props}
   />
 ))

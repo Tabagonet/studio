@@ -6,12 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { KeyRound, Save, Loader2, Trash2, PlusCircle, ShieldCheck, ShieldAlert, Users, Building, ChevronsUpDown } from "lucide-react";
+import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User } from "lucide-react";
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator, SelectLabel } from '@/components/ui/select';
 import type { Company } from '@/lib/types';
 
 
@@ -25,6 +24,11 @@ interface ConnectionData {
 }
 
 type AllConnections = { [key: string]: ConnectionData };
+
+interface BasicUser {
+    uid: string;
+    displayName: string;
+}
 
 const INITIAL_STATE: ConnectionData = {
     wooCommerceStoreUrl: '',
@@ -58,21 +62,32 @@ export default function ConnectionsPage() {
     const [isDeleting, setIsDeleting] = useState(false);
     
     const [currentUser, setCurrentUser] = useState<{ uid: string | null; role: string | null; companyId: string | null; companyName: string | null; } | null>(null);
-    const [companies, setCompanies] = useState<Company[]>([]);
-    const [isCompanyListLoading, setIsCompanyListLoading] = useState(false);
+    const [allCompanies, setAllCompanies] = useState<Company[]>([]);
+    const [unassignedUsers, setUnassignedUsers] = useState<BasicUser[]>([]);
+    const [isDataLoading, setIsDataLoading] = useState(false);
     
-    // This state now holds the context of what is being edited
     const [editingTarget, setEditingTarget] = useState<{ type: 'user' | 'company'; id: string | null; name: string }>({ type: 'user', id: null, name: 'Mis Conexiones' });
 
     const { toast } = useToast();
 
     const fetchConnections = useCallback(async (user: FirebaseUser, targetType: 'user' | 'company', targetId: string | null) => {
         setIsLoading(true);
+        if (!targetId) {
+            setAllConnections({});
+            setActiveKey(null);
+            setSelectedKey('new');
+            setFormData(INITIAL_STATE);
+            setIsLoading(false);
+            return;
+        }
+
         try {
             const token = await user.getIdToken();
             const url = new URL('/api/user-settings/connections', window.location.origin);
-            if (targetType === 'company' && targetId) {
+            if (targetType === 'company') {
                 url.searchParams.append('companyId', targetId);
+            } else { // 'user'
+                url.searchParams.append('userId', targetId);
             }
             
             const response = await fetch(url.toString(), {
@@ -106,22 +121,27 @@ export default function ConnectionsPage() {
     
     useEffect(() => {
         const fetchInitialData = async (user: FirebaseUser) => {
+            setIsDataLoading(true);
             const token = await user.getIdToken();
             const response = await fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } });
             if (!response.ok) throw new Error("Failed to verify user.");
             const userData = await response.json();
             setCurrentUser(userData);
 
-            let newEditingTarget = { ...editingTarget };
+            let newEditingTarget;
 
             if (userData.role === 'super_admin') {
-                setIsCompanyListLoading(true);
-                try {
-                    const companiesResponse = await fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } });
-                    if (companiesResponse.ok) setCompanies((await companiesResponse.json()).companies);
-                } finally {
-                    setIsCompanyListLoading(false);
+                // Fetch companies and users for the dropdown
+                const [companiesResponse, usersResponse] = await Promise.all([
+                    fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } }),
+                    fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } })
+                ]);
+                if (companiesResponse.ok) setAllCompanies((await companiesResponse.json()).companies);
+                if (usersResponse.ok) {
+                    const allUsers = (await usersResponse.json()).users;
+                    setUnassignedUsers(allUsers.filter((u: any) => u.role !== 'super_admin' && !u.companyId));
                 }
+                // Default to editing self
                 newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)' };
             } else if (userData.role === 'admin') {
                 if (userData.companyId) {
@@ -130,31 +150,42 @@ export default function ConnectionsPage() {
                     newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones' };
                 }
             }
-            setEditingTarget(newEditingTarget);
-            await fetchConnections(user, newEditingTarget.type, newEditingTarget.id);
+            
+            if (newEditingTarget) {
+                 setEditingTarget(newEditingTarget);
+                 await fetchConnections(user, newEditingTarget.type, newEditingTarget.id);
+            }
+             setIsDataLoading(false);
         };
         
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
-                setIsLoading(true);
                 await fetchInitialData(user);
             } else {
                 setIsLoading(false);
+                setIsDataLoading(false);
             }
         });
         return () => unsubscribe();
-    }, []); // Run only once on mount
+    }, []);
 
     const handleTargetChange = (value: string) => {
         const user = auth.currentUser;
         if (!user) return;
         
+        const [type, id] = value.split(':');
         let newEditingTarget;
-        if (value === 'user') {
-            newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)' };
-        } else {
-            const company = companies.find(c => c.id === value);
-            newEditingTarget = { type: 'company', id: value, name: company?.name || 'Empresa Desconocida' };
+
+        if (type === 'user') {
+            if (id === 'self') {
+                 newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)' };
+            } else {
+                const selectedUser = unassignedUsers.find(u => u.uid === id);
+                newEditingTarget = { type: 'user', id: id, name: selectedUser?.displayName || 'Usuario Desconocido' };
+            }
+        } else { // type === 'company'
+            const company = allCompanies.find(c => c.id === id);
+            newEditingTarget = { type: 'company', id: id, name: company?.name || 'Empresa Desconocida' };
         }
         setEditingTarget(newEditingTarget);
         fetchConnections(user, newEditingTarget.type, newEditingTarget.id);
@@ -220,6 +251,8 @@ export default function ConnectionsPage() {
             const payload: any = { key, connectionData: formData, setActive: true };
             if (editingTarget.type === 'company') {
                 payload.companyId = editingTarget.id;
+            } else { // type is 'user'
+                payload.userId = editingTarget.id;
             }
 
             const response = await fetch('/api/user-settings/connections', {
@@ -258,6 +291,8 @@ export default function ConnectionsPage() {
             const payload: any = { key: selectedKey };
              if (editingTarget.type === 'company') {
                 payload.companyId = editingTarget.id;
+            } else { // type is 'user'
+                payload.userId = editingTarget.id;
             }
             
             await fetch('/api/user-settings/connections', {
@@ -278,10 +313,10 @@ export default function ConnectionsPage() {
     
     const connectionKeys = Object.keys(allConnections);
     const title = currentUser?.role === 'super_admin' ? `Editando Conexiones para: ${editingTarget.name}` : `Conexiones API para ${currentUser?.companyName || 'Mis Conexiones'}`;
-    const description = currentUser?.role === 'super_admin' ? 'Como Super Admin, puedes gestionar tus conexiones o las de cualquier empresa.' : 'Gestiona las credenciales para conectar tu empresa con servicios externos como WooCommerce y WordPress.';
+    const description = currentUser?.role === 'super_admin' ? 'Como Super Admin, puedes gestionar tus conexiones o las de cualquier empresa o usuario.' : 'Gestiona las credenciales para conectar tu empresa con servicios externos como WooCommerce y WordPress.';
     
-    if (isLoading) {
-        return <div className="flex h-64 w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /><p className="ml-2 text-muted-foreground">Cargando...</p></div>;
+    if (isDataLoading) {
+        return <div className="flex h-64 w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /><p className="ml-2 text-muted-foreground">Cargando datos de usuario...</p></div>;
     }
 
     return (
@@ -304,15 +339,22 @@ export default function ConnectionsPage() {
                     <CardContent>
                         <Label>Selecciona qué configuración deseas editar</Label>
                         <Select
-                            value={editingTarget.type === 'company' ? editingTarget.id || '' : 'user'}
+                            value={`${editingTarget.type}:${editingTarget.id === currentUser.uid ? 'self' : editingTarget.id}`}
                             onValueChange={handleTargetChange}
-                            disabled={isSaving || isCompanyListLoading}
+                            disabled={isSaving || isDataLoading}
                         >
                             <SelectTrigger><SelectValue placeholder="Elige una entidad..." /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="user"><Users className="inline-block mr-2 h-4 w-4" />Mis Conexiones (Super Admin)</SelectItem>
-                                {companies.map(company => (
-                                    <SelectItem key={company.id} value={company.id}><Building className="inline-block mr-2 h-4 w-4" />{company.name}</SelectItem>
+                                <SelectItem value="user:self"><Users className="inline-block mr-2 h-4 w-4" />Mis Conexiones (Super Admin)</SelectItem>
+                                {allCompanies.length > 0 && <SelectSeparator />}
+                                {allCompanies.length > 0 && <SelectLabel>Empresas</SelectLabel>}
+                                {allCompanies.map(company => (
+                                    <SelectItem key={company.id} value={`company:${company.id}`}><Building className="inline-block mr-2 h-4 w-4" />{company.name}</SelectItem>
+                                ))}
+                                {unassignedUsers.length > 0 && <SelectSeparator />}
+                                {unassignedUsers.length > 0 && <SelectLabel>Usuarios sin Empresa</SelectLabel>}
+                                {unassignedUsers.map(u => (
+                                     <SelectItem key={u.uid} value={`user:${u.uid}`}><User className="inline-block mr-2 h-4 w-4" />{u.displayName}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -325,7 +367,7 @@ export default function ConnectionsPage() {
                 <CardContent className="flex items-center gap-4">
                     <div className="flex-1">
                         <Label htmlFor="profile-selector">Selecciona un perfil para editar o añade uno nuevo</Label>
-                        <Select value={selectedKey} onValueChange={setSelectedKey} disabled={isSaving}>
+                        <Select value={selectedKey} onValueChange={setSelectedKey} disabled={isSaving || isLoading}>
                             <SelectTrigger id="profile-selector"><SelectValue placeholder="Selecciona un perfil..." /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="new"><PlusCircle className="inline-block mr-2 h-4 w-4" />Añadir Nueva Conexión</SelectItem>
@@ -344,62 +386,69 @@ export default function ConnectionsPage() {
                 </CardContent>
             </Card>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <Card>
-                    <CardHeader><CardTitle>WooCommerce (Tienda)</CardTitle></CardHeader>
-                    <CardContent className="space-y-4">
+            {isLoading ? (
+                <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
+            ) : (
+                <>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <Card>
+                            <CardHeader><CardTitle>WooCommerce (Tienda)</CardTitle></CardHeader>
+                            <CardContent className="space-y-4">
+                                <div>
+                                    <Label htmlFor="wooCommerceStoreUrl">URL de la Tienda</Label>
+                                    <Input id="wooCommerceStoreUrl" name="wooCommerceStoreUrl" value={formData.wooCommerceStoreUrl} onChange={handleInputChange} placeholder="https://mitienda.com" disabled={isSaving} />
+                                </div>
+                                <div>
+                                    <Label htmlFor="wooCommerceApiKey">Clave de Cliente (API Key)</Label>
+                                    <Input id="wooCommerceApiKey" name="wooCommerceApiKey" type="password" value={formData.wooCommerceApiKey} onChange={handleInputChange} placeholder="ck_xxxxxxxxxxxx" disabled={isSaving}/>
+                                </div>
+                                <div>
+                                    <Label htmlFor="wooCommerceApiSecret">Clave Secreta (API Secret)</Label>
+                                    <Input id="wooCommerceApiSecret" name="wooCommerceApiSecret" type="password" value={formData.wooCommerceApiSecret} onChange={handleInputChange} placeholder="cs_xxxxxxxxxxxx" disabled={isSaving}/>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader><CardTitle>WordPress (Blog y Medios)</CardTitle></CardHeader>
+                            <CardContent className="space-y-4">
+                                <div>
+                                    <Label htmlFor="wordpressApiUrl">URL de WordPress</Label>
+                                    <Input id="wordpressApiUrl" name="wordpressApiUrl" value={formData.wordpressApiUrl} onChange={handleInputChange} placeholder="https://misitio.com" disabled={isSaving}/>
+                                </div>
+                                <div>
+                                    <Label htmlFor="wordpressUsername">Nombre de Usuario de WordPress</Label>
+                                    <Input id="wordpressUsername" name="wordpressUsername" value={formData.wordpressUsername} onChange={handleInputChange} placeholder="Tu usuario admin" disabled={isSaving}/>
+                                </div>
+                                <div>
+                                    <Label htmlFor="wordpressApplicationPassword">Contraseña de Aplicación</Label>
+                                    <Input id="wordpressApplicationPassword" name="wordpressApplicationPassword" type="password" value={formData.wordpressApplicationPassword} onChange={handleInputChange} placeholder="xxxx xxxx xxxx xxxx xxxx xxxx" disabled={isSaving}/>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                    
+                    <div className="flex flex-col-reverse gap-4 pt-6 mt-6 border-t md:flex-row md:justify-between md:items-center">
                         <div>
-                            <Label htmlFor="wooCommerceStoreUrl">URL de la Tienda</Label>
-                            <Input id="wooCommerceStoreUrl" name="wooCommerceStoreUrl" value={formData.wooCommerceStoreUrl} onChange={handleInputChange} placeholder="https://mitienda.com" disabled={isSaving} />
+                            {selectedKey !== 'new' && (
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild><Button variant="destructive" disabled={isSaving || isDeleting} className="w-full md:w-auto"><Trash2 className="mr-2 h-4 w-4" />Eliminar Perfil</Button></AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader><AlertDialogTitle>¿Estás seguro?</AlertDialogTitle><AlertDialogDescription>Se eliminará permanentemente el perfil de conexión para <strong>{selectedKey}</strong>.</AlertDialogDescription></AlertDialogHeader>
+                                        <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Continuar</AlertDialogAction></AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            )}
                         </div>
-                        <div>
-                            <Label htmlFor="wooCommerceApiKey">Clave de Cliente (API Key)</Label>
-                            <Input id="wooCommerceApiKey" name="wooCommerceApiKey" type="password" value={formData.wooCommerceApiKey} onChange={handleInputChange} placeholder="ck_xxxxxxxxxxxx" disabled={isSaving}/>
+                        <div className="flex flex-col-reverse gap-4 md:flex-row">
+                            <Button onClick={handleSave} disabled={isSaving || isDeleting} className="w-full md:w-auto">
+                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                {isSaving ? "Guardando..." : `Guardar y Activar para ${editingTarget.type === 'company' ? 'la Empresa' : 'el Usuario'}`}
+                            </Button>
                         </div>
-                        <div>
-                            <Label htmlFor="wooCommerceApiSecret">Clave Secreta (API Secret)</Label>
-                            <Input id="wooCommerceApiSecret" name="wooCommerceApiSecret" type="password" value={formData.wooCommerceApiSecret} onChange={handleInputChange} placeholder="cs_xxxxxxxxxxxx" disabled={isSaving}/>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader><CardTitle>WordPress (Blog y Medios)</CardTitle></CardHeader>
-                    <CardContent className="space-y-4">
-                        <div>
-                            <Label htmlFor="wordpressApiUrl">URL de WordPress</Label>
-                            <Input id="wordpressApiUrl" name="wordpressApiUrl" value={formData.wordpressApiUrl} onChange={handleInputChange} placeholder="https://misitio.com" disabled={isSaving}/>
-                        </div>
-                        <div>
-                            <Label htmlFor="wordpressUsername">Nombre de Usuario de WordPress</Label>
-                            <Input id="wordpressUsername" name="wordpressUsername" value={formData.wordpressUsername} onChange={handleInputChange} placeholder="Tu usuario admin" disabled={isSaving}/>
-                        </div>
-                        <div>
-                            <Label htmlFor="wordpressApplicationPassword">Contraseña de Aplicación</Label>
-                            <Input id="wordpressApplicationPassword" name="wordpressApplicationPassword" type="password" value={formData.wordpressApplicationPassword} onChange={handleInputChange} placeholder="xxxx xxxx xxxx xxxx xxxx xxxx" disabled={isSaving}/>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-            
-            <div className="flex flex-col-reverse gap-4 pt-6 mt-6 border-t md:flex-row md:justify-between md:items-center">
-                <div>
-                     {selectedKey !== 'new' && (
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild><Button variant="destructive" disabled={isSaving || isDeleting} className="w-full md:w-auto"><Trash2 className="mr-2 h-4 w-4" />Eliminar Perfil</Button></AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader><AlertDialogTitle>¿Estás seguro?</AlertDialogTitle><AlertDialogDescription>Se eliminará permanentemente el perfil de conexión para <strong>{selectedKey}</strong>.</AlertDialogDescription></AlertDialogHeader>
-                                <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Continuar</AlertDialogAction></AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                    )}
-                </div>
-                <div className="flex flex-col-reverse gap-4 md:flex-row">
-                    <Button onClick={handleSave} disabled={isSaving || isDeleting} className="w-full md:w-auto">
-                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                        {isSaving ? "Guardando..." : `Guardar y Activar para ${editingTarget.type === 'company' ? 'la Empresa' : 'mí'}`}
-                    </Button>
-                </div>
-            </div>
+                    </div>
+                </>
+            )}
         </div>
     );
 }
+
