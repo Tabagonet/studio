@@ -6,6 +6,7 @@
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import Handlebars from 'handlebars';
 import { scrapeUrl } from '@/services/scraper';
+import { adminDb } from '@/lib/firebase-admin';
 
 const CHATBOT_PROMPT_TEMPLATE = `Eres un asistente de estrategia digital amigable, experto y muy conciso llamado 'AutoPress AI Assistant'. Tu único objetivo es guiar a un cliente potencial a través de un cuestionario para entender su negocio y, al final, recopilar su información de contacto.
 
@@ -15,10 +16,25 @@ const CHATBOT_PROMPT_TEMPLATE = `Eres un asistente de estrategia digital amigabl
 3.  **Una Pregunta a la Vez:** Haz solo una pregunta principal en cada turno.
 4.  **Maneja la Incertidumbre:** Si el usuario indica que no sabe la respuesta a una pregunta (ej: 'no lo sé', 'puedes saltar esta', 'no estoy seguro'), responde amablemente (ej: 'Entendido, ¡no pasa nada!') y **pasa a la siguiente pregunta del flujo.** No te quedes atascado ni insistas.
 5.  **Sé Breve:** Tus respuestas y preguntas deben ser cortas y fáciles de entender. Evita la jerga técnica.
-6.  **Validación de Presupuesto:** Si el usuario introduce un número inferior a 50, debes informarle amablemente de que el mínimo es 50€ y volver a formular la pregunta. Ejemplo: "Entendido, solo para aclarar, el presupuesto mínimo para empezar es de 50€. ¿Qué cifra tenías en mente a partir de ese mínimo?"
+6.  **Validación de Presupuesto:** Si el usuario introduce un número inferior a 50, debes informarle amablemente de que el mínimo es de 50€ y volver a formular la pregunta. Ejemplo: "Entendido, solo para aclarar, el presupuesto mínimo para empezar es de 50€. ¿Qué cifra tenías en mente a partir de ese mínimo?"
 7.  **Detecta el Fin:** Solo cuando el usuario confirme explícitamente que los datos del resumen son correctos (ej: "sí", "todo bien", "correcto"), tu ÚLTIMA respuesta DEBE ser únicamente la palabra "FIN".
 
-**Flujo de la Conversación:**
+**CONTEXTO PREVIO (Si se proporciona):**
+{{#if existingProspectData}}
+---
+Hemos encontrado estos datos de una conversación anterior para esta misma URL:
+- Objetivo: {{existingProspectData.objective}}
+- Descripción: {{existingProspectData.businessDescription}}
+- Propuesta de Valor: {{existingProspectData.valueProposition}}
+- Público Objetivo: {{existingProspectData.targetAudience}}
+- Competidores: {{existingProspectData.competitors}}
+- Personalidad de Marca: {{existingProspectData.brandPersonality}}
+- Presupuesto Mensual: {{existingProspectData.monthlyBudget}}
+---
+**INSTRUCCIÓN ESPECIAL CONTEXTUAL:** Ya que tienes información previa, NO empieces desde el saludo inicial del flujo normal. En su lugar, saluda amablemente y confirma los datos que tienes. Por ejemplo: "¡Hola! Veo que ya hemos hablado sobre este negocio. Según mis notas, tu objetivo principal era '{{existingProspectData.objective}}'. ¿Sigue siendo correcto o ha cambiado algo?". Si el usuario quiere actualizar un dato, ayúdale. Si todo está bien, puedes preguntarle si quiere pasar directamente a confirmar sus datos de contacto (nombre y email). Si el usuario no reconoce los datos, procede con el flujo de preguntas normal.
+{{/if}}
+
+**Flujo de la Conversación (si no hay contexto previo):**
 
 1.  **Saludo Inicial:** Preséntate brevemente y explica el propósito. Luego, pide la URL del negocio.
     *PREGUNTA INICIAL:* "¡Hola! Soy el asistente de AutoPress AI. En unos pocos pasos, podemos trazar una estrategia inicial para tu negocio. Para empezar, ¿cuál es la página web que te gustaría analizar?"
@@ -123,10 +139,25 @@ export async function getChatbotResponse(messages: Message[]): Promise<string> {
     });
 
     let scrapedContent: string | null = null;
-    if (messages.length === 1) { // Only scrape on the first user message
+    let existingProspectData: any = null;
+
+    if (messages.length === 1) { // Only on the first user message
         const url = findUrlInMessages(messages);
         if (url) {
             scrapedContent = await scrapeUrl(url);
+            
+            if (adminDb) {
+                try {
+                    const prospectsRef = adminDb.collection('prospects');
+                    const snapshot = await prospectsRef.where('companyUrl', '==', url).limit(1).get();
+                    if (!snapshot.empty) {
+                        existingProspectData = snapshot.docs[0].data().inquiryData || null;
+                    }
+                } catch (dbError) {
+                    console.error("Error fetching existing prospect data:", dbError);
+                    existingProspectData = null;
+                }
+            }
         }
     }
     
@@ -139,6 +170,7 @@ export async function getChatbotResponse(messages: Message[]): Promise<string> {
     const finalPrompt = template({ 
         history, 
         scrapedContent,
+        existingProspectData,
     });
     
     const result = await model.generateContent(finalPrompt);
