@@ -20,7 +20,6 @@ import { AdPlanHistory } from './history-list';
 import { Textarea } from '@/components/ui/textarea';
 import type { Company } from '@/lib/types';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 const objectives = [
@@ -109,14 +108,11 @@ export default function AdPlannerPage() {
             form.setValue('targetAudience', searchParams.get('targetAudience') || '');
             form.setValue('competitors', searchParams.get('competitors') || '');
             
-            // Handle monthly budget (Select component)
+            // Handle monthly budget
             const monthlyBudget = searchParams.get('monthlyBudget') || '';
-            // The value from chatbot could be 'más de 1500€'. The Select value is '>1500€'.
-            let budgetValue = monthlyBudget;
-            if (monthlyBudget.toLowerCase().includes('más de 1500')) {
-                budgetValue = '>1500€';
-            }
-            form.setValue('monthlyBudget', budgetValue);
+            // Strip non-numeric characters just in case (e.g., "500€")
+            form.setValue('monthlyBudget', monthlyBudget.replace(/[^0-9.]/g, ''));
+
 
             // Handle brand personality (checkboxes)
             const personality = searchParams.get('brandPersonality');
@@ -226,11 +222,8 @@ CUESTIONARIO GENERAL PARA EMPRESAS - PLANIFICACIÓN DE ESTRATEGIA DIGITAL
    (De todos los objetivos, si solo pudieras elegir uno para los próximos 3 meses, ¿cuál sería? Ej: Generar 10 leads cualificados este mes.)
    
 
-   **Presupuesto Mensual Máximo Indicado (Seleccionar uno):**
-     - [ ] 50€ - 250€
-     - [ ] 250€ - 500€
-     - [ ] 500€ - 1.500€
-     - [ ] > 1.500€
+   **Presupuesto Mensual Máximo Indicado (Ej: 500€):**
+   
 
    **Personalidad de Marca (Adjetivos Clave - marcar los que apliquen):**
      - [ ] Profesional y Técnico
@@ -403,18 +396,10 @@ CUESTIONARIO GENERAL PARA EMPRESAS - PLANIFICACIÓN DE ESTRATEGIA DIGITAL
                                                  <FormField
                                                     control={form.control} name="monthlyBudget" render={({ field }) => (
                                                         <FormItem>
-                                                            <FormLabel>2. Presupuesto Mensual Máximo</FormLabel>
-                                                            <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
-                                                                <FormControl>
-                                                                    <SelectTrigger><SelectValue placeholder="Selecciona un rango..." /></SelectTrigger>
-                                                                </FormControl>
-                                                                <SelectContent>
-                                                                    <SelectItem value="50€-250€">50€ - 250€</SelectItem>
-                                                                    <SelectItem value="250€-500€">250€ - 500€</SelectItem>
-                                                                    <SelectItem value="500€-1500€">500€ - 1.500€</SelectItem>
-                                                                    <SelectItem value=">1500€">&gt; 1.500€</SelectItem>
-                                                                </SelectContent>
-                                                            </Select>
+                                                            <FormLabel>2. Presupuesto Mensual Máximo (€)</FormLabel>
+                                                            <FormControl>
+                                                                <Input type="number" placeholder="Ej: 500" {...field} min="50" />
+                                                            </FormControl>
                                                             <FormMessage />
                                                         </FormItem>
                                                     )}
