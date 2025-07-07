@@ -28,70 +28,81 @@ interface StrategyDetailDialogProps {
 export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange, onPlanUpdate }: StrategyDetailDialogProps) {
   const [hourlyRate, setHourlyRate] = useState(60);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [editableBudget, setEditableBudget] = useState<number | string>('');
   const [isLoadingTasks, setIsLoadingTasks] = useState(false);
   const { toast } = useToast();
 
-  // Set the hourly rate from company settings if available, otherwise default to 60.
   useEffect(() => {
     if (companyInfo?.seoHourlyRate) {
         setHourlyRate(companyInfo.seoHourlyRate);
     } else {
-        setHourlyRate(60); // Default value
+        setHourlyRate(60);
     }
   }, [companyInfo]);
 
 
   useEffect(() => {
     if (strategy && plan) {
-      // If tasks are already in the plan, use them. Otherwise, fetch from AI.
-      if (strategy.tasks && strategy.tasks.length > 0) {
-        setTasks(strategy.tasks);
-      } else {
-        const fetchTasks = async () => {
-          setIsLoadingTasks(true);
-          const user = auth.currentUser;
-          if (!user) {
-            toast({ title: 'Error de autenticación', variant: 'destructive' });
-            setIsLoadingTasks(false);
-            return;
-          }
-          try {
-            const token = await user.getIdToken();
-            const result = await generateStrategyTasksAction({
-              url: plan.url,
-              objectives: plan.objectives,
-              platform: strategy.platform,
-              campaign_type: strategy.campaign_type,
-              funnel_stage: strategy.funnel_stage,
-              strategy_rationale: strategy.strategy_rationale,
-            }, token);
+      const currentStrategyFromPlan = plan.strategies.find(s => s.platform === strategy.platform);
+      setEditableBudget(currentStrategyFromPlan?.monthly_budget ?? 0);
 
-            if (result.error || !result.data) {
-              throw new Error(result.error || 'La IA no pudo generar tareas.');
-            }
-
-            const newTasksWithIds = result.data.tasks.map(t => ({...t, id: uuidv4()}));
-            setTasks(newTasksWithIds);
-
-            // Persist the newly generated tasks to the main plan state
-            const updatedPlan = {
-              ...plan,
-              strategies: plan.strategies.map(s => 
-                s.platform === strategy.platform ? { ...s, tasks: newTasksWithIds } : s
-              )
-            };
-            onPlanUpdate(updatedPlan);
-
-          } catch (error: any) {
-            toast({ title: 'Error al generar tareas', description: error.message, variant: 'destructive' });
-          } finally {
-            setIsLoadingTasks(false);
-          }
-        };
-        fetchTasks();
+      // If tasks are already in the plan object, use them. This is the most up-to-date source.
+      if (currentStrategyFromPlan?.tasks && currentStrategyFromPlan.tasks.length > 0) {
+        setTasks(currentStrategyFromPlan.tasks);
+        return; // Exit effect
       }
+      
+      // If not, and we are not already fetching, start fetching.
+      if (isLoadingTasks) return;
+
+      const fetchTasks = async () => {
+        setIsLoadingTasks(true);
+        const user = auth.currentUser;
+        if (!user) {
+          toast({ title: 'Error de autenticación', variant: 'destructive' });
+          setIsLoadingTasks(false);
+          return;
+        }
+        try {
+          const token = await user.getIdToken();
+          const result = await generateStrategyTasksAction({
+            url: plan.url,
+            objectives: plan.objectives,
+            platform: strategy.platform,
+            campaign_type: strategy.campaign_type,
+            funnel_stage: strategy.funnel_stage,
+            strategy_rationale: strategy.strategy_rationale,
+          }, token);
+
+          if (result.error || !result.data) {
+            throw new Error(result.error || 'La IA no pudo generar tareas.');
+          }
+
+          const newTasksWithIds = result.data.tasks.map(t => ({...t, id: uuidv4()}));
+          setTasks(newTasksWithIds);
+
+          // Persist the newly generated tasks to the main plan state
+          const updatedPlan: CreateAdPlanOutput = {
+            ...plan,
+            strategies: plan.strategies.map(s => 
+              s.platform === strategy.platform ? { ...s, tasks: newTasksWithIds } : s
+            )
+          };
+          onPlanUpdate(updatedPlan);
+
+        } catch (error: any) {
+          toast({ title: 'Error al generar tareas', description: error.message, variant: 'destructive' });
+        } finally {
+          setIsLoadingTasks(false);
+        }
+      };
+      
+      fetchTasks();
     }
-  }, [strategy, plan, onPlanUpdate, toast]);
+  // We've intentionally simplified dependencies to avoid re-fetching loops.
+  // The component state is reset when the dialog closes, ensuring clean state on re-open.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [strategy, plan]);
 
 
   const addTask = () => {
@@ -125,18 +136,34 @@ export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange
 
   const handleUpdateProposal = () => {
     if (!strategy || !plan) return;
+    
+    // Create an updated array of strategies with the current dialog's changes
+    const updatedStrategies = plan.strategies.map(s => 
+      s.platform === strategy.platform 
+        ? { 
+            ...s, 
+            tasks: tasks, 
+            monthly_budget: Number(editableBudget)
+          } 
+        : s
+    );
+
+    // Recalculate the total management fee from ALL strategies using the updated data
+    const newTotalManagementFee = updatedStrategies.reduce((total, s) => {
+        const strategyHours = s.tasks?.reduce((sum, task) => sum + (task.hours || 0), 0) || 0;
+        return total + (strategyHours * hourlyRate);
+    }, 0);
+    
     const updatedPlan: CreateAdPlanOutput = {
       ...plan,
-      strategies: plan.strategies.map(s => 
-        s.platform === strategy.platform ? { ...s, tasks: tasks } : s
-      ),
+      strategies: updatedStrategies,
       fee_proposal: {
         ...plan.fee_proposal,
-        management_fee: totalCost,
+        management_fee: newTotalManagementFee,
       },
     };
     onPlanUpdate(updatedPlan);
-    toast({ title: 'Propuesta Actualizada', description: `La cuota de gestión se ha actualizado a ${formatCurrency(totalCost)}.` });
+    toast({ title: 'Propuesta Actualizada', description: `La cuota de gestión total se ha actualizado a ${formatCurrency(newTotalManagementFee)}.` });
   };
   
   const handleSaveAndClose = useCallback(() => {
@@ -144,19 +171,31 @@ export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange
          const updatedPlan: CreateAdPlanOutput = {
            ...plan,
            strategies: plan.strategies.map(s => 
-             s.platform === strategy.platform ? { ...s, tasks: tasks } : s
+             s.platform === strategy.platform 
+                ? { ...s, tasks: tasks, monthly_budget: Number(editableBudget) } 
+                : s
            ),
          };
          onPlanUpdate(updatedPlan);
      }
      onOpenChange(false);
-  }, [strategy, plan, tasks, onPlanUpdate, onOpenChange]);
+  }, [strategy, plan, tasks, onPlanUpdate, onOpenChange, editableBudget]);
 
 
   if (!strategy || !plan) return null;
 
   return (
-    <Dialog open={!!strategy} onOpenChange={(open) => !open && handleSaveAndClose()}>
+    <Dialog open={!!strategy} onOpenChange={(open) => {
+      if (!open) {
+        handleSaveAndClose();
+        // Reset local state when dialog closes
+        setTasks([]);
+        setEditableBudget('');
+        setIsLoadingTasks(false);
+      } else {
+        onOpenChange(true);
+      }
+    }}>
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-2xl">Plan de Acción Detallado: {strategy.platform}</DialogTitle>
@@ -228,30 +267,36 @@ export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange
                                 className="text-lg font-bold"
                             />
                         </div>
-                        <div className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">Horas Totales Estimadas:</span>
-                            <span className="font-semibold">{totalHours.toFixed(1)} h</span>
+                        <div>
+                            <Label htmlFor="media-budget" className="flex items-center gap-2 mb-1">Presupuesto en Medios (€)</Label>
+                            <Input
+                                id="media-budget"
+                                type="number"
+                                value={editableBudget}
+                                onChange={(e) => setEditableBudget(e.target.value)}
+                                className="text-lg font-bold"
+                            />
                         </div>
                         <div className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">Presupuesto en Medios:</span>
-                            <span className="font-semibold">{formatCurrency(strategy.monthly_budget)}</span>
+                            <span className="text-muted-foreground">Horas Totales Estimadas (esta estrategia):</span>
+                            <span className="font-semibold">{totalHours.toFixed(1)} h</span>
                         </div>
                     </div>
                 </div>
 
                 <div className="border-t pt-4 mt-6">
                     <div className="flex justify-between items-center text-xl font-bold">
-                        <span>Coste de Gestión:</span>
+                        <span>Coste de Gestión (esta estrategia):</span>
                         <span>{formatCurrency(totalCost)}</span>
                     </div>
                      <div className="flex justify-between items-center text-xl font-bold text-primary mt-2">
                         <span>COSTE TOTAL MENSUAL:</span>
-                        <span>{formatCurrency(totalCost + strategy.monthly_budget)}</span>
+                        <span>{formatCurrency(totalCost + Number(editableBudget))}</span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1 text-right">(Gestión + Presupuesto en Medios)</p>
                      <Button onClick={handleUpdateProposal} className="w-full mt-4">
                       <Save className="mr-2 h-4 w-4"/>
-                      Actualizar Propuesta de Gestión
+                      Actualizar Propuesta de Gestión Total
                     </Button>
                 </div>
             </div>
