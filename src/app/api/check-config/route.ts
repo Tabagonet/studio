@@ -40,11 +40,12 @@ export async function GET(req: NextRequest) {
     aiUsageCount: 0,
   };
   let activeStoreUrl: string | null = null;
+  let activePlatform: 'woocommerce' | 'shopify' | null = null;
   let settingsSource: admin.firestore.DocumentData | undefined;
 
   if (!adminDb) {
       console.warn("/api/check-config: Firestore is not available.");
-      return NextResponse.json({ ...globalConfig, ...userConfig, activeStoreUrl: null, pluginActive: false });
+      return NextResponse.json({ ...globalConfig, ...userConfig, activeStoreUrl: null, activePlatform: null, pluginActive: false });
   }
 
   try {
@@ -52,29 +53,35 @@ export async function GET(req: NextRequest) {
     const targetUserId = searchParams.get('userId');
     const targetCompanyId = searchParams.get('companyId');
 
-    // Super Admins can check anyone.
+    let entityPlatform: 'woocommerce' | 'shopify' | null = null;
+
     if (userRole === 'super_admin' && (targetUserId || targetCompanyId)) {
         if (targetCompanyId) {
             const companyDoc = await adminDb.collection('companies').doc(targetCompanyId).get();
             settingsSource = companyDoc.data();
+            entityPlatform = settingsSource?.platform || null;
         } else if (targetUserId) {
             const userSettingsDoc = await adminDb.collection('user_settings').doc(targetUserId).get();
             settingsSource = userSettingsDoc.data();
+            const targetUserDoc = await adminDb.collection('users').doc(targetUserId).get();
+            entityPlatform = targetUserDoc.data()?.platform || null;
         }
     } else {
-        // Fallback to the logged-in user's context (company or personal)
         const userDoc = await adminDb.collection('users').doc(uid).get();
         const userData = userDoc.data();
+        entityPlatform = userData?.platform || null;
         if (userData?.companyId) {
             const companyDoc = await adminDb.collection('companies').doc(userData.companyId).get();
             settingsSource = companyDoc.data();
+            entityPlatform = settingsSource?.platform || entityPlatform;
         } else {
             const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
             settingsSource = userSettingsDoc.data();
         }
     }
+    
+    activePlatform = entityPlatform;
 
-    // AI usage is always for the logged-in user, regardless of who is being edited
     const loggedInUserSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
     if (loggedInUserSettingsDoc.exists) {
         userConfig.aiUsageCount = loggedInUserSettingsDoc.data()?.aiUsageCount || 0;
@@ -91,7 +98,6 @@ export async function GET(req: NextRequest) {
         userConfig.shopifyConfigured = !!(activeConnection.shopifyStoreUrl && activeConnection.shopifyApiPassword);
         activeStoreUrl = activeConnection.wooCommerceStoreUrl || activeConnection.wordpressApiUrl || activeConnection.shopifyStoreUrl || null;
 
-        // Plugin check logic
         if (userConfig.wordPressConfigured) {
           const { wordpressApiUrl: url, wordpressUsername: username, wordpressApplicationPassword: applicationPassword } = activeConnection;
           const token = Buffer.from(`${username}:${applicationPassword}`, 'utf8').toString('base64');
@@ -103,7 +109,6 @@ export async function GET(req: NextRequest) {
               headers: { 'Authorization': `Basic ${token}` },
               timeout: 10000,
             });
-
             if (response.status === 200 && response.data?.status === 'ok') {
               userConfig.pluginActive = true;
             }
@@ -123,6 +128,7 @@ export async function GET(req: NextRequest) {
     ...globalConfig,
     ...userConfig,
     activeStoreUrl: activeStoreUrl,
+    activePlatform: activePlatform,
   };
 
   return NextResponse.json(finalConfigStatus);

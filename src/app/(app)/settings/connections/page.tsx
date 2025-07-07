@@ -1,4 +1,3 @@
-
 // src/app/(app)/settings/connections/page.tsx
 "use client";
 
@@ -42,6 +41,7 @@ interface SelectedEntityStatus {
     shopifyConfigured: boolean;
     pluginActive: boolean;
     activeStoreUrl: string | null;
+    activePlatform: 'woocommerce' | 'shopify' | null;
 }
 
 const INITIAL_STATE: ConnectionData = {
@@ -93,40 +93,48 @@ const ConnectionStatusIndicator = ({ status, isLoading }: { status: SelectedEnti
     <TooltipProvider delayDuration={100}>
         <div className="flex items-center justify-between gap-3 text-sm border p-3 rounded-md">
             <span className="text-muted-foreground truncate" title={hostname || ''}>Conectado a: <strong className="text-foreground">{hostname}</strong></span>
-            <div className="flex items-center gap-2 flex-shrink-0">
-                <Tooltip>
-                    <TooltipTrigger>
-                        <Store className={cn("h-4 w-4", status.wooCommerceConfigured ? "text-green-500" : "text-destructive")} />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p>WooCommerce: {status.wooCommerceConfigured ? "Configurado" : "No Configurado"}</p>
-                    </TooltipContent>
-                </Tooltip>
-                 <Tooltip>
-                    <TooltipTrigger>
-                       <ShopifyIcon className={cn("h-4 w-4", status.shopifyConfigured ? "text-green-500" : "text-destructive")} />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p>Shopify: {status.shopifyConfigured ? "Configurado" : "No Configurado"}</p>
-                    </TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                    <TooltipTrigger>
-                       <Globe className={cn("h-4 w-4", status.wordPressConfigured ? "text-green-500" : "text-destructive")} />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p>WordPress: {status.wordPressConfigured ? "Configurado" : "No Configurado"}</p>
-                    </TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                    <TooltipTrigger>
-                        <PlugZap className={cn("h-4 w-4", status.pluginActive ? "text-green-500" : "text-destructive")} />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p>Plugin AutoPress AI: {status.pluginActive ? "Activo" : "No Detectado"}</p>
-                    </TooltipContent>
-                </Tooltip>
-            </div>
+            
+            {status.activePlatform === 'woocommerce' && (
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    <Tooltip>
+                        <TooltipTrigger>
+                           <Store className={cn("h-4 w-4", status.wooCommerceConfigured ? "text-green-500" : "text-destructive")} />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>WooCommerce: {status.wooCommerceConfigured ? "Configurado" : "No Configurado"}</p>
+                        </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger>
+                           <Globe className={cn("h-4 w-4", status.wordPressConfigured ? "text-green-500" : "text-destructive")} />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>WordPress: {status.wordPressConfigured ? "Configurado" : "No Configurado"}</p>
+                        </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger>
+                           <PlugZap className={cn("h-4 w-4", status.pluginActive ? "text-green-500" : "text-destructive")} />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Plugin AutoPress AI: {status.pluginActive ? "Activo" : "No Detectado"}</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </div>
+            )}
+
+            {status.activePlatform === 'shopify' && (
+                 <div className="flex items-center gap-2 flex-shrink-0">
+                     <Tooltip>
+                        <TooltipTrigger>
+                           <ShopifyIcon className={cn("h-4 w-4", status.shopifyConfigured ? "text-green-500" : "text-destructive")} />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Shopify: {status.shopifyConfigured ? "Configurado" : "No Configurado"}</p>
+                        </TooltipContent>
+                    </Tooltip>
+                 </div>
+            )}
         </div>
     </TooltipProvider>
   );
@@ -520,14 +528,24 @@ export default function ConnectionsPage() {
                             <SelectTrigger id="profile-selector"><SelectValue placeholder="Selecciona un perfil..." /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="new"><PlusCircle className="inline-block mr-2 h-4 w-4" />Añadir Nueva Conexión</SelectItem>
-                                {connectionKeys.map(key => (
-                                    <SelectItem key={key} value={key}>
-                                        <div className="flex items-center">
-                                            {key === activeKey && <span className="mr-2 text-green-500">●</span>}
-                                            {key}
-                                        </div>
-                                    </SelectItem>
-                                ))}
+                                {connectionKeys.map(key => {
+                                    const connection = allConnections[key];
+                                    const isShopify = !!connection.shopifyStoreUrl;
+                                    const isWoo = !!connection.wooCommerceStoreUrl || !!connection.wordpressApiUrl;
+                                    let Icon;
+                                    if (isShopify) Icon = ShopifyIcon;
+                                    else if (isWoo) Icon = Store;
+
+                                    return (
+                                        <SelectItem key={key} value={key}>
+                                            <div className="flex items-center gap-2">
+                                                {key === activeKey && <span className="mr-2 text-green-500">●</span>}
+                                                {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+                                                {key}
+                                            </div>
+                                        </SelectItem>
+                                    );
+                                })}
                             </SelectContent>
                         </Select>
                          <p className="text-xs text-muted-foreground mt-1">La conexión activa para <span className="font-semibold">{editingTarget.name}</span> está marcada con un círculo verde.</p>

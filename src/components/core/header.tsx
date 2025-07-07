@@ -1,4 +1,3 @@
-
 // src/components/core/header.tsx
 "use client";
 
@@ -33,7 +32,88 @@ interface ConfigStatus {
     wordPressConfigured: boolean;
     shopifyConfigured: boolean;
     pluginActive: boolean;
+    activePlatform: 'woocommerce' | 'shopify' | null;
 }
+
+const ConnectionStatusIndicator = ({ status, isLoading }: { status: ConfigStatus | null, isLoading: boolean }) => {
+  if (isLoading) {
+    return <Skeleton className="h-5 w-40 hidden md:block" />;
+  }
+
+  if (!status || !status.activeStoreUrl) {
+    return (
+      <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Configurar conexión">
+        <Globe className="h-4 w-4 text-destructive" />
+        <span className="hidden md:inline">No conectado</span>
+      </Link>
+    );
+  }
+
+  let url: URL;
+  try {
+    const fullUrl = status.activeStoreUrl.startsWith('http') ? status.activeStoreUrl : `https://${status.activeStoreUrl}`;
+    url = new URL(fullUrl);
+    if (url.protocol !== 'https:') throw new Error('Solo HTTPS');
+  } catch (e) {
+    return (
+      <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-destructive" title="URL de tienda inválida. Click para corregir.">
+        <Globe className="h-4 w-4" />
+        <span className="hidden md:inline">URL Inválida</span>
+      </Link>
+    );
+  }
+
+  const hostname = url.hostname;
+
+  return (
+    <TooltipProvider delayDuration={100}>
+      <Link href="/settings/connections" className="flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Gestionar conexiones">
+        <span className="hidden md:inline">{hostname}</span>
+        {status.activePlatform === 'shopify' && (
+           <div className="flex items-center gap-2 flex-shrink-0">
+               <Tooltip>
+                   <TooltipTrigger>
+                      <ShopifyIcon className={cn("h-4 w-4", status.shopifyConfigured ? "text-green-500" : "text-destructive")} />
+                   </TooltipTrigger>
+                   <TooltipContent>
+                       <p>Shopify: {status.shopifyConfigured ? "Configurado" : "No Configurado"}</p>
+                   </TooltipContent>
+               </Tooltip>
+           </div>
+        )}
+        {status.activePlatform === 'woocommerce' && (
+           <div className="flex items-center gap-2 flex-shrink-0">
+               <Tooltip>
+                   <TooltipTrigger>
+                      <Store className={cn("h-4 w-4", status.wooCommerceConfigured ? "text-green-500" : "text-destructive")} />
+                   </TooltipTrigger>
+                   <TooltipContent>
+                       <p>WooCommerce: {status.wooCommerceConfigured ? "Configurado" : "No Configurado"}</p>
+                   </TooltipContent>
+               </Tooltip>
+               <Tooltip>
+                   <TooltipTrigger>
+                      <Globe className={cn("h-4 w-4", status.wordPressConfigured ? "text-green-500" : "text-destructive")} />
+                   </TooltipTrigger>
+                   <TooltipContent>
+                       <p>WordPress: {status.wordPressConfigured ? "Configurado" : "No Configurado"}</p>
+                   </TooltipContent>
+               </Tooltip>
+               <Tooltip>
+                   <TooltipTrigger>
+                      <PlugZap className={cn("h-4 w-4", status.pluginActive ? "text-green-500" : "text-destructive")} />
+                   </TooltipTrigger>
+                   <TooltipContent>
+                       <p>Plugin AutoPress AI: {status.pluginActive ? "Activo" : "No Detectado"}</p>
+                   </TooltipContent>
+               </Tooltip>
+           </div>
+        )}
+      </Link>
+    </TooltipProvider>
+  );
+};
+
 
 export function Header() {
   const router = useRouter();
@@ -97,6 +177,7 @@ export function Header() {
             wordPressConfigured: data.wordPressConfigured,
             shopifyConfigured: data.shopifyConfigured,
             pluginActive: data.pluginActive,
+            activePlatform: data.activePlatform,
           });
         } else {
           setConfigStatus(null);
@@ -174,91 +255,6 @@ export function Header() {
     }
   };
 
-  const renderStoreStatus = () => {
-    if (isLoadingAuth || isLoadingStatus) {
-      return <Skeleton className="h-5 w-40 hidden md:block" />;
-    }
-
-    if (!configStatus?.storeUrl) {
-      return (
-        <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Configurar conexión">
-          <Globe className="h-4 w-4 text-destructive" />
-          <span className="hidden md:inline">No conectado</span>
-        </Link>
-      );
-    }
-    
-    let url: URL;
-    try {
-      const fullUrl = configStatus.storeUrl.startsWith('http') ? configStatus.storeUrl : `https://${configStatus.storeUrl}`;
-      url = new URL(fullUrl);
-
-      if (url.protocol !== 'https:') {
-        throw new Error('Solo se admite el protocolo HTTPS.');
-      }
-    } catch (e) {
-      return (
-        <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-destructive" title="URL de tienda inválida. Click para corregir.">
-          <Globe className="h-4 w-4" />
-          <span className="hidden md:inline">URL Inválida</span>
-        </Link>
-      );
-    }
-
-    const hostname = url.hostname;
-    
-    return (
-        <TooltipProvider delayDuration={100}>
-            <Link href="/settings/connections" className="flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Gestionar conexiones">
-                <span className="hidden md:inline">{hostname}</span>
-                <div className="flex items-center gap-3">
-                    {/* Shopify Group */}
-                    <div className="flex items-center gap-2">
-                        <Tooltip>
-                            <TooltipTrigger>
-                               <ShopifyIcon className={cn("h-4 w-4", configStatus.shopifyConfigured ? "text-green-500" : "text-destructive")} />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>Shopify: {configStatus.shopifyConfigured ? "Configurado" : "No Configurado"}</p>
-                            </TooltipContent>
-                        </Tooltip>
-                    </div>
-                    
-                    {/* Separator */}
-                    <div className="h-4 w-px bg-border" />
-                    
-                    {/* WordPress/WooCommerce Group */}
-                    <div className="flex items-center gap-2">
-                        <Tooltip>
-                            <TooltipTrigger>
-                               <Store className={cn("h-4 w-4", configStatus.wooCommerceConfigured ? "text-green-500" : "text-destructive")} />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>WooCommerce: {configStatus.wooCommerceConfigured ? "Configurado" : "No Configurado"}</p>
-                            </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                            <TooltipTrigger>
-                               <Globe className={cn("h-4 w-4", configStatus.wordPressConfigured ? "text-green-500" : "text-destructive")} />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>WordPress: {configStatus.wordPressConfigured ? "Configurado" : "No Configurado"}</p>
-                            </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                            <TooltipTrigger>
-                               <PlugZap className={cn("h-4 w-4", configStatus.pluginActive ? "text-green-500" : "text-destructive")} />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>Plugin AutoPress AI: {configStatus.pluginActive ? "Activo" : "No Detectado"}</p>
-                            </TooltipContent>
-                        </Tooltip>
-                    </div>
-                </div>
-            </Link>
-        </TooltipProvider>
-    );
-  }
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -272,7 +268,8 @@ export function Header() {
         </div>
 
         <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
-          {renderStoreStatus()}
+          <ConnectionStatusIndicator status={configStatus} isLoading={isLoadingAuth || isLoadingStatus} />
+
           <nav className="flex items-center space-x-1">
 
             <DropdownMenu onOpenChange={(open) => { if (open) handleMarkAsRead(); }}>
