@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
 
         // New plugin check logic
         if (userConfig.wordPressConfigured) {
-          const { url, username, applicationPassword } = activeConnection;
+          const { wordpressApiUrl: url, wordpressUsername: username, wordpressApplicationPassword: applicationPassword } = activeConnection;
           const token = Buffer.from(`${username}:${applicationPassword}`, 'utf8').toString('base64');
           const siteUrl = url.startsWith('http') ? url : `https://${url}`;
           const statusEndpoint = `${siteUrl.replace(/\/$/, '')}/wp-json/custom/v1/status`;

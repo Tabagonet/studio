@@ -136,6 +136,7 @@ export default function ConnectionsPage() {
 
     const [selectedEntityStatus, setSelectedEntityStatus] = useState<SelectedEntityStatus | null>(null);
     const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     const { toast } = useToast();
 
@@ -278,7 +279,7 @@ export default function ConnectionsPage() {
         };
 
         fetchStatus();
-    }, [editingTarget]);
+    }, [editingTarget, refreshKey]);
 
     const handleTargetChange = (value: string) => {
         const user = auth.currentUser;
@@ -380,6 +381,7 @@ export default function ConnectionsPage() {
             toast({ title: "Conexión Guardada", description: `Los datos para '${key}' han sido guardados y activados.` });
             window.dispatchEvent(new Event('connections-updated'));
             await fetchConnections(user, editingTarget.type, editingTarget.id);
+            setRefreshKey(k => k + 1);
             setSelectedKey(key);
         } catch (error: any) {
             toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
@@ -415,6 +417,7 @@ export default function ConnectionsPage() {
             toast({ title: "Conexión Eliminada", description: `El perfil para '${selectedKey}' ha sido eliminado.` });
             window.dispatchEvent(new Event('connections-updated'));
             await fetchConnections(user, editingTarget.type, editingTarget.id);
+            setRefreshKey(k => k + 1);
         } catch (error: any) {
             toast({ title: "Error al Eliminar", description: error.message, variant: "destructive" });
         } finally {
