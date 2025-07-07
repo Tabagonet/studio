@@ -30,7 +30,7 @@ export default function ProspectsLayout({
 
         if (response.ok) {
           const userData = await response.json();
-          if (['admin', 'super_admin'].includes(userData.role)) {
+          if (userData.role === 'super_admin') {
             setIsAuthorized(true);
           } else {
             router.replace('/dashboard'); 

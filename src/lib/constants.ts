@@ -40,7 +40,7 @@ export const NAV_GROUPS: NavGroup[] = [
    {
     title: 'Captación',
     items: [
-      { title: 'Prospectos', href: '/prospects', icon: Briefcase, requiredRoles: ['admin', 'super_admin'] },
+      { title: 'Prospectos', href: '/prospects', icon: Briefcase, requiredRoles: ['super_admin'] },
     ]
   },
    {

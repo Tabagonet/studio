@@ -30,7 +30,7 @@ async function getAdminContext(req: NextRequest): Promise<{ uid: string | null; 
 
 export async function GET(req: NextRequest) {
     const adminContext = await getAdminContext(req);
-    const isAuthorized = adminContext.role === 'admin' || adminContext.role === 'super_admin';
+    const isAuthorized = adminContext.role === 'super_admin';
     
     if (!isAuthorized) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -41,11 +41,6 @@ export async function GET(req: NextRequest) {
 
     try {
         let query: FirebaseFirestore.Query = adminDb.collection('prospects');
-        
-        // In a future multi-tenant setup, an admin would only see their company's prospects
-        // if (adminContext.role === 'admin' && adminContext.companyId) {
-        //     query = query.where('assignedToCompanyId', '==', adminContext.companyId);
-        // }
         
         const snapshot = await query.orderBy('createdAt', 'desc').get();
         
