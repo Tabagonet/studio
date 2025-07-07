@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState } from 'react';
@@ -16,6 +15,7 @@ import { CreativeStudioDialog } from './CreativeStudioDialog';
 import { formatCurrency } from '@/lib/utils';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import type { Company } from '@/lib/types';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface AdPlanViewProps {
   plan: CreateAdPlanOutput;
@@ -95,7 +95,11 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyInfo }: AdPlanV
             {plan.additional_context && (
                  <Card>
                     <CardHeader><CardTitle className="flex items-center gap-3"><Info className="h-6 w-6 text-primary" /> Contexto Adicional Proporcionado</CardTitle></CardHeader>
-                    <CardContent><p className="text-muted-foreground whitespace-pre-line">{plan.additional_context}</p></CardContent>
+                    <CardContent>
+                      <ScrollArea className="h-48 rounded-md border bg-muted/20 p-4">
+                        <p className="text-sm text-muted-foreground whitespace-pre-line">{plan.additional_context}</p>
+                      </ScrollArea>
+                    </CardContent>
                 </Card>
             )}
 
