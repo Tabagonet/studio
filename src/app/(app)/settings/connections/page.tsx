@@ -23,6 +23,9 @@ interface ConnectionData {
     wordpressApiUrl: string;
     wordpressUsername: string;
     wordpressApplicationPassword: string;
+    shopifyStoreUrl: string;
+    shopifyApiKey: string;
+    shopifyApiPassword: string; // This will hold the access token
 }
 
 type AllConnections = { [key: string]: ConnectionData };
@@ -45,7 +48,10 @@ const INITIAL_STATE: ConnectionData = {
     wooCommerceApiSecret: '',
     wordpressApiUrl: '',
     wordpressUsername: '',
-    wordpressApplicationPassword: ''
+    wordpressApplicationPassword: '',
+    shopifyStoreUrl: '',
+    shopifyApiKey: '',
+    shopifyApiPassword: '',
 };
 
 function getHostname(url: string): string | null {
@@ -329,7 +335,8 @@ export default function ConnectionsPage() {
     const handleSave = async () => {
         const urlsToValidate = [
             { name: 'WooCommerce', url: formData.wooCommerceStoreUrl },
-            { name: 'WordPress', url: formData.wordpressApiUrl }
+            { name: 'WordPress', url: formData.wordpressApiUrl },
+            { name: 'Shopify', url: formData.shopifyStoreUrl }
         ];
 
         for (const item of urlsToValidate) {
@@ -346,8 +353,9 @@ export default function ConnectionsPage() {
 
         const wooHostname = getHostname(formData.wooCommerceStoreUrl);
         const wpHostname = getHostname(formData.wordpressApiUrl);
+        const shopifyHostname = getHostname(formData.shopifyStoreUrl);
         
-        const key = selectedKey !== 'new' ? selectedKey : (wooHostname || wpHostname);
+        const key = selectedKey !== 'new' ? selectedKey : (wooHostname || wpHostname || shopifyHostname);
     
         if (!key) {
             toast({ title: "Datos Incompletos", description: "Por favor, introduce una URL válida.", variant: "destructive" });
@@ -553,6 +561,23 @@ export default function ConnectionsPage() {
                                 <div>
                                     <Label htmlFor="wordpressApplicationPassword">Contraseña de Aplicación</Label>
                                     <Input id="wordpressApplicationPassword" name="wordpressApplicationPassword" type="password" value={formData.wordpressApplicationPassword} onChange={handleInputChange} placeholder="xxxx xxxx xxxx xxxx xxxx xxxx" disabled={isSaving}/>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card className="lg:col-span-2">
+                            <CardHeader><CardTitle>Shopify</CardTitle></CardHeader>
+                            <CardContent className="space-y-4">
+                                <div>
+                                    <Label htmlFor="shopifyStoreUrl">URL de la Tienda (.myshopify.com)</Label>
+                                    <Input id="shopifyStoreUrl" name="shopifyStoreUrl" value={formData.shopifyStoreUrl} onChange={handleInputChange} placeholder="mitienda.myshopify.com" disabled={isSaving} />
+                                </div>
+                                <div>
+                                    <Label htmlFor="shopifyApiKey">Clave de API</Label>
+                                    <Input id="shopifyApiKey" name="shopifyApiKey" type="password" value={formData.shopifyApiKey} onChange={handleInputChange} placeholder="Clave de la App Privada o Personalizada" disabled={isSaving}/>
+                                </div>
+                                <div>
+                                    <Label htmlFor="shopifyApiPassword">Contraseña de API (Token de Acceso)</Label>
+                                    <Input id="shopifyApiPassword" name="shopifyApiPassword" type="password" value={formData.shopifyApiPassword} onChange={handleInputChange} placeholder="shpat_xxxxxxxxxxxx" disabled={isSaving}/>
                                 </div>
                             </CardContent>
                         </Card>

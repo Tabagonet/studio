@@ -30,6 +30,12 @@ async function getUserContext(req: NextRequest): Promise<{ uid: string; role: st
 const urlOrEmptyString = z.string().refine((value) => {
     if (value === '') return true;
     try {
+        // Allow Shopify's .myshopify.com domain without a protocol
+        if (value.includes('.myshopify.com')) {
+            const urlToTest = value.startsWith('http') ? value : `https://${value}`;
+            new URL(urlToTest);
+            return true;
+        }
         const urlToTest = value.startsWith('http') ? value : `https://${value}`;
         new URL(urlToTest);
         return true;
@@ -43,6 +49,9 @@ const connectionDataSchema = z.object({
     wordpressApiUrl: urlOrEmptyString.optional(),
     wordpressUsername: z.string().optional(),
     wordpressApplicationPassword: z.string().optional(),
+    shopifyStoreUrl: urlOrEmptyString.optional(),
+    shopifyApiKey: z.string().optional(),
+    shopifyApiPassword: z.string().optional(),
     promptTemplate: z.string().optional(),
 });
 
@@ -157,7 +166,7 @@ export async function POST(req: NextRequest) {
             ...(setActive && { activeConnectionKey: key })
         }, { merge: true });
         
-        const { wooCommerceStoreUrl, wordpressApiUrl } = connectionData;
+        const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = connectionData;
         const hostnamesToAdd = new Set<string>();
 
         if (wooCommerceStoreUrl) {
@@ -171,6 +180,12 @@ export async function POST(req: NextRequest) {
                 const fullUrl = wordpressApiUrl.startsWith('http') ? wordpressApiUrl : `https://${wordpressApiUrl}`;
                 hostnamesToAdd.add(new URL(fullUrl).hostname);
             } catch (e) { console.warn(`Invalid WordPress URL: ${wordpressApiUrl}`); }
+        }
+        if (shopifyStoreUrl) {
+            try {
+                 const fullUrl = shopifyStoreUrl.startsWith('http') ? shopifyStoreUrl : `https://${shopifyStoreUrl}`;
+                hostnamesToAdd.add(new URL(fullUrl).hostname);
+            } catch (e) { console.warn(`Invalid Shopify URL: ${shopifyStoreUrl}`); }
         }
 
         if (hostnamesToAdd.size > 0) {
