@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getChatbotResponse, extractDataFromConversation } from '@/ai/flows/chatbot-flow';
 import { adminDb, admin } from '@/lib/firebase-admin';
+import axios from 'axios';
+import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,13 +12,57 @@ interface Message {
     content: string;
 }
 
+const chatbotRequestSchema = z.object({
+  messages: z.array(z.object({
+    role: z.enum(['user', 'model']),
+    content: z.string(),
+  })),
+  recaptchaToken: z.string().optional(),
+});
+
+
+async function verifyRecaptcha(token: string | undefined) {
+    const secretKey = process.env.RECAPTCHA_SECRET_KEY;
+    if (!secretKey) {
+        console.warn("reCAPTCHA secret key not configured. Skipping verification.");
+        // In a production environment, you might want to fail here if the key is missing.
+        // For development, we allow it to proceed.
+        return true;
+    }
+    
+    if (!token) {
+        throw new Error("El token de reCAPTCHA es requerido.");
+    }
+    
+    const verificationUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${token}`;
+    
+    try {
+        const response = await axios.post(verificationUrl);
+        const { success, score } = response.data;
+        if (!success || score < 0.5) {
+            console.warn("reCAPTCHA verification failed:", response.data['error-codes']);
+            throw new Error("Verificación de reCAPTCHA fallida. Por favor, inténtelo de nuevo.");
+        }
+        return true;
+    } catch (error: any) {
+        console.error("Error during reCAPTCHA verification request:", error.message);
+        throw new Error("No se pudo verificar el reCAPTCHA. Inténtelo de nuevo más tarde.");
+    }
+}
+
+
 export async function POST(req: NextRequest) {
     try {
-        const { messages }: { messages: Message[] } = await req.json();
-
-        if (!Array.isArray(messages)) {
-            return NextResponse.json({ error: 'Invalid "messages" format. Expected an array.' }, { status: 400 });
+        const body = await req.json();
+        const validation = chatbotRequestSchema.safeParse(body);
+        if (!validation.success) {
+            return NextResponse.json({ error: 'Invalid request body', details: validation.error.flatten() }, { status: 400 });
         }
+        
+        const { messages, recaptchaToken } = validation.data;
+        
+        // Verify reCAPTCHA token before proceeding
+        await verifyRecaptcha(recaptchaToken);
         
         const aiResponseText = await getChatbotResponse(messages);
         
@@ -80,6 +126,6 @@ export async function POST(req: NextRequest) {
 
     } catch (error: any) {
         console.error('Error in chatbot API route:', error);
-        return NextResponse.json({ error: 'Failed to get response from chatbot AI', message: error.message }, { status: 500 });
+        return NextResponse.json({ error: error.message || 'Failed to get response from chatbot AI' }, { status: 500 });
     }
 }

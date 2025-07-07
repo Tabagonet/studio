@@ -27,11 +27,17 @@ Secret keys and configuration values are stored in environment variables. The pr
 
 1.  **Create the File:** In the root of your project folder, find the file named `.env.local.example`. Duplicate this file and rename the copy to `.env.local`.
 
-2.  **Fill in the Values:** Open the new `.env.local` file. You will need to fill in the placeholder values with your actual credentials from Firebase and Google.
+2.  **Fill in the Values:** Open the new `.env.local` file. You will need to fill in the placeholder values with your actual credentials.
 
     -   `GOOGLE_API_KEY`:
         -   Go to [Google AI Studio](https://aistudio.google.com/app/apikey).
         -   Create a new API key and copy-paste it here.
+
+    -   `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` & `RECAPTCHA_SECRET_KEY`:
+        -   Go to the [Google reCAPTCHA v3 Admin Console](https://www.google.com/recaptcha/admin/create).
+        -   Register your site (for local development, you can use `localhost`).
+        -   Copy the "Site Key" and paste it as the value for `NEXT_PUBLIC_RECAPTCHA_SITE_KEY`.
+        -   Copy the "Secret Key" and paste it as the value for `RECAPTCHA_SECRET_KEY`.
 
     -   `FIREBASE_SERVICE_ACCOUNT_JSON`:
         -   Go to your Firebase project console.

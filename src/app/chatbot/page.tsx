@@ -1,17 +1,18 @@
 
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Loader2, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { APP_NAME } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
+import ReCaptchaProvider from '@/components/core/recaptcha-provider';
 
 interface Message {
     id: string;
@@ -19,7 +20,7 @@ interface Message {
     content: string;
 }
 
-export default function ChatbotPage() {
+function ChatbotComponent() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -27,16 +28,27 @@ export default function ChatbotPage() {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
+    const { executeRecaptcha } = useGoogleReCaptcha();
+
+    const handleRecaptcha = useCallback(async () => {
+        if (!executeRecaptcha) {
+            console.log("reCAPTCHA not available yet");
+            // Silently proceed if reCAPTCHA is not configured on the client
+            // The backend will handle the missing token if it's required there.
+            return 'not-available'; 
+        }
+        return await executeRecaptcha('chatbot_interaction');
+    }, [executeRecaptcha]);
 
     useEffect(() => {
-        // Start with the bot's greeting
         const startConversation = async () => {
             setIsLoading(true);
             try {
+                const recaptchaToken = await handleRecaptcha();
                 const response = await fetch('/api/chatbot', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ messages: [] })
+                    body: JSON.stringify({ messages: [], recaptchaToken })
                 });
                 if (!response.ok) throw new Error('Failed to start conversation');
                 const data = await response.json();
@@ -48,7 +60,7 @@ export default function ChatbotPage() {
             }
         };
         startConversation();
-    }, [toast]);
+    }, [toast, handleRecaptcha]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -68,10 +80,15 @@ export default function ChatbotPage() {
         setIsLoading(true);
 
         try {
+            const recaptchaToken = await handleRecaptcha();
+
             const response = await fetch('/api/chatbot', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ messages: newMessages.map(m => ({ role: m.role, content: m.content })) })
+                body: JSON.stringify({ 
+                    messages: newMessages.map(m => ({ role: m.role, content: m.content })),
+                    recaptchaToken
+                })
             });
 
             if (!response.ok) {
@@ -168,5 +185,13 @@ export default function ChatbotPage() {
                 </CardFooter>
             </Card>
         </div>
+    );
+}
+
+export default function ChatbotPage() {
+    return (
+        <ReCaptchaProvider>
+            <ChatbotComponent />
+        </ReCaptchaProvider>
     );
 }

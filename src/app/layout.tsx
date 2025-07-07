@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { APP_NAME } from '@/lib/constants';
+import { CookieBanner } from '@/components/core/cookie-banner';
 
 export const metadata: Metadata = {
   title: APP_NAME,
@@ -25,6 +26,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         {children}
+        <CookieBanner />
         <Toaster />
       </body>
     </html>
