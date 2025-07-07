@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview An AI flow for the lead generation chatbot.
@@ -13,8 +12,9 @@ const CHATBOT_PROMPT_TEMPLATE = `Eres un asistente de estrategia digital amigabl
 1.  **Mantente Enfocado:** Solo puedes hablar sobre el cuestionario. Si el usuario pregunta algo no relacionado (el tiempo, quién eres en detalle, generar una imagen, etc.), responde amablemente que no puedes ayudar con eso y vuelve a la pregunta actual. Ejemplo: "Mi función es ayudarte a definir la estrategia para tu negocio. ¿Podríamos continuar con [pregunta actual]?"
 2.  **Explica Conceptos Si te Preguntan:** Si el usuario no entiende un término de marketing (ej: "¿qué es un lead?", "¿a qué te refieres con propuesta de valor?"), DEBES darle una explicación simple y concisa. Después de explicar, vuelve a formular la pregunta original.
 3.  **Una Pregunta a la Vez:** Haz solo una pregunta principal en cada turno.
-4.  **Sé Breve:** Tus respuestas y preguntas deben ser cortas y fáciles de entender. Evita la jerga técnica.
-5.  **Detecta el Fin:** Solo cuando el usuario confirme explícitamente que los datos del resumen son correctos (ej: "sí", "todo bien", "correcto"), tu ÚLTIMA respuesta DEBE ser únicamente la palabra "FIN".
+4.  **Maneja la Incertidumbre:** Si el usuario indica que no sabe la respuesta a una pregunta (ej: 'no lo sé', 'puedes saltar esta', 'no estoy seguro'), responde amablemente (ej: 'Entendido, ¡no pasa nada!') y **pasa a la siguiente pregunta del flujo.** No te quedes atascado ni insistas.
+5.  **Sé Breve:** Tus respuestas y preguntas deben ser cortas y fáciles de entender. Evita la jerga técnica.
+6.  **Detecta el Fin:** Solo cuando el usuario confirme explícitamente que los datos del resumen son correctos (ej: "sí", "todo bien", "correcto"), tu ÚLTIMA respuesta DEBE ser únicamente la palabra "FIN".
 
 **Flujo de la Conversación:**
 
@@ -78,7 +78,8 @@ const CHATBOT_PROMPT_TEMPLATE = `Eres un asistente de estrategia digital amigabl
 (No hay historial. Empieza la conversación con el "Saludo Inicial".)
 {{/if}}
 
-Ahora, basándote en el flujo definido y el historial, continúa la conversación. Formula la siguiente pregunta o finaliza si has completado todos los pasos.`;
+Ahora, basándote en el flujo definido y el historial, continúa la conversación. Formula la siguiente pregunta o finaliza si has completado todos los pasos.
+`;
 
 const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -87,94 +88,72 @@ const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
 ];
 
-export function extractDataFromConversation(messages: { role: 'user' | 'model'; content: string }[]): Record<string, string> {
-    const data: Record<string, string> = {};
-    const questionKeywords: Record<string, string> = {
-        'url': 'companyUrl', 'web': 'companyUrl', 'página': 'companyUrl',
-        'describirme tu negocio': 'businessDescription', 'describa su negocio': 'businessDescription',
-        'competidores': 'competitors',
-        'objetivo principal': 'objective',
-        'propuesta de valor': 'valueProposition', 'único y diferente': 'valueProposition',
-        'cliente ideal': 'targetAudience', 'público objetivo': 'targetAudience',
-        'personalidad de tu marca': 'brandPersonality',
-        'presupuesto mensual': 'monthlyBudget',
-        'nombre': 'name',
-        'email': 'email', 'correo electrónico': 'email',
-    };
-
-    // This loop establishes the base data from the Q&A flow
-    for (let i = 0; i < messages.length; i++) {
-        if (messages[i].role === 'model' && messages[i+1]?.role === 'user') {
-            const botQuestion = messages[i].content.toLowerCase();
-            for (const keyword in questionKeywords) {
-                if (botQuestion.includes(keyword)) {
-                    const key = questionKeywords[keyword];
-                    data[key] = messages[i+1].content;
-                    break;
-                }
-            }
-        }
-    }
-    
-    // This loop looks for explicit corrections from the user. It can overwrite the base data.
-    for (const message of messages) {
-        if (message.role === 'user') {
-            const originalText = message.content;
-            
-            const nameMatch = originalText.match(/mi nombre es (.*)/i);
-            if (nameMatch && nameMatch[1]) data.name = nameMatch[1].trim();
-
-            const emailMatch = originalText.match(/(?:mi email es|mi correo es) (.*)/i);
-            if (emailMatch && emailMatch[1]) data.email = emailMatch[1].trim();
-
-            const objectiveMatch = originalText.match(/(?:mi objetivo es|el objetivo es) (.*)/i);
-            if (objectiveMatch && objectiveMatch[1]) data.objective = objectiveMatch[1].trim();
-        }
-    }
-
-    return data;
+interface Message {
+  role: 'user' | 'model';
+  content: string;
 }
 
-export async function getChatbotResponse(conversationHistory: { role: 'user' | 'model'; content: string }[]): Promise<string> {
+const findUrlInMessages = (messages: Message[]): string | null => {
+    const urlRegex = /(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?/i;
+    for (const message of messages) {
+        if (message.role === 'user') {
+            const match = message.content.match(urlRegex);
+            if (match) return match[0];
+        }
+    }
+    return null;
+}
+
+// Function to call the Gemini API
+export async function getChatbotResponse(messages: Message[]): Promise<string> {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-    const model = genAI.getGenerativeModel({ 
+    const model = genAI.getGenerativeModel({
         model: "gemini-1.5-flash-latest",
         safetySettings
     });
 
     let scrapedContent: string | null = null;
-    
-    // Check if the user just provided a URL. This is typically the first user message.
-    if (conversationHistory.length === 2 && conversationHistory[1].role === 'user') {
-        const potentialUrl = conversationHistory[1].content;
-        const urlRegex = /([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/;
-        if (urlRegex.test(potentialUrl)) {
-             scrapedContent = await scrapeUrl(potentialUrl);
+    if (messages.length === 1) { // Only scrape on the first user message
+        const url = findUrlInMessages(messages);
+        if (url) {
+            scrapedContent = await scrapeUrl(url);
         }
     }
-
-    const historyString = conversationHistory.map(m => `${m.role === 'user' ? 'Cliente' : 'Asistente'}: ${m.content}`).join('\n');
-
+    
+    // The history needs to be formatted for the prompt
+    const history = messages
+        .map(msg => `${msg.role === 'user' ? 'Usuario' : 'Asistente'}: ${msg.content}`)
+        .join('\n');
+        
+    const extractedData = extractDataFromConversation(messages);
+    
     const template = Handlebars.compile(CHATBOT_PROMPT_TEMPLATE, { noEscape: true });
-    
-    const extractedData = extractDataFromConversation(conversationHistory);
-    
     const finalPrompt = template({ 
-        history: historyString, 
-        scrapedContent, 
-        name: extractedData.name,
-        email: extractedData.email,
-        objective: extractedData.objective,
-        businessDescription: extractedData.businessDescription,
-        valueProposition: extractedData.valueProposition,
-        targetAudience: extractedData.targetAudience,
-        competitors: extractedData.competitors,
-        brandPersonality: extractedData.brandPersonality,
-        monthlyBudget: extractedData.monthlyBudget,
+        history, 
+        scrapedContent,
+        ...extractedData 
     });
     
     const result = await model.generateContent(finalPrompt);
     const response = await result.response;
-    
     return response.text();
+}
+
+// Helper to extract data from the conversation history for the confirmation step
+export function extractDataFromConversation(messages: Message[]) {
+    const conversationText = messages.map(m => m.content).join('\n');
+    const extract = (regex: RegExp) => (conversationText.match(regex) || [])[1] || '';
+
+    return {
+        name: extract(/- Nombre: (.+?)\n/),
+        email: extract(/- Email: (.+?)\n/),
+        objective: extract(/- Objetivo: (.+?)\n/),
+        businessDescription: extract(/- Descripción: (.+?)\n/),
+        valueProposition: extract(/- Propuesta de Valor: (.+?)\n/),
+        targetAudience: extract(/- Público Objetivo: (.+?)\n/),
+        competitors: extract(/- Competidores: (.+?)\n/),
+        brandPersonality: extract(/- Personalidad de Marca: (.+?)\n/),
+        monthlyBudget: extract(/- Presupuesto Mensual: (.+?)\n/),
+        companyUrl: findUrlInMessages(messages),
+    };
 }
