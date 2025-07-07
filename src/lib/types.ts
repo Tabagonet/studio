@@ -351,3 +351,16 @@ export interface Company {
   email?: string | null;
   seoHourlyRate?: number;
 }
+
+export interface Prospect {
+  id: string;
+  name: string;
+  email: string;
+  companyUrl: string;
+  status: 'new' | 'contacted' | 'converted' | 'archived';
+  createdAt: string; // ISO String
+  source: string;
+  notes?: string;
+  // This will hold the raw conversation or summary from the chatbot
+  rawInquiry?: Record<string, any>; 
+}

@@ -1,6 +1,6 @@
 
 
-import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList, SearchCheck, Copy, Building, Megaphone } from 'lucide-react';
+import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList, SearchCheck, Copy, Building, Megaphone, Briefcase } from 'lucide-react';
 import type { NavItem, ProductType, ProductData, BlogPostData, NavGroup } from '@/lib/types';
 
 export const APP_NAME = "AutoPress AI";
@@ -35,6 +35,12 @@ export const NAV_GROUPS: NavGroup[] = [
        { title: 'Planificador de Publicidad', href: '/ad-planner', icon: Megaphone, requiredRoles: ['super_admin'] },
        { title: 'Optimizador SEO', href: '/seo-optimizer', icon: SearchCheck, requiredRoles: ['admin', 'super_admin', 'content_manager', 'product_manager', 'seo_analyst'] },
        { title: 'Clonador de Contenido', href: '/content-cloner', icon: Copy, requiredRoles: ['admin', 'super_admin', 'content_manager', 'product_manager'] },
+    ]
+  },
+   {
+    title: 'Captación',
+    items: [
+      { title: 'Prospectos', href: '/prospects', icon: Briefcase, requiredRoles: ['admin', 'super_admin'] },
     ]
   },
    {
