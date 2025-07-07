@@ -1,4 +1,4 @@
-
+// src/app/(app)/settings/connections/page.tsx
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSe
 import type { Company } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { RiShopifyFill } from '@remixicon/react';
 
 
 interface ConnectionData {
@@ -38,6 +39,7 @@ interface BasicUser {
 interface SelectedEntityStatus {
     wooCommerceConfigured: boolean;
     wordPressConfigured: boolean;
+    shopifyConfigured: boolean;
     pluginActive: boolean;
     activeStoreUrl: string | null;
 }
@@ -98,6 +100,14 @@ const ConnectionStatusIndicator = ({ status, isLoading }: { status: SelectedEnti
                     </TooltipTrigger>
                     <TooltipContent>
                         <p>WooCommerce: {status.wooCommerceConfigured ? "Configurado" : "No Configurado"}</p>
+                    </TooltipContent>
+                </Tooltip>
+                 <Tooltip>
+                    <TooltipTrigger>
+                       <RiShopifyFill className={cn("h-4 w-4", status.shopifyConfigured ? "text-green-500" : "text-destructive")} />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p>Shopify: {status.shopifyConfigured ? "Configurado" : "No Configurado"}</p>
                     </TooltipContent>
                 </Tooltip>
                 <Tooltip>

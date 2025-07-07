@@ -1,4 +1,4 @@
-
+// src/app/api/user-settings/import/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
@@ -25,6 +25,9 @@ const connectionDataSchema = z.object({
     wordpressApiUrl: z.union([z.string().url({ message: "Invalid WordPress API URL" }), z.literal('')]).optional(),
     wordpressUsername: z.string().optional(),
     wordpressApplicationPassword: z.string().optional(),
+    shopifyStoreUrl: z.union([z.string(), z.literal('')]).optional(), // More lenient for shopify
+    shopifyApiKey: z.string().optional(),
+    shopifyApiPassword: z.string().optional(),
     promptTemplate: z.string().optional(),
 });
 
@@ -55,10 +58,13 @@ export async function POST(req: NextRequest) {
 
         // Fire-and-forget adding hostnames to next.config.js for image optimization
         const hostnames = Object.values(importedData.connections)
-            .flatMap(conn => [conn.wooCommerceStoreUrl, conn.wordpressApiUrl])
+            .flatMap(conn => [conn.wooCommerceStoreUrl, conn.wordpressApiUrl, conn.shopifyStoreUrl])
             .filter((url): url is string => !!url)
             .map(url => {
-                try { return new URL(url).hostname; }
+                try { 
+                    const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+                    return new URL(fullUrl).hostname; 
+                }
                 catch { return null; }
             })
             .filter((hostname): hostname is string => !!hostname);

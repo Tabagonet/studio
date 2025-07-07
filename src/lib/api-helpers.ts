@@ -1,9 +1,9 @@
-
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
 import { createWooCommerceApi } from '@/lib/woocommerce';
 import { createWordPressApi } from '@/lib/wordpress';
+import { createShopifyApi } from '@/lib/shopify';
 import type WooCommerceRestApiType from '@woocommerce/woocommerce-rest-api';
 import type { AxiosInstance } from 'axios';
 import axios from 'axios';
@@ -15,6 +15,7 @@ import sharp from 'sharp';
 interface ApiClients {
   wooApi: WooCommerceRestApiType | null;
   wpApi: AxiosInstance | null;
+  shopifyApi: AxiosInstance | null;
   activeConnectionKey: string | null;
   settings: admin.firestore.DocumentData | undefined;
 }
@@ -78,7 +79,12 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
     applicationPassword: activeConnection.wordpressApplicationPassword,
   });
 
-  return { wooApi, wpApi, activeConnectionKey, settings: settingsSource };
+  const shopifyApi = createShopifyApi({
+    url: activeConnection.shopifyStoreUrl,
+    accessToken: activeConnection.shopifyApiPassword, // The "password" field in UI stores the access token
+  });
+
+  return { wooApi, wpApi, shopifyApi, activeConnectionKey, settings: settingsSource };
 }
 
 function extractHeadingsRecursive(elements: any[], widgets: ExtractedWidget[]): void {

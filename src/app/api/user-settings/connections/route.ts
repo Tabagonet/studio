@@ -1,4 +1,4 @@
-
+// src/app/api/user-settings/connections/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
@@ -30,17 +30,18 @@ async function getUserContext(req: NextRequest): Promise<{ uid: string; role: st
 const urlOrEmptyString = z.string().refine((value) => {
     if (value === '') return true;
     try {
-        // Allow Shopify's .myshopify.com domain without a protocol
-        if (value.includes('.myshopify.com')) {
-            const urlToTest = value.startsWith('http') ? value : `https://${value}`;
-            new URL(urlToTest);
-            return true;
-        }
         const urlToTest = value.startsWith('http') ? value : `https://${value}`;
         new URL(urlToTest);
         return true;
     } catch { return false; }
 }, { message: "Invalid URL format. Must be a valid URL or empty." });
+
+const shopifyUrlOrEmptyString = z.string().refine((value) => {
+    if (value === '') return true;
+    // Shopify URLs must be in the format `something.myshopify.com`
+    return /^[a-zA-Z0-9-]+\.myshopify\.com$/.test(value);
+}, { message: "Invalid Shopify URL format. Must be like 'your-store.myshopify.com'." });
+
 
 const connectionDataSchema = z.object({
     wooCommerceStoreUrl: urlOrEmptyString.optional(),
@@ -49,7 +50,7 @@ const connectionDataSchema = z.object({
     wordpressApiUrl: urlOrEmptyString.optional(),
     wordpressUsername: z.string().optional(),
     wordpressApplicationPassword: z.string().optional(),
-    shopifyStoreUrl: urlOrEmptyString.optional(),
+    shopifyStoreUrl: shopifyUrlOrEmptyString.optional(),
     shopifyApiKey: z.string().optional(),
     shopifyApiPassword: z.string().optional(),
     promptTemplate: z.string().optional(),
@@ -169,24 +170,21 @@ export async function POST(req: NextRequest) {
         const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = connectionData;
         const hostnamesToAdd = new Set<string>();
 
-        if (wooCommerceStoreUrl) {
-            try {
-                const fullUrl = wooCommerceStoreUrl.startsWith('http') ? wooCommerceStoreUrl : `https://${wooCommerceStoreUrl}`;
-                hostnamesToAdd.add(new URL(fullUrl).hostname);
-            } catch (e) { console.warn(`Invalid WooCommerce URL: ${wooCommerceStoreUrl}`); }
-        }
-        if (wordpressApiUrl) {
-            try {
-                const fullUrl = wordpressApiUrl.startsWith('http') ? wordpressApiUrl : `https://${wordpressApiUrl}`;
-                hostnamesToAdd.add(new URL(fullUrl).hostname);
-            } catch (e) { console.warn(`Invalid WordPress URL: ${wordpressApiUrl}`); }
-        }
-        if (shopifyStoreUrl) {
-            try {
-                 const fullUrl = shopifyStoreUrl.startsWith('http') ? shopifyStoreUrl : `https://${shopifyStoreUrl}`;
-                hostnamesToAdd.add(new URL(fullUrl).hostname);
-            } catch (e) { console.warn(`Invalid Shopify URL: ${shopifyStoreUrl}`); }
-        }
+        const addHostname = (url: string | undefined) => {
+             if (url) {
+                try {
+                    const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+                    hostnamesToAdd.add(new URL(fullUrl).hostname);
+                } catch (e) {
+                    console.warn(`Invalid URL provided, skipping remote pattern: ${url}`);
+                }
+            }
+        };
+
+        addHostname(wooCommerceStoreUrl);
+        addHostname(wordpressApiUrl);
+        addHostname(shopifyStoreUrl);
+
 
         if (hostnamesToAdd.size > 0) {
             const promises = Array.from(hostnamesToAdd).map(hostname => addRemotePattern(hostname).catch(err => console.error(`Failed to add remote pattern for ${hostname}:`, err)));

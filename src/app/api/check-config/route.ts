@@ -1,4 +1,4 @@
-
+// src/app/api/check-config/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import type * as admin from 'firebase-admin';
@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
   let userConfig = {
     wooCommerceConfigured: false,
     wordPressConfigured: false,
+    shopifyConfigured: false,
     pluginActive: false,
     aiUsageCount: 0,
   };
@@ -87,9 +88,10 @@ export async function GET(req: NextRequest) {
         const activeConnection = allConnections[activeKey];
         userConfig.wooCommerceConfigured = !!(activeConnection.wooCommerceStoreUrl && activeConnection.wooCommerceApiKey && activeConnection.wooCommerceApiSecret);
         userConfig.wordPressConfigured = !!(activeConnection.wordpressApiUrl && activeConnection.wordpressUsername && activeConnection.wordpressApplicationPassword);
-        activeStoreUrl = activeConnection.wooCommerceStoreUrl || activeConnection.wordpressApiUrl || null;
+        userConfig.shopifyConfigured = !!(activeConnection.shopifyStoreUrl && activeConnection.shopifyApiPassword);
+        activeStoreUrl = activeConnection.wooCommerceStoreUrl || activeConnection.wordpressApiUrl || activeConnection.shopifyStoreUrl || null;
 
-        // New plugin check logic
+        // Plugin check logic
         if (userConfig.wordPressConfigured) {
           const { wordpressApiUrl: url, wordpressUsername: username, wordpressApplicationPassword: applicationPassword } = activeConnection;
           const token = Buffer.from(`${username}:${applicationPassword}`, 'utf8').toString('base64');

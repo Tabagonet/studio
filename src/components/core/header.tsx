@@ -1,4 +1,4 @@
-
+// src/components/core/header.tsx
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -24,12 +24,14 @@ import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { cn } from '@/lib/utils';
+import { RiShopifyFill } from '@remixicon/react';
 
 
 interface ConfigStatus {
     storeUrl: string | null;
     wooCommerceConfigured: boolean;
     wordPressConfigured: boolean;
+    shopifyConfigured: boolean;
     pluginActive: boolean;
 }
 
@@ -93,6 +95,7 @@ export function Header() {
             storeUrl: data.activeStoreUrl,
             wooCommerceConfigured: data.wooCommerceConfigured,
             wordPressConfigured: data.wordPressConfigured,
+            shopifyConfigured: data.shopifyConfigured,
             pluginActive: data.pluginActive,
           });
         } else {
@@ -215,6 +218,14 @@ export function Header() {
                         </TooltipTrigger>
                         <TooltipContent>
                             <p>WooCommerce: {configStatus.wooCommerceConfigured ? "Configurado" : "No Configurado"}</p>
+                        </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger>
+                           <RiShopifyFill className={cn("h-4 w-4", configStatus.shopifyConfigured ? "text-green-500" : "text-destructive")} />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Shopify: {configStatus.shopifyConfigured ? "Configurado" : "No Configurado"}</p>
                         </TooltipContent>
                     </Tooltip>
                     <Tooltip>
