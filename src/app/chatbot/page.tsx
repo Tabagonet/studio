@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -30,37 +29,35 @@ function ChatbotComponent() {
     const { toast } = useToast();
     const { executeRecaptcha } = useGoogleReCaptcha();
 
-    const handleRecaptcha = useCallback(async () => {
-        if (!executeRecaptcha) {
-            console.log("reCAPTCHA not available yet");
-            // Silently proceed if reCAPTCHA is not configured on the client
-            // The backend will handle the missing token if it's required there.
-            return 'not-available'; 
-        }
-        return await executeRecaptcha('chatbot_interaction');
-    }, [executeRecaptcha]);
-
+    // This useEffect hook is now responsible for initiating the conversation.
+    // It will only run when `executeRecaptcha` becomes available.
     useEffect(() => {
-        const startConversation = async () => {
-            setIsLoading(true);
-            try {
-                const recaptchaToken = await handleRecaptcha();
-                const response = await fetch('/api/chatbot', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ messages: [], recaptchaToken })
-                });
-                if (!response.ok) throw new Error('Failed to start conversation');
-                const data = await response.json();
-                setMessages([{ id: 'start-1', role: 'model', content: data.response }]);
-            } catch (error) {
-                toast({ title: "Error del Chatbot", description: "No se pudo iniciar la conversación.", variant: "destructive" });
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        startConversation();
-    }, [toast, handleRecaptcha]);
+        // Ensure this only runs once when the component mounts and reCAPTCHA is ready.
+        if (executeRecaptcha && messages.length === 0 && !isLoading) {
+            const startConversation = async () => {
+                setIsLoading(true);
+                try {
+                    const recaptchaToken = await executeRecaptcha('chatbot_interaction');
+                    const response = await fetch('/api/chatbot', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ messages: [], recaptchaToken })
+                    });
+                    if (!response.ok) {
+                         const errorData = await response.json();
+                         throw new Error(errorData.error || 'Failed to start conversation');
+                    }
+                    const data = await response.json();
+                    setMessages([{ id: 'start-1', role: 'model', content: data.response }]);
+                } catch (error: any) {
+                    toast({ title: "Error del Chatbot", description: error.message, variant: "destructive" });
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+            startConversation();
+        }
+    }, [executeRecaptcha, messages.length, isLoading, toast]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -73,6 +70,15 @@ function ChatbotComponent() {
         e.preventDefault();
         if (!input.trim() || isLoading || isComplete) return;
 
+        if (!executeRecaptcha) {
+            toast({
+                title: "Error de Seguridad",
+                description: "El servicio de reCAPTCHA no está listo. Por favor, refresca la página.",
+                variant: "destructive"
+            });
+            return;
+        }
+
         const userMessage: Message = { id: `user-${Date.now()}`, role: 'user', content: input };
         const newMessages = [...messages, userMessage];
         setMessages(newMessages);
@@ -80,7 +86,7 @@ function ChatbotComponent() {
         setIsLoading(true);
 
         try {
-            const recaptchaToken = await handleRecaptcha();
+            const recaptchaToken = await executeRecaptcha('chatbot_interaction');
 
             const response = await fetch('/api/chatbot', {
                 method: 'POST',
