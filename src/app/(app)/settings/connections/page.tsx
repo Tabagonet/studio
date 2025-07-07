@@ -10,7 +10,7 @@ import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User } fr
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator, SelectLabel } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator, SelectLabel, SelectGroup } from '@/components/ui/select';
 import type { Company } from '@/lib/types';
 
 
@@ -131,7 +131,6 @@ export default function ConnectionsPage() {
             let newEditingTarget;
 
             if (userData.role === 'super_admin') {
-                // Fetch companies and users for the dropdown
                 const [companiesResponse, usersResponse] = await Promise.all([
                     fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } }),
                     fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } })
@@ -141,7 +140,6 @@ export default function ConnectionsPage() {
                     const allUsers = (await usersResponse.json()).users;
                     setUnassignedUsers(allUsers.filter((u: any) => u.role !== 'super_admin' && !u.companyId));
                 }
-                // Default to editing self
                 newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)' };
             } else if (userData.role === 'admin') {
                 if (userData.companyId) {
@@ -167,7 +165,7 @@ export default function ConnectionsPage() {
             }
         });
         return () => unsubscribe();
-    }, []);
+    }, [fetchConnections]);
 
     const handleTargetChange = (value: string) => {
         const user = auth.currentUser;
@@ -188,7 +186,7 @@ export default function ConnectionsPage() {
             newEditingTarget = { type: 'company', id: id, name: company?.name || 'Empresa Desconocida' };
         }
         setEditingTarget(newEditingTarget);
-        fetchConnections(user, newEditingTarget.type, newEditingTarget.id);
+        fetchConnections(user, newEditingTarget.type as 'user' | 'company', newEditingTarget.id);
     };
 
 
@@ -345,17 +343,29 @@ export default function ConnectionsPage() {
                         >
                             <SelectTrigger><SelectValue placeholder="Elige una entidad..." /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="user:self"><Users className="inline-block mr-2 h-4 w-4" />Mis Conexiones (Super Admin)</SelectItem>
+                                <SelectGroup>
+                                    <SelectItem value="user:self"><Users className="inline-block mr-2 h-4 w-4" />Mis Conexiones (Super Admin)</SelectItem>
+                                </SelectGroup>
+                                
                                 {allCompanies.length > 0 && <SelectSeparator />}
-                                {allCompanies.length > 0 && <SelectLabel>Empresas</SelectLabel>}
-                                {allCompanies.map(company => (
-                                    <SelectItem key={company.id} value={`company:${company.id}`}><Building className="inline-block mr-2 h-4 w-4" />{company.name}</SelectItem>
-                                ))}
+                                {allCompanies.length > 0 && (
+                                    <SelectGroup>
+                                        <SelectLabel>Empresas</SelectLabel>
+                                        {allCompanies.map(company => (
+                                            <SelectItem key={company.id} value={`company:${company.id}`}><Building className="inline-block mr-2 h-4 w-4" />{company.name}</SelectItem>
+                                        ))}
+                                    </SelectGroup>
+                                )}
+
                                 {unassignedUsers.length > 0 && <SelectSeparator />}
-                                {unassignedUsers.length > 0 && <SelectLabel>Usuarios sin Empresa</SelectLabel>}
-                                {unassignedUsers.map(u => (
-                                     <SelectItem key={u.uid} value={`user:${u.uid}`}><User className="inline-block mr-2 h-4 w-4" />{u.displayName}</SelectItem>
-                                ))}
+                                {unassignedUsers.length > 0 && (
+                                    <SelectGroup>
+                                        <SelectLabel>Usuarios sin Empresa</SelectLabel>
+                                        {unassignedUsers.map(u => (
+                                            <SelectItem key={u.uid} value={`user:${u.uid}`}><User className="inline-block mr-2 h-4 w-4" />{u.displayName}</SelectItem>
+                                        ))}
+                                    </SelectGroup>
+                                )}
                             </SelectContent>
                         </Select>
                     </CardContent>
@@ -451,4 +461,3 @@ export default function ConnectionsPage() {
         </div>
     );
 }
-
