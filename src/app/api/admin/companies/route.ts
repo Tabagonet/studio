@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
@@ -45,6 +46,7 @@ export async function GET(req: NextRequest) {
                 name: data.name,
                 createdAt: data.createdAt.toDate().toISOString(),
                 userCount: userCounts[doc.id] || 0,
+                platform: data.platform || 'woocommerce',
             };
         });
 
@@ -58,6 +60,7 @@ export async function GET(req: NextRequest) {
 // POST handler to create a new company
 const createCompanySchema = z.object({
   name: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
+  platform: z.enum(['woocommerce', 'shopify'], { required_error: 'Debes seleccionar una plataforma.' }),
 });
 
 export async function POST(req: NextRequest) {
@@ -76,11 +79,12 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid data', details: validation.error.flatten() }, { status: 400 });
         }
         
-        const { name } = validation.data;
+        const { name, platform } = validation.data;
         const newCompanyRef = adminDb.collection('companies').doc();
         
         await newCompanyRef.set({
             name: name,
+            platform: platform,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 

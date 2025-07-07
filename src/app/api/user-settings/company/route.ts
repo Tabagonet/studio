@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
@@ -27,6 +28,7 @@ async function getUserContext(req: NextRequest): Promise<{ uid: string; role: st
 
 const companyUpdateSchema = z.object({
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres."),
+  platform: z.enum(['woocommerce', 'shopify']).optional(),
   taxId: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
@@ -102,12 +104,15 @@ export async function POST(req: NextRequest) {
         
         const settingsRef = adminDb.collection('companies').doc(effectiveCompanyId);
         
-        const { name, ...restOfData } = data;
+        const { name, platform, ...restOfData } = data;
         const updatePayload: any = restOfData;
 
-        // Only super_admin can change the company name
+        // Only super_admin can change the company name and platform
         if (role === 'super_admin') {
             updatePayload.name = name;
+            if (platform) {
+                updatePayload.platform = platform;
+            }
         }
         
         await settingsRef.set(updatePayload, { merge: true });

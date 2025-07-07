@@ -350,6 +350,7 @@ export interface Company {
   phone?: string | null;
   email?: string | null;
   seoHourlyRate?: number;
+  platform?: 'woocommerce' | 'shopify';
 }
 
 export interface Prospect {

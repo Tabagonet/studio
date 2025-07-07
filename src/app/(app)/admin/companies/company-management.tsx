@@ -15,6 +15,8 @@ import { Label } from '@/components/ui/label';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 
 export function CompanyManagement() {
     const [companies, setCompanies] = useState<Company[]>([]);
@@ -22,6 +24,7 @@ export function CompanyManagement() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [newCompanyName, setNewCompanyName] = useState('');
+    const [newCompanyPlatform, setNewCompanyPlatform] = useState<'woocommerce' | 'shopify' | ''>('');
     const { toast } = useToast();
 
     const fetchCompanies = useCallback(async () => {
@@ -69,6 +72,10 @@ export function CompanyManagement() {
             toast({ title: "Nombre requerido", description: "El nombre de la empresa no puede estar vacío.", variant: "destructive" });
             return;
         }
+        if (!newCompanyPlatform) {
+            toast({ title: "Plataforma requerida", description: "Debes seleccionar una plataforma para la empresa.", variant: "destructive" });
+            return;
+        }
         setIsSubmitting(true);
         const user = auth.currentUser;
         if (!user) {
@@ -82,7 +89,7 @@ export function CompanyManagement() {
             const response = await fetch('/api/admin/companies', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ name: newCompanyName }),
+                body: JSON.stringify({ name: newCompanyName, platform: newCompanyPlatform }),
             });
             if (!response.ok) {
                 const errorData = await response.json();
@@ -90,6 +97,7 @@ export function CompanyManagement() {
             }
             toast({ title: "Empresa Creada", description: `La empresa "${newCompanyName}" ha sido creada.` });
             setNewCompanyName('');
+            setNewCompanyPlatform('');
             setIsCreateDialogOpen(false);
             fetchCompanies();
         } catch (error) {
@@ -151,6 +159,7 @@ export function CompanyManagement() {
                     <TableHeader>
                         <TableRow>
                             <TableHead>Nombre de la Empresa</TableHead>
+                            <TableHead>Plataforma</TableHead>
                             <TableHead>Fecha de Creación</TableHead>
                             <TableHead>Usuarios Asignados</TableHead>
                             <TableHead className="text-right">Acciones</TableHead>
@@ -160,6 +169,11 @@ export function CompanyManagement() {
                         {companies.length > 0 ? companies.map((company) => (
                             <TableRow key={company.id}>
                                 <TableCell className="font-medium">{company.name}</TableCell>
+                                <TableCell>
+                                    <Badge variant={company.platform === 'shopify' ? 'default' : 'secondary'} className={company.platform === 'shopify' ? 'bg-[#7ab55c]' : ''}>
+                                        {company.platform === 'shopify' ? 'Shopify' : 'WooCommerce'}
+                                    </Badge>
+                                </TableCell>
                                 <TableCell>{format(new Date(company.createdAt), 'PPP', { locale: es })}</TableCell>
                                 <TableCell>
                                     <div className="flex items-center gap-2">
@@ -198,7 +212,7 @@ export function CompanyManagement() {
                             </TableRow>
                         )) : (
                             <TableRow>
-                                <TableCell colSpan={4} className="h-24 text-center">
+                                <TableCell colSpan={5} className="h-24 text-center">
                                     No hay empresas creadas.
                                 </TableCell>
                             </TableRow>
@@ -212,20 +226,34 @@ export function CompanyManagement() {
                     <AlertDialogHeader>
                         <AlertDialogTitle>Crear Nueva Empresa</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Introduce el nombre para la nueva cuenta de empresa.
+                            Introduce el nombre y la plataforma principal para la nueva cuenta de empresa.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <div className="py-4">
-                        <Label htmlFor="company-name">Nombre de la Empresa</Label>
-                        <Input 
-                            id="company-name"
-                            value={newCompanyName}
-                            onChange={(e) => setNewCompanyName(e.target.value)}
-                            placeholder="Ej: Acme Corporation"
-                        />
+                    <div className="py-4 space-y-4">
+                        <div>
+                            <Label htmlFor="company-name">Nombre de la Empresa</Label>
+                            <Input 
+                                id="company-name"
+                                value={newCompanyName}
+                                onChange={(e) => setNewCompanyName(e.target.value)}
+                                placeholder="Ej: Acme Corporation"
+                            />
+                        </div>
+                        <div>
+                            <Label htmlFor="company-platform">Plataforma Principal</Label>
+                             <Select value={newCompanyPlatform} onValueChange={(value) => setNewCompanyPlatform(value as any)}>
+                                <SelectTrigger id="company-platform">
+                                    <SelectValue placeholder="Selecciona una plataforma..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="woocommerce">WordPress / WooCommerce</SelectItem>
+                                    <SelectItem value="shopify">Shopify</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
                     <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => setNewCompanyName('')}>Cancelar</AlertDialogCancel>
+                        <AlertDialogCancel onClick={() => { setNewCompanyName(''); setNewCompanyPlatform(''); }}>Cancelar</AlertDialogCancel>
                         <AlertDialogAction onClick={handleCreateCompany} disabled={isSubmitting}>
                             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Crear Empresa

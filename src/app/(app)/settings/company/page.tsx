@@ -25,6 +25,7 @@ const INITIAL_COMPANY_DATA: EditableCompanyData = {
     phone: '',
     email: '',
     seoHourlyRate: 10,
+    platform: 'woocommerce',
 };
 
 export default function CompanySettingsPage() {
@@ -242,17 +243,35 @@ export default function CompanySettingsPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <Label htmlFor="name">Nombre de la Empresa</Label>
-                                <Input id="name" name="name" value={companyData.name || ''} onChange={handleInputChange} placeholder="Ej: Mi Gran Empresa S.L." disabled={isSaving || (currentUser?.role === 'admin')} />
-                                {currentUser?.role === 'admin' && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar el nombre de la empresa.</p>}
+                                <Input id="name" name="name" value={companyData.name || ''} onChange={handleInputChange} placeholder="Ej: Mi Gran Empresa S.L." disabled={isSaving || (currentUser?.role !== 'super_admin')} />
+                                {currentUser?.role !== 'super_admin' && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar el nombre.</p>}
                             </div>
+                             <div>
+                                <Label htmlFor="platform">Plataforma Principal</Label>
+                                <Select 
+                                    name="platform" 
+                                    value={companyData.platform || 'woocommerce'} 
+                                    onValueChange={(value) => setCompanyData(prev => ({...prev, platform: value as any}))}
+                                    disabled={isSaving || currentUser?.role !== 'super_admin'}
+                                >
+                                    <SelectTrigger id="platform"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="woocommerce">WordPress / WooCommerce</SelectItem>
+                                        <SelectItem value="shopify">Shopify</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                {currentUser?.role !== 'super_admin' && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar la plataforma.</p>}
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <Label htmlFor="taxId">NIF/CIF (Tax ID)</Label>
                                 <Input id="taxId" name="taxId" value={companyData.taxId || ''} onChange={handleInputChange} placeholder="Ej: B12345678" disabled={isSaving} />
                             </div>
-                        </div>
-                        <div>
-                            <Label htmlFor="address">Dirección Fiscal</Label>
-                            <Input id="address" name="address" value={companyData.address || ''} onChange={handleInputChange} placeholder="Ej: Calle Principal 123, 28001 Madrid, España" disabled={isSaving} />
+                             <div>
+                                <Label htmlFor="address">Dirección Fiscal</Label>
+                                <Input id="address" name="address" value={companyData.address || ''} onChange={handleInputChange} placeholder="Ej: Calle Principal 123, 28001 Madrid, España" disabled={isSaving} />
+                            </div>
                         </div>
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
