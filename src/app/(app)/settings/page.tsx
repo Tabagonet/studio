@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -12,7 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { Textarea } from '@/components/ui/textarea';
+import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 
 
 type ServerConfigStatus = {
@@ -298,6 +299,18 @@ export default function SettingsPage() {
         setIsSavingLegal(false);
     }
   };
+  
+  const handleLegalContentChange = (field: 'privacyPolicy' | 'termsOfService', content: string) => {
+    setLegalTexts(prev => ({ ...prev, [field]: content }));
+  };
+
+  const handleDummyInsertImage = () => {
+    toast({
+      title: 'Función no disponible',
+      description: 'No se pueden insertar imágenes en los textos legales.',
+      variant: 'destructive',
+    });
+  };
 
 
   const firebaseAdminHint = "Esta clave (FIREBASE_SERVICE_ACCOUNT_JSON) es para toda la aplicación y se configura en el archivo .env del servidor.";
@@ -452,28 +465,24 @@ export default function SettingsPage() {
                 ) : (
                     <>
                         <div>
-                            <Label htmlFor="privacyPolicy">Política de Privacidad</Label>
-                            <Textarea
-                                id="privacyPolicy"
-                                value={legalTexts.privacyPolicy}
-                                onChange={(e) => setLegalTexts(prev => ({...prev, privacyPolicy: e.target.value}))}
-                                rows={10}
-                                className="font-mono text-xs"
+                            <Label>Política de Privacidad</Label>
+                            <RichTextEditor
+                                content={legalTexts.privacyPolicy}
+                                onChange={(newContent) => handleLegalContentChange('privacyPolicy', newContent)}
+                                onInsertImage={handleDummyInsertImage}
                                 placeholder="Introduce el texto de la política de privacidad aquí."
                             />
                         </div>
                         <div>
-                            <Label htmlFor="termsOfService">Términos de Servicio</Label>
-                            <Textarea
-                                id="termsOfService"
-                                value={legalTexts.termsOfService}
-                                onChange={(e) => setLegalTexts(prev => ({...prev, termsOfService: e.target.value}))}
-                                rows={10}
-                                className="font-mono text-xs"
+                            <Label>Términos de Servicio</Label>
+                             <RichTextEditor
+                                content={legalTexts.termsOfService}
+                                onChange={(newContent) => handleLegalContentChange('termsOfService', newContent)}
+                                onInsertImage={handleDummyInsertImage}
                                 placeholder="Introduce los términos y condiciones del servicio aquí."
                             />
                         </div>
-                        <div className="flex justify-end">
+                        <div className="flex justify-end pt-4 border-t mt-4">
                             <Button onClick={handleSaveLegal} disabled={isSavingLegal}>
                                 {isSavingLegal ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                                 Guardar Textos Legales
