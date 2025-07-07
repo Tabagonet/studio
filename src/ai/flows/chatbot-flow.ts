@@ -5,6 +5,7 @@
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Handlebars from 'handlebars';
+import { scrapeUrl } from '@/services/scraper';
 
 const CHATBOT_PROMPT_TEMPLATE = `Eres un asistente de estrategia digital amigable, experto y muy conciso llamado 'AutoPress AI Assistant'. Tu único objetivo es guiar a un cliente potencial a través de un breve cuestionario para entender su negocio y, al final, recopilar su información de contacto.
 
@@ -19,8 +20,11 @@ const CHATBOT_PROMPT_TEMPLATE = `Eres un asistente de estrategia digital amigabl
 1.  **Saludo Inicial:** Preséntate brevemente y explica el propósito. Luego, pide la URL del negocio.
     *PREGUNTA INICIAL:* "¡Hola! Soy el asistente de AutoPress AI. En unos pocos pasos, podemos trazar una estrategia inicial para tu negocio. Para empezar, ¿cuál es la página web que te gustaría analizar?"
 
-2.  **Análisis y Descripción:** Una vez que tengas la URL, pide una breve descripción del negocio.
-    *EJEMPLO DE PREGUNTA:* "Gracias. He echado un vistazo. Para asegurarme de que lo entiendo bien, ¿podrías describirme tu negocio en una o dos frases?"
+2.  **Análisis y Descripción:**
+    *   **Si se proporciona \`scrapedContent\`:** Analiza el contenido de la web que te doy. Resume en una frase lo que crees que hace la empresa y luego pide una descripción más detallada.
+        *EJEMPLO DE PREGUNTA:* "Gracias. He analizado tu web y parece que os dedicáis a [resumen de la IA basado en scrapedContent]. Para asegurarme de que lo entiendo bien, ¿podrías describirme tu negocio en una o dos frases?"
+    *   **Si NO se proporciona \`scrapedContent\` (porque no se pudo leer la web o no era una URL):** Pide la descripción de forma genérica.
+        *EJEMPLO DE PREGUNTA:* "Gracias. Para asegurarme de que lo entiendo bien, ¿podrías describirme tu negocio en una o dos frases?"
 
 3.  **Objetivo Principal:** Pregunta cuál es su meta más importante.
     *EJEMPLO DE PREGUNTA:* "Perfecto. ¿Cuál es tu objetivo principal ahora mismo? (Ej: vender más, conseguir nuevos clientes, más visibilidad...)"
@@ -32,6 +36,13 @@ const CHATBOT_PROMPT_TEMPLATE = `Eres un asistente de estrategia digital amigabl
     *EJEMPLO DE PREGUNTA:* "Gracias, {{name}}. Por último, ¿a qué dirección de correo electrónico podemos contactarte?"
 
 6.  **Finalización:** Una vez que tengas el email, agradece y finaliza la conversación emitiendo la palabra "FIN".
+
+{{#if scrapedContent}}
+**Contenido Analizado de la Web:**
+---
+{{{scrapedContent}}}
+---
+{{/if}}
 
 **Historial de la Conversación Actual:**
 {{#if history}}
@@ -57,10 +68,22 @@ export async function getChatbotResponse(conversationHistory: { role: 'user' | '
         safetySettings
     });
 
+    let scrapedContent: string | null = null;
+    
+    // Check if the user just provided a URL. This is typically the first user message.
+    if (conversationHistory.length === 2 && conversationHistory[1].role === 'user') {
+        const potentialUrl = conversationHistory[1].content;
+        // Simple regex to check for something that looks like a domain.
+        const urlRegex = /([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/;
+        if (urlRegex.test(potentialUrl)) {
+             scrapedContent = await scrapeUrl(potentialUrl);
+        }
+    }
+
     const historyString = conversationHistory.map(m => `${m.role === 'user' ? 'Cliente' : 'Asistente'}: ${m.content}`).join('\n');
 
     const template = Handlebars.compile(CHATBOT_PROMPT_TEMPLATE, { noEscape: true });
-    const finalPrompt = template({ history: historyString });
+    const finalPrompt = template({ history: historyString, scrapedContent });
     
     const result = await model.generateContent(finalPrompt);
     const response = await result.response;
