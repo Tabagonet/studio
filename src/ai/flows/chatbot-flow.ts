@@ -125,7 +125,7 @@ export async function getChatbotResponse(messages: Message[]): Promise<string> {
         .map(msg => `${msg.role === 'user' ? 'Usuario' : 'Asistente'}: ${msg.content}`)
         .join('\n');
         
-    const extractedData = extractDataFromConversation(messages);
+    const extractedData = await extractDataFromConversation(messages);
     
     const template = Handlebars.compile(CHATBOT_PROMPT_TEMPLATE, { noEscape: true });
     const finalPrompt = template({ 
@@ -140,7 +140,7 @@ export async function getChatbotResponse(messages: Message[]): Promise<string> {
 }
 
 // Helper to extract data from the conversation history for the confirmation step
-export function extractDataFromConversation(messages: Message[]) {
+export async function extractDataFromConversation(messages: Message[]) {
     const conversationText = messages.map(m => m.content).join('\n');
     const extract = (regex: RegExp) => (conversationText.match(regex) || [])[1] || '';
 

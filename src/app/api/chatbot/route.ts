@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
         const aiResponseText = await getChatbotResponse(messages);
         
         if (aiResponseText.trim().toUpperCase() === 'FIN') {
-            const inquiryData = extractDataFromConversation(messages);
+            const inquiryData = await extractDataFromConversation(messages);
             
             // Create the prospect in Firestore
              const createProspectResponse = await fetch(`${req.nextUrl.origin}/api/prospects`, {
