@@ -6,12 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User } from "lucide-react";
+import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User, Globe, Store } from "lucide-react";
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator, SelectLabel, SelectGroup } from '@/components/ui/select';
 import type { Company } from '@/lib/types';
+import { cn } from '@/lib/utils';
+import { Tooltip, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 interface ConnectionData {
@@ -28,6 +30,12 @@ type AllConnections = { [key: string]: ConnectionData };
 interface BasicUser {
     uid: string;
     displayName: string;
+}
+
+interface SelectedEntityStatus {
+    wooCommerceConfigured: boolean;
+    wordPressConfigured: boolean;
+    activeStoreUrl: string | null;
 }
 
 const INITIAL_STATE: ConnectionData = {
@@ -51,6 +59,55 @@ function getHostname(url: string): string | null {
     }
 }
 
+
+const ConnectionStatusIndicator = ({ status, isLoading }: { status: SelectedEntityStatus | null, isLoading: boolean }) => {
+  if (isLoading) {
+    return (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground border p-3 rounded-md bg-muted/50">
+            <Loader2 className="h-4 w-4 animate-spin" /> Verificando conexión...
+        </div>
+    );
+  }
+
+  if (!status || !status.activeStoreUrl) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-destructive border border-destructive/20 p-3 rounded-md bg-destructive/10">
+        <Globe className="h-4 w-4" />
+        <span>No hay ninguna conexión activa para esta entidad.</span>
+      </div>
+    );
+  }
+  
+  const hostname = getHostname(status.activeStoreUrl);
+
+  return (
+    <TooltipProvider delayDuration={100}>
+        <div className="flex items-center justify-between gap-3 text-sm border p-3 rounded-md">
+            <span className="text-muted-foreground truncate" title={hostname || ''}>Conectado a: <strong className="text-foreground">{hostname}</strong></span>
+            <div className="flex items-center gap-2 flex-shrink-0">
+                <Tooltip>
+                    <TooltipTrigger>
+                        <Store className={cn("h-4 w-4", status.wooCommerceConfigured ? "text-green-500" : "text-destructive")} />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p>WooCommerce: {status.wooCommerceConfigured ? "Configurado" : "No Configurado"}</p>
+                    </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                    <TooltipTrigger>
+                        <Globe className={cn("h-4 w-4", status.wordPressConfigured ? "text-green-500" : "text-destructive")} />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p>WordPress: {status.wordPressConfigured ? "Configurado" : "No Configurado"}</p>
+                    </TooltipContent>
+                </Tooltip>
+            </div>
+        </div>
+    </TooltipProvider>
+  );
+};
+
+
 export default function ConnectionsPage() {
     const [allConnections, setAllConnections] = useState<AllConnections>({});
     const [activeKey, setActiveKey] = useState<string | null>(null);
@@ -67,6 +124,9 @@ export default function ConnectionsPage() {
     const [isDataLoading, setIsDataLoading] = useState(false);
     
     const [editingTarget, setEditingTarget] = useState<{ type: 'user' | 'company'; id: string | null; name: string }>({ type: 'user', id: null, name: 'Mis Conexiones' });
+
+    const [selectedEntityStatus, setSelectedEntityStatus] = useState<SelectedEntityStatus | null>(null);
+    const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
     const { toast } = useToast();
 
@@ -151,7 +211,7 @@ export default function ConnectionsPage() {
             
             if (newEditingTarget) {
                  setEditingTarget(newEditingTarget);
-                 await fetchConnections(user, newEditingTarget.type, newEditingTarget.id);
+                 await fetchConnections(user, newEditingTarget.type as 'user' | 'company', newEditingTarget.id);
             }
              setIsDataLoading(false);
         };
@@ -166,6 +226,50 @@ export default function ConnectionsPage() {
         });
         return () => unsubscribe();
     }, [fetchConnections]);
+
+     useEffect(() => {
+        if (!editingTarget.id) {
+            setSelectedEntityStatus(null);
+            return;
+        }
+
+        const fetchStatus = async () => {
+            setIsCheckingStatus(true);
+            const user = auth.currentUser;
+            if (!user) {
+                setIsCheckingStatus(false);
+                return;
+            }
+
+            try {
+                const token = await user.getIdToken();
+                const url = new URL('/api/check-config', window.location.origin);
+                if (editingTarget.type === 'company') {
+                    url.searchParams.append('companyId', editingTarget.id);
+                } else { // 'user'
+                    url.searchParams.append('userId', editingTarget.id);
+                }
+
+                const response = await fetch(url.toString(), {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    setSelectedEntityStatus(data);
+                } else {
+                    setSelectedEntityStatus(null);
+                }
+            } catch (error) {
+                console.error("Failed to fetch connection status for selected entity", error);
+                setSelectedEntityStatus(null);
+            } finally {
+                setIsCheckingStatus(false);
+            }
+        };
+
+        fetchStatus();
+    }, [editingTarget]);
 
     const handleTargetChange = (value: string) => {
         const user = auth.currentUser;
@@ -374,7 +478,10 @@ export default function ConnectionsPage() {
 
             <Card>
                 <CardHeader><CardTitle>Selector de Perfil de Conexión</CardTitle></CardHeader>
-                <CardContent className="flex items-center gap-4">
+                <CardContent className="space-y-4">
+                     {currentUser?.role === 'super_admin' && (
+                        <ConnectionStatusIndicator status={selectedEntityStatus} isLoading={isCheckingStatus} />
+                     )}
                     <div className="flex-1">
                         <Label htmlFor="profile-selector">Selecciona un perfil para editar o añade uno nuevo</Label>
                         <Select value={selectedKey} onValueChange={setSelectedKey} disabled={isSaving || isLoading}>
