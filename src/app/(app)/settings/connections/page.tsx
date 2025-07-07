@@ -198,7 +198,7 @@ export default function ConnectionsPage() {
             const userData = await response.json();
             setCurrentUser(userData);
 
-            let newEditingTarget;
+            let newEditingTarget: { type: 'user' | 'company'; id: string | null; name: string; } | undefined;
 
             if (userData.role === 'super_admin') {
                 const [companiesResponse, usersResponse] = await Promise.all([
@@ -286,7 +286,7 @@ export default function ConnectionsPage() {
         if (!user) return;
         
         const [type, id] = value.split(':');
-        let newEditingTarget;
+        let newEditingTarget: { type: 'user' | 'company'; id: string | null; name: string };
 
         if (type === 'user') {
             if (id === 'self') {
