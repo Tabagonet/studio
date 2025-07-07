@@ -77,10 +77,19 @@ export async function GET(req: NextRequest) {
                 const plan: CreateAdPlanOutput = {
                     id: doc.id,
                     createdAt: createdAtDate.toISOString(),
+                    // --- User Input Fields ---
                     url: data.url || '',
                     objectives: data.objectives || [],
-                    additional_context: data.additional_context || '',
-                    
+                    companyInfo: data.companyInfo || '',
+                    valueProposition: data.valueProposition || '',
+                    targetAudience: data.targetAudience || '',
+                    competitors: data.competitors || '',
+                    priorityObjective: data.priorityObjective || '',
+                    brandPersonality: data.brandPersonality || [],
+                    monthlyBudget: data.monthlyBudget || '',
+                    additionalContext: data.additionalContext || '',
+
+                    // --- AI Generated Fields ---
                     buyer_persona: data.buyer_persona || '',
                     value_proposition: data.value_proposition || '',
                     funnel: (data.funnel || []).map((f: any) => ({
