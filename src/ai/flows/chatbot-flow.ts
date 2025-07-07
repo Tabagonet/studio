@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI flow for the lead generation chatbot.
@@ -54,12 +55,21 @@ const CHATBOT_PROMPT_TEMPLATE = `Eres un asistente de estrategia digital amigabl
 10. **Pedir Email:** Después del nombre, pide el email, dirigiéndote al usuario por su nombre si lo tienes.
     *EJEMPLO DE PREGUNTA:* "Gracias, {{name}}. Por último, ¿a qué dirección de correo electrónico podemos contactarte?"
 
-11. **Confirmación de Datos:** Una vez que tengas el email, ANTES de finalizar, DEBES presentar un resumen de la información clave recopilada y pedir confirmación.
-    *   **Contexto Necesario:** Para este paso, te proporcionaré los siguientes datos extraídos de la conversación. Asegúrate de que todos los campos tengan valor antes de mostrar el resumen.
-    *   **EJEMPLO DE PREGUNTA:** "¡Perfecto, gracias! Antes de terminar, ¿podemos revisar que todo esté correcto?\\n\\n- **Nombre:** {{name}}\\n- **Email:** {{email}}\\n- **Objetivo:** {{objective}}\\n- **Descripción:** {{businessDescription}}\\n- **Propuesta de Valor:** {{valueProposition}}\\n- **Público Objetivo:** {{targetAudience}}\\n- **Competidores:** {{competitors}}\\n- **Personalidad de Marca:** {{brandPersonality}}\\n- **Presupuesto Mensual:** {{monthlyBudget}}\\n\\nSi algo no es correcto, indícame qué dato quieres cambiar y su nuevo valor. Si todo está bien, simplemente confirma."
+11. **Presentar Resumen:** Una vez que tengas el email, ANTES de finalizar, DEBES analizar el **Historial de la Conversación Actual** para extraer la información clave y presentar un resumen para que el usuario lo confirme.
+    *   **FORMATO OBLIGATORIO DEL RESUMEN (Usa este formato exacto con Markdown):**
+        - **Nombre:** [El nombre que extrajiste del historial]
+        - **Email:** [El email que extrajiste del historial]
+        - **Objetivo:** [El objetivo que extrajiste del historial]
+        - **Descripción:** [La descripción del negocio que extrajiste del historial]
+        - **Propuesta de Valor:** [La propuesta de valor que extrajiste del historial]
+        - **Público Objetivo:** [El público objetivo que extrajiste del historial]
+        - **Competidores:** [Los competidores que extrajiste del historial]
+        - **Personalidad de Marca:** [La personalidad de marca que extrajiste del historial]
+        - **Presupuesto Mensual:** [El presupuesto que extrajiste del historial]
+    *   **PREGUNTA DE CONFIRMACIÓN (después del bloque de resumen):** "¿Podemos revisar que todo esté correcto? Si algo no es correcto, indícame qué dato quieres cambiar y su nuevo valor. Si todo está bien, simplemente confirma."
 
 12. **Manejo de Correcciones (Adaptativo):** Si el usuario indica que algo es incorrecto, actúa de forma inteligente.
-    *   **Si el usuario YA proporciona el dato correcto** en su mensaje (ej: "Mi nombre es Pablo", "el email es pablo@test.com"), **NO vuelvas a preguntar**. Simplemente actualiza el dato internamente (yo me encargo de pasártelo actualizado en los campos {{name}}, {{email}}, etc.), di algo como "¡Corregido! Gracias, {{name}}." y vuelve a mostrar el resumen de confirmación del paso 11 con los datos actualizados.
+    *   **Si el usuario YA proporciona el dato correcto** en su mensaje (ej: "Mi nombre es Pablo", "el email es pablo@test.com"), **NO vuelvas a preguntar**. Simplemente actualiza el dato internamente (yo me encargo de pasártelo actualizado en los campos {{name}}, {{email}}, etc.), di algo como "¡Corregido! Gracias, Pablo." y vuelve a mostrar el resumen de confirmación del paso 11 con los datos actualizados.
     *   **Si el usuario SOLO indica el error** (ej: "el email está mal", "mi nombre no es ese"), entonces SÍ debes preguntar cuál es el dato correcto. EJEMPLO: "Entendido, disculpa. ¿Cuál sería el email correcto?"
 
 13. **Finalización:** Solo cuando el usuario confirme explícitamente que los datos del resumen son correctos (ej: "sí", "todo bien", "correcto"), tu ÚLTIMA respuesta DEBE ser únicamente la palabra "FIN".
@@ -124,14 +134,11 @@ export async function getChatbotResponse(messages: Message[]): Promise<string> {
     const history = messages
         .map(msg => `${msg.role === 'user' ? 'Usuario' : 'Asistente'}: ${msg.content}`)
         .join('\n');
-        
-    const extractedData = await extractDataFromConversation(messages);
-    
+            
     const template = Handlebars.compile(CHATBOT_PROMPT_TEMPLATE, { noEscape: true });
     const finalPrompt = template({ 
         history, 
         scrapedContent,
-        ...extractedData 
     });
     
     const result = await model.generateContent(finalPrompt);
@@ -141,19 +148,26 @@ export async function getChatbotResponse(messages: Message[]): Promise<string> {
 
 // Helper to extract data from the conversation history for the confirmation step
 export async function extractDataFromConversation(messages: Message[]) {
-    const conversationText = messages.map(m => m.content).join('\n');
-    const extract = (regex: RegExp) => (conversationText.match(regex) || [])[1] || '';
+    // Join all messages to get a single text block of the conversation.
+    // The summary block generated by the AI should be near the end.
+    const conversationText = messages.map(m => m.content).join('\n\n');
+
+    const extract = (regex: RegExp) => {
+        const matches = conversationText.match(regex);
+        // Get the last match if multiple summaries were generated (e.g., after a correction)
+        return matches ? (matches[matches.length - 1] || '').trim() : '';
+    };
 
     return {
-        name: extract(/- Nombre: (.+?)\n/),
-        email: extract(/- Email: (.+?)\n/),
-        objective: extract(/- Objetivo: (.+?)\n/),
-        businessDescription: extract(/- Descripción: (.+?)\n/),
-        valueProposition: extract(/- Propuesta de Valor: (.+?)\n/),
-        targetAudience: extract(/- Público Objetivo: (.+?)\n/),
-        competitors: extract(/- Competidores: (.+?)\n/),
-        brandPersonality: extract(/- Personalidad de Marca: (.+?)\n/),
-        monthlyBudget: extract(/- Presupuesto Mensual: (.+?)\n/),
+        name: extract(/- \*\*Nombre:\*\*\s*(.*?)\n/g),
+        email: extract(/- \*\*Email:\*\*\s*(.*?)\n/g),
+        objective: extract(/- \*\*Objetivo:\*\*\s*(.*?)\n/g),
+        businessDescription: extract(/- \*\*Descripción:\*\*\s*(.*?)\n/g),
+        valueProposition: extract(/- \*\*Propuesta de Valor:\*\*\s*(.*?)\n/g),
+        targetAudience: extract(/- \*\*Público Objetivo:\*\*\s*(.*?)\n/g),
+        competitors: extract(/- \*\*Competidores:\*\*\s*(.*?)\n/g),
+        brandPersonality: extract(/- \*\*Personalidad de Marca:\*\*\s*(.*?)\n/g),
+        monthlyBudget: extract(/- \*\*Presupuesto Mensual:\*\*\s*(.*?)\n/g),
         companyUrl: findUrlInMessages(messages),
     };
 }

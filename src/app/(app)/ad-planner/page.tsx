@@ -4,6 +4,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { CreateAdPlanInputSchema, type CreateAdPlanInput, type CreateAdPlanOutput } from './schema';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -47,6 +48,7 @@ export default function AdPlannerPage() {
     const [history, setHistory] = useState<CreateAdPlanOutput[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(true);
     const { toast } = useToast();
+    const searchParams = useSearchParams();
 
     const form = useForm<CreateAdPlanInput>({
         resolver: zodResolver(CreateAdPlanInputSchema),
@@ -86,6 +88,24 @@ export default function AdPlannerPage() {
             setIsLoadingHistory(false);
         }
     }, [toast]);
+    
+    useEffect(() => {
+        const url = searchParams.get('url');
+        if (url) {
+            form.setValue('url', url);
+            form.setValue('priorityObjective', searchParams.get('priorityObjective') || '');
+            form.setValue('companyInfo', searchParams.get('companyInfo') || '');
+            form.setValue('valueProposition', searchParams.get('valueProposition') || '');
+            form.setValue('targetAudience', searchParams.get('targetAudience') || '');
+            form.setValue('competitors', searchParams.get('competitors') || '');
+            form.setValue('monthlyBudget', searchParams.get('monthlyBudget') || '');
+            const personality = searchParams.get('brandPersonality');
+            if (personality) {
+                 form.setValue('brandPersonality', [personality]);
+            }
+        }
+    }, [searchParams, form]);
+
 
     useEffect(() => {
         const fetchInitialCompanyInfo = async (user: FirebaseUser) => {
@@ -472,4 +492,3 @@ CUESTIONARIO GENERAL PARA EMPRESAS - PLANIFICACIÓN DE ESTRATEGIA DIGITAL
         </div>
     );
 }
-
