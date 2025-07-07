@@ -25,6 +25,7 @@ export default function ChatbotPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [isComplete, setIsComplete] = useState(false);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
 
     useEffect(() => {
@@ -50,14 +51,16 @@ export default function ChatbotPage() {
     }, [toast]);
 
     useEffect(() => {
-        // Scroll to bottom when new messages are added
         if (scrollAreaRef.current) {
             scrollAreaRef.current.scrollTo({
                 top: scrollAreaRef.current.scrollHeight,
                 behavior: 'smooth'
             });
         }
-    }, [messages]);
+        if (!isLoading && !isComplete) {
+            inputRef.current?.focus();
+        }
+    }, [messages, isLoading, isComplete]);
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -123,10 +126,10 @@ export default function ChatbotPage() {
                                         </Avatar>
                                     )}
                                     <div className={cn(
-                                        "max-w-xs md:max-w-md rounded-2xl px-4 py-3 text-sm",
+                                        "max-w-xs md:max-w-md rounded-2xl px-4 py-3 text-sm whitespace-pre-line",
                                         message.role === 'model' ? "bg-muted text-foreground rounded-tl-none" : "bg-primary text-primary-foreground rounded-br-none"
                                     )}>
-                                        {message.content.split('\n').map((line, i) => <p key={i}>{line}</p>)}
+                                        {message.content}
                                     </div>
                                     {message.role === 'user' && (
                                         <Avatar className="h-8 w-8">
@@ -155,6 +158,7 @@ export default function ChatbotPage() {
                     ) : (
                         <form onSubmit={handleSendMessage} className="w-full flex items-center gap-2">
                             <Input
+                                ref={inputRef}
                                 value={input}
                                 onChange={e => setInput(e.target.value)}
                                 placeholder="Escribe tu respuesta..."

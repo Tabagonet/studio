@@ -13,7 +13,7 @@ const CHATBOT_PROMPT_TEMPLATE = `Eres un asistente de estrategia digital amigabl
 1.  **Mantente Enfocado:** Solo puedes hablar sobre el cuestionario. Si el usuario pregunta algo no relacionado (el tiempo, quién eres en detalle, generar una imagen, etc.), responde amablemente que no puedes ayudar con eso y vuelve a la pregunta actual. Ejemplo: "Mi función es ayudarte a definir la estrategia para tu negocio. ¿Podríamos continuar con [pregunta actual]?"
 2.  **Una Pregunta a la Vez:** Haz solo una pregunta principal en cada turno.
 3.  **Sé Breve:** Tus respuestas y preguntas deben ser cortas y fáciles de entender. Evita la jerga técnica.
-4.  **Detecta el Fin:** Cuando hayas recopilado toda la información necesaria (URL, descripción, objetivo, nombre y email), tu ÚLTIMA respuesta DEBE ser únicamente la palabra "FIN".
+4.  **Detecta el Fin:** Solo cuando el usuario confirme explícitamente que los datos del resumen son correctos (ej: "sí", "todo bien", "correcto"), tu ÚLTIMA respuesta DEBE ser únicamente la palabra "FIN".
 
 **Flujo de la Conversación:**
 
@@ -29,14 +29,20 @@ const CHATBOT_PROMPT_TEMPLATE = `Eres un asistente de estrategia digital amigabl
 3.  **Objetivo Principal:** Pregunta cuál es su meta más importante.
     *EJEMPLO DE PREGUNTA:* "Perfecto. ¿Cuál es tu objetivo principal ahora mismo? (Ej: vender más, conseguir nuevos clientes, más visibilidad...)"
 
-4.  **Transición a la Captura (El Gancho):** Una vez que tengas el objetivo, haz la transición para pedir los datos de contacto. **Esta es una parte crucial.** Debes usar el objetivo del cliente para crear un "gancho" que le dé una razón poderosa para compartir su información. En lugar de un resumen genérico, ofrece una idea de estrategia concreta como aperitivo.
+4.  **Transición a la Captura (El Gancho):** Una vez que tengas el objetivo, haz la transición para pedir los datos de contacto. Debes usar el objetivo del cliente para crear un "gancho" que le dé una razón poderosa para compartir su información.
     *EJEMPLO DE PREGUNTA (si el objetivo es "conseguir nuevos clientes"):* "¡Entendido! Para conseguir nuevos clientes para un negocio como el tuyo, una estrategia inicial podría centrarse en campañas de Google Ads para búsquedas locales muy específicas. Para poder prepararte un borrador con algunas ideas de palabras clave y ejemplos de anuncios, ¿me dices tu nombre?"
-    *EJEMPLO DE PREGUNTA (si el objetivo es "vender más"):* "¡Perfecto! Para vender más, podríamos explorar anuncios de carrusel en Instagram mostrando tus productos estrella. Para enviarte un plan inicial con esta y otras ideas, ¿cuál es tu nombre?"
 
 5.  **Pedir Email:** Después del nombre, pide el email, dirigiéndote al usuario por su nombre si lo tienes.
     *EJEMPLO DE PREGUNTA:* "Gracias, {{name}}. Por último, ¿a qué dirección de correo electrónico podemos contactarte?"
 
-6.  **Finalización:** Una vez que tengas el email, agradece y finaliza la conversación emitiendo la palabra "FIN".
+6.  **Confirmación de Datos (¡NUEVO!):** Una vez que tengas el email, ANTES de finalizar, DEBES presentar un resumen de la información clave recopilada y pedir confirmación.
+    *   **Contexto Necesario:** Para este paso, te proporcionaré los siguientes datos extraídos de la conversación: \`{{name}}\`, \`{{email}}\`, \`{{objective}}\`, \`{{businessDescription}}\`. Asegúrate de que todos los campos tengan valor antes de mostrar el resumen. Si falta alguno, vuelve a la pregunta correspondiente del flujo.
+    *   **EJEMPLO DE PREGUNTA:** "¡Perfecto, gracias! Antes de terminar, ¿podemos revisar que todo esté correcto?\\n\\n- **Nombre:** {{name}}\\n- **Email:** {{email}}\\n- **Objetivo:** {{objective}}\\n- **Descripción:** {{businessDescription}}\\n\\nSi algo no es correcto, dime qué quieres cambiar (por ejemplo, 'cambiar email'). Si todo está bien, simplemente confirma."
+
+7.  **Manejo de Correcciones:** Si el usuario indica que algo es incorrecto (ej: "el email está mal", "cambia el nombre"), DEBES preguntar por la información correcta y luego volver a mostrar el resumen de confirmación del paso 6. NO finalices la conversación.
+    *   EJEMPLO DE RESPUESTA A CORRECCIÓN: "Entendido, disculpa. ¿Cuál sería el dato correcto para [campo a corregir]?"
+
+8.  **Finalización:** Solo cuando el usuario confirme explícitamente que los datos del resumen son correctos (ej: "sí", "todo bien", "correcto"), tu ÚLTIMA respuesta DEBE ser únicamente la palabra "FIN".
 
 {{#if scrapedContent}}
 **Contenido Analizado de la Web:**
@@ -61,6 +67,40 @@ const safetySettings = [
     { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
 ];
 
+function extractDataFromConversation(messages: { role: 'user' | 'model'; content: string }[]): Record<string, string> {
+    const data: Record<string, string> = {};
+    const questionKeywords: Record<string, keyof typeof data> = {
+        'url': 'companyUrl',
+        'web': 'companyUrl',
+        'página': 'companyUrl',
+        'negocio': 'businessDescription',
+        'describirme': 'businessDescription',
+        'objetivo': 'objective',
+        'meta': 'objective',
+        'nombre': 'name',
+        'llamas': 'name',
+        'email': 'email',
+        'correo': 'email',
+    };
+
+    for (let i = 0; i < messages.length; i++) {
+        if (messages[i].role === 'model') {
+            const botQuestion = messages[i].content.toLowerCase();
+            const nextMessage = messages[i + 1];
+
+            if (nextMessage && nextMessage.role === 'user') {
+                for (const keyword in questionKeywords) {
+                    if (botQuestion.includes(keyword)) {
+                        const key = questionKeywords[keyword];
+                        data[key] = nextMessage.content;
+                        break; 
+                    }
+                }
+            }
+        }
+    }
+    return data;
+}
 
 export async function getChatbotResponse(conversationHistory: { role: 'user' | 'model'; content: string }[]): Promise<string> {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
@@ -85,13 +125,16 @@ export async function getChatbotResponse(conversationHistory: { role: 'user' | '
 
     const template = Handlebars.compile(CHATBOT_PROMPT_TEMPLATE, { noEscape: true });
     
-    const lastUserName = conversationHistory
-      .filter(m => m.role === 'model' && m.content.toLowerCase().includes('tu nombre'))
-      .map((m, i) => conversationHistory[i + 1]?.content)
-      .filter(Boolean)
-      .pop() || '';
+    const extractedData = extractDataFromConversation(conversationHistory);
     
-    const finalPrompt = template({ history: historyString, scrapedContent, name: lastUserName });
+    const finalPrompt = template({ 
+        history: historyString, 
+        scrapedContent, 
+        name: extractedData.name,
+        email: extractedData.email,
+        objective: extractedData.objective,
+        businessDescription: extractedData.businessDescription?.substring(0, 100) + '...',
+    });
     
     const result = await model.generateContent(finalPrompt);
     const response = await result.response;
