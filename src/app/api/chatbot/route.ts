@@ -29,6 +29,12 @@ async function verifyRecaptcha(token: string | undefined) {
         // For development, we allow it to proceed.
         return true;
     }
+
+    // If the client explicitly signals that reCAPTCHA isn't ready, we can be lenient on the initial load.
+    if (token === 'not-available') {
+        console.warn("Client-side reCAPTCHA was not ready. Proceeding without verification for this request.");
+        return true;
+    }
     
     if (!token) {
         throw new Error("El token de reCAPTCHA es requerido.");
