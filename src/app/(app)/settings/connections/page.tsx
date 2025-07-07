@@ -174,6 +174,11 @@ export default function ConnectionsPage() {
             setFormData(INITIAL_STATE);
         }
     }, [selectedKey, allConnections]);
+    
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
 
     const handleSave = async () => {
         const urlsToValidate = [
