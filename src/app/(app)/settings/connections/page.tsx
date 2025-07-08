@@ -459,7 +459,16 @@ export default function ConnectionsPage() {
     
     const connectionKeys = Object.keys(allConnections);
     const title = currentUser?.role === 'super_admin' ? `Editando Conexiones para: ${editingTarget.name}` : `Conexiones API para ${currentUser?.companyName || 'Mis Conexiones'}`;
-    const description = currentUser?.role === 'super_admin' ? 'Como Super Admin, puedes gestionar tus conexiones o las de cualquier empresa o usuario.' : 'Gestiona las credenciales para conectar tu empresa con servicios externos como WooCommerce y WordPress.';
+    
+    let description = 'Gestiona tus credenciales para conectar con servicios externos.';
+    if (currentUser?.role === 'super_admin') {
+      description = 'Como Super Admin, puedes gestionar tus conexiones o las de cualquier empresa o usuario.';
+    } else if (editingTargetPlatform === 'woocommerce') {
+      description = 'Gestiona las credenciales para conectar tu cuenta con tus sitios de WooCommerce y WordPress.';
+    } else if (editingTargetPlatform === 'shopify') {
+      description = 'Gestiona las credenciales para conectar tu cuenta con tus tiendas Shopify y tu cuenta de Partner.';
+    }
+    
     const saveButtonText = `Guardar y Activar para ${editingTarget.type === 'company' ? 'la Empresa' : 'el Usuario'}`;
     
     const showWooCommerce = currentUser?.role === 'super_admin' || editingTargetPlatform === 'woocommerce';
