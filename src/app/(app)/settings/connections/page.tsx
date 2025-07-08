@@ -15,7 +15,6 @@ import type { Company } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { ShopifyIcon } from '@/components/core/icons';
-import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface ConnectionData {
@@ -28,6 +27,8 @@ interface ConnectionData {
     shopifyStoreUrl: string;
     shopifyApiKey: string;
     shopifyApiPassword: string; // This will hold the access token
+    shopifyPartnerOrgId?: string;
+    shopifyPartnerAccessToken?: string;
 }
 
 type AllConnections = { [key: string]: ConnectionData };
@@ -56,6 +57,8 @@ const INITIAL_STATE: ConnectionData = {
     shopifyStoreUrl: '',
     shopifyApiKey: '',
     shopifyApiPassword: '',
+    shopifyPartnerOrgId: '',
+    shopifyPartnerAccessToken: '',
 };
 
 function getHostname(url: string | null): string | null {
@@ -566,60 +569,73 @@ export default function ConnectionsPage() {
             {isLoading ? (
                 <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
             ) : (
-                <>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <Card>
-                            <CardHeader><CardTitle>WooCommerce (Tienda)</CardTitle></CardHeader>
-                            <CardContent className="space-y-4">
-                                <div>
-                                    <Label htmlFor="wooCommerceStoreUrl">URL de la Tienda</Label>
-                                    <Input id="wooCommerceStoreUrl" name="wooCommerceStoreUrl" value={formData.wooCommerceStoreUrl} onChange={handleInputChange} placeholder="https://mitienda.com" disabled={isSaving} />
-                                </div>
-                                <div>
-                                    <Label htmlFor="wooCommerceApiKey">Clave de Cliente (API Key)</Label>
-                                    <Input id="wooCommerceApiKey" name="wooCommerceApiKey" type="password" value={formData.wooCommerceApiKey} onChange={handleInputChange} placeholder="ck_xxxxxxxxxxxx" disabled={isSaving}/>
-                                </div>
-                                <div>
-                                    <Label htmlFor="wooCommerceApiSecret">Clave Secreta (API Secret)</Label>
-                                    <Input id="wooCommerceApiSecret" name="wooCommerceApiSecret" type="password" value={formData.wooCommerceApiSecret} onChange={handleInputChange} placeholder="cs_xxxxxxxxxxxx" disabled={isSaving}/>
-                                </div>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardHeader><CardTitle>WordPress (Blog y Medios)</CardTitle></CardHeader>
-                            <CardContent className="space-y-4">
-                                <div>
-                                    <Label htmlFor="wordpressApiUrl">URL de WordPress</Label>
-                                    <Input id="wordpressApiUrl" name="wordpressApiUrl" value={formData.wordpressApiUrl} onChange={handleInputChange} placeholder="https://misitio.com" disabled={isSaving}/>
-                                </div>
-                                <div>
-                                    <Label htmlFor="wordpressUsername">Nombre de Usuario de WordPress</Label>
-                                    <Input id="wordpressUsername" name="wordpressUsername" value={formData.wordpressUsername} onChange={handleInputChange} placeholder="Tu usuario admin" disabled={isSaving}/>
-                                </div>
-                                <div>
-                                    <Label htmlFor="wordpressApplicationPassword">Contraseña de Aplicación</Label>
-                                    <Input id="wordpressApplicationPassword" name="wordpressApplicationPassword" type="password" value={formData.wordpressApplicationPassword} onChange={handleInputChange} placeholder="xxxx xxxx xxxx xxxx xxxx xxxx" disabled={isSaving}/>
-                                </div>
-                            </CardContent>
-                        </Card>
-                        <Card className="lg:col-span-2">
-                            <CardHeader><CardTitle>Shopify</CardTitle></CardHeader>
-                            <CardContent className="space-y-4">
-                                <div>
-                                    <Label htmlFor="shopifyStoreUrl">URL de la Tienda (.myshopify.com)</Label>
-                                    <Input id="shopifyStoreUrl" name="shopifyStoreUrl" value={formData.shopifyStoreUrl} onChange={handleInputChange} placeholder="mitienda.myshopify.com" disabled={isSaving} />
-                                </div>
-                                <div>
-                                    <Label htmlFor="shopifyApiKey">Clave de API</Label>
-                                    <Input id="shopifyApiKey" name="shopifyApiKey" type="password" value={formData.shopifyApiKey} onChange={handleInputChange} placeholder="Clave de la App Privada o Personalizada" disabled={isSaving}/>
-                                </div>
-                                <div>
-                                    <Label htmlFor="shopifyApiPassword">Contraseña de API (Token de Acceso)</Label>
-                                    <Input id="shopifyApiPassword" name="shopifyApiPassword" type="password" value={formData.shopifyApiPassword} onChange={handleInputChange} placeholder="shpat_xxxxxxxxxxxx" disabled={isSaving}/>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
+                <div className="space-y-8">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Conexión a WordPress / WooCommerce</CardTitle>
+                            <CardDescription>Para gestionar productos y contenidos en un sitio existente.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <Label htmlFor="wooCommerceStoreUrl">URL de la Tienda WooCommerce</Label>
+                                <Input id="wooCommerceStoreUrl" name="wooCommerceStoreUrl" value={formData.wooCommerceStoreUrl || ''} onChange={handleInputChange} placeholder="https://mitienda.com" disabled={isSaving} />
+                            </div>
+                            <div>
+                                <Label htmlFor="wordpressApiUrl">URL de WordPress</Label>
+                                <Input id="wordpressApiUrl" name="wordpressApiUrl" value={formData.wordpressApiUrl || ''} onChange={handleInputChange} placeholder="https://misitio.com" disabled={isSaving}/>
+                            </div>
+                            <div>
+                                <Label htmlFor="wooCommerceApiKey">Clave de Cliente (API Key)</Label>
+                                <Input id="wooCommerceApiKey" name="wooCommerceApiKey" type="password" value={formData.wooCommerceApiKey || ''} onChange={handleInputChange} placeholder="ck_xxxxxxxxxxxx" disabled={isSaving}/>
+                            </div>
+                            <div>
+                                <Label htmlFor="wordpressUsername">Usuario de WordPress</Label>
+                                <Input id="wordpressUsername" name="wordpressUsername" value={formData.wordpressUsername || ''} onChange={handleInputChange} placeholder="Tu usuario admin" disabled={isSaving}/>
+                            </div>
+                            <div>
+                                <Label htmlFor="wooCommerceApiSecret">Clave Secreta (API Secret)</Label>
+                                <Input id="wooCommerceApiSecret" name="wooCommerceApiSecret" type="password" value={formData.wooCommerceApiSecret || ''} onChange={handleInputChange} placeholder="cs_xxxxxxxxxxxx" disabled={isSaving}/>
+                            </div>
+                            <div>
+                                <Label htmlFor="wordpressApplicationPassword">Contraseña de Aplicación</Label>
+                                <Input id="wordpressApplicationPassword" name="wordpressApplicationPassword" type="password" value={formData.wordpressApplicationPassword || ''} onChange={handleInputChange} placeholder="xxxx xxxx xxxx xxxx xxxx xxxx" disabled={isSaving}/>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Conexión a Tienda Shopify Existente</CardTitle>
+                            <CardDescription>Crea una App Personalizada (Custom App) en tu tienda Shopify para obtener estas credenciales.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div>
+                                <Label htmlFor="shopifyStoreUrl">URL de la Tienda (.myshopify.com)</Label>
+                                <Input id="shopifyStoreUrl" name="shopifyStoreUrl" value={formData.shopifyStoreUrl || ''} onChange={handleInputChange} placeholder="mitienda.myshopify.com" disabled={isSaving} />
+                            </div>
+                            <div>
+                                <Label htmlFor="shopifyApiPassword">Token de Acceso de Admin API</Label>
+                                <Input id="shopifyApiPassword" name="shopifyApiPassword" type="password" value={formData.shopifyApiPassword || ''} onChange={handleInputChange} placeholder="shpat_xxxxxxxxxxxx" disabled={isSaving}/>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Conexión a Shopify Partners (Para Automatización)</CardTitle>
+                            <CardDescription>Introduce las credenciales de tu cuenta de Partner para activar la creación automática de tiendas.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div>
+                                <Label htmlFor="shopifyPartnerOrgId">ID de Organización de Partner</Label>
+                                <Input id="shopifyPartnerOrgId" name="shopifyPartnerOrgId" value={formData.shopifyPartnerOrgId || ''} onChange={handleInputChange} placeholder="Ej: 1234567" disabled={isSaving} />
+                            </div>
+                            <div>
+                                <Label htmlFor="shopifyPartnerAccessToken">Token de Acceso de la API de Partner</Label>
+                                <Input id="shopifyPartnerAccessToken" name="shopifyPartnerAccessToken" type="password" value={formData.shopifyPartnerAccessToken || ''} onChange={handleInputChange} placeholder="shp_xxxxxxxxxxxx" disabled={isSaving}/>
+                            </div>
+                        </CardContent>
+                    </Card>
                     
                     <div className="flex flex-col-reverse gap-4 pt-6 mt-6 border-t md:flex-row md:justify-between md:items-center">
                         <div>
@@ -640,7 +656,7 @@ export default function ConnectionsPage() {
                             </Button>
                         </div>
                     </div>
-                </>
+                </div>
             )}
         </div>
     );
