@@ -65,7 +65,18 @@ export function JobsDataTable() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) fetchData();
     });
-    return () => unsubscribe();
+    
+    // Set up a poller to refresh data every 10 seconds
+    const intervalId = setInterval(() => {
+        if(auth.currentUser) {
+            fetchData();
+        }
+    }, 10000);
+
+    return () => {
+        unsubscribe();
+        clearInterval(intervalId);
+    };
   }, [fetchData]);
 
   const columns = React.useMemo(() => getColumns(), []);

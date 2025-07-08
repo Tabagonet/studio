@@ -71,6 +71,7 @@ export async function GET(req: NextRequest) {
                 productTypeDescription: data.productTypeDescription,
                 creationOptions: data.creationOptions,
                 legalInfo: data.legalInfo,
+                entity: data.entity,
             } as ShopifyCreationJob;
         });
 

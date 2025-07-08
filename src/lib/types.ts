@@ -355,6 +355,19 @@ export interface Company {
   platform?: 'woocommerce' | 'shopify';
 }
 
+export interface User {
+  uid: string;
+  email: string;
+  displayName: string;
+  photoURL: string;
+  role: string;
+  status: 'active' | 'rejected' | 'pending_approval';
+  siteLimit: number;
+  companyId: string | null;
+  companyName: string | null;
+  platform?: 'woocommerce' | 'shopify' | null;
+}
+
 export interface Prospect {
   id: string;
   name: string;
@@ -405,7 +418,10 @@ export interface ShopifyCreationJob {
     legalBusinessName: string;
     businessAddress: string;
   };
-
+  entity: {
+      type: 'user' | 'company';
+      id: string;
+  };
   createdStoreUrl?: string;
   createdStoreAdminUrl?: string;
 }
