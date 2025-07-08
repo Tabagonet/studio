@@ -19,12 +19,12 @@ const shopifyStoreCreationSchema = z.object({
   productTypeDescription: z.string().min(1, "La descripción del tipo de producto es obligatoria."),
   creationOptions: z.object({
     createExampleProducts: z.boolean(),
-    numberOfProducts: z.number().min(0).max(10),
+    numberOfProducts: z.number().min(0).max(10).optional(),
     createAboutPage: z.boolean(),
     createContactPage: z.boolean(),
     createLegalPages: z.boolean(),
     createBlogWithPosts: z.boolean(),
-    numberOfBlogPosts: z.number().min(0).max(5),
+    numberOfBlogPosts: z.number().min(0).max(5).optional(),
     setupBasicNav: z.boolean(),
   }),
   legalInfo: z.object({

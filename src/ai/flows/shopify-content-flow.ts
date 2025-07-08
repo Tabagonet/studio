@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview AI content generation for Shopify stores.
@@ -78,39 +79,42 @@ You MUST generate a single, valid JSON object containing the requested content. 
 **INSTRUCTIONS:**
 Based on the context, generate a JSON object with the following keys. Only include a key if the corresponding option is true in the 'creationOptions' section below. Use simple HTML tags (e.g., <h1>, <h2>, <p>, <strong>, <ul>, <li>) for formatting where appropriate.
 
+{{#if creationOptions.createAboutPage}}
 1.  **"aboutPage" (object):**
     -   "title": A title for the "About Us" page.
     -   "htmlContent": A compelling story about the brand.
+{{/if}}
 
+{{#if creationOptions.createContactPage}}
 2.  **"contactPage" (object):**
     -   "title": A title for the "Contact Us" page.
     -   "htmlContent": A simple contact page body, including placeholders for a contact form and business details.
+{{/if}}
 
+{{#if creationOptions.createLegalPages}}
 3.  **"legalPages" (array of objects):**
     -   Generate standard legal pages (Privacy Policy, Terms of Service).
     -   Use placeholders like \`[Nombre del Negocio]\`, \`[Email de Contacto]\`, \`[Dirección]\` where appropriate.
     -   "title": The title of the legal page (e.g., "Política de Privacidad").
     -   "htmlContent": The full HTML content of the page.
+{{/if}}
 
+{{#if creationOptions.createExampleProducts}}
 4.  **"exampleProducts" (array of objects):**
     -   Generate {{creationOptions.numberOfProducts}} distinct product examples.
     -   "title": A catchy, SEO-friendly product name.
     -   "descriptionHtml": A detailed and persuasive product description using HTML.
     -   "tags": An array of 3-5 relevant string tags for the product.
     -   "imagePrompt": A detailed text-to-image prompt (like for DALL-E or Midjourney) that could be used to generate a high-quality, professional photo for this product.
+{{/if}}
 
+{{#if creationOptions.createBlogWithPosts}}
 5.  **"blogPosts" (array of objects):**
     -   Generate {{creationOptions.numberOfBlogPosts}} distinct blog post examples.
     -   "title": An engaging, SEO-friendly blog post title.
     -   "contentHtml": A short but well-structured blog post (2-3 paragraphs) with headings.
     -   "tags": An array of 2-3 relevant string tags for the blog post.
-
-**CONTENT GENERATION OPTIONS:**
-- Generate "aboutPage": {{creationOptions.createAboutPage}}
-- Generate "contactPage": {{creationOptions.createContactPage}}
-- Generate "legalPages": {{creationOptions.createLegalPages}}
-- Generate "exampleProducts": {{creationOptions.createExampleProducts}}
-- Generate "blogPosts": {{creationOptions.createBlogWithPosts}}
+{{/if}}
 
 Now, generate the JSON content based on these instructions.
 `;
