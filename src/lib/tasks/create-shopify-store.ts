@@ -173,11 +173,17 @@ export async function populateShopifyStore(jobId: string) {
             }
         }
 
-        // TODO: Implement product creation (including image generation and upload)
+        // 4.2 Create products (without images for now)
+        if (jobData.creationOptions.createExampleProducts && generatedContent.exampleProducts) {
+            for (const product of generatedContent.exampleProducts) {
+                await createShopifyProduct(jobId, shopifyApi, product);
+            }
+        }
+
         // TODO: Implement blog creation
         // TODO: Implement navigation setup
 
-        await updateJobStatus(jobId, 'completed', '¡Proceso finalizado! La tienda ha sido creada y las páginas han sido insertadas.');
+        await updateJobStatus(jobId, 'completed', '¡Proceso finalizado! La tienda ha sido creada y las páginas y productos han sido insertados.');
 
     } catch (error: any) {
         console.error(`[Job ${jobId}] Failed to populate Shopify store:`, error.message);
@@ -198,5 +204,30 @@ async function createShopifyPage(jobId: string, api: AxiosInstance, pageData: { 
         const errorMessage = error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message;
         // Log the error but don't stop the whole process for one failed page
         await updateJobStatus(jobId, 'processing', `Error al crear la página "${pageData.title}": ${errorMessage}`);
+    }
+}
+
+async function createShopifyProduct(jobId: string, api: AxiosInstance, productData: { title: string; descriptionHtml: string; tags: string[]; imagePrompt: string; }) {
+    try {
+        await updateJobStatus(jobId, 'processing', `Creando producto: "${productData.title}"...`);
+        
+        const payload = {
+            product: {
+                title: productData.title,
+                body_html: productData.descriptionHtml,
+                tags: productData.tags.join(','),
+                status: 'active',
+            }
+        };
+
+        const response = await api.post('products.json', payload);
+        const createdProduct = response.data.product;
+
+        // Log success but note that image generation is next.
+        await updateJobStatus(jobId, 'processing', `Producto "${productData.title}" creado (ID: ${createdProduct.id}). La generación de imagen se implementará en el siguiente paso.`);
+        
+    } catch (error: any) {
+        const errorMessage = error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message;
+        await updateJobStatus(jobId, 'processing', `Error al crear el producto "${productData.title}": ${errorMessage}`);
     }
 }
