@@ -9,8 +9,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Prospect } from '@/lib/types';
-import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
 
 interface ProspectDetailDialogProps {
   prospect: Prospect | null;
