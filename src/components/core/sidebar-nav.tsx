@@ -143,13 +143,14 @@ export function SidebarNav() {
         const hasRequiredRole = !item.requiredRoles || (userData?.role && item.requiredRoles.includes(userData.role));
         if (!hasRequiredRole) return false;
         
-        const hasRequiredPlatform = !group.requiredPlatform || (effectivePlatform && group.requiredPlatform === effectivePlatform);
-        if (!hasRequiredPlatform) return false;
-
-        if (item.requiresCompany) {
-            return !!userData?.companyId;
+        // Hide item if it requires a company and the user (who is an admin) doesn't have one
+        if (item.requiresCompany && userData?.role === 'admin' && !userData.companyId) {
+            return false;
         }
 
+        const hasRequiredPlatform = !group.requiredPlatform || (effectivePlatform && group.requiredPlatform === effectivePlatform);
+        if (!hasRequiredPlatform) return false;
+        
         return true;
       });
       

@@ -234,6 +234,7 @@ export interface ActivityLog {
     photoURL: string;
     companyId?: string | null;
     companyName?: string | null;
+    platform?: 'woocommerce' | 'shopify' | null;
   };
 }
 

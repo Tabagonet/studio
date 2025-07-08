@@ -75,24 +75,41 @@ export default function CompanySettingsPage() {
         setIsLoading(true);
         try {
             const token = await user.getIdToken();
-            const url = new URL(type === 'company' ? '/api/user-settings/company' : '/api/user-settings/connections', window.location.origin);
-            const paramKey = type === 'company' ? 'companyId' : 'userId';
-            url.searchParams.append(paramKey, id);
             
-            const response = await fetch(url.toString(), { headers: { 'Authorization': `Bearer ${token}` } });
-            
-            let data: Company = INITIAL_COMPANY_DATA as Company;
-            if (response.ok) {
-                const responseData = await response.json();
-                const fetchedData = type === 'company' ? responseData.company : responseData;
-                data = { ...INITIAL_COMPANY_DATA, ...(fetchedData || {}) };
-            } else if (response.status !== 404) {
-                 toast({ title: "Error al Cargar Datos", description: (await response.json()).error || `No se pudo obtener la información para ${type} ${id}.`, variant: "destructive" });
-            }
+            let dataToSet: Company;
 
-            setCompanyData(data);
-            if (data.logoUrl) {
-                setLogoPhotos([{ id: 'logo', previewUrl: data.logoUrl, name: 'Logo de la empresa', status: 'completed', progress: 100 }]);
+            if (type === 'company') {
+                const companyResponse = await fetch(`/api/user-settings/company?companyId=${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                if (companyResponse.ok) {
+                    dataToSet = { ...INITIAL_COMPANY_DATA, ...(await companyResponse.json()).company };
+                } else {
+                     dataToSet = INITIAL_COMPANY_DATA as Company;
+                     if (companyResponse.status !== 404) toast({ title: "Error al Cargar Datos", description: (await companyResponse.json()).error, variant: "destructive" });
+                }
+            } else { // type === 'user'
+                 const userSettingsResponse = await fetch(`/api/user-settings/connections?userId=${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                 if (userSettingsResponse.ok) {
+                    // User settings are structured differently, so we adapt them
+                    const userSettings = await userSettingsResponse.json();
+                    
+                    const userDocSnap = await fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } });
+                    const userData = await userDocSnap.json();
+                    const userName = userData?.displayName || 'Usuario Desconocido';
+                    
+                    dataToSet = {
+                        ...INITIAL_COMPANY_DATA,
+                        name: userName, // Use the user's name
+                        ...(userSettings.companyData || {}) // Spread any company-like data they might have
+                    };
+                 } else {
+                    dataToSet = INITIAL_COMPANY_DATA as Company;
+                    if (userSettingsResponse.status !== 404) toast({ title: "Error al Cargar Datos", description: (await userSettingsResponse.json()).error, variant: "destructive" });
+                 }
+            }
+            
+            setCompanyData(dataToSet);
+            if (dataToSet.logoUrl) {
+                setLogoPhotos([{ id: 'logo', previewUrl: dataToSet.logoUrl, name: 'Logo de la empresa', status: 'completed', progress: 100 }]);
             } else {
                 setLogoPhotos([]);
             }
@@ -137,7 +154,6 @@ export default function CompanySettingsPage() {
                             initialId = userData.companyId;
                             initialType = 'company';
                         } else {
-                            // Fallback for user without a company to edit their own settings
                             initialId = user.uid;
                             initialType = 'user';
                         }
@@ -223,22 +239,17 @@ export default function CompanySettingsPage() {
 
     const editingTargetPlatform = useMemo(() => {
         if (!editingEntityType || !editingTargetId) return null;
+
         if (editingEntityType === 'company') {
             return allCompanies.find(c => c.id === editingTargetId)?.platform || null;
         }
         
-        let userPlatform: 'woocommerce' | 'shopify' | null | undefined = null;
+        let targetUserId = editingTargetId;
+        const user = allCompanies.flatMap(c => (c as any).users || []).find((u: AppUser) => u.uid === targetUserId) ||
+                     unassignedUsers.find(u => u.uid === targetUserId) ||
+                     (currentUser?.uid === targetUserId ? (currentUser as any) : null);
         
-        // Check unassigned users first
-        const unassignedUser = unassignedUsers.find(u => u.uid === editingTargetId);
-        if (unassignedUser) {
-            userPlatform = unassignedUser.platform;
-        } else if (currentUser?.uid === editingTargetId) {
-            // Check current user if they are the target (admin without company)
-            userPlatform = (currentUser as any)?.platform;
-        }
-        
-        return userPlatform;
+        return user?.platform || null;
     }, [editingEntityType, editingTargetId, allCompanies, unassignedUsers, currentUser]);
 
 
@@ -265,7 +276,9 @@ export default function CompanySettingsPage() {
         const nameLabel = isCompany ? 'Nombre de la Empresa' : 'Nombre de Usuario / Razón Social';
         const taxLabel = isCompany ? 'NIF/CIF (Tax ID)' : 'NIF/CIF (Opcional)';
         const addressLabel = isCompany ? 'Dirección Fiscal' : 'Dirección (Opcional)';
-        const canEditNameAndPlatform = currentUser?.role === 'super_admin' && isCompany;
+        
+        const canEditCompanyDetails = currentUser?.role === 'super_admin' && isCompany;
+        const canEditName = !isCompany || canEditCompanyDetails;
 
         return (
             <div className="space-y-6">
@@ -275,25 +288,26 @@ export default function CompanySettingsPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <Label htmlFor="name">{nameLabel}</Label>
-                                <Input id="name" name="name" value={companyData.name || ''} onChange={handleInputChange} placeholder="Ej: Mi Gran Empresa S.L." disabled={isSaving || !canEditNameAndPlatform} />
-                                {!canEditNameAndPlatform && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar este campo.</p>}
+                                <Input id="name" name="name" value={companyData.name || ''} onChange={handleInputChange} placeholder="Ej: Mi Gran Empresa S.L." disabled={isSaving || !canEditName} />
+                                {!canEditName && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar el nombre de la empresa.</p>}
                             </div>
-                            <div>
-                                <Label htmlFor="platform">Plataforma Principal</Label>
-                                <Select 
-                                    name="platform" 
-                                    value={companyData.platform || 'woocommerce'} 
-                                    onValueChange={(value) => setCompanyData(prev => ({...prev, platform: value as any}))}
-                                    disabled={isSaving || !canEditNameAndPlatform}
-                                >
-                                    <SelectTrigger id="platform"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="woocommerce">WordPress / WooCommerce</SelectItem>
-                                        <SelectItem value="shopify">Shopify</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                {!canEditNameAndPlatform && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar la plataforma.</p>}
-                            </div>
+                           {canEditCompanyDetails && (
+                               <div>
+                                    <Label htmlFor="platform">Plataforma Principal</Label>
+                                    <Select 
+                                        name="platform" 
+                                        value={companyData.platform || 'woocommerce'} 
+                                        onValueChange={(value) => setCompanyData(prev => ({...prev, platform: value as any}))}
+                                        disabled={isSaving}
+                                    >
+                                        <SelectTrigger id="platform"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="woocommerce">WordPress / WooCommerce</SelectItem>
+                                            <SelectItem value="shopify">Shopify</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>

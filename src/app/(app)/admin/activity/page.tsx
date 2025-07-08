@@ -1,14 +1,14 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, LineChart, History, Calendar, Download, Building, Store } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { auth } from "@/lib/firebase";
-import type { ActivityLog } from '@/lib/types';
+import { auth, onAuthStateChanged, type FirebaseUser } from "@/lib/firebase";
+import type { ActivityLog, User as AppUser } from '@/lib/types';
 import { formatDistanceToNow, parseISO, subDays, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Image from 'next/image';
@@ -17,6 +17,11 @@ import { Button } from '@/components/ui/button';
 import Papa from 'papaparse';
 import { ShopifyIcon } from '@/components/core/icons';
 
+interface UserData {
+  role: string | null;
+  companyId: string | null;
+  companyName: string | null;
+}
 
 interface UserStat {
     userId: string;
@@ -42,51 +47,50 @@ export default function AdminActivityPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [filter, setFilter] = useState<FilterType>('this_month');
     const { toast } = useToast();
+    const [userData, setUserData] = useState<UserData | null>(null);
+
+    const fetchAdminData = useCallback(async (user: FirebaseUser) => {
+        setIsLoading(true);
+        try {
+            const token = await user.getIdToken();
+            const [logsResponse, userResponse] = await Promise.all([
+                 fetch('/api/admin/activity-logs', { headers: { 'Authorization': `Bearer ${token}` } }),
+                 fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } })
+            ]);
+
+            if (!logsResponse.ok) {
+                const errorData = await logsResponse.json();
+                throw new Error(errorData.error || 'Failed to fetch logs.');
+            }
+            if(userResponse.ok) {
+                setUserData(await userResponse.json());
+            }
+
+            const data = await logsResponse.json();
+            const sortedLogs = data.logs.sort((a: ActivityLog, b: ActivityLog) => 
+               new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+            );
+            setLogs(sortedLogs);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            toast({ title: "Error al Cargar Registros", description: errorMessage, variant: "destructive" });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [toast]);
+
 
     useEffect(() => {
-        const fetchLogs = async () => {
-            setIsLoading(true);
-            const user = auth.currentUser;
-            if (!user) {
-                toast({ title: "No autenticado", variant: "destructive" });
-                setIsLoading(false);
-                return;
-            }
-
-            try {
-                const token = await user.getIdToken();
-                const response = await fetch('/api/admin/activity-logs', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to fetch logs.');
-                }
-
-                const data = await response.json();
-                const sortedLogs = data.logs.sort((a: ActivityLog, b: ActivityLog) => 
-                   new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-                );
-                setLogs(sortedLogs);
-            } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                toast({ title: "Error al Cargar Registros", description: errorMessage, variant: "destructive" });
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
         const unsubscribe = auth.onAuthStateChanged((user) => {
             if (user) {
-                fetchLogs();
+                fetchAdminData(user);
             } else {
                 setIsLoading(false);
                 setLogs([]);
             }
         });
         return () => unsubscribe();
-    }, [toast]);
+    }, [fetchAdminData]);
     
     const filteredLogs = useMemo(() => {
         const now = new Date();
@@ -214,6 +218,30 @@ export default function AdminActivityPage() {
         URL.revokeObjectURL(url);
     };
 
+    const getSummaryTitle = () => {
+        if (userData?.role === 'super_admin') return "Resumen de Actividad Global";
+        if (userData?.role === 'admin' && userData.companyId) return `Resumen de Actividad: ${userData.companyName}`;
+        return "Resumen de Mi Actividad";
+    };
+    
+    const getSummaryDescription = () => {
+        if (userData?.role === 'super_admin') return "Estadísticas de creación de productos de todos los usuarios, agrupadas por empresa.";
+        if (userData?.role === 'admin' && userData.companyId) return "Estadísticas de creación de productos de los usuarios de tu empresa.";
+        return "Tus estadísticas de creación de productos.";
+    };
+    
+    const getDetailedTitle = () => {
+        if (userData?.role === 'super_admin') return "Registro de Actividad Global";
+        if (userData?.role === 'admin' && userData.companyId) return `Registro de Actividad de ${userData.companyName}`;
+        return "Mi Registro de Actividad";
+    }
+    
+    const getDetailedDescription = () => {
+        if (userData?.role === 'super_admin') return "Las 200 acciones más recientes realizadas en toda la aplicación.";
+        if (userData?.role === 'admin' && userData.companyId) return "Las 200 acciones más recientes de los usuarios de tu empresa.";
+        return "Tus 200 acciones más recientes en la aplicación.";
+    }
+
 
     if (isLoading) {
         return (
@@ -232,8 +260,8 @@ export default function AdminActivityPage() {
                         <div className="flex items-center space-x-3">
                             <LineChart className="h-8 w-8 text-primary" />
                             <div>
-                                <CardTitle>Resumen de Actividad por Usuario</CardTitle>
-                                <CardDescription>Estadísticas de creación de productos por cada usuario, agrupadas por empresa.</CardDescription>
+                                <CardTitle>{getSummaryTitle()}</CardTitle>
+                                <CardDescription>{getSummaryDescription()}</CardDescription>
                             </div>
                         </div>
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -321,8 +349,8 @@ export default function AdminActivityPage() {
                         <div className="flex items-center space-x-3">
                             <History className="h-8 w-8 text-primary" />
                             <div>
-                                <CardTitle>Registro de Actividad Detallado</CardTitle>
-                                <CardDescription>Las 200 acciones más recientes realizadas en la aplicación.</CardDescription>
+                                <CardTitle>{getDetailedTitle()}</CardTitle>
+                                <CardDescription>{getDetailedDescription()}</CardDescription>
                             </div>
                         </div>
                         <Button variant="outline" onClick={handleExportDetailedLogs}>
