@@ -8,11 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Loader2, Save, Building, DollarSign } from "lucide-react";
+import { Loader2, Save, Building, DollarSign, User } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import type { Company, ProductPhoto, User as AppUser } from '@/lib/types';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator } from '@/components/ui/select';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -129,12 +129,18 @@ export default function CompanySettingsPage() {
                     if (userData.role === 'super_admin') {
                         await fetchAllCompaniesAndUsers(token);
                         if (!initialId) {
-                            initialId = userData.companyId || user.uid; // Default to own company or self
+                            initialId = userData.companyId || user.uid; 
                             initialType = userData.companyId ? 'company' : 'user';
                         }
-                    } else {
-                        initialId = userData.companyId;
-                        initialType = 'company';
+                    } else { // Admin or other role
+                        if (userData.companyId) {
+                            initialId = userData.companyId;
+                            initialType = 'company';
+                        } else {
+                            // Fallback for user without a company to edit their own settings
+                            initialId = user.uid;
+                            initialType = 'user';
+                        }
                     }
 
                     if (initialId) {
@@ -188,32 +194,11 @@ export default function CompanySettingsPage() {
             }
 
             const payload: any = { data: finalData };
-            const endpoint = editingEntityType === 'company' ? '/api/user-settings/company' : '/api/user-settings/connections';
             
             if (editingEntityType === 'company') {
                  payload.companyId = editingTargetId;
             } else {
-                // For users, the payload needs to be structured differently for the connections endpoint
                 payload.userId = editingTargetId;
-                // This assumes we are saving user settings as a single 'connection' profile
-                // A better approach would be a dedicated user-settings endpoint
-                // For now, let's adapt to what we have
-                const userSettingsToSave = {
-                    key: 'main', // Use a default key for user-level settings
-                    connectionData: {}, // Not applicable here
-                    setActive: false, // Not applicable here
-                    // Add the settings we want to save
-                    shopifyCreationDefaults: finalData.shopifyCreationDefaults
-                };
-                // This structure is wrong. The endpoint expects connection data.
-                // Let's create a proper endpoint or adjust the existing one.
-                // FOR NOW, I will create a new endpoint for simplicity. Let's assume `/api/user-settings/user`
-                // But since I cannot create new files, I'll have to adapt the existing `company` one.
-                // The company endpoint can check if `userId` is passed instead of `companyId`.
-                if (editingEntityType === 'user') {
-                    payload.userId = editingTargetId;
-                    delete payload.companyId;
-                }
             }
             
             const response = await fetch('/api/user-settings/company', {
@@ -310,34 +295,38 @@ export default function CompanySettingsPage() {
                         </div>
                     </CardContent>
                 </Card>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Automatización de Shopify</CardTitle>
-                        <CardDescription>Define los ajustes por defecto para la creación de nuevas tiendas Shopify.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex items-center space-x-2">
-                            <Checkbox
-                                id="create-products-default"
-                                checked={companyData.shopifyCreationDefaults?.createProducts ?? true}
-                                onCheckedChange={(checked) => setCompanyData(prev => ({
-                                    ...prev,
-                                    shopifyCreationDefaults: {
-                                        ...prev.shopifyCreationDefaults,
-                                        createProducts: !!checked,
-                                    }
-                                }))}
-                                disabled={isSaving}
-                            />
-                            <Label htmlFor="create-products-default" className="text-sm font-normal cursor-pointer">
-                                Crear productos de ejemplo por defecto en nuevas tiendas Shopify
-                            </Label>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1 pl-6">
-                            Si se desmarca, no se crearán productos aunque el solicitante (ej. el chatbot) lo pida.
-                        </p>
-                    </CardContent>
-                </Card>
+                
+                {companyData.platform === 'shopify' && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Automatización de Shopify</CardTitle>
+                            <CardDescription>Define los ajustes por defecto para la creación de nuevas tiendas Shopify.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex items-center space-x-2">
+                                <Checkbox
+                                    id="create-products-default"
+                                    checked={companyData.shopifyCreationDefaults?.createProducts ?? true}
+                                    onCheckedChange={(checked) => setCompanyData(prev => ({
+                                        ...prev,
+                                        shopifyCreationDefaults: {
+                                            ...(prev.shopifyCreationDefaults || {}),
+                                            createProducts: !!checked,
+                                        }
+                                    }))}
+                                    disabled={isSaving}
+                                />
+                                <Label htmlFor="create-products-default" className="text-sm font-normal cursor-pointer">
+                                    Crear productos de ejemplo por defecto en nuevas tiendas Shopify
+                                </Label>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1 pl-6">
+                                Si se desmarca, no se crearán productos aunque el solicitante (ej. el chatbot) lo pida.
+                            </p>
+                        </CardContent>
+                    </Card>
+                )}
+
                 <Card>
                     <CardHeader><CardTitle>Logo de la Empresa</CardTitle></CardHeader>
                     <CardContent>

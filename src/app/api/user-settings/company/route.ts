@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Firestore not configured' }, { status: 503 });
     }
     try {
-        const { role, companyId: userCompanyId } = await getUserContext(req);
+        const { uid, role, companyId: userCompanyId } = await getUserContext(req);
         const body = await req.json();
 
         const payloadSchema = z.object({
@@ -106,8 +106,14 @@ export async function POST(req: NextRequest) {
                  return NextResponse.json({ error: 'Super Admins must specify a target companyId or userId.' }, { status: 400 });
             }
         } else if (role === 'admin') {
-            entityType = 'company';
-            effectiveId = userCompanyId;
+            if (userCompanyId) {
+                entityType = 'company';
+                effectiveId = userCompanyId;
+            } else {
+                // Admin without a company manages their own user_settings
+                entityType = 'user';
+                effectiveId = uid;
+            }
         }
 
         if (!effectiveId || !entityType) {
