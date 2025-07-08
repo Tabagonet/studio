@@ -460,7 +460,8 @@ export default function ConnectionsPage() {
     const connectionKeys = Object.keys(allConnections);
     const title = currentUser?.role === 'super_admin' ? `Editando Conexiones para: ${editingTarget.name}` : `Conexiones API para ${currentUser?.companyName || 'Mis Conexiones'}`;
     const description = currentUser?.role === 'super_admin' ? 'Como Super Admin, puedes gestionar tus conexiones o las de cualquier empresa o usuario.' : 'Gestiona las credenciales para conectar tu empresa con servicios externos como WooCommerce y WordPress.';
-    
+    const saveButtonText = `Guardar y Activar para ${editingTarget.type === 'company' ? 'la Empresa' : 'el Usuario'}`;
+
     if (isDataLoading) {
         return (
              <div className="container mx-auto py-8 space-y-6">
@@ -635,7 +636,7 @@ export default function ConnectionsPage() {
                         <div className="flex flex-col-reverse gap-4 md:flex-row">
                             <Button onClick={handleSave} disabled={isSaving || isDeleting} className="w-full md:w-auto">
                                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                                {isSaving ? "Guardando..." : `Guardar y Activar para ${editingTarget.type === 'company' ? 'la Empresa' : 'el Usuario'}`}
+                                {isSaving ? "Guardando..." : saveButtonText}
                             </Button>
                         </div>
                     </div>
