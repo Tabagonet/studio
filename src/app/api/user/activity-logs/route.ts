@@ -39,8 +39,8 @@ export async function GET(req: NextRequest) {
         let query: FirebaseFirestore.Query<FirebaseFirestore.DocumentData>;
 
         if (context.role === 'super_admin') {
-            // Super admin gets all logs
-            query = logsQuery;
+            // Super admin gets all logs, ordered by timestamp
+            query = logsQuery.orderBy('timestamp', 'desc').limit(200);
         } else if (context.role === 'admin' && context.companyId) {
             // Admin gets logs for all users in their company
             const usersSnapshot = await adminDb.collection('users').where('companyId', '==', context.companyId).get();
@@ -49,18 +49,18 @@ export async function GET(req: NextRequest) {
             if (userIds.length === 0) {
                  return NextResponse.json({ logs: [] });
             }
-            // Firestore 'in' query is limited to 30 items per query.
             if (userIds.length > 30) {
                  console.warn(`Company ${context.companyId} has more than 30 users. Activity log query will be truncated.`);
-                 // We will query for the first 30, this is a known limitation to be addressed if needed.
             }
-            query = logsQuery.where('userId', 'in', userIds.slice(0, 30));
+            // Query without orderBy to prevent needing a composite index
+            query = logsQuery.where('userId', 'in', userIds.slice(0, 30)).limit(200);
         } else {
-            // Regular user gets only their own logs
-            query = logsQuery.where('userId', '==', context.uid);
+            // Regular user or admin without company gets only their own logs
+            // Query without orderBy to prevent needing a composite index
+            query = logsQuery.where('userId', '==', context.uid).limit(200);
         }
         
-        const logsSnapshot = await query.orderBy('timestamp', 'desc').limit(200).get();
+        const logsSnapshot = await query.get();
         
         const logs = logsSnapshot.docs.map(doc => {
             const logData = doc.data();
@@ -71,6 +71,11 @@ export async function GET(req: NextRequest) {
             };
         });
         
+        // Sort in memory as a fallback for queries without server-side ordering
+        if (context.role !== 'super_admin') {
+             logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        }
+
         return NextResponse.json({ logs });
 
     } catch (error) {
