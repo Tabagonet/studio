@@ -24,6 +24,7 @@ const GenerationInputSchema = z.object({
     createLegalPages: z.boolean(),
     createBlogWithPosts: z.boolean(),
     numberOfBlogPosts: z.number().optional().default(2),
+    setupBasicNav: z.boolean(),
   }),
 });
 export type GenerationInput = z.infer<typeof GenerationInputSchema>;

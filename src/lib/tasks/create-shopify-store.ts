@@ -127,6 +127,7 @@ export async function populateShopifyStore(jobId: string) {
         return;
     }
     const jobRef = adminDb.collection('shopify_creation_jobs').doc(jobId);
+    let createdPages: { title: string; handle: string; }[] = [];
 
     try {
         const jobDoc = await jobRef.get();
@@ -151,14 +152,17 @@ export async function populateShopifyStore(jobId: string) {
 
         // Create pages
         if (jobData.creationOptions.createAboutPage && generatedContent.aboutPage) {
-            await createShopifyPage(jobId, shopifyApi, generatedContent.aboutPage);
+            const page = await createShopifyPage(jobId, shopifyApi, generatedContent.aboutPage);
+            if (page) createdPages.push(page);
         }
         if (jobData.creationOptions.createContactPage && generatedContent.contactPage) {
-             await createShopifyPage(jobId, shopifyApi, generatedContent.contactPage);
+             const page = await createShopifyPage(jobId, shopifyApi, generatedContent.contactPage);
+             if (page) createdPages.push(page);
         }
         if (jobData.creationOptions.createLegalPages && generatedContent.legalPages) {
-            for (const page of generatedContent.legalPages) {
-                 await createShopifyPage(jobId, shopifyApi, page);
+            for (const pageData of generatedContent.legalPages) {
+                 const page = await createShopifyPage(jobId, shopifyApi, pageData);
+                 if (page) createdPages.push(page);
             }
         }
         
@@ -179,6 +183,12 @@ export async function populateShopifyStore(jobId: string) {
             }
         }
         
+        // Setup navigation
+        if (jobData.creationOptions.setupBasicNav) {
+            await setupBasicNavigation(jobId, shopifyApi, createdPages);
+        }
+
+        
         await updateJobStatus(jobId, 'completed', '¡Proceso finalizado! La tienda ha sido creada y poblada con contenido inicial.');
 
     } catch (error: any) {
@@ -187,18 +197,20 @@ export async function populateShopifyStore(jobId: string) {
     }
 }
 
-async function createShopifyPage(jobId: string, api: AxiosInstance, pageData: { title: string, htmlContent: string }) {
+async function createShopifyPage(jobId: string, api: AxiosInstance, pageData: { title: string, htmlContent: string }): Promise<{ title: string; handle: string; } | null> {
     try {
         await updateJobStatus(jobId, 'processing', `Creando página: "${pageData.title}"...`);
-        await api.post('pages.json', {
+        const response = await api.post('pages.json', {
             page: {
                 title: pageData.title,
                 body_html: pageData.htmlContent,
             }
         });
+        return { title: response.data.page.title, handle: response.data.page.handle };
     } catch (error: any) {
         const errorMessage = error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message;
         await updateJobStatus(jobId, 'processing', `Error al crear la página "${pageData.title}": ${errorMessage}`);
+        return null;
     }
 }
 
@@ -221,7 +233,6 @@ async function createShopifyProduct(jobId: string, api: AxiosInstance, productDa
         await updateJobStatus(jobId, 'processing', `Producto "${productData.title}" creado (ID: ${createdProduct.id}).`);
 
         if (productData.imagePrompt) {
-            // Temporarily disable image generation until Genkit issues are resolved.
             await updateJobStatus(jobId, 'processing', `Advertencia: La generación de imágenes está temporalmente deshabilitada. Se omitirá la imagen para "${productData.title}".`);
         }
         
@@ -262,5 +273,45 @@ async function createShopifyBlogPost(jobId: string, api: AxiosInstance, blogId: 
     } catch (error: any) {
         const errorMessage = error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message;
         await updateJobStatus(jobId, 'processing', `Error al crear el post "${postData.title}": ${errorMessage}`);
+    }
+}
+
+
+async function setupBasicNavigation(jobId: string, api: AxiosInstance, createdPages: { title: string; handle: string }[]) {
+    try {
+        await updateJobStatus(jobId, 'processing', 'Configurando menú de navegación...');
+        const { data: navData } = await api.get('navigation.json');
+        
+        let mainMenu = navData.navigation.find((nav: any) => nav.handle === 'main-menu');
+        
+        if (!mainMenu) {
+            const createNavResponse = await api.post('navigation.json', {
+                navigation: { title: 'Main Menu', handle: 'main-menu' }
+            });
+            mainMenu = createNavResponse.data.navigation;
+            await updateJobStatus(jobId, 'processing', 'Menú principal no encontrado, creando uno nuevo.');
+        }
+
+        const linksToAdd: { title: string; url: string }[] = [
+            { title: 'Inicio', url: '/' },
+        ];
+        
+        const aboutPage = createdPages.find(p => p.title.toLowerCase().includes('sobre nosotros'));
+        if (aboutPage) linksToAdd.push({ title: aboutPage.title, url: `/pages/${aboutPage.handle}` });
+
+        const contactPage = createdPages.find(p => p.title.toLowerCase().includes('contacto'));
+        if (contactPage) linksToAdd.push({ title: contactPage.title, url: `/pages/${contactPage.handle}` });
+        
+        // This creates links sequentially. Could be batched for minor performance gain.
+        for (const link of linksToAdd) {
+            await api.post(`navigations/${mainMenu.id}/links.json`, {
+                link: { title: link.title, url: link.url }
+            });
+            await updateJobStatus(jobId, 'processing', `Añadido enlace "${link.title}" al menú principal.`);
+        }
+        
+    } catch (error: any) {
+        const errorMessage = error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message;
+        await updateJobStatus(jobId, 'processing', `Error configurando la navegación: ${errorMessage}`);
     }
 }
