@@ -14,6 +14,8 @@ const nextConfig = {
       'debug',
       'supports-color',
       'sharp',
+      'genkit',
+      '@genkit/google-ai',
     ],
   },
   images: {
@@ -59,3 +61,5 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
+
+    
