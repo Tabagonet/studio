@@ -406,12 +406,12 @@ export interface ShopifyCreationJob {
   productTypeDescription: string;
   creationOptions: {
     createExampleProducts: boolean;
-    numberOfProducts: number;
+    numberOfProducts?: number;
     createAboutPage: boolean;
     createContactPage: boolean;
     createLegalPages: boolean;
     createBlogWithPosts: boolean;
-    numberOfBlogPosts: number;
+    numberOfBlogPosts?: number;
     setupBasicNav: boolean;
   };
   legalInfo: {

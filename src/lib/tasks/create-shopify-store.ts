@@ -21,10 +21,6 @@ async function updateJobStatus(jobId: string, status: 'processing' | 'completed'
     });
 }
 
-/**
- * Handles the initial creation of a Shopify development store via the Partner API.
- * @param jobId The ID of the job document in Firestore.
- */
 export async function handleCreateShopifyStore(jobId: string) {
     if (!adminDb) {
         console.error("Firestore not available in handleCreateShopifyStore.");
@@ -126,10 +122,6 @@ export async function handleCreateShopifyStore(jobId: string) {
 }
 
 
-/**
- * Populates a Shopify store with content after authorization.
- * @param jobId The ID of the job document in Firestore.
- */
 export async function populateShopifyStore(jobId: string) {
      if (!adminDb) {
         console.error("Firestore not available in populateShopifyStore.");
@@ -148,19 +140,17 @@ export async function populateShopifyStore(jobId: string) {
 
         const entityUid = jobData.entity.type === 'user' ? jobData.entity.id : '';
 
-        // PHASE 3: AI Content Generation
         await updateJobStatus(jobId, 'processing', 'Generando contenido con IA...');
         const generatedContent = await generateShopifyStoreContent(jobData, entityUid);
         await updateJobStatus(jobId, 'processing', 'Contenido generado. Guardando resultados y preparando para poblar la tienda...', {
             generatedContent: generatedContent,
         });
 
-        // PHASE 4: Populate the store
         const shopifyApi = createShopifyApi({ url: jobData.createdStoreUrl, accessToken: jobData.storeAccessToken });
         if (!shopifyApi) throw new Error("No se pudo inicializar el cliente de la API de Shopify para la nueva tienda.");
         await updateJobStatus(jobId, 'processing', 'Cliente de API de tienda creado. Iniciando población de contenido...');
 
-        // 4.1 Create pages
+        // Create pages
         if (jobData.creationOptions.createAboutPage && generatedContent.aboutPage) {
             await createShopifyPage(jobId, shopifyApi, generatedContent.aboutPage);
         }
@@ -172,17 +162,24 @@ export async function populateShopifyStore(jobId: string) {
                  await createShopifyPage(jobId, shopifyApi, page);
             }
         }
-
-        // 4.2 Create products (without images for now)
+        
+        // Create products
         if (jobData.creationOptions.createExampleProducts && generatedContent.exampleProducts) {
             for (const product of generatedContent.exampleProducts) {
                 await createShopifyProduct(jobId, shopifyApi, product);
             }
         }
-
-        // TODO: Implement blog creation
-        // TODO: Implement navigation setup
-
+        
+        // Create blog posts
+        if (jobData.creationOptions.createBlogWithPosts && generatedContent.blogPosts) {
+            const blog = await findOrCreateBlog(jobId, shopifyApi, "Noticias");
+            if (blog) {
+                for (const post of generatedContent.blogPosts) {
+                    await createShopifyBlogPost(jobId, shopifyApi, blog.id, post);
+                }
+            }
+        }
+        
         await updateJobStatus(jobId, 'completed', '¡Proceso finalizado! La tienda ha sido creada y las páginas y productos han sido insertados.');
 
     } catch (error: any) {
@@ -202,7 +199,6 @@ async function createShopifyPage(jobId: string, api: AxiosInstance, pageData: { 
         });
     } catch (error: any) {
         const errorMessage = error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message;
-        // Log the error but don't stop the whole process for one failed page
         await updateJobStatus(jobId, 'processing', `Error al crear la página "${pageData.title}": ${errorMessage}`);
     }
 }
@@ -223,11 +219,44 @@ async function createShopifyProduct(jobId: string, api: AxiosInstance, productDa
         const response = await api.post('products.json', payload);
         const createdProduct = response.data.product;
 
-        // Log success but note that image generation is next.
         await updateJobStatus(jobId, 'processing', `Producto "${productData.title}" creado (ID: ${createdProduct.id}). La generación de imagen se implementará en el siguiente paso.`);
         
     } catch (error: any) {
         const errorMessage = error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message;
         await updateJobStatus(jobId, 'processing', `Error al crear el producto "${productData.title}": ${errorMessage}`);
+    }
+}
+
+async function findOrCreateBlog(jobId: string, api: AxiosInstance, blogTitle: string): Promise<{ id: number } | null> {
+    try {
+        await updateJobStatus(jobId, 'processing', 'Verificando o creando blog...');
+        const { data } = await api.get('blogs.json');
+        let blog = data.blogs.find((b: any) => b.title === blogTitle);
+        if (!blog) {
+            const createResponse = await api.post('blogs.json', { blog: { title: blogTitle } });
+            blog = createResponse.data.blog;
+        }
+        return blog;
+    } catch (error: any) {
+         const errorMessage = error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message;
+        await updateJobStatus(jobId, 'processing', `Error al buscar o crear el blog: ${errorMessage}`);
+        return null;
+    }
+}
+
+async function createShopifyBlogPost(jobId: string, api: AxiosInstance, blogId: number, postData: { title: string; contentHtml: string; tags: string[] }) {
+     try {
+        await updateJobStatus(jobId, 'processing', `Creando post del blog: "${postData.title}"...`);
+        await api.post(`blogs/${blogId}/articles.json`, {
+            article: {
+                title: postData.title,
+                author: 'Admin',
+                body_html: postData.contentHtml,
+                tags: postData.tags.join(','),
+            }
+        });
+    } catch (error: any) {
+        const errorMessage = error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message;
+        await updateJobStatus(jobId, 'processing', `Error al crear el post "${postData.title}": ${errorMessage}`);
     }
 }

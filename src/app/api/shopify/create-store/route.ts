@@ -31,7 +31,6 @@ const shopifyStoreCreationSchema = z.object({
     legalBusinessName: z.string().min(1, "El nombre legal del negocio es obligatorio."),
     businessAddress: z.string().min(1, "La dirección del negocio es obligatoria."),
   }),
-  // New field to link the job to a user or company
   entity: z.object({
     type: z.enum(['user', 'company']),
     id: z.string(),
@@ -40,7 +39,6 @@ const shopifyStoreCreationSchema = z.object({
 
 
 export async function POST(req: NextRequest) {
-  // 1. Authenticate the request
   const providedApiKey = req.headers.get('Authorization')?.split('Bearer ')[1];
   const serverApiKey = process.env.SHOPIFY_AUTOMATION_API_KEY;
 
@@ -57,7 +55,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Servicio de base de datos no disponible.' }, { status: 503 });
   }
 
-  // 2. Validate the request body
   const body = await req.json();
   const validation = shopifyStoreCreationSchema.safeParse(body);
 
@@ -65,7 +62,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Cuerpo de la petición inválido.', details: validation.error.flatten() }, { status: 400 });
   }
 
-  // 3. Create a job record in Firestore
   try {
     const jobRef = adminDb.collection('shopify_creation_jobs').doc();
     
@@ -79,11 +75,8 @@ export async function POST(req: NextRequest) {
 
     const jobId = jobRef.id;
 
-    // 4. Trigger the background task handler (fire-and-forget)
-    // We don't `await` this. The API responds immediately while the task runs in the background.
     handleCreateShopifyStore(jobId);
 
-    // 5. Respond immediately
     return NextResponse.json({ success: true, jobId: jobId }, { status: 202 });
 
   } catch (error: any) {
