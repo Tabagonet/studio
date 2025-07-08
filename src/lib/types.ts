@@ -372,3 +372,39 @@ export interface Prospect {
     monthlyBudget?: string;
   };
 }
+
+export interface ShopifyCreationJob {
+  id: string;
+  status: 'pending' | 'processing' | 'completed' | 'error';
+  createdAt: string; // ISO String
+  updatedAt: string; // ISO String
+  logs: { timestamp: string, message: string }[];
+  
+  webhookUrl: string;
+  storeName: string;
+  businessEmail: string;
+  countryCode: string;
+  currency: string;
+  brandDescription: string;
+  targetAudience: string;
+  brandPersonality: string;
+  colorPaletteSuggestion?: string;
+  productTypeDescription: string;
+  creationOptions: {
+    createExampleProducts: boolean;
+    numberOfProducts: number;
+    createAboutPage: boolean;
+    createContactPage: boolean;
+    createLegalPages: boolean;
+    createBlogWithPosts: boolean;
+    numberOfBlogPosts: number;
+    setupBasicNav: boolean;
+  };
+  legalInfo: {
+    legalBusinessName: string;
+    businessAddress: string;
+  };
+
+  createdStoreUrl?: string;
+  createdStoreAdminUrl?: string;
+}
