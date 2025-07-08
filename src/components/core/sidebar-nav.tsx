@@ -31,6 +31,7 @@ interface UserData {
 interface ConfigStatus {
   wooCommerceConfigured: boolean;
   wordPressConfigured: boolean;
+  shopifyConfigured: boolean;
 }
 
 export function SidebarNav() {
@@ -59,13 +60,13 @@ export function SidebarNav() {
       if(configResponse.ok) {
         setConfigStatus(await configResponse.json());
       } else {
-        setConfigStatus({ wooCommerceConfigured: false, wordPressConfigured: false });
+        setConfigStatus({ wooCommerceConfigured: false, wordPressConfigured: false, shopifyConfigured: false });
       }
 
     } catch (error) {
       console.error("Failed to fetch user/config for sidebar", error);
       setUserData(null);
-      setConfigStatus({ wooCommerceConfigured: false, wordPressConfigured: false });
+      setConfigStatus({ wooCommerceConfigured: false, wordPressConfigured: false, shopifyConfigured: false });
     } finally {
       setIsLoading(false);
     }
@@ -165,11 +166,10 @@ export function SidebarNav() {
               isDisabled = true;
               tooltipText = "Configuración de WooCommerce/WordPress incompleta";
             }
-            // Future-proofing for Shopify
-            // if (group.requiredPlatform === 'shopify' && (!configStatus || !configStatus.shopifyConfigured)) {
-            //   isDisabled = true;
-            //   tooltipText = "Configuración de Shopify incompleta";
-            // }
+            if (group.requiredPlatform === 'shopify' && (!configStatus || !configStatus.shopifyConfigured)) {
+               isDisabled = true;
+               tooltipText = "Configuración de Shopify incompleta";
+            }
 
             return (
               <SidebarMenuItem key={item.href}>

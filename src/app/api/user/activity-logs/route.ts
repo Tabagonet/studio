@@ -1,4 +1,3 @@
-
 // src/app/api/user/activity-logs/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';

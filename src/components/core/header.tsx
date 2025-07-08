@@ -33,6 +33,7 @@ interface ConfigStatus {
     shopifyConfigured: boolean;
     pluginActive: boolean;
     activePlatform: 'woocommerce' | 'shopify' | null;
+    assignedPlatform: 'woocommerce' | 'shopify' | null;
 }
 
 function getHostname(url: string | null): string | null {
@@ -61,6 +62,9 @@ const ConnectionStatusIndicator = ({ status, isLoading }: { status: ConfigStatus
   }
   
   const hostname = getHostname(status.activeStoreUrl);
+  const isSuperAdminScope = !status.assignedPlatform;
+  const showWooCommerce = status.assignedPlatform === 'woocommerce' || (isSuperAdminScope && status.activePlatform === 'woocommerce');
+  const showShopify = status.assignedPlatform === 'shopify' || (isSuperAdminScope && status.activePlatform === 'shopify');
 
   return (
     <TooltipProvider delayDuration={100}>
@@ -68,7 +72,7 @@ const ConnectionStatusIndicator = ({ status, isLoading }: { status: ConfigStatus
             <span className="hidden md:inline font-medium">{hostname}</span>
             
             <div className="flex items-center gap-2 flex-shrink-0">
-                {status.activePlatform === 'woocommerce' && (
+                {showWooCommerce && (
                     <div className="flex items-center gap-2">
                         <Tooltip>
                             <TooltipTrigger>
@@ -96,7 +100,7 @@ const ConnectionStatusIndicator = ({ status, isLoading }: { status: ConfigStatus
                         </Tooltip>
                     </div>
                 )}
-                {status.activePlatform === 'shopify' && (
+                {showShopify && (
                     <div className="flex items-center gap-2">
                         <Tooltip>
                             <TooltipTrigger>
@@ -178,6 +182,7 @@ export function Header() {
             shopifyConfigured: data.shopifyConfigured,
             pluginActive: data.pluginActive,
             activePlatform: data.activePlatform,
+            assignedPlatform: data.assignedPlatform,
           });
         } else {
           setConfigStatus(null);

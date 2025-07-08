@@ -41,11 +41,12 @@ export async function GET(req: NextRequest) {
   };
   let activeStoreUrl: string | null = null;
   let activePlatform: 'woocommerce' | 'shopify' | null = null;
+  let assignedPlatform: 'woocommerce' | 'shopify' | null = null;
   let settingsSource: admin.firestore.DocumentData | undefined;
 
   if (!adminDb) {
       console.warn("/api/check-config: Firestore is not available.");
-      return NextResponse.json({ ...globalConfig, ...userConfig, activeStoreUrl: null, activePlatform: null, pluginActive: false });
+      return NextResponse.json({ ...globalConfig, ...userConfig, activeStoreUrl: null, activePlatform: null, pluginActive: false, assignedPlatform: null });
   }
 
   try {
@@ -57,8 +58,11 @@ export async function GET(req: NextRequest) {
         if (targetCompanyId) {
             const companyDoc = await adminDb.collection('companies').doc(targetCompanyId).get();
             settingsSource = companyDoc.data();
+            if (settingsSource) assignedPlatform = settingsSource.platform;
         } else if (targetUserId) {
             settingsSource = (await adminDb.collection('user_settings').doc(targetUserId).get()).data();
+            const targetUserDoc = await adminDb.collection('users').doc(targetUserId).get();
+            if (targetUserDoc.exists) assignedPlatform = targetUserDoc.data()?.platform || null;
         }
     } else {
         const userDoc = await adminDb.collection('users').doc(uid).get();
@@ -66,9 +70,11 @@ export async function GET(req: NextRequest) {
         if (userData?.companyId) {
             const companyDoc = await adminDb.collection('companies').doc(userData.companyId).get();
             settingsSource = companyDoc.data();
+            if(settingsSource) assignedPlatform = settingsSource.platform;
         } else {
             const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
             settingsSource = userSettingsDoc.data();
+            if(userData) assignedPlatform = userData.platform || null;
         }
     }
     
@@ -88,7 +94,6 @@ export async function GET(req: NextRequest) {
         userConfig.shopifyConfigured = !!(activeConnection.shopifyStoreUrl && activeConnection.shopifyApiPassword);
         activeStoreUrl = activeConnection.wooCommerceStoreUrl || activeConnection.wordpressApiUrl || activeConnection.shopifyStoreUrl || null;
 
-        // Determine active platform based on configured fields in the active connection
         if (userConfig.shopifyConfigured) {
           activePlatform = 'shopify';
         } else if (userConfig.wooCommerceConfigured || userConfig.wordPressConfigured) {
@@ -126,6 +131,7 @@ export async function GET(req: NextRequest) {
     ...userConfig,
     activeStoreUrl: activeStoreUrl,
     activePlatform: activePlatform,
+    assignedPlatform: assignedPlatform,
   };
 
   return NextResponse.json(finalConfigStatus);
