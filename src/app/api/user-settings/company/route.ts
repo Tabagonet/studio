@@ -27,7 +27,7 @@ async function getUserContext(req: NextRequest): Promise<{ uid: string; role: st
 }
 
 const companyUpdateSchema = z.object({
-  name: z.string().min(2, "El nombre debe tener al menos 2 caracteres."),
+  name: z.string().min(2, "El nombre debe tener al menos 2 caracteres.").optional(),
   platform: z.enum(['woocommerce', 'shopify']).optional(),
   taxId: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
@@ -79,7 +79,8 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
 
         const payloadSchema = z.object({
-            companyId: z.string().optional(), // For super_admin editing a specific company
+            companyId: z.string().optional(),
+            userId: z.string().optional(),
             data: companyUpdateSchema,
         });
 
@@ -88,43 +89,49 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid data', details: validation.error.flatten() }, { status: 400 });
         }
         
-        const { companyId: targetCompanyId, data } = validation.data;
+        const { companyId: targetCompanyId, userId: targetUserId, data } = validation.data;
 
-        let effectiveCompanyId: string | null = null;
+        let settingsRef;
+        let entityType: 'user' | 'company' | null = null;
+        let effectiveId: string | null = null;
 
         if (role === 'super_admin') {
-            effectiveCompanyId = targetCompanyId || null;
-             if (!effectiveCompanyId) {
-                return NextResponse.json({ error: 'Super Admins must specify a target companyId in the payload.' }, { status: 400 });
+            if (targetCompanyId) {
+                entityType = 'company';
+                effectiveId = targetCompanyId;
+            } else if (targetUserId) {
+                entityType = 'user';
+                effectiveId = targetUserId;
+            } else {
+                 return NextResponse.json({ error: 'Super Admins must specify a target companyId or userId.' }, { status: 400 });
             }
         } else if (role === 'admin') {
-            effectiveCompanyId = userCompanyId;
+            entityType = 'company';
+            effectiveId = userCompanyId;
         }
 
-        if (!effectiveCompanyId) {
-             return NextResponse.json({ error: 'Forbidden. No permissions to save company data.' }, { status: 403 });
+        if (!effectiveId || !entityType) {
+             return NextResponse.json({ error: 'Forbidden. No permissions to save data.' }, { status: 403 });
         }
         
-        const settingsRef = adminDb.collection('companies').doc(effectiveCompanyId);
+        settingsRef = adminDb.collection(entityType === 'company' ? 'companies' : 'user_settings').doc(effectiveId);
         
         const { name, platform, ...restOfData } = data;
         const updatePayload: any = restOfData;
 
         // Only super_admin can change the company name and platform
-        if (role === 'super_admin') {
-            updatePayload.name = name;
-            if (platform) {
-                updatePayload.platform = platform;
-            }
+        if (role === 'super_admin' && entityType === 'company') {
+            if (name) updatePayload.name = name;
+            if (platform) updatePayload.platform = platform;
         }
         
         await settingsRef.set(updatePayload, { merge: true });
 
-        return NextResponse.json({ success: true, message: 'Company data saved successfully.' });
+        return NextResponse.json({ success: true, message: 'Data saved successfully.' });
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-        console.error('Error saving company data:', error);
+        console.error('Error saving settings data:', error);
         return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }

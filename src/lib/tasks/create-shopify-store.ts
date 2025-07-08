@@ -5,7 +5,6 @@ import axios from 'axios';
 import { generateShopifyStoreContent, type GeneratedContent } from '@/ai/flows/shopify-content-flow';
 import { createShopifyApi } from '@/lib/shopify';
 import type { AxiosInstance } from 'axios';
-import { slugify } from '@/lib/utils';
 
 async function updateJobStatus(jobId: string, status: 'processing' | 'completed' | 'error', logMessage: string, extraData: Record<string, any> = {}) {
     if (!adminDb) return;
@@ -34,7 +33,7 @@ export async function handleCreateShopifyStore(jobId: string) {
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
         const jobData = jobDoc.data()!;
 
-        await updateJobStatus(jobId, 'processing', 'Obteniendo credenciales y ajustes de la empresa...');
+        await updateJobStatus(jobId, 'processing', 'Obteniendo credenciales y ajustes de la entidad...');
         
         let settingsSource;
         if (jobData.entity.type === 'company') {
@@ -46,10 +45,10 @@ export async function handleCreateShopifyStore(jobId: string) {
             settingsSource = userSettingsDoc.data();
         }
 
-        // Override product creation based on company setting
+        // Override product creation based on company/user setting
         if (settingsSource?.shopifyCreationDefaults?.createProducts === false) {
             if (jobData.creationOptions.createExampleProducts === true) {
-                await updateJobStatus(jobId, 'processing', 'La creación de productos ha sido desactivada por un ajuste de la empresa.');
+                await updateJobStatus(jobId, 'processing', 'La creación de productos ha sido desactivada por un ajuste de la entidad.');
             }
             jobData.creationOptions.createExampleProducts = false;
         }

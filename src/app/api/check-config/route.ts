@@ -54,28 +54,35 @@ export async function GET(req: NextRequest) {
     const targetUserId = searchParams.get('userId');
     const targetCompanyId = searchParams.get('companyId');
 
-    if (userRole === 'super_admin' && (targetUserId || targetCompanyId)) {
-        if (targetCompanyId) {
-            const companyDoc = await adminDb.collection('companies').doc(targetCompanyId).get();
-            settingsSource = companyDoc.data();
-            if (settingsSource) assignedPlatform = settingsSource.platform;
-        } else if (targetUserId) {
-            settingsSource = (await adminDb.collection('user_settings').doc(targetUserId).get()).data();
-            const targetUserDoc = await adminDb.collection('users').doc(targetUserId).get();
-            if (targetUserDoc.exists) assignedPlatform = targetUserDoc.data()?.platform || null;
-        }
+    let entityId = uid;
+    let entityType: 'user' | 'company' = 'user';
+
+    if (userRole === 'super_admin') {
+      if (targetCompanyId) {
+        entityId = targetCompanyId;
+        entityType = 'company';
+      } else if (targetUserId) {
+        entityId = targetUserId;
+        entityType = 'user';
+      }
     } else {
         const userDoc = await adminDb.collection('users').doc(uid).get();
         const userData = userDoc.data();
         if (userData?.companyId) {
-            const companyDoc = await adminDb.collection('companies').doc(userData.companyId).get();
-            settingsSource = companyDoc.data();
-            if(settingsSource) assignedPlatform = settingsSource.platform;
-        } else {
-            const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
-            settingsSource = userSettingsDoc.data();
-            if(userData) assignedPlatform = userData.platform || null;
+            entityId = userData.companyId;
+            entityType = 'company';
         }
+    }
+    
+    if (entityType === 'company') {
+        const companyDoc = await adminDb.collection('companies').doc(entityId).get();
+        settingsSource = companyDoc.data();
+        if (settingsSource) assignedPlatform = settingsSource.platform;
+    } else { // user
+        const userSettingsDoc = await adminDb.collection('user_settings').doc(entityId).get();
+        settingsSource = userSettingsDoc.data();
+        const targetUserDoc = await adminDb.collection('users').doc(entityId).get();
+        if (targetUserDoc.exists) assignedPlatform = targetUserDoc.data()?.platform || null;
     }
     
     const loggedInUserSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();

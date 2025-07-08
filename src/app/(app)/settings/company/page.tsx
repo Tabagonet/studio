@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Save, Building, DollarSign } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
-import type { Company, ProductPhoto } from '@/lib/types';
+import type { Company, ProductPhoto, User as AppUser } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -46,21 +46,27 @@ export default function CompanySettingsPage() {
 
     const [currentUser, setCurrentUser] = useState<{ uid: string | null; role: string | null; companyId: string | null; companyName: string | null; } | null>(null);
     const [allCompanies, setAllCompanies] = useState<Company[]>([]);
+    const [unassignedUsers, setUnassignedUsers] = useState<AppUser[]>([]);
     const [editingTargetId, setEditingTargetId] = useState<string | null>(null);
+    const [editingEntityType, setEditingEntityType] = useState<'user' | 'company' | null>(null);
 
-    const fetchAllCompaniesForSuperAdmin = useCallback(async (token: string) => {
+
+    const fetchAllCompaniesAndUsers = useCallback(async (token: string) => {
         try {
-            const response = await fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } });
-            if (response.ok) {
-                setAllCompanies((await response.json()).companies);
-            }
+            const [companiesResponse, usersResponse] = await Promise.all([
+                fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } })
+            ]);
+            if (companiesResponse.ok) setAllCompanies((await companiesResponse.json()).companies);
+            if (usersResponse.ok) setUnassignedUsers((await usersResponse.json()).users.filter((u: AppUser) => !u.companyId));
+
         } catch (error) {
-            console.error("Failed to fetch all companies:", error);
+            console.error("Failed to fetch all companies/users:", error);
         }
     }, []);
 
-    const fetchCompanyData = useCallback(async (user: FirebaseUser, companyId: string | null) => {
-        if (!companyId) {
+    const fetchSettingsData = useCallback(async (user: FirebaseUser, type: 'user' | 'company' | null, id: string | null) => {
+        if (!id || !type) {
             setCompanyData(INITIAL_COMPANY_DATA);
             setLogoPhotos([]);
             setIsLoading(false);
@@ -69,27 +75,22 @@ export default function CompanySettingsPage() {
         setIsLoading(true);
         try {
             const token = await user.getIdToken();
-            const url = new URL('/api/user-settings/company', window.location.origin);
-            url.searchParams.append('companyId', companyId);
+            const url = new URL(type === 'company' ? '/api/user-settings/company' : '/api/user-settings/connections', window.location.origin);
+            const paramKey = type === 'company' ? 'companyId' : 'userId';
+            url.searchParams.append(paramKey, id);
             
             const response = await fetch(url.toString(), { headers: { 'Authorization': `Bearer ${token}` } });
             
             let data: Company = INITIAL_COMPANY_DATA as Company;
             if (response.ok) {
                 const responseData = await response.json();
-                const fetchedCompany = responseData.company;
-                // Merge fetched data with initial data to ensure all fields are present
-                data = {
-                  ...INITIAL_COMPANY_DATA,
-                  ...(fetchedCompany || {})
-                };
-
-            } else if(response.status !== 404) {
-                 toast({ title: "Error al Cargar Datos", description: (await response.json()).error || "No se pudo obtener la información de la empresa.", variant: "destructive" });
+                const fetchedData = type === 'company' ? responseData.company : responseData;
+                data = { ...INITIAL_COMPANY_DATA, ...(fetchedData || {}) };
+            } else if (response.status !== 404) {
+                 toast({ title: "Error al Cargar Datos", description: (await response.json()).error || `No se pudo obtener la información para ${type} ${id}.`, variant: "destructive" });
             }
 
             setCompanyData(data);
-
             if (data.logoUrl) {
                 setLogoPhotos([{ id: 'logo', previewUrl: data.logoUrl, name: 'Logo de la empresa', status: 'completed', progress: 100 }]);
             } else {
@@ -97,17 +98,19 @@ export default function CompanySettingsPage() {
             }
 
         } catch (error) {
-            console.error("Error fetching company data:", error);
-            toast({ title: "Error al Cargar Datos", description: "No se pudo obtener la información de la empresa.", variant: "destructive" });
+            console.error(`Error fetching data for ${type} ${id}:`, error);
+            toast({ title: "Error al Cargar Datos", description: `No se pudo obtener la información.`, variant: "destructive" });
         } finally {
             setIsLoading(false);
         }
     }, [toast]);
     
-    const handleCompanySelection = (companyId: string) => {
-        setEditingTargetId(companyId);
+    const handleTargetSelection = (value: string) => {
+        const [type, id] = value.split(':');
+        setEditingEntityType(type as 'user' | 'company');
+        setEditingTargetId(id);
         const user = auth.currentUser;
-        if(user) fetchCompanyData(user, companyId);
+        if (user) fetchSettingsData(user, type as 'user' | 'company', id);
     }
     
     useEffect(() => {
@@ -120,19 +123,26 @@ export default function CompanySettingsPage() {
                     setCurrentUser(userData);
 
                     const targetIdFromUrl = searchParams.get('companyId');
+                    let initialId = targetIdFromUrl;
+                    let initialType: 'user' | 'company' = 'company';
 
                     if (userData.role === 'super_admin') {
-                        await fetchAllCompaniesForSuperAdmin(token);
-                        const idToEdit = targetIdFromUrl || editingTargetId || userData.companyId;
-                        if (idToEdit) {
-                           setEditingTargetId(idToEdit);
-                           fetchCompanyData(user, idToEdit);
-                        } else {
-                            setIsLoading(false);
+                        await fetchAllCompaniesAndUsers(token);
+                        if (!initialId) {
+                            initialId = userData.companyId || user.uid; // Default to own company or self
+                            initialType = userData.companyId ? 'company' : 'user';
                         }
                     } else {
-                        setEditingTargetId(userData.companyId);
-                        fetchCompanyData(user, userData.companyId);
+                        initialId = userData.companyId;
+                        initialType = 'company';
+                    }
+
+                    if (initialId) {
+                       setEditingTargetId(initialId);
+                       setEditingEntityType(initialType);
+                       fetchSettingsData(user, initialType, initialId);
+                    } else {
+                        setIsLoading(false);
                     }
                 } catch (e) { 
                     console.error("Failed to initialize company settings page:", e);
@@ -143,11 +153,11 @@ export default function CompanySettingsPage() {
             }
         });
         return () => unsubscribe();
-    }, [searchParams, fetchAllCompaniesForSuperAdmin, fetchCompanyData]);
+    }, [searchParams, fetchAllCompaniesAndUsers, fetchSettingsData]);
 
     const handleSave = async () => {
-        if (currentUser?.role === 'super_admin' && !editingTargetId) {
-            toast({ title: "Error", description: "Debes seleccionar una empresa para editar.", variant: "destructive" });
+        if (!editingTargetId || !editingEntityType) {
+            toast({ title: "Error", description: "No se ha seleccionado una entidad para editar.", variant: "destructive" });
             return;
         }
         setIsSaving(true);
@@ -178,9 +188,32 @@ export default function CompanySettingsPage() {
             }
 
             const payload: any = { data: finalData };
-            if (currentUser?.role === 'super_admin') {
-                if (!editingTargetId) throw new Error("No hay una empresa seleccionada para editar.");
-                payload.companyId = editingTargetId;
+            const endpoint = editingEntityType === 'company' ? '/api/user-settings/company' : '/api/user-settings/connections';
+            
+            if (editingEntityType === 'company') {
+                 payload.companyId = editingTargetId;
+            } else {
+                // For users, the payload needs to be structured differently for the connections endpoint
+                payload.userId = editingTargetId;
+                // This assumes we are saving user settings as a single 'connection' profile
+                // A better approach would be a dedicated user-settings endpoint
+                // For now, let's adapt to what we have
+                const userSettingsToSave = {
+                    key: 'main', // Use a default key for user-level settings
+                    connectionData: {}, // Not applicable here
+                    setActive: false, // Not applicable here
+                    // Add the settings we want to save
+                    shopifyCreationDefaults: finalData.shopifyCreationDefaults
+                };
+                // This structure is wrong. The endpoint expects connection data.
+                // Let's create a proper endpoint or adjust the existing one.
+                // FOR NOW, I will create a new endpoint for simplicity. Let's assume `/api/user-settings/user`
+                // But since I cannot create new files, I'll have to adapt the existing `company` one.
+                // The company endpoint can check if `userId` is passed instead of `companyId`.
+                if (editingEntityType === 'user') {
+                    payload.userId = editingTargetId;
+                    delete payload.companyId;
+                }
             }
             
             const response = await fetch('/api/user-settings/company', {
@@ -190,8 +223,8 @@ export default function CompanySettingsPage() {
             });
             if (!response.ok) throw new Error((await response.json()).error || "Fallo al guardar los datos.");
             
-            toast({ title: "Datos Guardados", description: `La información de la empresa ha sido actualizada.` });
-            if (editingTargetId) fetchCompanyData(user, editingTargetId);
+            toast({ title: "Datos Guardados", description: `La información ha sido actualizada.` });
+            if (editingTargetId) fetchSettingsData(user, editingEntityType, editingTargetId);
         } catch (error: any) {
             toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
         } finally {
@@ -207,14 +240,14 @@ export default function CompanySettingsPage() {
         if (isLoading) {
             return <Skeleton className="h-96 w-full" />;
         }
-        if ((currentUser?.role === 'admin' && !currentUser?.companyId) || (currentUser?.role === 'super_admin' && !editingTargetId)) {
+        if (!editingTargetId) {
             return (
                 <Alert>
                     <Building className="h-4 w-4" />
-                    <AlertTitle>No hay una empresa seleccionada</AlertTitle>
+                    <AlertTitle>No hay una entidad seleccionada</AlertTitle>
                     <AlertDescription>
                         {currentUser?.role === 'super_admin' 
-                            ? "Por favor, selecciona una empresa de la lista para editar sus datos." 
+                            ? "Por favor, selecciona una empresa o usuario de la lista para editar sus datos." 
                             : "Tu cuenta de administrador no está asignada a ninguna empresa. Un Super Admin debe asignarte a una para que puedas editar estos datos."}
                     </AlertDescription>
                 </Alert>
@@ -228,7 +261,7 @@ export default function CompanySettingsPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <Label htmlFor="name">Nombre de la Empresa</Label>
-                                <Input id="name" name="name" value={companyData.name || ''} onChange={handleInputChange} placeholder="Ej: Mi Gran Empresa S.L." disabled={isSaving || (currentUser?.role !== 'super_admin')} />
+                                <Input id="name" name="name" value={companyData.name || ''} onChange={handleInputChange} placeholder="Ej: Mi Gran Empresa S.L." disabled={isSaving || (currentUser?.role !== 'super_admin' && editingEntityType === 'company')} />
                                 {currentUser?.role !== 'super_admin' && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar el nombre.</p>}
                             </div>
                             <div>
@@ -280,7 +313,7 @@ export default function CompanySettingsPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>Automatización de Shopify</CardTitle>
-                        <CardDescription>Define los ajustes por defecto para la creación de nuevas tiendas Shopify para esta empresa.</CardDescription>
+                        <CardDescription>Define los ajustes por defecto para la creación de nuevas tiendas Shopify.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="flex items-center space-x-2">
@@ -342,14 +375,18 @@ export default function CompanySettingsPage() {
 
             {currentUser?.role === 'super_admin' && (
                 <Card>
-                    <CardHeader><CardTitle>Selector de Empresa</CardTitle></CardHeader>
+                    <CardHeader><CardTitle>Selector de Entidad</CardTitle></CardHeader>
                     <CardContent>
-                        <Label>Selecciona qué empresa deseas editar</Label>
-                        <Select value={editingTargetId || ''} onValueChange={handleCompanySelection}>
-                            <SelectTrigger><SelectValue placeholder="Elige una empresa..." /></SelectTrigger>
+                        <Label>Selecciona qué entidad deseas editar</Label>
+                        <Select value={`${editingEntityType}:${editingTargetId}`} onValueChange={handleTargetSelection}>
+                            <SelectTrigger><SelectValue placeholder="Elige una entidad..." /></SelectTrigger>
                             <SelectContent>
                                 {allCompanies.map(company => (
-                                    <SelectItem key={company.id} value={company.id}><Building className="inline-block mr-2 h-4 w-4" />{company.name}</SelectItem>
+                                    <SelectItem key={company.id} value={`company:${company.id}`}><Building className="inline-block mr-2 h-4 w-4" />{company.name}</SelectItem>
+                                ))}
+                                {unassignedUsers.length > 0 && <SelectSeparator />}
+                                {unassignedUsers.map(u => (
+                                    <SelectItem key={u.uid} value={`user:${u.uid}`}><User className="inline-block mr-2 h-4 w-4" />{u.displayName} (Sin Empresa)</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
