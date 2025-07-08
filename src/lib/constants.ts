@@ -1,6 +1,6 @@
 
 
-import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList, SearchCheck, Copy, Building, Megaphone, Briefcase, Store } from 'lucide-react';
+import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList, SearchCheck, Copy, Building, Megaphone, Briefcase, Store, ListChecks } from 'lucide-react';
 import type { NavItem, ProductType, ProductData, BlogPostData, NavGroup } from '@/lib/types';
 import { ShopifyIcon } from '@/components/core/icons';
 
@@ -28,7 +28,8 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'Shopify',
     requiredPlatform: 'shopify',
     items: [
-      { title: 'Panel de Shopify', href: '/shopify', icon: ShopifyIcon, requiredRoles: ['admin', 'super_admin', 'product_manager'], disabled: true },
+      { title: 'Automatizar Tienda', href: '/shopify', icon: ShopifyIcon, requiredRoles: ['admin', 'super_admin', 'product_manager'], disabled: true },
+      { title: 'Trabajos de Creación', href: '/shopify/jobs', icon: ListChecks, requiredRoles: ['admin', 'super_admin'] },
     ]
   },
   {
