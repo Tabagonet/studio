@@ -38,6 +38,9 @@ const companyUpdateSchema = z.object({
     (val) => (val === "" || val === null || val === undefined ? undefined : parseFloat(String(val))),
     z.number().positive("El precio debe ser un número positivo.").optional().nullable()
   ),
+  shopifyCreationDefaults: z.object({
+      createProducts: z.boolean(),
+  }).optional(),
 });
 
 export async function GET(req: NextRequest) {

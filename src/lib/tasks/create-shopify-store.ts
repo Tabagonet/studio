@@ -1,4 +1,5 @@
 
+
 import { admin, adminDb } from '@/lib/firebase-admin';
 import axios from 'axios';
 import { generateShopifyStoreContent, type GeneratedContent } from '@/ai/flows/shopify-content-flow';
@@ -33,7 +34,7 @@ export async function handleCreateShopifyStore(jobId: string) {
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
         const jobData = jobDoc.data()!;
 
-        await updateJobStatus(jobId, 'processing', 'Obteniendo credenciales de Shopify Partner...');
+        await updateJobStatus(jobId, 'processing', 'Obteniendo credenciales y ajustes de la empresa...');
         
         let settingsSource;
         if (jobData.entity.type === 'company') {
@@ -43,6 +44,14 @@ export async function handleCreateShopifyStore(jobId: string) {
         } else {
             const userSettingsDoc = await adminDb.collection('user_settings').doc(jobData.entity.id).get();
             settingsSource = userSettingsDoc.data();
+        }
+
+        // Override product creation based on company setting
+        if (settingsSource?.shopifyCreationDefaults?.createProducts === false) {
+            if (jobData.creationOptions.createExampleProducts === true) {
+                await updateJobStatus(jobId, 'processing', 'La creación de productos ha sido desactivada por un ajuste de la empresa.');
+            }
+            jobData.creationOptions.createExampleProducts = false;
         }
 
         const partnerClientId = settingsSource?.partnerClientId;

@@ -353,6 +353,9 @@ export interface Company {
   email?: string | null;
   seoHourlyRate?: number;
   platform?: 'woocommerce' | 'shopify';
+  shopifyCreationDefaults?: {
+    createProducts: boolean;
+  };
 }
 
 export interface User {

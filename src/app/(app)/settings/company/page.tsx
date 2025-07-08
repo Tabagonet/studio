@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 type EditableCompanyData = Omit<Company, 'id' | 'createdAt' | 'userCount'>;
@@ -29,6 +30,9 @@ const INITIAL_COMPANY_DATA: EditableCompanyData = {
     email: '',
     seoHourlyRate: 10,
     platform: 'woocommerce',
+    shopifyCreationDefaults: {
+        createProducts: true,
+    }
 };
 
 export default function CompanySettingsPage() {
@@ -70,10 +74,16 @@ export default function CompanySettingsPage() {
             
             const response = await fetch(url.toString(), { headers: { 'Authorization': `Bearer ${token}` } });
             
-            let data = INITIAL_COMPANY_DATA;
+            let data: Company = INITIAL_COMPANY_DATA as Company;
             if (response.ok) {
                 const responseData = await response.json();
-                data = responseData.company || INITIAL_COMPANY_DATA;
+                const fetchedCompany = responseData.company;
+                // Merge fetched data with initial data to ensure all fields are present
+                data = {
+                  ...INITIAL_COMPANY_DATA,
+                  ...(fetchedCompany || {})
+                };
+
             } else if(response.status !== 404) {
                  toast({ title: "Error al Cargar Datos", description: (await response.json()).error || "No se pudo obtener la información de la empresa.", variant: "destructive" });
             }
@@ -265,6 +275,34 @@ export default function CompanySettingsPage() {
                                 <p className="text-xs text-muted-foreground mt-1">Este valor se usará por defecto en el Planificador de Publicidad.</p>
                             </div>
                         </div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Automatización de Shopify</CardTitle>
+                        <CardDescription>Define los ajustes por defecto para la creación de nuevas tiendas Shopify para esta empresa.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex items-center space-x-2">
+                            <Checkbox
+                                id="create-products-default"
+                                checked={companyData.shopifyCreationDefaults?.createProducts ?? true}
+                                onCheckedChange={(checked) => setCompanyData(prev => ({
+                                    ...prev,
+                                    shopifyCreationDefaults: {
+                                        ...prev.shopifyCreationDefaults,
+                                        createProducts: !!checked,
+                                    }
+                                }))}
+                                disabled={isSaving}
+                            />
+                            <Label htmlFor="create-products-default" className="text-sm font-normal cursor-pointer">
+                                Crear productos de ejemplo por defecto en nuevas tiendas Shopify
+                            </Label>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 pl-6">
+                            Si se desmarca, no se crearán productos aunque el solicitante (ej. el chatbot) lo pida.
+                        </p>
                     </CardContent>
                 </Card>
                 <Card>
