@@ -36,14 +36,6 @@ const INITIAL_COMPANY_DATA: EditableCompanyData = {
     }
 };
 
-const SHOPIFY_THEMES = [
-  { value: 'dawn', label: 'Dawn (Flexible y minimalista)' },
-  { value: 'refresh', label: 'Refresh (Atrevido y vibrante)' },
-  { value: 'craft', label: 'Craft (Artesanal y auténtico)' },
-  { value: 'sense', label: 'Sense (Energético y detallado)' },
-  { value: 'taste', label: 'Taste (Espacioso y audaz)' },
-];
-
 
 export default function CompanySettingsPage() {
     const searchParams = useSearchParams();
@@ -387,11 +379,12 @@ export default function CompanySettingsPage() {
                             </p>
 
                             <div className="pt-4 border-t">
-                               <Label htmlFor="shopify-theme">Plantilla de Tema por Defecto</Label>
-                                <Select
-                                    value={companyData.shopifyCreationDefaults?.theme || '__default__'}
-                                    onValueChange={(value) => {
-                                        const newTheme = value === '__default__' ? '' : value;
+                               <Label htmlFor="shopify-theme">Handle de la Plantilla de Tema</Label>
+                                <Input
+                                    id="shopify-theme"
+                                    value={companyData.shopifyCreationDefaults?.theme || ''}
+                                    onChange={(e) => {
+                                        const newTheme = e.target.value;
                                         setCompanyData(prev => ({
                                             ...prev,
                                             shopifyCreationDefaults: {
@@ -400,22 +393,12 @@ export default function CompanySettingsPage() {
                                             }
                                         }));
                                     }}
+                                    placeholder="Ej: dawn, refresh, taste"
                                     disabled={isSaving}
-                                >
-                                    <SelectTrigger id="shopify-theme">
-                                        <SelectValue placeholder="Tema por defecto de Shopify..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="__default__">Tema por defecto de Shopify</SelectItem>
-                                        <SelectSeparator />
-                                        {SHOPIFY_THEMES.map((theme) => (
-                                            <SelectItem key={theme.value} value={theme.value}>
-                                                {theme.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                 <p className="text-xs text-muted-foreground mt-1">La plantilla seleccionada se instalará al crear una nueva tienda de desarrollo.</p>
+                                />
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Introduce el identificador del tema (ej. 'dawn'). Esto se usa principalmente para temas gratuitos. La instalación de temas de pago no está soportada por la API de creación de tiendas de Shopify.
+                                </p>
                             </div>
                         </CardContent>
                     </Card>
