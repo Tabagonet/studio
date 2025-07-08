@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -221,6 +221,23 @@ export default function CompanySettingsPage() {
         setCompanyData(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
 
+    const editingTargetPlatform = useMemo(() => {
+        if (!editingEntityType || !editingTargetId) return null;
+        if (editingEntityType === 'company') {
+            return allCompanies.find(c => c.id === editingTargetId)?.platform || null;
+        }
+        // else entityType is 'user'
+        const user = unassignedUsers.find(u => u.uid === editingTargetId);
+        if (user) return user.platform || null;
+        
+        // Fallback for user not in unassigned list (i.e., self or company user)
+        if (currentUser?.companyId && editingTargetId === currentUser.uid) return null; // Shouldn't happen
+        if (currentUser?.uid === editingTargetId) return (currentUser as any).platform || null;
+        
+        return null;
+    }, [editingEntityType, editingTargetId, allCompanies, unassignedUsers, currentUser]);
+
+
     const renderContent = () => {
         if (isLoading) {
             return <Skeleton className="h-96 w-full" />;
@@ -296,7 +313,7 @@ export default function CompanySettingsPage() {
                     </CardContent>
                 </Card>
                 
-                {companyData.platform === 'shopify' && (
+                {editingTargetPlatform === 'shopify' && (
                     <Card>
                         <CardHeader>
                             <CardTitle>Automatización de Shopify</CardTitle>
