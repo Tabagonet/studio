@@ -1,3 +1,4 @@
+
 // src/app/(app)/settings/connections/page.tsx
 "use client";
 
@@ -25,11 +26,12 @@ interface ConnectionData {
     wordpressApiUrl: string;
     wordpressUsername: string;
     wordpressApplicationPassword: string;
+    // For existing stores
     shopifyStoreUrl: string;
-    shopifyApiKey: string;
     shopifyApiPassword: string; // This will hold the access token
-    shopifyPartnerOrgId?: string;
-    shopifyPartnerAccessToken?: string;
+    // For partner automation
+    partnerClientId: string;
+    partnerClientSecret: string;
 }
 
 type AllConnections = { [key: string]: ConnectionData };
@@ -51,10 +53,9 @@ const INITIAL_STATE: ConnectionData = {
     wordpressUsername: '',
     wordpressApplicationPassword: '',
     shopifyStoreUrl: '',
-    shopifyApiKey: '',
     shopifyApiPassword: '',
-    shopifyPartnerOrgId: '',
-    shopifyPartnerAccessToken: '',
+    partnerClientId: '',
+    partnerClientSecret: '',
 };
 
 function getHostname(url: string | null): string | null {
@@ -646,16 +647,16 @@ export default function ConnectionsPage() {
                             <Card>
                                 <CardHeader>
                                     <CardTitle>Conexión a Shopify Partners (Para Automatización)</CardTitle>
-                                    <CardDescription>Introduce las credenciales de tu cuenta de Partner para activar la creación automática de tiendas.</CardDescription>
+                                    <CardDescription>Introduce las credenciales de tu App de Partner. Esta es una configuración única que nos permite crear nuevas tiendas de desarrollo de forma totalmente automática en tu nombre.</CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
-                                    <div>
-                                        <Label htmlFor="shopifyPartnerOrgId">ID de Organización de Partner</Label>
-                                        <Input id="shopifyPartnerOrgId" name="shopifyPartnerOrgId" value={formData.shopifyPartnerOrgId || ''} onChange={handleInputChange} placeholder="Ej: 1234567" disabled={isSaving} />
+                                     <div>
+                                        <Label htmlFor="partnerClientId">Client ID de la App de Partner</Label>
+                                        <Input id="partnerClientId" name="partnerClientId" value={formData.partnerClientId || ''} onChange={handleInputChange} placeholder="Ej: 1234abcd..." disabled={isSaving} />
                                     </div>
                                     <div>
-                                        <Label htmlFor="shopifyPartnerAccessToken">Token de Acceso de la API de Partner</Label>
-                                        <Input id="shopifyPartnerAccessToken" name="shopifyPartnerAccessToken" type="password" value={formData.shopifyPartnerAccessToken || ''} onChange={handleInputChange} placeholder="shp_xxxxxxxxxxxx" disabled={isSaving}/>
+                                        <Label htmlFor="partnerClientSecret">Client Secret de la App de Partner</Label>
+                                        <Input id="partnerClientSecret" name="partnerClientSecret" type="password" value={formData.partnerClientSecret || ''} onChange={handleInputChange} placeholder="shpss_xxxxxxxxxxxx" disabled={isSaving}/>
                                     </div>
                                 </CardContent>
                             </Card>
