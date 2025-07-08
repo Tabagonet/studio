@@ -63,6 +63,30 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const { entity } = validation.data;
+
+    // Check site limit based on the entity requesting the store
+    if (entity.type === 'user') {
+        const userDoc = await adminDb.collection('users').doc(entity.id).get();
+        if (!userDoc.exists) throw new Error("El usuario especificado para crear la tienda no existe.");
+        
+        const userData = userDoc.data()!;
+        const siteLimit = userData.siteLimit ?? 1;
+
+        const jobsSnapshot = await adminDb.collection('shopify_creation_jobs')
+            .where('entity.id', '==', entity.id)
+            .where('entity.type', '==', 'user')
+            .count()
+            .get();
+        
+        const jobsCount = jobsSnapshot.data().count;
+
+        if (jobsCount >= siteLimit) {
+            return NextResponse.json({ error: `Límite de creación de tiendas (${siteLimit}) alcanzado para este usuario.` }, { status: 403 });
+        }
+    }
+    // Note: A limit check for 'company' type entities is not implemented, as limits are per-user.
+
     const jobRef = adminDb.collection('shopify_creation_jobs').doc();
     
     await jobRef.set({
