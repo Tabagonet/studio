@@ -352,6 +352,8 @@ export interface Company {
   email?: string | null;
   seoHourlyRate?: number;
   platform?: 'woocommerce' | 'shopify';
+  shopifyPartnerOrgId?: string | null;
+  shopifyPartnerAccessToken?: string | null;
 }
 
 export interface Prospect {

@@ -7,12 +7,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Loader2, Save, Building, Users, DollarSign } from "lucide-react";
+import { Loader2, Save, Building, DollarSign, KeyRound } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import type { Company, ProductPhoto } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
+import { Skeleton } from '@/components/ui/skeleton';
 
 
 type EditableCompanyData = Omit<Company, 'id' | 'createdAt' | 'userCount'>;
@@ -26,6 +27,8 @@ const INITIAL_COMPANY_DATA: EditableCompanyData = {
     email: '',
     seoHourlyRate: 10,
     platform: 'woocommerce',
+    shopifyPartnerOrgId: '',
+    shopifyPartnerAccessToken: '',
 };
 
 export default function CompanySettingsPage() {
@@ -39,7 +42,6 @@ export default function CompanySettingsPage() {
 
     const [currentUser, setCurrentUser] = useState<{ uid: string | null; role: string | null; companyId: string | null; companyName: string | null; } | null>(null);
     const [allCompanies, setAllCompanies] = useState<Company[]>([]);
-    const [isCompanyListLoading, setIsCompanyListLoading] = useState(false);
     const [editingTargetId, setEditingTargetId] = useState<string | null>(null);
 
     const fetchAllCompaniesForSuperAdmin = useCallback(async (token: string) => {
@@ -72,7 +74,7 @@ export default function CompanySettingsPage() {
             if (response.ok) {
                 const responseData = await response.json();
                 data = responseData.company || INITIAL_COMPANY_DATA;
-            } else if(response.status !== 404) { // Don't toast for "not found"
+            } else if(response.status !== 404) {
                  toast({ title: "Error al Cargar Datos", description: (await response.json()).error || "No se pudo obtener la información de la empresa.", variant: "destructive" });
             }
 
@@ -116,9 +118,9 @@ export default function CompanySettingsPage() {
                            setEditingTargetId(idToEdit);
                            fetchCompanyData(user, idToEdit);
                         } else {
-                            setIsLoading(false); // No company selected yet
+                            setIsLoading(false);
                         }
-                    } else { // Regular admin
+                    } else {
                         setEditingTargetId(userData.companyId);
                         fetchCompanyData(user, userData.companyId);
                     }
@@ -191,6 +193,115 @@ export default function CompanySettingsPage() {
         setCompanyData(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
 
+    const renderContent = () => {
+        if (isLoading) {
+            return <Skeleton className="h-96 w-full" />;
+        }
+        if (currentUser?.role === 'super_admin' && !editingTargetId) {
+            return (
+                <div className="text-center text-muted-foreground p-8 border border-dashed rounded-lg">
+                    <p>Selecciona una empresa para empezar a editar.</p>
+                </div>
+            )
+        }
+        return (
+            <div className="space-y-6">
+                <Card>
+                    <CardHeader><CardTitle>Información General y Fiscal</CardTitle></CardHeader>
+                    <CardContent className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <Label htmlFor="name">Nombre de la Empresa</Label>
+                                <Input id="name" name="name" value={companyData.name || ''} onChange={handleInputChange} placeholder="Ej: Mi Gran Empresa S.L." disabled={isSaving || (currentUser?.role !== 'super_admin')} />
+                                {currentUser?.role !== 'super_admin' && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar el nombre.</p>}
+                            </div>
+                            <div>
+                                <Label htmlFor="platform">Plataforma Principal</Label>
+                                <Select 
+                                    name="platform" 
+                                    value={companyData.platform || 'woocommerce'} 
+                                    onValueChange={(value) => setCompanyData(prev => ({...prev, platform: value as any}))}
+                                    disabled={isSaving || currentUser?.role !== 'super_admin'}
+                                >
+                                    <SelectTrigger id="platform"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="woocommerce">WordPress / WooCommerce</SelectItem>
+                                        <SelectItem value="shopify">Shopify</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                {currentUser?.role !== 'super_admin' && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar la plataforma.</p>}
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <Label htmlFor="taxId">NIF/CIF (Tax ID)</Label>
+                                <Input id="taxId" name="taxId" value={companyData.taxId || ''} onChange={handleInputChange} placeholder="Ej: B12345678" disabled={isSaving} />
+                            </div>
+                            <div>
+                                <Label htmlFor="address">Dirección Fiscal</Label>
+                                <Input id="address" name="address" value={companyData.address || ''} onChange={handleInputChange} placeholder="Ej: Calle Principal 123, 28001 Madrid, España" disabled={isSaving} />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <Label htmlFor="phone">Teléfono de Contacto</Label>
+                                <Input id="phone" name="phone" value={companyData.phone || ''} onChange={handleInputChange} placeholder="Ej: +34 910 000 000" disabled={isSaving} />
+                            </div>
+                            <div>
+                                <Label htmlFor="email">Email de Contacto</Label>
+                                <Input id="email" name="email" type="email" value={companyData.email || ''} onChange={handleInputChange} placeholder="Ej: contacto@empresa.com" disabled={isSaving} />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <Label htmlFor="seoHourlyRate" className="flex items-center gap-2"><DollarSign className="h-4 w-4" />Precio Hora SEO (€)</Label>
+                                <Input id="seoHourlyRate" name="seoHourlyRate" type="number" value={companyData.seoHourlyRate || ''} onChange={handleInputChange} placeholder="10" disabled={isSaving} />
+                                <p className="text-xs text-muted-foreground mt-1">Este valor se usará por defecto en el Planificador de Publicidad.</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader><CardTitle>Logo de la Empresa</CardTitle></CardHeader>
+                    <CardContent>
+                        <ImageUploader
+                            photos={logoPhotos}
+                            onPhotosChange={setLogoPhotos}
+                            isProcessing={isSaving}
+                            maxPhotos={1}
+                        />
+                    </CardContent>
+                </Card>
+                 {companyData.platform === 'shopify' && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5" /> Credenciales de Shopify Partner</CardTitle>
+                            <CardDescription>
+                                Introduce tus credenciales de la API de Shopify Partner para habilitar la creación de tiendas de desarrollo.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div>
+                                <Label htmlFor="shopifyPartnerOrgId">ID de Organización de Partner</Label>
+                                <Input id="shopifyPartnerOrgId" name="shopifyPartnerOrgId" value={companyData.shopifyPartnerOrgId || ''} onChange={handleInputChange} placeholder="Ej: 1234567" disabled={isSaving} />
+                            </div>
+                            <div>
+                                <Label htmlFor="shopifyPartnerAccessToken">Token de Acceso de la API Partner</Label>
+                                <Input type="password" id="shopifyPartnerAccessToken" name="shopifyPartnerAccessToken" value={companyData.shopifyPartnerAccessToken || ''} onChange={handleInputChange} placeholder="shptka_xxxxxxxxxxxx" disabled={isSaving} />
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+                <div className="flex justify-end">
+                    <Button onClick={handleSave} disabled={isSaving || isLoading}>
+                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        Guardar Cambios
+                    </Button>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className="container mx-auto py-8 space-y-6">
             <Card>
@@ -222,94 +333,7 @@ export default function CompanySettingsPage() {
                 </Card>
             )}
 
-            <Card>
-                <CardHeader><CardTitle>Información General y Fiscal</CardTitle></CardHeader>
-                <CardContent className="space-y-6">
-                    {(isLoading || (currentUser?.role === 'super_admin' && !editingTargetId)) ? (
-                        <div className="space-y-4">
-                            {currentUser?.role === 'super_admin' && !editingTargetId && (
-                                <p className="text-center text-muted-foreground p-4">Selecciona una empresa para empezar a editar.</p>
-                            )}
-                             {isLoading && (
-                                <>
-                                 <div className="h-10 bg-muted rounded-md animate-pulse"></div>
-                                 <div className="h-10 bg-muted rounded-md animate-pulse"></div>
-                                 <div className="h-10 bg-muted rounded-md animate-pulse"></div>
-                                </>
-                             )}
-                        </div>
-                    ) : (
-                    <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <Label htmlFor="name">Nombre de la Empresa</Label>
-                                <Input id="name" name="name" value={companyData.name || ''} onChange={handleInputChange} placeholder="Ej: Mi Gran Empresa S.L." disabled={isSaving || (currentUser?.role !== 'super_admin')} />
-                                {currentUser?.role !== 'super_admin' && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar el nombre.</p>}
-                            </div>
-                             <div>
-                                <Label htmlFor="platform">Plataforma Principal</Label>
-                                <Select 
-                                    name="platform" 
-                                    value={companyData.platform || 'woocommerce'} 
-                                    onValueChange={(value) => setCompanyData(prev => ({...prev, platform: value as any}))}
-                                    disabled={isSaving || currentUser?.role !== 'super_admin'}
-                                >
-                                    <SelectTrigger id="platform"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="woocommerce">WordPress / WooCommerce</SelectItem>
-                                        <SelectItem value="shopify">Shopify</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                {currentUser?.role !== 'super_admin' && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar la plataforma.</p>}
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <Label htmlFor="taxId">NIF/CIF (Tax ID)</Label>
-                                <Input id="taxId" name="taxId" value={companyData.taxId || ''} onChange={handleInputChange} placeholder="Ej: B12345678" disabled={isSaving} />
-                            </div>
-                             <div>
-                                <Label htmlFor="address">Dirección Fiscal</Label>
-                                <Input id="address" name="address" value={companyData.address || ''} onChange={handleInputChange} placeholder="Ej: Calle Principal 123, 28001 Madrid, España" disabled={isSaving} />
-                            </div>
-                        </div>
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <Label htmlFor="phone">Teléfono de Contacto</Label>
-                                <Input id="phone" name="phone" value={companyData.phone || ''} onChange={handleInputChange} placeholder="Ej: +34 910 000 000" disabled={isSaving} />
-                            </div>
-                            <div>
-                                <Label htmlFor="email">Email de Contacto</Label>
-                                <Input id="email" name="email" type="email" value={companyData.email || ''} onChange={handleInputChange} placeholder="Ej: contacto@empresa.com" disabled={isSaving} />
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <Label htmlFor="seoHourlyRate" className="flex items-center gap-2"><DollarSign className="h-4 w-4" />Precio Hora SEO (€)</Label>
-                                <Input id="seoHourlyRate" name="seoHourlyRate" type="number" value={companyData.seoHourlyRate || ''} onChange={handleInputChange} placeholder="10" disabled={isSaving} />
-                                <p className="text-xs text-muted-foreground mt-1">Este valor se usará por defecto en el Planificador de Publicidad.</p>
-                            </div>
-                        </div>
-                         <div>
-                            <Label>Logo de la Empresa</Label>
-                             <ImageUploader
-                                photos={logoPhotos}
-                                onPhotosChange={setLogoPhotos}
-                                isProcessing={isSaving}
-                                maxPhotos={1}
-                            />
-                        </div>
-
-                         <div className="flex justify-end pt-4 border-t mt-4">
-                            <Button onClick={handleSave} disabled={isSaving || isLoading}>
-                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                                Guardar Datos
-                            </Button>
-                        </div>
-                    </>
-                    )}
-                </CardContent>
-            </Card>
+            {renderContent()}
         </div>
     );
 }

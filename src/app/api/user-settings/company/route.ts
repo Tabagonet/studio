@@ -38,6 +38,8 @@ const companyUpdateSchema = z.object({
     (val) => (val === "" || val === null || val === undefined ? undefined : parseFloat(String(val))),
     z.number().positive("El precio debe ser un número positivo.").optional().nullable()
   ),
+  shopifyPartnerOrgId: z.string().optional().nullable(),
+  shopifyPartnerAccessToken: z.string().optional().nullable(),
 });
 
 export async function GET(req: NextRequest) {
