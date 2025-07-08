@@ -239,7 +239,7 @@ async function createShopifyProduct(jobId: string, api: AxiosInstance, productDa
     try {
         await updateJobStatus(jobId, 'processing', `Creando producto: "${productData.title}"...`);
         
-        const payload = {
+        const payload: any = {
             product: {
                 title: productData.title,
                 body_html: productData.descriptionHtml,
@@ -248,14 +248,23 @@ async function createShopifyProduct(jobId: string, api: AxiosInstance, productDa
             }
         };
 
+        // Add a placeholder image if an image prompt was generated
+        if (productData.imagePrompt) {
+            payload.product.images = [{
+                src: 'https://placehold.co/600x600.png',
+                alt: productData.imagePrompt, // Using the prompt as alt text is good for SEO
+            }];
+        }
+
         const response = await api.post('products.json', payload);
         const createdProduct = response.data.product;
 
-        await updateJobStatus(jobId, 'processing', `Producto "${productData.title}" creado (ID: ${createdProduct.id}).`);
-
-        if (productData.imagePrompt) {
-            await updateJobStatus(jobId, 'processing', `Advertencia: La generación de imágenes está temporalmente deshabilitada. Se omitirá la imagen para "${productData.title}".`);
+        let logMessage = `Producto "${productData.title}" creado (ID: ${createdProduct.id}).`;
+        if (payload.product.images) {
+            logMessage += ' Se ha añadido una imagen de marcador de posición.';
         }
+        
+        await updateJobStatus(jobId, 'processing', logMessage);
         
     } catch (error: any) {
         const errorMessage = error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message;
@@ -325,7 +334,7 @@ async function setupBasicNavigation(jobId: string, api: AxiosInstance, createdPa
         
         // This creates links sequentially. Could be batched for minor performance gain.
         for (const link of linksToAdd) {
-            await api.post(`navigations/${mainMenu.id}/links.json`, {
+            await api.post(`navigation/${mainMenu.id}/links.json`, {
                 link: { title: link.title, url: link.url }
             });
             await updateJobStatus(jobId, 'processing', `Añadido enlace "${link.title}" al menú principal.`);
