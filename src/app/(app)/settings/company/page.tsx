@@ -226,15 +226,19 @@ export default function CompanySettingsPage() {
         if (editingEntityType === 'company') {
             return allCompanies.find(c => c.id === editingTargetId)?.platform || null;
         }
-        // else entityType is 'user'
-        const user = unassignedUsers.find(u => u.uid === editingTargetId);
-        if (user) return user.platform || null;
         
-        // Fallback for user not in unassigned list (i.e., self or company user)
-        if (currentUser?.companyId && editingTargetId === currentUser.uid) return null; // Shouldn't happen
-        if (currentUser?.uid === editingTargetId) return (currentUser as any).platform || null;
+        let userPlatform: 'woocommerce' | 'shopify' | null | undefined = null;
         
-        return null;
+        // Check unassigned users first
+        const unassignedUser = unassignedUsers.find(u => u.uid === editingTargetId);
+        if (unassignedUser) {
+            userPlatform = unassignedUser.platform;
+        } else if (currentUser?.uid === editingTargetId) {
+            // Check current user if they are the target (admin without company)
+            userPlatform = (currentUser as any)?.platform;
+        }
+        
+        return userPlatform;
     }, [editingEntityType, editingTargetId, allCompanies, unassignedUsers, currentUser]);
 
 
@@ -255,16 +259,24 @@ export default function CompanySettingsPage() {
                 </Alert>
             )
         }
+
+        const isCompany = editingEntityType === 'company';
+        const generalInfoTitle = isCompany ? 'Información General y Fiscal' : 'Información de Contacto y Facturación';
+        const nameLabel = isCompany ? 'Nombre de la Empresa' : 'Nombre de Usuario / Razón Social';
+        const taxLabel = isCompany ? 'NIF/CIF (Tax ID)' : 'NIF/CIF (Opcional)';
+        const addressLabel = isCompany ? 'Dirección Fiscal' : 'Dirección (Opcional)';
+        const canEditNameAndPlatform = currentUser?.role === 'super_admin' && isCompany;
+
         return (
             <div className="space-y-6">
                 <Card>
-                    <CardHeader><CardTitle>Información General y Fiscal</CardTitle></CardHeader>
+                    <CardHeader><CardTitle>{generalInfoTitle}</CardTitle></CardHeader>
                     <CardContent className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <Label htmlFor="name">Nombre de la Empresa</Label>
-                                <Input id="name" name="name" value={companyData.name || ''} onChange={handleInputChange} placeholder="Ej: Mi Gran Empresa S.L." disabled={isSaving || (currentUser?.role !== 'super_admin' && editingEntityType === 'company')} />
-                                {currentUser?.role !== 'super_admin' && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar el nombre.</p>}
+                                <Label htmlFor="name">{nameLabel}</Label>
+                                <Input id="name" name="name" value={companyData.name || ''} onChange={handleInputChange} placeholder="Ej: Mi Gran Empresa S.L." disabled={isSaving || !canEditNameAndPlatform} />
+                                {!canEditNameAndPlatform && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar este campo.</p>}
                             </div>
                             <div>
                                 <Label htmlFor="platform">Plataforma Principal</Label>
@@ -272,7 +284,7 @@ export default function CompanySettingsPage() {
                                     name="platform" 
                                     value={companyData.platform || 'woocommerce'} 
                                     onValueChange={(value) => setCompanyData(prev => ({...prev, platform: value as any}))}
-                                    disabled={isSaving || currentUser?.role !== 'super_admin'}
+                                    disabled={isSaving || !canEditNameAndPlatform}
                                 >
                                     <SelectTrigger id="platform"><SelectValue /></SelectTrigger>
                                     <SelectContent>
@@ -280,16 +292,16 @@ export default function CompanySettingsPage() {
                                         <SelectItem value="shopify">Shopify</SelectItem>
                                     </SelectContent>
                                 </Select>
-                                {currentUser?.role !== 'super_admin' && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar la plataforma.</p>}
+                                {!canEditNameAndPlatform && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar la plataforma.</p>}
                             </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <Label htmlFor="taxId">NIF/CIF (Tax ID)</Label>
+                                <Label htmlFor="taxId">{taxLabel}</Label>
                                 <Input id="taxId" name="taxId" value={companyData.taxId || ''} onChange={handleInputChange} placeholder="Ej: B12345678" disabled={isSaving} />
                             </div>
                             <div>
-                                <Label htmlFor="address">Dirección Fiscal</Label>
+                                <Label htmlFor="address">{addressLabel}</Label>
                                 <Input id="address" name="address" value={companyData.address || ''} onChange={handleInputChange} placeholder="Ej: Calle Principal 123, 28001 Madrid, España" disabled={isSaving} />
                             </div>
                         </div>
@@ -303,13 +315,15 @@ export default function CompanySettingsPage() {
                                 <Input id="email" name="email" type="email" value={companyData.email || ''} onChange={handleInputChange} placeholder="Ej: contacto@empresa.com" disabled={isSaving} />
                             </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <Label htmlFor="seoHourlyRate" className="flex items-center gap-2"><DollarSign className="h-4 w-4" />Precio Hora SEO (€)</Label>
-                                <Input id="seoHourlyRate" name="seoHourlyRate" type="number" value={companyData.seoHourlyRate || ''} onChange={handleInputChange} placeholder="10" disabled={isSaving} />
-                                <p className="text-xs text-muted-foreground mt-1">Este valor se usará por defecto en el Planificador de Publicidad.</p>
+                         {currentUser?.role === 'super_admin' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <Label htmlFor="seoHourlyRate" className="flex items-center gap-2"><DollarSign className="h-4 w-4" />Precio Hora SEO (€)</Label>
+                                    <Input id="seoHourlyRate" name="seoHourlyRate" type="number" value={companyData.seoHourlyRate || ''} onChange={handleInputChange} placeholder="10" disabled={isSaving} />
+                                    <p className="text-xs text-muted-foreground mt-1">Este valor se usará por defecto en el Planificador de Publicidad.</p>
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </CardContent>
                 </Card>
                 
@@ -345,7 +359,7 @@ export default function CompanySettingsPage() {
                 )}
 
                 <Card>
-                    <CardHeader><CardTitle>Logo de la Empresa</CardTitle></CardHeader>
+                    <CardHeader><CardTitle>Logo</CardTitle></CardHeader>
                     <CardContent>
                         <ImageUploader
                             photos={logoPhotos}
@@ -364,6 +378,9 @@ export default function CompanySettingsPage() {
             </div>
         );
     };
+    
+    const pageTitle = editingEntityType === 'company' ? 'Datos de la Empresa' : 'Datos de Cuenta';
+    const pageDescription = editingEntityType === 'company' ? 'Gestiona la información fiscal, de contacto y el logo de la empresa.' : 'Gestiona tus datos de contacto y logo. Estos datos pueden usarse en informes y facturas.';
 
     return (
         <div className="container mx-auto py-8 space-y-6">
@@ -372,8 +389,8 @@ export default function CompanySettingsPage() {
                     <div className="flex items-center space-x-3">
                         <Building className="h-8 w-8 text-primary" />
                         <div>
-                            <CardTitle>Datos de la Empresa</CardTitle>
-                            <CardDescription>Gestiona la información fiscal, de contacto y el logo de tu empresa. Estos datos pueden usarse en informes y facturas.</CardDescription>
+                            <CardTitle>{pageTitle}</CardTitle>
+                            <CardDescription>{pageDescription}</CardDescription>
                         </div>
                     </div>
                 </CardHeader>

@@ -58,7 +58,7 @@ export const NAV_GROUPS: NavGroup[] = [
    {
     title: 'Ajustes',
     items: [
-       { title: 'Datos de Empresa', href: '/settings/company', icon: Building, requiredRoles: ['admin', 'super_admin'], requiresCompany: true },
+       { title: 'Datos de Cuenta', href: '/settings/company', icon: Building, requiredRoles: ['admin', 'super_admin'] },
        { title: 'Gestión de Prompts IA', href: '/prompts', icon: Brain, requiredRoles: ['super_admin'] },
        { title: 'Configuración', href: '/settings', icon: Settings, requiredRoles: ['admin', 'super_admin'] },
     ]
@@ -67,8 +67,8 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'Administración',
     items: [
       { title: 'Gestión de Empresas', href: '/admin/companies', icon: Building, requiredRoles: ['super_admin'] },
-      { title: 'Gestión de Usuarios', href: '/admin/users', icon: Users, requiredRoles: ['admin', 'super_admin'], requiresCompany: true },
-      { title: 'Actividad de Usuarios', href: '/admin/activity', icon: LineChart, requiredRoles: ['admin', 'super_admin'], requiresCompany: true },
+      { title: 'Gestión de Usuarios', href: '/admin/users', icon: Users, requiredRoles: ['admin', 'super_admin'] },
+      { title: 'Actividad de Usuarios', href: '/admin/activity', icon: LineChart, requiredRoles: ['admin', 'super_admin'] },
     ]
   }
 ];
