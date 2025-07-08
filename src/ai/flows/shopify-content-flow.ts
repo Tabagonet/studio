@@ -1,11 +1,10 @@
 
 'use server';
 /**
- * @fileOverview AI content generation for Shopify stores.
+ * @fileOverview AI content generation for Shopify stores using Genkit.
  */
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
-import Handlebars from 'handlebars';
-import { z } from 'zod';
+import { ai } from '@/ai/genkit';
+import { z } from 'genkit';
 import { adminDb, admin } from '@/lib/firebase-admin';
 
 // --- Input Schema (derived from the job data) ---
@@ -26,7 +25,7 @@ const GenerationInputSchema = z.object({
     numberOfBlogPosts: z.number().optional().default(2),
   }),
 });
-type GenerationInput = z.infer<typeof GenerationInputSchema>;
+export type GenerationInput = z.infer<typeof GenerationInputSchema>;
 
 // --- Output Schema (what the AI should generate) ---
 export const GeneratedContentSchema = z.object({
@@ -55,14 +54,6 @@ export const GeneratedContentSchema = z.object({
     })).optional(),
 });
 export type GeneratedContent = z.infer<typeof GeneratedContentSchema>;
-
-
-const SAFETY_SETTINGS = [
-    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-];
 
 const SHOPIFY_CONTENT_PROMPT_TEMPLATE = `
 You are a world-class e-commerce expert, copywriter, and brand strategist. Your task is to generate the initial content for a brand-new Shopify store based on the user's input.
@@ -119,34 +110,36 @@ Based on the context, generate a JSON object with the following keys. Only inclu
 Now, generate the JSON content based on these instructions.
 `;
 
-export async function generateShopifyStoreContent(input: GenerationInput, uid: string): Promise<GeneratedContent> {
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-    const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash-latest",
-        generationConfig: { responseMimeType: "application/json" },
-        safetySettings: SAFETY_SETTINGS,
-    });
-    
-    // In a real app, this prompt would come from Firestore, but for now, we use the template.
-    const template = Handlebars.compile(SHOPIFY_CONTENT_PROMPT_TEMPLATE, { noEscape: true });
-    const finalPrompt = template(input);
-    
-    const result = await model.generateContent(finalPrompt);
-    const response = await result.response;
-    let rawJson;
+// In a real app, this prompt would come from Firestore, but for now, we use the template.
+const shopifyContentPrompt = ai.definePrompt({
+    name: 'shopifyContentPrompt',
+    input: { schema: GenerationInputSchema },
+    output: { schema: GeneratedContentSchema },
+    prompt: SHOPIFY_CONTENT_PROMPT_TEMPLATE
+});
 
-    try {
-        rawJson = JSON.parse(response.text());
-    } catch(e) {
-        console.error("Failed to parse AI JSON response:", response.text());
-        throw new Error("La IA devolvió una respuesta JSON inválida.");
+
+const generateShopifyContentFlow = ai.defineFlow(
+    {
+        name: 'generateShopifyContentFlow',
+        inputSchema: GenerationInputSchema,
+        outputSchema: GeneratedContentSchema,
+    },
+    async (input) => {
+        const { output } = await shopifyContentPrompt(input);
+        return output!;
     }
-    
-    // Increment AI usage count
-    if (adminDb && uid) {
-        const userSettingsRef = adminDb.collection('user_settings').doc(uid);
-        await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
-    }
-    
-    return GeneratedContentSchema.parse(rawJson);
+);
+
+
+export async function generateShopifyStoreContent(input: GenerationInput, uid: string): Promise<GeneratedContent> {
+  const generatedContent = await generateShopifyContentFlow(input);
+
+  // Increment AI usage count
+  if (adminDb && uid) {
+      const userSettingsRef = adminDb.collection('user_settings').doc(uid);
+      await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
+  }
+
+  return generatedContent;
 }

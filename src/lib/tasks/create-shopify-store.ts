@@ -4,8 +4,8 @@ import axios from 'axios';
 import { generateShopifyStoreContent, type GeneratedContent } from '@/ai/flows/shopify-content-flow';
 import { createShopifyApi } from '@/lib/shopify';
 import type { AxiosInstance } from 'axios';
-
-const SHOPIFY_PARTNER_API_VERSION = '2024-07';
+import { ai } from '@/ai/genkit';
+import { slugify } from '@/lib/utils';
 
 async function updateJobStatus(jobId: string, status: 'processing' | 'completed' | 'error', logMessage: string, extraData: Record<string, any> = {}) {
     if (!adminDb) return;
@@ -53,7 +53,7 @@ export async function handleCreateShopifyStore(jobId: string) {
             throw new Error('Las credenciales de Shopify Partner (Client ID/Access Token) no están configuradas para esta entidad.');
         }
 
-        const graphqlEndpoint = `https://partners.shopify.com/api/${SHOPIFY_PARTNER_API_VERSION}/graphql.json`;
+        const graphqlEndpoint = `https://partners.shopify.com/api/2024-07/graphql.json`;
 
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
@@ -180,7 +180,7 @@ export async function populateShopifyStore(jobId: string) {
             }
         }
         
-        await updateJobStatus(jobId, 'completed', '¡Proceso finalizado! La tienda ha sido creada y las páginas y productos han sido insertados.');
+        await updateJobStatus(jobId, 'completed', '¡Proceso finalizado! La tienda ha sido creada y poblada con contenido inicial.');
 
     } catch (error: any) {
         console.error(`[Job ${jobId}] Failed to populate Shopify store:`, error.message);
@@ -219,7 +219,33 @@ async function createShopifyProduct(jobId: string, api: AxiosInstance, productDa
         const response = await api.post('products.json', payload);
         const createdProduct = response.data.product;
 
-        await updateJobStatus(jobId, 'processing', `Producto "${productData.title}" creado (ID: ${createdProduct.id}). La generación de imagen se implementará en el siguiente paso.`);
+        await updateJobStatus(jobId, 'processing', `Producto "${productData.title}" creado (ID: ${createdProduct.id}).`);
+
+        if (productData.imagePrompt) {
+            await updateJobStatus(jobId, 'processing', `Generando imagen para "${productData.title}"...`);
+            
+            const { media } = await ai.generate({
+              model: 'googleai/gemini-2.0-flash-preview-image-generation',
+              prompt: productData.imagePrompt,
+              config: {
+                responseModalities: ['TEXT', 'IMAGE'],
+              },
+            });
+
+            if (media?.url) {
+                await updateJobStatus(jobId, 'processing', `Subiendo imagen a Shopify para "${productData.title}"...`);
+                const base64Image = media.url.substring(media.url.indexOf(',') + 1);
+
+                await api.post(`products/${createdProduct.id}/images.json`, {
+                    image: {
+                        attachment: base64Image,
+                        filename: `${slugify(productData.title)}.png`
+                    }
+                });
+            } else {
+                 await updateJobStatus(jobId, 'processing', `Advertencia: no se pudo generar la imagen para "${productData.title}".`);
+            }
+        }
         
     } catch (error: any) {
         const errorMessage = error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message;
