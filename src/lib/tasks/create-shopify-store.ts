@@ -4,7 +4,6 @@ import axios from 'axios';
 import { generateShopifyStoreContent, type GeneratedContent } from '@/ai/flows/shopify-content-flow';
 import { createShopifyApi } from '@/lib/shopify';
 import type { AxiosInstance } from 'axios';
-import { ai } from '@/ai/genkit';
 import { slugify } from '@/lib/utils';
 
 async function updateJobStatus(jobId: string, status: 'processing' | 'completed' | 'error', logMessage: string, extraData: Record<string, any> = {}) {
@@ -222,29 +221,8 @@ async function createShopifyProduct(jobId: string, api: AxiosInstance, productDa
         await updateJobStatus(jobId, 'processing', `Producto "${productData.title}" creado (ID: ${createdProduct.id}).`);
 
         if (productData.imagePrompt) {
-            await updateJobStatus(jobId, 'processing', `Generando imagen para "${productData.title}"...`);
-            
-            const { media } = await ai.generate({
-              model: 'googleai/gemini-2.0-flash-preview-image-generation',
-              prompt: productData.imagePrompt,
-              config: {
-                responseModalities: ['TEXT', 'IMAGE'],
-              },
-            });
-
-            if (media?.url) {
-                await updateJobStatus(jobId, 'processing', `Subiendo imagen a Shopify para "${productData.title}"...`);
-                const base64Image = media.url.substring(media.url.indexOf(',') + 1);
-
-                await api.post(`products/${createdProduct.id}/images.json`, {
-                    image: {
-                        attachment: base64Image,
-                        filename: `${slugify(productData.title)}.png`
-                    }
-                });
-            } else {
-                 await updateJobStatus(jobId, 'processing', `Advertencia: no se pudo generar la imagen para "${productData.title}".`);
-            }
+            // Temporarily disable image generation until Genkit issues are resolved.
+            await updateJobStatus(jobId, 'processing', `Advertencia: La generación de imágenes está temporalmente deshabilitada. Se omitirá la imagen para "${productData.title}".`);
         }
         
     } catch (error: any) {

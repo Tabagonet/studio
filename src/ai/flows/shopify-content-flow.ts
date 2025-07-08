@@ -1,11 +1,12 @@
 
 'use server';
 /**
- * @fileOverview AI content generation for Shopify stores using Genkit.
+ * @fileOverview AI content generation for Shopify stores.
  */
-import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { adminDb, admin } from '@/lib/firebase-admin';
+import { z } from 'zod';
+import Handlebars from 'handlebars';
 
 // --- Input Schema (derived from the job data) ---
 const GenerationInputSchema = z.object({
@@ -110,36 +111,30 @@ Based on the context, generate a JSON object with the following keys. Only inclu
 Now, generate the JSON content based on these instructions.
 `;
 
-// In a real app, this prompt would come from Firestore, but for now, we use the template.
-const shopifyContentPrompt = ai.definePrompt({
-    name: 'shopifyContentPrompt',
-    input: { schema: GenerationInputSchema },
-    output: { schema: GeneratedContentSchema },
-    prompt: SHOPIFY_CONTENT_PROMPT_TEMPLATE
-});
-
-
-const generateShopifyContentFlow = ai.defineFlow(
-    {
-        name: 'generateShopifyContentFlow',
-        inputSchema: GenerationInputSchema,
-        outputSchema: GeneratedContentSchema,
-    },
-    async (input) => {
-        const { output } = await shopifyContentPrompt(input);
-        return output!;
-    }
-);
-
-
 export async function generateShopifyStoreContent(input: GenerationInput, uid: string): Promise<GeneratedContent> {
-  const generatedContent = await generateShopifyContentFlow(input);
+  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+  const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash-latest", 
+      generationConfig: { responseMimeType: "application/json" }
+  });
 
+  const template = Handlebars.compile(SHOPIFY_CONTENT_PROMPT_TEMPLATE, { noEscape: true });
+  const finalPrompt = template(input);
+  
+  const result = await model.generateContent(finalPrompt);
+  const response = await result.response;
+  let rawJson;
+  try {
+      rawJson = JSON.parse(response.text());
+  } catch(e) {
+      throw new Error("La IA devolvió una respuesta JSON inválida.");
+  }
+  
   // Increment AI usage count
   if (adminDb && uid) {
       const userSettingsRef = adminDb.collection('user_settings').doc(uid);
       await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
   }
 
-  return generatedContent;
+  return GeneratedContentSchema.parse(rawJson);
 }
