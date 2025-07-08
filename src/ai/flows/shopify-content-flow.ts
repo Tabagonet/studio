@@ -37,6 +37,10 @@ export const GeneratedContentSchema = z.object({
         title: z.string(),
         htmlContent: z.string(),
     }).optional(),
+    legalPages: z.array(z.object({
+        title: z.string(),
+        htmlContent: z.string(),
+    })).optional().describe("An array containing objects for Privacy Policy, Terms of Service, etc."),
     exampleProducts: z.array(z.object({
         title: z.string(),
         descriptionHtml: z.string(),
@@ -82,14 +86,20 @@ Based on the context, generate a JSON object with the following keys. Only inclu
     -   "title": A title for the "Contact Us" page.
     -   "htmlContent": A simple contact page body, including placeholders for a contact form and business details.
 
-3.  **"exampleProducts" (array of objects):**
+3.  **"legalPages" (array of objects):**
+    -   Generate standard legal pages (Privacy Policy, Terms of Service).
+    -   Use placeholders like \`[Nombre del Negocio]\`, \`[Email de Contacto]\`, \`[Dirección]\` where appropriate.
+    -   "title": The title of the legal page (e.g., "Política de Privacidad").
+    -   "htmlContent": The full HTML content of the page.
+
+4.  **"exampleProducts" (array of objects):**
     -   Generate {{creationOptions.numberOfProducts}} distinct product examples.
     -   "title": A catchy, SEO-friendly product name.
     -   "descriptionHtml": A detailed and persuasive product description using HTML.
     -   "tags": An array of 3-5 relevant string tags for the product.
     -   "imagePrompt": A detailed text-to-image prompt (like for DALL-E or Midjourney) that could be used to generate a high-quality, professional photo for this product.
 
-4.  **"blogPosts" (array of objects):**
+5.  **"blogPosts" (array of objects):**
     -   Generate {{creationOptions.numberOfBlogPosts}} distinct blog post examples.
     -   "title": An engaging, SEO-friendly blog post title.
     -   "contentHtml": A short but well-structured blog post (2-3 paragraphs) with headings.
@@ -98,6 +108,7 @@ Based on the context, generate a JSON object with the following keys. Only inclu
 **CONTENT GENERATION OPTIONS:**
 - Generate "aboutPage": {{creationOptions.createAboutPage}}
 - Generate "contactPage": {{creationOptions.createContactPage}}
+- Generate "legalPages": {{creationOptions.createLegalPages}}
 - Generate "exampleProducts": {{creationOptions.createExampleProducts}}
 - Generate "blogPosts": {{creationOptions.createBlogWithPosts}}
 

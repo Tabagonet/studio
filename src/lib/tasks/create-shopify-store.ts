@@ -1,11 +1,11 @@
 
 import { admin, adminDb } from '@/lib/firebase-admin';
 import axios from 'axios';
-import { generateShopifyStoreContent } from '@/ai/flows/shopify-content-flow';
+import { generateShopifyStoreContent, type GeneratedContent } from '@/ai/flows/shopify-content-flow';
 import { createShopifyApi } from '@/lib/shopify';
+import type { AxiosInstance } from 'axios';
 
 const SHOPIFY_PARTNER_API_VERSION = '2024-07';
-const SHOPIFY_REDIRECT_URI = 'https://autopress.intelvisual.es/api/shopify/auth/callback';
 
 async function updateJobStatus(jobId: string, status: 'processing' | 'completed' | 'error', logMessage: string, extraData: Record<string, any> = {}) {
     if (!adminDb) return;
@@ -53,8 +53,8 @@ export async function handleCreateShopifyStore(jobId: string) {
         const partnerClientId = settingsSource?.partnerClientId;
         const partnerAccessToken = settingsSource?.partnerAccessToken;
 
-        if (!settingsSource?.partnerClientId || !settingsSource?.partnerAccessToken) {
-            throw new Error('Las credenciales de Shopify Partner (Client ID/Secret y Access Token) no están configuradas para esta entidad.');
+        if (!partnerClientId || !partnerAccessToken) {
+            throw new Error('Las credenciales de Shopify Partner (Client ID/Access Token) no están configuradas para esta entidad.');
         }
 
         const graphqlEndpoint = `https://partners.shopify.com/api/${SHOPIFY_PARTNER_API_VERSION}/graphql.json`;
@@ -83,7 +83,7 @@ export async function handleCreateShopifyStore(jobId: string) {
                 name: jobData.storeName,
                 businessEmail: jobData.businessEmail,
                 countryCode: jobData.countryCode,
-                appId: partnerClientId, // Instruct Shopify to install our app
+                appId: partnerClientId,
             }
         };
 
@@ -150,9 +150,7 @@ export async function populateShopifyStore(jobId: string) {
 
         // PHASE 3: AI Content Generation
         await updateJobStatus(jobId, 'processing', 'Generando contenido con IA...');
-        
         const generatedContent = await generateShopifyStoreContent(jobData, entityUid);
-        
         await updateJobStatus(jobId, 'processing', 'Contenido generado. Guardando resultados y preparando para poblar la tienda...', {
             generatedContent: generatedContent,
         });
@@ -160,20 +158,45 @@ export async function populateShopifyStore(jobId: string) {
         // PHASE 4: Populate the store
         const shopifyApi = createShopifyApi({ url: jobData.createdStoreUrl, accessToken: jobData.storeAccessToken });
         if (!shopifyApi) throw new Error("No se pudo inicializar el cliente de la API de Shopify para la nueva tienda.");
+        await updateJobStatus(jobId, 'processing', 'Cliente de API de tienda creado. Iniciando población de contenido...');
 
-        // Here you would add the logic to create pages, products, etc.
-        // For now, we'll just log it.
-        await updateJobStatus(jobId, 'processing', 'Cliente de API de tienda creado. (Lógica de población pendiente)');
-        
-        // TODO: Implement page creation
+        // 4.1 Create pages
+        if (jobData.creationOptions.createAboutPage && generatedContent.aboutPage) {
+            await createShopifyPage(jobId, shopifyApi, generatedContent.aboutPage);
+        }
+        if (jobData.creationOptions.createContactPage && generatedContent.contactPage) {
+             await createShopifyPage(jobId, shopifyApi, generatedContent.contactPage);
+        }
+        if (jobData.creationOptions.createLegalPages && generatedContent.legalPages) {
+            for (const page of generatedContent.legalPages) {
+                 await createShopifyPage(jobId, shopifyApi, page);
+            }
+        }
+
         // TODO: Implement product creation (including image generation and upload)
         // TODO: Implement blog creation
         // TODO: Implement navigation setup
 
-        await updateJobStatus(jobId, 'completed', '¡Proceso finalizado! La tienda ha sido creada y el contenido está listo para ser insertado.');
+        await updateJobStatus(jobId, 'completed', '¡Proceso finalizado! La tienda ha sido creada y las páginas han sido insertadas.');
 
     } catch (error: any) {
         console.error(`[Job ${jobId}] Failed to populate Shopify store:`, error.message);
         await updateJobStatus(jobId, 'error', `Error al poblar la tienda: ${error.message}`);
+    }
+}
+
+async function createShopifyPage(jobId: string, api: AxiosInstance, pageData: { title: string, htmlContent: string }) {
+    try {
+        await updateJobStatus(jobId, 'processing', `Creando página: "${pageData.title}"...`);
+        await api.post('pages.json', {
+            page: {
+                title: pageData.title,
+                body_html: pageData.htmlContent,
+            }
+        });
+    } catch (error: any) {
+        const errorMessage = error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message;
+        // Log the error but don't stop the whole process for one failed page
+        await updateJobStatus(jobId, 'processing', `Error al crear la página "${pageData.title}": ${errorMessage}`);
     }
 }
