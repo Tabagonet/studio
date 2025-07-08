@@ -32,8 +32,18 @@ const INITIAL_COMPANY_DATA: EditableCompanyData = {
     platform: 'woocommerce',
     shopifyCreationDefaults: {
         createProducts: true,
+        theme: '',
     }
 };
+
+const SHOPIFY_THEMES = [
+  { value: 'dawn', label: 'Dawn (Flexible y minimalista)' },
+  { value: 'refresh', label: 'Refresh (Atrevido y vibrante)' },
+  { value: 'craft', label: 'Craft (Artesanal y auténtico)' },
+  { value: 'sense', label: 'Sense (Energético y detallado)' },
+  { value: 'taste', label: 'Taste (Espacioso y audaz)' },
+];
+
 
 export default function CompanySettingsPage() {
     const searchParams = useSearchParams();
@@ -87,22 +97,21 @@ export default function CompanySettingsPage() {
                      if (companyResponse.status !== 404) toast({ title: "Error al Cargar Datos", description: (await companyResponse.json()).error, variant: "destructive" });
                 }
             } else { // type === 'user'
+                 const userDocSnap = await fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } });
+                 const userData = await userDocSnap.json();
+                 
                  const userSettingsResponse = await fetch(`/api/user-settings/connections?userId=${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
                  if (userSettingsResponse.ok) {
-                    // User settings are structured differently, so we adapt them
                     const userSettings = await userSettingsResponse.json();
-                    
-                    const userDocSnap = await fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } });
-                    const userData = await userDocSnap.json();
-                    const userName = userData?.displayName || 'Usuario Desconocido';
                     
                     dataToSet = {
                         ...INITIAL_COMPANY_DATA,
-                        name: userName, // Use the user's name
-                        ...(userSettings.companyData || {}) // Spread any company-like data they might have
+                        name: userData?.displayName || 'Usuario Desconocido',
+                        platform: userData?.platform || 'woocommerce',
+                        ...(userSettings.companyData || {})
                     };
                  } else {
-                    dataToSet = INITIAL_COMPANY_DATA as Company;
+                    dataToSet = { ...INITIAL_COMPANY_DATA, name: userData?.displayName, platform: userData?.platform } as Company;
                     if (userSettingsResponse.status !== 404) toast({ title: "Error al Cargar Datos", description: (await userSettingsResponse.json()).error, variant: "destructive" });
                  }
             }
@@ -277,8 +286,8 @@ export default function CompanySettingsPage() {
         const taxLabel = isCompany ? 'NIF/CIF (Tax ID)' : 'NIF/CIF (Opcional)';
         const addressLabel = isCompany ? 'Dirección Fiscal' : 'Dirección (Opcional)';
         
-        const canEditCompanyDetails = currentUser?.role === 'super_admin' && isCompany;
-        const canEditName = !isCompany || canEditCompanyDetails;
+        const canEditCompanyName = currentUser?.role === 'super_admin' && isCompany;
+        const canEditUserName = !isCompany;
 
         return (
             <div className="space-y-6">
@@ -288,10 +297,10 @@ export default function CompanySettingsPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <Label htmlFor="name">{nameLabel}</Label>
-                                <Input id="name" name="name" value={companyData.name || ''} onChange={handleInputChange} placeholder="Ej: Mi Gran Empresa S.L." disabled={isSaving || !canEditName} />
-                                {!canEditName && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar el nombre de la empresa.</p>}
+                                <Input id="name" name="name" value={companyData.name || ''} onChange={handleInputChange} placeholder="Ej: Mi Gran Empresa S.L." disabled={isSaving || (!canEditCompanyName && !canEditUserName)} />
+                                {!canEditCompanyName && isCompany && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar el nombre de la empresa.</p>}
                             </div>
-                           {canEditCompanyDetails && (
+                           {currentUser?.role === 'super_admin' && (
                                <div>
                                     <Label htmlFor="platform">Plataforma Principal</Label>
                                     <Select 
@@ -347,7 +356,7 @@ export default function CompanySettingsPage() {
                             <CardTitle>Automatización de Shopify</CardTitle>
                             <CardDescription>Define los ajustes por defecto para la creación de nuevas tiendas Shopify.</CardDescription>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="space-y-4">
                             <div className="flex items-center space-x-2">
                                 <Checkbox
                                     id="create-products-default"
@@ -355,7 +364,7 @@ export default function CompanySettingsPage() {
                                     onCheckedChange={(checked) => setCompanyData(prev => ({
                                         ...prev,
                                         shopifyCreationDefaults: {
-                                            ...(prev.shopifyCreationDefaults || {}),
+                                            ...(prev.shopifyCreationDefaults || { theme: '' }),
                                             createProducts: !!checked,
                                         }
                                     }))}
@@ -368,6 +377,35 @@ export default function CompanySettingsPage() {
                             <p className="text-xs text-muted-foreground mt-1 pl-6">
                                 Si se desmarca, no se crearán productos aunque el solicitante (ej. el chatbot) lo pida.
                             </p>
+
+                            <div className="pt-4 border-t">
+                               <Label htmlFor="shopify-theme">Plantilla de Tema por Defecto</Label>
+                                <Select
+                                    value={companyData.shopifyCreationDefaults?.theme || ''}
+                                    onValueChange={(value) => setCompanyData(prev => ({
+                                        ...prev,
+                                        shopifyCreationDefaults: {
+                                            ...(prev.shopifyCreationDefaults || { createProducts: true }),
+                                            theme: value,
+                                        }
+                                    }))}
+                                    disabled={isSaving}
+                                >
+                                    <SelectTrigger id="shopify-theme">
+                                        <SelectValue placeholder="Tema por defecto de Shopify..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="">Tema por defecto de Shopify</SelectItem>
+                                        <SelectSeparator />
+                                        {SHOPIFY_THEMES.map((theme) => (
+                                            <SelectItem key={theme.value} value={theme.value}>
+                                                {theme.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                 <p className="text-xs text-muted-foreground mt-1">La plantilla seleccionada se instalará al crear una nueva tienda de desarrollo.</p>
+                            </div>
                         </CardContent>
                     </Card>
                 )}

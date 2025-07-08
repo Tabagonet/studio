@@ -53,6 +53,13 @@ export async function handleCreateShopifyStore(jobId: string) {
             jobData.creationOptions.createExampleProducts = false;
         }
 
+        // Get the default theme from settings if available
+        const defaultTheme = settingsSource?.shopifyCreationDefaults?.theme;
+        if (defaultTheme) {
+             jobData.creationOptions.theme = defaultTheme;
+        }
+
+
         const partnerClientId = settingsSource?.partnerClientId;
         const partnerAccessToken = settingsSource?.partnerAccessToken;
 
@@ -81,7 +88,7 @@ export async function handleCreateShopifyStore(jobId: string) {
             }
         `;
         
-        const variables = {
+        const variables: any = {
             input: {
                 name: jobData.storeName,
                 businessEmail: jobData.businessEmail,
@@ -89,6 +96,12 @@ export async function handleCreateShopifyStore(jobId: string) {
                 appId: partnerClientId,
             }
         };
+
+        // Add theme template if specified in the job
+        if (jobData.creationOptions?.theme) {
+            variables.input.template = jobData.creationOptions.theme;
+             await updateJobStatus(jobId, 'processing', `Usando la plantilla de tema: "${jobData.creationOptions.theme}".`);
+        }
 
         const response = await axios.post(
             graphqlEndpoint,

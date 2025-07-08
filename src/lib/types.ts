@@ -356,6 +356,7 @@ export interface Company {
   platform?: 'woocommerce' | 'shopify';
   shopifyCreationDefaults?: {
     createProducts: boolean;
+    theme?: string;
   };
 }
 
@@ -417,6 +418,7 @@ export interface ShopifyCreationJob {
     createBlogWithPosts: boolean;
     numberOfBlogPosts?: number;
     setupBasicNav: boolean;
+    theme?: string;
   };
   legalInfo: {
     legalBusinessName: string;

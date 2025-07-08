@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
@@ -26,6 +27,7 @@ const shopifyStoreCreationSchema = z.object({
     createBlogWithPosts: z.boolean(),
     numberOfBlogPosts: z.number().min(0).max(5).optional(),
     setupBasicNav: z.boolean(),
+    theme: z.string().optional(),
   }),
   legalInfo: z.object({
     legalBusinessName: z.string().min(1, "El nombre legal del negocio es obligatorio."),
