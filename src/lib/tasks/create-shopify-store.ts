@@ -1,6 +1,7 @@
 
 import { admin, adminDb } from '@/lib/firebase-admin';
 import axios from 'axios';
+import { generateShopifyStoreContent } from '@/ai/flows/shopify-content-flow';
 
 const SHOPIFY_PARTNER_API_VERSION = '2024-07';
 
@@ -39,13 +40,17 @@ export async function handleCreateShopifyStore(jobId: string) {
         await updateJobStatus(jobId, 'processing', 'Obteniendo credenciales de Shopify Partner...');
         
         let settingsSource;
+        let entityUid = ''; // UID of the user who owns the settings
         if (jobData.entity.type === 'company') {
             const companyDoc = await adminDb.collection('companies').doc(jobData.entity.id).get();
             if (!companyDoc.exists) throw new Error(`Company ${jobData.entity.id} not found.`);
             settingsSource = companyDoc.data();
+            // Company-level jobs don't have a single user UID, so we can't track AI usage to a user.
+            // This is a known limitation for now.
         } else { // type is 'user'
             const userSettingsDoc = await adminDb.collection('user_settings').doc(jobData.entity.id).get();
             settingsSource = userSettingsDoc.data();
+            entityUid = jobData.entity.id;
         }
 
         if (!settingsSource?.shopifyPartnerOrgId || !settingsSource?.shopifyPartnerAccessToken) {
@@ -79,7 +84,6 @@ export async function handleCreateShopifyStore(jobId: string) {
                 name: jobData.storeName,
                 businessEmail: jobData.businessEmail,
                 countryCode: jobData.countryCode,
-                // Shopify requires a password for new dev stores, even if not used.
                 password: `P@ssword${Date.now()}!` 
             }
         };
@@ -110,11 +114,23 @@ export async function handleCreateShopifyStore(jobId: string) {
         if (!createdStore) {
             throw new Error('La API de Shopify no devolvió los datos de la tienda creada.');
         }
-
-        await updateJobStatus(jobId, 'completed', '¡Tienda creada con éxito!', {
+        
+        await updateJobStatus(jobId, 'processing', `Tienda base creada en: ${createdStore.storeUrl}`, {
             createdStoreUrl: createdStore.storeUrl,
             createdStoreAdminUrl: createdStore.adminUrl,
         });
+
+        // --- PHASE 3: AI Content Generation ---
+        await updateJobStatus(jobId, 'processing', 'Generando contenido con IA...');
+        
+        const generatedContent = await generateShopifyStoreContent(jobData, entityUid);
+        
+        await updateJobStatus(jobId, 'processing', 'Contenido generado. Guardando resultados...', {
+            generatedContent: generatedContent,
+        });
+        // --- End of Phase 3 ---
+
+        await updateJobStatus(jobId, 'completed', '¡Proceso finalizado! La tienda ha sido creada y el contenido está listo.');
         
     } catch (error: any) {
         console.error(`[Job ${jobId}] Failed to create Shopify store:`, error.message);
