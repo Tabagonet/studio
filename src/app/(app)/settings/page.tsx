@@ -14,15 +14,18 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
+import { ShopifyIcon } from '@/components/core/icons';
 
 
 type ServerConfigStatus = {
   googleAiApiKey: boolean;
   wooCommerceConfigured: boolean;
   wordPressConfigured: boolean;
+  shopifyConfigured: boolean;
   firebaseAdminSdk: boolean;
   recaptchaConfigured: boolean;
   apiKey: string | null;
+  assignedPlatform: 'woocommerce' | 'shopify' | null;
 };
 
 const StatusBadge = ({ status, loading, configuredText = "Configurada", missingText = "Falta" }: { status?: boolean, loading: boolean, configuredText?: string, missingText?: string }) => {
@@ -77,8 +80,10 @@ export default function SettingsPage() {
           try {
             const token = await user.getIdToken();
             
-            const configResponse = await fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` } });
-            const roleResponse = await fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } });
+            const configResponsePromise = fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` } });
+            const roleResponsePromise = fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } });
+
+            const [configResponse, roleResponse] = await Promise.all([configResponsePromise, roleResponsePromise]);
 
             if (!configResponse.ok) throw new Error(`Error del servidor (config): ${configResponse.status}`);
             if (!roleResponse.ok) throw new Error(`Error del servidor (verify): ${roleResponse.status}`);
@@ -316,6 +321,9 @@ export default function SettingsPage() {
   const firebaseAdminHint = "Esta clave (FIREBASE_SERVICE_ACCOUNT_JSON) es para toda la aplicación y se configura en el archivo .env del servidor.";
   const googleAiApiKeyHint = "Esta clave (GOOGLE_API_KEY) es para toda la aplicación y se configura en el archivo .env del servidor. Obtén una clave gratis desde Google AI Studio.";
   const recaptchaHint = "Las claves de reCAPTCHA (RECAPTCHA_SECRET_KEY y NEXT_PUBLIC_RECAPTCHA_SITE_KEY) son globales y se configuran en el .env del servidor.";
+  
+  const isSuperAdmin = userRole === 'super_admin';
+  const effectivePlatform = serverConfig?.assignedPlatform;
 
   return (
     <div className="container mx-auto py-8 space-y-8">
@@ -418,21 +426,35 @@ export default function SettingsPage() {
             <StatusBadge status={serverConfig?.recaptchaConfigured} loading={isLoadingConfig} />
           </div>
           
-          {/* PER-USER SETTINGS */}
-          <div className="flex items-center justify-between p-3 border rounded-md">
-            <Label className="flex items-center">
-                <Store className="h-4 w-4 mr-2 text-purple-500" />
-                Conexión WooCommerce (Tu Usuario)
-            </Label>
-            <StatusBadge status={serverConfig?.wooCommerceConfigured} loading={isLoadingConfig} />
-          </div>
-          <div className="flex items-center justify-between p-3 border rounded-md">
-            <Label className="flex items-center">
-                <Globe className="h-4 w-4 mr-2 text-blue-600" />
-                Conexión WordPress (Tu Usuario)
-            </Label>
-            <StatusBadge status={serverConfig?.wordPressConfigured} loading={isLoadingConfig} />
-          </div>
+          {/* PER-USER/COMPANY SETTINGS */}
+          {(isSuperAdmin || effectivePlatform === 'woocommerce') && (
+            <>
+              <div className="flex items-center justify-between p-3 border rounded-md">
+                <Label className="flex items-center">
+                    <Store className="h-4 w-4 mr-2 text-purple-500" />
+                    Conexión WooCommerce
+                </Label>
+                <StatusBadge status={serverConfig?.wooCommerceConfigured} loading={isLoadingConfig} />
+              </div>
+              <div className="flex items-center justify-between p-3 border rounded-md">
+                <Label className="flex items-center">
+                    <Globe className="h-4 w-4 mr-2 text-blue-600" />
+                    Conexión WordPress
+                </Label>
+                <StatusBadge status={serverConfig?.wordPressConfigured} loading={isLoadingConfig} />
+              </div>
+            </>
+          )}
+
+          {(isSuperAdmin || effectivePlatform === 'shopify') && (
+            <div className="flex items-center justify-between p-3 border rounded-md">
+                <Label className="flex items-center">
+                    <ShopifyIcon className="h-4 w-4 mr-2 text-green-600" />
+                    Conexión Shopify
+                </Label>
+                <StatusBadge status={serverConfig?.shopifyConfigured} loading={isLoadingConfig} />
+            </div>
+          )}
           
            <div className="mt-2 p-3 bg-accent/50 rounded-md flex items-start space-x-2">
             <Info className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
@@ -441,7 +463,7 @@ export default function SettingsPage() {
                 Las configuraciones marcadas como <span className="font-semibold">"(Global)"</span> se establecen en el archivo <code className="font-code bg-muted px-1 py-0.5 rounded-sm">.env</code> del servidor y afectan a toda la aplicación.
               </p>
                <p className="text-sm text-muted-foreground mt-2">
-                 Las configuraciones marcadas como <span className="font-semibold">"(Tu Usuario)"</span> son personales y se gestionan en la página de <Link href="/settings/connections" className="underline font-medium">Conexiones API</Link>.
+                 Las configuraciones de conexión son personales (o de empresa) y se gestionan en la página de <Link href="/settings/connections" className="underline font-medium">Conexiones API</Link>. Su visibilidad en este panel depende de la plataforma asignada a tu usuario o empresa.
               </p>
             </div>
           </div>
