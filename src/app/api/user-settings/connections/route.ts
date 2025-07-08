@@ -51,10 +51,9 @@ const connectionDataSchema = z.object({
     wordpressUsername: z.string().optional(),
     wordpressApplicationPassword: z.string().optional(),
     shopifyStoreUrl: shopifyUrlOrEmptyString.optional(),
-    shopifyApiKey: z.string().optional(),
     shopifyApiPassword: z.string().optional(),
-    shopifyPartnerOrgId: z.string().optional(),
-    shopifyPartnerAccessToken: z.string().optional(),
+    partnerClientId: z.string().optional(),
+    partnerClientSecret: z.string().optional(),
     promptTemplate: z.string().optional(),
 });
 

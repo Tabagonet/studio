@@ -59,12 +59,13 @@ export async function handleCreateShopifyStore(jobId: string) {
              jobData.creationOptions.theme = defaultTheme;
         }
 
-
-        const partnerClientId = settingsSource?.partnerClientId;
-        const partnerAccessToken = settingsSource?.partnerAccessToken;
+        // Use the connection named 'shopify_partner' to get these credentials
+        const partnerConnection = settingsSource?.connections?.['shopify_partner'];
+        const partnerClientId = partnerConnection?.partnerClientId;
+        const partnerAccessToken = partnerConnection?.partnerAccessToken;
 
         if (!partnerClientId || !partnerAccessToken) {
-            throw new Error('Las credenciales de Shopify Partner (Client ID/Access Token) no están configuradas para esta entidad.');
+            throw new Error('Las credenciales de Shopify Partner (Client ID/Access Token) no están configuradas para esta entidad en el perfil de conexión "shopify_partner".');
         }
 
         const graphqlEndpoint = `https://partners.shopify.com/api/2024-07/graphql.json`;

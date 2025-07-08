@@ -101,6 +101,8 @@ export async function POST(req: NextRequest) {
 
     const jobId = jobRef.id;
 
+    // In a production environment with Cloud Tasks, this would enqueue a task
+    // instead of calling the handler directly.
     handleCreateShopifyStore(jobId);
 
     return NextResponse.json({ success: true, jobId: jobId }, { status: 202 });

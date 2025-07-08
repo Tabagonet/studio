@@ -44,7 +44,7 @@ export function validateHmac(query: URLSearchParams, clientSecret: string): bool
         .join('&');
         
     const calculatedHmac = crypto
-        .createHmac('sha264', clientSecret)
+        .createHmac('sha256', clientSecret)
         .update(sortedQuery)
         .digest('hex');
 

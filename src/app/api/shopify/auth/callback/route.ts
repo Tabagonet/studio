@@ -1,6 +1,6 @@
 // src/app/api/shopify/auth/callback/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
+import { adminDb, admin } from '@/lib/firebase-admin';
 import { populateShopifyStore } from '@/lib/tasks/create-shopify-store';
 import { validateHmac } from '@/lib/api-helpers';
 import axios from 'axios';
@@ -26,8 +26,8 @@ async function getPartnerCredentials(jobId: string): Promise<{ clientId: string;
         settingsSource = userSettingsDoc.data();
     }
 
-    const partnerClientId = settingsSource?.partnerClientId;
-    const partnerClientSecret = settingsSource?.partnerClientSecret;
+    const partnerClientId = settingsSource?.connections?.['shopify_partner']?.partnerClientId;
+    const partnerClientSecret = settingsSource?.connections?.['shopify_partner']?.partnerClientSecret;
     
     if (!partnerClientId || !partnerClientSecret) {
         throw new Error('Las credenciales de Shopify Partner App (Client ID/Secret) no están configuradas.');
@@ -72,8 +72,8 @@ export async function GET(req: NextRequest) {
         // 3. Store the access token securely with the job
         await adminDb.collection('shopify_creation_jobs').doc(state).update({
             storeAccessToken: accessToken,
-            'logs': adminDb.FieldValue.arrayUnion({ timestamp: new Date(), message: 'Token de acceso de la tienda obtenido con éxito.' }),
-            'updatedAt': adminDb.FieldValue.serverTimestamp(),
+            'logs': admin.firestore.FieldValue.arrayUnion({ timestamp: new Date(), message: 'Token de acceso de la tienda obtenido con éxito.' }),
+            'updatedAt': admin.firestore.FieldValue.serverTimestamp(),
         });
         
         // 4. Trigger the next phase of the background task: populating the store
@@ -109,10 +109,10 @@ export async function GET(req: NextRequest) {
     } catch (error: any) {
         console.error(`[Shopify Callback Error] Job ID ${state}:`, error.response?.data || error.message);
         // Update the job log with the error
-        if (state) {
+        if (state && adminDb) {
             await adminDb.collection('shopify_creation_jobs').doc(state).update({
                 status: 'error',
-                logs: adminDb.FieldValue.arrayUnion({ timestamp: new Date(), message: `Error en callback de autorización: ${error.message}` }),
+                logs: admin.firestore.FieldValue.arrayUnion({ timestamp: new Date(), message: `Error en callback de autorización: ${error.message}` }),
             });
         }
         return new NextResponse(`Error en la autorización: ${error.message}`, { status: 500 });
