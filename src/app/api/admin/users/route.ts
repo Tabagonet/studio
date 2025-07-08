@@ -1,7 +1,7 @@
-
 // src/app/api/admin/users/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
+import type { Company } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,31 +43,33 @@ export async function GET(req: NextRequest) {
 
     try {
         const companiesSnapshot = await adminDb.collection('companies').get();
-        const companiesMap = new Map<string, string>();
+        const companiesMap = new Map<string, Company>();
         companiesSnapshot.forEach(doc => {
-            companiesMap.set(doc.id, doc.data().name);
+            const data = doc.data();
+            companiesMap.set(doc.id, {
+                id: doc.id,
+                name: data.name,
+                platform: data.platform || 'woocommerce',
+                createdAt: data.createdAt?.toDate()?.toISOString() || new Date().toISOString()
+            });
         });
         
-        // Base query
         let usersQuery: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = adminDb.collection('users');
 
-        // If the user is an admin (but not a super_admin), filter by their companyId
         if (adminContext.role === 'admin') {
             if (!adminContext.companyId) {
-                // An admin who is not part of a company should not see any users.
                 return NextResponse.json({ users: [] });
             }
             usersQuery = usersQuery.where('companyId', '==', adminContext.companyId);
         }
         
-        // Super_admin query remains unfiltered, getting all users.
-
         const usersSnapshot = await usersQuery.get();
 
         const users = usersSnapshot.docs.map(doc => {
             const data = doc.data();
             const createdAt = data.createdAt ? data.createdAt.toDate().toISOString() : new Date(0).toISOString();
             const companyId = data.companyId || null;
+            const companyInfo = companyId ? companiesMap.get(companyId) : null;
 
             return {
                 uid: doc.id,
@@ -79,8 +81,8 @@ export async function GET(req: NextRequest) {
                 siteLimit: data.siteLimit ?? 1,
                 createdAt: createdAt,
                 companyId: companyId,
-                companyName: companyId ? (companiesMap.get(companyId) || 'Empresa Eliminada') : null,
-                platform: data.platform || null,
+                companyName: companyInfo ? companyInfo.name : null,
+                platform: companyInfo ? companyInfo.platform : (data.platform || null),
             };
         });
 

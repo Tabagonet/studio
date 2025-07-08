@@ -6,16 +6,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User, Globe, Store, PlugZap } from "lucide-react";
+import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User, Globe, Store, PlugZap, AlertCircle } from "lucide-react";
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator, SelectLabel, SelectGroup } from '@/components/ui/select';
-import type { Company } from '@/lib/types';
+import type { Company, User as AppUser } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { ShopifyIcon } from '@/components/core/icons';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 interface ConnectionData {
     wooCommerceStoreUrl: string;
@@ -32,11 +33,6 @@ interface ConnectionData {
 }
 
 type AllConnections = { [key: string]: ConnectionData };
-
-interface BasicUser {
-    uid: string;
-    displayName: string;
-}
 
 interface SelectedEntityStatus {
     wooCommerceConfigured: boolean;
@@ -158,10 +154,11 @@ export default function ConnectionsPage() {
     
     const [currentUser, setCurrentUser] = useState<{ uid: string | null; role: string | null; companyId: string | null; companyName: string | null; } | null>(null);
     const [allCompanies, setAllCompanies] = useState<Company[]>([]);
-    const [unassignedUsers, setUnassignedUsers] = useState<BasicUser[]>([]);
+    const [unassignedUsers, setUnassignedUsers] = useState<AppUser[]>([]);
     const [isDataLoading, setIsDataLoading] = useState(false);
     
     const [editingTarget, setEditingTarget] = useState<{ type: 'user' | 'company'; id: string | null; name: string }>({ type: 'user', id: null, name: 'Mis Conexiones' });
+    const [editingTargetPlatform, setEditingTargetPlatform] = useState<'woocommerce' | 'shopify' | null>(null);
 
     const [selectedEntityStatus, setSelectedEntityStatus] = useState<SelectedEntityStatus | null>(null);
     const [isCheckingStatus, setIsCheckingStatus] = useState(false);
@@ -227,7 +224,7 @@ export default function ConnectionsPage() {
             const userData = await response.json();
             setCurrentUser(userData);
 
-            let newEditingTarget: { type: 'user' | 'company'; id: string | null; name: string; } | undefined;
+            let newEditingTarget: { type: 'user' | 'company'; id: string | null; name: string; platform: 'woocommerce' | 'shopify' | null };
 
             if (userData.role === 'super_admin') {
                 const [companiesResponse, usersResponse] = await Promise.all([
@@ -239,22 +236,21 @@ export default function ConnectionsPage() {
                     const allUsers = (await usersResponse.json()).users;
                     setUnassignedUsers(allUsers.filter((u: any) => u.role !== 'super_admin' && !u.companyId));
                 }
-                newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)' };
-            } else if (userData.role === 'admin') {
-                if (userData.companyId) {
-                    newEditingTarget = { type: 'company', id: userData.companyId, name: userData.companyName || 'Mi Empresa' };
-                } else {
-                    newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones' };
-                }
-            } else { // Regular 'user'
-                 newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones' };
+                newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)', platform: null };
+            } else {
+                const effectivePlatform = userData.companyPlatform || userData.platform;
+                newEditingTarget = { 
+                    type: userData.companyId ? 'company' : 'user', 
+                    id: userData.companyId || user.uid, 
+                    name: userData.companyName || 'Mis Conexiones',
+                    platform: effectivePlatform
+                };
             }
             
-            if (newEditingTarget) {
-                 setEditingTarget(newEditingTarget);
-                 await fetchConnections(user, newEditingTarget.type as 'user' | 'company', newEditingTarget.id);
-            }
-             setIsDataLoading(false);
+            setEditingTarget(newEditingTarget);
+            setEditingTargetPlatform(newEditingTarget.platform);
+            await fetchConnections(user, newEditingTarget.type as 'user' | 'company', newEditingTarget.id);
+            setIsDataLoading(false);
         };
         
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -320,20 +316,21 @@ export default function ConnectionsPage() {
         if (!user) return;
         
         const [type, id] = value.split(':');
-        let newEditingTarget: { type: 'user' | 'company'; id: string | null; name: string };
+        let newEditingTarget: { type: 'user' | 'company'; id: string | null; name: string, platform: 'woocommerce' | 'shopify' | null };
 
         if (type === 'user') {
             if (id === 'self') {
-                 newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)' };
+                 newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)', platform: null }; // Super admin can see both
             } else {
                 const selectedUser = unassignedUsers.find(u => u.uid === id);
-                newEditingTarget = { type: 'user', id: id, name: selectedUser?.displayName || 'Usuario Desconocido' };
+                newEditingTarget = { type: 'user', id: id, name: selectedUser?.displayName || 'Usuario Desconocido', platform: selectedUser?.platform || null };
             }
         } else { // type === 'company'
             const company = allCompanies.find(c => c.id === id);
-            newEditingTarget = { type: 'company', id: id, name: company?.name || 'Empresa Desconocida' };
+            newEditingTarget = { type: 'company', id: id, name: company?.name || 'Empresa Desconocida', platform: company?.platform || null };
         }
         setEditingTarget(newEditingTarget);
+        setEditingTargetPlatform(newEditingTarget.platform);
         fetchConnections(user, newEditingTarget.type as 'user' | 'company', newEditingTarget.id);
     };
 
@@ -464,6 +461,9 @@ export default function ConnectionsPage() {
     const title = currentUser?.role === 'super_admin' ? `Editando Conexiones para: ${editingTarget.name}` : `Conexiones API para ${currentUser?.companyName || 'Mis Conexiones'}`;
     const description = currentUser?.role === 'super_admin' ? 'Como Super Admin, puedes gestionar tus conexiones o las de cualquier empresa o usuario.' : 'Gestiona las credenciales para conectar tu empresa con servicios externos como WooCommerce y WordPress.';
     const saveButtonText = `Guardar y Activar para ${editingTarget.type === 'company' ? 'la Empresa' : 'el Usuario'}`;
+    
+    const showWooCommerce = currentUser?.role === 'super_admin' || editingTargetPlatform === 'woocommerce';
+    const showShopify = currentUser?.role === 'super_admin' || editingTargetPlatform === 'shopify';
 
     if (isDataLoading) {
         return (
@@ -570,72 +570,88 @@ export default function ConnectionsPage() {
                 <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
             ) : (
                 <div className="space-y-8">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Conexión a WordPress / WooCommerce</CardTitle>
-                            <CardDescription>Para gestionar productos y contenidos en un sitio existente.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <Label htmlFor="wooCommerceStoreUrl">URL de la Tienda WooCommerce</Label>
-                                <Input id="wooCommerceStoreUrl" name="wooCommerceStoreUrl" value={formData.wooCommerceStoreUrl || ''} onChange={handleInputChange} placeholder="https://mitienda.com" disabled={isSaving} />
-                            </div>
-                            <div>
-                                <Label htmlFor="wordpressApiUrl">URL de WordPress</Label>
-                                <Input id="wordpressApiUrl" name="wordpressApiUrl" value={formData.wordpressApiUrl || ''} onChange={handleInputChange} placeholder="https://misitio.com" disabled={isSaving}/>
-                            </div>
-                            <div>
-                                <Label htmlFor="wooCommerceApiKey">Clave de Cliente (API Key)</Label>
-                                <Input id="wooCommerceApiKey" name="wooCommerceApiKey" type="password" value={formData.wooCommerceApiKey || ''} onChange={handleInputChange} placeholder="ck_xxxxxxxxxxxx" disabled={isSaving}/>
-                            </div>
-                            <div>
-                                <Label htmlFor="wordpressUsername">Usuario de WordPress</Label>
-                                <Input id="wordpressUsername" name="wordpressUsername" value={formData.wordpressUsername || ''} onChange={handleInputChange} placeholder="Tu usuario admin" disabled={isSaving}/>
-                            </div>
-                            <div>
-                                <Label htmlFor="wooCommerceApiSecret">Clave Secreta (API Secret)</Label>
-                                <Input id="wooCommerceApiSecret" name="wooCommerceApiSecret" type="password" value={formData.wooCommerceApiSecret || ''} onChange={handleInputChange} placeholder="cs_xxxxxxxxxxxx" disabled={isSaving}/>
-                            </div>
-                            <div>
-                                <Label htmlFor="wordpressApplicationPassword">Contraseña de Aplicación</Label>
-                                <Input id="wordpressApplicationPassword" name="wordpressApplicationPassword" type="password" value={formData.wordpressApplicationPassword || ''} onChange={handleInputChange} placeholder="xxxx xxxx xxxx xxxx xxxx xxxx" disabled={isSaving}/>
-                            </div>
-                        </CardContent>
-                    </Card>
+                    {!showWooCommerce && !showShopify && currentUser?.role !== 'super_admin' && (
+                        <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertTitle>Plataforma no asignada</AlertTitle>
+                            <AlertDescription>
+                                No tienes una plataforma (WooCommerce o Shopify) asignada. Un administrador debe asignarte una para poder configurar conexiones.
+                            </AlertDescription>
+                        </Alert>
+                    )}
 
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Conexión a Tienda Shopify Existente</CardTitle>
-                            <CardDescription>Crea una App Personalizada (Custom App) en tu tienda Shopify para obtener estas credenciales.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div>
-                                <Label htmlFor="shopifyStoreUrl">URL de la Tienda (.myshopify.com)</Label>
-                                <Input id="shopifyStoreUrl" name="shopifyStoreUrl" value={formData.shopifyStoreUrl || ''} onChange={handleInputChange} placeholder="mitienda.myshopify.com" disabled={isSaving} />
-                            </div>
-                            <div>
-                                <Label htmlFor="shopifyApiPassword">Token de Acceso de Admin API</Label>
-                                <Input id="shopifyApiPassword" name="shopifyApiPassword" type="password" value={formData.shopifyApiPassword || ''} onChange={handleInputChange} placeholder="shpat_xxxxxxxxxxxx" disabled={isSaving}/>
-                            </div>
-                        </CardContent>
-                    </Card>
+                    {showWooCommerce && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Conexión a WordPress / WooCommerce</CardTitle>
+                                <CardDescription>Para gestionar productos y contenidos en un sitio existente.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <Label htmlFor="wooCommerceStoreUrl">URL de la Tienda WooCommerce</Label>
+                                    <Input id="wooCommerceStoreUrl" name="wooCommerceStoreUrl" value={formData.wooCommerceStoreUrl || ''} onChange={handleInputChange} placeholder="https://mitienda.com" disabled={isSaving} />
+                                </div>
+                                <div>
+                                    <Label htmlFor="wordpressApiUrl">URL de WordPress</Label>
+                                    <Input id="wordpressApiUrl" name="wordpressApiUrl" value={formData.wordpressApiUrl || ''} onChange={handleInputChange} placeholder="https://misitio.com" disabled={isSaving}/>
+                                </div>
+                                <div>
+                                    <Label htmlFor="wooCommerceApiKey">Clave de Cliente (API Key)</Label>
+                                    <Input id="wooCommerceApiKey" name="wooCommerceApiKey" type="password" value={formData.wooCommerceApiKey || ''} onChange={handleInputChange} placeholder="ck_xxxxxxxxxxxx" disabled={isSaving}/>
+                                </div>
+                                <div>
+                                    <Label htmlFor="wordpressUsername">Usuario de WordPress</Label>
+                                    <Input id="wordpressUsername" name="wordpressUsername" value={formData.wordpressUsername || ''} onChange={handleInputChange} placeholder="Tu usuario admin" disabled={isSaving}/>
+                                </div>
+                                <div>
+                                    <Label htmlFor="wooCommerceApiSecret">Clave Secreta (API Secret)</Label>
+                                    <Input id="wooCommerceApiSecret" name="wooCommerceApiSecret" type="password" value={formData.wooCommerceApiSecret || ''} onChange={handleInputChange} placeholder="cs_xxxxxxxxxxxx" disabled={isSaving}/>
+                                </div>
+                                <div>
+                                    <Label htmlFor="wordpressApplicationPassword">Contraseña de Aplicación</Label>
+                                    <Input id="wordpressApplicationPassword" name="wordpressApplicationPassword" type="password" value={formData.wordpressApplicationPassword || ''} onChange={handleInputChange} placeholder="xxxx xxxx xxxx xxxx xxxx xxxx" disabled={isSaving}/>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
 
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Conexión a Shopify Partners (Para Automatización)</CardTitle>
-                            <CardDescription>Introduce las credenciales de tu cuenta de Partner para activar la creación automática de tiendas.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div>
-                                <Label htmlFor="shopifyPartnerOrgId">ID de Organización de Partner</Label>
-                                <Input id="shopifyPartnerOrgId" name="shopifyPartnerOrgId" value={formData.shopifyPartnerOrgId || ''} onChange={handleInputChange} placeholder="Ej: 1234567" disabled={isSaving} />
-                            </div>
-                            <div>
-                                <Label htmlFor="shopifyPartnerAccessToken">Token de Acceso de la API de Partner</Label>
-                                <Input id="shopifyPartnerAccessToken" name="shopifyPartnerAccessToken" type="password" value={formData.shopifyPartnerAccessToken || ''} onChange={handleInputChange} placeholder="shp_xxxxxxxxxxxx" disabled={isSaving}/>
-                            </div>
-                        </CardContent>
-                    </Card>
+                    {showShopify && (
+                        <>
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Conexión a Tienda Shopify Existente</CardTitle>
+                                    <CardDescription>Crea una App Personalizada (Custom App) en tu tienda Shopify para obtener estas credenciales.</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div>
+                                        <Label htmlFor="shopifyStoreUrl">URL de la Tienda (.myshopify.com)</Label>
+                                        <Input id="shopifyStoreUrl" name="shopifyStoreUrl" value={formData.shopifyStoreUrl || ''} onChange={handleInputChange} placeholder="mitienda.myshopify.com" disabled={isSaving} />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="shopifyApiPassword">Token de Acceso de Admin API</Label>
+                                        <Input id="shopifyApiPassword" name="shopifyApiPassword" type="password" value={formData.shopifyApiPassword || ''} onChange={handleInputChange} placeholder="shpat_xxxxxxxxxxxx" disabled={isSaving}/>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Conexión a Shopify Partners (Para Automatización)</CardTitle>
+                                    <CardDescription>Introduce las credenciales de tu cuenta de Partner para activar la creación automática de tiendas.</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div>
+                                        <Label htmlFor="shopifyPartnerOrgId">ID de Organización de Partner</Label>
+                                        <Input id="shopifyPartnerOrgId" name="shopifyPartnerOrgId" value={formData.shopifyPartnerOrgId || ''} onChange={handleInputChange} placeholder="Ej: 1234567" disabled={isSaving} />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="shopifyPartnerAccessToken">Token de Acceso de la API de Partner</Label>
+                                        <Input id="shopifyPartnerAccessToken" name="shopifyPartnerAccessToken" type="password" value={formData.shopifyPartnerAccessToken || ''} onChange={handleInputChange} placeholder="shp_xxxxxxxxxxxx" disabled={isSaving}/>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </>
+                    )}
                     
                     <div className="flex flex-col-reverse gap-4 pt-6 mt-6 border-t md:flex-row md:justify-between md:items-center">
                         <div>
