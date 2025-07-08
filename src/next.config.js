@@ -1,4 +1,3 @@
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
@@ -16,6 +15,8 @@ const nextConfig = {
       'sharp',
       'genkit',
       '@genkit/google-ai',
+      'glob',
+      'es-main',
     ],
   },
   images: {
