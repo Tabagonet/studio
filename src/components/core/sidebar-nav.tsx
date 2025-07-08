@@ -25,6 +25,7 @@ interface UserData {
   role: string | null;
   platform?: 'woocommerce' | 'shopify' | null;
   companyPlatform?: 'woocommerce' | 'shopify' | null;
+  companyId?: string | null;
 }
 
 interface ConfigStatus {
@@ -143,6 +144,10 @@ export function SidebarNav() {
         
         const hasRequiredPlatform = !group.requiredPlatform || (effectivePlatform && group.requiredPlatform === effectivePlatform);
         if (!hasRequiredPlatform) return false;
+
+        if (item.requiresCompany) {
+            return !!userData?.companyId;
+        }
 
         return true;
       });

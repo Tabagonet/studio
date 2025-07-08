@@ -1,3 +1,4 @@
+
 // src/app/api/user-settings/connections/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -53,6 +54,8 @@ const connectionDataSchema = z.object({
     shopifyStoreUrl: shopifyUrlOrEmptyString.optional(),
     shopifyApiKey: z.string().optional(),
     shopifyApiPassword: z.string().optional(),
+    shopifyPartnerOrgId: z.string().optional(),
+    shopifyPartnerAccessToken: z.string().optional(),
     promptTemplate: z.string().optional(),
 });
 
@@ -67,23 +70,22 @@ export async function GET(req: NextRequest) {
         const targetUserId = req.nextUrl.searchParams.get('userId');
         let settingsDoc;
         
+        let targetRef;
         if (role === 'super_admin') {
-            if (targetUserId) {
-                settingsDoc = await adminDb.collection('user_settings').doc(targetUserId).get();
-            } else if (targetCompanyId) {
-                settingsDoc = await adminDb.collection('companies').doc(targetCompanyId).get();
+            if (targetCompanyId) {
+                targetRef = adminDb.collection('companies').doc(targetCompanyId);
             } else {
-                settingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+                targetRef = adminDb.collection('user_settings').doc(targetUserId || uid);
             }
-        } else if (role === 'admin') {
-            if (userCompanyId) {
-                 settingsDoc = await adminDb.collection('companies').doc(userCompanyId).get();
+        } else { // 'admin' or regular user
+             if (userCompanyId) {
+                 targetRef = adminDb.collection('companies').doc(userCompanyId);
             } else {
-                 settingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+                 targetRef = adminDb.collection('user_settings').doc(uid);
             }
-        } else {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
+        
+        settingsDoc = await targetRef.get();
 
         if (settingsDoc && settingsDoc.exists) {
             const data = settingsDoc.data();
@@ -130,19 +132,15 @@ export async function POST(req: NextRequest) {
         if (role === 'super_admin') {
             if (targetCompanyId) {
                 settingsRef = adminDb.collection('companies').doc(targetCompanyId);
-            } else if (targetUserId) {
-                settingsRef = adminDb.collection('user_settings').doc(targetUserId);
             } else {
-                settingsRef = adminDb.collection('user_settings').doc(uid);
+                settingsRef = adminDb.collection('user_settings').doc(targetUserId || uid);
             }
-        } else if (role === 'admin') {
+        } else { // 'admin' or regular user
             if (userCompanyId) {
                 settingsRef = adminDb.collection('companies').doc(userCompanyId);
             } else {
                 settingsRef = adminDb.collection('user_settings').doc(uid);
             }
-        } else {
-             return NextResponse.json({ error: 'Forbidden. User role does not have permissions to save connections.' }, { status: 403 });
         }
         
         const settingsSnap = await settingsRef.get();
@@ -226,19 +224,15 @@ export async function DELETE(req: NextRequest) {
         if (role === 'super_admin') {
             if (targetCompanyId) {
                 settingsRef = adminDb.collection('companies').doc(targetCompanyId);
-            } else if (targetUserId) {
-                settingsRef = adminDb.collection('user_settings').doc(targetUserId);
             } else {
-                settingsRef = adminDb.collection('user_settings').doc(uid);
+                settingsRef = adminDb.collection('user_settings').doc(targetUserId || uid);
             }
-        } else if (role === 'admin') {
+        } else { // 'admin' or 'user'
             if (userCompanyId) {
                 settingsRef = adminDb.collection('companies').doc(userCompanyId);
             } else {
                 settingsRef = adminDb.collection('user_settings').doc(uid);
             }
-        } else {
-             return NextResponse.json({ error: 'Forbidden. No permissions to delete connections.' }, { status: 403 });
         }
         
         const doc = await settingsRef.get();

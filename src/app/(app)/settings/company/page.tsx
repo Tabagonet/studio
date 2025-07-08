@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -7,13 +8,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Loader2, Save, Building, DollarSign, KeyRound } from "lucide-react";
+import { Loader2, Save, Building, DollarSign } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import type { Company, ProductPhoto } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 
 type EditableCompanyData = Omit<Company, 'id' | 'createdAt' | 'userCount'>;
@@ -27,8 +29,6 @@ const INITIAL_COMPANY_DATA: EditableCompanyData = {
     email: '',
     seoHourlyRate: 10,
     platform: 'woocommerce',
-    shopifyPartnerOrgId: '',
-    shopifyPartnerAccessToken: '',
 };
 
 export default function CompanySettingsPage() {
@@ -197,11 +197,17 @@ export default function CompanySettingsPage() {
         if (isLoading) {
             return <Skeleton className="h-96 w-full" />;
         }
-        if (currentUser?.role === 'super_admin' && !editingTargetId) {
+        if ((currentUser?.role === 'admin' && !currentUser?.companyId) || (currentUser?.role === 'super_admin' && !editingTargetId)) {
             return (
-                <div className="text-center text-muted-foreground p-8 border border-dashed rounded-lg">
-                    <p>Selecciona una empresa para empezar a editar.</p>
-                </div>
+                <Alert>
+                    <Building className="h-4 w-4" />
+                    <AlertTitle>No hay una empresa seleccionada</AlertTitle>
+                    <AlertDescription>
+                        {currentUser?.role === 'super_admin' 
+                            ? "Por favor, selecciona una empresa de la lista para editar sus datos." 
+                            : "Tu cuenta de administrador no está asignada a ninguna empresa. Un Super Admin debe asignarte a una para que puedas editar estos datos."}
+                    </AlertDescription>
+                </Alert>
             )
         }
         return (
@@ -272,26 +278,6 @@ export default function CompanySettingsPage() {
                         />
                     </CardContent>
                 </Card>
-                 {companyData.platform === 'shopify' && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5" /> Credenciales de Shopify Partner</CardTitle>
-                            <CardDescription>
-                                Introduce tus credenciales de la API de Shopify Partner para habilitar la creación de tiendas de desarrollo.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                            <div>
-                                <Label htmlFor="shopifyPartnerOrgId">ID de Organización de Partner</Label>
-                                <Input id="shopifyPartnerOrgId" name="shopifyPartnerOrgId" value={companyData.shopifyPartnerOrgId || ''} onChange={handleInputChange} placeholder="Ej: 1234567" disabled={isSaving} />
-                            </div>
-                            <div>
-                                <Label htmlFor="shopifyPartnerAccessToken">Token de Acceso de la API Partner</Label>
-                                <Input type="password" id="shopifyPartnerAccessToken" name="shopifyPartnerAccessToken" value={companyData.shopifyPartnerAccessToken || ''} onChange={handleInputChange} placeholder="shptka_xxxxxxxxxxxx" disabled={isSaving} />
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
                 <div className="flex justify-end">
                     <Button onClick={handleSave} disabled={isSaving || isLoading}>
                         {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
