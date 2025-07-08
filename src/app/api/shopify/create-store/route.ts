@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
+import { handleCreateShopifyStore } from '@/lib/tasks/create-shopify-store';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +31,11 @@ const shopifyStoreCreationSchema = z.object({
     legalBusinessName: z.string().min(1, "El nombre legal del negocio es obligatorio."),
     businessAddress: z.string().min(1, "La dirección del negocio es obligatoria."),
   }),
+  // New field to link the job to a user or company
+  entity: z.object({
+    type: z.enum(['user', 'company']),
+    id: z.string(),
+  })
 });
 
 
@@ -73,10 +79,10 @@ export async function POST(req: NextRequest) {
 
     const jobId = jobRef.id;
 
-    // 4. (Simulated) Enqueue a task in Google Cloud Tasks
-    // This is where you would add the job to Cloud Tasks, passing the jobId.
-    // For now, creating the document is enough to simulate the start of the process.
-    console.log(`Job ${jobId} created. In a real scenario, this would now be enqueued in Cloud Tasks.`);
+    // 4. Trigger the background task handler (fire-and-forget)
+    // We don't `await` this. The API responds immediately while the task runs in the background.
+    // This will be replaced by a Cloud Task in a later phase for better reliability.
+    handleCreateShopifyStore(jobId);
 
     // 5. Respond immediately
     return NextResponse.json({ success: true, jobId: jobId }, { status: 202 });
