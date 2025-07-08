@@ -87,18 +87,26 @@ export default function CompanySettingsPage() {
             const token = await user.getIdToken();
             
             let dataToSet: Company;
+            let entityName = 'Usuario Desconocido';
+            let entityPlatform: 'woocommerce' | 'shopify' | null = 'woocommerce';
 
             if (type === 'company') {
                 const companyResponse = await fetch(`/api/user-settings/company?companyId=${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                const companyDetails = allCompanies.find(c => c.id === id);
+                entityName = companyDetails?.name || 'Empresa Desconocida';
+                entityPlatform = companyDetails?.platform || 'woocommerce';
+
                 if (companyResponse.ok) {
-                    dataToSet = { ...INITIAL_COMPANY_DATA, ...(await companyResponse.json()).company };
+                    dataToSet = { ...INITIAL_COMPANY_DATA, name: entityName, platform: entityPlatform, ...(await companyResponse.json()).company };
                 } else {
-                     dataToSet = INITIAL_COMPANY_DATA as Company;
+                     dataToSet = { ...INITIAL_COMPANY_DATA, name: entityName, platform: entityPlatform } as Company;
                      if (companyResponse.status !== 404) toast({ title: "Error al Cargar Datos", description: (await companyResponse.json()).error, variant: "destructive" });
                 }
             } else { // type === 'user'
                  const userDocSnap = await fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } });
                  const userData = await userDocSnap.json();
+                 entityName = userData?.displayName || 'Usuario Desconocido';
+                 entityPlatform = userData?.platform || 'woocommerce';
                  
                  const userSettingsResponse = await fetch(`/api/user-settings/connections?userId=${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
                  if (userSettingsResponse.ok) {
@@ -106,12 +114,12 @@ export default function CompanySettingsPage() {
                     
                     dataToSet = {
                         ...INITIAL_COMPANY_DATA,
-                        name: userData?.displayName || 'Usuario Desconocido',
-                        platform: userData?.platform || 'woocommerce',
+                        name: entityName,
+                        platform: entityPlatform,
                         ...(userSettings.companyData || {})
                     };
                  } else {
-                    dataToSet = { ...INITIAL_COMPANY_DATA, name: userData?.displayName, platform: userData?.platform } as Company;
+                    dataToSet = { ...INITIAL_COMPANY_DATA, name: entityName, platform: entityPlatform } as Company;
                     if (userSettingsResponse.status !== 404) toast({ title: "Error al Cargar Datos", description: (await userSettingsResponse.json()).error, variant: "destructive" });
                  }
             }
@@ -129,7 +137,7 @@ export default function CompanySettingsPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [toast]);
+    }, [toast, allCompanies]);
     
     const handleTargetSelection = (value: string) => {
         const [type, id] = value.split(':');
@@ -381,21 +389,24 @@ export default function CompanySettingsPage() {
                             <div className="pt-4 border-t">
                                <Label htmlFor="shopify-theme">Plantilla de Tema por Defecto</Label>
                                 <Select
-                                    value={companyData.shopifyCreationDefaults?.theme || ''}
-                                    onValueChange={(value) => setCompanyData(prev => ({
-                                        ...prev,
-                                        shopifyCreationDefaults: {
-                                            ...(prev.shopifyCreationDefaults || { createProducts: true }),
-                                            theme: value,
-                                        }
-                                    }))}
+                                    value={companyData.shopifyCreationDefaults?.theme || '__default__'}
+                                    onValueChange={(value) => {
+                                        const newTheme = value === '__default__' ? '' : value;
+                                        setCompanyData(prev => ({
+                                            ...prev,
+                                            shopifyCreationDefaults: {
+                                                ...(prev.shopifyCreationDefaults || { createProducts: true }),
+                                                theme: newTheme,
+                                            }
+                                        }));
+                                    }}
                                     disabled={isSaving}
                                 >
                                     <SelectTrigger id="shopify-theme">
                                         <SelectValue placeholder="Tema por defecto de Shopify..." />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="">Tema por defecto de Shopify</SelectItem>
+                                        <SelectItem value="__default__">Tema por defecto de Shopify</SelectItem>
                                         <SelectSeparator />
                                         {SHOPIFY_THEMES.map((theme) => (
                                             <SelectItem key={theme.value} value={theme.value}>
