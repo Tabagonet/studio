@@ -81,7 +81,6 @@ export async function POST(req: NextRequest) {
 
     // 4. Trigger the background task handler (fire-and-forget)
     // We don't `await` this. The API responds immediately while the task runs in the background.
-    // This will be replaced by a Cloud Task in a later phase for better reliability.
     handleCreateShopifyStore(jobId);
 
     // 5. Respond immediately

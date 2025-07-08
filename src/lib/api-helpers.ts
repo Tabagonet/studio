@@ -10,6 +10,7 @@ import axios from 'axios';
 import FormData from 'form-data';
 import type { ExtractedWidget } from './types';
 import sharp from 'sharp';
+import crypto from 'crypto';
 
 
 interface ApiClients {
@@ -19,6 +20,37 @@ interface ApiClients {
   activeConnectionKey: string | null;
   settings: admin.firestore.DocumentData | undefined;
 }
+
+/**
+ * Validates an HMAC signature from a Shopify webhook or auth redirect.
+ * @param query The URL search parameters from the request.
+ * @param clientSecret The Shopify App's client secret.
+ * @returns {boolean} True if the HMAC is valid, false otherwise.
+ */
+export function validateHmac(query: URLSearchParams, clientSecret: string): boolean {
+    const hmac = query.get('hmac');
+    if (!hmac) return false;
+
+    const queryParams: { [key: string]: string } = {};
+    query.forEach((value, key) => {
+        if (key !== 'hmac') {
+            queryParams[key] = value;
+        }
+    });
+    
+    const sortedQuery = Object.keys(queryParams)
+        .sort()
+        .map(key => `${key}=${queryParams[key]}`)
+        .join('&');
+        
+    const calculatedHmac = crypto
+        .createHmac('sha264', clientSecret)
+        .update(sortedQuery)
+        .digest('hex');
+
+    return crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(calculatedHmac));
+}
+
 
 /**
  * Fetches the active user-specific or company-specific credentials and creates API clients.
