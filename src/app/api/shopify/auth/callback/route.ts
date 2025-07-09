@@ -69,6 +69,10 @@ export async function GET(req: NextRequest) {
             throw new Error("No se recibió un token de acceso de Shopify.");
         }
 
+        if (!adminDb || !admin.firestore.FieldValue) {
+            throw new Error("El servicio de base de datos no está disponible.");
+        }
+
         // 3. Store the access token securely with the job
         await adminDb.collection('shopify_creation_jobs').doc(state).update({
             storeAccessToken: accessToken,
@@ -109,7 +113,7 @@ export async function GET(req: NextRequest) {
     } catch (error: any) {
         console.error(`[Shopify Callback Error] Job ID ${state}:`, error.response?.data || error.message);
         // Update the job log with the error
-        if (state && adminDb) {
+        if (state && adminDb && admin.firestore.FieldValue) {
             await adminDb.collection('shopify_creation_jobs').doc(state).update({
                 status: 'error',
                 logs: admin.firestore.FieldValue.arrayUnion({ timestamp: new Date(), message: `Error en callback de autorización: ${error.message}` }),

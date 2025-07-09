@@ -13,7 +13,6 @@ const nextConfig = {
       'handlebars',
       'debug',
       'supports-color',
-      'sharp',
     ],
   },
   images: {
