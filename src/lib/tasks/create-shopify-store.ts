@@ -2,7 +2,7 @@
 
 import { admin, adminDb } from '@/lib/firebase-admin';
 import axios from 'axios';
-import { generateShopifyStoreContent, type GeneratedContent } from '@/ai/flows/shopify-content-flow';
+import { generateShopifyStoreContent, type GeneratedContent, type GenerationInput } from '@/ai/flows/shopify-content-flow';
 import { createShopifyApi } from '@/lib/shopify';
 import type { AxiosInstance } from 'axios';
 
@@ -189,7 +189,18 @@ export async function populateShopifyStore(jobId: string) {
         const entityUid = jobData.entity.type === 'user' ? jobData.entity.id : '';
 
         await updateJobStatus(jobId, 'processing', 'Generando contenido con IA...');
-        const generatedContent = await generateShopifyStoreContent(jobData, entityUid);
+        
+        const generationInput: GenerationInput = {
+            storeName: jobData.storeName,
+            brandDescription: jobData.brandDescription,
+            targetAudience: jobData.targetAudience,
+            brandPersonality: jobData.brandPersonality,
+            colorPaletteSuggestion: jobData.colorPaletteSuggestion,
+            productTypeDescription: jobData.productTypeDescription,
+            creationOptions: jobData.creationOptions,
+        };
+
+        const generatedContent = await generateShopifyStoreContent(generationInput, entityUid);
         await updateJobStatus(jobId, 'processing', 'Contenido generado. Guardando resultados y preparando para poblar la tienda...', {
             generatedContent: generatedContent,
         });

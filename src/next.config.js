@@ -13,10 +13,6 @@ const nextConfig = {
       'debug',
       'supports-color',
       'sharp',
-      'genkit',
-      '@genkit/google-ai',
-      'glob',
-      'es-main',
     ],
   },
   images: {
