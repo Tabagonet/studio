@@ -46,6 +46,7 @@ export function RichTextEditor({ content, onChange, onInsertImage, onSuggestLink
       }),
     ],
     content: content,
+    immediatelyRender: false,
     onUpdate({ editor }) {
       onChange(editor.getHTML());
     },
