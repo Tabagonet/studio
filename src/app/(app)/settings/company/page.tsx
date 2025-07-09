@@ -184,7 +184,8 @@ export default function CompanySettingsPage() {
             }
         });
         return () => unsubscribe();
-    }, [searchParams, fetchAllCompaniesAndUsers, fetchSettingsData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchParams, fetchAllCompaniesAndUsers]);
 
     const handleSave = async () => {
         if (!editingTargetId || !editingEntityType) {
