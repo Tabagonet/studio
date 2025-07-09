@@ -14,7 +14,17 @@ El proceso de comunicación sigue estos pasos:
 
 ---
 
-## 1. Autenticación
+## 1. URL Base de la API
+
+Todas las rutas de endpoints mencionadas en este documento son relativas a la siguiente URL base:
+
+**`https://autopress.intelvisual.es`**
+
+Por ejemplo, el endpoint de creación de tienda se encuentra en `https://autopress.intelvisual.es/api/shopify/create-store`.
+
+---
+
+## 2. Autenticación
 
 Todas las peticiones a la API deben incluir una API Key para la autenticación.
 
@@ -24,7 +34,7 @@ Todas las peticiones a la API deben incluir una API Key para la autenticación.
 
 ---
 
-## 2. Endpoint de Creación de Tienda
+## 3. Endpoint de Creación de Tienda
 
 Para iniciar la creación de una nueva tienda, el chatbot debe realizar una petición a este endpoint.
 
@@ -105,7 +115,7 @@ El cuerpo de la petición debe ser un objeto JSON con la siguiente estructura. T
 
 ---
 
-## 3. Webhook de Notificación (Respuesta de AutoPress AI)
+## 4. Webhook de Notificación (Respuesta de AutoPress AI)
 
 Una vez que el trabajo de creación de la tienda finaliza, nuestro sistema enviará una petición `POST` a la `webhookUrl` que proporcionaste.
 
@@ -140,4 +150,29 @@ Tu sistema debe estar preparado para recibir un objeto JSON con la siguiente est
 
 **Tu sistema debe responder a esta petición de webhook con un código de estado `200 OK` para confirmar la recepción.**
 
-    
+---
+
+## 5. Respuestas de Error de la API
+
+Si la petición `POST` inicial al endpoint `/api/shopify/create-store` falla, la API responderá con un código de estado de error y un cuerpo JSON que describe el problema.
+
+### Códigos de Error Comunes
+
+*   **`400 Bad Request`**: Los datos enviados son inválidos. El cuerpo de la respuesta contendrá detalles sobre qué campos fallaron la validación.
+    ```json
+    {
+      "error": "Cuerpo de la petición inválido.",
+      "details": {
+        "fieldErrors": {
+          "businessEmail": ["El email del negocio no es válido."]
+        }
+      }
+    }
+    ```
+
+*   **`401 Unauthorized`**: La `API Key` proporcionada en la cabecera `Authorization` es incorrecta o no existe.
+
+*   **`403 Forbidden`**: La `API Key` es correcta, pero la entidad (usuario o empresa) asociada a la clave no tiene permisos para realizar la acción (ej. ha alcanzado su límite de creación de tiendas).
+
+*   **`500 Internal Server Error`**: Ocurrió un error inesperado en nuestro servidor al intentar procesar la petición.
+
