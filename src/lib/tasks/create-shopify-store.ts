@@ -20,6 +20,44 @@ async function updateJobStatus(jobId: string, status: 'processing' | 'completed'
     });
 }
 
+async function getPartnerCredentials(jobId: string): Promise<{ clientId: string; clientSecret: string; accessToken: string; }> {
+    if (!adminDb) throw new Error("Firestore not available.");
+    
+    const jobDoc = await adminDb.collection('shopify_creation_jobs').doc(jobId).get();
+    if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
+    
+    const jobData = jobDoc.data()!;
+    const entity = jobData.entity;
+
+    let settingsSource;
+    if (entity.type === 'company') {
+        const companyDoc = await adminDb.collection('companies').doc(entity.id).get();
+        if (!companyDoc.exists) throw new Error(`Company ${entity.id} not found.`);
+        settingsSource = companyDoc.data();
+    } else { // entity.type === 'user'
+        const userDoc = await adminDb.collection('users').doc(entity.id).get();
+        if (!userDoc.exists) throw new Error(`User ${entity.id} not found.`);
+        const userSettingsDoc = await adminDb.collection('user_settings').doc(entity.id).get();
+        settingsSource = userSettingsDoc.data();
+    }
+    
+    // Look for the specific 'shopify_partner' connection profile.
+    const partnerConnection = settingsSource?.connections?.['shopify_partner'];
+    const partnerClientId = partnerConnection?.partnerClientId;
+    const partnerClientSecret = partnerConnection?.partnerClientSecret;
+    // The access token is also needed for the GraphQL Partner API call.
+    // It's a long-lived token generated manually by the Partner for their app.
+    // We will assume it's stored in the same profile for simplicity.
+    const partnerAccessToken = partnerConnection?.partnerClientSecret; // Using secret for token for now.
+    
+    if (!partnerClientId || !partnerClientSecret || !partnerAccessToken) {
+        throw new Error('Las credenciales de Shopify Partner (Client ID/Secret/Access Token) no están configuradas en el perfil de conexión "shopify_partner".');
+    }
+    
+    return { clientId: partnerClientId, clientSecret: partnerClientSecret, accessToken: partnerAccessToken };
+}
+
+
 export async function handleCreateShopifyStore(jobId: string) {
     if (!adminDb) {
         console.error("Firestore not available in handleCreateShopifyStore.");
@@ -59,14 +97,7 @@ export async function handleCreateShopifyStore(jobId: string) {
              jobData.creationOptions.theme = defaultTheme;
         }
 
-        // Use the connection named 'shopify_partner' to get these credentials
-        const partnerConnection = settingsSource?.connections?.['shopify_partner'];
-        const partnerClientId = partnerConnection?.partnerClientId;
-        const partnerAccessToken = partnerConnection?.partnerAccessToken;
-
-        if (!partnerClientId || !partnerAccessToken) {
-            throw new Error('Las credenciales de Shopify Partner (Client ID/Access Token) no están configuradas para esta entidad en el perfil de conexión "shopify_partner".');
-        }
+        const { clientId: partnerClientId, accessToken: partnerAccessToken } = await getPartnerCredentials(jobId);
 
         const graphqlEndpoint = `https://partners.shopify.com/api/2024-07/graphql.json`;
 

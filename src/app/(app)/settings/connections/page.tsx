@@ -200,7 +200,12 @@ export default function ConnectionsPage() {
                 if (currentActiveKey && data.allConnections[currentActiveKey]) {
                     setSelectedKey(currentActiveKey);
                     setFormData(data.allConnections[currentActiveKey]);
-                } else {
+                } else if (data.allConnections && data.allConnections['shopify_partner']) {
+                    // If no active key, but partner key exists, default to showing that
+                    setSelectedKey('shopify_partner');
+                    setFormData(data.allConnections['shopify_partner']);
+                }
+                else {
                     setSelectedKey('new');
                     setFormData(INITIAL_STATE);
                 }
@@ -355,7 +360,7 @@ export default function ConnectionsPage() {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleSave = async () => {
+    const handleSave = async (keyToSave?: string, setActive: boolean = false) => {
         const urlsToValidate = [
             { name: 'WooCommerce', url: formData.wooCommerceStoreUrl },
             { name: 'WordPress', url: formData.wordpressApiUrl },
@@ -377,10 +382,10 @@ export default function ConnectionsPage() {
         const wpHostname = getHostname(formData.wordpressApiUrl);
         const shopifyHostname = getHostname(formData.shopifyStoreUrl);
         
-        const key = selectedKey !== 'new' ? selectedKey : (wooHostname || wpHostname || shopifyHostname);
+        const key = keyToSave || (selectedKey !== 'new' ? selectedKey : (wooHostname || wpHostname || shopifyHostname));
     
         if (!key) {
-            toast({ title: "Datos Incompletos", description: "Por favor, introduce una URL válida.", variant: "destructive" });
+            toast({ title: "Datos Incompletos", description: "Por favor, introduce una URL válida para que sirva como identificador.", variant: "destructive" });
             return;
         }
 
@@ -393,7 +398,7 @@ export default function ConnectionsPage() {
 
         try {
             const token = await user.getIdToken();
-            const payload: any = { key, connectionData: formData, setActive: true };
+            const payload: any = { key, connectionData: formData, setActive };
             if (editingTarget.type === 'company') {
                 payload.companyId = editingTarget.id;
             } else { // type is 'user'
@@ -411,7 +416,7 @@ export default function ConnectionsPage() {
                 throw new Error(errorData.error || "Fallo al guardar la conexión.");
             }
             
-            toast({ title: "Conexión Guardada", description: `Los datos para '${key}' han sido guardados y activados.` });
+            toast({ title: "Conexión Guardada", description: `Los datos para '${key}' han sido guardados.` });
             window.dispatchEvent(new Event('connections-updated'));
             await fetchConnections(user, editingTarget.type, editingTarget.id);
             setRefreshKey(k => k + 1);
@@ -458,7 +463,7 @@ export default function ConnectionsPage() {
         }
     };
     
-    const connectionKeys = Object.keys(allConnections);
+    const connectionKeys = Object.keys(allConnections).filter(k => k !== 'shopify_partner');
     const title = currentUser?.role === 'super_admin' ? `Editando Conexiones para: ${editingTarget.name}` : `Conexiones API para ${currentUser?.companyName || 'Mis Conexiones'}`;
     
     let description = 'Gestiona tus credenciales para conectar con servicios externos.';
@@ -647,7 +652,7 @@ export default function ConnectionsPage() {
                             <Card>
                                 <CardHeader>
                                     <CardTitle>Conexión a Shopify Partners (Para Automatización)</CardTitle>
-                                    <CardDescription>Introduce las credenciales de tu App de Partner. Esta es una configuración única que nos permite crear nuevas tiendas de desarrollo de forma totalmente automática en tu nombre.</CardDescription>
+                                    <CardDescription>Introduce las credenciales de tu App de Partner. Estas credenciales deben guardarse en un perfil con el nombre exacto <strong>shopify_partner</strong> para que el sistema las encuentre.</CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                      <div>
@@ -658,6 +663,9 @@ export default function ConnectionsPage() {
                                         <Label htmlFor="partnerClientSecret">Client Secret de la App de Partner</Label>
                                         <Input id="partnerClientSecret" name="partnerClientSecret" type="password" value={formData.partnerClientSecret || ''} onChange={handleInputChange} placeholder="shpss_xxxxxxxxxxxx" disabled={isSaving}/>
                                     </div>
+                                    <Button onClick={() => handleSave('shopify_partner')}>
+                                        Guardar Credenciales de Partner
+                                    </Button>
                                 </CardContent>
                             </Card>
                         </>
@@ -665,7 +673,7 @@ export default function ConnectionsPage() {
                     
                     <div className="flex flex-col-reverse gap-4 pt-6 mt-6 border-t md:flex-row md:justify-between md:items-center">
                         <div>
-                            {selectedKey !== 'new' && (
+                            {selectedKey !== 'new' && selectedKey !== 'shopify_partner' && (
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild><Button variant="destructive" disabled={isSaving || isDeleting} className="w-full md:w-auto"><Trash2 className="mr-2 h-4 w-4" />Eliminar Perfil</Button></AlertDialogTrigger>
                                     <AlertDialogContent>
@@ -676,7 +684,7 @@ export default function ConnectionsPage() {
                             )}
                         </div>
                         <div className="flex flex-col-reverse gap-4 md:flex-row">
-                            <Button onClick={handleSave} disabled={isSaving || isDeleting} className="w-full md:w-auto">
+                            <Button onClick={() => handleSave(undefined, true)} disabled={isSaving || isDeleting || selectedKey === 'shopify_partner' || selectedKey === 'new'} className="w-full md:w-auto">
                                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                                 {isSaving ? "Guardando..." : saveButtonText}
                             </Button>
