@@ -149,8 +149,11 @@ export default function ConnectionsPage() {
     const [selectedKey, setSelectedKey] = useState<string>('new');
     
     const [formData, setFormData] = useState<ConnectionData>(INITIAL_STATE);
+    const [partnerFormData, setPartnerFormData] = useState<Pick<ConnectionData, 'partnerClientId' | 'partnerClientSecret'>>({ partnerClientId: '', partnerClientSecret: '' });
+
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [isSavingPartner, setIsSavingPartner] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     
     const [currentUser, setCurrentUser] = useState<{ uid: string | null; role: string | null; companyId: string | null; companyName: string | null; } | null>(null);
@@ -174,6 +177,7 @@ export default function ConnectionsPage() {
             setActiveKey(null);
             setSelectedKey('new');
             setFormData(INITIAL_STATE);
+            setPartnerFormData({ partnerClientId: '', partnerClientSecret: '' });
             setIsLoading(false);
             return;
         }
@@ -193,21 +197,30 @@ export default function ConnectionsPage() {
 
             if (response.ok) {
                 const data = await response.json();
-                setAllConnections(data.allConnections || {});
+                const connections = data.allConnections || {};
+                setAllConnections(connections);
                 const currentActiveKey = data.activeConnectionKey || null;
                 setActiveKey(currentActiveKey);
                 
-                if (currentActiveKey && data.allConnections[currentActiveKey]) {
-                    setSelectedKey(currentActiveKey);
-                    setFormData(data.allConnections[currentActiveKey]);
-                } else if (data.allConnections && data.allConnections['shopify_partner']) {
-                    // If no active key, but partner key exists, default to showing that
-                    setSelectedKey('shopify_partner');
-                    setFormData(data.allConnections['shopify_partner']);
+                // Separate partner credentials
+                if (connections['shopify_partner']) {
+                    setPartnerFormData(connections['shopify_partner']);
+                } else {
+                    setPartnerFormData({ partnerClientId: '', partnerClientSecret: '' });
                 }
-                else {
-                    setSelectedKey('new');
-                    setFormData(INITIAL_STATE);
+
+                if (currentActiveKey && connections[currentActiveKey]) {
+                    setSelectedKey(currentActiveKey);
+                    setFormData(connections[currentActiveKey]);
+                } else {
+                    const firstNonPartnerKey = Object.keys(connections).find(k => k !== 'shopify_partner');
+                    if (firstNonPartnerKey) {
+                        setSelectedKey(firstNonPartnerKey);
+                        setFormData(connections[firstNonPartnerKey]);
+                    } else {
+                        setSelectedKey('new');
+                        setFormData(INITIAL_STATE);
+                    }
                 }
             } else {
                 throw new Error((await response.json()).error || "Fallo al cargar las conexiones.");
@@ -342,7 +355,7 @@ export default function ConnectionsPage() {
 
 
     useEffect(() => {
-        const connectionKeys = Object.keys(allConnections);
+        const connectionKeys = Object.keys(allConnections).filter(k => k !== 'shopify_partner');
         if (selectedKey === 'new') {
             setFormData(INITIAL_STATE);
         } else if (allConnections[selectedKey]) {
@@ -359,46 +372,58 @@ export default function ConnectionsPage() {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
+    
+    const handlePartnerInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setPartnerFormData(prev => ({ ...prev, [name]: value }));
+    };
 
-    const handleSave = async (keyToSave?: string, setActive: boolean = false) => {
-        const urlsToValidate = [
-            { name: 'WooCommerce', url: formData.wooCommerceStoreUrl },
-            { name: 'WordPress', url: formData.wordpressApiUrl },
-        ];
+    const handleSave = async (isPartnerCreds: boolean = false) => {
+        let keyToSave: string;
+        let dataToSave: any;
+        let setActive = !isPartnerCreds;
 
-        for (const item of urlsToValidate) {
-            if (item.url) {
-                try {
-                    const fullUrl = item.url.includes('://') ? item.url : `https://${item.url}`;
-                    new URL(fullUrl);
-                } catch (e) {
-                    toast({ title: "URL Inválida", description: `El formato de la URL para ${item.name} no es válido.`, variant: "destructive" });
-                    return;
+        if (isPartnerCreds) {
+            if (!partnerFormData.partnerClientId || !partnerFormData.partnerClientSecret) {
+                toast({ title: "Datos Incompletos", description: "El Client ID y el Client Secret de Partner son obligatorios.", variant: "destructive" });
+                return;
+            }
+            keyToSave = 'shopify_partner';
+            dataToSave = partnerFormData;
+            setIsSavingPartner(true);
+        } else {
+            const urlsToValidate = [
+                { name: 'WooCommerce', url: formData.wooCommerceStoreUrl },
+                { name: 'WordPress', url: formData.wordpressApiUrl },
+            ];
+            for (const item of urlsToValidate) {
+                if (item.url) {
+                    try { new URL(item.url.includes('://') ? item.url : `https://${item.url}`); }
+                    catch (e) { toast({ title: "URL Inválida", description: `El formato de la URL para ${item.name} no es válido.`, variant: "destructive" }); return; }
                 }
             }
+            const wooHostname = getHostname(formData.wooCommerceStoreUrl);
+            const wpHostname = getHostname(formData.wordpressApiUrl);
+            const shopifyHostname = getHostname(formData.shopifyStoreUrl);
+            
+            keyToSave = selectedKey !== 'new' ? selectedKey : (wooHostname || wpHostname || shopifyHostname || '');
+            if (!keyToSave) {
+                toast({ title: "Datos Incompletos", description: "Por favor, introduce una URL válida para que sirva como identificador.", variant: "destructive" });
+                return;
+            }
+            dataToSave = formData;
+            setIsSaving(true);
         }
 
-        const wooHostname = getHostname(formData.wooCommerceStoreUrl);
-        const wpHostname = getHostname(formData.wordpressApiUrl);
-        const shopifyHostname = getHostname(formData.shopifyStoreUrl);
-        
-        const key = keyToSave || (selectedKey !== 'new' ? selectedKey : (wooHostname || wpHostname || shopifyHostname));
-    
-        if (!key) {
-            toast({ title: "Datos Incompletos", description: "Por favor, introduce una URL válida para que sirva como identificador.", variant: "destructive" });
-            return;
-        }
-
-        setIsSaving(true);
         const user = auth.currentUser;
         if (!user) {
             toast({ title: "Error de autenticación", variant: "destructive" });
-            setIsSaving(false); return;
+            isPartnerCreds ? setIsSavingPartner(false) : setIsSaving(false); return;
         }
 
         try {
             const token = await user.getIdToken();
-            const payload: any = { key, connectionData: formData, setActive };
+            const payload: any = { key: keyToSave, connectionData: dataToSave, setActive };
             if (editingTarget.type === 'company') {
                 payload.companyId = editingTarget.id;
             } else { // type is 'user'
@@ -412,19 +437,20 @@ export default function ConnectionsPage() {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || "Fallo al guardar la conexión.");
+                throw new Error((await response.json()).error || "Fallo al guardar la conexión.");
             }
             
-            toast({ title: "Conexión Guardada", description: `Los datos para '${key}' han sido guardados.` });
+            toast({ title: "Conexión Guardada", description: `Los datos para '${keyToSave}' han sido guardados.` });
             window.dispatchEvent(new Event('connections-updated'));
             await fetchConnections(user, editingTarget.type, editingTarget.id);
             setRefreshKey(k => k + 1);
-            setSelectedKey(key);
+            if (!isPartnerCreds) {
+                 setSelectedKey(keyToSave);
+            }
         } catch (error: any) {
             toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
         } finally {
-            setIsSaving(false);
+            isPartnerCreds ? setIsSavingPartner(false) : setIsSaving(false);
         }
     };
     
@@ -547,7 +573,12 @@ export default function ConnectionsPage() {
             )}
 
             <Card>
-                <CardHeader><CardTitle>Perfiles de Conexión</CardTitle></CardHeader>
+                <CardHeader>
+                    <CardTitle>Perfiles de Conexión de Tiendas</CardTitle>
+                    <CardDescription>
+                        Gestiona las conexiones a tiendas específicas, ya sean de WooCommerce o Shopify. La conexión activa se usará por defecto en las herramientas.
+                    </CardDescription>
+                </CardHeader>
                 <CardContent className="space-y-4">
                      <ConnectionStatusIndicator status={selectedEntityStatus} isLoading={isCheckingStatus} />
                     <div className="flex-1">
@@ -599,7 +630,7 @@ export default function ConnectionsPage() {
                         <Card>
                             <CardHeader>
                                 <CardTitle>Conexión a WordPress / WooCommerce</CardTitle>
-                                <CardDescription>Para gestionar productos y contenidos en un sitio existente.</CardDescription>
+                                <CardDescription>Credenciales para un sitio específico.</CardDescription>
                             </CardHeader>
                             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
@@ -631,49 +662,27 @@ export default function ConnectionsPage() {
                     )}
 
                     {showShopify && (
-                        <>
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Conexión a Tienda Shopify Existente</CardTitle>
-                                    <CardDescription>Crea una App Personalizada (Custom App) en tu tienda Shopify para obtener estas credenciales.</CardDescription>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div>
-                                        <Label htmlFor="shopifyStoreUrl">URL de la Tienda (.myshopify.com)</Label>
-                                        <Input id="shopifyStoreUrl" name="shopifyStoreUrl" value={formData.shopifyStoreUrl || ''} onChange={handleInputChange} placeholder="mitienda.myshopify.com" disabled={isSaving} />
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="shopifyApiPassword">Token de Acceso de Admin API</Label>
-                                        <Input id="shopifyApiPassword" name="shopifyApiPassword" type="password" value={formData.shopifyApiPassword || ''} onChange={handleInputChange} placeholder="shpat_xxxxxxxxxxxx" disabled={isSaving}/>
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Conexión a Shopify Partners (Para Automatización)</CardTitle>
-                                    <CardDescription>Introduce las credenciales de tu App de Partner. Estas credenciales deben guardarse en un perfil con el nombre exacto <strong>shopify_partner</strong> para que el sistema las encuentre.</CardDescription>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                     <div>
-                                        <Label htmlFor="partnerClientId">Client ID de la App de Partner</Label>
-                                        <Input id="partnerClientId" name="partnerClientId" value={formData.partnerClientId || ''} onChange={handleInputChange} placeholder="Ej: 1234abcd..." disabled={isSaving} />
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="partnerClientSecret">Client Secret de la App de Partner</Label>
-                                        <Input id="partnerClientSecret" name="partnerClientSecret" type="password" value={formData.partnerClientSecret || ''} onChange={handleInputChange} placeholder="shpss_xxxxxxxxxxxx" disabled={isSaving}/>
-                                    </div>
-                                    <Button onClick={() => handleSave('shopify_partner')}>
-                                        Guardar Credenciales de Partner
-                                    </Button>
-                                </CardContent>
-                            </Card>
-                        </>
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Conexión a Tienda Shopify Existente</CardTitle>
+                                <CardDescription>Crea una App Personalizada (Custom App) en tu tienda Shopify para obtener estas credenciales.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div>
+                                    <Label htmlFor="shopifyStoreUrl">URL de la Tienda (.myshopify.com)</Label>
+                                    <Input id="shopifyStoreUrl" name="shopifyStoreUrl" value={formData.shopifyStoreUrl || ''} onChange={handleInputChange} placeholder="mitienda.myshopify.com" disabled={isSaving} />
+                                </div>
+                                <div>
+                                    <Label htmlFor="shopifyApiPassword">Token de Acceso de Admin API</Label>
+                                    <Input id="shopifyApiPassword" name="shopifyApiPassword" type="password" value={formData.shopifyApiPassword || ''} onChange={handleInputChange} placeholder="shpat_xxxxxxxxxxxx" disabled={isSaving}/>
+                                </div>
+                            </CardContent>
+                        </Card>
                     )}
                     
                     <div className="flex flex-col-reverse gap-4 pt-6 mt-6 border-t md:flex-row md:justify-between md:items-center">
                         <div>
-                            {selectedKey !== 'new' && selectedKey !== 'shopify_partner' && (
+                            {selectedKey !== 'new' && (
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild><Button variant="destructive" disabled={isSaving || isDeleting} className="w-full md:w-auto"><Trash2 className="mr-2 h-4 w-4" />Eliminar Perfil</Button></AlertDialogTrigger>
                                     <AlertDialogContent>
@@ -684,12 +693,35 @@ export default function ConnectionsPage() {
                             )}
                         </div>
                         <div className="flex flex-col-reverse gap-4 md:flex-row">
-                            <Button onClick={() => handleSave(undefined, true)} disabled={isSaving || isDeleting || selectedKey === 'shopify_partner' || selectedKey === 'new'} className="w-full md:w-auto">
+                            <Button onClick={() => handleSave(false)} disabled={isSaving || isDeleting} className="w-full md:w-auto">
                                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                                 {isSaving ? "Guardando..." : saveButtonText}
                             </Button>
                         </div>
                     </div>
+
+                    {showShopify && (
+                        <Card className="mt-8 border-primary/50">
+                            <CardHeader>
+                                <CardTitle>Conexión Global de Shopify Partners</CardTitle>
+                                <CardDescription>Introduce aquí las credenciales de tu App de Partner. Estas credenciales se usan para la automatización de creación de tiendas para toda la entidad (<strong>{editingTarget.name}</strong>).</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                 <div>
+                                    <Label htmlFor="partnerClientId">Client ID de la App de Partner</Label>
+                                    <Input id="partnerClientId" name="partnerClientId" value={partnerFormData.partnerClientId || ''} onChange={handlePartnerInputChange} placeholder="Ej: 1234abcd..." disabled={isSavingPartner} />
+                                </div>
+                                <div>
+                                    <Label htmlFor="partnerClientSecret">Client Secret de la App de Partner</Label>
+                                    <Input id="partnerClientSecret" name="partnerClientSecret" type="password" value={partnerFormData.partnerClientSecret || ''} onChange={handlePartnerInputChange} placeholder="shpss_xxxxxxxxxxxx" disabled={isSavingPartner}/>
+                                </div>
+                                <Button onClick={() => handleSave(true)} disabled={isSavingPartner}>
+                                    {isSavingPartner && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Guardar Credenciales de Partner
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    )}
                 </div>
             )}
         </div>

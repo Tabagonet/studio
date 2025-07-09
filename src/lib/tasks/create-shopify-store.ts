@@ -35,8 +35,6 @@ async function getPartnerCredentials(jobId: string): Promise<{ clientId: string;
         if (!companyDoc.exists) throw new Error(`Company ${entity.id} not found.`);
         settingsSource = companyDoc.data();
     } else { // entity.type === 'user'
-        const userDoc = await adminDb.collection('users').doc(entity.id).get();
-        if (!userDoc.exists) throw new Error(`User ${entity.id} not found.`);
         const userSettingsDoc = await adminDb.collection('user_settings').doc(entity.id).get();
         settingsSource = userSettingsDoc.data();
     }
@@ -45,16 +43,13 @@ async function getPartnerCredentials(jobId: string): Promise<{ clientId: string;
     const partnerConnection = settingsSource?.connections?.['shopify_partner'];
     const partnerClientId = partnerConnection?.partnerClientId;
     const partnerClientSecret = partnerConnection?.partnerClientSecret;
-    // The access token is also needed for the GraphQL Partner API call.
-    // It's a long-lived token generated manually by the Partner for their app.
-    // We will assume it's stored in the same profile for simplicity.
-    const partnerAccessToken = partnerConnection?.partnerClientSecret; // Using secret for token for now.
     
-    if (!partnerClientId || !partnerClientSecret || !partnerAccessToken) {
-        throw new Error('Las credenciales de Shopify Partner (Client ID/Secret/Access Token) no están configuradas en el perfil de conexión "shopify_partner".');
+    if (!partnerClientId || !partnerClientSecret) {
+        throw new Error('Las credenciales de Shopify Partner App (Client ID/Secret) no están configuradas en el perfil de conexión "shopify_partner".');
     }
     
-    return { clientId: partnerClientId, clientSecret: partnerClientSecret, accessToken: partnerAccessToken };
+    // The access token for the Partner API is stored in the same profile's secret field for simplicity.
+    return { clientId: partnerClientId, clientSecret: partnerClientSecret, accessToken: partnerClientSecret };
 }
 
 
