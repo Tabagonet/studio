@@ -30,7 +30,10 @@ Todas las peticiones a la API deben incluir una API Key para la autenticación.
 
 *   **Método**: La clave debe ser enviada en la cabecera `Authorization` con el esquema `Bearer`.
 *   **Cabecera**: `Authorization: Bearer <TU_API_KEY_AQUI>`
-*   **Obtención de la Clave**: La API Key es una clave estática y secreta que **será proporcionada por el equipo de AutoPress AI**. Esta clave no se genera en la interfaz de usuario y debe ser almacenada de forma segura como una variable de entorno en el sistema del chatbot.
+*   **Obtención de la Clave**: La API Key es una clave estática y secreta. **El administrador de la plataforma AutoPress AI debe generarla y configurarla.**
+    1.  El administrador debe generar una clave segura (por ejemplo, un UUID desde un generador online).
+    2.  Esta clave debe ser añadida como una **variable de entorno** en el servidor donde se aloja AutoPress AI. El nombre de la variable debe ser `SHOPIFY_AUTOMATION_API_KEY`.
+    3.  Una vez configurada en el servidor, el administrador debe compartir esta clave de forma segura con el equipo de desarrollo del chatbot. **Esta clave no se genera ni se muestra en la interfaz de usuario de la plataforma por motivos de seguridad.**
 
 ---
 
@@ -100,7 +103,7 @@ El cuerpo de la petición debe ser un objeto JSON con la siguiente estructura. T
 | `creationOptions.createExampleProducts` | boolean | `true` si se deben crear productos de ejemplo.                                                                                                                | `true`                                  |
 | `creationOptions.numberOfProducts`      | number  | (Opcional) Número de productos a crear (si el anterior es `true`). Máximo: 10.                                                                                 | `3`                                     |
 | `creationOptions.createAboutPage`       | boolean | `true` para crear la página "Sobre Nosotros".                                                                                                               | `true`                                  |
-| `creationOptions.createContactPage`     | boolean | `true` para crear la página de "Contacto".                                                                                                                  | `true`                                  |
+| `creationOptions.createContactPage`       | boolean | `true` para crear la página de "Contacto".                                                                                                                  | `true`                                  |
 | `creationOptions.createLegalPages`      | boolean | `true` para generar y crear páginas legales (Privacidad, Términos).                                                                                         | `true`                                  |
 | `creationOptions.createBlogWithPosts`   | boolean | `true` para crear un blog con artículos de ejemplo.                                                                                                         | `false`                                 |
 | `creationOptions.numberOfBlogPosts`     | number  | (Opcional) Número de posts a crear (si el anterior es `true`). Máximo: 5.                                                                                     | `2`                                     |
