@@ -1,4 +1,3 @@
-
 // src/app/(app)/settings/connections/page.tsx
 "use client";
 
@@ -29,12 +28,15 @@ interface ConnectionData {
     // For existing stores
     shopifyStoreUrl: string;
     shopifyApiPassword: string; // This will hold the access token
-    // For partner automation
-    partnerClientId: string;
-    partnerClientSecret: string;
 }
 
-type AllConnections = { [key: string]: ConnectionData };
+type PartnerConnectionData = {
+    partnerClientId: string;
+    partnerClientSecret: string;
+};
+
+type AllConnections = { [key: string]: ConnectionData | PartnerConnectionData };
+
 
 interface SelectedEntityStatus {
     wooCommerceConfigured: boolean;
@@ -43,6 +45,7 @@ interface SelectedEntityStatus {
     pluginActive: boolean;
     activeStoreUrl: string | null;
     activePlatform: 'woocommerce' | 'shopify' | null;
+    assignedPlatform: 'woocommerce' | 'shopify' | null;
 }
 
 const INITIAL_STATE: ConnectionData = {
@@ -54,6 +57,9 @@ const INITIAL_STATE: ConnectionData = {
     wordpressApplicationPassword: '',
     shopifyStoreUrl: '',
     shopifyApiPassword: '',
+};
+
+const INITIAL_PARTNER_STATE: PartnerConnectionData = {
     partnerClientId: '',
     partnerClientSecret: '',
 };
@@ -149,12 +155,12 @@ export default function ConnectionsPage() {
     const [selectedKey, setSelectedKey] = useState<string>('new');
     
     const [formData, setFormData] = useState<ConnectionData>(INITIAL_STATE);
-    const [partnerFormData, setPartnerFormData] = useState<Pick<ConnectionData, 'partnerClientId' | 'partnerClientSecret'>>({ partnerClientId: '', partnerClientSecret: '' });
+    const [partnerFormData, setPartnerFormData] = useState<PartnerConnectionData>(INITIAL_PARTNER_STATE);
 
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isSavingPartner, setIsSavingPartner] = useState(false);
-    const [isDeleting, setIsDeleting] = useState(false);
+    const [isDeleting, setIsDeleting] = useState<string | null>(null); // Use string to track which delete is running
     
     const [currentUser, setCurrentUser] = useState<{ uid: string | null; role: string | null; companyId: string | null; companyName: string | null; } | null>(null);
     const [allCompanies, setAllCompanies] = useState<Company[]>([]);
@@ -177,7 +183,7 @@ export default function ConnectionsPage() {
             setActiveKey(null);
             setSelectedKey('new');
             setFormData(INITIAL_STATE);
-            setPartnerFormData({ partnerClientId: '', partnerClientSecret: '' });
+            setPartnerFormData(INITIAL_PARTNER_STATE);
             setIsLoading(false);
             return;
         }
@@ -202,11 +208,10 @@ export default function ConnectionsPage() {
                 const currentActiveKey = data.activeConnectionKey || null;
                 setActiveKey(currentActiveKey);
                 
-                // Separate partner credentials
                 if (connections['shopify_partner']) {
                     setPartnerFormData(connections['shopify_partner']);
                 } else {
-                    setPartnerFormData({ partnerClientId: '', partnerClientSecret: '' });
+                    setPartnerFormData(INITIAL_PARTNER_STATE);
                 }
 
                 if (currentActiveKey && connections[currentActiveKey]) {
@@ -359,7 +364,7 @@ export default function ConnectionsPage() {
         if (selectedKey === 'new') {
             setFormData(INITIAL_STATE);
         } else if (allConnections[selectedKey]) {
-            setFormData(allConnections[selectedKey]);
+            setFormData(allConnections[selectedKey] as ConnectionData);
         } else if (connectionKeys.length > 0) {
             setSelectedKey(connectionKeys[0]);
         } else {
@@ -451,21 +456,22 @@ export default function ConnectionsPage() {
             toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
         } finally {
             isPartnerCreds ? setIsSavingPartner(false) : setIsSaving(false);
+            setIsSaving(false);
         }
     };
     
-    const handleDelete = async () => {
-        if (selectedKey === 'new') return;
-        setIsDeleting(true);
+    const handleDelete = async (keyToDelete: string) => {
+        if (keyToDelete === 'new') return;
+        setIsDeleting(keyToDelete);
         const user = auth.currentUser;
         if (!user) {
             toast({ title: "Error de autenticación", variant: "destructive" });
-            setIsDeleting(false); return;
+            setIsDeleting(null); return;
         }
 
         try {
             const token = await user.getIdToken();
-            const payload: any = { key: selectedKey };
+            const payload: any = { key: keyToDelete };
              if (editingTarget.type === 'company') {
                 payload.companyId = editingTarget.id;
             } else { // type is 'user'
@@ -478,14 +484,14 @@ export default function ConnectionsPage() {
                 body: JSON.stringify(payload)
             });
             
-            toast({ title: "Conexión Eliminada", description: `El perfil para '${selectedKey}' ha sido eliminado.` });
+            toast({ title: "Conexión Eliminada", description: `El perfil para '${keyToDelete}' ha sido eliminado.` });
             window.dispatchEvent(new Event('connections-updated'));
             await fetchConnections(user, editingTarget.type, editingTarget.id);
             setRefreshKey(k => k + 1);
         } catch (error: any) {
             toast({ title: "Error al Eliminar", description: error.message, variant: "destructive" });
         } finally {
-            setIsDeleting(false);
+            setIsDeleting(null);
         }
     };
     
@@ -588,7 +594,7 @@ export default function ConnectionsPage() {
                             <SelectContent>
                                 <SelectItem value="new"><PlusCircle className="inline-block mr-2 h-4 w-4" />Añadir Nueva Conexión</SelectItem>
                                 {connectionKeys.map(key => {
-                                    const connection = allConnections[key];
+                                    const connection = allConnections[key] as ConnectionData;
                                     const isShopify = !!connection.shopifyStoreUrl;
                                     const isWoo = !!connection.wooCommerceStoreUrl || !!connection.wordpressApiUrl;
                                     let Icon;
@@ -684,16 +690,16 @@ export default function ConnectionsPage() {
                         <div>
                             {selectedKey !== 'new' && (
                                 <AlertDialog>
-                                    <AlertDialogTrigger asChild><Button variant="destructive" disabled={isSaving || isDeleting} className="w-full md:w-auto"><Trash2 className="mr-2 h-4 w-4" />Eliminar Perfil</Button></AlertDialogTrigger>
+                                    <AlertDialogTrigger asChild><Button variant="destructive" disabled={isSaving || !!isDeleting} className="w-full md:w-auto"><Trash2 className="mr-2 h-4 w-4" />Eliminar Perfil</Button></AlertDialogTrigger>
                                     <AlertDialogContent>
                                         <AlertDialogHeader><AlertDialogTitle>¿Estás seguro?</AlertDialogTitle><AlertDialogDescription>Se eliminará permanentemente el perfil de conexión para <strong>{selectedKey}</strong>.</AlertDialogDescription></AlertDialogHeader>
-                                        <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Continuar</AlertDialogAction></AlertDialogFooter>
+                                        <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDelete(selectedKey)} className="bg-destructive hover:bg-destructive/90">Continuar</AlertDialogAction></AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
                             )}
                         </div>
                         <div className="flex flex-col-reverse gap-4 md:flex-row">
-                            <Button onClick={() => handleSave(false)} disabled={isSaving || isDeleting} className="w-full md:w-auto">
+                            <Button onClick={() => handleSave(false)} disabled={isSaving || !!isDeleting} className="w-full md:w-auto">
                                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                                 {isSaving ? "Guardando..." : saveButtonText}
                             </Button>
@@ -715,10 +721,31 @@ export default function ConnectionsPage() {
                                     <Label htmlFor="partnerClientSecret">Client Secret de la App de Partner</Label>
                                     <Input id="partnerClientSecret" name="partnerClientSecret" type="password" value={partnerFormData.partnerClientSecret || ''} onChange={handlePartnerInputChange} placeholder="shpss_xxxxxxxxxxxx" disabled={isSavingPartner}/>
                                 </div>
-                                <Button onClick={() => handleSave(true)} disabled={isSavingPartner}>
-                                    {isSavingPartner && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    Guardar Credenciales de Partner
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                    <Button onClick={() => handleSave(true)} disabled={isSavingPartner}>
+                                        {isSavingPartner && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        Guardar Credenciales
+                                    </Button>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="outline" disabled={isSavingPartner || !partnerFormData.partnerClientId}>
+                                                <Trash2 className="h-4 w-4"/>
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>¿Eliminar Credenciales de Partner?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    Esta acción eliminará permanentemente las credenciales de Shopify Partner para <strong>{editingTarget.name}</strong>.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleDelete('shopify_partner')} className="bg-destructive hover:bg-destructive/90">Sí, eliminar</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </div>
                             </CardContent>
                         </Card>
                     )}
