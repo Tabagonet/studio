@@ -30,7 +30,7 @@ Todas las peticiones a la API deben incluir una API Key para la autenticación.
 
 *   **Método**: La clave debe ser enviada en la cabecera `Authorization` con el esquema `Bearer`.
 *   **Cabecera**: `Authorization: Bearer <TU_API_KEY_AQUI>`
-*   **Obtención de la Clave**: La API Key se genera por usuario y se puede obtener desde la interfaz de AutoPress AI, en la sección **Ajustes > Clave de API del Plugin**.
+*   **Obtención de la Clave**: La API Key es una clave estática y secreta que **será proporcionada por el equipo de AutoPress AI**. Esta clave no se genera en la interfaz de usuario y debe ser almacenada de forma segura como una variable de entorno en el sistema del chatbot.
 
 ---
 
@@ -175,4 +175,3 @@ Si la petición `POST` inicial al endpoint `/api/shopify/create-store` falla, la
 *   **`403 Forbidden`**: La `API Key` es correcta, pero la entidad (usuario o empresa) asociada a la clave no tiene permisos para realizar la acción (ej. ha alcanzado su límite de creación de tiendas).
 
 *   **`500 Internal Server Error`**: Ocurrió un error inesperado en nuestro servidor al intentar procesar la petición.
-
