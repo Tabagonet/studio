@@ -164,14 +164,14 @@ export function SidebarNav() {
             let tooltipText = item.title;
             
             if (group.requiredPlatform === 'woocommerce') {
-                const isWooFullyConfigured = configStatus?.wooCommerceConfigured && configStatus.wordPressConfigured && configStatus.pluginActive;
-                const isWpOnlyConfigured = configStatus?.wordPressConfigured && configStatus.pluginActive && !configStatus?.wooCommerceConfigured;
+                const isWpVerified = configStatus?.wordPressConfigured && configStatus.pluginActive;
+                const isWooConfigured = configStatus?.wooCommerceConfigured;
                 const requiresStore = item.href.includes('/wizard') || item.href.includes('/batch');
                 
-                if (requiresStore && !isWooFullyConfigured) {
+                if (requiresStore && (!isWpVerified || !isWooConfigured)) {
                     isDisabled = true;
-                    tooltipText = "Requiere una conexión WooCommerce/WordPress completamente configurada y verificada.";
-                } else if (!requiresStore && !isWpOnlyConfigured && !isWooFullyConfigured) {
+                    tooltipText = "Requiere una conexión a WordPress (verificada) y a WooCommerce.";
+                } else if (!requiresStore && !isWpVerified) {
                     isDisabled = true;
                     tooltipText = "Requiere una conexión a WordPress configurada y verificada.";
                 }
