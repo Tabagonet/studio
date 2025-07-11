@@ -163,10 +163,24 @@ export function SidebarNav() {
             let isDisabled = !!item.disabled;
             let tooltipText = item.title;
             
-            if (group.requiredPlatform === 'woocommerce' && (!configStatus || !configStatus.wooCommerceConfigured || !configStatus.wordPressConfigured)) {
-              isDisabled = true;
-              tooltipText = "Configuración de WooCommerce/WordPress incompleta";
+            if (group.requiredPlatform === 'woocommerce') {
+                // Tools for WooCommerce require AT LEAST WordPress to be configured.
+                const isWooFullyConfigured = configStatus?.wooCommerceConfigured && configStatus?.wordPressConfigured;
+                const isWpOnlyConfigured = configStatus?.wordPressConfigured && !configStatus?.wooCommerceConfigured;
+
+                // An item is disabled if its group requires WooCommerce and it's not configured.
+                // However, some tools (like blog/seo) can work with just WordPress.
+                const requiresStore = item.href.includes('/wizard') || item.href.includes('/batch');
+                
+                if (requiresStore && !isWooFullyConfigured) {
+                    isDisabled = true;
+                    tooltipText = "Configuración de WooCommerce/WordPress incompleta";
+                } else if (!requiresStore && !isWpOnlyConfigured && !isWooFullyConfigured) {
+                    isDisabled = true;
+                    tooltipText = "Configuración de WordPress incompleta";
+                }
             }
+
             if (group.requiredPlatform === 'shopify' && (!configStatus || !configStatus.shopifyConfigured)) {
                isDisabled = true;
                tooltipText = "Configuración de Shopify incompleta";

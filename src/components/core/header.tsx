@@ -66,6 +66,11 @@ const ConnectionStatusIndicator = ({ status, isLoading }: { status: ConfigStatus
   const showWooCommerce = status.assignedPlatform === 'woocommerce' || (isSuperAdminScope && status.activePlatform === 'woocommerce');
   const showShopify = status.assignedPlatform === 'shopify' || (isSuperAdminScope && status.activePlatform === 'shopify');
 
+  // Logic to show WordPress status correctly even without WooCommerce
+  const wpActive = status.wordPressConfigured;
+  const wooActive = status.wooCommerceConfigured;
+  const pluginActive = status.pluginActive;
+
   return (
     <TooltipProvider delayDuration={100}>
         <Link href="/settings/connections" className="flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Gestionar conexiones">
@@ -76,26 +81,26 @@ const ConnectionStatusIndicator = ({ status, isLoading }: { status: ConfigStatus
                     <div className="flex items-center gap-2">
                         <Tooltip>
                             <TooltipTrigger>
-                            <Store className={cn("h-4 w-4", status.wooCommerceConfigured ? "text-green-500" : "text-destructive")} />
+                            <Store className={cn("h-4 w-4", wooActive ? "text-green-500" : "text-muted-foreground")} />
                             </TooltipTrigger>
                             <TooltipContent>
-                                <p>WooCommerce: {status.wooCommerceConfigured ? "Configurado" : "No Configurado"}</p>
+                                <p>WooCommerce: {wooActive ? "Configurado" : "No Configurado"}</p>
                             </TooltipContent>
                         </Tooltip>
                         <Tooltip>
                             <TooltipTrigger>
-                            <Globe className={cn("h-4 w-4", status.wordPressConfigured ? "text-green-500" : "text-destructive")} />
+                            <Globe className={cn("h-4 w-4", wpActive ? "text-green-500" : "text-destructive")} />
                             </TooltipTrigger>
                             <TooltipContent>
-                                <p>WordPress: {status.wordPressConfigured ? "Configurado" : "No Configurado"}</p>
+                                <p>WordPress: {wpActive ? "Configurado" : "No Configurado"}</p>
                             </TooltipContent>
                         </Tooltip>
                         <Tooltip>
                             <TooltipTrigger>
-                            <PlugZap className={cn("h-4 w-4", status.pluginActive ? "text-green-500" : "text-destructive")} />
+                            <PlugZap className={cn("h-4 w-4", pluginActive ? "text-green-500" : "text-destructive")} />
                             </TooltipTrigger>
                             <TooltipContent>
-                                <p>Plugin AutoPress AI: {status.pluginActive ? "Activo" : "No Detectado"}</p>
+                                <p>Plugin AutoPress AI: {pluginActive ? "Activo" : "No Detectado"}</p>
                             </TooltipContent>
                         </Tooltip>
                     </div>
@@ -254,7 +259,7 @@ export function Header() {
       console.error("Error signing out:", error);
       toast({
         title: "Error al Cerrar Sesión",
-        description: error.message || "No se pudo cerrar la sesión. Inténtalo de nuevo.",
+        description: error.message || "No se pudo cerrar la sesión.",
         variant: "destructive",
       });
     }
