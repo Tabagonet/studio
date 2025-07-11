@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
-import { handleCreateShopifyStore } from '@/lib/tasks/create-shopify-store';
+import { CloudTasksClient } from '@google-cloud/tasks';
 
 const shopifyStoreCreationSchema = z.object({
   webhookUrl: z.string().url({ message: "La URL del webhook no es válida." }),
@@ -36,6 +36,49 @@ const shopifyStoreCreationSchema = z.object({
   })
 });
 
+const tasksClient = new CloudTasksClient();
+const PROJECT_ID = process.env.FIREBASE_PROJECT_ID!;
+const LOCATION_ID = 'europe-west1'; // IMPORTANTE: Cambia esto a la región donde creaste la cola
+const QUEUE_ID = 'autopress-jobs';
+
+
+async function enqueueShopifyCreationTask(jobId: string) {
+  if (!PROJECT_ID) {
+    throw new Error('FIREBASE_PROJECT_ID no está configurado en las variables de entorno.');
+  }
+
+  const parent = tasksClient.queuePath(PROJECT_ID, LOCATION_ID, QUEUE_ID);
+  const serviceAccountEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  
+  if (!serviceAccountEmail) {
+    throw new Error('FIREBASE_CLIENT_EMAIL no está configurado. Es necesario para autenticar las tareas.');
+  }
+  
+  const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
+
+  const task = {
+    httpRequest: {
+      httpMethod: 'POST' as const,
+      url: targetUri,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
+       oidcToken: {
+          serviceAccountEmail: serviceAccountEmail,
+       },
+    },
+    scheduleTime: {
+      seconds: Date.now() / 1000 + 5, // Schedule 5 seconds in the future
+    },
+  };
+
+  const request = { parent: parent, task: task };
+  const [response] = await tasksClient.createTask(request);
+  console.log(`[Cloud Task] Creada la tarea: ${response.name}`);
+  return response;
+}
+
 
 export async function POST(req: NextRequest) {
   const providedApiKey = req.headers.get('Authorization')?.split('Bearer ')[1];
@@ -64,7 +107,6 @@ export async function POST(req: NextRequest) {
   try {
     const { entity } = validation.data;
 
-    // Check site limit based on the entity requesting the store
     if (entity.type === 'user') {
         const userDoc = await adminDb.collection('users').doc(entity.id).get();
         if (!userDoc.exists) throw new Error("El usuario especificado para crear la tienda no existe.");
@@ -84,7 +126,6 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: `Límite de creación de tiendas (${siteLimit}) alcanzado para este usuario.` }, { status: 403 });
         }
     }
-    // Note: A limit check for 'company' type entities is not implemented, as limits are per-user.
 
     const jobRef = adminDb.collection('shopify_creation_jobs').doc();
     
@@ -98,10 +139,8 @@ export async function POST(req: NextRequest) {
 
     const jobId = jobRef.id;
 
-    // In a production environment with Cloud Tasks, this would enqueue a task
-    // instead of calling the handler directly. For this environment, we call it
-    // directly but do not `await` it to allow an immediate response.
-    handleCreateShopifyStore(jobId);
+    // Enqueue the task to be run by Cloud Tasks
+    await enqueueShopifyCreationTask(jobId);
 
     return NextResponse.json({ success: true, jobId: jobId }, { status: 202 });
 

@@ -1,8 +1,9 @@
-// src/app/api/shopify/auth/callback/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, admin } from '@/lib/firebase-admin';
 import { validateHmac, getPartnerCredentials } from '@/lib/api-helpers';
 import axios from 'axios';
+import { populateShopifyStore } from '@/lib/tasks/create-shopify-store';
 
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
@@ -18,12 +19,10 @@ export async function GET(req: NextRequest) {
     try {
         const { clientId, clientSecret } = await getPartnerCredentials(state);
 
-        // 1. Validate HMAC to ensure the request is genuinely from Shopify
         if (!validateHmac(searchParams, clientSecret)) {
             return new NextResponse("Verificación de seguridad HMAC fallida.", { status: 403 });
         }
         
-        // 2. Exchange the authorization code for a permanent access token
         const accessTokenUrl = `https://${shop}/admin/oauth/access_token`;
         const response = await axios.post(accessTokenUrl, {
             client_id: clientId,
@@ -40,18 +39,18 @@ export async function GET(req: NextRequest) {
             throw new Error("El servicio de base de datos no está disponible.");
         }
 
-        // 3. Store the access token and set status to 'authorized' to trigger the next step
         await adminDb.collection('shopify_creation_jobs').doc(state).update({
             storeAccessToken: accessToken,
-            status: 'authorized', // NEW: Set status to trigger background processing
-            'logs': admin.firestore.FieldValue.arrayUnion({ timestamp: new Date(), message: 'Token de acceso de la tienda obtenido y autorizado con éxito. El proceso de población comenzará en breve.' }),
+            status: 'processing', // Changed from 'authorized' to 'processing'
+            'logs': admin.firestore.FieldValue.arrayUnion({ timestamp: new Date(), message: 'Token de acceso de la tienda obtenido y autorizado. Iniciando población de la tienda.' }),
             'updatedAt': admin.firestore.FieldValue.serverTimestamp(),
         });
         
-        // NOTE: We are no longer directly calling populateShopifyStore here.
-        // A separate background process/task queue would pick up jobs with status 'authorized'.
+        // This is no longer called directly. A background task/listener would handle this.
+        // For this project, we assume a separate process picks up jobs with status 'processing' or 'authorized'.
+        // To keep it simple, we can trigger it here but not await it, though Cloud Tasks is the ideal solution.
+        populateShopifyStore(state);
 
-        // 5. Respond to the user with a success page
         return new NextResponse(`
             <!DOCTYPE html>
             <html>
@@ -78,7 +77,6 @@ export async function GET(req: NextRequest) {
 
     } catch (error: any) {
         console.error(`[Shopify Callback Error] Job ID ${state}:`, error.response?.data || error.message);
-        // Update the job log with the error
         if (state && adminDb && admin.firestore.FieldValue) {
             await adminDb.collection('shopify_creation_jobs').doc(state).update({
                 status: 'error',

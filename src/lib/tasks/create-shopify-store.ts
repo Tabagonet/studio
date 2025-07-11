@@ -22,20 +22,21 @@ async function updateJobStatus(jobId: string, status: 'processing' | 'completed'
     });
 }
 
+// This function now contains the full logic and is intended to be called by a task handler.
 export async function handleCreateShopifyStore(jobId: string) {
     if (!adminDb) {
         console.error("Firestore not available in handleCreateShopifyStore.");
-        return;
+        throw new Error("Firestore not available.");
     }
 
     const jobRef = adminDb.collection('shopify_creation_jobs').doc(jobId);
 
     try {
-        const jobDoc = await jobRef.get();
+        await updateJobStatus(jobId, 'processing', 'Tarea iniciada. Obteniendo credenciales y ajustes de la entidad...');
+        
+        const jobDoc = await jobDoc.get();
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
         const jobData = jobDoc.data()!;
-
-        await updateJobStatus(jobId, 'processing', 'Obteniendo credenciales y ajustes de la entidad...');
         
         let settingsSource;
         if (jobData.entity.type === 'company') {
@@ -47,7 +48,6 @@ export async function handleCreateShopifyStore(jobId: string) {
             settingsSource = userSettingsDoc.data();
         }
 
-        // Override product creation based on company/user setting
         if (settingsSource?.shopifyCreationDefaults?.createProducts === false) {
             if (jobData.creationOptions.createExampleProducts === true) {
                 await updateJobStatus(jobId, 'processing', 'La creación de productos ha sido desactivada por un ajuste de la entidad.');
@@ -55,7 +55,6 @@ export async function handleCreateShopifyStore(jobId: string) {
             jobData.creationOptions.createExampleProducts = false;
         }
 
-        // Get the default theme from settings if available
         const defaultTheme = settingsSource?.shopifyCreationDefaults?.theme;
         if (defaultTheme) {
              jobData.creationOptions.theme = defaultTheme;
@@ -93,10 +92,9 @@ export async function handleCreateShopifyStore(jobId: string) {
             }
         };
 
-        // Add theme template if specified in the job
         if (jobData.creationOptions?.theme) {
             variables.input.template = jobData.creationOptions.theme;
-             await updateJobStatus(jobId, 'processing', `Usando la plantilla de tema: "${jobData.creationOptions.theme}".`);
+            await updateJobStatus(jobId, 'processing', `Usando la plantilla de tema: "${jobData.creationOptions.theme}".`);
         }
 
         const response = await axios.post(
@@ -133,7 +131,7 @@ export async function handleCreateShopifyStore(jobId: string) {
         
     } catch (error: any) {
         console.error(`[Job ${jobId}] Failed to create Shopify store:`, error.message);
-        await updateJobStatus(jobId, 'error', `Error fatal: ${error.message}`);
+        await updateJobStatus(jobId, 'error', `Error fatal en la creación: ${error.message}`);
     }
 }
 
@@ -255,11 +253,10 @@ async function createShopifyProduct(jobId: string, api: AxiosInstance, productDa
             }
         };
 
-        // Add a placeholder image if an image prompt was generated
         if (productData.imagePrompt) {
             payload.product.images = [{
                 src: 'https://placehold.co/600x600.png',
-                alt: productData.imagePrompt, // Using the prompt as alt text is good for SEO
+                alt: productData.imagePrompt,
             }];
         }
 
@@ -339,7 +336,6 @@ async function setupBasicNavigation(jobId: string, api: AxiosInstance, createdPa
         const contactPage = createdPages.find(p => p.title.toLowerCase().includes('contacto'));
         if (contactPage) linksToAdd.push({ title: contactPage.title, url: `/pages/${contactPage.handle}` });
         
-        // This creates links sequentially. Could be batched for minor performance gain.
         for (const link of linksToAdd) {
             await api.post(`navigation/${mainMenu.id}/links.json`, {
                 link: { title: link.title, url: link.url }
