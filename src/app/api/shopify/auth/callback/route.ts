@@ -1,3 +1,4 @@
+
 // src/app/api/shopify/auth/callback/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, admin } from '@/lib/firebase-admin';
