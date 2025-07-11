@@ -1,5 +1,4 @@
 
-'use server';
 /**
  * @fileOverview An AI flow for the lead generation chatbot.
  */

@@ -1,5 +1,4 @@
 
-'use server';
 /**
  * @fileOverview A strategy tasks generation AI agent.
  */

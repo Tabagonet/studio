@@ -1,5 +1,4 @@
 
-'use server';
 /**
  * @fileOverview An ad creatives generation AI agent.
  */

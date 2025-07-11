@@ -1,5 +1,4 @@
 
-'use server';
 /**
  * @fileOverview AI content generation for Shopify stores.
  */
