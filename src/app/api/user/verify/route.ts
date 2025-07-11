@@ -25,6 +25,26 @@ const userSchema = z.object({
 
 const SUPER_ADMIN_EMAIL = 'tabagonet@gmail.com';
 
+async function ensureApiKeyExists(uid: string, apiKey: string | undefined): Promise<string> {
+    if (!adminDb) throw new Error("Firestore not configured.");
+    if (apiKey) {
+        const apiKeyRef = adminDb.collection('api_keys').doc(apiKey);
+        const apiKeyDoc = await apiKeyRef.get();
+        if (!apiKeyDoc.exists) {
+            // The key exists on the user doc but not in the collection. Create it.
+            await apiKeyRef.set({ userId: uid, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+        }
+        return apiKey;
+    } else {
+        // The user has no API key at all. Create a new one.
+        const newApiKey = uuidv4();
+        await adminDb.collection('users').doc(uid).update({ apiKey: newApiKey });
+        await adminDb.collection('api_keys').doc(newApiKey).set({ userId: uid, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+        return newApiKey;
+    }
+}
+
+
 export async function GET(req: NextRequest) {
   let decodedToken;
   try {
@@ -51,53 +71,35 @@ export async function GET(req: NextRequest) {
     const userDoc = await userRef.get();
 
     if (userDoc.exists) {
-      // User exists, return their data
       const userData = userDoc.data()!;
+      let finalUserData = { ...userData };
+
+      // --- Self-healing: Ensure API key exists for all existing users ---
+      finalUserData.apiKey = await ensureApiKeyExists(uid, userData.apiKey);
 
       // --- Super Admin Override ---
-      const isSuperAdmin = userData.email === SUPER_ADMIN_EMAIL;
-      const needsSuperAdminUpdate = isSuperAdmin && (userData.role !== 'super_admin' || userData.status !== 'active' || userData.siteLimit !== 999);
+      const isSuperAdmin = finalUserData.email === SUPER_ADMIN_EMAIL;
+      const needsSuperAdminUpdate = isSuperAdmin && (finalUserData.role !== 'super_admin' || finalUserData.status !== 'active' || finalUserData.siteLimit !== 999);
       if (needsSuperAdminUpdate) {
           console.log(`Applying Super Admin override for ${SUPER_ADMIN_EMAIL}`);
-          const adminUpdate: any = { role: 'super_admin', status: 'active', siteLimit: 999 };
-          if (!userData.apiKey) {
-            adminUpdate.apiKey = uuidv4();
-            await adminDb.collection('api_keys').doc(adminUpdate.apiKey).set({ userId: uid });
-          }
+          const adminUpdate = { role: 'super_admin', status: 'active', siteLimit: 999 };
           await userRef.update(adminUpdate);
           await adminAuth.setCustomUserClaims(uid, { role: 'super_admin' });
-          
-          const updatedUserData = { ...userData, ...adminUpdate };
-          const validatedData = userSchema.safeParse(updatedUserData);
-          
-          if (!validatedData.success) {
-               console.error("Super Admin override user data is invalid:", validatedData.error);
-               return NextResponse.json({ error: "Invalid admin override data." }, { status: 500 });
-          }
-          return NextResponse.json(validatedData.data);
+          finalUserData = { ...finalUserData, ...adminUpdate };
       }
-      // --- End Super Admin Override ---
       
-       // Ensure existing users have an API key if they are missing one
-      if (!userData.apiKey) {
-          const newApiKey = uuidv4();
-          await userRef.update({ apiKey: newApiKey });
-          await adminDb.collection('api_keys').doc(newApiKey).set({ userId: uid, createdAt: admin.firestore.FieldValue.serverTimestamp() });
-          userData.apiKey = newApiKey;
-      }
-
       // Add company info if it exists
-      if (userData.companyId) {
-          const companyDoc = await adminDb.collection('companies').doc(userData.companyId).get();
+      if (finalUserData.companyId) {
+          const companyDoc = await adminDb.collection('companies').doc(finalUserData.companyId).get();
           if (companyDoc.exists) {
               const companyData = companyDoc.data();
-              userData.companyName = companyData?.name || null;
-              userData.companyPlatform = companyData?.platform || null;
+              finalUserData.companyName = companyData?.name || null;
+              finalUserData.companyPlatform = companyData?.platform || null;
           }
       }
       
-      const roleToReturn = userData.role || 'pending';
-      const validatedData = userSchema.safeParse({...userData, role: roleToReturn});
+      const roleToReturn = finalUserData.role || 'pending';
+      const validatedData = userSchema.safeParse({...finalUserData, role: roleToReturn});
       if (!validatedData.success) {
         console.error("User data in DB is invalid:", validatedData.error);
         return NextResponse.json({ error: "Invalid user data in database." }, { status: 500 });
