@@ -1,6 +1,3 @@
-
-'use server';
-
 import { admin, adminDb } from '@/lib/firebase-admin';
 import axios from 'axios';
 import { generateShopifyStoreContent, type GeneratedContent, type GenerationInput } from '@/ai/flows/shopify-content-flow';
@@ -349,4 +346,3 @@ async function setupBasicNavigation(jobId: string, api: AxiosInstance, createdPa
         await updateJobStatus(jobId, 'processing', `Error configurando la navegación: ${errorMessage}`);
     }
 }
-
