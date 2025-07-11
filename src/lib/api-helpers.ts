@@ -1,3 +1,4 @@
+
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -97,31 +98,33 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
 
   const activeConnection = allConnections[activeConnectionKey];
 
-  // Create temporary WordPress client just for verification
-  const tempWpApi = createWordPressApi({
-    url: activeConnection.wordpressApiUrl,
-    username: activeConnection.wordpressUsername,
-    applicationPassword: activeConnection.wordpressApplicationPassword,
-  });
-  
-  if (tempWpApi) {
-      const siteUrl = tempWpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
-      const statusEndpoint = `${siteUrl}/wp-json/custom/v1/status`;
-      try {
-          const response = await tempWpApi.get(statusEndpoint, { timeout: 15000 });
-          if (response.status !== 200 || response.data?.verified !== true) {
-              throw new Error("Connection not verified. The API Key stored in your WordPress plugin is invalid or missing. Please go to your WordPress Admin > Settings > AutoPress AI to fix it.");
-          }
-      } catch (e: any) {
-          if (e.response?.status === 404) {
-               throw new Error('Verification endpoint not found. Please update the AutoPress AI Helper plugin in WordPress.');
-          }
-          // Re-throw the original verification error or a generic one
-          throw new Error(e.message || "Failed to verify connection status with the WordPress plugin.");
-      }
+  // Create temporary WordPress client just for verification if WordPress is configured
+  if (activeConnection.wordpressApiUrl && activeConnection.wordpressUsername && activeConnection.wordpressApplicationPassword) {
+    const tempWpApi = createWordPressApi({
+      url: activeConnection.wordpressApiUrl,
+      username: activeConnection.wordpressUsername,
+      applicationPassword: activeConnection.wordpressApplicationPassword,
+    });
+    
+    if (tempWpApi) {
+        const siteUrl = tempWpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
+        const statusEndpoint = `${siteUrl}/wp-json/custom/v1/status`;
+        try {
+            const response = await tempWpApi.get(statusEndpoint, { timeout: 15000 });
+            if (response.status !== 200 || response.data?.verified !== true) {
+                throw new Error("Connection not verified. The API Key stored in your WordPress plugin is invalid or missing. Please go to your WordPress Admin > Settings > AutoPress AI to fix it.");
+            }
+        } catch (e: any) {
+            if (e.response?.status === 404) {
+                 throw new Error('Verification endpoint not found. Please update the AutoPress AI Helper plugin in WordPress.');
+            }
+            // Re-throw the original verification error or a generic one
+            throw new Error(e.message || "Failed to verify connection status with the WordPress plugin.");
+        }
+    }
   }
 
-  // If verification passes, create and return all clients
+  // If verification passes (or is not applicable), create and return all clients
   const wooApi = createWooCommerceApi({
     url: activeConnection.wooCommerceStoreUrl,
     consumerKey: activeConnection.wooCommerceApiKey,

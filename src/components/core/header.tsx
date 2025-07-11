@@ -1,3 +1,4 @@
+
 // src/components/core/header.tsx
 "use client";
 
@@ -6,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { UserCircle, LogOut, Settings as SettingsIcon, Globe, Bell, Loader2, Store, PlugZap } from "lucide-react";
+import { UserCircle, LogOut, Settings as SettingsIcon, Globe, Bell, Loader2, Store, PlugZap, AlertCircle } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -71,6 +72,15 @@ const ConnectionStatusIndicator = ({ status, isLoading }: { status: ConfigStatus
   const wooActive = status.wooCommerceConfigured;
   const pluginActive = status.pluginActive;
 
+  if (showWooCommerce && !pluginActive) {
+      return (
+        <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-destructive hover:text-destructive/80 transition-colors" title="El plugin de WordPress no está verificado. Haz clic para ir a Ajustes.">
+            <AlertCircle className="h-4 w-4" />
+            <span className="hidden md:inline">Conexión no verificada</span>
+        </Link>
+      )
+  }
+
   return (
     <TooltipProvider delayDuration={100}>
         <Link href="/settings/connections" className="flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Gestionar conexiones">
@@ -100,7 +110,7 @@ const ConnectionStatusIndicator = ({ status, isLoading }: { status: ConfigStatus
                             <PlugZap className={cn("h-4 w-4", pluginActive ? "text-green-500" : "text-destructive")} />
                             </TooltipTrigger>
                             <TooltipContent>
-                                <p>Plugin AutoPress AI: {pluginActive ? "Activo" : "No Detectado"}</p>
+                                <p>Plugin AutoPress AI: {pluginActive ? "Activo y Verificado" : "No Detectado o No Verificado"}</p>
                             </TooltipContent>
                         </Tooltip>
                     </div>
@@ -358,7 +368,7 @@ export function Header() {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/settings"><SettingsIcon className="mr-2 h-4 w-4" />Configuración</Link>
+                    <Link href="/settings/connections"><SettingsIcon className="mr-2 h-4 w-4" />Configuración</Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:bg-destructive/10 focus:text-destructive">

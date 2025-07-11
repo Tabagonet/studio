@@ -32,6 +32,7 @@ interface ConfigStatus {
   wooCommerceConfigured: boolean;
   wordPressConfigured: boolean;
   shopifyConfigured: boolean;
+  pluginActive: boolean;
 }
 
 export function SidebarNav() {
@@ -61,13 +62,13 @@ export function SidebarNav() {
       if(configResponse.ok) {
         setConfigStatus(await configResponse.json());
       } else {
-        setConfigStatus({ wooCommerceConfigured: false, wordPressConfigured: false, shopifyConfigured: false });
+        setConfigStatus({ wooCommerceConfigured: false, wordPressConfigured: false, shopifyConfigured: false, pluginActive: false });
       }
 
     } catch (error) {
       console.error("Failed to fetch user/config for sidebar", error);
       setUserData(null);
-      setConfigStatus({ wooCommerceConfigured: false, wordPressConfigured: false, shopifyConfigured: false });
+      setConfigStatus({ wooCommerceConfigured: false, wordPressConfigured: false, shopifyConfigured: false, pluginActive: false });
     } finally {
       setIsLoading(false);
     }
@@ -143,7 +144,6 @@ export function SidebarNav() {
         const hasRequiredRole = !item.requiredRoles || (userData?.role && item.requiredRoles.includes(userData.role));
         if (!hasRequiredRole) return false;
         
-        // Hide item if it requires a company and the user (who is an admin) doesn't have one
         if (item.requiresCompany && userData?.role === 'admin' && !userData.companyId) {
             return false;
         }
@@ -164,26 +164,22 @@ export function SidebarNav() {
             let tooltipText = item.title;
             
             if (group.requiredPlatform === 'woocommerce') {
-                // Tools for WooCommerce require AT LEAST WordPress to be configured.
-                const isWooFullyConfigured = configStatus?.wooCommerceConfigured && configStatus?.wordPressConfigured;
-                const isWpOnlyConfigured = configStatus?.wordPressConfigured && !configStatus?.wooCommerceConfigured;
-
-                // An item is disabled if its group requires WooCommerce and it's not configured.
-                // However, some tools (like blog/seo) can work with just WordPress.
+                const isWooFullyConfigured = configStatus?.wooCommerceConfigured && configStatus.wordPressConfigured && configStatus.pluginActive;
+                const isWpOnlyConfigured = configStatus?.wordPressConfigured && configStatus.pluginActive && !configStatus?.wooCommerceConfigured;
                 const requiresStore = item.href.includes('/wizard') || item.href.includes('/batch');
                 
                 if (requiresStore && !isWooFullyConfigured) {
                     isDisabled = true;
-                    tooltipText = "Configuración de WooCommerce/WordPress incompleta";
+                    tooltipText = "Requiere una conexión WooCommerce/WordPress completamente configurada y verificada.";
                 } else if (!requiresStore && !isWpOnlyConfigured && !isWooFullyConfigured) {
                     isDisabled = true;
-                    tooltipText = "Configuración de WordPress incompleta";
+                    tooltipText = "Requiere una conexión a WordPress configurada y verificada.";
                 }
             }
 
             if (group.requiredPlatform === 'shopify' && (!configStatus || !configStatus.shopifyConfigured)) {
                isDisabled = true;
-               tooltipText = "Configuración de Shopify incompleta";
+               tooltipText = "Requiere una conexión a Shopify configurada.";
             }
 
             return (
