@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import type { Company } from '@/lib/types';
 
+export const dynamic = 'force-dynamic';
+
 async function getAdminContext(req: NextRequest): Promise<{ uid: string | null; role: string | null; companyId: string | null }> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) return { uid: null, role: null, companyId: null };

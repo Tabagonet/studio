@@ -1,7 +1,8 @@
-
 // src/app/api/notifications/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
+
+export const dynamic = 'force-dynamic';
 
 async function getUserIdFromRequest(req: NextRequest): Promise<string | null> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];

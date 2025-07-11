@@ -1,7 +1,8 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import type { CreateAdPlanOutput, Strategy, Task, GenerateAdCreativesOutput } from '@/app/(app)/ad-planner/schema';
+
+export const dynamic = 'force-dynamic';
 
 const FunnelStageSchemaForHistory = {
     stage_name: '',

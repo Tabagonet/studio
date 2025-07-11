@@ -1,9 +1,10 @@
-
 // src/app/api/user/verify/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
+
+export const dynamic = 'force-dynamic';
 
 const userSchema = z.object({
   uid: z.string(),

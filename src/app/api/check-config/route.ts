@@ -1,10 +1,10 @@
-
-
 // src/app/api/check-config/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import type * as admin from 'firebase-admin';
 import axios from 'axios';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   let uid: string;

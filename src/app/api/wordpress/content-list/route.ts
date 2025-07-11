@@ -1,7 +1,8 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {

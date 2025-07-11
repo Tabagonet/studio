@@ -1,8 +1,9 @@
-
 // src/app/api/license/verify-plugin/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
+
+export const dynamic = 'force-dynamic';
 
 const verifySchema = z.object({
   apiKey: z.string().uuid("Formato de API Key inválido."),

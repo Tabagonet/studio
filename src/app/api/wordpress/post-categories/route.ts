@@ -1,8 +1,9 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import type { WordPressPostCategory } from '@/lib/types';
 import { adminAuth } from '@/lib/firebase-admin';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
