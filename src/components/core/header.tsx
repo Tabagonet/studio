@@ -67,14 +67,15 @@ const ConnectionStatusIndicator = ({ status, isLoading }: { status: ConfigStatus
   const showWooCommerce = status.assignedPlatform === 'woocommerce' || (isSuperAdminScope && status.activePlatform === 'woocommerce');
   const showShopify = status.assignedPlatform === 'shopify' || (isSuperAdminScope && status.activePlatform === 'shopify');
 
-  // Logic to show WordPress status correctly even without WooCommerce
   const wpActive = status.wordPressConfigured;
   const wooActive = status.wooCommerceConfigured;
-  const pluginActive = status.pluginActive;
+  
+  // The plugin is considered active only if the WordPress connection is configured AND the plugin itself is verified.
+  const isPluginVerifiedAndActive = wpActive && status.pluginActive;
 
-  if (showWooCommerce && !pluginActive) {
+  if (showWooCommerce && !isPluginVerifiedAndActive) {
       return (
-        <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-destructive hover:text-destructive/80 transition-colors" title="El plugin de WordPress no está verificado. Haz clic para ir a Ajustes.">
+        <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-destructive hover:text-destructive/80 transition-colors" title="La conexión con WordPress no está verificada. Haz clic para ir a Ajustes.">
             <AlertCircle className="h-4 w-4" />
             <span className="hidden md:inline">Conexión no verificada</span>
         </Link>
@@ -107,10 +108,10 @@ const ConnectionStatusIndicator = ({ status, isLoading }: { status: ConfigStatus
                         </Tooltip>
                         <Tooltip>
                             <TooltipTrigger>
-                            <PlugZap className={cn("h-4 w-4", pluginActive ? "text-green-500" : "text-destructive")} />
+                            <PlugZap className={cn("h-4 w-4", isPluginVerifiedAndActive ? "text-green-500" : "text-destructive")} />
                             </TooltipTrigger>
                             <TooltipContent>
-                                <p>Plugin AutoPress AI: {pluginActive ? "Activo y Verificado" : "No Detectado o No Verificado"}</p>
+                                <p>Plugin AutoPress AI: {isPluginVerifiedAndActive ? "Activo y Verificado" : "No Detectado o No Verificado"}</p>
                             </TooltipContent>
                         </Tooltip>
                     </div>
@@ -386,3 +387,5 @@ export function Header() {
     </header>
   );
 }
+
+    

@@ -23,7 +23,7 @@ function autopress_ai_get_plugin_version() {
 function autopress_ai_add_admin_menu() {
     $plugin_version = autopress_ai_get_plugin_version();
     add_options_page(
-        'AutoPress AI Helper', 
+        'AutoPress AI Helper - v' . esc_html($plugin_version), 
         'AutoPress AI', 
         'edit_posts', 
         'autopress-ai', 
@@ -35,7 +35,7 @@ function autopress_ai_options_page() {
     $plugin_version = autopress_ai_get_plugin_version();
     ?>
     <div class="wrap">
-        <h1><?php echo esc_html(get_admin_page_title()); ?> - v<?php echo esc_html($plugin_version); ?></h1>
+        <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
         <div id="autopress-notice" class="notice" style="display:none; margin-top: 1rem;"></div>
         <form id="autopress-ai-form">
             <?php wp_nonce_field('autopress_ai_verify_nonce', 'autopress_ai_nonce'); ?>
@@ -197,14 +197,11 @@ function autopress_ai_register_rest_endpoints() {
     });
     
     function custom_api_status_check() {
-        $is_woocommerce_active = class_exists('WooCommerce');
-        $is_plugin_active_and_verified = get_option('autopress_ai_is_active') === 'true';
-
         return new WP_REST_Response([
             'status' => 'ok',
-            'plugin_version' => '1.24',
-            'verified' => $is_plugin_active_and_verified,
-            'woocommerce_active' => $is_woocommerce_active,
+            'plugin_version' => autopress_ai_get_plugin_version(),
+            'verified' => get_option('autopress_ai_is_active') === 'true',
+            'woocommerce_active' => class_exists('WooCommerce'),
         ], 200);
     }
     function custom_api_link_translations( $request ) { if ( ! function_exists( 'pll_save_post_translations' ) ) { return new WP_Error( 'polylang_not_found', 'Polylang no está activo.', [ 'status' => 501 ] ); } $translations = $request->get_param( 'translations' ); if ( empty( $translations ) || ! is_array( $translations ) ) { return new WP_Error( 'invalid_payload', 'Se requiere un array asociativo de traducciones.', [ 'status' => 400 ] ); } $sanitized = []; foreach ( $translations as $lang => $post_id ) { $sanitized[ sanitize_key( $lang ) ] = absint( $post_id ); } pll_save_post_translations( $sanitized ); return new WP_REST_Response( ['success' => true, 'message' => 'Traducciones enlazadas.'], 200 ); }
@@ -249,3 +246,5 @@ function autopress_ai_register_rest_endpoints() {
         return new WP_REST_Response(['content' => $content_list], 200); 
     }
 }
+
+    

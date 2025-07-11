@@ -97,13 +97,14 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   }
 
   const activeConnection = allConnections[activeConnectionKey];
+  const { wordpressApiUrl, wordpressUsername, wordpressApplicationPassword } = activeConnection;
 
-  // Create temporary WordPress client just for verification if WordPress is configured
-  if (activeConnection.wordpressApiUrl && activeConnection.wordpressUsername && activeConnection.wordpressApplicationPassword) {
+  // Verification is only needed for WordPress-based connections
+  if (wordpressApiUrl && wordpressUsername && wordpressApplicationPassword) {
     const tempWpApi = createWordPressApi({
-      url: activeConnection.wordpressApiUrl,
-      username: activeConnection.wordpressUsername,
-      applicationPassword: activeConnection.wordpressApplicationPassword,
+      url: wordpressApiUrl,
+      username: wordpressUsername,
+      applicationPassword: wordpressApplicationPassword,
     });
     
     if (tempWpApi) {
@@ -112,14 +113,13 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
         try {
             const response = await tempWpApi.get(statusEndpoint, { timeout: 15000 });
             if (response.status !== 200 || response.data?.verified !== true) {
-                throw new Error("Connection not verified. The API Key stored in your WordPress plugin is invalid or missing. Please go to your WordPress Admin > Settings > AutoPress AI to fix it.");
+                throw new Error("Conexión no verificada. Comprueba que la API Key del plugin es correcta y está activa en tu sitio de WordPress.");
             }
         } catch (e: any) {
             if (e.response?.status === 404) {
-                 throw new Error('Verification endpoint not found. Please update the AutoPress AI Helper plugin in WordPress.');
+                 throw new Error('Endpoint de verificación no encontrado. Actualiza el plugin AutoPress AI Helper en tu WordPress.');
             }
-            // Re-throw the original verification error or a generic one
-            throw new Error(e.message || "Failed to verify connection status with the WordPress plugin.");
+            throw new Error(e.message || "No se pudo verificar el estado del plugin en WordPress. Revisa la URL y las credenciales.");
         }
     }
   }
@@ -447,3 +447,5 @@ export async function findOrCreateTags(tagNames: string[], wpApi: AxiosInstance)
   }
   return tagIds;
 }
+
+    
