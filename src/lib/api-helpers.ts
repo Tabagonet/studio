@@ -55,8 +55,10 @@ export function validateHmac(query: URLSearchParams, clientSecret: string): bool
 /**
  * Fetches the active user-specific or company-specific credentials and creates API clients.
  * This function now determines context (user vs company) to fetch the correct settings.
+ * It also performs a mandatory verification check against the WordPress site's plugin.
  * @param {string} uid - The user's Firebase UID.
  * @returns {Promise<ApiClients>} An object containing initialized API clients and settings.
+ * @throws {Error} If the connection is not verified or credentials are incomplete.
  */
 export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   if (!adminDb) {
@@ -74,14 +76,10 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   let settingsSource: admin.firestore.DocumentData | undefined;
 
   if (companyId) {
-      // User belongs to a company, so get the company's settings
       const companyDoc = await adminDb.collection('companies').doc(companyId).get();
-      if (!companyDoc.exists) {
-          throw new Error(`Company with ID ${companyId} not found.`);
-      }
+      if (!companyDoc.exists) throw new Error(`Company with ID ${companyId} not found.`);
       settingsSource = companyDoc.data();
   } else {
-      // User is individual (or Super Admin managing their own things), get personal settings
       const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
       settingsSource = userSettingsDoc.data();
   }
@@ -99,6 +97,31 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
 
   const activeConnection = allConnections[activeConnectionKey];
 
+  // Create temporary WordPress client just for verification
+  const tempWpApi = createWordPressApi({
+    url: activeConnection.wordpressApiUrl,
+    username: activeConnection.wordpressUsername,
+    applicationPassword: activeConnection.wordpressApplicationPassword,
+  });
+  
+  if (tempWpApi) {
+      const siteUrl = tempWpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
+      const statusEndpoint = `${siteUrl}/wp-json/custom/v1/status`;
+      try {
+          const response = await tempWpApi.get(statusEndpoint, { timeout: 15000 });
+          if (response.status !== 200 || response.data?.verified !== true) {
+              throw new Error("Connection not verified. The API Key stored in your WordPress plugin is invalid or missing. Please go to your WordPress Admin > Settings > AutoPress AI to fix it.");
+          }
+      } catch (e: any) {
+          if (e.response?.status === 404) {
+               throw new Error('Verification endpoint not found. Please update the AutoPress AI Helper plugin in WordPress.');
+          }
+          // Re-throw the original verification error or a generic one
+          throw new Error(e.message || "Failed to verify connection status with the WordPress plugin.");
+      }
+  }
+
+  // If verification passes, create and return all clients
   const wooApi = createWooCommerceApi({
     url: activeConnection.wooCommerceStoreUrl,
     consumerKey: activeConnection.wooCommerceApiKey,
@@ -113,7 +136,7 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
 
   const shopifyApi = createShopifyApi({
     url: activeConnection.shopifyStoreUrl,
-    accessToken: activeConnection.shopifyApiPassword, // The "password" field in UI stores the access token
+    accessToken: activeConnection.shopifyApiPassword,
   });
 
   return { wooApi, wpApi, shopifyApi, activeConnectionKey, settings: settingsSource };
