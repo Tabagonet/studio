@@ -1,6 +1,6 @@
 // src/app/api/license/verify-plugin/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
+import { adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
@@ -67,11 +67,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ status: 'inactive', message: 'La cuenta de usuario no está activa.' }, { status: 403 });
     }
 
-    // 3. Check site limit and if this site is registered
-    const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
-    const settings = userSettingsDoc.data() || { connections: {} };
-    const connections = settings.connections || {};
-    const connectionCount = Object.keys(connections).length;
+    // 3. Determine which settings to use (user or company)
+    let settingsSource;
+    const companyId = userData.companyId;
+
+    if (companyId) {
+        const companyDoc = await adminDb.collection('companies').doc(companyId).get();
+        if (companyDoc.exists) {
+            settingsSource = companyDoc.data();
+        } else {
+             settingsSource = (await adminDb.collection('user_settings').doc(uid).get()).data();
+        }
+    } else {
+        settingsSource = (await adminDb.collection('user_settings').doc(uid).get()).data();
+    }
+    
+    const connections = settingsSource?.connections || {};
+    const connectionCount = Object.keys(connections).filter(k => k !== 'shopify_partner').length;
     const siteLimit = userData.siteLimit ?? 1;
     
     const normalizedSiteUrl = normalizeUrl(validSiteUrl);

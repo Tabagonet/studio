@@ -52,6 +52,7 @@ const connectionDataSchema = z.object({
     wordpressApplicationPassword: z.string().optional(),
     shopifyStoreUrl: shopifyUrlOrEmptyString.optional(),
     shopifyApiPassword: z.string().optional(),
+    // Partner creds are handled separately but schema can be here for validation
     partnerClientId: z.string().optional(),
     partnerClientSecret: z.string().optional(),
     promptTemplate: z.string().optional(),
@@ -66,9 +67,10 @@ export async function GET(req: NextRequest) {
         const { uid, role, companyId: userCompanyId } = await getUserContext(req);
         const targetCompanyId = req.nextUrl.searchParams.get('companyId');
         const targetUserId = req.nextUrl.searchParams.get('userId');
-        let settingsDoc;
         
+        let settingsDoc;
         let targetRef;
+
         if (role === 'super_admin') {
             if (targetCompanyId) {
                 targetRef = adminDb.collection('companies').doc(targetCompanyId);
@@ -152,8 +154,8 @@ export async function POST(req: NextRequest) {
         if (isEditingOwnSettings) {
              const userDoc = await adminDb.collection('users').doc(uid).get();
              const siteLimit = userDoc.data()?.siteLimit ?? 1;
-             const connectionCount = settingsSnap.exists ? Object.keys(settingsSnap.data()?.connections || {}).length : 0;
-             if (!isUpdate && connectionCount >= siteLimit) {
+             const connectionCount = settingsSnap.exists ? Object.keys(settingsSnap.data()?.connections || {}).filter(k => k !== 'shopify_partner').length : 0;
+             if (!isUpdate && key !== 'shopify_partner' && connectionCount >= siteLimit) {
                   return NextResponse.json({ error: `Límite de sitios alcanzado. Tu plan permite ${siteLimit} sitio(s).` }, { status: 403 });
              }
         }
@@ -244,7 +246,7 @@ export async function DELETE(req: NextRequest) {
         };
 
         if (currentData?.activeConnectionKey === key) {
-            const otherKeys = Object.keys(currentData.connections || {}).filter(k => k !== key);
+            const otherKeys = Object.keys(currentData.connections || {}).filter(k => k !== key && k !== 'shopify_partner');
             updatePayload.activeConnectionKey = otherKeys.length > 0 ? otherKeys[0] : null;
         }
 

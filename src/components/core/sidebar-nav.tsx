@@ -3,7 +3,7 @@
 // src/components/core/sidebar-nav.tsx
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -42,7 +42,8 @@ export function SidebarNav() {
   const [configStatus, setConfigStatus] = useState<ConfigStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchUserAndConfigData = async (user: FirebaseUser) => {
+  const fetchUserAndConfigData = useCallback(async (user: FirebaseUser) => {
+    setIsLoading(true);
     try {
       const token = await user.getIdToken();
       
@@ -70,12 +71,11 @@ export function SidebarNav() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user: FirebaseUser | null) => {
       if (user) {
-        setIsLoading(true);
         fetchUserAndConfigData(user);
       } else {
         setUserData(null);
@@ -95,7 +95,7 @@ export function SidebarNav() {
       unsubscribe();
       window.removeEventListener('connections-updated', handleConnectionsUpdate);
     };
-  }, []);
+  }, [fetchUserAndConfigData]);
 
   const handleSignOut = async () => {
     try {
