@@ -1,8 +1,6 @@
-
 // src/app/api/shopify/auth/callback/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, admin } from '@/lib/firebase-admin';
-import { populateShopifyStore } from '@/lib/tasks/create-shopify-store';
 import { validateHmac, getPartnerCredentials } from '@/lib/api-helpers';
 import axios from 'axios';
 
@@ -42,17 +40,16 @@ export async function GET(req: NextRequest) {
             throw new Error("El servicio de base de datos no está disponible.");
         }
 
-        // 3. Store the access token securely with the job
+        // 3. Store the access token and set status to 'authorized' to trigger the next step
         await adminDb.collection('shopify_creation_jobs').doc(state).update({
             storeAccessToken: accessToken,
-            'logs': admin.firestore.FieldValue.arrayUnion({ timestamp: new Date(), message: 'Token de acceso de la tienda obtenido con éxito.' }),
+            status: 'authorized', // NEW: Set status to trigger background processing
+            'logs': admin.firestore.FieldValue.arrayUnion({ timestamp: new Date(), message: 'Token de acceso de la tienda obtenido y autorizado con éxito. El proceso de población comenzará en breve.' }),
             'updatedAt': admin.firestore.FieldValue.serverTimestamp(),
         });
         
-        // 4. Trigger the next phase of the background task: populating the store
-        // In a real production environment, this would add a task to a queue (e.g., Cloud Tasks)
-        // For now, we call the handler directly.
-        populateShopifyStore(state);
+        // NOTE: We are no longer directly calling populateShopifyStore here.
+        // A separate background process/task queue would pick up jobs with status 'authorized'.
 
         // 5. Respond to the user with a success page
         return new NextResponse(`

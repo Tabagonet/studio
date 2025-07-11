@@ -394,7 +394,7 @@ export interface Prospect {
 
 export interface ShopifyCreationJob {
   id: string;
-  status: 'pending' | 'processing' | 'completed' | 'error';
+  status: 'pending' | 'processing' | 'authorized' | 'completed' | 'error';
   createdAt: string; // ISO String
   updatedAt: string; // ISO String
   logs: { timestamp: string, message: string }[];

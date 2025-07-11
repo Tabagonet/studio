@@ -13,6 +13,7 @@ const nextConfig = {
       'handlebars',
       'debug',
       'supports-color',
+      'sharp',
     ],
   },
   images: {
@@ -58,5 +59,3 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
-
-    
