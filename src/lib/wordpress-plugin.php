@@ -2,7 +2,7 @@
 /*
 Plugin Name: AutoPress AI Helper
 Description: Añade endpoints a la REST API para gestionar traducciones, stock y otras funciones personalizadas para AutoPress AI.
-Version: 1.23
+Version: 1.24
 Author: intelvisual@intelvisual.es
 */
 
@@ -182,9 +182,12 @@ function autopress_ai_register_rest_endpoints() {
     
     function custom_api_status_check() {
         $is_woocommerce_active = class_exists('WooCommerce');
+        $is_plugin_active_and_verified = get_option('autopress_ai_is_active') === 'true';
+
         return new WP_REST_Response([
             'status' => 'ok',
-            'plugin_version' => '1.23',
+            'plugin_version' => '1.24',
+            'verified' => $is_plugin_active_and_verified,
             'woocommerce_active' => $is_woocommerce_active,
         ], 200);
     }

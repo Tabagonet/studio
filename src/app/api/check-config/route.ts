@@ -1,3 +1,4 @@
+
 // src/app/api/check-config/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -118,7 +119,8 @@ export async function GET(req: NextRequest) {
               headers: { 'Authorization': `Basic ${token}` },
               timeout: 10000,
             });
-            if (response.status === 200 && response.data?.status === 'ok') {
+            // Check for the new 'verified' property from the plugin
+            if (response.status === 200 && response.data?.verified === true) {
               userConfig.pluginActive = true;
             }
           } catch (pluginError) {
