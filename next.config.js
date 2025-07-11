@@ -3,6 +3,7 @@
 const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: [
+      '@google-cloud/tasks',
       'zod',
       '@woocommerce/woocommerce-rest-api',
       'axios',
