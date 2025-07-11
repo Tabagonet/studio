@@ -12,14 +12,30 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 add_action('admin_menu', 'autopress_ai_add_admin_menu');
 add_action('wp_ajax_autopress_ai_verify_key', 'autopress_ai_ajax_verify_key');
 
+function autopress_ai_get_plugin_version() {
+    if (!function_exists('get_plugin_data')) {
+        require_once(ABSPATH . 'wp-admin/includes/plugin.php');
+    }
+    $plugin_data = get_plugin_data(__FILE__);
+    return $plugin_data['Version'];
+}
+
 function autopress_ai_add_admin_menu() {
-    add_options_page('AutoPress AI Helper', 'AutoPress AI', 'edit_posts', 'autopress-ai', 'autopress_ai_options_page');
+    $plugin_version = autopress_ai_get_plugin_version();
+    add_options_page(
+        'AutoPress AI Helper', 
+        'AutoPress AI', 
+        'edit_posts', 
+        'autopress-ai', 
+        'autopress_ai_options_page'
+    );
 }
 
 function autopress_ai_options_page() {
+    $plugin_version = autopress_ai_get_plugin_version();
     ?>
     <div class="wrap">
-        <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
+        <h1><?php echo esc_html(get_admin_page_title()); ?> - v<?php echo esc_html($plugin_version); ?></h1>
         <div id="autopress-notice" class="notice" style="display:none; margin-top: 1rem;"></div>
         <form id="autopress-ai-form">
             <?php wp_nonce_field('autopress_ai_verify_nonce', 'autopress_ai_nonce'); ?>
