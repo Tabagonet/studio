@@ -230,9 +230,10 @@ export function Header() {
     });
 
     const handleConnectionsUpdate = () => {
-      fetchConnectionStatus(auth.currentUser);
+      if (auth.currentUser) {
+        fetchConnectionStatus(auth.currentUser);
+      }
     };
-
     window.addEventListener('connections-updated', handleConnectionsUpdate);
 
     return () => {
@@ -387,5 +388,3 @@ export function Header() {
     </header>
   );
 }
-
-    

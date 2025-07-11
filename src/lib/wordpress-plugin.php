@@ -11,6 +11,8 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 // === Admin Menu and Settings Page ===
 add_action('admin_menu', 'autopress_ai_add_admin_menu');
 add_action('wp_ajax_autopress_ai_verify_key', 'autopress_ai_ajax_verify_key');
+add_action('wp_ajax_autopress_ai_disconnect', 'autopress_ai_ajax_disconnect');
+
 
 function autopress_ai_get_plugin_version() {
     if (!function_exists('get_plugin_data')) {
@@ -22,17 +24,11 @@ function autopress_ai_get_plugin_version() {
 
 function autopress_ai_add_admin_menu() {
     $plugin_version = autopress_ai_get_plugin_version();
-    add_options_page(
-        'AutoPress AI Helper - v' . esc_html($plugin_version), 
-        'AutoPress AI', 
-        'edit_posts', 
-        'autopress-ai', 
-        'autopress_ai_options_page'
-    );
+    $page_title = 'AutoPress AI Helper - v' . esc_html($plugin_version);
+    add_options_page($page_title, 'AutoPress AI', 'edit_posts', 'autopress-ai', 'autopress_ai_options_page');
 }
 
 function autopress_ai_options_page() {
-    $plugin_version = autopress_ai_get_plugin_version();
     ?>
     <div class="wrap">
         <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
@@ -67,6 +63,12 @@ function autopress_ai_options_page() {
             </table>
             <?php submit_button('Guardar y Verificar Clave'); ?>
         </form>
+         <?php if ($is_active): ?>
+            <form id="autopress-disconnect-form" style="margin-top: 1rem;">
+                <?php wp_nonce_field('autopress_ai_disconnect_nonce', 'autopress_ai_disconnect_nonce_field'); ?>
+                <button type="submit" class="button button-secondary"><?php _e('Desconectar y Borrar Clave', 'autopress-ai'); ?></button>
+            </form>
+        <?php endif; ?>
     </div>
     <script type="text/javascript">
         jQuery(document).ready(function($) {
@@ -102,10 +104,52 @@ function autopress_ai_options_page() {
                     submitButton.val(originalButtonText).prop('disabled', false);
                 });
             });
+
+            $('#autopress-disconnect-form').on('submit', function(e) {
+                e.preventDefault();
+                if (!confirm('¿Estás seguro de que quieres desconectar y borrar la API Key?')) return;
+
+                var nonce = $('#autopress_ai_disconnect_nonce_field').val();
+                var noticeEl = $('#autopress-notice');
+                var button = $(this).find('button');
+                button.text('Desconectando...').prop('disabled', true);
+                noticeEl.hide();
+
+                $.post(ajaxurl, {
+                    action: 'autopress_ai_disconnect',
+                    nonce: nonce
+                }, function(response) {
+                    if (response.success) {
+                        noticeEl.removeClass('notice-error').addClass('notice-success is-dismissible').html('<p>' + response.data.message + '</p>').show();
+                        setTimeout(function(){ location.reload(); }, 1000);
+                    } else {
+                        noticeEl.removeClass('notice-success').addClass('notice-error is-dismissible').html('<p>' + response.data.message + '</p>').show();
+                        button.text('Desconectar y Borrar Clave').prop('disabled', false);
+                    }
+                }).fail(function() {
+                    noticeEl.removeClass('notice-success').addClass('notice-error is-dismissible').html('<p>Error de comunicación al desconectar.</p>').show();
+                    button.text('Desconectar y Borrar Clave').prop('disabled', false);
+                });
+            });
         });
     </script>
     <?php
 }
+
+function autopress_ai_ajax_disconnect() {
+    if (!check_ajax_referer('autopress_ai_disconnect_nonce', 'nonce', false)) {
+        wp_send_json_error(['message' => 'Fallo de seguridad.'], 403);
+        return;
+    }
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(['message' => 'No tienes permisos.'], 403);
+        return;
+    }
+    delete_option('autopress_ai_api_key');
+    delete_option('autopress_ai_is_active');
+    wp_send_json_success(['message' => 'Desconectado correctamente. La clave ha sido eliminada.']);
+}
+
 
 function autopress_ai_ajax_verify_key() {
     if (!check_ajax_referer('autopress_ai_verify_nonce', 'nonce', false)) {
@@ -246,5 +290,3 @@ function autopress_ai_register_rest_endpoints() {
         return new WP_REST_Response(['content' => $content_list], 200); 
     }
 }
-
-    
