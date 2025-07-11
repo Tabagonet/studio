@@ -1,3 +1,4 @@
+
 'use server';
 
 import { admin, adminDb } from '@/lib/firebase-admin';
@@ -5,6 +6,7 @@ import axios from 'axios';
 import { generateShopifyStoreContent, type GeneratedContent, type GenerationInput } from '@/ai/flows/shopify-content-flow';
 import { createShopifyApi } from '@/lib/shopify';
 import type { AxiosInstance } from 'axios';
+import { getPartnerCredentials } from '@/lib/api-helpers';
 
 async function updateJobStatus(jobId: string, status: 'processing' | 'completed' | 'error', logMessage: string, extraData: Record<string, any> = {}) {
     if (!adminDb) return;
@@ -19,39 +21,6 @@ async function updateJobStatus(jobId: string, status: 'processing' | 'completed'
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 }
-
-async function getPartnerCredentials(jobId: string): Promise<{ clientId: string; clientSecret: string; accessToken: string; }> {
-    if (!adminDb) throw new Error("Firestore not available.");
-    
-    const jobDoc = await adminDb.collection('shopify_creation_jobs').doc(jobId).get();
-    if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
-    
-    const jobData = jobDoc.data()!;
-    const entity = jobData.entity;
-
-    let settingsSource;
-    if (entity.type === 'company') {
-        const companyDoc = await adminDb.collection('companies').doc(entity.id).get();
-        if (!companyDoc.exists) throw new Error(`Company ${entity.id} not found.`);
-        settingsSource = companyDoc.data();
-    } else { // entity.type === 'user'
-        const userSettingsDoc = await adminDb.collection('user_settings').doc(entity.id).get();
-        settingsSource = userSettingsDoc.data();
-    }
-    
-    // Look for the specific 'shopify_partner' connection profile.
-    const partnerConnection = settingsSource?.connections?.['shopify_partner'];
-    const partnerClientId = partnerConnection?.partnerClientId;
-    const partnerClientSecret = partnerConnection?.partnerClientSecret;
-    
-    if (!partnerClientId || !partnerClientSecret) {
-        throw new Error('Las credenciales de Shopify Partner App (Client ID/Secret) no están configuradas en el perfil de conexión "shopify_partner".');
-    }
-    
-    // The access token for the Partner API is stored in the same profile's secret field for simplicity.
-    return { clientId: partnerClientId, clientSecret: partnerClientSecret, accessToken: partnerClientSecret };
-}
-
 
 export async function handleCreateShopifyStore(jobId: string) {
     if (!adminDb) {

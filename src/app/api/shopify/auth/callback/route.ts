@@ -2,40 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, admin } from '@/lib/firebase-admin';
 import { populateShopifyStore } from '@/lib/tasks/create-shopify-store';
-import { validateHmac } from '@/lib/api-helpers';
+import { validateHmac, getPartnerCredentials } from '@/lib/api-helpers';
 import axios from 'axios';
-
-export const dynamic = 'force-dynamic';
-
-async function getPartnerCredentials(jobId: string): Promise<{ clientId: string; clientSecret: string; }> {
-    if (!adminDb) throw new Error("Firestore not available.");
-    
-    const jobDoc = await adminDb.collection('shopify_creation_jobs').doc(jobId).get();
-    if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
-    
-    const jobData = jobDoc.data()!;
-    const entity = jobData.entity;
-
-    let settingsSource;
-    if (entity.type === 'company') {
-        const companyDoc = await adminDb.collection('companies').doc(entity.id).get();
-        if (!companyDoc.exists) throw new Error(`Company ${entity.id} not found.`);
-        settingsSource = companyDoc.data();
-    } else {
-        const userSettingsDoc = await adminDb.collection('user_settings').doc(entity.id).get();
-        settingsSource = userSettingsDoc.data();
-    }
-
-    const partnerClientId = settingsSource?.connections?.['shopify_partner']?.partnerClientId;
-    const partnerClientSecret = settingsSource?.connections?.['shopify_partner']?.partnerClientSecret;
-    
-    if (!partnerClientId || !partnerClientSecret) {
-        throw new Error('Las credenciales de Shopify Partner App (Client ID/Secret) no están configuradas.');
-    }
-    
-    return { clientId: partnerClientId, clientSecret: partnerClientSecret };
-}
-
 
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
