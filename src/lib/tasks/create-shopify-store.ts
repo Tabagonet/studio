@@ -1,4 +1,5 @@
 
+'use server';
 
 import { admin, adminDb } from '@/lib/firebase-admin';
 import axios from 'axios';
