@@ -4,8 +4,6 @@ import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import { z } from 'zod';
 
-export const dynamic = 'force-dynamic';
-
 const linkSchema = z.object({
   translations: z.record(z.string(), z.number()), // e.g. { "en": 123, "es": 456 }
 });

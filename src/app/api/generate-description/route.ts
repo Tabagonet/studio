@@ -6,8 +6,6 @@ import { getApiClientsForUser } from '@/lib/api-helpers';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Handlebars from 'handlebars';
 
-export const dynamic = 'force-dynamic';
-
 const FullProductOutputSchema = z.object({
   name: z.string().describe('A new, SEO-friendly product title. It should start with the base name and be enriched with the descriptive context.'),
   shortDescription: z.string().describe('A brief, catchy summary of the product (1-2 sentences). Must use HTML for formatting.'),

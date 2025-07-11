@@ -7,8 +7,6 @@ import { z } from 'zod';
 import { AxiosInstance } from 'axios';
 import Handlebars from 'handlebars';
 
-export const dynamic = 'force-dynamic';
-
 const suggestLinksBodySchema = z.object({
   content: z.string(),
 });

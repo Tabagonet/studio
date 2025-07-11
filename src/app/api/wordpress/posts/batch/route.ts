@@ -4,8 +4,6 @@ import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import { z } from 'zod';
 
-export const dynamic = 'force-dynamic';
-
 const batchActionSchema = z.object({
   postIds: z.array(z.number()).min(1, 'At least one post ID is required.'),
   action: z.enum(['delete']), // Can be extended later for status updates etc.

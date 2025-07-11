@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
 
-export const dynamic = 'force-dynamic';
-
 async function isSuperAdmin(req: NextRequest): Promise<boolean> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) return false;

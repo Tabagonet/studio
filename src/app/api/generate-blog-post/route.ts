@@ -5,8 +5,6 @@ import { z } from 'zod';
 import Handlebars from 'handlebars';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-export const dynamic = 'force-dynamic';
-
 const BlogContentInputSchema = z.object({
   mode: z.enum([
     'generate_from_topic', 'enhance_content', 'enhance_title', 'suggest_keywords',
@@ -147,5 +145,3 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'La IA falló: ' + error.message }, { status: 500 });
     }
 }
-
-    

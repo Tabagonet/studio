@@ -4,8 +4,6 @@ import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import { z } from 'zod';
 
-export const dynamic = 'force-dynamic';
-
 const BatchUpdateSchema = z.object({
   productIds: z.array(z.number()).min(1),
   updates: z.object({

@@ -4,8 +4,6 @@ import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import { z } from 'zod';
 
-export const dynamic = 'force-dynamic';
-
 const syncSchema = z.object({
   sourcePostId: z.number(),
   postType: z.enum(['Post', 'Page']),

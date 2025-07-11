@@ -10,8 +10,6 @@ import { SeoAnalysisRecord } from '@/lib/types';
 import type { AxiosInstance } from 'axios';
 import Handlebars from 'handlebars';
 
-export const dynamic = 'force-dynamic';
-
 const analyzeUrlSchema = z.object({
   url: z.string().min(1, "La URL no puede estar vacía."),
   postId: z.number().optional(),
@@ -360,5 +358,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'La IA falló: ' + error.message }, { status: 500 });
   }
 }
-
-    

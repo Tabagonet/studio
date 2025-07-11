@@ -4,8 +4,6 @@ import { getApiClientsForUser } from '@/lib/api-helpers';
 import type { WordPressUser } from '@/lib/types';
 import { adminAuth } from '@/lib/firebase-admin';
 
-export const dynamic = 'force-dynamic';
-
 export async function GET(req: NextRequest) {
   try {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];

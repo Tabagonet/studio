@@ -4,8 +4,6 @@ import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/api-helpers'
 import { z } from 'zod';
 import { adminAuth } from '@/lib/firebase-admin';
 
-export const dynamic = 'force-dynamic';
-
 const slugify = (text: string) => {
     if (!text) return '';
     return text.toString().toLowerCase()

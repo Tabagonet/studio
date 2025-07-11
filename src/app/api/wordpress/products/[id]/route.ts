@@ -4,8 +4,6 @@ import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/api-helpers';
 import { z } from 'zod';
 
-export const dynamic = 'force-dynamic';
-
 const slugify = (text: string) => {
     if (!text) return '';
     return text.toString().toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-').replace(/^-+$/, '');

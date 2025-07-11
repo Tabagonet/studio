@@ -5,8 +5,6 @@ import { adminDb, admin } from '@/lib/firebase-admin';
 import axios from 'axios';
 import { z } from 'zod';
 
-export const dynamic = 'force-dynamic';
-
 interface Message {
     role: 'user' | 'model';
     content: string;

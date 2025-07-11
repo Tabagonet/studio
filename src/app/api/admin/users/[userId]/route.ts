@@ -3,8 +3,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 
-export const dynamic = 'force-dynamic';
-
 async function isAdmin(req: NextRequest): Promise<{ isAdmin: boolean, uid: string | null, role: string | null }> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) return { isAdmin: false, uid: null, role: null };

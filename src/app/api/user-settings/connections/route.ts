@@ -4,8 +4,6 @@ import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { addRemotePattern } from '@/lib/next-config-manager';
 
-export const dynamic = 'force-dynamic';
-
 async function getUserContext(req: NextRequest): Promise<{ uid: string; role: string | null; companyId: string | null }> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) throw new Error('Authentication token not provided.');

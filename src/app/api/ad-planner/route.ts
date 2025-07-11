@@ -5,8 +5,6 @@ import { z } from 'zod';
 import { createAdPlan } from '@/ai/flows/create-ad-plan-flow';
 import { CreateAdPlanInputSchema } from '@/app/(app)/ad-planner/schema';
 
-export const dynamic = 'force-dynamic';
-
 export async function POST(req: NextRequest) {
     let uid: string;
     try {

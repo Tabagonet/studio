@@ -3,8 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 
-export const dynamic = 'force-dynamic';
-
 // This custom endpoint is not part of the standard WordPress REST API.
 // It requires a custom function to be added to the theme's functions.php file.
 // If it's not present, this endpoint will gracefully fail, and the UI will fall back

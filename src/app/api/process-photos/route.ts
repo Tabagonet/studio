@@ -6,8 +6,6 @@ import {z} from 'zod';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Handlebars from 'handlebars';
 
-export const dynamic = 'force-dynamic';
-
 const BatchUpdateInputSchema = z.object({
   productIds: z.array(z.number()).min(1, 'At least one product ID is required.'),
   action: z.enum(['generateDescriptions', 'generateImageMetadata']),

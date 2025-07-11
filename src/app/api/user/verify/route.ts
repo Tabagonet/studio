@@ -5,8 +5,6 @@ import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 
-export const dynamic = 'force-dynamic';
-
 const userSchema = z.object({
   uid: z.string(),
   email: z.string().email().or(z.literal('')),

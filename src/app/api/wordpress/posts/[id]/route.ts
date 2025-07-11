@@ -7,8 +7,6 @@ import { z } from 'zod';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
-export const dynamic = 'force-dynamic';
-
 const slugify = (text: string) => {
     if (!text) return '';
     return text.toString().toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-').replace(/^-+$/, '');

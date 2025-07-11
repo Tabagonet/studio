@@ -7,8 +7,6 @@ import { z } from 'zod';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
-export const dynamic = 'force-dynamic';
-
 const slugify = (text: string) => {
     if (!text) return '';
     return text.toString().toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-').replace(/^-+$/, '');
@@ -78,7 +76,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             const $contentArea = $('main').length ? $('main') : $('article').length ? $('article') : $('body');
             $contentArea.find('header, footer, nav').remove();
 
-            const imagePromises: Promise<any>[] = [];
             const foundImageIds = new Set<number>();
 
             $contentArea.find('img').each((i, el) => {
