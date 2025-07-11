@@ -34,7 +34,7 @@ export async function handleCreateShopifyStore(jobId: string) {
     try {
         await updateJobStatus(jobId, 'processing', 'Tarea iniciada. Obteniendo credenciales y ajustes de la entidad...');
         
-        const jobDoc = await jobDoc.get();
+        const jobDoc = await jobRef.get();
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
         const jobData = jobDoc.data()!;
         
@@ -145,6 +145,7 @@ export async function populateShopifyStore(jobId: string) {
     let createdPages: { title: string; handle: string; }[] = [];
 
     try {
+        await updateJobStatus(jobId, 'processing', 'Tarea de población iniciada.');
         const jobDoc = await jobRef.get();
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
         const jobData = jobDoc.data()!;
@@ -348,3 +349,4 @@ async function setupBasicNavigation(jobId: string, api: AxiosInstance, createdPa
         await updateJobStatus(jobId, 'processing', `Error configurando la navegación: ${errorMessage}`);
     }
 }
+

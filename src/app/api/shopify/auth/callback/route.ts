@@ -3,7 +3,50 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, admin } from '@/lib/firebase-admin';
 import { validateHmac, getPartnerCredentials } from '@/lib/api-helpers';
 import axios from 'axios';
-import { populateShopifyStore } from '@/lib/tasks/create-shopify-store';
+import { CloudTasksClient } from '@google-cloud/tasks';
+
+const tasksClient = new CloudTasksClient();
+const PROJECT_ID = process.env.FIREBASE_PROJECT_ID!;
+const LOCATION_ID = 'europe-west1'; // IMPORTANTE: Asegúrate de que esta es la región donde creaste la cola
+const QUEUE_ID = 'autopress-jobs';
+
+async function enqueueShopifyPopulationTask(jobId: string) {
+  if (!PROJECT_ID) {
+    throw new Error('FIREBASE_PROJECT_ID no está configurado en las variables de entorno.');
+  }
+
+  const parent = tasksClient.queuePath(PROJECT_ID, LOCATION_ID, QUEUE_ID);
+  const serviceAccountEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  
+  if (!serviceAccountEmail) {
+    throw new Error('FIREBASE_CLIENT_EMAIL no está configurado. Es necesario para autenticar las tareas.');
+  }
+  
+  const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/populate-shopify-store`;
+
+  const task = {
+    httpRequest: {
+      httpMethod: 'POST' as const,
+      url: targetUri,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
+       oidcToken: {
+          serviceAccountEmail: serviceAccountEmail,
+       },
+    },
+    scheduleTime: {
+      seconds: Date.now() / 1000 + 2, // Schedule a few seconds in the future
+    },
+  };
+
+  const request = { parent: parent, task: task };
+  const [response] = await tasksClient.createTask(request);
+  console.log(`[Cloud Task] Creada la tarea de población: ${response.name}`);
+  return response;
+}
+
 
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
@@ -41,15 +84,13 @@ export async function GET(req: NextRequest) {
 
         await adminDb.collection('shopify_creation_jobs').doc(state).update({
             storeAccessToken: accessToken,
-            status: 'processing', // Changed from 'authorized' to 'processing'
-            'logs': admin.firestore.FieldValue.arrayUnion({ timestamp: new Date(), message: 'Token de acceso de la tienda obtenido y autorizado. Iniciando población de la tienda.' }),
+            status: 'authorized', 
+            'logs': admin.firestore.FieldValue.arrayUnion({ timestamp: new Date(), message: 'Token de acceso de la tienda obtenido y autorizado. Encolando tarea de población de tienda.' }),
             'updatedAt': admin.firestore.FieldValue.serverTimestamp(),
         });
         
-        // This is no longer called directly. A background task/listener would handle this.
-        // For this project, we assume a separate process picks up jobs with status 'processing' or 'authorized'.
-        // To keep it simple, we can trigger it here but not await it, though Cloud Tasks is the ideal solution.
-        populateShopifyStore(state);
+        // Enqueue the population task
+        await enqueueShopifyPopulationTask(state);
 
         return new NextResponse(`
             <!DOCTYPE html>
