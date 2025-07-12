@@ -8,7 +8,8 @@ import { z } from 'zod';
 export const dynamic = 'force-dynamic';
 
 const verifyPartnerSchema = z.object({
-  userId: z.string(),
+  entityId: z.string(),
+  entityType: z.enum(['user', 'company']),
 });
 
 export async function POST(req: NextRequest) {
@@ -21,14 +22,12 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const validation = verifyPartnerSchema.safeParse(body);
         if (!validation.success) {
-            return NextResponse.json({ error: 'User ID is required.' }, { status: 400 });
+            return NextResponse.json({ error: 'entityId y entityType son requeridos.' }, { status: 400 });
         }
         
-        const { userId } = validation.data;
+        const { entityId, entityType } = validation.data;
         
-        // This helper now fetches the correct user/company specific credentials.
-        // It's crucial that it's called with the correct target userId.
-        const { partnerApiToken } = await getPartnerCredentials(userId); 
+        const { partnerApiToken } = await getPartnerCredentials(entityId, entityType);
 
         const graphqlEndpoint = `https://partners.shopify.com/api/2024-07/graphql.json`;
         

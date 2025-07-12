@@ -1,3 +1,4 @@
+
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -147,29 +148,28 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
 
 /**
  * Retrieves the Shopify Partner API Access Token for a given user or their company.
- * @param uid The Firebase UID of the user initiating the action.
+ * @param entityId The Firebase UID of the user or the ID of the company.
+ * @param entityType The type of entity ('user' or 'company').
  * @returns The Partner API Access Token.
  * @throws If credentials are not configured.
  */
-export async function getPartnerCredentials(uid: string): Promise<{ partnerApiToken: string; }> {
+export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ partnerApiToken: string; }> {
     if (!adminDb) throw new Error("Firestore not available.");
     
-    const userDoc = await adminDb.collection('users').doc(uid).get();
-    if (!userDoc.exists) throw new Error('User record not found.');
-    
-    const userData = userDoc.data()!;
-    const companyId = userData.companyId;
-
     let settingsSource;
-    if (companyId) {
-        const companyDoc = await adminDb.collection('companies').doc(companyId).get();
-        if (!companyDoc.exists) throw new Error(`Company ${companyId} not found.`);
+    if (entityType === 'company') {
+        const companyDoc = await adminDb.collection('companies').doc(entityId).get();
+        if (!companyDoc.exists) throw new Error(`Company ${entityId} not found.`);
         settingsSource = companyDoc.data();
-    } else {
-        const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+    } else { // entityType === 'user'
+        const userSettingsDoc = await adminDb.collection('user_settings').doc(entityId).get();
         settingsSource = userSettingsDoc.data();
     }
     
+    if (!settingsSource) {
+        throw new Error('No se encontró configuración para la entidad especificada.');
+    }
+
     const partnerConnection = settingsSource?.connections?.['shopify_partner'];
     const partnerApiToken = partnerConnection?.partnerApiToken;
     
@@ -482,4 +482,3 @@ export async function findOrCreateTags(tagNames: string[], wpApi: AxiosInstance)
   }
   return tagIds;
 }
-

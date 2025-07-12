@@ -16,9 +16,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSe
 import type { Company, User as AppUser } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import { ShopifyIcon } from '@/components/core/icons';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { ShopifyIcon } from '@/components/core/icons';
 
 
 interface ConnectionData {
@@ -180,21 +180,19 @@ const ConnectionStatusIndicator = ({ status, isLoading, onRefresh }: { status: S
 };
 
 const ShopifyPartnerCard = ({ 
+  editingTarget, 
   partnerFormData, 
   handlePartnerInputChange, 
   handleSave, 
   handleDelete, 
-  editingTargetName, 
   isSavingPartner,
-  uid
 }: { 
+  editingTarget: { type: 'user' | 'company'; id: string | null; name: string };
   partnerFormData: PartnerConnectionData;
   handlePartnerInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleSave: (isPartner: boolean) => void;
   handleDelete: (key: string) => void;
-  editingTargetName: string;
   isSavingPartner: boolean;
-  uid: string | null;
 }) => {
     const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'success' | 'error'>('idle');
     const [verificationMessage, setVerificationMessage] = useState('');
@@ -204,9 +202,9 @@ const ShopifyPartnerCard = ({
         setVerificationStatus('verifying');
         setVerificationMessage('');
         
-        if (!uid) {
+        if (!editingTarget.id) {
              setVerificationStatus('error');
-             setVerificationMessage('Error de autenticación. UID de usuario no encontrado.');
+             setVerificationMessage('Error: No se ha seleccionado ninguna entidad (usuario o empresa) para verificar.');
              return;
         }
 
@@ -214,10 +212,15 @@ const ShopifyPartnerCard = ({
             const token = await auth.currentUser?.getIdToken();
             if (!token) throw new Error('No se pudo obtener el token de autenticación.');
             
+            const payload = {
+                entityId: editingTarget.id,
+                entityType: editingTarget.type,
+            };
+
             const response = await fetch('/api/shopify/verify-partner', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: uid }), // Pass the UID of the entity being configured
+                body: JSON.stringify(payload),
             });
 
             const result = await response.json();
@@ -254,7 +257,7 @@ const ShopifyPartnerCard = ({
             <CardHeader>
                 <CardTitle>Conexión Global de Shopify Partners</CardTitle>
                 <CardDescription>
-                    Esta conexión se usa para la automatización de creación de tiendas para toda la entidad (<strong>{editingTargetName}</strong>).
+                    Esta conexión se usa para la automatización de creación de tiendas para toda la entidad (<strong>{editingTarget.name}</strong>).
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -293,7 +296,7 @@ const ShopifyPartnerCard = ({
                                 <AlertDialogHeader>
                                     <AlertDialogTitle>¿Eliminar Credenciales de Partner?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                        Esta acción eliminará permanentemente el Token de Acceso de Shopify Partner para <strong>{editingTargetName}</strong>.
+                                        Esta acción eliminará permanentemente el Token de Acceso de Shopify Partner para <strong>{editingTarget.name}</strong>.
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -425,7 +428,7 @@ export default function ConnectionsPage() {
                     const allUsers = (await usersResponse.json()).users;
                     setUnassignedUsers(allUsers.filter((u: any) => u.role !== 'super_admin' && !u.companyId));
                 }
-                newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)', platform: null };
+                newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)', platform: null }; // Super admin can see both
             } else {
                 const effectivePlatform = userData.companyPlatform || userData.platform;
                 newEditingTarget = { 
@@ -881,13 +884,12 @@ export default function ConnectionsPage() {
 
                     {showShopify && (
                        <ShopifyPartnerCard 
+                         editingTarget={editingTarget}
                          partnerFormData={partnerFormData}
                          handlePartnerInputChange={handlePartnerInputChange}
                          handleSave={handleSave}
                          handleDelete={handleDelete}
-                         editingTargetName={editingTarget.name}
                          isSavingPartner={isSavingPartner}
-                         uid={editingTarget.id}
                        />
                     )}
                 </div>

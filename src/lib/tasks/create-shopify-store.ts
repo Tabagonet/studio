@@ -58,7 +58,7 @@ export async function handleCreateShopifyStore(jobId: string) {
              jobData.creationOptions.theme = defaultTheme;
         }
 
-        const { partnerApiToken } = await getPartnerCredentials(jobData.entity.id);
+        const { partnerApiToken } = await getPartnerCredentials(jobData.entity.id, jobData.entity.type);
 
         const graphqlEndpoint = `https://partners.shopify.com/api/2024-07/graphql.json`;
 
@@ -84,7 +84,7 @@ export async function handleCreateShopifyStore(jobId: string) {
         // --- Dynamic Redirect URI Logic ---
         let redirectUri;
         if (process.env.NODE_ENV === 'development') {
-            const host = process.env.HOST || 'localhost';
+            const host = process.env.HOST || 'localhost:9002';
             // In dev environments like Firebase Studio, HOST might be the cloud URL.
             // We construct the redirect URI dynamically.
             const protocol = host.includes('localhost') ? 'http' : 'https';
