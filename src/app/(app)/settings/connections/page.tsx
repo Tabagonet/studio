@@ -203,7 +203,7 @@ const ShopifyPartnerCard = ({
         
         if (!editingTarget.id) {
              setVerificationStatus('error');
-             setVerificationMessage('Error: No se ha seleccionado ninguna entidad (usuario o empresa) para verificar.');
+             setVerificationMessage('Error: No se ha seleccionado ninguna entidad para verificar.');
              return;
         }
 

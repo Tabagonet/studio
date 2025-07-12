@@ -8,8 +8,8 @@ import { z } from 'zod';
 export const dynamic = 'force-dynamic';
 
 const verifyPartnerSchema = z.object({
-  entityId: z.string(),
-  entityType: z.enum(['user', 'company']),
+  entityId: z.string().min(1, "entityId es requerido."),
+  entityType: z.enum(['user', 'company'], { required_error: "entityType es requerido." }),
 });
 
 export async function POST(req: NextRequest) {
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const validation = verifyPartnerSchema.safeParse(body);
         if (!validation.success) {
-            return NextResponse.json({ error: 'entityId y entityType son requeridos.' }, { status: 400 });
+            return NextResponse.json({ error: 'Datos de entrada inválidos.', details: validation.error.flatten() }, { status: 400 });
         }
         
         const { entityId, entityType } = validation.data;
@@ -31,7 +31,6 @@ export async function POST(req: NextRequest) {
 
         const graphqlEndpoint = `https://partners.shopify.com/api/2024-07/graphql.json`;
         
-        // A simple query to check if the token is valid.
         const query = `query { organizations(first: 1) { nodes { id } } }`;
 
         const response = await axios.post(
@@ -47,7 +46,7 @@ export async function POST(req: NextRequest) {
         );
 
         if (response.data.errors) {
-            const errorMessage = response.data.errors[0]?.message || 'Invalid credentials or permissions.';
+            const errorMessage = response.data.errors[0]?.message || 'Credenciales o permisos inválidos.';
             throw new Error(errorMessage);
         }
 
