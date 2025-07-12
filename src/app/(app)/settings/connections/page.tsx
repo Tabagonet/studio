@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User, Globe, Store, PlugZap, AlertCircle, RefreshCw, CheckCircle } from "lucide-react";
+import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User, Globe, Store, PlugZap, AlertCircle, RefreshCw, CheckCircle, Copy } from "lucide-react";
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -198,7 +198,22 @@ const ShopifyPartnerCard = ({
 }) => {
     const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'success' | 'error'>('idle');
     const [verificationMessage, setVerificationMessage] = useState('');
+    const [currentOrigin, setCurrentOrigin] = useState('');
     const { toast } = useToast();
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            setCurrentOrigin(window.location.origin);
+        }
+    }, []);
+
+    const productionRedirectUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
+    const currentEnvRedirectUrl = currentOrigin ? `${currentOrigin}/api/shopify/auth/callback` : '';
+    
+    const handleCopy = (url: string) => {
+        navigator.clipboard.writeText(url);
+        toast({ title: 'URL Copiada', description: 'La URL ha sido copiada al portapapeles.' });
+    };
 
     const handleVerify = async () => {
         setVerificationStatus('verifying');
@@ -251,8 +266,31 @@ const ShopifyPartnerCard = ({
                 <CardTitle>Conexión Global de Shopify Partners</CardTitle>
                 <CardDescription>Introduce aquí las credenciales de tu App de Partner. Estas credenciales se usan para la automatización de creación de tiendas para toda la entidad (<strong>{editingTargetName}</strong>).</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-                 <div>
+            <CardContent className="space-y-6">
+                <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>URLs de Redirección Requeridas</AlertTitle>
+                    <AlertDescription>
+                        Copia y pega estas URLs en el campo "Allowed redirection URL(s)" de tu app en Shopify Partners. Necesitas añadir ambas.
+                    </AlertDescription>
+                    <div className="space-y-2 mt-4">
+                        <div className="flex items-center gap-2">
+                            <Input readOnly value={productionRedirectUrl} className="font-mono text-xs" />
+                            <Button variant="outline" size="icon-sm" onClick={() => handleCopy(productionRedirectUrl)} title="Copiar URL de producción">
+                                <Copy className="h-4 w-4" />
+                            </Button>
+                        </div>
+                        {currentOrigin && !productionRedirectUrl.startsWith(currentOrigin) && (
+                             <div className="flex items-center gap-2">
+                                <Input readOnly value={currentEnvRedirectUrl} className="font-mono text-xs" />
+                                <Button variant="outline" size="icon-sm" onClick={() => handleCopy(currentEnvRedirectUrl)} title="Copiar URL de este entorno">
+                                    <Copy className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                </Alert>
+                <div>
                     <Label htmlFor="partnerClientId">Client ID de la App de Partner</Label>
                     <Input id="partnerClientId" name="partnerClientId" value={partnerFormData.partnerClientId || ''} onChange={handlePartnerInputChange} placeholder="Ej: 1234abcd..." disabled={isSavingPartner} />
                 </div>
