@@ -19,10 +19,8 @@ Sigue estos sencillos pasos para darnos los permisos necesarios para crear tiend
 ### Paso 4: Rellena los datos básicos de la aplicación
 
 *   **App name:** Escribe un nombre que la identifique, por ejemplo: `AutoPress AI Creator`.
-*   **App URL:** Pega aquí la URL base de tu aplicación AutoPress AI (ej. `https://autopress.intelvisual.es`).
-*   **Allowed redirection URL(s):** Aquí tienes que añadir **una URL por línea**. Pega las siguientes:
-    *   `https://autopress.intelvisual.es/api/shopify/auth/callback`
-    *   Si estás usando el entorno de desarrollo de Firebase Studio, añade también la URL de ese entorno, que verás en tu navegador (ej. `https://1234.cluster-xyz.cloudworkstations.dev/api/shopify/auth/callback`).
+*   **App URL:** Pega aquí la URL base de tu aplicación AutoPress AI. La puedes encontrar en la página de **Ajustes > Conexiones** de la plataforma, en la sección de Shopify Partner. Por ejemplo: `https://autopress.intelvisual.es`.
+*   **Allowed redirection URL(s):** Aquí tienes que añadir **una URL por línea**. Pega las URLs que te proporciona la plataforma en la sección de **Ajustes > Conexiones**. Verás una para producción y, si estás en un entorno de desarrollo, otra para ese entorno.
 
 *   Haz clic en el botón **"Create"**.
 
@@ -34,8 +32,9 @@ Sigue estos sencillos pasos para darnos los permisos necesarios para crear tiend
     *   `Client secret`
 *   **Copia estos dos valores** y pégalos en los campos correspondientes de nuestra plataforma, en la sección **Ajustes > Conexiones**, dentro de la tarjeta "Conexión Global de Shopify Partners".
 
-### Paso 6: Guarda los cambios en AutoPress AI
+### Paso 6: Guarda y Verifica
 
 *   Dentro de la plataforma AutoPress AI, haz clic en el botón **"Guardar Credenciales"**.
+*   Una vez guardadas, haz clic en el botón **"Verificar Conexión"**. Deberías ver un mensaje de éxito.
 
-¡Y eso es todo! Una vez que hayas guardado estas credenciales en nuestra plataforma, el sistema estará listo para empezar a trabajar para ti. Puedes usar el botón "Verificar Conexión" para confirmar que todo es correcto.
+¡Y eso es todo! Una vez que hayas guardado y verificado estas credenciales, el sistema estará listo para empezar a trabajar para ti.

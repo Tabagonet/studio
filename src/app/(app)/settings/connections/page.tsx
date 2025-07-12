@@ -187,7 +187,8 @@ const ShopifyPartnerCard = ({
   handleSave, 
   handleDelete, 
   editingTargetName, 
-  isSavingPartner 
+  isSavingPartner,
+  uid
 }: { 
   partnerFormData: PartnerConnectionData;
   handlePartnerInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -195,20 +196,20 @@ const ShopifyPartnerCard = ({
   handleDelete: (key: string) => void;
   editingTargetName: string;
   isSavingPartner: boolean;
+  uid: string | null;
 }) => {
     const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'success' | 'error'>('idle');
     const [verificationMessage, setVerificationMessage] = useState('');
-    const [currentOrigin, setCurrentOrigin] = useState('');
+    const [currentOrigin, setCurrentOrigin] = useState<string | null>(null);
     const { toast } = useToast();
 
     useEffect(() => {
-        if (typeof window !== 'undefined') {
-            setCurrentOrigin(window.location.origin);
-        }
+        // This effect runs only on the client, so window is available.
+        setCurrentOrigin(window.location.origin);
     }, []);
 
     const productionRedirectUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
-    const currentEnvRedirectUrl = currentOrigin ? `${currentOrigin}/api/shopify/auth/callback` : '';
+    const currentEnvRedirectUrl = currentOrigin ? `${currentOrigin}/api/shopify/auth/callback` : null;
     
     const handleCopy = (url: string) => {
         navigator.clipboard.writeText(url);
@@ -218,18 +219,23 @@ const ShopifyPartnerCard = ({
     const handleVerify = async () => {
         setVerificationStatus('verifying');
         setVerificationMessage('');
-        const user = auth.currentUser;
-        if (!user) {
-            setVerificationStatus('error');
-            setVerificationMessage('Error de autenticación.');
-            return;
+        
+        if (!uid) {
+             setVerificationStatus('error');
+             setVerificationMessage('Error de autenticación. UID de usuario no encontrado.');
+             return;
         }
 
         try {
-            const token = await user.getIdToken();
+            const token = await auth.currentUser?.getIdToken();
+            if (!token) throw new Error('No se pudo obtener el token de autenticación.');
+            
             const response = await fetch('/api/shopify/verify-partner', {
-                headers: { 'Authorization': `Bearer ${token}` }
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: uid }),
             });
+
             const result = await response.json();
 
             if (!response.ok) {
@@ -256,7 +262,7 @@ const ShopifyPartnerCard = ({
             case 'error':
                  return <span className="flex items-center text-sm text-destructive"><AlertCircle className="mr-2 h-4 w-4"/> {verificationMessage}</span>
             default:
-                return null;
+                return <p className="text-xs text-muted-foreground">Haz clic en "Verificar Conexión" para comprobar tus credenciales contra la API de Shopify Partner.</p>;
         }
     }
 
@@ -269,25 +275,38 @@ const ShopifyPartnerCard = ({
             <CardContent className="space-y-6">
                 <Alert>
                     <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>URLs de Redirección Requeridas</AlertTitle>
+                    <AlertTitle>URLs Requeridas por Shopify</AlertTitle>
                     <AlertDescription>
-                        Copia y pega estas URLs en el campo "Allowed redirection URL(s)" de tu app en Shopify Partners. Necesitas añadir ambas.
+                        En la configuración de tu app en Shopify Partners, asegúrate de rellenar los siguientes campos:
+                         <Link href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank" className="text-primary underline ml-2">(Ver guía detallada)</Link>
                     </AlertDescription>
-                    <div className="space-y-2 mt-4">
-                        <div className="flex items-center gap-2">
-                            <Input readOnly value={productionRedirectUrl} className="font-mono text-xs" />
-                            <Button variant="outline" size="icon-sm" onClick={() => handleCopy(productionRedirectUrl)} title="Copiar URL de producción">
-                                <Copy className="h-4 w-4" />
-                            </Button>
-                        </div>
-                        {currentOrigin && !productionRedirectUrl.startsWith(currentOrigin) && (
-                             <div className="flex items-center gap-2">
-                                <Input readOnly value={currentEnvRedirectUrl} className="font-mono text-xs" />
-                                <Button variant="outline" size="icon-sm" onClick={() => handleCopy(currentEnvRedirectUrl)} title="Copiar URL de este entorno">
+                     <div className="space-y-3 mt-4">
+                         <div>
+                            <Label className="text-xs font-semibold">URL de la aplicación</Label>
+                            <div className="flex items-center gap-2">
+                                <Input readOnly value={process.env.NEXT_PUBLIC_BASE_URL} className="font-mono text-xs" />
+                                <Button variant="outline" size="icon-sm" onClick={() => handleCopy(process.env.NEXT_PUBLIC_BASE_URL || '')} title="Copiar URL de la aplicación">
                                     <Copy className="h-4 w-4" />
                                 </Button>
                             </div>
-                        )}
+                         </div>
+                         <div>
+                            <Label className="text-xs font-semibold">URLs de redirección permitidas (añade ambas)</Label>
+                             <div className="flex items-center gap-2">
+                                <Input readOnly value={productionRedirectUrl} className="font-mono text-xs" />
+                                <Button variant="outline" size="icon-sm" onClick={() => handleCopy(productionRedirectUrl)} title="Copiar URL de producción">
+                                    <Copy className="h-4 w-4" />
+                                </Button>
+                            </div>
+                            {currentEnvRedirectUrl && !productionRedirectUrl.startsWith(currentOrigin!) && (
+                                 <div className="flex items-center gap-2">
+                                    <Input readOnly value={currentEnvRedirectUrl} className="font-mono text-xs" />
+                                    <Button variant="outline" size="icon-sm" onClick={() => handleCopy(currentEnvRedirectUrl)} title="Copiar URL de este entorno">
+                                        <Copy className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            )}
+                         </div>
                     </div>
                 </Alert>
                 <div>
@@ -296,7 +315,7 @@ const ShopifyPartnerCard = ({
                 </div>
                 <div>
                     <Label htmlFor="partnerClientSecret">Información Secreta de Cliente</Label>
-                    <Input id="partnerClientSecret" name="partnerClientSecret" type="password" value={partnerFormData.partnerClientSecret || ''} onChange={handlePartnerInputChange} placeholder="Pega aquí tu clave secreta" disabled={isSavingPartner}/>
+                    <Input id="partnerClientSecret" name="partnerClientSecret" type="password" value={partnerFormData.partnerClientSecret || ''} onChange={handlePartnerInputChange} placeholder="Pega aquí tu clave secreta de la app" disabled={isSavingPartner}/>
                 </div>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
@@ -901,6 +920,7 @@ export default function ConnectionsPage() {
                          handleDelete={handleDelete}
                          editingTargetName={editingTarget.name}
                          isSavingPartner={isSavingPartner}
+                         uid={editingTarget.id}
                        />
                     )}
                 </div>
