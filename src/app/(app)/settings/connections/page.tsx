@@ -28,7 +28,6 @@ interface ConnectionData {
     wordpressApiUrl: string;
     wordpressUsername: string;
     wordpressApplicationPassword: string;
-    // For existing stores
     shopifyStoreUrl: string;
     shopifyApiPassword: string; // This will hold the access token
 }
@@ -199,6 +198,7 @@ const ShopifyPartnerCard = ({
 }) => {
     const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'success' | 'error'>('idle');
     const [verificationMessage, setVerificationMessage] = useState('');
+    const { toast } = useToast();
 
     const handleVerify = async () => {
         setVerificationStatus('verifying');
@@ -214,11 +214,10 @@ const ShopifyPartnerCard = ({
             const token = await auth.currentUser?.getIdToken();
             if (!token) throw new Error('No se pudo obtener el token de autenticación.');
             
-            // This API call now correctly uses the partnerApiToken for verification
             const response = await fetch('/api/shopify/verify-partner', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: uid }),
+                body: JSON.stringify({ userId: uid }), // Pass the UID of the entity being configured
             });
 
             const result = await response.json();
@@ -237,7 +236,6 @@ const ShopifyPartnerCard = ({
         }
     };
 
-
     const getStatusJsx = () => {
         switch(verificationStatus) {
             case 'verifying':
@@ -247,10 +245,9 @@ const ShopifyPartnerCard = ({
             case 'error':
                  return <span className="flex items-center text-sm text-destructive"><AlertCircle className="mr-2 h-4 w-4"/> {verificationMessage}</span>
             default:
-                return <p className="text-xs text-muted-foreground">Haz clic en "Verificar Conexión" para comprobar tu token contra la API de Shopify Partner.</p>;
+                return <p className="text-xs text-muted-foreground">Haz clic en "Verificar Conexión" para comprobar tu token.</p>;
         }
     }
-    const { toast } = useToast();
 
     return (
         <Card className="mt-8 border-primary/50">
@@ -612,17 +609,25 @@ export default function ConnectionsPage() {
             }
             
             toast({ title: "Conexión Guardada", description: `Los datos para '${keyToSave}' han sido guardados.` });
-            window.dispatchEvent(new Event('connections-updated'));
+            
+            // Re-fetch connections to update the state
             await fetchConnections(user, editingTarget.type, editingTarget.id);
-            setRefreshKey(k => k + 1);
-            if (!isPartnerCreds) {
-                 setSelectedKey(keyToSave);
+            
+            // After re-fetching, if we just saved a new connection, make it the selected one
+            if (!isPartnerCreds && selectedKey === 'new') {
+                setSelectedKey(keyToSave);
             }
+            setRefreshKey(k => k + 1); // Trigger status refresh
+            window.dispatchEvent(new Event('connections-updated'));
+
         } catch (error: any) {
             toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
         } finally {
-            isPartnerCreds ? setIsSavingPartner(false) : setIsSaving(false);
-            setIsSaving(false);
+            if (isPartnerCreds) {
+                setIsSavingPartner(false);
+            } else {
+                setIsSaving(false);
+            }
         }
     };
     
@@ -651,9 +656,9 @@ export default function ConnectionsPage() {
             });
             
             toast({ title: "Conexión Eliminada", description: `El perfil para '${keyToDelete}' ha sido eliminado.` });
-            window.dispatchEvent(new Event('connections-updated'));
             await fetchConnections(user, editingTarget.type, editingTarget.id);
             setRefreshKey(k => k + 1);
+            window.dispatchEvent(new Event('connections-updated'));
         } catch (error: any) {
             toast({ title: "Error al Eliminar", description: error.message, variant: "destructive" });
         } finally {

@@ -1,3 +1,4 @@
+
 // src/app/api/user-settings/connections/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -38,7 +39,6 @@ const urlOrEmptyString = z.string().refine((value) => {
 
 const shopifyUrlOrEmptyString = z.string().refine((value) => {
     if (value === '') return true;
-    // Shopify URLs must be in the format `something.myshopify.com`
     return /^[a-zA-Z0-9-]+\.myshopify\.com$/.test(value);
 }, { message: "Invalid Shopify URL format. Must be like 'your-store.myshopify.com'." });
 
@@ -52,10 +52,10 @@ const connectionDataSchema = z.object({
     wordpressApplicationPassword: z.string().optional(),
     shopifyStoreUrl: shopifyUrlOrEmptyString.optional(),
     shopifyApiPassword: z.string().optional(),
-    // Partner creds are handled separately but schema can be here for validation
-    partnerClientId: z.string().optional(),
-    partnerClientSecret: z.string().optional(),
-    promptTemplate: z.string().optional(),
+});
+
+const partnerConnectionDataSchema = z.object({
+    partnerApiToken: z.string().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -68,24 +68,23 @@ export async function GET(req: NextRequest) {
         const targetCompanyId = req.nextUrl.searchParams.get('companyId');
         const targetUserId = req.nextUrl.searchParams.get('userId');
         
-        let settingsDoc;
-        let targetRef;
+        let settingsRef;
 
         if (role === 'super_admin') {
             if (targetCompanyId) {
-                targetRef = adminDb.collection('companies').doc(targetCompanyId);
+                settingsRef = adminDb.collection('companies').doc(targetCompanyId);
             } else {
-                targetRef = adminDb.collection('user_settings').doc(targetUserId || uid);
+                settingsRef = adminDb.collection('user_settings').doc(targetUserId || uid);
             }
         } else { // 'admin' or regular user
              if (userCompanyId) {
-                 targetRef = adminDb.collection('companies').doc(userCompanyId);
+                 settingsRef = adminDb.collection('companies').doc(userCompanyId);
             } else {
-                 targetRef = adminDb.collection('user_settings').doc(uid);
+                 settingsRef = adminDb.collection('user_settings').doc(uid);
             }
         }
         
-        settingsDoc = await targetRef.get();
+        const settingsDoc = await settingsRef.get();
 
         if (settingsDoc && settingsDoc.exists) {
             const data = settingsDoc.data();
@@ -113,7 +112,7 @@ export async function POST(req: NextRequest) {
 
         const payloadSchema = z.object({
             key: z.string().min(1, "Key is required"),
-            connectionData: connectionDataSchema,
+            connectionData: z.union([connectionDataSchema, partnerConnectionDataSchema]),
             setActive: z.boolean().optional().default(false),
             companyId: z.string().optional(),
             userId: z.string().optional(),
@@ -165,7 +164,7 @@ export async function POST(req: NextRequest) {
             ...(setActive && { activeConnectionKey: key })
         }, { merge: true });
         
-        const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = connectionData;
+        const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = connectionData as ConnectionData;
         const hostnamesToAdd = new Set<string>();
 
         const addHostname = (url: string | undefined) => {
