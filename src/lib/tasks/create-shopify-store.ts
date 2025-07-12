@@ -1,4 +1,3 @@
-
 import { admin, adminDb } from '@/lib/firebase-admin';
 import axios from 'axios';
 import { generateShopifyStoreContent, type GeneratedContent, type GenerationInput } from '@/ai/flows/shopify-content-flow';
@@ -58,7 +57,7 @@ export async function handleCreateShopifyStore(jobId: string) {
              jobData.creationOptions.theme = defaultTheme;
         }
 
-        const { partnerApiToken } = await getPartnerCredentials(jobData.entity.id, jobData.entity.type);
+        const { partnerApiToken, partnerApiClientId } = await getPartnerCredentials(jobData.entity.id, jobData.entity.type);
 
         const graphqlEndpoint = `https://partners.shopify.com/api/2024-07/graphql.json`;
 
@@ -81,16 +80,12 @@ export async function handleCreateShopifyStore(jobId: string) {
             }
         `;
         
-        // --- Dynamic Redirect URI Logic ---
         let redirectUri;
         if (process.env.NODE_ENV === 'development') {
             const host = process.env.HOST || 'localhost:9002';
-            // In dev environments like Firebase Studio, HOST might be the cloud URL.
-            // We construct the redirect URI dynamically.
             const protocol = host.includes('localhost') ? 'http' : 'https';
             redirectUri = `${protocol}://${host}/api/shopify/auth/callback`;
         } else {
-            // In production, use the canonical base URL.
             redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
         }
         
@@ -99,20 +94,15 @@ export async function handleCreateShopifyStore(jobId: string) {
                 name: jobData.storeName,
                 businessEmail: jobData.businessEmail,
                 countryCode: jobData.countryCode,
-                // The Partner API doesn't use the client_id here, it uses the token
-                // But we still need the redirectUrl for the OAuth flow post-creation
-                redirectUrl: redirectUri,
+                appClientId: partnerApiClientId,
             }
         };
-        // --- End Dynamic Logic ---
 
         if (jobData.creationOptions?.theme) {
             variables.input.template = jobData.creationOptions.theme;
             await updateJobStatus(jobId, 'processing', `Usando la plantilla de tema: "${jobData.creationOptions.theme}".`);
         }
         
-        await updateJobStatus(jobId, 'processing', `Usando la URL de redirección: ${redirectUri}`);
-
         const response = await axios.post(
             graphqlEndpoint,
             { query: mutation, variables },
@@ -140,11 +130,14 @@ export async function handleCreateShopifyStore(jobId: string) {
             throw new Error('La API de Shopify no devolvió los datos de la tienda creada.');
         }
         
-        await updateJobStatus(jobId, 'processing', `Tienda base creada en: ${createdStore.storeUrl}. Esperando autorización de la app...`, {
+        // Instead of waiting for callback, we can proceed directly if we get the store data.
+        // We will need a way to get the final access token for the store to populate it.
+        // The current flow relies on the redirect for this. For now, we update the status.
+        await updateJobStatus(jobId, 'processing', `Tienda base creada en: ${createdStore.storeUrl}. La instalación de la app se ha iniciado. Se necesita intervención manual del Partner para autorizar.`, {
             createdStoreUrl: createdStore.storeUrl,
             createdStoreAdminUrl: createdStore.adminUrl,
         });
-        
+
     } catch (error: any) {
         console.error(`[Job ${jobId}] Failed to create Shopify store:`, error.message);
         await updateJobStatus(jobId, 'error', `Error fatal en la creación: ${error.message}`);

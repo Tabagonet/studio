@@ -32,7 +32,8 @@ interface ConnectionData {
 }
 
 type PartnerConnectionData = {
-    partnerApiToken: string;
+    partnerApiClientId: string;
+    partnerApiSecret: string;
 };
 
 type AllConnections = { [key: string]: ConnectionData | PartnerConnectionData };
@@ -60,7 +61,8 @@ const INITIAL_STATE: ConnectionData = {
 };
 
 const INITIAL_PARTNER_STATE: PartnerConnectionData = {
-    partnerApiToken: '',
+    partnerApiClientId: '',
+    partnerApiSecret: '',
 };
 
 function getHostname(url: string | null): string | null {
@@ -247,7 +249,7 @@ const ShopifyPartnerCard = ({
             case 'error':
                  return <span className="flex items-center text-sm text-destructive"><AlertCircle className="mr-2 h-4 w-4"/> {verificationMessage}</span>
             default:
-                return <p className="text-xs text-muted-foreground">Haz clic en "Verificar Conexión" para comprobar tu token.</p>;
+                return <p className="text-xs text-muted-foreground">Haz clic en "Verificar Conexión" para comprobar tus credenciales.</p>;
         }
     }
 
@@ -257,37 +259,30 @@ const ShopifyPartnerCard = ({
                 <CardTitle>Conexión Global de Shopify Partners</CardTitle>
                 <CardDescription>
                     Esta conexión se usa para la automatización de creación de tiendas para toda la entidad (<strong>{editingTarget.name}</strong>).
+                     <Button variant="link" asChild className="p-1 h-auto"><Link href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank">Ver guía detallada</Link></Button>
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-                 <Alert>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>¿Cómo obtener tu Token de Acceso?</AlertTitle>
-                    <AlertDescription>
-                       <ol className="list-decimal list-inside space-y-1 mt-2">
-                           <li>Ve a tu panel de Shopify Partner: <strong>Ajustes &gt; Clientes de la API</strong>.</li>
-                           <li>Crea un nuevo **Cliente de la API de Partner** (si no tienes uno).</li>
-                           <li>Dale los permisos necesarios (ej. `write_stores` para crear tiendas).</li>
-                           <li>Shopify te dará un **Token de Acceso**. Cópialo y pégalo en el campo de abajo.</li>
-                       </ol>
-                    </AlertDescription>
-                </Alert>
                 <div>
-                    <Label htmlFor="partnerApiToken">Token de Acceso de la API de Partner</Label>
-                    <Input id="partnerApiToken" name="partnerApiToken" type="password" value={partnerFormData.partnerApiToken || ''} onChange={handlePartnerInputChange} placeholder="Pega aquí el Token de Acceso" disabled={isSavingPartner} />
+                    <Label htmlFor="partnerApiClientId">Client ID de la App de Partner</Label>
+                    <Input id="partnerApiClientId" name="partnerApiClientId" value={partnerFormData.partnerApiClientId || ''} onChange={handlePartnerInputChange} placeholder="Pega aquí el Client ID" disabled={isSavingPartner} />
+                </div>
+                 <div>
+                    <Label htmlFor="partnerApiSecret">Client Secret de la App de Partner</Label>
+                    <Input id="partnerApiSecret" name="partnerApiSecret" type="password" value={partnerFormData.partnerApiSecret || ''} onChange={handlePartnerInputChange} placeholder="Pega aquí el Client Secret" disabled={isSavingPartner} />
                 </div>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
                         <Button onClick={() => handleSave(true)} disabled={isSavingPartner}>
                             {isSavingPartner && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Guardar Token
+                            Guardar Credenciales
                         </Button>
                         <Button variant="outline" onClick={handleVerify} disabled={isSavingPartner || verificationStatus === 'verifying'}>
                             Verificar Conexión
                         </Button>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
-                                <Button variant="outline" disabled={isSavingPartner || !partnerFormData.partnerApiToken} size="icon">
+                                <Button variant="outline" disabled={isSavingPartner || !partnerFormData.partnerApiClientId} size="icon">
                                     <Trash2 className="h-4 w-4"/>
                                 </Button>
                             </AlertDialogTrigger>
@@ -295,7 +290,7 @@ const ShopifyPartnerCard = ({
                                 <AlertDialogHeader>
                                     <AlertDialogTitle>¿Eliminar Credenciales de Partner?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                        Esta acción eliminará permanentemente el Token de Acceso de Shopify Partner para <strong>{editingTarget.name}</strong>.
+                                        Esta acción eliminará permanentemente las credenciales de Shopify Partner para <strong>{editingTarget.name}</strong>.
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -556,8 +551,8 @@ export default function ConnectionsPage() {
         let setActive = !isPartnerCreds;
 
         if (isPartnerCreds) {
-            if (!partnerFormData.partnerApiToken) {
-                toast({ title: "Datos Incompletos", description: "El Token de Acceso de Partner es obligatorio.", variant: "destructive" });
+            if (!partnerFormData.partnerApiClientId || !partnerFormData.partnerApiSecret) {
+                toast({ title: "Datos Incompletos", description: "El Client ID y el Client Secret son obligatorios.", variant: "destructive" });
                 return;
             }
             keyToSave = 'shopify_partner';

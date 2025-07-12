@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getPartnerCredentials } from '@/lib/api-helpers';
@@ -27,10 +26,12 @@ export async function POST(req: NextRequest) {
         
         const { entityId, entityType } = validation.data;
         
+        // This function now attempts the token exchange, which serves as verification.
         const { partnerApiToken } = await getPartnerCredentials(entityId, entityType);
 
         const graphqlEndpoint = `https://partners.shopify.com/api/2024-07/graphql.json`;
         
+        // A simple query to confirm the token works.
         const query = `query { organizations(first: 1) { nodes { id } } }`;
 
         const response = await axios.post(
@@ -51,14 +52,14 @@ export async function POST(req: NextRequest) {
         }
 
         if (response.data.data?.organizations) {
-            return NextResponse.json({ success: true, message: 'Credenciales verificadas correctamente.' });
+            return NextResponse.json({ success: true, message: '¡Credenciales verificadas correctamente!' });
         } else {
             throw new Error('Respuesta inesperada de la API de Shopify Partner.');
         }
 
     } catch (error: any) {
         console.error("Shopify Partner Verification Error:", error.response?.data || error.message);
-        const errorMessage = error.response?.data?.errors?.[0]?.message || error.message || 'Fallo al verificar las credenciales de Partner.';
+        const errorMessage = error.response?.data?.error_description || error.response?.data?.errors?.[0]?.message || error.message || 'Fallo al verificar las credenciales de Partner.';
         return NextResponse.json({ success: false, error: errorMessage }, { status: 400 });
     }
 }

@@ -1,5 +1,3 @@
-
-
 import type { LucideIcon } from 'lucide-react';
 import type { SeoInterpretationOutput, SuggestLinksInput, SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
 
@@ -407,7 +405,6 @@ export interface ShopifyCreationJob {
   brandDescription: string;
   targetAudience: string;
   brandPersonality: string;
-  colorPaletteSuggestion?: string;
   productTypeDescription: string;
   creationOptions: {
     createExampleProducts: boolean;

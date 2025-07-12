@@ -1,4 +1,3 @@
-
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -32,16 +31,10 @@ export function validateHmac(query: URLSearchParams, clientSecret: string): bool
     const hmac = query.get('hmac');
     if (!hmac) return false;
 
-    const queryParams: { [key: string]: string } = {};
-    query.forEach((value, key) => {
-        if (key !== 'hmac') {
-            queryParams[key] = value;
-        }
-    });
-    
-    const sortedQuery = Object.keys(queryParams)
+    query.delete('hmac');
+    const sortedQuery = Array.from(query.entries())
+        .map(([key, value]) => `${key}=${value}`)
         .sort()
-        .map(key => `${key}=${queryParams[key]}`)
         .join('&');
         
     const calculatedHmac = crypto
@@ -147,13 +140,13 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
 
 
 /**
- * Retrieves the Shopify Partner API Access Token for a given user or their company.
+ * Retrieves Shopify Partner credentials and exchanges them for a valid access token.
  * @param entityId The Firebase UID of the user or the ID of the company.
  * @param entityType The type of entity ('user' or 'company').
- * @returns The Partner API Access Token.
- * @throws If credentials are not configured.
+ * @returns An object containing the access token and the client ID.
+ * @throws If credentials are not configured or token exchange fails.
  */
-export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ partnerApiToken: string; }> {
+export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ partnerApiToken: string; partnerApiClientId: string; }> {
     if (!adminDb) throw new Error("Firestore not available.");
     
     let settingsSource;
@@ -171,13 +164,34 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
     }
 
     const partnerConnection = settingsSource?.connections?.['shopify_partner'];
-    const partnerApiToken = partnerConnection?.partnerApiToken;
+    const { partnerApiClientId, partnerApiSecret } = partnerConnection || {};
     
-    if (!partnerApiToken) {
-        throw new Error('El Token de Acceso de la API de Partner no está configurado. Ve a Ajustes > Conexiones.');
+    if (!partnerApiClientId || !partnerApiSecret) {
+        throw new Error('El Client ID y el Client Secret de Shopify Partner no están configurados. Ve a Ajustes > Conexiones.');
     }
 
-    return { partnerApiToken };
+    try {
+        const response = await axios.post("https://accounts.shopify.com/oauth/token", {
+            client_id: partnerApiClientId,
+            client_secret: partnerApiSecret,
+            grant_type: "client_credentials",
+            scope: "write_stores" // Scope needed for creating development stores
+        }, {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 10000,
+        });
+
+        const accessToken = response.data?.access_token;
+        if (!accessToken) {
+            throw new Error("La respuesta de Shopify no contenía un access_token.");
+        }
+        
+        return { partnerApiToken: accessToken, partnerApiClientId: partnerApiClientId };
+    } catch (error: any) {
+        console.error("Shopify Partner token exchange failed:", error.response?.data || error.message);
+        const errorMessage = error.response?.data?.error_description || "No se pudo intercambiar las credenciales por un token de acceso.";
+        throw new Error(errorMessage);
+    }
 }
 
 function extractHeadingsRecursive(elements: any[], widgets: ExtractedWidget[]): void {
