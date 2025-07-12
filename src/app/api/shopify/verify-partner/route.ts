@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
     try {
         const token = req.headers.get('Authorization')?.split('Bearer ')[1];
         if (!token) throw new Error('No auth token provided.');
+        if (!adminAuth) throw new Error("Firebase Admin not initialized.");
         const decodedToken = await adminAuth.verifyIdToken(token);
         const uid = decodedToken.uid;
         

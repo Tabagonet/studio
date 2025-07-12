@@ -1,3 +1,4 @@
+
 # Guía para Configurar tu Aplicación de Shopify Partner (Para Clientes)
 
 Sigue estos sencillos pasos para darnos los permisos necesarios para crear tiendas de desarrollo en tu nombre de forma automática. Solo necesitas hacerlo una vez.
@@ -15,9 +16,14 @@ Sigue estos sencillos pasos para darnos los permisos necesarios para crear tiend
 *   Haz clic en el botón azul que dice **"Create app"** (Crear aplicación).
 *   Te preguntará cómo quieres crearla. Elige la opción **"Create app manually"** (Crear aplicación manualmente).
 
-### Paso 4: Dale un nombre a tu aplicación
+### Paso 4: Rellena los datos básicos de la aplicación
 
 *   **App name:** Escribe un nombre que la identifique, por ejemplo: `AutoPress AI Creator`.
+*   **App URL:** Pega aquí la URL base de tu aplicación AutoPress AI (ej. `https://autopress.intelvisual.es`).
+*   **Allowed redirection URL(s):** Aquí tienes que añadir **una URL por línea**. Pega las siguientes:
+    *   `https://autopress.intelvisual.es/api/shopify/auth/callback`
+    *   Si estás usando el entorno de desarrollo de Firebase Studio, añade también la URL de ese entorno, que verás en tu navegador (ej. `https://1234.cluster-xyz.cloudworkstations.dev/api/shopify/auth/callback`).
+
 *   Haz clic en el botón **"Create"**.
 
 ### Paso 5: Obtén tus credenciales (¡La parte importante!)
@@ -28,15 +34,8 @@ Sigue estos sencillos pasos para darnos los permisos necesarios para crear tiend
     *   `Client secret`
 *   **Copia estos dos valores** y pégalos en los campos correspondientes de nuestra plataforma, en la sección **Ajustes > Conexiones**, dentro de la tarjeta "Conexión Global de Shopify Partners".
 
-### Paso 6: Configura la redirección
+### Paso 6: Guarda los cambios en AutoPress AI
 
-*   En la misma página de configuración de tu aplicación en Shopify, busca la sección **"App setup"** (Configuración de la aplicación).
-*   En el campo **Allowed redirection URL(s)** (URLs de redirección permitidas), tienes que añadir una URL exacta.
-*   **Pega la siguiente URL:** `https://autopress.intelvisual.es/api/shopify/auth/callback`
-    *   *Nota: Si tu instancia de AutoPress AI está en otra URL, reemplaza `https://autopress.intelvisual.es` por la URL correcta.*
+*   Dentro de la plataforma AutoPress AI, haz clic en el botón **"Guardar Credenciales"**.
 
-### Paso 7: Guarda los cambios
-
-*   Haz clic en el botón **"Save"** (Guardar) en la parte superior derecha de la página de Shopify.
-
-¡Y eso es todo! Una vez que hayas guardado estas credenciales en nuestra plataforma, el sistema estará listo para empezar a trabajar para ti.
+¡Y eso es todo! Una vez que hayas guardado estas credenciales en nuestra plataforma, el sistema estará listo para empezar a trabajar para ti. Puedes usar el botón "Verificar Conexión" para confirmar que todo es correcto.
