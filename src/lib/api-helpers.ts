@@ -171,7 +171,7 @@ export async function getPartnerCredentials(uid: string): Promise<{ partnerApiTo
     }
     
     const partnerConnection = settingsSource?.connections?.['shopify_partner'];
-    const partnerApiToken = partnerConnection?.partnerApiToken; // This is the new field name
+    const partnerApiToken = partnerConnection?.partnerApiToken;
     
     if (!partnerApiToken) {
         throw new Error('El Token de Acceso de la API de Partner no está configurado. Ve a Ajustes > Conexiones.');
