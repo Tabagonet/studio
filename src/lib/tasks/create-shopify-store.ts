@@ -1,3 +1,4 @@
+
 import { admin, adminDb } from '@/lib/firebase-admin';
 import axios from 'axios';
 import { generateShopifyStoreContent, type GeneratedContent, type GenerationInput } from '@/ai/flows/shopify-content-flow';
@@ -80,19 +81,36 @@ export async function handleCreateShopifyStore(jobId: string) {
             }
         `;
         
+        // --- Dynamic Redirect URI Logic ---
+        let redirectUri;
+        if (process.env.NODE_ENV === 'development') {
+            const host = process.env.HOST || 'localhost';
+            // In dev environments like Firebase Studio, HOST might be the cloud URL.
+            // We construct the redirect URI dynamically.
+            const protocol = host.includes('localhost') ? 'http' : 'https';
+            redirectUri = `${protocol}://${host}/api/shopify/auth/callback`;
+        } else {
+            // In production, use the canonical base URL.
+            redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
+        }
+        
         const variables: any = {
             input: {
                 name: jobData.storeName,
                 businessEmail: jobData.businessEmail,
                 countryCode: jobData.countryCode,
                 appId: partnerClientId,
+                redirectUrl: redirectUri,
             }
         };
+        // --- End Dynamic Logic ---
 
         if (jobData.creationOptions?.theme) {
             variables.input.template = jobData.creationOptions.theme;
             await updateJobStatus(jobId, 'processing', `Usando la plantilla de tema: "${jobData.creationOptions.theme}".`);
         }
+        
+        await updateJobStatus(jobId, 'processing', `Usando la URL de redirección: ${redirectUri}`);
 
         const response = await axios.post(
             graphqlEndpoint,
