@@ -9,7 +9,7 @@ Esta guía describe los pasos para realizar una prueba completa (end-to-end) del
 Antes de empezar, asegúrate de tener:
 
 1.  **Una cuenta de Shopify Partner:** Puedes crear una gratis en [partners.shopify.com](https://partners.shopify.com).
-2.  **Una API Key de Sistema:** En el archivo `.env.local` de este proyecto, asegúrate de que la variable `SHOPIFY_AUTOMATION_API_KEY` tiene un valor secreto que hayas inventado (ej: `super-secret-key-for-testing`).
+2.  **Una API Key de Sistema:** En el archivo `.env.local` de este proyecto, asegúrate de que la variable `SHOPIFY_AUTOMATION_API_KEY` tiene un valor secreto que hayas inventado (ej: `super-secret-key-for-testing`). Esta clave es para autenticar el webhook, no tiene que ver con las credenciales de Partner.
 
 ---
 
@@ -30,6 +30,7 @@ Al final de este paso, deberías tener un **Client ID** y un **Client Secret**.
 3.  Busca la tarjeta **"Conexión Global de Shopify Partners"**.
 4.  Pega aquí el **Client ID** y el **Client Secret** que obtuviste en el paso anterior.
 5.  Haz clic en **"Guardar Credenciales"**.
+6.  Haz clic en **"Verificar Conexión"** para asegurarte de que las credenciales son válidas. Deberías ver un mensaje de éxito.
 
 ---
 

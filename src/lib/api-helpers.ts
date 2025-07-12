@@ -448,7 +448,7 @@ export async function findOrCreateTags(tagNames: string[], wpApi: AxiosInstance)
   return tagIds;
 }
 
-export async function getPartnerCredentials(uid: string): Promise<{ clientId: string; clientSecret: string; accessToken: string; }> {
+export async function getPartnerCredentials(uid: string): Promise<{ clientId: string; accessToken: string; }> {
     if (!adminDb) throw new Error("Firestore not available.");
     
     const userDoc = await adminDb.collection('users').doc(uid).get();
@@ -474,6 +474,27 @@ export async function getPartnerCredentials(uid: string): Promise<{ clientId: st
     if (!partnerClientId || !partnerClientSecret) {
         throw new Error('Las credenciales de Shopify Partner App (Client ID/Secret) no están configuradas en el perfil de conexión "shopify_partner".');
     }
-    
-    return { clientId: partnerClientId, clientSecret: partnerClientSecret, accessToken: partnerClientSecret };
+
+    // New logic: Exchange credentials for an access token
+    try {
+        const response = await axios.post('https://accounts.shopify.com/oauth/token', {
+            client_id: partnerClientId,
+            client_secret: partnerClientSecret,
+            grant_type: 'client_credentials',
+            scope: 'write_stores' // Requesting scope to create stores
+        }, {
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const accessToken = response.data.access_token;
+        if (!accessToken) {
+            throw new Error('No se recibió un access_token de Shopify.');
+        }
+
+        return { clientId: partnerClientId, accessToken: accessToken };
+
+    } catch (error: any) {
+        console.error('Error getting Shopify Partner access token:', error.response?.data || error.message);
+        throw new Error('No se pudo obtener el token de acceso de Shopify Partner. Revisa las credenciales.');
+    }
 }
