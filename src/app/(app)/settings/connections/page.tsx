@@ -1,4 +1,3 @@
-
 // src/app/(app)/settings/connections/page.tsx
 "use client";
 
