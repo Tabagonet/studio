@@ -58,7 +58,20 @@ export async function handleCreateShopifyStore(jobId: string) {
         }
 
         const { partnerApiToken, partnerApiClientId } = await getPartnerCredentials(jobData.entity.id, jobData.entity.type);
-
+        
+        const orgsResponse = await axios.post(
+            `https://partners.shopify.com/api/2024-07/graphql.json`,
+            { query: `{ organizations(first: 1) { nodes { id } } }` },
+            {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Shopify-Access-Token': partnerApiToken,
+                },
+            }
+        );
+        const orgId = orgsResponse.data.data?.organizations?.nodes?.[0]?.id;
+        if (!orgId) throw new Error("Could not determine Shopify Partner Organization ID.");
+        
         const graphqlEndpoint = `https://partners.shopify.com/api/2024-07/graphql.json`;
 
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);

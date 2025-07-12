@@ -263,6 +263,18 @@ const ShopifyPartnerCard = ({
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+                 <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>¿Cómo obtener las credenciales?</AlertTitle>
+                    <AlertDescription>
+                        <ol className="list-decimal list-inside space-y-1 mt-2">
+                        <li>Ve a tu panel de Shopify Partner: <strong>Ajustes > Clientes de la API</strong>.</li>
+                        <li>Crea un nuevo <strong>Cliente de la API de Partner</strong> (si no tienes uno).</li>
+                        <li>Dale los permisos necesarios (ej. <code>write_stores</code> para crear tiendas).</li>
+                        <li>Shopify te dará un <strong>Client ID</strong> y un <strong>Client Secret</strong>. Cópialos y pégalos en los campos de abajo.</li>
+                        </ol>
+                    </AlertDescription>
+                </Alert>
                 <div>
                     <Label htmlFor="partnerApiClientId">Client ID de la App de Partner</Label>
                     <Input id="partnerApiClientId" name="partnerApiClientId" value={partnerFormData.partnerApiClientId || ''} onChange={handlePartnerInputChange} placeholder="Pega aquí el Client ID" disabled={isSavingPartner} />

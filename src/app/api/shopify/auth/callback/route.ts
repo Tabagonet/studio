@@ -1,11 +1,9 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, admin } from '@/lib/firebase-admin';
-import { getPartnerCredentials } from '@/lib/api-helpers';
+import { validateHmac } from '@/lib/api-helpers';
 import axios from 'axios';
 import { CloudTasksClient } from '@google-cloud/tasks';
 
-// This function needs to be defined if it's not available elsewhere, or imported.
 async function enqueueShopifyPopulationTask(jobId: string) {
   const PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
   const LOCATION_ID = process.env.CLOUD_TASKS_LOCATION || 'europe-west1';
@@ -36,23 +34,6 @@ async function enqueueShopifyPopulationTask(jobId: string) {
   return response;
 }
 
-
-// A simplified HMAC validation function.
-// IMPORTANT: This is a basic implementation. For production, use a more robust library
-// that handles various edge cases.
-function validateHmac(query: URLSearchParams, clientSecret: string): boolean {
-    const hmac = query.get('hmac');
-    query.delete('hmac');
-    const sortedQuery = Array.from(query.entries())
-        .map(([key, value]) => `${key}=${value}`)
-        .sort()
-        .join('&');
-    const crypto = require('crypto');
-    const calculatedHmac = crypto.createHmac('sha256', clientSecret).update(sortedQuery).digest('hex');
-    return hmac === calculatedHmac;
-}
-
-
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const code = searchParams.get('code');
@@ -74,36 +55,35 @@ export async function GET(req: NextRequest) {
             throw new Error(`No se encontró el trabajo de creación con ID: ${state}`);
         }
         const jobData = jobDoc.data()!;
+        const entityId = jobData.entity.id;
+        const entityType = jobData.entity.type;
 
-        // The entity ID is used to fetch the correct Partner credentials.
-        // The getPartnerCredentials function needs to be adapted to fetch the Client ID/Secret.
-        // For now, let's assume getPartnerCredentials can be modified to return these.
-        // This is a temporary placeholder logic.
-        
-        // This is the part that is likely incorrect in the current setup.
-        // It needs Client ID and Secret, not a single token.
-        // For this temporary fix, we'll assume they are stored somewhere retrievable.
-        // A proper implementation would fetch them from the `companies` or `user_settings` collection.
-        
-        // Let's create a placeholder for the secret. This needs to be correctly implemented.
-        const FAKE_SHOPIFY_PARTNER_CLIENT_SECRET = process.env.SHOPIFY_PARTNER_CLIENT_SECRET;
-        if (!FAKE_SHOPIFY_PARTNER_CLIENT_SECRET) {
-             throw new Error("SHOPIFY_PARTNER_CLIENT_SECRET no está configurado en el servidor.");
+        let settingsSource;
+        if (entityType === 'company') {
+            const companyDoc = await adminDb.collection('companies').doc(entityId).get();
+            if (!companyDoc.exists) throw new Error(`Company ${entityId} not found.`);
+            settingsSource = companyDoc.data();
+        } else {
+            const userSettingsDoc = await adminDb.collection('user_settings').doc(entityId).get();
+            settingsSource = userSettingsDoc.data();
         }
 
-        if (!validateHmac(searchParams, FAKE_SHOPIFY_PARTNER_CLIENT_SECRET)) {
+        const partnerConnection = settingsSource?.connections?.['shopify_partner'];
+        const { partnerApiClientId, partnerApiSecret } = partnerConnection || {};
+        
+        if (!partnerApiClientId || !partnerApiSecret) {
+            throw new Error('El Client ID y el Client Secret de Shopify Partner no están configurados para esta entidad.');
+        }
+
+        if (!validateHmac(searchParams, partnerApiSecret)) {
             return new NextResponse("Verificación de seguridad HMAC fallida.", { status: 403 });
         }
         
         const accessTokenUrl = `https://${shop}/admin/oauth/access_token`;
-        const FAKE_SHOPIFY_PARTNER_CLIENT_ID = process.env.SHOPIFY_PARTNER_CLIENT_ID;
-        if (!FAKE_SHOPIFY_PARTNER_CLIENT_ID) {
-            throw new Error("SHOPIFY_PARTNER_CLIENT_ID no está configurado en el servidor.");
-        }
         
         const response = await axios.post(accessTokenUrl, {
-            client_id: FAKE_SHOPIFY_PARTNER_CLIENT_ID,
-            client_secret: FAKE_SHOPIFY_PARTNER_CLIENT_SECRET,
+            client_id: partnerApiClientId,
+            client_secret: partnerApiSecret,
             code: code,
         });
         

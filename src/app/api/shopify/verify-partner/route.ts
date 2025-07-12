@@ -29,14 +29,11 @@ export async function POST(req: NextRequest) {
         // This function now attempts the token exchange, which serves as verification.
         const { partnerApiToken } = await getPartnerCredentials(entityId, entityType);
 
-        const graphqlEndpoint = `https://partners.shopify.com/api/2024-07/graphql.json`;
-        
-        // A simple query to confirm the token works.
-        const query = `query { organizations(first: 1) { nodes { id } } }`;
-
-        const response = await axios.post(
-            graphqlEndpoint,
-            { query },
+        // Fetch organization ID dynamically from the Shopify Partner API.
+        // This makes the solution more robust as it doesn't rely on hardcoded IDs.
+        const orgsResponse = await axios.post(
+            `https://partners.shopify.com/api/2024-07/graphql.json`,
+            { query: `{ organizations(first: 1) { nodes { id } } }` },
             {
                 headers: {
                     'Content-Type': 'application/json',
@@ -46,15 +43,15 @@ export async function POST(req: NextRequest) {
             }
         );
 
-        if (response.data.errors) {
-            const errorMessage = response.data.errors[0]?.message || 'Credenciales o permisos inválidos.';
+        if (orgsResponse.data.errors) {
+            const errorMessage = orgsResponse.data.errors[0]?.message || 'Credenciales o permisos inválidos.';
             throw new Error(errorMessage);
         }
 
-        if (response.data.data?.organizations) {
+        if (orgsResponse.data.data?.organizations?.nodes?.length > 0) {
             return NextResponse.json({ success: true, message: '¡Credenciales verificadas correctamente!' });
         } else {
-            throw new Error('Respuesta inesperada de la API de Shopify Partner.');
+            throw new Error('No se pudo obtener la información de la organización de Partner. Revisa los permisos de tus credenciales.');
         }
 
     } catch (error: any) {
