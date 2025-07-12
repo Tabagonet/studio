@@ -3,6 +3,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -257,7 +258,7 @@ const ShopifyPartnerCard = ({
                 </div>
                 <div>
                     <Label htmlFor="partnerClientSecret">Información Secreta de Cliente</Label>
-                    <Input id="partnerClientSecret" name="partnerClientSecret" type="password" value={partnerFormData.partnerClientSecret || ''} onChange={handlePartnerInputChange} placeholder="Pega aquí tu clave secreta de cliente" disabled={isSavingPartner}/>
+                    <Input id="partnerClientSecret" name="partnerClientSecret" type="password" value={partnerFormData.partnerClientSecret || ''} onChange={handlePartnerInputChange} placeholder="Pega aquí tu clave secreta" disabled={isSavingPartner}/>
                 </div>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
