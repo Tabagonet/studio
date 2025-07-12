@@ -3,6 +3,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -18,7 +19,7 @@ import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/comp
 import { ShopifyIcon } from '@/components/core/icons';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import Link from 'next/link';
+
 
 interface ConnectionData {
     wooCommerceStoreUrl: string;
@@ -274,9 +275,9 @@ const ShopifyPartnerCard = ({
                 <CardTitle>Conexión Global de Shopify Partners</CardTitle>
                 <CardDescription>
                     Introduce aquí las credenciales de tu App de Partner. Estas credenciales se usan para la automatización de creación de tiendas para toda la entidad (<strong>{editingTargetName}</strong>).
-                    <Link href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank" rel="noopener noreferrer" className="ml-2 text-primary hover:underline">
+                    <a href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank" rel="noopener noreferrer" className="ml-2 text-primary hover:underline">
                         Ver guía detallada
-                    </Link>
+                    </a>
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -304,7 +305,7 @@ const ShopifyPartnerCard = ({
                                     <Copy className="h-4 w-4" />
                                 </Button>
                             </div>
-                            {currentOrigin && !productionRedirectUrl.startsWith(currentOrigin) && (
+                            {currentOrigin && !productionRedirectUrl.startsWith(currentOrigin) && currentEnvRedirectUrl && (
                                  <div className="flex items-center gap-2">
                                     <Input readOnly value={currentEnvRedirectUrl} className="font-mono text-xs" />
                                     <Button variant="outline" size="icon-sm" onClick={() => handleCopy(currentEnvRedirectUrl)} title="Copiar URL de este entorno">
@@ -317,11 +318,11 @@ const ShopifyPartnerCard = ({
                 </Alert>
                 <div>
                     <Label htmlFor="partnerClientId">Client ID de la App de Partner</Label>
-                    <Input id="partnerClientId" name="partnerClientId" value={partnerFormData.partnerClientId || ''} onChange={handlePartnerInputChange} placeholder="Ej: 1234abcd..." disabled={isSavingPartner} />
+                    <Input id="partnerClientId" name="partnerClientId" value={partnerFormData.partnerClientId || ''} onChange={handlePartnerInputChange} placeholder="Pega aquí el Client ID" disabled={isSavingPartner} />
                 </div>
                 <div>
-                    <Label htmlFor="partnerClientSecret">Información Secreta de Cliente</Label>
-                    <Input id="partnerClientSecret" name="partnerClientSecret" type="password" value={partnerFormData.partnerClientSecret || ''} onChange={handlePartnerInputChange} placeholder="Pega aquí tu clave secreta" disabled={isSavingPartner}/>
+                    <Label htmlFor="partnerClientSecret">Client Secret de la App de Partner</Label>
+                    <Input id="partnerClientSecret" name="partnerClientSecret" type="password" value={partnerFormData.partnerClientSecret || ''} onChange={handlePartnerInputChange} placeholder="Pega aquí el Client Secret" disabled={isSavingPartner}/>
                 </div>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
