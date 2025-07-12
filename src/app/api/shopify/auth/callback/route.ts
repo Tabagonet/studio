@@ -60,7 +60,18 @@ export async function GET(req: NextRequest) {
     }
     
     try {
-        const { clientId, clientSecret } = await getPartnerCredentials(state);
+        if (!adminDb || !admin.firestore.FieldValue) {
+            throw new Error("El servicio de base de datos no está disponible.");
+        }
+        
+        const jobDoc = await adminDb.collection('shopify_creation_jobs').doc(state).get();
+        if (!jobDoc.exists) {
+            throw new Error(`No se encontró el trabajo de creación con ID: ${state}`);
+        }
+        const jobData = jobDoc.data()!;
+
+        // The entity ID is used to fetch the correct Partner credentials
+        const { clientId, clientSecret } = await getPartnerCredentials(jobData.entity.id);
 
         if (!validateHmac(searchParams, clientSecret)) {
             return new NextResponse("Verificación de seguridad HMAC fallida.", { status: 403 });
@@ -76,10 +87,6 @@ export async function GET(req: NextRequest) {
         const accessToken = response.data.access_token;
         if (!accessToken) {
             throw new Error("No se recibió un token de acceso de Shopify.");
-        }
-
-        if (!adminDb || !admin.firestore.FieldValue) {
-            throw new Error("El servicio de base de datos no está disponible.");
         }
 
         await adminDb.collection('shopify_creation_jobs').doc(state).update({

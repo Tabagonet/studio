@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User, Globe, Store, PlugZap, AlertCircle } from "lucide-react";
+import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User, Globe, Store, PlugZap, AlertCircle, RefreshCw, CheckCircle } from "lucide-react";
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -76,7 +76,7 @@ function getHostname(url: string | null): string | null {
 }
 
 
-const ConnectionStatusIndicator = ({ status, isLoading }: { status: SelectedEntityStatus | null, isLoading: boolean }) => {
+const ConnectionStatusIndicator = ({ status, isLoading, onRefresh }: { status: SelectedEntityStatus | null, isLoading: boolean, onRefresh: () => void }) => {
   if (isLoading) {
     return (
         <div className="flex items-center gap-2 text-sm text-muted-foreground border p-3 rounded-md bg-muted/50">
@@ -147,6 +147,123 @@ const ConnectionStatusIndicator = ({ status, isLoading }: { status: SelectedEnti
     </TooltipProvider>
   );
 };
+
+const ShopifyPartnerCard = ({ 
+  partnerFormData, 
+  handlePartnerInputChange, 
+  handleSave, 
+  handleDelete, 
+  editingTargetName, 
+  isSavingPartner 
+}: { 
+  partnerFormData: PartnerConnectionData;
+  handlePartnerInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleSave: (isPartner: boolean) => void;
+  handleDelete: (key: string) => void;
+  editingTargetName: string;
+  isSavingPartner: boolean;
+}) => {
+    const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'success' | 'error'>('idle');
+    const [verificationMessage, setVerificationMessage] = useState('');
+    const { toast } = useToast();
+
+    const handleVerify = async () => {
+        setVerificationStatus('verifying');
+        setVerificationMessage('');
+        const user = auth.currentUser;
+        if (!user) {
+            setVerificationStatus('error');
+            setVerificationMessage('Error de autenticación.');
+            return;
+        }
+
+        try {
+            const token = await user.getIdToken();
+            // This API now dynamically gets the credentials for the acting user/company
+            const response = await fetch('/api/shopify/verify-partner', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Fallo en la verificación.');
+            }
+            
+            setVerificationStatus('success');
+            setVerificationMessage(result.message);
+            toast({ title: "¡Éxito!", description: result.message });
+        } catch (error: any) {
+            setVerificationStatus('error');
+            setVerificationMessage(error.message);
+             toast({ title: "Error de Verificación", description: error.message, variant: 'destructive' });
+        }
+    };
+
+
+    const getStatusJsx = () => {
+        switch(verificationStatus) {
+            case 'verifying':
+                return <span className="flex items-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Verificando...</span>
+            case 'success':
+                return <span className="flex items-center text-sm text-green-600"><CheckCircle className="mr-2 h-4 w-4"/> {verificationMessage}</span>
+            case 'error':
+                 return <span className="flex items-center text-sm text-destructive"><AlertCircle className="mr-2 h-4 w-4"/> {verificationMessage}</span>
+            default:
+                return null;
+        }
+    }
+
+    return (
+        <Card className="mt-8 border-primary/50">
+            <CardHeader>
+                <CardTitle>Conexión Global de Shopify Partners</CardTitle>
+                <CardDescription>Introduce aquí las credenciales de tu App de Partner. Estas credenciales se usan para la automatización de creación de tiendas para toda la entidad (<strong>{editingTargetName}</strong>).</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                 <div>
+                    <Label htmlFor="partnerClientId">Client ID de la App de Partner</Label>
+                    <Input id="partnerClientId" name="partnerClientId" value={partnerFormData.partnerClientId || ''} onChange={handlePartnerInputChange} placeholder="Ej: 1234abcd..." disabled={isSavingPartner} />
+                </div>
+                <div>
+                    <Label htmlFor="partnerClientSecret">Client Secret de la App de Partner</Label>
+                    <Input id="partnerClientSecret" name="partnerClientSecret" type="password" value={partnerFormData.partnerClientSecret || ''} onChange={handlePartnerInputChange} placeholder="shpss_xxxxxxxxxxxx" disabled={isSavingPartner}/>
+                </div>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                        <Button onClick={() => handleSave(true)} disabled={isSavingPartner}>
+                            {isSavingPartner && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Guardar Credenciales
+                        </Button>
+                        <Button variant="outline" onClick={handleVerify} disabled={isSavingPartner || verificationStatus === 'verifying'}>
+                            Verificar Conexión
+                        </Button>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="outline" disabled={isSavingPartner || !partnerFormData.partnerClientId} size="icon">
+                                    <Trash2 className="h-4 w-4"/>
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>¿Eliminar Credenciales de Partner?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Esta acción eliminará permanentemente las credenciales de Shopify Partner para <strong>{editingTargetName}</strong>.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDelete('shopify_partner')} className="bg-destructive hover:bg-destructive/90">Sí, eliminar</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
+                    <div className="h-5">{getStatusJsx()}</div>
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
 
 
 export default function ConnectionsPage() {
@@ -707,47 +824,14 @@ export default function ConnectionsPage() {
                     </div>
 
                     {showShopify && (
-                        <Card className="mt-8 border-primary/50">
-                            <CardHeader>
-                                <CardTitle>Conexión Global de Shopify Partners</CardTitle>
-                                <CardDescription>Introduce aquí las credenciales de tu App de Partner. Estas credenciales se usan para la automatización de creación de tiendas para toda la entidad (<strong>{editingTarget.name}</strong>).</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                 <div>
-                                    <Label htmlFor="partnerClientId">Client ID de la App de Partner</Label>
-                                    <Input id="partnerClientId" name="partnerClientId" value={partnerFormData.partnerClientId || ''} onChange={handlePartnerInputChange} placeholder="Ej: 1234abcd..." disabled={isSavingPartner} />
-                                </div>
-                                <div>
-                                    <Label htmlFor="partnerClientSecret">Client Secret de la App de Partner</Label>
-                                    <Input id="partnerClientSecret" name="partnerClientSecret" type="password" value={partnerFormData.partnerClientSecret || ''} onChange={handlePartnerInputChange} placeholder="shpss_xxxxxxxxxxxx" disabled={isSavingPartner}/>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Button onClick={() => handleSave(true)} disabled={isSavingPartner}>
-                                        {isSavingPartner && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                        Guardar Credenciales
-                                    </Button>
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="outline" disabled={isSavingPartner || !partnerFormData.partnerClientId}>
-                                                <Trash2 className="h-4 w-4"/>
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>¿Eliminar Credenciales de Partner?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    Esta acción eliminará permanentemente las credenciales de Shopify Partner para <strong>{editingTarget.name}</strong>.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleDelete('shopify_partner')} className="bg-destructive hover:bg-destructive/90">Sí, eliminar</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </div>
-                            </CardContent>
-                        </Card>
+                       <ShopifyPartnerCard 
+                         partnerFormData={partnerFormData}
+                         handlePartnerInputChange={handlePartnerInputChange}
+                         handleSave={handleSave}
+                         handleDelete={handleDelete}
+                         editingTargetName={editingTarget.name}
+                         isSavingPartner={isSavingPartner}
+                       />
                     )}
                 </div>
             )}

@@ -1,17 +1,20 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
-import { getApiClientsForUser, getPartnerCredentials } from '@/lib/api-helpers';
+import { adminAuth } from '@/lib/firebase-admin';
+import { getPartnerCredentials } from '@/lib/api-helpers';
 import axios from 'axios';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
     try {
-        const { uid } = await getApiClientsForUser(req as any); // Re-uses the auth logic from the helper
+        const token = req.headers.get('Authorization')?.split('Bearer ')[1];
+        if (!token) throw new Error('No auth token provided.');
+        const decodedToken = await adminAuth.verifyIdToken(token);
+        const uid = decodedToken.uid;
         
         // This helper now fetches the correct user/company specific credentials.
-        const { accessToken } = await getPartnerCredentials(uid); // Pass UID to get user-specific creds
+        const { accessToken } = await getPartnerCredentials(uid); 
 
         const graphqlEndpoint = `https://partners.shopify.com/api/2024-07/graphql.json`;
         

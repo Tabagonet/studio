@@ -57,7 +57,7 @@ export async function handleCreateShopifyStore(jobId: string) {
              jobData.creationOptions.theme = defaultTheme;
         }
 
-        const { clientId: partnerClientId, accessToken: partnerAccessToken } = await getPartnerCredentials(jobId);
+        const { clientId: partnerClientId, accessToken: partnerAccessToken } = await getPartnerCredentials(jobData.entity.id);
 
         const graphqlEndpoint = `https://partners.shopify.com/api/2024-07/graphql.json`;
 

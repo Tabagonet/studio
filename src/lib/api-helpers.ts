@@ -467,7 +467,6 @@ export async function getPartnerCredentials(uid: string): Promise<{ clientId: st
         settingsSource = userSettingsDoc.data();
     }
     
-    // Look for the specific 'shopify_partner' connection profile.
     const partnerConnection = settingsSource?.connections?.['shopify_partner'];
     const partnerClientId = partnerConnection?.partnerClientId;
     const partnerClientSecret = partnerConnection?.partnerClientSecret;
@@ -476,6 +475,5 @@ export async function getPartnerCredentials(uid: string): Promise<{ clientId: st
         throw new Error('Las credenciales de Shopify Partner App (Client ID/Secret) no están configuradas en el perfil de conexión "shopify_partner".');
     }
     
-    // The access token for the Partner API is stored in the same profile's secret field for simplicity.
     return { clientId: partnerClientId, clientSecret: partnerClientSecret, accessToken: partnerClientSecret };
 }
