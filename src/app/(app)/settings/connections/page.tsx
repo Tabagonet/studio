@@ -328,7 +328,7 @@ export default function ConnectionsPage() {
     const [currentUser, setCurrentUser] = useState<{ uid: string | null; role: string | null; companyId: string | null; companyName: string | null; } | null>(null);
     const [allCompanies, setAllCompanies] = useState<Company[]>([]);
     const [unassignedUsers, setUnassignedUsers] = useState<AppUser[]>([]);
-    const [isDataLoading, setIsDataLoading] = useState(false);
+    const [isDataLoading, setIsDataLoading] = useState(true);
     
     const [editingTarget, setEditingTarget] = useState<{ type: 'user' | 'company'; id: string | null; name: string }>({ type: 'user', id: null, name: 'Mis Conexiones' });
     const [editingTargetPlatform, setEditingTargetPlatform] = useState<'woocommerce' | 'shopify' | null>(null);
@@ -377,7 +377,9 @@ export default function ConnectionsPage() {
                     setPartnerFormData(INITIAL_PARTNER_STATE);
                 }
 
-                if (currentActiveKey && connections[currentActiveKey]) {
+                if (selectedKey !== 'new' && connections[selectedKey]) {
+                    setFormData(connections[selectedKey]);
+                } else if (currentActiveKey && connections[currentActiveKey]) {
                     setSelectedKey(currentActiveKey);
                     setFormData(connections[currentActiveKey]);
                 } else {
@@ -400,7 +402,7 @@ export default function ConnectionsPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [toast]);
+    }, [toast, selectedKey]);
     
     useEffect(() => {
         const fetchInitialData = async (user: FirebaseUser) => {

@@ -126,7 +126,6 @@ export async function POST(req: NextRequest) {
         const { key, connectionData, setActive, companyId: targetCompanyId, userId: targetUserId } = validationResult.data;
 
         let settingsRef;
-        let isUpdate = false;
         
         if (role === 'super_admin') {
             if (targetCompanyId) {
@@ -142,15 +141,21 @@ export async function POST(req: NextRequest) {
             }
         }
         
-        const settingsSnap = await settingsRef.get();
-        if (settingsSnap.exists) {
-            const settingsData = settingsSnap.data();
-            const currentConnections = settingsData?.connections || {};
-            isUpdate = Object.prototype.hasOwnProperty.call(currentConnections, key);
+        // ** THE FIX **: Use dot notation for a safe update/merge operation
+        const updatePayload: { [key: string]: any } = {
+            [`connections.${key}`]: connectionData
+        };
+
+        if (setActive) {
+            updatePayload.activeConnectionKey = key;
         }
+
+        const settingsSnap = await settingsRef.get();
+        const isUpdate = settingsSnap.exists && settingsSnap.data()?.connections?.[key];
         
+        // Site limit check for non-super admins editing their own connections
         const isEditingOwnSettings = !targetCompanyId && (!targetUserId || targetUserId === uid);
-        if (isEditingOwnSettings) {
+        if (role !== 'super_admin' && isEditingOwnSettings) {
              const userDoc = await adminDb.collection('users').doc(uid).get();
              const siteLimit = userDoc.data()?.siteLimit ?? 1;
              const connectionCount = settingsSnap.exists ? Object.keys(settingsSnap.data()?.connections || {}).filter(k => k !== 'shopify_partner').length : 0;
@@ -159,10 +164,8 @@ export async function POST(req: NextRequest) {
              }
         }
         
-        await settingsRef.set({
-            connections: { [key]: connectionData },
-            ...(setActive && { activeConnectionKey: key })
-        }, { merge: true });
+        // This will create the document if it doesn't exist, or merge into the existing one
+        await settingsRef.set(updatePayload, { merge: true });
         
         const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = connectionData as ConnectionData;
         const hostnamesToAdd = new Set<string>();
