@@ -448,22 +448,22 @@ export async function findOrCreateTags(tagNames: string[], wpApi: AxiosInstance)
   return tagIds;
 }
 
-export async function getPartnerCredentials(jobId: string): Promise<{ clientId: string; clientSecret: string; accessToken: string; }> {
+export async function getPartnerCredentials(uid: string): Promise<{ clientId: string; clientSecret: string; accessToken: string; }> {
     if (!adminDb) throw new Error("Firestore not available.");
     
-    const jobDoc = await adminDb.collection('shopify_creation_jobs').doc(jobId).get();
-    if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
+    const userDoc = await adminDb.collection('users').doc(uid).get();
+    if (!userDoc.exists) throw new Error('User record not found.');
     
-    const jobData = jobDoc.data()!;
-    const entity = jobData.entity;
+    const userData = userDoc.data()!;
+    const companyId = userData.companyId;
 
     let settingsSource;
-    if (entity.type === 'company') {
-        const companyDoc = await adminDb.collection('companies').doc(entity.id).get();
-        if (!companyDoc.exists) throw new Error(`Company ${entity.id} not found.`);
+    if (companyId) {
+        const companyDoc = await adminDb.collection('companies').doc(companyId).get();
+        if (!companyDoc.exists) throw new Error(`Company ${companyId} not found.`);
         settingsSource = companyDoc.data();
-    } else { // entity.type === 'user'
-        const userSettingsDoc = await adminDb.collection('user_settings').doc(entity.id).get();
+    } else {
+        const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
         settingsSource = userSettingsDoc.data();
     }
     
@@ -479,4 +479,3 @@ export async function getPartnerCredentials(jobId: string): Promise<{ clientId: 
     // The access token for the Partner API is stored in the same profile's secret field for simplicity.
     return { clientId: partnerClientId, clientSecret: partnerClientSecret, accessToken: partnerClientSecret };
 }
-    
