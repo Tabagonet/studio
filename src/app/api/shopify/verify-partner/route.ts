@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebase-admin';
+import { adminAuth } from '@/lib/firebase-admin';
 import { getPartnerCredentials } from '@/lib/api-helpers';
 import axios from 'axios';
 import { z } from 'zod';
@@ -12,15 +12,11 @@ const verifyPartnerSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-    let token: string;
-    let requestingUid: string;
     try {
-        const authToken = req.headers.get('Authorization')?.split('Bearer ')[1];
-        if (!authToken) throw new Error('No auth token provided.');
-        token = authToken;
+        const token = req.headers.get('Authorization')?.split('Bearer ')[1];
+        if (!token) throw new Error('No se pudo obtener el token de autenticación.');
         if (!adminAuth) throw new Error("Firebase Admin not initialized.");
-        const decodedToken = await adminAuth.verifyIdToken(token);
-        requestingUid = decodedToken.uid;
+        await adminAuth.verifyIdToken(token);
         
         const body = await req.json();
         const validation = verifyPartnerSchema.safeParse(body);
@@ -31,8 +27,8 @@ export async function POST(req: NextRequest) {
         const { userId } = validation.data;
         
         // This helper now fetches the correct user/company specific credentials.
-        // It's crucial that it's called with the correct target userId, not the requester's UID.
-        const { accessToken } = await getPartnerCredentials(userId); 
+        // It's crucial that it's called with the correct target userId.
+        const { partnerApiToken } = await getPartnerCredentials(userId); 
 
         const graphqlEndpoint = `https://partners.shopify.com/api/2024-07/graphql.json`;
         
@@ -45,7 +41,7 @@ export async function POST(req: NextRequest) {
             {
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Shopify-Access-Token': accessToken,
+                    'X-Shopify-Access-Token': partnerApiToken,
                 },
                 timeout: 15000,
             }

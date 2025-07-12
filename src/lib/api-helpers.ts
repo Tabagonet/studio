@@ -1,4 +1,3 @@
-
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -143,6 +142,42 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   });
 
   return { wooApi, wpApi, shopifyApi, activeConnectionKey, settings: settingsSource };
+}
+
+
+/**
+ * Retrieves the Shopify Partner API Access Token for a given user or their company.
+ * @param uid The Firebase UID of the user initiating the action.
+ * @returns The Partner API Access Token.
+ * @throws If credentials are not configured.
+ */
+export async function getPartnerCredentials(uid: string): Promise<{ partnerApiToken: string; }> {
+    if (!adminDb) throw new Error("Firestore not available.");
+    
+    const userDoc = await adminDb.collection('users').doc(uid).get();
+    if (!userDoc.exists) throw new Error('User record not found.');
+    
+    const userData = userDoc.data()!;
+    const companyId = userData.companyId;
+
+    let settingsSource;
+    if (companyId) {
+        const companyDoc = await adminDb.collection('companies').doc(companyId).get();
+        if (!companyDoc.exists) throw new Error(`Company ${companyId} not found.`);
+        settingsSource = companyDoc.data();
+    } else {
+        const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+        settingsSource = userSettingsDoc.data();
+    }
+    
+    const partnerConnection = settingsSource?.connections?.['shopify_partner'];
+    const partnerApiToken = partnerConnection?.partnerApiToken; // This is the new field name
+    
+    if (!partnerApiToken) {
+        throw new Error('El Token de Acceso de la API de Partner no está configurado. Ve a Ajustes > Conexiones.');
+    }
+
+    return { partnerApiToken };
 }
 
 function extractHeadingsRecursive(elements: any[], widgets: ExtractedWidget[]): void {
@@ -448,53 +483,3 @@ export async function findOrCreateTags(tagNames: string[], wpApi: AxiosInstance)
   return tagIds;
 }
 
-export async function getPartnerCredentials(uid: string): Promise<{ clientId: string; accessToken: string; }> {
-    if (!adminDb) throw new Error("Firestore not available.");
-    
-    const userDoc = await adminDb.collection('users').doc(uid).get();
-    if (!userDoc.exists) throw new Error('User record not found.');
-    
-    const userData = userDoc.data()!;
-    const companyId = userData.companyId;
-
-    let settingsSource;
-    if (companyId) {
-        const companyDoc = await adminDb.collection('companies').doc(companyId).get();
-        if (!companyDoc.exists) throw new Error(`Company ${companyId} not found.`);
-        settingsSource = companyDoc.data();
-    } else {
-        const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
-        settingsSource = userSettingsDoc.data();
-    }
-    
-    const partnerConnection = settingsSource?.connections?.['shopify_partner'];
-    const partnerClientId = partnerConnection?.partnerClientId;
-    const partnerClientSecret = partnerConnection?.partnerClientSecret;
-    
-    if (!partnerClientId || !partnerClientSecret) {
-        throw new Error('Las credenciales de Shopify Partner App (Client ID/Secret) no están configuradas en el perfil de conexión "shopify_partner".');
-    }
-
-    // New logic: Exchange credentials for an access token
-    try {
-        const response = await axios.post('https://accounts.shopify.com/oauth/token', {
-            client_id: partnerClientId,
-            client_secret: partnerClientSecret,
-            grant_type: 'client_credentials',
-            scope: 'write_stores' // Requesting scope to create stores
-        }, {
-            headers: { 'Content-Type': 'application/json' }
-        });
-        
-        const accessToken = response.data.access_token;
-        if (!accessToken) {
-            throw new Error('No se recibió un access_token de Shopify.');
-        }
-
-        return { clientId: partnerClientId, accessToken: accessToken };
-
-    } catch (error: any) {
-        console.error('Error getting Shopify Partner access token:', error.response?.data || error.message);
-        throw new Error('No se pudo obtener el token de acceso de Shopify Partner. Revisa las credenciales.');
-    }
-}

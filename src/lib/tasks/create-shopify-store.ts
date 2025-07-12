@@ -58,7 +58,7 @@ export async function handleCreateShopifyStore(jobId: string) {
              jobData.creationOptions.theme = defaultTheme;
         }
 
-        const { clientId: partnerClientId, accessToken: partnerAccessToken } = await getPartnerCredentials(jobData.entity.id);
+        const { partnerApiToken } = await getPartnerCredentials(jobData.entity.id);
 
         const graphqlEndpoint = `https://partners.shopify.com/api/2024-07/graphql.json`;
 
@@ -99,7 +99,8 @@ export async function handleCreateShopifyStore(jobId: string) {
                 name: jobData.storeName,
                 businessEmail: jobData.businessEmail,
                 countryCode: jobData.countryCode,
-                appId: partnerClientId,
+                // The Partner API doesn't use the client_id here, it uses the token
+                // But we still need the redirectUrl for the OAuth flow post-creation
                 redirectUrl: redirectUri,
             }
         };
@@ -118,7 +119,7 @@ export async function handleCreateShopifyStore(jobId: string) {
             {
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Shopify-Access-Token': partnerAccessToken,
+                    'X-Shopify-Access-Token': partnerApiToken,
                 },
             }
         );
