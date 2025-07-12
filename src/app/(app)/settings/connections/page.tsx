@@ -34,8 +34,7 @@ interface ConnectionData {
 }
 
 type PartnerConnectionData = {
-    partnerClientId: string;
-    partnerClientSecret: string;
+    partnerApiToken: string;
 };
 
 type AllConnections = { [key: string]: ConnectionData | PartnerConnectionData };
@@ -63,8 +62,7 @@ const INITIAL_STATE: ConnectionData = {
 };
 
 const INITIAL_PARTNER_STATE: PartnerConnectionData = {
-    partnerClientId: '',
-    partnerClientSecret: '',
+    partnerApiToken: '',
 };
 
 function getHostname(url: string | null): string | null {
@@ -201,23 +199,6 @@ const ShopifyPartnerCard = ({
 }) => {
     const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'success' | 'error'>('idle');
     const [verificationMessage, setVerificationMessage] = useState('');
-    const [currentOrigin, setCurrentOrigin] = useState('');
-    const { toast } = useToast();
-
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            setCurrentOrigin(window.location.origin);
-        }
-    }, []);
-
-    const productionRedirectUrl = process.env.NEXT_PUBLIC_BASE_URL ? `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback` : '';
-    const currentEnvRedirectUrl = currentOrigin ? `${currentOrigin}/api/shopify/auth/callback` : '';
-    
-    const handleCopy = (url: string | null) => {
-        if (!url) return;
-        navigator.clipboard.writeText(url);
-        toast({ title: 'URL Copiada', description: 'La URL ha sido copiada al portapapeles.' });
-    };
 
     const handleVerify = async () => {
         setVerificationStatus('verifying');
@@ -233,6 +214,7 @@ const ShopifyPartnerCard = ({
             const token = await auth.currentUser?.getIdToken();
             if (!token) throw new Error('No se pudo obtener el token de autenticación.');
             
+            // This API call now correctly uses the partnerApiToken for verification
             const response = await fetch('/api/shopify/verify-partner', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -265,77 +247,48 @@ const ShopifyPartnerCard = ({
             case 'error':
                  return <span className="flex items-center text-sm text-destructive"><AlertCircle className="mr-2 h-4 w-4"/> {verificationMessage}</span>
             default:
-                return <p className="text-xs text-muted-foreground">Haz clic en "Verificar Conexión" para comprobar tus credenciales contra la API de Shopify Partner.</p>;
+                return <p className="text-xs text-muted-foreground">Haz clic en "Verificar Conexión" para comprobar tu token contra la API de Shopify Partner.</p>;
         }
     }
+    const { toast } = useToast();
 
     return (
         <Card className="mt-8 border-primary/50">
             <CardHeader>
                 <CardTitle>Conexión Global de Shopify Partners</CardTitle>
                 <CardDescription>
-                    Introduce aquí las credenciales de tu App de Partner. Estas credenciales se usan para la automatización de creación de tiendas para toda la entidad (<strong>{editingTargetName}</strong>).
-                    <a href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank" rel="noopener noreferrer" className="ml-2 text-primary hover:underline">
-                        Ver guía detallada
-                    </a>
+                    Esta conexión se usa para la automatización de creación de tiendas para toda la entidad (<strong>{editingTargetName}</strong>).
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                  <Alert>
                     <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>URLs Requeridas por Shopify</AlertTitle>
+                    <AlertTitle>¿Cómo obtener tu Token de Acceso?</AlertTitle>
                     <AlertDescription>
-                        En la configuración de tu app en Shopify Partners, asegúrate de rellenar los siguientes campos tal y como se muestran aquí.
+                       <ol className="list-decimal list-inside space-y-1 mt-2">
+                           <li>Ve a tu panel de Shopify Partner: <strong>Ajustes &gt; Clientes de la API</strong>.</li>
+                           <li>Crea un nuevo **Cliente de la API de Partner** (si no tienes uno).</li>
+                           <li>Dale los permisos necesarios (ej. `write_stores` para crear tiendas).</li>
+                           <li>Shopify te dará un **Token de Acceso**. Cópialo y pégalo en el campo de abajo.</li>
+                       </ol>
                     </AlertDescription>
-                     <div className="space-y-3 mt-4">
-                         <div>
-                            <Label className="text-xs font-semibold">URL de la aplicación</Label>
-                            <div className="flex items-center gap-2">
-                                <Input readOnly value={process.env.NEXT_PUBLIC_BASE_URL || ''} className="font-mono text-xs" />
-                                <Button variant="outline" size="icon-sm" onClick={() => handleCopy(process.env.NEXT_PUBLIC_BASE_URL || '')} title="Copiar URL de la aplicación">
-                                    <Copy className="h-4 w-4" />
-                                </Button>
-                            </div>
-                         </div>
-                         <div>
-                            <Label className="text-xs font-semibold">URLs de redirección permitidas (añade ambas si son diferentes)</Label>
-                             <div className="flex items-center gap-2">
-                                <Input readOnly value={productionRedirectUrl} className="font-mono text-xs" />
-                                <Button variant="outline" size="icon-sm" onClick={() => handleCopy(productionRedirectUrl)} title="Copiar URL de producción">
-                                    <Copy className="h-4 w-4" />
-                                </Button>
-                            </div>
-                            {currentOrigin && !productionRedirectUrl.startsWith(currentOrigin) && currentEnvRedirectUrl && (
-                                 <div className="flex items-center gap-2">
-                                    <Input readOnly value={currentEnvRedirectUrl} className="font-mono text-xs" />
-                                    <Button variant="outline" size="icon-sm" onClick={() => handleCopy(currentEnvRedirectUrl)} title="Copiar URL de este entorno">
-                                        <Copy className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            )}
-                         </div>
-                    </div>
                 </Alert>
                 <div>
-                    <Label htmlFor="partnerClientId">Client ID de la App de Partner</Label>
-                    <Input id="partnerClientId" name="partnerClientId" value={partnerFormData.partnerClientId || ''} onChange={handlePartnerInputChange} placeholder="Pega aquí el Client ID" disabled={isSavingPartner} />
-                </div>
-                <div>
-                    <Label htmlFor="partnerClientSecret">Client Secret de la App de Partner</Label>
-                    <Input id="partnerClientSecret" name="partnerClientSecret" type="password" value={partnerFormData.partnerClientSecret || ''} onChange={handlePartnerInputChange} placeholder="Pega aquí el Client Secret" disabled={isSavingPartner}/>
+                    <Label htmlFor="partnerApiToken">Token de Acceso de la API de Partner</Label>
+                    <Input id="partnerApiToken" name="partnerApiToken" type="password" value={partnerFormData.partnerApiToken || ''} onChange={handlePartnerInputChange} placeholder="Pega aquí el Token de Acceso" disabled={isSavingPartner} />
                 </div>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
                         <Button onClick={() => handleSave(true)} disabled={isSavingPartner}>
                             {isSavingPartner && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Guardar Credenciales
+                            Guardar Token
                         </Button>
                         <Button variant="outline" onClick={handleVerify} disabled={isSavingPartner || verificationStatus === 'verifying'}>
                             Verificar Conexión
                         </Button>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
-                                <Button variant="outline" disabled={isSavingPartner || !partnerFormData.partnerClientId} size="icon">
+                                <Button variant="outline" disabled={isSavingPartner || !partnerFormData.partnerApiToken} size="icon">
                                     <Trash2 className="h-4 w-4"/>
                                 </Button>
                             </AlertDialogTrigger>
@@ -343,7 +296,7 @@ const ShopifyPartnerCard = ({
                                 <AlertDialogHeader>
                                     <AlertDialogTitle>¿Eliminar Credenciales de Partner?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                        Esta acción eliminará permanentemente las credenciales de Shopify Partner para <strong>{editingTargetName}</strong>.
+                                        Esta acción eliminará permanentemente el Token de Acceso de Shopify Partner para <strong>{editingTargetName}</strong>.
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -602,8 +555,8 @@ export default function ConnectionsPage() {
         let setActive = !isPartnerCreds;
 
         if (isPartnerCreds) {
-            if (!partnerFormData.partnerClientId || !partnerFormData.partnerClientSecret) {
-                toast({ title: "Datos Incompletos", description: "El Client ID y el Client Secret de Partner son obligatorios.", variant: "destructive" });
+            if (!partnerFormData.partnerApiToken) {
+                toast({ title: "Datos Incompletos", description: "El Token de Acceso de Partner es obligatorio.", variant: "destructive" });
                 return;
             }
             keyToSave = 'shopify_partner';
