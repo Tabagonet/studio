@@ -1,9 +1,7 @@
-
 // src/app/(app)/settings/connections/page.tsx
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -15,10 +13,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator, SelectLabel, SelectGroup } from '@/components/ui/select';
 import type { Company, User as AppUser } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 import { ShopifyIcon } from '@/components/core/icons';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from '../ui/skeleton';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import Link from 'next/link';
 
 interface ConnectionData {
     wooCommerceStoreUrl: string;
@@ -200,18 +199,20 @@ const ShopifyPartnerCard = ({
 }) => {
     const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'success' | 'error'>('idle');
     const [verificationMessage, setVerificationMessage] = useState('');
-    const [currentOrigin, setCurrentOrigin] = useState<string | null>(null);
+    const [currentOrigin, setCurrentOrigin] = useState('');
     const { toast } = useToast();
 
     useEffect(() => {
-        // This effect runs only on the client, so window is available.
-        setCurrentOrigin(window.location.origin);
+        if (typeof window !== 'undefined') {
+            setCurrentOrigin(window.location.origin);
+        }
     }, []);
 
-    const productionRedirectUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
-    const currentEnvRedirectUrl = currentOrigin ? `${currentOrigin}/api/shopify/auth/callback` : null;
+    const productionRedirectUrl = process.env.NEXT_PUBLIC_BASE_URL ? `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback` : '';
+    const currentEnvRedirectUrl = currentOrigin ? `${currentOrigin}/api/shopify/auth/callback` : '';
     
-    const handleCopy = (url: string) => {
+    const handleCopy = (url: string | null) => {
+        if (!url) return;
         navigator.clipboard.writeText(url);
         toast({ title: 'URL Copiada', description: 'La URL ha sido copiada al portapapeles.' });
     };
@@ -270,21 +271,25 @@ const ShopifyPartnerCard = ({
         <Card className="mt-8 border-primary/50">
             <CardHeader>
                 <CardTitle>Conexión Global de Shopify Partners</CardTitle>
-                <CardDescription>Introduce aquí las credenciales de tu App de Partner. Estas credenciales se usan para la automatización de creación de tiendas para toda la entidad (<strong>{editingTargetName}</strong>).</CardDescription>
+                <CardDescription>
+                    Introduce aquí las credenciales de tu App de Partner. Estas credenciales se usan para la automatización de creación de tiendas para toda la entidad (<strong>{editingTargetName}</strong>).
+                    <span className="text-primary hover:underline ml-2">
+                        (<Link href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank" rel="noopener noreferrer">Ver guía detallada</Link>)
+                    </span>
+                </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-                <Alert>
+                 <Alert>
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>URLs Requeridas por Shopify</AlertTitle>
                     <AlertDescription>
-                        En la configuración de tu app en Shopify Partners, asegúrate de rellenar los siguientes campos:
-                         <Link href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank" className="text-primary underline ml-2">(Ver guía detallada)</Link>
+                        En la configuración de tu app en Shopify Partners, asegúrate de rellenar los siguientes campos tal y como se muestran aquí.
                     </AlertDescription>
                      <div className="space-y-3 mt-4">
                          <div>
                             <Label className="text-xs font-semibold">URL de la aplicación</Label>
                             <div className="flex items-center gap-2">
-                                <Input readOnly value={process.env.NEXT_PUBLIC_BASE_URL} className="font-mono text-xs" />
+                                <Input readOnly value={process.env.NEXT_PUBLIC_BASE_URL || ''} className="font-mono text-xs" />
                                 <Button variant="outline" size="icon-sm" onClick={() => handleCopy(process.env.NEXT_PUBLIC_BASE_URL || '')} title="Copiar URL de la aplicación">
                                     <Copy className="h-4 w-4" />
                                 </Button>
@@ -298,7 +303,7 @@ const ShopifyPartnerCard = ({
                                     <Copy className="h-4 w-4" />
                                 </Button>
                             </div>
-                            {currentEnvRedirectUrl && !productionRedirectUrl.startsWith(currentOrigin!) && (
+                            {currentOrigin && !productionRedirectUrl.startsWith(currentOrigin) && (
                                  <div className="flex items-center gap-2">
                                     <Input readOnly value={currentEnvRedirectUrl} className="font-mono text-xs" />
                                     <Button variant="outline" size="icon-sm" onClick={() => handleCopy(currentEnvRedirectUrl)} title="Copiar URL de este entorno">

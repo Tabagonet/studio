@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getPartnerCredentials } from '@/lib/api-helpers';
@@ -12,9 +11,11 @@ const verifyPartnerSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+    let token: string;
     try {
-        const token = req.headers.get('Authorization')?.split('Bearer ')[1];
-        if (!token) throw new Error('No auth token provided.');
+        const authToken = req.headers.get('Authorization')?.split('Bearer ')[1];
+        if (!authToken) throw new Error('No auth token provided.');
+        token = authToken;
         if (!adminAuth) throw new Error("Firebase Admin not initialized.");
         await adminAuth.verifyIdToken(token);
         
@@ -42,6 +43,7 @@ export async function POST(req: NextRequest) {
                     'Content-Type': 'application/json',
                     'X-Shopify-Access-Token': accessToken,
                 },
+                timeout: 15000,
             }
         );
 
