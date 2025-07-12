@@ -1,3 +1,4 @@
+
 // src/app/(app)/settings/connections/page.tsx
 "use client";
 
@@ -6,16 +7,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User, Globe, Store, PlugZap, AlertCircle, RefreshCw, CheckCircle, Copy } from "lucide-react";
+import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User, Globe, Store, PlugZap, AlertCircle, RefreshCw, CheckCircle, Copy, ExternalLink } from "lucide-react";
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator, SelectLabel, SelectGroup } from '@/components/ui/select';
 import type { Company, User as AppUser } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '../ui/tooltip';
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { ShopifyIcon } from '@/components/core/icons';
-import { Skeleton } from '../ui/skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
 
@@ -273,9 +274,9 @@ const ShopifyPartnerCard = ({
                 <CardTitle>Conexión Global de Shopify Partners</CardTitle>
                 <CardDescription>
                     Introduce aquí las credenciales de tu App de Partner. Estas credenciales se usan para la automatización de creación de tiendas para toda la entidad (<strong>{editingTargetName}</strong>).
-                    <span className="text-primary hover:underline ml-2">
-                        (<Link href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank" rel="noopener noreferrer">Ver guía detallada</Link>)
-                    </span>
+                    <Link href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank" rel="noopener noreferrer" className="ml-2 text-primary hover:underline">
+                        Ver guía detallada
+                    </Link>
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -296,7 +297,7 @@ const ShopifyPartnerCard = ({
                             </div>
                          </div>
                          <div>
-                            <Label className="text-xs font-semibold">URLs de redirección permitidas (añade ambas)</Label>
+                            <Label className="text-xs font-semibold">URLs de redirección permitidas (añade ambas si son diferentes)</Label>
                              <div className="flex items-center gap-2">
                                 <Input readOnly value={productionRedirectUrl} className="font-mono text-xs" />
                                 <Button variant="outline" size="icon-sm" onClick={() => handleCopy(productionRedirectUrl)} title="Copiar URL de producción">
@@ -320,7 +321,7 @@ const ShopifyPartnerCard = ({
                 </div>
                 <div>
                     <Label htmlFor="partnerClientSecret">Información Secreta de Cliente</Label>
-                    <Input id="partnerClientSecret" name="partnerClientSecret" type="password" value={partnerFormData.partnerClientSecret || ''} onChange={handlePartnerInputChange} placeholder="Pega aquí tu clave secreta de la app" disabled={isSavingPartner}/>
+                    <Input id="partnerClientSecret" name="partnerClientSecret" type="password" value={partnerFormData.partnerClientSecret || ''} onChange={handlePartnerInputChange} placeholder="Pega aquí tu clave secreta" disabled={isSavingPartner}/>
                 </div>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
