@@ -76,17 +76,18 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
 
     const docData = doc.data();
     
-    const partnerData = docData?.partnerConnections?.[`${entityType}_${entityId}`];
+    // This logic is now part of the new OAuth flow, but kept for potential legacy checks.
+    // The permanent token is stored at the root of the settings document now.
+    const partnerApiToken = docData?.partnerApiToken;
+    const partnerOrgId = docData?.partnerOrgId;
     
-    if (!partnerData) {
-        throw new Error("Shopify Partner credentials not configured");
+    if (!partnerApiToken || !partnerOrgId) {
+        throw new Error("Shopify Partner credentials not configured or missing org ID.");
     }
 
-    // Since we're moving away from this, the schema is now for the new method.
-    // This function will need to be phased out or adapted. For now, assume it works with the old shape.
     return {
-        partnerApiToken: partnerData.partnerApiToken,
-        partnerOrgId: partnerData.partnerOrgId,
+        partnerApiToken,
+        partnerOrgId,
     };
 }
 
@@ -498,4 +499,5 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
     accessToken: activeConnection.shopifyApiPassword,
   });
 
-  return { wooApi, wpApi, shopifyApi, activeConnectionKey,
+  return { wooApi, wpApi, shopifyApi, activeConnectionKey, settings: settingsSource };
+}
