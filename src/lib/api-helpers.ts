@@ -159,11 +159,11 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
         settingsSource = userSettingsDoc.data();
     }
     
-    if (!settingsSource) {
-        throw new Error('No se encontró configuración para la entidad especificada.');
+    if (!settingsSource?.connections) {
+        throw new Error('No hay configuraciones de conexión para la entidad especificada.');
     }
 
-    const partnerConnection = settingsSource?.connections?.['shopify_partner'];
+    const partnerConnection = settingsSource.connections['shopify_partner'];
     const { partnerApiClientId, partnerApiSecret } = partnerConnection || {};
     
     if (!partnerApiClientId || !partnerApiSecret) {
@@ -175,7 +175,7 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
             client_id: partnerApiClientId,
             client_secret: partnerApiSecret,
             grant_type: "client_credentials",
-            scope: "write_stores" // Scope needed for creating development stores
+            scope: "write_stores"
         }, {
             headers: { 'Content-Type': 'application/json' },
             timeout: 10000,

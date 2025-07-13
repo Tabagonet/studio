@@ -268,7 +268,7 @@ const ShopifyPartnerCard = ({
                     <AlertTitle>¿Cómo obtener las credenciales?</AlertTitle>
                     <AlertDescription>
                         <ol className="list-decimal list-inside space-y-1 mt-2">
-                        <li>Ve a tu panel de Shopify Partner: <strong>Ajustes > Clientes de la API</strong>.</li>
+                        <li>Ve a tu panel de Shopify Partner: <strong>Ajustes &gt; Clientes de la API</strong>.</li>
                         <li>Crea un nuevo <strong>Cliente de la API de Partner</strong> (si no tienes uno).</li>
                         <li>Dale los permisos necesarios (ej. <code>write_stores</code> para crear tiendas).</li>
                         <li>Shopify te dará un <strong>Client ID</strong> y un <strong>Client Secret</strong>. Cópialos y pégalos en los campos de abajo.</li>
