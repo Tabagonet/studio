@@ -578,9 +578,9 @@ export default function ConnectionsPage() {
                         catch (e) { toast({ title: "URL Inválida", description: `El formato de la URL para ${item.name} no es válido.`, variant: "destructive" }); setSaving(false); return; }
                     }
                 }
-                const wooHostname = getHostname(formData.wooCommerceStoreUrl);
-                const wpHostname = getHostname(formData.wordpressApiUrl);
-                const shopifyHostname = getHostname(formData.shopifyStoreUrl);
+                const wooHostname = getHostname(formData.wooCommerceStoreUrl || null);
+                const wpHostname = getHostname(formData.wordpressApiUrl || null);
+                const shopifyHostname = getHostname(formData.shopifyStoreUrl || null);
                 
                 keyToSave = selectedKey !== 'new' ? selectedKey : (wooHostname || wpHostname || shopifyHostname || '');
                 if (!keyToSave) {
@@ -616,7 +616,8 @@ export default function ConnectionsPage() {
             window.dispatchEvent(new Event('connections-updated'));
 
             if (isPartnerCreds) {
-                const redirectUri = `${window.location.origin}/api/shopify/auth/callback`;
+                const baseUrl = window.location.origin;
+                const redirectUri = `${baseUrl}/api/shopify/auth/callback`;
                 const authUrl = new URL('https://partners.shopify.com/oauth/authorize');
                 authUrl.searchParams.set('client_id', partnerFormData.clientId);
                 authUrl.searchParams.set('scope', 'write_development_stores,read_development_stores');
