@@ -12,6 +12,11 @@ import type { ExtractedWidget } from './types';
 import { z } from 'zod';
 import crypto from 'crypto';
 
+// THIS IS NOW THE SINGLE SOURCE OF TRUTH
+export const partnerConnectionDataSchema = z.object({
+    partnerApiToken: z.string().min(1, "Partner API Token is required"),
+    partnerOrgId: z.string().min(1, "Partner Organization ID is required"),
+});
 
 interface ApiClients {
   wooApi: WooCommerceRestApiType | null;
@@ -21,11 +26,6 @@ interface ApiClients {
   settings: admin.firestore.DocumentData | undefined;
 }
 
-export const partnerConnectionDataSchema = z.object({
-    partnerApiToken: z.string().min(1, "Partner API Token is required"),
-    partnerOrgId: z.string().min(1, "Partner Organization ID is required"),
-});
-
 
 /**
  * Retrieves Shopify Partner credentials from Firestore.
@@ -33,7 +33,7 @@ export const partnerConnectionDataSchema = z.object({
  * @param entityId The Firebase UID of the user or the ID of the company.
  * @param entityType The type of entity ('user' or 'company').
  * @returns An object containing the access token and organization ID.
- * @throws If credentials are not configured.
+ * @throws If credentials are not configured or invalid.
  */
 export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ partnerApiToken: string; partnerOrgId: string; }> {
     if (!adminDb) {
@@ -63,6 +63,7 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
     const validation = partnerConnectionDataSchema.safeParse(partnerData);
     if (!validation.success) {
         console.error('getPartnerCredentials: Validación de credenciales fallida', validation.error.flatten());
+        // Throw a more specific error to differentiate from "not configured"
         throw new Error("Invalid Shopify Partner credentials");
     }
 
@@ -197,7 +198,6 @@ export function replaceElementorTexts(elementorData: any, translatedTexts: strin
 
 /**
  * Downloads, processes (resizes, converts to WebP), and uploads an image to the WordPress media library.
- * This version moves the dynamic import of `sharp` inside the function to isolate its usage.
  * @param imageUrl The URL of the image to process.
  * @param seoFilename A desired filename for SEO purposes. The extension will be replaced with .webp.
  * @param imageMetadata Metadata for the image (title, alt, etc.).
@@ -395,30 +395,35 @@ export function validateHmac(searchParams: URLSearchParams, clientSecret: string
 
 // This is now the single source of truth for getting API clients.
 // It also handles the plugin verification.
-export async function getApiClients(uid: string): Promise<ApiClients> {
+export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   if (!adminDb) {
     throw new Error('Firestore admin is not initialized.');
   }
 
-  const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
-  if (!userSettingsDoc.exists) {
-    throw new Error('No settings found for user. Please configure API connections.');
+  const userDocRef = await adminDb.collection('users').doc(uid).get();
+  const userData = userDocRef.data();
+  
+  let settingsSource: admin.firestore.DocumentData | undefined;
+  if(userData?.companyId) {
+      const companyDoc = await adminDb.collection('companies').doc(userData.companyId).get();
+      if (companyDoc.exists) settingsSource = companyDoc.data();
+  } else {
+      const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+      if (userSettingsDoc.exists) settingsSource = userSettingsDoc.data();
   }
-
-  const settings = userSettingsDoc.data();
-  if (!settings) {
-    throw new Error('Settings document is empty. Please configure API connections.');
+  
+  if (!settingsSource) {
+    throw new Error('No settings found for user or their company. Please configure API connections.');
   }
-
-  const allConnections = settings.connections;
-  const activeConnectionKey = settings.activeConnectionKey;
+  
+  const allConnections = settingsSource.connections;
+  const activeConnectionKey = settingsSource.activeConnectionKey;
 
   if (!activeConnectionKey || !allConnections || !allConnections[activeConnectionKey]) {
     throw new Error('No active API connection is configured. Please select or create one in Settings.');
   }
 
   const activeConnection = allConnections[activeConnectionKey];
-
   const { wordpressApiUrl, wordpressUsername, wordpressApplicationPassword } = activeConnection;
 
   // Verification is only needed for WordPress-based connections
@@ -446,7 +451,6 @@ export async function getApiClients(uid: string): Promise<ApiClients> {
     }
   }
 
-  // If verification passes (or is not applicable), create and return all clients
   const wooApi = createWooCommerceApi({
     url: activeConnection.wooCommerceStoreUrl,
     consumerKey: activeConnection.wooCommerceApiKey,

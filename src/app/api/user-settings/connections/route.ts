@@ -53,23 +53,6 @@ const connectionDataSchema = z.object({
     shopifyApiPassword: z.string().optional(),
 });
 
-// This is now the single source of truth for the payload validation
-const payloadSchema = z.object({
-    key: z.string().min(1, "Key is required"),
-    connectionData: z.record(z.any()), // We will refine this
-    setActive: z.boolean().optional().default(false),
-    companyId: z.string().optional(),
-    userId: z.string().optional(),
-}).refine((data) => {
-    if (data.key === 'shopify_partner') {
-        return partnerConnectionDataSchema.safeParse(data.connectionData).success;
-    }
-    return connectionDataSchema.safeParse(data.connectionData).success;
-}, {
-    message: "connectionData does not match the schema for the given key",
-    path: ["connectionData"],
-});
-
 
 export async function GET(req: NextRequest) {
     if (!adminDb) {
@@ -116,6 +99,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
     if (!adminDb) {
+        console.error('POST /api/user-settings/connections: Firestore no está configurado en el servidor');
         return NextResponse.json({ error: 'Firestore not configured on server' }, { status: 503 });
     }
     
@@ -124,6 +108,23 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         console.log('POST /api/user-settings/connections: Payload recibido', body);
 
+        const payloadSchema = z.object({
+            key: z.string().min(1, "Key is required"),
+            connectionData: z.record(z.any()), // Raw data
+            setActive: z.boolean().optional().default(false),
+            companyId: z.string().optional(),
+            userId: z.string().optional(),
+        }).refine(data => {
+            if (data.key === 'shopify_partner') {
+                return partnerConnectionDataSchema.safeParse(data.connectionData).success;
+            }
+            return connectionDataSchema.safeParse(data.connectionData).success;
+        }, {
+            message: "connectionData does not match the schema for the given key",
+            path: ["connectionData"],
+        });
+
+
         const validationResult = payloadSchema.safeParse(body);
         if (!validationResult.success) {
             console.error('POST /api/user-settings/connections: Validación fallida', validationResult.error.flatten());
@@ -131,26 +132,39 @@ export async function POST(req: NextRequest) {
         }
         
         const { key, connectionData, setActive, companyId: targetCompanyId, userId: targetUserId } = validationResult.data;
-        console.log('POST /api/user-settings/connections: Datos validados', { key, connectionData, setActive, targetCompanyId, targetUserId });
+        
+        // ** THE FIX IS HERE: Parse the data again with the correct schema to get a clean object **
+        let cleanConnectionData;
+        if (key === 'shopify_partner') {
+            cleanConnectionData = partnerConnectionDataSchema.parse(connectionData);
+        } else {
+            cleanConnectionData = connectionDataSchema.parse(connectionData);
+        }
+
+        console.log('POST /api/user-settings/connections: Datos validados', { key, connectionData: cleanConnectionData, setActive, targetCompanyId, targetUserId });
 
         let settingsRef;
         
         if (role === 'super_admin') {
             if (targetCompanyId) {
                 settingsRef = adminDb.collection('companies').doc(targetCompanyId);
+                console.log('POST /api/user-settings/connections: Guardando en companies', targetCompanyId);
             } else {
                 settingsRef = adminDb.collection('user_settings').doc(targetUserId || uid);
+                console.log('POST /api/user-settings/connections: Guardando en user_settings', targetUserId || uid);
             }
         } else {
             if (userCompanyId) {
                 settingsRef = adminDb.collection('companies').doc(userCompanyId);
+                console.log('POST /api/user-settings/connections: Guardando en companies (no super_admin)', userCompanyId);
             } else {
                 settingsRef = adminDb.collection('user_settings').doc(uid);
+                console.log('POST /api/user-settings/connections: Guardando en user_settings (no super_admin)', uid);
             }
         }
         
         const updatePayload: { [key: string]: any } = {
-            [`connections.${key}`]: connectionData
+            [`connections.${key}`]: cleanConnectionData // Use the clean data object
         };
 
         if (setActive) {
@@ -159,20 +173,24 @@ export async function POST(req: NextRequest) {
 
         const settingsSnap = await settingsRef.get();
         const isUpdate = settingsSnap.exists && settingsSnap.data()?.connections?.[key];
-        
+        console.log('POST /api/user-settings/connections: ¿Es actualización?', !!isUpdate);
+
         const isEditingOwnSettings = !targetCompanyId && (!targetUserId || targetUserId === uid);
         if (role !== 'super_admin' && isEditingOwnSettings) {
             const userDoc = await adminDb.collection('users').doc(uid).get();
             const siteLimit = userDoc.data()?.siteLimit ?? 1;
             const connectionCount = settingsSnap.exists ? Object.keys(settingsSnap.data()?.connections || {}).filter(k => k !== 'shopify_partner').length : 0;
             if (!isUpdate && key !== 'shopify_partner' && connectionCount >= siteLimit) {
+                console.error('POST /api/user-settings/connections: Límite de sitios alcanzado', { siteLimit, connectionCount });
                 return NextResponse.json({ error: `Límite de sitios alcanzado. Tu plan permite ${siteLimit} sitio(s).` }, { status: 403 });
             }
         }
         
+        console.log('POST /api/user-settings/connections: Escribiendo en Firestore', { path: settingsRef.path, updatePayload });
         await settingsRef.set(updatePayload, { merge: true });
+        console.log('POST /api/user-settings/connections: Escritura en Firestore completada');
         
-        const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = connectionData as any;
+        const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = cleanConnectionData as Partial<typeof connectionDataSchema._type>;
         const hostnamesToAdd = new Set<string>();
 
         const addHostname = (url: string | undefined) => {
@@ -181,7 +199,7 @@ export async function POST(req: NextRequest) {
                     const fullUrl = url.startsWith('http') ? url : `https://${url}`;
                     hostnamesToAdd.add(new URL(fullUrl).hostname);
                 } catch (e) {
-                    console.warn(`Invalid URL provided, skipping remote pattern: ${url}`);
+                    console.warn(`POST /api/user-settings/connections: URL inválida, omitiendo patrón remoto: ${url}`);
                 }
             }
         };
@@ -191,15 +209,16 @@ export async function POST(req: NextRequest) {
         addHostname(shopifyStoreUrl);
 
         if (hostnamesToAdd.size > 0) {
+            console.log('POST /api/user-settings/connections: Añadiendo patrones remotos', Array.from(hostnamesToAdd));
             const promises = Array.from(hostnamesToAdd).map(hostname => addRemotePattern(hostname).catch(err => console.error(`Failed to add remote pattern for ${hostname}:`, err)));
-            Promise.all(promises).catch(err => console.error("Error batch updating remote patterns:", err));
+            await Promise.all(promises);
         }
 
         return NextResponse.json({ success: true, message: 'Connection saved successfully.' });
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-        console.error('Error saving user connections:', error);
+        console.error('POST /api/user-settings/connections: Error al guardar conexiones', error);
         return NextResponse.json({ error: errorMessage || 'Failed to save connections' }, { status: 500 });
     }
 }
