@@ -14,7 +14,7 @@ import { z } from 'zod';
 import crypto from 'crypto';
 
 export const partnerAppConnectionDataSchema = z.object({
-  partnerShopDomain: z.string().optional(),
+  partnerOrgId: z.string().optional(),
   clientId: z.string().optional(),
   clientSecret: z.string().optional(),
 });

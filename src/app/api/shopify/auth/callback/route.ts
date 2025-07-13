@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
         }
         
         const { clientSecret, clientId } = await getPartnerAppCredentials(entityId, entityType as 'user' | 'company');
-
+        
         if (!clientSecret || !clientId) {
             throw new Error("Client ID y Client Secret no están configurados en AutoPress AI para esta entidad.");
         }
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
         // 2. Exchange authorization code for a permanent access token
         const tokenUrl = `https://${shop}/admin/oauth/access_token`;
         const tokenResponse = await axios.post(tokenUrl, {
-            client_id: clientId, // Use the fetched clientId
+            client_id: clientId,
             client_secret: clientSecret,
             code,
         });
@@ -58,18 +58,12 @@ export async function GET(req: NextRequest) {
              throw new Error("No se recibió un token de acceso de Shopify Partner.");
         }
         
-        // As a temporary measure, we will hardcode the org ID. In a future version, we would fetch this.
-        const partnerOrgId = process.env.SHOPIFY_PARTNER_ORG_ID;
-        if (!partnerOrgId) {
-            throw new Error("SHOPIFY_PARTNER_ORG_ID no está configurado en el servidor.");
-        }
-
+        // The Organization ID should be stored from the partnerFormData
         const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
         const settingsRef = adminDb.collection(settingsCollection).doc(entityId);
             
         await settingsRef.set({
             partnerApiToken: accessToken,
-            partnerOrgId: partnerOrgId,
         }, { merge: true });
 
         settingsUrl.searchParams.set('shopify_auth', 'success');

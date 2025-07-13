@@ -1,0 +1,58 @@
+
+# Guía: Configurar Aplicación de Shopify Partner (Flujo OAuth)
+
+Sigue estos pasos para crear una aplicación personalizada en tu panel de Shopify Partner. Esto nos dará los permisos necesarios para crear tiendas de desarrollo en tu nombre de forma segura y automática. Solo necesitas hacerlo una vez.
+
+### Paso 1: Crea una nueva aplicación
+
+1.  Ve a tu panel de **[Shopify Partner](https://partners.shopify.com)** y accede con tu cuenta.
+2.  En el menú de la izquierda, busca y haz clic en **"Apps"**.
+3.  Haz clic en el botón azul que dice **"Create app"** (Crear aplicación).
+4.  Te preguntará cómo quieres crearla. Elige la opción **"Create app manually"** (Crear aplicación manualmente).
+
+### Paso 2: Rellena los datos básicos y las URLs
+
+Ahora verás una pantalla de configuración. Rellena los siguientes campos con la información que te proporciona la plataforma AutoPress AI en **Ajustes > Conexiones**.
+
+*   **App name:** Escribe un nombre que la identifique, por ejemplo: `AutoPress AI Creator`. Es solo para tu referencia interna.
+
+*   **App URL:** Esta es la URL base de la aplicación. **Copia y pégala desde la sección "URLs Requeridas" en la página de conexiones de AutoPress AI**.
+    *   Ejemplo para producción: `https://autopress.intelvisual.es`
+
+*   **Allowed redirection URL(s):** Esta es la parte más importante para la seguridad. Shopify solo permitirá redirigir a los usuarios a la URL que pongas aquí. **Copia y pégala desde la sección "URLs Requeridas" en la página de conexiones de AutoPress AI**.
+    *   Ejemplo para producción: `https://autopress.intelvisual.es/api/shopify/auth/callback`
+
+    **Importante:** Si estás usando la aplicación en diferentes entornos (ej. local, Firebase Studio, producción), debes añadir la URL de redirección específica para **cada uno** de esos entornos en esta lista.
+
+Haz clic en el botón **"Create"**.
+
+### Paso 3: Configura la distribución y los permisos
+
+Después de crear la app, Shopify te llevará a la página de configuración.
+
+1.  Busca la sección **"Distribución"** (Distribution).
+2.  Haz clic en **"Seleccionar método de distribución"** y elige **"Distribución personalizada"** (Custom distribution). Esto indica que la app es para tu uso privado.
+3.  Ahora, ve a la pestaña **"Acceso a la API"** (API access) o busca una opción llamada **"Configurar ámbitos de la API de Administrador"** (Configure Admin API scopes).
+4.  Se desplegará una lista larga de permisos. Busca y marca las casillas para los siguientes dos permisos:
+    *   ✅ `write_development_stores`
+    *   ✅ `read_development_stores`
+5.  Haz clic en **"Guardar"** en la parte superior derecha de la página para aplicar los cambios de permisos.
+
+### Paso 4: Obtén y guarda tus credenciales
+
+¡Casi has terminado!
+
+1.  Ve a tu panel de **[Shopify Partner](https://partners.shopify.com)** y navega a **Ajustes** en el menú de la izquierda.
+2.  Verás la URL en tu navegador, algo como `https://partners.shopify.com/123456/settings`. El número (`123456`) es tu **ID de Organización**. Cópialo.
+3.  Vuelve a la plataforma AutoPress AI, a **Ajustes > Conexiones**. Pega este número en el campo **"ID de tu Organización de Partner"**.
+4.  Ahora, en Shopify Partner, ve a **Apps** y selecciona la aplicación que creaste.
+5.  En la página de la app, busca la sección **"Credenciales"** (API keys).
+6.  Copia el valor de **`Client ID`** y pégalo en el campo correspondiente en AutoPress AI.
+7.  Copia el valor de **`Client Secret`** y pégalo en el campo correspondiente en AutoPress AI.
+8.  Haz clic en **"Guardar Credenciales"**.
+
+### Paso 5: Conecta tu cuenta
+
+1. Después de guardar las credenciales, haz clic en el botón **"Conectar con Shopify"**.
+2. Serás redirigido a una página de Shopify para autorizar la conexión. Haz clic en "Aprobar".
+3. Serás redirigido de vuelta a la aplicación. ¡Ya podrás crear tiendas automáticamente!

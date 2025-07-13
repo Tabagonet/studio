@@ -46,17 +46,17 @@ export function ShopifyPartnerCard({
       return;
     }
 
-    if (!partnerFormData.clientId || !partnerFormData.partnerShopDomain) {
-      toast({ title: 'Datos Incompletos', description: 'El Client ID y el Dominio de Partner son necesarios para conectar.', variant: 'destructive' });
+    if (!partnerFormData.clientId || !partnerFormData.partnerOrgId) {
+      toast({ title: 'Datos Incompletos', description: 'El Client ID y el ID de Organización de Partner son necesarios para conectar.', variant: 'destructive' });
       return;
     }
 
     const redirectUri = `${BASE_URL}/api/shopify/auth/callback`;
-    const scopes = 'https://api.shopify.com/auth/shop.storefront_renderer.create_app_store_development_charge';
+    const scopes = 'write_development_stores';
     const state = `${editingTarget.type}:${editingTarget.id}`;
-    const shopDomain = partnerFormData.partnerShopDomain.replace(/^https|:\/\//, '').replace(/\/$/, '');
     
-    const authUrl = `https://${shopDomain}/admin/oauth/authorize?client_id=${partnerFormData.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${state}&grant_options[]=per-user`;
+    // Correct URL for Partner App authorization
+    const authUrl = `https://partners.shopify.com/${partnerFormData.partnerOrgId}/oauth/authorize?client_id=${partnerFormData.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${state}`;
     
     window.location.href = authUrl;
   };
@@ -118,9 +118,9 @@ export function ShopifyPartnerCard({
         </Alert>
 
         <div className="grid grid-cols-1 gap-4">
-           <div>
-            <Label htmlFor="partnerShopDomain">Dominio de tu Tienda de Partner (.myshopify.com)</Label>
-            <Input id="partnerShopDomain" name="partnerShopDomain" value={partnerFormData?.partnerShopDomain || ''} onChange={handleInputChange} placeholder="ejemplo-agencia.myshopify.com" disabled={isSavingPartner} />
+          <div>
+            <Label htmlFor="partnerOrgId">ID de tu Organización de Partner</Label>
+            <Input id="partnerOrgId" name="partnerOrgId" value={partnerFormData?.partnerOrgId || ''} onChange={handleInputChange} placeholder="Ej: 1234567" disabled={isSavingPartner} />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -139,7 +139,7 @@ export function ShopifyPartnerCard({
               {isSavingPartner ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2"/>}
               Guardar Credenciales
             </Button>
-             <Button onClick={handleConnect} disabled={!partnerFormData.clientId}>
+             <Button onClick={handleConnect} disabled={!partnerFormData.clientId || !partnerFormData.partnerOrgId}>
               <LinkIcon className="h-4 w-4 mr-2" />
               Conectar con Shopify
             </Button>
