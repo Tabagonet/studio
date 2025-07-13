@@ -52,7 +52,7 @@ export function ShopifyPartnerCard({
     }
 
     const redirectUri = `${BASE_URL}/api/shopify/auth/callback`;
-    const scopes = 'write_development_stores';
+    const scopes = 'write_development_stores,read_development_stores';
     const state = `${editingTarget.type}:${editingTarget.id}`;
     
     // Correct URL for Partner App authorization
@@ -120,7 +120,7 @@ export function ShopifyPartnerCard({
         <div className="grid grid-cols-1 gap-4">
           <div>
             <Label htmlFor="partnerOrgId">ID de tu Organización de Partner</Label>
-            <Input id="partnerOrgId" name="partnerOrgId" value={partnerFormData?.partnerOrgId || ''} onChange={handleInputChange} placeholder="Ej: 1234567" disabled={isSavingPartner} />
+            <Input id="partnerOrgId" name="partnerOrgId" value={partnerFormData?.partnerOrgId || ''} onChange={handleInputChange} placeholder="Ej: 1234567 (encuéntralo en la URL de tu panel de Partner)" disabled={isSavingPartner} />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>

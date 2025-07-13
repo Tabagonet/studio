@@ -72,7 +72,7 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
 
     const docData = doc.data();
     const partnerApiToken = docData?.partnerApiToken;
-    const partnerOrgId = docData?.partnerOrgId;
+    const partnerOrgId = docData?.connections?.partner_app?.partnerOrgId;
     
     if (!partnerApiToken || !partnerOrgId) {
         throw new Error("Shopify Partner credentials not configured or missing org ID.");
