@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { addRemotePattern } from '@/lib/next-config-manager';
+import { partnerConnectionDataSchema } from '@/lib/api-helpers'; // Import the correct schema
 
 export const dynamic = 'force-dynamic';
 
@@ -53,10 +54,6 @@ const connectionDataSchema = z.object({
     shopifyApiPassword: z.string().optional(),
 });
 
-const partnerConnectionDataSchema = z.object({
-    partnerApiToken: z.string().min(1, "Partner API Access Token is required"),
-    partnerOrgId: z.string().min(1, "Organization ID is required"),
-});
 
 export async function GET(req: NextRequest) {
     if (!adminDb) {
@@ -197,7 +194,7 @@ export async function POST(req: NextRequest) {
         if (hostnamesToAdd.size > 0) {
             console.log('POST /api/user-settings/connections: Añadiendo patrones remotos', Array.from(hostnamesToAdd));
             const promises = Array.from(hostnamesToAdd).map(hostname => addRemotePattern(hostname).catch(err => console.error(`Failed to add remote pattern for ${hostname}:`, err)));
-            await Promise.all(promises);
+            Promise.all(promises).catch(err => console.error("Error batch updating remote patterns:", err));
         }
 
         return NextResponse.json({ success: true, message: 'Connection saved successfully.' });
@@ -208,7 +205,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: errorMessage || 'Failed to save connections' }, { status: 500 });
     }
 }
-
 
 export async function DELETE(req: NextRequest) {
     if (!adminDb || !admin.firestore.FieldValue) {

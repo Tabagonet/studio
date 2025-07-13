@@ -1,3 +1,4 @@
+
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -9,7 +10,7 @@ import type { AxiosInstance } from 'axios';
 import axios from 'axios';
 import FormData from 'form-data';
 import type { ExtractedWidget } from './types';
-import sharp from 'sharp';
+import { z } from 'zod';
 import crypto from 'crypto';
 
 
@@ -20,6 +21,12 @@ interface ApiClients {
   activeConnectionKey: string | null;
   settings: admin.firestore.DocumentData | undefined;
 }
+
+export const partnerConnectionDataSchema = z.object({
+    partnerApiToken: z.string().min(1, "Partner API Token is required"),
+    partnerOrgId: z.string().min(1, "Partner Organization ID is required"),
+});
+
 
 /**
  * Fetches the active user-specific or company-specific credentials and creates API clients.
@@ -123,30 +130,38 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
  * @throws If credentials are not configured.
  */
 export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ partnerApiToken: string; partnerOrgId: string; }> {
-    if (!adminDb) throw new Error("Firestore not available.");
-    
-    let settingsSource;
-    if (entityType === 'company') {
-        const companyDoc = await adminDb.collection('companies').doc(entityId).get();
-        if (!companyDoc.exists) throw new Error(`Company ${entityId} not found.`);
-        settingsSource = companyDoc.data();
-    } else { // entityType === 'user'
-        const userSettingsDoc = await adminDb.collection('user_settings').doc(entityId).get();
-        settingsSource = userSettingsDoc.data();
-    }
-    
-    if (!settingsSource?.connections) {
-        throw new Error('No hay configuraciones de conexión para la entidad especificada.');
+    if (!adminDb) {
+        console.error('getPartnerCredentials: Firestore no está configurado');
+        throw new Error("Firestore not configured on server");
     }
 
-    const partnerConnection = settingsSource.connections['shopify_partner'];
-    const { partnerApiToken, partnerOrgId } = partnerConnection || {};
+    console.log('getPartnerCredentials: Obteniendo credenciales para', { entityId, entityType });
+    const settingsRef = entityType === 'company' 
+        ? adminDb.collection('companies').doc(entityId)
+        : adminDb.collection('user_settings').doc(entityId);
     
-    if (!partnerApiToken || !partnerOrgId) {
-        throw new Error('El Token de Acceso y el Organization ID de Shopify Partner no están configurados. Ve a Ajustes > Conexiones.');
+    const doc = await settingsRef.get();
+    if (!doc.exists) {
+        console.error('getPartnerCredentials: Documento no encontrado', settingsRef.path);
+        throw new Error(`${entityType === 'company' ? 'Company' : 'User'} settings not found`);
     }
+
+    const connections = doc.data()?.connections || {};
+    const partnerData = connections['shopify_partner'];
     
-    return { partnerApiToken, partnerOrgId };
+    if (!partnerData) {
+        console.error('getPartnerCredentials: Credenciales de Shopify Partner no encontradas', settingsRef.path);
+        throw new Error("Las credenciales de Shopify Partner no están configuradas.");
+    }
+
+    const validation = partnerConnectionDataSchema.safeParse(partnerData);
+    if (!validation.success) {
+        console.error('getPartnerCredentials: Validación de credenciales fallida', validation.error.flatten());
+        throw new Error("Las credenciales de Shopify Partner guardadas son inválidas.");
+    }
+
+    console.log('getPartnerCredentials: Credenciales obtenidas', validation.data);
+    return validation.data;
 }
 
 
@@ -276,6 +291,7 @@ export function replaceElementorTexts(elementorData: any, translatedTexts: strin
 
 /**
  * Downloads, processes (resizes, converts to WebP), and uploads an image to the WordPress media library.
+ * This version moves the dynamic import of `sharp` inside the function to isolate its usage.
  * @param imageUrl The URL of the image to process.
  * @param seoFilename A desired filename for SEO purposes. The extension will be replaced with .webp.
  * @param imageMetadata Metadata for the image (title, alt, etc.).
@@ -289,6 +305,8 @@ export async function uploadImageToWordPress(
   wpApi: AxiosInstance
 ): Promise<number> {
     try {
+        const sharp = (await import('sharp')).default;
+
         // 1. Download the image
         const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
         const originalBuffer = Buffer.from(imageResponse.data, 'binary');
@@ -451,4 +469,19 @@ export async function findOrCreateTags(tagNames: string[], wpApi: AxiosInstance)
     }
   }
   return tagIds;
+}
+
+export function validateHmac(searchParams: URLSearchParams, clientSecret: string): boolean {
+    const hmac = searchParams.get('hmac');
+    if (!hmac) return false;
+
+    searchParams.delete('hmac');
+    searchParams.sort();
+
+    const calculatedHmac = crypto
+        .createHmac('sha256', clientSecret)
+        .update(searchParams.toString())
+        .digest('hex');
+
+    return crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(calculatedHmac));
 }

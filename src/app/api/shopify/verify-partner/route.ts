@@ -1,3 +1,4 @@
+
 // src/app/api/shopify/verify-partner/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
@@ -33,8 +34,10 @@ export async function POST(req: NextRequest) {
             throw new Error("El Organization ID no está configurado. No se puede verificar.");
         }
 
+        const graphqlEndpoint = `https://partners.shopify.com/api/2025-04/graphql.json`.replace('{orgId}', partnerOrgId);
+        
         const response = await axios.post(
-            `https://partners.shopify.com/api/2025-04/graphql.json`,
+            graphqlEndpoint,
             { query: `{ organizations(first: 1) { nodes { id } } }` },
             {
                 headers: {
