@@ -22,19 +22,19 @@ import { ShopifyIcon } from '@/components/core/icons';
 
 
 interface ConnectionData {
-    wooCommerceStoreUrl: string;
-    wooCommerceApiKey: string;
-    wooCommerceApiSecret: string;
-    wordpressApiUrl: string;
-    wordpressUsername: string;
-    wordpressApplicationPassword: string;
-    shopifyStoreUrl: string;
-    shopifyApiPassword: string;
+    wooCommerceStoreUrl?: string;
+    wooCommerceApiKey?: string;
+    wooCommerceApiSecret?: string;
+    wordpressApiUrl?: string;
+    wordpressUsername?: string;
+    wordpressApplicationPassword?: string;
+    shopifyStoreUrl?: string;
+    shopifyApiPassword?: string;
 }
 
 type PartnerConnectionData = {
-    partnerApiToken: string;
-    partnerOrgId: string;
+  partnerApiToken: string;
+  partnerOrgId: string;
 };
 
 type AllConnections = { [key: string]: ConnectionData | PartnerConnectionData };
@@ -216,6 +216,7 @@ const ShopifyPartnerCard = ({
             const token = await auth.currentUser?.getIdToken();
             if (!token) throw new Error('No se pudo obtener el token de autenticación.');
             
+            // CORRECTED: Pass the required payload to the verification endpoint.
             const payload = {
                 entityId: editingTarget.id,
                 entityType: editingTarget.type,
@@ -276,11 +277,11 @@ const ShopifyPartnerCard = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <Label htmlFor="partnerApiToken">Token de Acceso de la API de Partner</Label>
-                        <Input id="partnerApiToken" name="partnerApiToken" type="password" value={partnerFormData.partnerApiToken || ''} onChange={handleInputChange} placeholder="Pega aquí el Token de Acceso" disabled={isSavingPartner} />
+                        <Input id="partnerApiToken" name="partnerApiToken" type="password" value={partnerFormData.partnerApiToken || ''} onChange={handleInputChange} placeholder="shpat_xxxxxxxxxxxx" disabled={isSavingPartner} />
                     </div>
                     <div>
                         <Label htmlFor="partnerOrgId">Organization ID</Label>
-                        <Input id="partnerOrgId" name="partnerOrgId" value={partnerFormData.partnerOrgId || ''} onChange={handleInputChange} placeholder="Pega aquí el ID de la organización" disabled={isSavingPartner} />
+                        <Input id="partnerOrgId" name="partnerOrgId" value={partnerFormData.partnerOrgId || ''} onChange={handleInputChange} placeholder="Ej: 123456" disabled={isSavingPartner} />
                     </div>
                 </div>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -538,42 +539,7 @@ export default function ConnectionsPage() {
     };
     
     const handleSave = async (isPartnerCreds: boolean = false) => {
-        let keyToSave: string;
-        let dataToSave: any;
-        let setActive = !isPartnerCreds;
-
-        if (isPartnerCreds) {
-            if (!partnerFormData.partnerApiToken || !partnerFormData.partnerOrgId) {
-                toast({ title: "Datos Incompletos", description: "El Token de Acceso y el Organization ID son obligatorios.", variant: "destructive" });
-                return;
-            }
-            keyToSave = 'shopify_partner';
-            dataToSave = partnerFormData;
-            setIsSaving(true);
-        } else {
-            const urlsToValidate = [
-                { name: 'WooCommerce', url: formData.wooCommerceStoreUrl },
-                { name: 'WordPress', url: formData.wordpressApiUrl },
-            ];
-            for (const item of urlsToValidate) {
-                if (item.url) {
-                    try { new URL(item.url.includes('://') ? item.url : `https://${item.url}`); }
-                    catch (e) { toast({ title: "URL Inválida", description: `El formato de la URL para ${item.name} no es válido.`, variant: "destructive" }); return; }
-                }
-            }
-            const wooHostname = getHostname(formData.wooCommerceStoreUrl);
-            const wpHostname = getHostname(formData.wordpressApiUrl);
-            const shopifyHostname = getHostname(formData.shopifyStoreUrl);
-            
-            keyToSave = selectedKey !== 'new' ? selectedKey : (wooHostname || wpHostname || shopifyHostname || '');
-            if (!keyToSave) {
-                toast({ title: "Datos Incompletos", description: "Por favor, introduce una URL válida para que sirva como identificador.", variant: "destructive" });
-                return;
-            }
-            dataToSave = formData;
-            setIsSaving(true);
-        }
-
+        setIsSaving(true);
         const user = auth.currentUser;
         if (!user) {
             toast({ title: "Error de autenticación", variant: "destructive" });
@@ -582,6 +548,40 @@ export default function ConnectionsPage() {
 
         try {
             const token = await user.getIdToken();
+            let keyToSave: string;
+            let dataToSave: any;
+            let setActive = !isPartnerCreds;
+
+            if (isPartnerCreds) {
+                if (!partnerFormData.partnerApiToken || !partnerFormData.partnerOrgId) {
+                    toast({ title: "Datos Incompletos", description: "El Token de Acceso y el Organization ID son obligatorios.", variant: "destructive" });
+                    setIsSaving(false); return;
+                }
+                keyToSave = 'shopify_partner';
+                dataToSave = partnerFormData;
+            } else {
+                 const urlsToValidate = [
+                    { name: 'WooCommerce', url: formData.wooCommerceStoreUrl },
+                    { name: 'WordPress', url: formData.wordpressApiUrl },
+                ];
+                for (const item of urlsToValidate) {
+                    if (item.url) {
+                        try { new URL(item.url.includes('://') ? item.url : `https://${item.url}`); }
+                        catch (e) { toast({ title: "URL Inválida", description: `El formato de la URL para ${item.name} no es válido.`, variant: "destructive" }); setIsSaving(false); return; }
+                    }
+                }
+                const wooHostname = getHostname(formData.wooCommerceStoreUrl);
+                const wpHostname = getHostname(formData.wordpressApiUrl);
+                const shopifyHostname = getHostname(formData.shopifyStoreUrl);
+                
+                keyToSave = selectedKey !== 'new' ? selectedKey : (wooHostname || wpHostname || shopifyHostname || '');
+                if (!keyToSave) {
+                    toast({ title: "Datos Incompletos", description: "Por favor, introduce una URL válida para que sirva como identificador.", variant: "destructive" });
+                    setIsSaving(false); return;
+                }
+                dataToSave = formData;
+            }
+
             const payload: any = { key: keyToSave, connectionData: dataToSave, setActive };
             if (editingTarget.type === 'company') {
                 payload.companyId = editingTarget.id;
@@ -601,9 +601,8 @@ export default function ConnectionsPage() {
             
             toast({ title: "Conexión Guardada", description: `Los datos para '${keyToSave}' han sido guardados.` });
             
-            // Refetch all data to ensure consistency
             await fetchConnections(user, editingTarget.type, editingTarget.id);
-            setRefreshKey(k => k + 1); // Trigger status refresh
+            setRefreshKey(k => k + 1);
             window.dispatchEvent(new Event('connections-updated'));
 
         } catch (error: any) {
