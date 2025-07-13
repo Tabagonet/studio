@@ -21,6 +21,7 @@ interface ShopifyPartnerCardProps {
   isSavingPartner: boolean;
   onDelete: () => void;
   isDeleting: boolean;
+  onSaveAndConnect: () => void;
 }
 
 export function ShopifyPartnerCard({
@@ -31,6 +32,7 @@ export function ShopifyPartnerCard({
   isSavingPartner,
   onDelete,
   isDeleting,
+  onSaveAndConnect,
 }: ShopifyPartnerCardProps) {
   const { toast } = useToast();
   const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
@@ -47,20 +49,7 @@ export function ShopifyPartnerCard({
     navigator.clipboard.writeText(text);
     toast({ title: 'Copiado al portapapeles' });
   };
-
-  const handleConnect = () => {
-    if (!partnerFormData.clientId) {
-      toast({ title: 'Client ID requerido', description: 'Por favor, guarda tu Client ID antes de conectar.', variant: 'destructive' });
-      return;
-    }
-    const authUrl = new URL('https://partners.shopify.com/oauth/authorize');
-    authUrl.searchParams.set('client_id', partnerFormData.clientId);
-    authUrl.searchParams.set('scope', 'write_development_stores,read_development_stores');
-    authUrl.searchParams.set('redirect_uri', REDIRECT_URI);
-    authUrl.searchParams.set('state', `${editingTarget.type}:${editingTarget.id}`);
-    window.location.href = authUrl.toString();
-  };
-
+  
   return (
     <Card className="mt-8 border-primary/50">
       <CardHeader>
@@ -125,9 +114,9 @@ export function ShopifyPartnerCard({
               {isSavingPartner ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2"/>}
               Guardar Credenciales
             </Button>
-             <Button onClick={handleConnect} disabled={!partnerFormData.clientId}>
+             <Button onClick={onSaveAndConnect} disabled={!partnerFormData.clientId || !partnerFormData.clientSecret}>
               <LinkIcon className="h-4 w-4 mr-2" />
-              Conectar con Shopify
+              Guardar y Conectar
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
