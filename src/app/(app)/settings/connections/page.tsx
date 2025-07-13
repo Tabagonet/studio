@@ -60,8 +60,8 @@ const INITIAL_STATE: ConnectionData = {
 };
 
 const INITIAL_PARTNER_APP_STATE: PartnerAppConnectionData = {
-    partnerOrgId: undefined,
     partnerApiToken: undefined,
+    partnerShopDomain: undefined,
 };
 
 function getHostname(url: string | null | undefined): string | null {
@@ -432,8 +432,8 @@ export default function ConnectionsPage() {
             const setActive = !isPartnerCreds;
 
             if (isPartnerCreds) {
-                 if (!partnerFormData.partnerOrgId || !partnerFormData.partnerApiToken) {
-                    toast({ title: "Datos Incompletos", description: "El ID de Organización y el Token de Acceso son obligatorios.", variant: "destructive" });
+                 if (!partnerFormData.partnerShopDomain || !partnerFormData.partnerApiToken) {
+                    toast({ title: "Datos Incompletos", description: "El Dominio de la Tienda de Partner y el Token de Acceso son obligatorios.", variant: "destructive" });
                     setSaving(false); return;
                 }
                 keyToSave = `partner_app`;

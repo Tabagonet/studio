@@ -3,7 +3,7 @@
   "name": "autopress-ai",
   "version": "0.1.0",
   "private": true,
-  "description": "AutoPress AI Application",
+  "description": "AutoPress AI Application - The AI-powered assistant for WooCommerce and WordPress.",
   "scripts": {
     "clean": "rm -rf .next",
     "dev": "npm run clean && next dev -p 9002",
