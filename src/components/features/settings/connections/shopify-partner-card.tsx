@@ -52,7 +52,7 @@ export function ShopifyPartnerCard({
     }
 
     const redirectUri = `${BASE_URL}/api/shopify/auth/callback`;
-    const scopes = 'write_development_stores,read_development_stores';
+    const scopes = 'https://api.shopify.com/auth/partners.app.cli.create-dev-store'; // <-- CORRECT SCOPE
     const state = `${editingTarget.type}:${editingTarget.id}`;
     
     // Correct URL for Partner App authorization
