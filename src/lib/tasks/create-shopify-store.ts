@@ -4,7 +4,7 @@ import axios from 'axios';
 import { generateShopifyStoreContent, type GeneratedContent, type GenerationInput } from '@/ai/flows/shopify-content-flow';
 import { createShopifyApi } from '@/lib/shopify';
 import type { AxiosInstance } from 'axios';
-import { getPartnerCredentials } from '@/lib/api-helpers';
+import { getPartnerAppCredentials, getPartnerCredentials } from '@/lib/api-helpers';
 import { CloudTasksClient } from '@google-cloud/tasks';
 
 
@@ -69,49 +69,16 @@ export async function handleCreateShopifyStore(jobId: string) {
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
         const jobData = jobDoc.data()!;
         
-        let settingsSource;
-        if (jobData.entity.type === 'company') {
-            const companyDoc = await adminDb.collection('companies').doc(jobData.entity.id).get();
-            if (!companyDoc.exists) throw new Error(`Company ${jobData.entity.id} not found.`);
-            settingsSource = companyDoc.data();
-        } else {
-            const userSettingsDoc = await adminDb.collection('user_settings').doc(jobData.entity.id).get();
-            settingsSource = userSettingsDoc.data();
-        }
-
-        if (settingsSource?.shopifyCreationDefaults?.createProducts === false) {
-            if (jobData.creationOptions.createExampleProducts === true) {
-                await updateJobStatus(jobId, 'processing', 'La creación de productos ha sido desactivada por un ajuste de la entidad.');
-            }
-            jobData.creationOptions.createExampleProducts = false;
-        }
-
-        const defaultTheme = settingsSource?.shopifyCreationDefaults?.theme;
-        if (defaultTheme) {
-             jobData.creationOptions.theme = defaultTheme;
-        }
-
-        const partnerApiToken = settingsSource?.partnerApiToken;
-        if (!partnerApiToken) {
-            throw new Error('La entidad no tiene una conexión de Shopify Partner activa. Por favor, conecta tu cuenta en Ajustes > Conexiones.');
-        }
-
+        const { partnerApiToken, partnerOrgId } = await getPartnerCredentials(jobData.entity.id, jobData.entity.type);
+        
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
-        // As a temporary measure, we will hardcode the org ID. In a future version, we would fetch this.
-        const partnerOrgId = process.env.SHOPIFY_PARTNER_ORG_ID;
-        if (!partnerOrgId) {
-            throw new Error("SHOPIFY_PARTNER_ORG_ID no está configurado en el servidor.");
-        }
-
-        const graphqlEndpoint = `https://partners.shopify.com/api/v1/${partnerOrgId}/stores`;
+        const graphqlEndpoint = `https://partners.shopify.com/api/v1/${partnerOrgId}/development_stores.json`;
 
         const response = await axios.post(
             graphqlEndpoint,
             {
                 shop_name: jobData.storeName,
-                business_email: jobData.businessEmail,
-                shop_country: jobData.countryCode,
                 // Add more fields as needed from jobData
             },
             {

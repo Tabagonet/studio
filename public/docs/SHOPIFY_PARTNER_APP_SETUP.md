@@ -1,4 +1,3 @@
-
 # Guía: Configurar Aplicación de Shopify Partner (Flujo OAuth)
 
 Sigue estos pasos para crear una aplicación personalizada en tu panel de Shopify Partner. Esto nos dará los permisos necesarios para crear tiendas de desarrollo en tu nombre de forma segura y automática. Solo necesitas hacerlo una vez.

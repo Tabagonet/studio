@@ -17,7 +17,7 @@ Antes de empezar, asegúrate de tener:
 
 Sigue la guía para clientes para crear una aplicación en tu panel de Shopify y obtener las credenciales.
 
-*   **Ver guía:** `/docs/SHOPIFY_PARTNER_APP_SETUP.md`
+*   **Ver guía:** `docs/SHOPIFY_PARTNER_APP_SETUP.md`
 
 Al final de este paso, deberías tener un **Client ID** y un **Client Secret**.
 

@@ -11,7 +11,6 @@ export async function GET(req: NextRequest) {
     const shop = searchParams.get('shop'); // shop domain of the partner's account
     const state = searchParams.get('state'); // This is our entity info "entityType:entityId"
 
-    // Use the environment variable for the base URL to construct the redirect URL.
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
     if (!baseUrl) {
         throw new Error("NEXT_PUBLIC_BASE_URL is not set in environment variables.");

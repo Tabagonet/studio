@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, Copy, ExternalLink, Loader2, Trash2 } from "lucide-react";
+import { AlertCircle, Copy, ExternalLink, Loader2, Trash2, Link as LinkIcon } from "lucide-react";
 import type { PartnerAppConnectionData } from '@/lib/api-helpers';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -17,7 +17,7 @@ interface ShopifyPartnerCardProps {
   editingTarget: { type: 'user' | 'company'; id: string | null; name: string };
   partnerFormData: PartnerAppConnectionData;
   onPartnerFormDataChange: (data: PartnerAppConnectionData) => void;
-  onSaveAndConnect: () => void;
+  onSave: () => void;
   isSavingPartner: boolean;
   onDelete: () => void;
   isDeleting: boolean;
@@ -27,15 +27,13 @@ export function ShopifyPartnerCard({
   editingTarget,
   partnerFormData,
   onPartnerFormDataChange,
-  onSaveAndConnect,
+  onSave,
   isSavingPartner,
   onDelete,
   isDeleting,
 }: ShopifyPartnerCardProps) {
   const { toast } = useToast();
-  // Use the public environment variable for the base URL.
-  // This ensures consistency across client and server.
-  const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || '';
+  const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -48,6 +46,19 @@ export function ShopifyPartnerCard({
     if (!text) return;
     navigator.clipboard.writeText(text);
     toast({ title: 'Copiado al portapapeles' });
+  };
+
+  const handleConnect = () => {
+    if (!partnerFormData.clientId) {
+      toast({ title: 'Client ID requerido', description: 'Por favor, guarda tu Client ID antes de conectar.', variant: 'destructive' });
+      return;
+    }
+    const authUrl = new URL('https://partners.shopify.com/oauth/authorize');
+    authUrl.searchParams.set('client_id', partnerFormData.clientId);
+    authUrl.searchParams.set('scope', 'write_development_stores,read_development_stores');
+    authUrl.searchParams.set('redirect_uri', REDIRECT_URI);
+    authUrl.searchParams.set('state', `${editingTarget.type}:${editingTarget.id}`);
+    window.location.href = authUrl.toString();
   };
 
   return (
@@ -110,9 +121,13 @@ export function ShopifyPartnerCard({
         </div>
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
           <div className="flex items-center gap-2 flex-wrap">
-            <Button onClick={onSaveAndConnect} disabled={isSavingPartner || !BASE_URL}>
-              {isSavingPartner && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Guardar y Conectar con Shopify
+            <Button onClick={onSave} disabled={isSavingPartner}>
+              {isSavingPartner ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2"/>}
+              Guardar Credenciales
+            </Button>
+             <Button onClick={handleConnect} disabled={!partnerFormData.clientId}>
+              <LinkIcon className="h-4 w-4 mr-2" />
+              Conectar con Shopify
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
