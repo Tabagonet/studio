@@ -1,4 +1,3 @@
-
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -26,99 +25,6 @@ export const partnerConnectionDataSchema = z.object({
     partnerApiToken: z.string().min(1, "Partner API Token is required"),
     partnerOrgId: z.string().min(1, "Partner Organization ID is required"),
 });
-
-
-/**
- * Fetches the active user-specific or company-specific credentials and creates API clients.
- * This function now determines context (user vs company) to fetch the correct settings.
- * It also performs a mandatory verification check against the WordPress site's plugin.
- * @param {string} uid - The user's Firebase UID.
- * @returns {Promise<ApiClients>} An object containing initialized API clients and settings.
- * @throws {Error} If the connection is not verified or credentials are incomplete.
- */
-export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
-  if (!adminDb) {
-    throw new Error('Firestore admin is not initialized.');
-  }
-  
-  const userDoc = await adminDb.collection('users').doc(uid).get();
-  if (!userDoc.exists) {
-      throw new Error('User record not found in database.');
-  }
-
-  const userData = userDoc.data();
-  const companyId = userData?.companyId;
-
-  let settingsSource: admin.firestore.DocumentData | undefined;
-
-  if (companyId) {
-      const companyDoc = await adminDb.collection('companies').doc(companyId).get();
-      if (!companyDoc.exists) throw new Error(`Company with ID ${companyId} not found.`);
-      settingsSource = companyDoc.data();
-  } else {
-      const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
-      settingsSource = userSettingsDoc.data();
-  }
-  
-  if (!settingsSource) {
-      throw new Error('No settings found. Please configure API connections.');
-  }
-
-  const allConnections = settingsSource.connections;
-  const activeConnectionKey = settingsSource.activeConnectionKey;
-
-  if (!activeConnectionKey || !allConnections || !allConnections[activeConnectionKey]) {
-      throw new Error('No active API connection is configured. Please select or create one in Settings > Connections.');
-  }
-
-  const activeConnection = allConnections[activeConnectionKey];
-  const { wordpressApiUrl, wordpressUsername, wordpressApplicationPassword } = activeConnection;
-
-  // Verification is only needed for WordPress-based connections
-  if (wordpressApiUrl && wordpressUsername && wordpressApplicationPassword) {
-    const tempWpApi = createWordPressApi({
-      url: wordpressApiUrl,
-      username: wordpressUsername,
-      applicationPassword: wordpressApplicationPassword,
-    });
-    
-    if (tempWpApi) {
-        const siteUrl = tempWpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
-        const statusEndpoint = `${siteUrl}/wp-json/custom/v1/status`;
-        try {
-            const response = await tempWpApi.get(statusEndpoint, { timeout: 15000 });
-            if (response.status !== 200 || response.data?.verified !== true) {
-                throw new Error("Conexión no verificada. Comprueba que la API Key del plugin es correcta y está activa en tu sitio de WordPress.");
-            }
-        } catch (e: any) {
-            if (e.response?.status === 404) {
-                 throw new Error('Endpoint de verificación no encontrado. Actualiza el plugin AutoPress AI Helper en tu WordPress.');
-            }
-            throw new Error(e.message || "No se pudo verificar el estado del plugin en WordPress. Revisa la URL y las credenciales.");
-        }
-    }
-  }
-
-  // If verification passes (or is not applicable), create and return all clients
-  const wooApi = createWooCommerceApi({
-    url: activeConnection.wooCommerceStoreUrl,
-    consumerKey: activeConnection.wooCommerceApiKey,
-    consumerSecret: activeConnection.wooCommerceApiSecret,
-  });
-
-  const wpApi = createWordPressApi({
-    url: activeConnection.wordpressApiUrl,
-    username: activeConnection.wordpressUsername,
-    applicationPassword: activeConnection.wordpressApplicationPassword,
-  });
-
-  const shopifyApi = createShopifyApi({
-    url: activeConnection.shopifyStoreUrl,
-    accessToken: activeConnection.shopifyApiPassword,
-  });
-
-  return { wooApi, wpApi, shopifyApi, activeConnectionKey, settings: settingsSource };
-}
 
 
 /**
@@ -151,13 +57,13 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
     
     if (!partnerData) {
         console.error('getPartnerCredentials: Credenciales de Shopify Partner no encontradas', settingsRef.path);
-        throw new Error("Las credenciales de Shopify Partner no están configuradas.");
+        throw new Error("Shopify Partner credentials not configured");
     }
 
     const validation = partnerConnectionDataSchema.safeParse(partnerData);
     if (!validation.success) {
         console.error('getPartnerCredentials: Validación de credenciales fallida', validation.error.flatten());
-        throw new Error("Las credenciales de Shopify Partner guardadas son inválidas.");
+        throw new Error("Invalid Shopify Partner credentials");
     }
 
     console.log('getPartnerCredentials: Credenciales obtenidas', validation.data);
@@ -484,4 +390,79 @@ export function validateHmac(searchParams: URLSearchParams, clientSecret: string
         .digest('hex');
 
     return crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(calculatedHmac));
+}
+
+
+// This is now the single source of truth for getting API clients.
+// It also handles the plugin verification.
+export async function getApiClients(uid: string): Promise<ApiClients> {
+  if (!adminDb) {
+    throw new Error('Firestore admin is not initialized.');
+  }
+
+  const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+  if (!userSettingsDoc.exists) {
+    throw new Error('No settings found for user. Please configure API connections.');
+  }
+
+  const settings = userSettingsDoc.data();
+  if (!settings) {
+    throw new Error('Settings document is empty. Please configure API connections.');
+  }
+
+  const allConnections = settings.connections;
+  const activeConnectionKey = settings.activeConnectionKey;
+
+  if (!activeConnectionKey || !allConnections || !allConnections[activeConnectionKey]) {
+    throw new Error('No active API connection is configured. Please select or create one in Settings.');
+  }
+
+  const activeConnection = allConnections[activeConnectionKey];
+
+  const { wordpressApiUrl, wordpressUsername, wordpressApplicationPassword } = activeConnection;
+
+  // Verification is only needed for WordPress-based connections
+  if (wordpressApiUrl && wordpressUsername && wordpressApplicationPassword) {
+    const tempWpApi = createWordPressApi({
+      url: wordpressApiUrl,
+      username: wordpressUsername,
+      applicationPassword: wordpressApplicationPassword,
+    });
+    
+    if (tempWpApi) {
+        const siteUrl = tempWpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
+        const statusEndpoint = `${siteUrl}/wp-json/custom/v1/status`;
+        try {
+            const response = await tempWpApi.get(statusEndpoint, { timeout: 15000 });
+            if (response.status !== 200 || response.data?.verified !== true) {
+                throw new Error("Conexión no verificada. Comprueba que la API Key del plugin es correcta y está activa en tu sitio de WordPress.");
+            }
+        } catch (e: any) {
+            if (e.response?.status === 404) {
+                 throw new Error('Endpoint de verificación no encontrado. Actualiza el plugin AutoPress AI Helper en tu WordPress.');
+            }
+            throw new Error(e.message || "No se pudo verificar el estado del plugin en WordPress. Revisa la URL y las credenciales.");
+        }
+    }
+  }
+
+  // If verification passes (or is not applicable), create and return all clients
+  const wooApi = createWooCommerceApi({
+    url: activeConnection.wooCommerceStoreUrl,
+    consumerKey: activeConnection.wooCommerceApiKey,
+    consumerSecret: activeConnection.wooCommerceApiSecret,
+  });
+
+  const wpApi = createWordPressApi({
+    url: wordpressApiUrl,
+    username: wordpressUsername,
+    applicationPassword: wordpressApplicationPassword,
+  });
+
+  const shopifyApi = createShopifyApi({
+    url: activeConnection.shopifyStoreUrl,
+    accessToken: activeConnection.shopifyApiPassword,
+  });
+
+  return { wooApi, wpApi, shopifyApi, activeConnectionKey, settings: settingsSource };
 }
