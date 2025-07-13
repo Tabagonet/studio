@@ -29,8 +29,8 @@ export async function POST(req: NextRequest) {
         
         const { partnerApiToken, partnerOrgId } = await getPartnerCredentials(entityId, entityType);
 
-        // Endpoint GraphQL correcto con organization_id y una versión de API estable
-        const graphqlEndpoint = `https://partners.shopify.com/${partnerOrgId}/api/2024-04/graphql.json`;
+        // Endpoint GraphQL con organization_id y una versión estable de la API
+        const graphqlEndpoint = `https://partners.shopify.com/${partnerOrgId}/api/2024-10/graphql.json`;
         
         console.log('Verificando Shopify Partner con endpoint:', graphqlEndpoint);
         
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
             {
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Shopify-Access-Token': partnerApiToken,
+                    'Authorization': `Bearer ${partnerApiToken}`,
                 },
                 timeout: 15000,
             }
