@@ -29,7 +29,6 @@ interface ApiClients {
 
 /**
  * Retrieves Shopify Partner credentials from Firestore.
- * This now reads the permanent access token and org ID directly.
  * @param entityId The Firebase UID of the user or the ID of the company.
  * @param entityType The type of entity ('user' or 'company').
  * @returns An object containing the access token and organization ID.
@@ -203,6 +202,7 @@ export function replaceElementorTexts(elementorData: any, translatedTexts: strin
 
 /**
  * Downloads, processes (resizes, converts to WebP), and uploads an image to the WordPress media library.
+ * This function now loads 'sharp' dynamically to avoid bundling it in routes that don't need it.
  * @param imageUrl The URL of the image to process.
  * @param seoFilename A desired filename for SEO purposes. The extension will be replaced with .webp.
  * @param imageMetadata Metadata for the image (title, alt, etc.).
@@ -216,6 +216,7 @@ export async function uploadImageToWordPress(
   wpApi: AxiosInstance
 ): Promise<number> {
     try {
+        // Dynamically import sharp ONLY when this function is called.
         const sharp = (await import('sharp')).default;
 
         // 1. Download the image
