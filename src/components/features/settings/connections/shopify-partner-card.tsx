@@ -77,12 +77,12 @@ export function ShopifyPartnerCard({
         </Alert>
         
         <div className="grid grid-cols-1 gap-4">
-            <div>
-                <Label htmlFor="partnerOrgId">ID de tu Organización de Partner</Label>
-                <Input id="partnerOrgId" name="partnerOrgId" value={partnerFormData?.partnerOrgId || ''} onChange={handleInputChange} placeholder="Ej: 1234567" disabled={isSavingPartner} />
-            </div>
           <div>
-            <Label htmlFor="partnerApiToken">Token de Acceso de la API de Partner</Label>
+            <Label htmlFor="partnerShopDomain">Dominio de tu Tienda de Partner (.myshopify.com)</Label>
+            <Input id="partnerShopDomain" name="partnerShopDomain" value={partnerFormData?.partnerShopDomain || ''} onChange={handleInputChange} placeholder="ej: tu-agencia.myshopify.com" disabled={isSavingPartner} />
+          </div>
+          <div>
+            <Label htmlFor="partnerApiToken">Token de Acceso de la API de Admin (shpat_...)</Label>
             <Input id="partnerApiToken" name="partnerApiToken" type="password" value={partnerFormData?.partnerApiToken || ''} onChange={handleInputChange} placeholder="••••••••••••••••••••••••••••••••••••" disabled={isSavingPartner} />
           </div>
         </div>
