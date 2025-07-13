@@ -52,8 +52,14 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
         throw new Error(`${entityType === 'company' ? 'Company' : 'User'} settings not found`);
     }
 
-    const connections = doc.data()?.connections || {};
+    const docData = doc.data();
+    console.log('getPartnerCredentials: Datos crudos de Firestore', { docData, exists: doc.exists });
+    
+    const connections = docData?.connections || {};
+    console.log('getPartnerCredentials: Conexiones encontradas', { connections });
+    
     const partnerData = connections['shopify_partner'];
+    console.log('getPartnerCredentials: Credenciales de Shopify Partner', { partnerData });
     
     if (!partnerData) {
         console.error('getPartnerCredentials: Credenciales de Shopify Partner no encontradas', settingsRef.path);
@@ -63,7 +69,6 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
     const validation = partnerConnectionDataSchema.safeParse(partnerData);
     if (!validation.success) {
         console.error('getPartnerCredentials: Validación de credenciales fallida', validation.error.flatten());
-        // Throw a more specific error to differentiate from "not configured"
         throw new Error("Invalid Shopify Partner credentials");
     }
 
