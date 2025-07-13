@@ -204,7 +204,7 @@ const ShopifyPartnerCard = ({
 
     useEffect(() => {
         // This effect runs only on the client, so window is available.
-        setBaseUrl(process.env.NEXT_PUBLIC_BASE_URL || window.location.origin);
+        setBaseUrl(window.location.origin);
     }, []);
     
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -617,9 +617,15 @@ export default function ConnectionsPage() {
             window.dispatchEvent(new Event('connections-updated'));
 
             if (isPartnerCreds) {
-                const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || window.location.origin;
-                const authUrl = `https://partners.shopify.com/oauth/authorize?client_id=${partnerFormData.clientId}&scope=write_development_stores,read_development_stores&redirect_uri=${baseUrl}/api/shopify/auth/callback&state=${editingTarget.type}:${editingTarget.id}`;
-                window.location.href = authUrl;
+                // Use window.location.origin to ensure the callback URL matches the current environment
+                const redirectUri = `${window.location.origin}/api/shopify/auth/callback`;
+                const authUrl = new URL('https://partners.shopify.com/oauth/authorize');
+                authUrl.searchParams.set('client_id', partnerFormData.clientId);
+                authUrl.searchParams.set('scope', 'write_development_stores,read_development_stores');
+                authUrl.searchParams.set('redirect_uri', redirectUri);
+                authUrl.searchParams.set('state', `${editingTarget.type}:${editingTarget.id}`);
+
+                window.location.href = authUrl.toString();
             }
 
         } catch (error: any) {
