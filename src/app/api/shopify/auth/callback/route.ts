@@ -1,6 +1,7 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
-import { validateHmac, getPartnerAppCredentials } from '@/lib/api-helpers';
+import { validateHmac, getPartnerCredentials } from '@/lib/api-helpers';
 import axios from 'axios';
 
 // This file is no longer used by the direct token flow, but kept for reference.
