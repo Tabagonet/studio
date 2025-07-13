@@ -1,3 +1,4 @@
+
 // src/app/(app)/settings/connections/page.tsx
 "use client";
 
@@ -28,12 +29,11 @@ interface ConnectionData {
     wordpressUsername: string;
     wordpressApplicationPassword: string;
     shopifyStoreUrl: string;
-    shopifyApiPassword: string; // This will hold the access token
+    shopifyApiPassword: string; // This will hold the access token for a specific store
 }
 
 type PartnerConnectionData = {
-    partnerApiClientId: string;
-    partnerApiSecret: string;
+    partnerApiToken: string;
 };
 
 type AllConnections = { [key: string]: ConnectionData | PartnerConnectionData };
@@ -61,8 +61,7 @@ const INITIAL_STATE: ConnectionData = {
 };
 
 const INITIAL_PARTNER_STATE: PartnerConnectionData = {
-    partnerApiClientId: '',
-    partnerApiSecret: '',
+    partnerApiToken: '',
 };
 
 function getHostname(url: string | null): string | null {
@@ -183,21 +182,25 @@ const ConnectionStatusIndicator = ({ status, isLoading, onRefresh }: { status: S
 const ShopifyPartnerCard = ({ 
   editingTarget, 
   partnerFormData, 
-  handlePartnerInputChange, 
-  handleSave, 
-  handleDelete, 
-  isSavingPartner,
+  onPartnerFormDataChange, 
+  onSave, 
+  onDelete, 
+  isSaving,
 }: { 
   editingTarget: { type: 'user' | 'company'; id: string | null; name: string };
   partnerFormData: PartnerConnectionData;
-  handlePartnerInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  handleSave: (isPartner: boolean) => void;
-  handleDelete: (key: string) => void;
-  isSavingPartner: boolean;
+  onPartnerFormDataChange: (data: PartnerConnectionData) => void;
+  onSave: (isPartner: boolean) => void;
+  onDelete: (key: string) => void;
+  isSaving: boolean;
 }) => {
     const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'success' | 'error'>('idle');
     const [verificationMessage, setVerificationMessage] = useState('');
     const { toast } = useToast();
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      onPartnerFormDataChange({ ...partnerFormData, [e.target.name]: e.target.value });
+    };
 
     const handleVerify = async () => {
         setVerificationStatus('verifying');
@@ -225,10 +228,7 @@ const ShopifyPartnerCard = ({
             });
 
             const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || 'Fallo en la verificación.');
-            }
+            if (!response.ok) throw new Error(result.error || 'Fallo en la verificación.');
             
             setVerificationStatus('success');
             setVerificationMessage(result.message);
@@ -249,7 +249,7 @@ const ShopifyPartnerCard = ({
             case 'error':
                  return <span className="flex items-center text-sm text-destructive"><AlertCircle className="mr-2 h-4 w-4"/> {verificationMessage}</span>
             default:
-                return <p className="text-xs text-muted-foreground">Haz clic en "Verificar Conexión" para comprobar tus credenciales.</p>;
+                return <p className="text-xs text-muted-foreground">Haz clic en "Verificar Conexión" para comprobar tu token.</p>;
         }
     }
 
@@ -258,56 +258,51 @@ const ShopifyPartnerCard = ({
             <CardHeader>
                 <CardTitle>Conexión Global de Shopify Partners</CardTitle>
                 <CardDescription>
-                    Esta conexión se usa para la automatización de creación de tiendas para toda la entidad (<strong>{editingTarget.name}</strong>).
-                     <Button variant="link" asChild className="p-1 h-auto"><Link href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank">Ver guía detallada</Link></Button>
+                    Introduce aquí el Token de Acceso de tu Cliente de API de Partner. Se usa para automatizaciones, como la creación de tiendas, para <strong>{editingTarget.name}</strong>.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                  <Alert>
                     <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>¿Cómo obtener las credenciales?</AlertTitle>
+                    <AlertTitle>¿Cómo obtener el Token de Acceso?</AlertTitle>
                     <AlertDescription>
                         <ol className="list-decimal list-inside space-y-1 mt-2">
                         <li>Ve a tu panel de Shopify Partner: <strong>Ajustes &gt; Clientes de la API</strong>.</li>
                         <li>Crea un nuevo <strong>Cliente de la API de Partner</strong> (si no tienes uno).</li>
                         <li>Dale los permisos necesarios (ej. <code>write_stores</code> para crear tiendas).</li>
-                        <li>Shopify te dará un <strong>Client ID</strong> y un <strong>Client Secret</strong>. Cópialos y pégalos en los campos de abajo.</li>
+                        <li>Copia el <strong>Token de acceso</strong> y pégalo en el campo de abajo.</li>
                         </ol>
                     </AlertDescription>
                 </Alert>
                 <div>
-                    <Label htmlFor="partnerApiClientId">Client ID de la App de Partner</Label>
-                    <Input id="partnerApiClientId" name="partnerApiClientId" value={partnerFormData.partnerApiClientId || ''} onChange={handlePartnerInputChange} placeholder="Pega aquí el Client ID" disabled={isSavingPartner} />
-                </div>
-                 <div>
-                    <Label htmlFor="partnerApiSecret">Client Secret de la App de Partner</Label>
-                    <Input id="partnerApiSecret" name="partnerApiSecret" type="password" value={partnerFormData.partnerApiSecret || ''} onChange={handlePartnerInputChange} placeholder="Pega aquí el Client Secret" disabled={isSavingPartner} />
+                    <Label htmlFor="partnerApiToken">Token de Acceso de la API de Partner</Label>
+                    <Input id="partnerApiToken" name="partnerApiToken" type="password" value={partnerFormData.partnerApiToken || ''} onChange={handleInputChange} placeholder="Pega aquí el Token de Acceso" disabled={isSaving} />
                 </div>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
-                        <Button onClick={() => handleSave(true)} disabled={isSavingPartner}>
-                            {isSavingPartner && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Guardar Credenciales
+                        <Button onClick={() => onSave(true)} disabled={isSaving}>
+                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Guardar Token
                         </Button>
-                        <Button variant="outline" onClick={handleVerify} disabled={isSavingPartner || verificationStatus === 'verifying'}>
+                        <Button variant="outline" onClick={handleVerify} disabled={isSaving || verificationStatus === 'verifying'}>
                             Verificar Conexión
                         </Button>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
-                                <Button variant="outline" disabled={isSavingPartner || !partnerFormData.partnerApiClientId} size="icon">
+                                <Button variant="outline" disabled={isSaving || !partnerFormData.partnerApiToken} size="icon">
                                     <Trash2 className="h-4 w-4"/>
                                 </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                                 <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Eliminar Credenciales de Partner?</AlertDialogTitle>
+                                    <AlertDialogTitle>¿Eliminar Credencial de Partner?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                        Esta acción eliminará permanentemente las credenciales de Shopify Partner para <strong>{editingTarget.name}</strong>.
+                                        Esta acción eliminará permanentemente el Token de Acceso de Shopify Partner para <strong>{editingTarget.name}</strong>.
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleDelete('shopify_partner')} className="bg-destructive hover:bg-destructive/90">Sí, eliminar</AlertDialogAction>
+                                    <AlertDialogAction onClick={() => onDelete('shopify_partner')} className="bg-destructive hover:bg-destructive/90">Sí, eliminar</AlertDialogAction>
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                         </AlertDialog>
@@ -552,19 +547,14 @@ export default function ConnectionsPage() {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
     
-    const handlePartnerInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
-        setPartnerFormData(prev => ({ ...prev, [name]: value }));
-    };
-
     const handleSave = async (isPartnerCreds: boolean = false) => {
         let keyToSave: string;
         let dataToSave: any;
         let setActive = !isPartnerCreds;
 
         if (isPartnerCreds) {
-            if (!partnerFormData.partnerApiClientId || !partnerFormData.partnerApiSecret) {
-                toast({ title: "Datos Incompletos", description: "El Client ID y el Client Secret son obligatorios.", variant: "destructive" });
+            if (!partnerFormData.partnerApiToken) {
+                toast({ title: "Datos Incompletos", description: "El Token de Acceso de Partner es obligatorio.", variant: "destructive" });
                 return;
             }
             keyToSave = 'shopify_partner';
@@ -621,14 +611,12 @@ export default function ConnectionsPage() {
             
             toast({ title: "Conexión Guardada", description: `Los datos para '${keyToSave}' han sido guardados.` });
             
-            // Re-fetch connections to update the state
             await fetchConnections(user, editingTarget.type, editingTarget.id);
             
-            // After re-fetching, if we just saved a new connection, make it the selected one
             if (!isPartnerCreds && selectedKey === 'new') {
                 setSelectedKey(keyToSave);
             }
-            setRefreshKey(k => k + 1); // Trigger status refresh
+            setRefreshKey(k => k + 1);
             window.dispatchEvent(new Event('connections-updated'));
 
         } catch (error: any) {
@@ -892,10 +880,10 @@ export default function ConnectionsPage() {
                        <ShopifyPartnerCard 
                          editingTarget={editingTarget}
                          partnerFormData={partnerFormData}
-                         handlePartnerInputChange={handlePartnerInputChange}
-                         handleSave={handleSave}
-                         handleDelete={handleDelete}
-                         isSavingPartner={isSavingPartner}
+                         onPartnerFormDataChange={setPartnerFormData}
+                         onSave={handleSave}
+                         onDelete={handleDelete}
+                         isSaving={isSavingPartner}
                        />
                     )}
                 </div>
