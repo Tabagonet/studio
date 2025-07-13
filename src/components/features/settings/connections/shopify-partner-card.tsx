@@ -40,21 +40,20 @@ export function ShopifyPartnerCard({
     onPartnerFormDataChange({ ...partnerFormData, [name]: value });
   };
 
-  const handleSaveAndConnect = () => {
-    // 1. First, save the current credentials to ensure they are persisted before redirecting.
-    onSave();
-
-    // 2. Then, construct the authorization URL and redirect.
-    const redirectUri = `${BASE_URL}/api/shopify/auth/callback`;
-    const scopes = 'write_development_stores,read_development_stores';
-    
-    // The state parameter passes our internal entity ID to the callback
-    const state = `${editingTarget.type}:${editingTarget.id}`;
-    
-    if (!partnerFormData.partnerShopDomain) {
-      toast({ title: 'Datos Incompletos', description: 'El Dominio de Partner es necesario para conectar.', variant: 'destructive' });
+  const handleConnect = () => {
+    if (!BASE_URL) {
+      toast({ title: 'Configuración Requerida', description: 'La variable NEXT_PUBLIC_BASE_URL no está configurada.', variant: 'destructive' });
       return;
     }
+
+    if (!partnerFormData.clientId || !partnerFormData.partnerShopDomain) {
+      toast({ title: 'Datos Incompletos', description: 'El Client ID y el Dominio de Partner son necesarios para conectar.', variant: 'destructive' });
+      return;
+    }
+
+    const redirectUri = `${BASE_URL}/api/shopify/auth/callback`;
+    const scopes = 'https://api.shopify.com/auth/shop.storefront_renderer.create_app_store_development_charge';
+    const state = `${editingTarget.type}:${editingTarget.id}`;
     const shopDomain = partnerFormData.partnerShopDomain.replace(/^https|:\/\//, '').replace(/\/$/, '');
     
     const authUrl = `https://${shopDomain}/admin/oauth/authorize?client_id=${partnerFormData.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${state}&grant_options[]=per-user`;
@@ -140,7 +139,7 @@ export function ShopifyPartnerCard({
               {isSavingPartner ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2"/>}
               Guardar Credenciales
             </Button>
-             <Button onClick={handleSaveAndConnect} disabled={!partnerFormData?.clientId}>
+             <Button onClick={handleConnect} disabled={!partnerFormData.clientId}>
               <LinkIcon className="h-4 w-4 mr-2" />
               Conectar con Shopify
             </Button>

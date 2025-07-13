@@ -1,3 +1,4 @@
+
 # Guía: Configurar Aplicación de Shopify Partner (Flujo OAuth)
 
 Sigue estos pasos para crear una aplicación personalizada en tu panel de Shopify Partner. Esto nos dará los permisos necesarios para crear tiendas de desarrollo en tu nombre de forma segura y automática. Solo necesitas hacerlo una vez.
@@ -31,11 +32,10 @@ Después de crear la app, Shopify te llevará a la página de configuración.
 
 1.  Busca la sección **"Distribución"** (Distribution).
 2.  Haz clic en **"Seleccionar método de distribución"** y elige **"Distribución personalizada"** (Custom distribution). Esto indica que la app es para tu uso privado.
-3.  Shopify podría pedirte un **"Dominio de la tienda"** como requisito. No te preocupes, esto no instalará la app en esa tienda. Puedes usar cualquier tienda de desarrollo activa como valor temporal.
+3.  Shopify podría pedirte un **"Dominio de la tienda"** como requisito. **Aquí debes poner la URL de tu propia cuenta de Partner**, la que tiene el formato `tu-agencia.myshopify.com`. No te preocupes, esto no instalará la app en esa tienda, solo se usa como un identificador para la app.
 4.  Ahora, ve a la pestaña **"Acceso a la API"** (API access) o busca una opción llamada **"Configurar ámbitos de la API de Administrador"** (Configure Admin API scopes).
-5.  Se desplegará una lista larga de permisos. Busca y marca las casillas para los siguientes dos permisos:
-    *   ✅ `write_development_stores`
-    *   ✅ `read_development_stores`
+5.  Se desplegará una lista larga de permisos. Busca y marca las casillas para el siguiente permiso:
+    *   ✅ `https://api.shopify.com/auth/shop.storefront_renderer.create_app_store_development_charge`
 6.  Haz clic en **"Guardar"** en la parte superior derecha de la página para aplicar los cambios de permisos.
 
 ### Paso 4: Obtén y guarda tus credenciales
@@ -46,8 +46,9 @@ Después de crear la app, Shopify te llevará a la página de configuración.
 2.  Copia el valor de **`Client ID`**.
 3.  Vuelve a la plataforma AutoPress AI, a **Ajustes > Conexiones**. En la tarjeta "Conexión Global de Shopify Partners", pega el valor en el campo **"Client ID"**.
 4.  Vuelve al panel de Shopify Partner y copia el valor de **`Client Secret`**.
-5.  Pega este valor en el campo **"Client Secret"** de nuestra plataforma.
-6.  Haz clic en **"Guardar Credenciales"**.
+5.  Pega este valor en el campo **"Client Secret"**.
+6.  **MUY IMPORTANTE:** Copia el dominio de tu tienda de Partner (ej: `mi-agencia.myshopify.com`) y pégalo en el campo **"Dominio de tu Tienda de Partner"**.
+7.  Haz clic en **"Guardar Credenciales"**.
 
 ### Paso 5: Conecta tu cuenta
 
