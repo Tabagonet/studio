@@ -50,15 +50,23 @@ export async function GET(req: NextRequest) {
              throw new Error("No se recibió un token de acceso de Shopify Partner.");
         }
         
-        // 3. Save the permanent access token securely to the user/company settings
+        const partnerDetailsResponse = await axios.get('https://partners.shopify.com/api/v1/organizations.json', {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        
+        const partnerOrgId = partnerDetailsResponse.data?.organizations?.[0]?.id;
+        if (!partnerOrgId) {
+            throw new Error("No se pudo obtener el ID de la organización del Partner.");
+        }
+
         const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
         const settingsRef = adminDb.collection(settingsCollection).doc(entityId);
             
         await settingsRef.set({
             partnerApiToken: accessToken,
+            partnerOrgId: partnerOrgId,
         }, { merge: true });
 
-        // 4. Redirect user back to the settings page with a success message
         settingsUrl.searchParams.set('shopify_auth', 'success');
         return NextResponse.redirect(settingsUrl);
 

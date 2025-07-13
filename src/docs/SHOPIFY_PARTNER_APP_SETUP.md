@@ -16,8 +16,10 @@ Ahora verás una pantalla de configuración. Rellena los siguientes campos:
 
 *   **App name:** Escribe un nombre que la identifique, por ejemplo: `AutoPress AI Creator`. Es solo para tu referencia interna.
 
-*   **App URL:** Pega aquí la URL base de tu aplicación de producción. Esto le indica a Shopify cuál es la página de inicio principal de tu herramienta.
-    *   `https://autopress.intelvisual.es`
+*   **App URL:** Esta URL le dice a Shopify cuál es la página de inicio principal de tu herramienta. **Debe coincidir con la URL base del entorno que estás usando**.
+    *   **Si usas la versión de producción:** `https://autopress.intelvisual.es`
+    *   **Si estás en Firebase Studio:** La URL que ves en la barra del navegador, por ejemplo: `https://[TU_ID_DE_STUDIO].cluster-xyz.cloudworkstations.dev`
+    *   **Si trabajas en local:** `http://localhost:9002`
 
 *   **Allowed redirection URL(s):** Esta es la parte más importante para la seguridad. Shopify solo permitirá redirigir a los usuarios a las URLs que estén en esta lista blanca después de autorizar la conexión. **Debes añadir una URL por cada entorno donde vayas a probar o usar la aplicación.**
 

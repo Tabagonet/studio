@@ -203,7 +203,6 @@ const ShopifyPartnerCard = ({
     const [baseUrl, setBaseUrl] = useState('');
 
     useEffect(() => {
-        // This effect runs only on the client, so window is available.
         setBaseUrl(window.location.origin);
     }, []);
     
@@ -617,12 +616,12 @@ export default function ConnectionsPage() {
             window.dispatchEvent(new Event('connections-updated'));
 
             if (isPartnerCreds) {
-                // Use window.location.origin to ensure the callback URL matches the current environment
                 const redirectUri = `${window.location.origin}/api/shopify/auth/callback`;
                 const authUrl = new URL('https://partners.shopify.com/oauth/authorize');
                 authUrl.searchParams.set('client_id', partnerFormData.clientId);
                 authUrl.searchParams.set('scope', 'write_development_stores,read_development_stores');
                 authUrl.searchParams.set('redirect_uri', redirectUri);
+                // Simplify the state to just the entityId
                 authUrl.searchParams.set('state', `${editingTarget.type}:${editingTarget.id}`);
 
                 window.location.href = authUrl.toString();
