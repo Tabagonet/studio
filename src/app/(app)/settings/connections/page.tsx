@@ -186,12 +186,16 @@ const ShopifyPartnerCard = ({
   onPartnerFormDataChange, 
   onSave, 
   isSavingPartner,
+  onDelete,
+  isDeleting,
 }: { 
   editingTarget: { type: 'user' | 'company'; id: string | null; name: string };
   partnerFormData: PartnerConnectionData;
   onPartnerFormDataChange: (data: PartnerConnectionData) => void;
   onSave: () => void;
   isSavingPartner: boolean;
+  onDelete: () => void;
+  isDeleting: boolean;
 }) => {
     const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'success' | 'error'>('idle');
     const [verificationMessage, setVerificationMessage] = useState('');
@@ -284,7 +288,7 @@ const ShopifyPartnerCard = ({
                     </div>
                 </div>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                         <Button onClick={onSave} disabled={isSavingPartner}>
                             {isSavingPartner && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Guardar Credenciales
@@ -292,6 +296,27 @@ const ShopifyPartnerCard = ({
                         <Button variant="outline" onClick={handleVerify} disabled={isSavingPartner || verificationStatus === 'verifying'}>
                             Verificar Conexión
                         </Button>
+                         <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" disabled={isSavingPartner || isDeleting}>
+                                    <Trash2 className="mr-2 h-4 w-4" /> Borrar
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>¿Confirmar eliminación?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                    Esta acción eliminará permanentemente las credenciales de Shopify Partner.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={onDelete} className="bg-destructive hover:bg-destructive/90">
+                                    Sí, eliminar
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
                     </div>
                     <div className="h-5">{getStatusJsx()}</div>
                 </div>
@@ -867,6 +892,8 @@ export default function ConnectionsPage() {
                          onPartnerFormDataChange={handlePartnerFormDataChange}
                          onSave={() => handleSave(true)}
                          isSavingPartner={isSavingPartner}
+                         onDelete={() => handleDelete('shopify_partner')}
+                         isDeleting={isDeleting === 'shopify_partner'}
                        />
                     )}
                 </div>
