@@ -26,32 +26,20 @@ Ahora verás una pantalla de configuración. Rellena los siguientes campos con l
 
 Haz clic en el botón **"Create"**.
 
-### Paso 3: Configura la distribución y los permisos
+### Paso 3: Obtén y guarda tus credenciales
 
-Después de crear la app, Shopify te llevará a la página de configuración.
+¡Casi has terminado! Ya no necesitas configurar los permisos (scopes) manualmente en el panel de Shopify. Nuestra aplicación los solicitará automáticamente.
 
-1.  Busca la sección **"Distribución"** (Distribution).
-2.  Haz clic en **"Seleccionar método de distribución"** y elige **"Distribución personalizada"** (Custom distribution). Esto indica que la app es para tu uso privado.
-3.  Shopify podría pedirte un **"Dominio de la tienda"** como requisito. Puedes usar cualquier tienda de desarrollo activa como valor temporal, ya que no se usará.
-4.  Ahora, ve a la pestaña **"Acceso a la API"** (API access) o busca una opción llamada **"Configurar ámbitos de la API de Administrador"** (Configure Admin API scopes).
-5.  Se desplegará una lista larga de permisos. **Asegúrate de que TODOS los permisos estén desmarcados**, excepto uno. Busca y marca la casilla para el siguiente permiso:
-    *   ✅ `https://api.shopify.com/auth/partners.app.cli.create-dev-store`
-6.  Haz clic en **"Guardar"** en la parte superior derecha de la página para aplicar los cambios de permisos.
-
-### Paso 4: Obtén y guarda tus credenciales
-
-¡Casi has terminado!
-
-1.  En la misma página de **"Acceso a la API"**, busca la sección **"Credenciales"** (API keys).
+1.  En la página de configuración de tu nueva app en Shopify Partner, busca la sección **"Credenciales"** (API keys).
 2.  Copia el valor de **`Client ID`**.
 3.  Vuelve a la plataforma AutoPress AI, a **Ajustes > Conexiones**. En la tarjeta "Conexión Global de Shopify Partners", pega el valor en el campo **"Client ID"**.
 4.  Vuelve al panel de Shopify Partner y copia el valor de **`Client Secret`**.
 5.  Pega este valor en el campo **"Client Secret"**.
-6.  **MUY IMPORTANTE:** Copia el ID de tu organización de Partner. Lo encontrarás en la URL de tu navegador, que será algo como `https://partners.shopify.com/123456/apps`. El número es tu ID. Pégalo en el campo **"ID de tu Organización de Partner"**.
+6.  **MUY IMPORTANTE:** Copia el **ID de tu organización de Partner**. Lo encontrarás en la URL de tu navegador cuando estás en el panel de Shopify Partner (ej: `https://partners.shopify.com/123456/...`). Copia solo el número (`123456`) y pégalo en el campo **"ID de tu Organización de Partner"**.
 7.  Haz clic en **"Guardar Credenciales"**.
 
-### Paso 5: Conecta tu cuenta
+### Paso 4: Conecta tu cuenta
 
-1. Después de guardar, haz clic en el botón **"Conectar con Shopify"**.
-2. Serás redirigido a una página de Shopify para autorizar la conexión. Haz clic en "Aprobar".
+1. Después de guardar las credenciales, haz clic en el botón **"Conectar con Shopify"**.
+2. Serás redirigido a una página de Shopify para autorizar la conexión. Aquí es donde Shopify te pedirá que apruebes los permisos necesarios para que nuestra app pueda crear tiendas. Haz clic en "Aprobar" o "Autorizar".
 3. Serás redirigido de vuelta a la aplicación. ¡Ya podrás crear tiendas automáticamente!
