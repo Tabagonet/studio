@@ -10,15 +10,28 @@ Sigue estos pasos para crear una aplicación personalizada en tu panel de Shopif
 3.  Haz clic en el botón azul que dice **"Create app"** (Crear aplicación).
 4.  Te preguntará cómo quieres crearla. Elige la opción **"Create app manually"** (Crear aplicación manualmente).
 
-### Paso 2: Rellena los datos básicos de la aplicación
+### Paso 2: Rellena los datos básicos y las URLs
 
 Ahora verás una pantalla de configuración. Rellena los siguientes campos:
 
 *   **App name:** Escribe un nombre que la identifique, por ejemplo: `AutoPress AI Creator`. Es solo para tu referencia interna.
-*   **App URL:** Pega aquí la URL base de la plataforma AutoPress AI. Te la proporcionamos en la página de **Ajustes > Conexiones**:
+
+*   **App URL:** Pega aquí la URL base de tu aplicación de producción. Esto le indica a Shopify cuál es la página de inicio principal de tu herramienta.
     *   `https://autopress.intelvisual.es`
-*   **Allowed redirection URL(s):** Esta es la parte más importante para la seguridad. Shopify solo permitirá redirigir a los usuarios a esta URL después de autorizar la conexión. Pega la siguiente URL que te proporcionamos en la misma página de **Ajustes > Conexiones**:
-    *   `https://autopress.intelvisual.es/api/shopify/auth/callback`
+
+*   **Allowed redirection URL(s):** Esta es la parte más importante para la seguridad. Shopify solo permitirá redirigir a los usuarios a las URLs que estén en esta lista blanca después de autorizar la conexión. **Debes añadir una URL por cada entorno donde vayas a probar o usar la aplicación.**
+
+    *   **Para Producción (Obligatorio):**
+        `https://autopress.intelvisual.es/api/shopify/auth/callback`
+
+    *   **Para Firebase Studio (Si estás desarrollando aquí):**
+        `https://[TU_ID_DE_STUDIO].cluster-xyz.cloudworkstations.dev/api/shopify/auth/callback`
+        (Reemplaza `[TU_ID_DE_STUDIO].cluster-xyz.cloudworkstations.dev` con la URL que ves en la barra de tu navegador).
+
+    *   **Para Desarrollo Local (Si trabajas en tu propio PC):**
+        `http://localhost:9002/api/shopify/auth/callback`
+
+    **Consejo:** Puedes añadir las tres URLs desde el principio para no tener que volver a editarlo más adelante.
 
 Haz clic en el botón **"Create"**.
 
@@ -42,7 +55,7 @@ Después de crear la app, Shopify te llevará a la página de configuración.
 1.  En la misma página de **"Acceso a la API"**, busca la sección **"Credenciales"** (API keys).
 2.  Copia el valor de **`Client ID`**.
 3.  Vuelve a la plataforma AutoPress AI, a **Ajustes > Conexiones**. En la tarjeta "Conexión Global de Shopify Partners", pega el valor en el campo **"Client ID"**.
-4.  Vuelve al panel de Shopify Partner y copia el valor de **`Client secret`**.
+4.  Vuelve al panel de Shopify Partner y copia el valor de **`Client Secret`**.
 5.  Pega este valor en el campo **"Client Secret"** de nuestra plataforma.
 6.  Finalmente, haz clic en el botón **"Guardar y Conectar con Shopify"**.
 
