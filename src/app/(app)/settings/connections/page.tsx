@@ -29,7 +29,7 @@ interface ConnectionData {
     wordpressUsername: string;
     wordpressApplicationPassword: string;
     shopifyStoreUrl: string;
-    shopifyApiPassword: string; // This will hold the access token for a specific store
+    shopifyApiPassword: string;
 }
 
 type PartnerConnectionData = {
@@ -76,7 +76,6 @@ function getHostname(url: string | null): string | null {
         return url; // Fallback to the original string if URL parsing fails
     }
 }
-
 
 const ConnectionStatusIndicator = ({ status, isLoading, onRefresh }: { status: SelectedEntityStatus | null, isLoading: boolean, onRefresh: () => void }) => {
   if (isLoading) {
@@ -186,15 +185,13 @@ const ShopifyPartnerCard = ({
   partnerFormData, 
   onPartnerFormDataChange, 
   onSave, 
-  onDelete, 
-  isSaving,
+  isSavingPartner,
 }: { 
   editingTarget: { type: 'user' | 'company'; id: string | null; name: string };
   partnerFormData: PartnerConnectionData;
   onPartnerFormDataChange: (data: PartnerConnectionData) => void;
-  onSave: (isPartner: boolean) => void;
-  onDelete: (key: string) => void;
-  isSaving: boolean;
+  onSave: () => void;
+  isSavingPartner: boolean;
 }) => {
     const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'success' | 'error'>('idle');
     const [verificationMessage, setVerificationMessage] = useState('');
@@ -279,41 +276,22 @@ const ShopifyPartnerCard = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <Label htmlFor="partnerApiToken">Token de Acceso de la API de Partner</Label>
-                        <Input id="partnerApiToken" name="partnerApiToken" type="password" value={partnerFormData.partnerApiToken || ''} onChange={handleInputChange} placeholder="Pega aquí el Token de Acceso" disabled={isSaving} />
+                        <Input id="partnerApiToken" name="partnerApiToken" type="password" value={partnerFormData.partnerApiToken || ''} onChange={handleInputChange} placeholder="Pega aquí el Token de Acceso" disabled={isSavingPartner} />
                     </div>
                     <div>
                         <Label htmlFor="partnerOrgId">Organization ID</Label>
-                        <Input id="partnerOrgId" name="partnerOrgId" value={partnerFormData.partnerOrgId || ''} onChange={handleInputChange} placeholder="Pega aquí el ID de la organización" disabled={isSaving} />
+                        <Input id="partnerOrgId" name="partnerOrgId" value={partnerFormData.partnerOrgId || ''} onChange={handleInputChange} placeholder="Pega aquí el ID de la organización" disabled={isSavingPartner} />
                     </div>
                 </div>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
-                        <Button onClick={() => onSave(true)} disabled={isSaving}>
-                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        <Button onClick={onSave} disabled={isSavingPartner}>
+                            {isSavingPartner && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Guardar Credenciales
                         </Button>
-                        <Button variant="outline" onClick={handleVerify} disabled={isSaving || verificationStatus === 'verifying'}>
+                        <Button variant="outline" onClick={handleVerify} disabled={isSavingPartner || verificationStatus === 'verifying'}>
                             Verificar Conexión
                         </Button>
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="outline" disabled={isSaving || !partnerFormData.partnerApiToken} size="icon">
-                                    <Trash2 className="h-4 w-4"/>
-                                </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Eliminar Credenciales de Partner?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        Esta acción eliminará permanentemente las credenciales de Shopify Partner para <strong>{editingTarget.name}</strong>.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => onDelete('shopify_partner')} className="bg-destructive hover:bg-destructive/90">Sí, eliminar</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
                     </div>
                     <div className="h-5">{getStatusJsx()}</div>
                 </div>
@@ -334,7 +312,7 @@ export default function ConnectionsPage() {
 
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [isSavingPartner, setIsSavingPartner] = useState(false);
+    
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
     
     const [currentUser, setCurrentUser] = useState<{ uid: string | null; role: string | null; companyId: string | null; companyName: string | null; } | null>(null);
@@ -566,12 +544,12 @@ export default function ConnectionsPage() {
 
         if (isPartnerCreds) {
             if (!partnerFormData.partnerApiToken || !partnerFormData.partnerOrgId) {
-                toast({ title: "Datos Incompletos", description: "El Token de Acceso y el ID de Organización son obligatorios.", variant: "destructive" });
+                toast({ title: "Datos Incompletos", description: "El Token de Acceso y el Organization ID son obligatorios.", variant: "destructive" });
                 return;
             }
             keyToSave = 'shopify_partner';
             dataToSave = partnerFormData;
-            setIsSavingPartner(true);
+            setIsSaving(true);
         } else {
             const urlsToValidate = [
                 { name: 'WooCommerce', url: formData.wooCommerceStoreUrl },
@@ -599,7 +577,7 @@ export default function ConnectionsPage() {
         const user = auth.currentUser;
         if (!user) {
             toast({ title: "Error de autenticación", variant: "destructive" });
-            isPartnerCreds ? setIsSavingPartner(false) : setIsSaving(false); return;
+            setIsSaving(false); return;
         }
 
         try {
@@ -623,22 +601,15 @@ export default function ConnectionsPage() {
             
             toast({ title: "Conexión Guardada", description: `Los datos para '${keyToSave}' han sido guardados.` });
             
+            // Refetch all data to ensure consistency
             await fetchConnections(user, editingTarget.type, editingTarget.id);
-            
-            if (!isPartnerCreds && selectedKey === 'new') {
-                setSelectedKey(keyToSave);
-            }
-            setRefreshKey(k => k + 1);
+            setRefreshKey(k => k + 1); // Trigger status refresh
             window.dispatchEvent(new Event('connections-updated'));
 
         } catch (error: any) {
             toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
         } finally {
-            if (isPartnerCreds) {
-                setIsSavingPartner(false);
-            } else {
-                setIsSaving(false);
-            }
+            setIsSaving(false);
         }
     };
     
@@ -893,9 +864,8 @@ export default function ConnectionsPage() {
                          editingTarget={editingTarget}
                          partnerFormData={partnerFormData}
                          onPartnerFormDataChange={handlePartnerFormDataChange}
-                         onSave={handleSave}
-                         onDelete={handleDelete}
-                         isSaving={isSavingPartner}
+                         onSave={() => handleSave(true)}
+                         isSavingPartner={isSaving}
                        />
                     )}
                 </div>
@@ -903,5 +873,7 @@ export default function ConnectionsPage() {
         </div>
     );
 }
+
+    
 
     
