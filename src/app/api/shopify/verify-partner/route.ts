@@ -28,13 +28,10 @@ export async function POST(req: NextRequest) {
         
         const { entityId, entityType } = validation.data;
         
-        const { partnerApiToken, partnerOrgId } = await getPartnerCredentials(entityId, entityType);
+        const { partnerApiToken } = await getPartnerCredentials(entityId, entityType);
 
-        if (!partnerOrgId) {
-            throw new Error("El Organization ID no está configurado. No se puede verificar.");
-        }
-
-        const graphqlEndpoint = `https://partners.shopify.com/api/2025-04/graphql.json`.replace('{orgId}', partnerOrgId);
+        // CORRECTED: The GraphQL endpoint for the Partner API is static and does not include the organization ID.
+        const graphqlEndpoint = `https://partners.shopify.com/api/2025-04/graphql.json`;
         
         const response = await axios.post(
             graphqlEndpoint,
