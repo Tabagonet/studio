@@ -42,7 +42,6 @@ const shopifyUrlOrEmptyString = z.string().refine((value) => {
     return /^[a-zA-Z0-9-]+\.myshopify\.com$/.test(value);
 }, { message: "Invalid Shopify URL format. Must be like 'your-store.myshopify.com'." });
 
-
 const connectionDataSchema = z.object({
     wooCommerceStoreUrl: urlOrEmptyString.optional(),
     wooCommerceApiKey: z.string().optional(),
@@ -55,8 +54,8 @@ const connectionDataSchema = z.object({
 });
 
 const partnerConnectionDataSchema = z.object({
-    partnerApiToken: z.string().min(1, "El Token de Acceso de Partner es obligatorio."),
-    partnerOrgId: z.string().min(1, "El ID de Organización es obligatorio."),
+    partnerApiToken: z.string().min(1, "Partner API Access Token is required"),
+    partnerOrgId: z.string().min(1, "Organization ID is required"),
 });
 
 export async function GET(req: NextRequest) {
@@ -77,11 +76,11 @@ export async function GET(req: NextRequest) {
             } else {
                 settingsRef = adminDb.collection('user_settings').doc(targetUserId || uid);
             }
-        } else { // 'admin' or regular user
-             if (userCompanyId) {
-                 settingsRef = adminDb.collection('companies').doc(userCompanyId);
+        } else {
+            if (userCompanyId) {
+                settingsRef = adminDb.collection('companies').doc(userCompanyId);
             } else {
-                 settingsRef = adminDb.collection('user_settings').doc(uid);
+                settingsRef = adminDb.collection('user_settings').doc(uid);
             }
         }
         
@@ -134,7 +133,7 @@ export async function POST(req: NextRequest) {
             } else {
                 settingsRef = adminDb.collection('user_settings').doc(targetUserId || uid);
             }
-        } else { // 'admin' or regular user
+        } else {
             if (userCompanyId) {
                 settingsRef = adminDb.collection('companies').doc(userCompanyId);
             } else {
@@ -155,12 +154,12 @@ export async function POST(req: NextRequest) {
         
         const isEditingOwnSettings = !targetCompanyId && (!targetUserId || targetUserId === uid);
         if (role !== 'super_admin' && isEditingOwnSettings) {
-             const userDoc = await adminDb.collection('users').doc(uid).get();
-             const siteLimit = userDoc.data()?.siteLimit ?? 1;
-             const connectionCount = settingsSnap.exists ? Object.keys(settingsSnap.data()?.connections || {}).filter(k => k !== 'shopify_partner').length : 0;
-             if (!isUpdate && key !== 'shopify_partner' && connectionCount >= siteLimit) {
-                  return NextResponse.json({ error: `Límite de sitios alcanzado. Tu plan permite ${siteLimit} sitio(s).` }, { status: 403 });
-             }
+            const userDoc = await adminDb.collection('users').doc(uid).get();
+            const siteLimit = userDoc.data()?.siteLimit ?? 1;
+            const connectionCount = settingsSnap.exists ? Object.keys(settingsSnap.data()?.connections || {}).filter(k => k !== 'shopify_partner').length : 0;
+            if (!isUpdate && key !== 'shopify_partner' && connectionCount >= siteLimit) {
+                return NextResponse.json({ error: `Límite de sitios alcanzado. Tu plan permite ${siteLimit} sitio(s).` }, { status: 403 });
+            }
         }
         
         await settingsRef.set(updatePayload, { merge: true });
@@ -169,7 +168,7 @@ export async function POST(req: NextRequest) {
         const hostnamesToAdd = new Set<string>();
 
         const addHostname = (url: string | undefined) => {
-             if (url) {
+            if (url) {
                 try {
                     const fullUrl = url.startsWith('http') ? url : `https://${url}`;
                     hostnamesToAdd.add(new URL(fullUrl).hostname);
@@ -182,7 +181,6 @@ export async function POST(req: NextRequest) {
         addHostname(wooCommerceStoreUrl);
         addHostname(wordpressApiUrl);
         addHostname(shopifyStoreUrl);
-
 
         if (hostnamesToAdd.size > 0) {
             const promises = Array.from(hostnamesToAdd).map(hostname => addRemotePattern(hostname).catch(err => console.error(`Failed to add remote pattern for ${hostname}:`, err)));
@@ -198,7 +196,6 @@ export async function POST(req: NextRequest) {
     }
 }
 
-
 export async function DELETE(req: NextRequest) {
     if (!adminDb || !admin.firestore.FieldValue) {
         return NextResponse.json({ error: 'Firestore not configured on server' }, { status: 503 });
@@ -209,9 +206,9 @@ export async function DELETE(req: NextRequest) {
         const body = await req.json();
 
         const payloadSchema = z.object({
-             key: z.string().min(1, "Key is required"),
-             companyId: z.string().optional(),
-             userId: z.string().optional(),
+            key: z.string().min(1, "Key is required"),
+            companyId: z.string().optional(),
+            userId: z.string().optional(),
         });
         const validationResult = payloadSchema.safeParse(body);
         if (!validationResult.success) {
@@ -227,7 +224,7 @@ export async function DELETE(req: NextRequest) {
             } else {
                 settingsRef = adminDb.collection('user_settings').doc(targetUserId || uid);
             }
-        } else { // 'admin' or 'user'
+        } else {
             if (userCompanyId) {
                 settingsRef = adminDb.collection('companies').doc(userCompanyId);
             } else {
@@ -238,7 +235,7 @@ export async function DELETE(req: NextRequest) {
         const doc = await settingsRef.get();
         const currentData = doc.data();
         if (!doc.exists || !currentData?.connections?.[key]) {
-             return NextResponse.json({ success: true, message: 'Connection already deleted.' });
+            return NextResponse.json({ success: true, message: 'Connection already deleted.' });
         }
 
         const updatePayload: { [key: string]: any } = {
