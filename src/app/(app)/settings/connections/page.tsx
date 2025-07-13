@@ -201,7 +201,8 @@ const ShopifyPartnerCard = ({
     const { toast } = useToast();
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      onPartnerFormDataChange({ ...partnerFormData, [e.target.name]: e.target.value });
+      const { name, value } = e.target;
+      onPartnerFormDataChange({ ...partnerFormData, [name]: value });
     };
 
     const handleVerify = async () => {
@@ -269,20 +270,20 @@ const ShopifyPartnerCard = ({
                     <AlertTitle>¿Cómo obtener las credenciales?</AlertTitle>
                     <AlertDescription>
                         <ol className="list-decimal list-inside space-y-1 mt-2">
-                        <li>Ve a tu panel de Shopify Partner: <strong>Ajustes > Clientes de la API</strong>.</li>
-                        <li>Crea un nuevo <strong>Cliente de la API de Partner</strong> (si no tienes uno).</li>
-                        <li>Shopify te proporcionará un <strong>Client ID</strong> y un <strong>Client Secret</strong>. Pégalos en los campos de abajo.</li>
+                            <li>Ve a tu panel de Shopify Partner: <strong>Ajustes &gt; Clientes de la API</strong>.</li>
+                            <li>Crea o selecciona un <strong>Cliente de la API de Partner</strong>.</li>
+                            <li>Copia el <strong>Token de acceso</strong> y el <strong>Organization ID</strong> (de la URL del panel) y pégalos abajo.</li>
                         </ol>
                     </AlertDescription>
                 </Alert>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <Label htmlFor="partnerApiClientId">Client ID</Label>
-                        <Input id="partnerApiClientId" name="partnerApiClientId" type="password" value={partnerFormData.partnerApiClientId || ''} onChange={handleInputChange} placeholder="Pega aquí el Client ID" disabled={isSaving} />
+                        <Label htmlFor="partnerApiToken">Token de Acceso de la API de Partner</Label>
+                        <Input id="partnerApiToken" name="partnerApiToken" type="password" value={partnerFormData.partnerApiToken || ''} onChange={handleInputChange} placeholder="Pega aquí el Token de Acceso" disabled={isSaving} />
                     </div>
                     <div>
-                        <Label htmlFor="partnerApiSecret">Client Secret</Label>
-                        <Input id="partnerApiSecret" name="partnerApiSecret" type="password" value={partnerFormData.partnerApiSecret || ''} onChange={handleInputChange} placeholder="Pega aquí el Client Secret" disabled={isSaving} />
+                        <Label htmlFor="partnerOrgId">Organization ID</Label>
+                        <Input id="partnerOrgId" name="partnerOrgId" value={partnerFormData.partnerOrgId || ''} onChange={handleInputChange} placeholder="Pega aquí el ID de la organización" disabled={isSaving} />
                     </div>
                 </div>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -296,7 +297,7 @@ const ShopifyPartnerCard = ({
                         </Button>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
-                                <Button variant="outline" disabled={isSaving || !partnerFormData.partnerApiClientId} size="icon">
+                                <Button variant="outline" disabled={isSaving || !partnerFormData.partnerApiToken} size="icon">
                                     <Trash2 className="h-4 w-4"/>
                                 </Button>
                             </AlertDialogTrigger>
@@ -552,6 +553,10 @@ export default function ConnectionsPage() {
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handlePartnerFormDataChange = (newData: PartnerConnectionData) => {
+      setPartnerFormData(newData);
     };
     
     const handleSave = async (isPartnerCreds: boolean = false) => {
@@ -887,7 +892,7 @@ export default function ConnectionsPage() {
                        <ShopifyPartnerCard 
                          editingTarget={editingTarget}
                          partnerFormData={partnerFormData}
-                         onPartnerFormDataChange={setPartnerFormData}
+                         onPartnerFormDataChange={handlePartnerFormDataChange}
                          onSave={handleSave}
                          onDelete={handleDelete}
                          isSaving={isSavingPartner}
@@ -898,3 +903,5 @@ export default function ConnectionsPage() {
         </div>
     );
 }
+
+    
