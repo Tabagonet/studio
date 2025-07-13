@@ -1,4 +1,4 @@
-
+// src/app/api/shopify/verify-partner/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getPartnerCredentials } from '@/lib/api-helpers';
@@ -27,13 +27,15 @@ export async function POST(req: NextRequest) {
         
         const { entityId, entityType } = validation.data;
         
-        // This function now returns the permanent token and the org ID from Firestore
         const { partnerApiToken, partnerOrgId } = await getPartnerCredentials(entityId, entityType);
 
-        // Make a test call to the Shopify Partner GraphQL API
+        if (!partnerOrgId) {
+            throw new Error("El Organization ID no está configurado. No se puede verificar.");
+        }
+
         const response = await axios.post(
-            `https://partners.shopify.com/api/${partnerOrgId}/graphql.json`, // Use the dynamic org ID
-            { query: `{ organizations(first: 1) { nodes { id } } }` }, // A simple query to test the connection
+            `https://partners.shopify.com/api/2025-04/graphql.json`,
+            { query: `{ organizations(first: 1) { nodes { id } } }` },
             {
                 headers: {
                     'Content-Type': 'application/json',

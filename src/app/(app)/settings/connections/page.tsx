@@ -1,4 +1,3 @@
-
 // src/app/(app)/settings/connections/page.tsx
 "use client";
 
@@ -33,8 +32,8 @@ interface ConnectionData {
 }
 
 type PartnerConnectionData = {
-  partnerApiToken: string;
-  partnerOrgId: string;
+    partnerApiToken: string;
+    partnerOrgId: string;
 };
 
 type AllConnections = { [key: string]: ConnectionData | PartnerConnectionData };
@@ -216,7 +215,6 @@ const ShopifyPartnerCard = ({
             const token = await auth.currentUser?.getIdToken();
             if (!token) throw new Error('No se pudo obtener el token de autenticación.');
             
-            // CORRECTED: Pass the required payload to the verification endpoint.
             const payload = {
                 entityId: editingTarget.id,
                 entityType: editingTarget.type,
@@ -873,6 +871,3 @@ export default function ConnectionsPage() {
     );
 }
 
-    
-
-    
