@@ -22,31 +22,6 @@ interface ApiClients {
 }
 
 /**
- * Validates an HMAC signature from a Shopify webhook or auth redirect.
- * @param query The URL search parameters from the request.
- * @param clientSecret The Shopify App's client secret.
- * @returns {boolean} True if the HMAC is valid, false otherwise.
- */
-export function validateHmac(query: URLSearchParams, clientSecret: string): boolean {
-    const hmac = query.get('hmac');
-    if (!hmac) return false;
-
-    query.delete('hmac');
-    const sortedQuery = Array.from(query.entries())
-        .map(([key, value]) => `${key}=${value}`)
-        .sort()
-        .join('&');
-        
-    const calculatedHmac = crypto
-        .createHmac('sha256', clientSecret)
-        .update(sortedQuery)
-        .digest('hex');
-
-    return crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(calculatedHmac));
-}
-
-
-/**
  * Fetches the active user-specific or company-specific credentials and creates API clients.
  * This function now determines context (user vs company) to fetch the correct settings.
  * It also performs a mandatory verification check against the WordPress site's plugin.
@@ -140,13 +115,14 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
 
 
 /**
- * Retrieves Shopify Partner credentials and exchanges them for a valid access token.
+ * Retrieves Shopify Partner credentials from Firestore.
+ * This now reads the permanent access token and org ID directly.
  * @param entityId The Firebase UID of the user or the ID of the company.
  * @param entityType The type of entity ('user' or 'company').
- * @returns An object containing the access token and the client ID.
- * @throws If credentials are not configured or token exchange fails.
+ * @returns An object containing the access token and organization ID.
+ * @throws If credentials are not configured.
  */
-export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ partnerApiToken: string; partnerApiClientId: string; }> {
+export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ partnerApiToken: string; partnerOrgId: string; }> {
     if (!adminDb) throw new Error("Firestore not available.");
     
     let settingsSource;
@@ -164,35 +140,15 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
     }
 
     const partnerConnection = settingsSource.connections['shopify_partner'];
-    const { partnerApiClientId, partnerApiSecret } = partnerConnection || {};
+    const { partnerApiToken, partnerOrgId } = partnerConnection || {};
     
-    if (!partnerApiClientId || !partnerApiSecret) {
-        throw new Error('El Client ID y el Client Secret de Shopify Partner no están configurados. Ve a Ajustes > Conexiones.');
+    if (!partnerApiToken || !partnerOrgId) {
+        throw new Error('El Token de Acceso y el Organization ID de Shopify Partner no están configurados. Ve a Ajustes > Conexiones.');
     }
-
-    try {
-        const response = await axios.post("https://accounts.shopify.com/oauth/token", {
-            client_id: partnerApiClientId,
-            client_secret: partnerApiSecret,
-            grant_type: "client_credentials",
-            scope: "write_stores"
-        }, {
-            headers: { 'Content-Type': 'application/json' },
-            timeout: 10000,
-        });
-
-        const accessToken = response.data?.access_token;
-        if (!accessToken) {
-            throw new Error("La respuesta de Shopify no contenía un access_token.");
-        }
-        
-        return { partnerApiToken: accessToken, partnerApiClientId: partnerApiClientId };
-    } catch (error: any) {
-        console.error("Shopify Partner token exchange failed:", error.response?.data || error.message);
-        const errorMessage = error.response?.data?.error_description || "No se pudo intercambiar las credenciales por un token de acceso.";
-        throw new Error(errorMessage);
-    }
+    
+    return { partnerApiToken, partnerOrgId };
 }
+
 
 function extractHeadingsRecursive(elements: any[], widgets: ExtractedWidget[]): void {
     if (!elements || !Array.isArray(elements)) return;
