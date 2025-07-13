@@ -1,8 +1,10 @@
+
 // src/app/api/check-config/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import type * as admin from 'firebase-admin';
 import axios from 'axios';
+import { partnerAppConnectionDataSchema } from '@/lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +38,7 @@ export async function GET(req: NextRequest) {
     wooCommerceConfigured: false,
     wordPressConfigured: false,
     shopifyConfigured: false,
+    shopifyPartnerConfigured: false, // New field
     pluginActive: false,
     aiUsageCount: 0,
   };
@@ -91,10 +94,23 @@ export async function GET(req: NextRequest) {
     }
     
     if (settingsSource) {
+      const allConnections = settingsSource.connections || {};
       const activeKey = settingsSource.activeConnectionKey;
-      const allConnections = settingsSource.connections;
+
+      // Check partner connection
+      const partnerAppData = partnerAppConnectionDataSchema.safeParse(allConnections['partner_app'] || {});
+      if (partnerAppData.success && partnerAppData.data.partnerApiToken && partnerAppData.data.partnerShopDomain && partnerAppData.data.partnerOrgId) {
+          try {
+              const graphqlEndpoint = `https://partners.shopify.com/${partnerAppData.data.partnerOrgId}/api/2024-07/graphql.json`;
+              await axios.post(graphqlEndpoint, { query: '{ shop { name } }' }, { headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': partnerAppData.data.partnerApiToken }, timeout: 8000 });
+              userConfig.shopifyPartnerConfigured = true;
+          } catch(e) {
+              console.warn("Shopify Partner API verification failed.", (e as any).response?.data || (e as any).message);
+              userConfig.shopifyPartnerConfigured = false;
+          }
+      }
       
-      if (activeKey && allConnections && allConnections[activeKey]) {
+      if (activeKey && allConnections[activeKey]) {
         const activeConnection = allConnections[activeKey];
         userConfig.wooCommerceConfigured = !!(activeConnection.wooCommerceStoreUrl && activeConnection.wooCommerceApiKey && activeConnection.wooCommerceApiSecret);
         userConfig.wordPressConfigured = !!(activeConnection.wordpressApiUrl && activeConnection.wordpressUsername && activeConnection.wordpressApplicationPassword);
@@ -118,7 +134,6 @@ export async function GET(req: NextRequest) {
               headers: { 'Authorization': `Basic ${token}` },
               timeout: 10000,
             });
-            // Check for the new 'verified' property from the plugin
             if (response.status === 200 && response.data?.verified === true) {
               userConfig.pluginActive = true;
             }

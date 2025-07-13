@@ -41,6 +41,7 @@ interface SelectedEntityStatus {
     wooCommerceConfigured: boolean;
     wordPressConfigured: boolean;
     shopifyConfigured: boolean;
+    shopifyPartnerConfigured?: boolean; // Now optional
     pluginActive: boolean;
     activeStoreUrl: string | null;
     activePlatform: 'woocommerce' | 'shopify' | null;
@@ -59,7 +60,7 @@ const INITIAL_STATE: ConnectionData = {
 };
 
 const INITIAL_PARTNER_APP_STATE: PartnerAppConnectionData = {
-    partnerShopDomain: undefined,
+    partnerOrgId: undefined,
     partnerApiToken: undefined,
 };
 
@@ -431,8 +432,8 @@ export default function ConnectionsPage() {
             const setActive = !isPartnerCreds;
 
             if (isPartnerCreds) {
-                 if (!partnerFormData.partnerShopDomain || !partnerFormData.partnerApiToken) {
-                    toast({ title: "Datos Incompletos", description: "El Dominio de la Tienda de Partner y el Token de Acceso son obligatorios.", variant: "destructive" });
+                 if (!partnerFormData.partnerOrgId || !partnerFormData.partnerApiToken) {
+                    toast({ title: "Datos Incompletos", description: "El ID de Organización y el Token de Acceso son obligatorios.", variant: "destructive" });
                     setSaving(false); return;
                 }
                 keyToSave = `partner_app`;
@@ -746,6 +747,8 @@ export default function ConnectionsPage() {
                          isSavingPartner={isSavingPartner}
                          onDelete={() => handleDelete('partner_app')}
                          isDeleting={isDeleting === 'partner_app'}
+                         isConnectionVerified={selectedEntityStatus?.shopifyPartnerConfigured}
+                         isVerifying={isCheckingStatus}
                        />
                     )}
                 </div>
