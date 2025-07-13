@@ -14,7 +14,7 @@ Sigue estos pasos para crear una aplicación personalizada en tu panel de Shopif
 
 Ahora verás una pantalla de configuración. Rellena los siguientes campos:
 
-*   **App name:** Escribe un nombre que la identifique, por ejemplo: `AutoPress AI Creator`. Es solo para tu referencia.
+*   **App name:** Escribe un nombre que la identifique, por ejemplo: `AutoPress AI Creator`. Es solo para tu referencia interna.
 *   **App URL:** Pega aquí la URL base de la plataforma AutoPress AI. Te la proporcionamos en la página de **Ajustes > Conexiones**:
     *   `https://autopress.intelvisual.es`
 *   **Allowed redirection URL(s):** Esta es la parte más importante para la seguridad. Shopify solo permitirá redirigir a los usuarios a esta URL después de autorizar la conexión. Pega la siguiente URL que te proporcionamos en la misma página de **Ajustes > Conexiones**:

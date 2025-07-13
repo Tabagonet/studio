@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -32,13 +33,13 @@ interface ConnectionData {
     shopifyApiPassword?: string;
 }
 
-type PartnerConnectionData = {
-  partnerApiToken: string;
-  partnerOrgId: string;
+type PartnerAppConnectionData = {
+  clientId: string;
+  clientSecret: string;
 };
 
-type AllConnections = { [key: string]: ConnectionData | PartnerConnectionData };
-
+type AllConnections = { [key: string]: ConnectionData };
+type AllPartnerConnections = { [key: string]: PartnerAppConnectionData };
 
 interface SelectedEntityStatus {
     wooCommerceConfigured: boolean;
@@ -61,10 +62,11 @@ const INITIAL_STATE: ConnectionData = {
     shopifyApiPassword: '',
 };
 
-const INITIAL_PARTNER_STATE: PartnerConnectionData = {
-    partnerApiToken: '',
-    partnerOrgId: '',
+const INITIAL_PARTNER_APP_STATE: PartnerAppConnectionData = {
+    clientId: '',
+    clientSecret: '',
 };
+
 
 function getHostname(url: string | null): string | null {
     if (!url) return null;
@@ -184,85 +186,38 @@ const ShopifyPartnerCard = ({
   editingTarget, 
   partnerFormData, 
   onPartnerFormDataChange, 
-  onSave, 
+  onSaveAndConnect, 
   isSavingPartner,
   onDelete,
   isDeleting,
 }: { 
   editingTarget: { type: 'user' | 'company'; id: string | null; name: string };
-  partnerFormData: PartnerConnectionData;
-  onPartnerFormDataChange: (data: PartnerConnectionData) => void;
-  onSave: () => void;
+  partnerFormData: PartnerAppConnectionData;
+  onPartnerFormDataChange: (data: PartnerAppConnectionData) => void;
+  onSaveAndConnect: () => void;
   isSavingPartner: boolean;
   onDelete: () => void;
   isDeleting: boolean;
 }) => {
-    const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'success' | 'error'>('idle');
-    const [verificationMessage, setVerificationMessage] = useState('');
-    const { toast } = useToast();
-
+    
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const { name, value } = e.target;
       onPartnerFormDataChange({ ...partnerFormData, [name]: value });
     };
+    
+    const REDIRECT_URI = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
 
-    const handleVerify = async () => {
-        setVerificationStatus('verifying');
-        setVerificationMessage('');
-        
-        if (!editingTarget.id) {
-             setVerificationStatus('error');
-             setVerificationMessage('Error: No se ha seleccionado ninguna entidad para verificar.');
-             return;
-        }
-
-        try {
-            const token = await auth.currentUser?.getIdToken();
-            if (!token) throw new Error('No se pudo obtener el token de autenticación.');
-            
-            const payload = {
-                entityId: editingTarget.id,
-                entityType: editingTarget.type,
-            };
-
-            const response = await fetch('/api/shopify/verify-partner', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.error || 'Fallo en la verificación.');
-            
-            setVerificationStatus('success');
-            setVerificationMessage(result.message);
-            toast({ title: "¡Éxito!", description: result.message });
-        } catch (error: any) {
-            setVerificationStatus('error');
-            setVerificationMessage(error.message);
-             toast({ title: "Error de Verificación", description: error.message, variant: 'destructive' });
-        }
+    const handleCopy = (text: string) => {
+        navigator.clipboard.writeText(text);
+        toast({ title: 'Copiado al portapapeles' });
     };
-
-    const getStatusJsx = () => {
-        switch(verificationStatus) {
-            case 'verifying':
-                return <span className="flex items-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Verificando...</span>
-            case 'success':
-                return <span className="flex items-center text-sm text-green-600"><CheckCircle className="mr-2 h-4 w-4"/> {verificationMessage}</span>
-            case 'error':
-                 return <span className="flex items-center text-sm text-destructive"><AlertCircle className="mr-2 h-4 w-4"/> {verificationMessage}</span>
-            default:
-                return <p className="text-xs text-muted-foreground">Haz clic en "Verificar Conexión" para comprobar tus credenciales.</p>;
-        }
-    }
 
     return (
         <Card className="mt-8 border-primary/50">
             <CardHeader>
                 <CardTitle>Conexión Global de Shopify Partners</CardTitle>
                 <CardDescription>
-                    Introduce tus credenciales de Partner para la creación automatizada de tiendas para <strong>{editingTarget.name}</strong>.
+                    Introduce tus credenciales de aplicación de Partner para la creación automatizada de tiendas para <strong>{editingTarget.name}</strong>.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -270,31 +225,47 @@ const ShopifyPartnerCard = ({
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>¿Cómo obtener las credenciales?</AlertTitle>
                     <AlertDescription>
-                        <ol className="list-decimal list-inside space-y-1 mt-2">
-                            <li>Ve a tu panel de Shopify Partner y haz clic en: <strong>Ajustes &gt; Clientes de la API</strong>.</li>
-                            <li>Crea o selecciona un <strong>Cliente de la API de Partner</strong>.</li>
-                            <li>Copia el <strong>Token de acceso</strong> y el <strong>Organization ID</strong> (de la URL del panel) y pégalos abajo.</li>
-                        </ol>
+                        Sigue nuestra <Link href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank" className="font-semibold underline">guía paso a paso</Link> para crear una aplicación personalizada en tu panel de Shopify Partner y obtener las credenciales.
                     </AlertDescription>
                 </Alert>
+
+                 <Alert variant="default" className="bg-muted">
+                    <AlertTitle>URLs Requeridas para la Configuración</AlertTitle>
+                    <AlertDescription className="space-y-3 mt-2">
+                        <p>Cuando configures tu aplicación en el panel de Shopify Partner, se te pedirán estas URLs:</p>
+                        <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">URL de la aplicación</Label>
+                            <div className="flex items-center gap-2">
+                                <Input readOnly value={process.env.NEXT_PUBLIC_BASE_URL} className="text-xs h-8 bg-background"/>
+                                <Button variant="outline" size="icon-sm" onClick={() => handleCopy(process.env.NEXT_PUBLIC_BASE_URL || '')}><Copy className="h-3 w-3"/></Button>
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">URL de Redirección Autorizada</Label>
+                             <div className="flex items-center gap-2">
+                                <Input readOnly value={REDIRECT_URI} className="text-xs h-8 bg-background"/>
+                                <Button variant="outline" size="icon-sm" onClick={() => handleCopy(REDIRECT_URI)}><Copy className="h-3 w-3"/></Button>
+                            </div>
+                        </div>
+                    </AlertDescription>
+                </Alert>
+
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <Label htmlFor="partnerApiToken">Token de Acceso de la API de Partner</Label>
-                        <Input id="partnerApiToken" name="partnerApiToken" type="password" value={partnerFormData.partnerApiToken || ''} onChange={handleInputChange} placeholder="shpat_xxxxxxxxxxxx" disabled={isSavingPartner} />
+                        <Label htmlFor="clientId">Client ID</Label>
+                        <Input id="clientId" name="clientId" value={partnerFormData.clientId || ''} onChange={handleInputChange} placeholder="Tu Client ID de la app de Partner" disabled={isSavingPartner} />
                     </div>
                     <div>
-                        <Label htmlFor="partnerOrgId">Organization ID</Label>
-                        <Input id="partnerOrgId" name="partnerOrgId" value={partnerFormData.partnerOrgId || ''} onChange={handleInputChange} placeholder="Ej: 123456" disabled={isSavingPartner} />
+                        <Label htmlFor="clientSecret">Client Secret</Label>
+                        <Input id="clientSecret" name="clientSecret" type="password" value={partnerFormData.clientSecret || ''} onChange={handleInputChange} placeholder="••••••••••••••••••••••••••••••••••••" disabled={isSavingPartner} />
                     </div>
                 </div>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <Button onClick={onSave} disabled={isSavingPartner}>
+                        <Button onClick={onSaveAndConnect} disabled={isSavingPartner}>
                             {isSavingPartner && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Guardar Credenciales
-                        </Button>
-                        <Button variant="outline" onClick={handleVerify} disabled={isSavingPartner || verificationStatus === 'verifying'}>
-                            Verificar Conexión
+                            Guardar y Conectar con Shopify
                         </Button>
                          <AlertDialog>
                             <AlertDialogTrigger asChild>
@@ -318,7 +289,6 @@ const ShopifyPartnerCard = ({
                             </AlertDialogContent>
                         </AlertDialog>
                     </div>
-                    <div className="h-5">{getStatusJsx()}</div>
                 </div>
             </CardContent>
         </Card>
@@ -328,16 +298,20 @@ const ShopifyPartnerCard = ({
 
 
 export default function ConnectionsPage() {
+    const searchParams = useSearchParams();
+    const { toast } = useToast();
+
     const [allConnections, setAllConnections] = useState<AllConnections>({});
+    const [allPartnerConnections, setAllPartnerConnections] = useState<AllPartnerConnections>({});
     const [activeKey, setActiveKey] = useState<string | null>(null);
     const [selectedKey, setSelectedKey] = useState<string>('new');
     
     const [formData, setFormData] = useState<ConnectionData>(INITIAL_STATE);
-    const [partnerFormData, setPartnerFormData] = useState<PartnerConnectionData>(INITIAL_PARTNER_STATE);
+    const [partnerFormData, setPartnerFormData] = useState<PartnerAppConnectionData>(INITIAL_PARTNER_APP_STATE);
 
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [isSavingPartner, setIsSavingPartner] = useState(false); // New separate state
+    const [isSavingPartner, setIsSavingPartner] = useState(false);
     
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
     
@@ -353,16 +327,15 @@ export default function ConnectionsPage() {
     const [isCheckingStatus, setIsCheckingStatus] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
 
-    const { toast } = useToast();
-
     const fetchConnections = useCallback(async (user: FirebaseUser, targetType: 'user' | 'company', targetId: string | null) => {
         setIsLoading(true);
         if (!targetId) {
             setAllConnections({});
+            setAllPartnerConnections({});
             setActiveKey(null);
             setSelectedKey('new');
             setFormData(INITIAL_STATE);
-            setPartnerFormData(INITIAL_PARTNER_STATE);
+            setPartnerFormData(INITIAL_PARTNER_APP_STATE);
             setIsLoading(false);
             return;
         }
@@ -384,25 +357,24 @@ export default function ConnectionsPage() {
                 const data = await response.json();
                 const connections = data.allConnections || {};
                 setAllConnections(connections);
+                setAllPartnerConnections(data.partnerConnections || {});
+
+                const partnerCreds = data.partnerConnections?.[`${targetType}_${targetId}`] || INITIAL_PARTNER_APP_STATE;
+                setPartnerFormData(partnerCreds);
+                
                 const currentActiveKey = data.activeConnectionKey || null;
                 setActiveKey(currentActiveKey);
                 
-                if (connections['shopify_partner']) {
-                    setPartnerFormData(connections['shopify_partner']);
-                } else {
-                    setPartnerFormData(INITIAL_PARTNER_STATE);
-                }
-
                 if (selectedKey !== 'new' && connections[selectedKey]) {
                     setFormData(connections[selectedKey]);
                 } else if (currentActiveKey && connections[currentActiveKey]) {
                     setSelectedKey(currentActiveKey);
                     setFormData(connections[currentActiveKey]);
                 } else {
-                    const firstNonPartnerKey = Object.keys(connections).find(k => k !== 'shopify_partner');
-                    if (firstNonPartnerKey) {
-                        setSelectedKey(firstNonPartnerKey);
-                        setFormData(connections[firstNonPartnerKey]);
+                    const firstKey = Object.keys(connections)[0];
+                    if (firstKey) {
+                        setSelectedKey(firstKey);
+                        setFormData(connections[firstKey]);
                     } else {
                         setSelectedKey('new');
                         setFormData(INITIAL_STATE);
@@ -441,7 +413,7 @@ export default function ConnectionsPage() {
                     const allUsers = (await usersResponse.json()).users;
                     setUnassignedUsers(allUsers.filter((u: any) => u.role !== 'super_admin' && !u.companyId));
                 }
-                newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)', platform: null }; // Super admin can see both
+                newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)', platform: null };
             } else {
                 const effectivePlatform = userData.companyPlatform || userData.platform;
                 newEditingTarget = { 
@@ -461,13 +433,20 @@ export default function ConnectionsPage() {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
                 await fetchInitialData(user);
+                 const authSuccess = searchParams.get('shopify_auth');
+                 if(authSuccess === 'success') {
+                    toast({title: "¡Conexión con Shopify Exitosa!", description: "Se ha autorizado la aplicación correctamente."});
+                 } else if (authSuccess === 'error') {
+                     toast({title: "Error en la Conexión con Shopify", description: searchParams.get('error_message') || "No se pudo completar la autorización.", variant: "destructive"});
+                 }
             } else {
                 setIsLoading(false);
                 setIsDataLoading(false);
             }
         });
         return () => unsubscribe();
-    }, [fetchConnections]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fetchConnections, searchParams]);
 
      useEffect(() => {
         const targetId = editingTarget.id;
@@ -525,7 +504,7 @@ export default function ConnectionsPage() {
 
         if (type === 'user') {
             if (id === 'self') {
-                 newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)', platform: null }; // Super admin can see both
+                 newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)', platform: null };
             } else {
                 const selectedUser = unassignedUsers.find(u => u.uid === id);
                 newEditingTarget = { type: 'user', id: id, name: selectedUser?.displayName || 'Usuario Desconocido', platform: selectedUser?.platform || null };
@@ -541,7 +520,7 @@ export default function ConnectionsPage() {
 
 
     useEffect(() => {
-        const connectionKeys = Object.keys(allConnections).filter(k => k !== 'shopify_partner');
+        const connectionKeys = Object.keys(allConnections);
         if (selectedKey === 'new') {
             setFormData(INITIAL_STATE);
         } else if (allConnections[selectedKey]) {
@@ -559,7 +538,7 @@ export default function ConnectionsPage() {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    const handlePartnerFormDataChange = (newData: PartnerConnectionData) => {
+    const handlePartnerFormDataChange = (newData: PartnerAppConnectionData) => {
       setPartnerFormData(newData);
     };
     
@@ -568,8 +547,8 @@ export default function ConnectionsPage() {
         setSaving(true);
 
         const user = auth.currentUser;
-        if (!user) {
-            toast({ title: "Error de autenticación", variant: "destructive" });
+        if (!user || !editingTarget.id) {
+            toast({ title: "Error de autenticación o de selección de entidad.", variant: "destructive" });
             setSaving(false); return;
         }
 
@@ -580,11 +559,11 @@ export default function ConnectionsPage() {
             let setActive = !isPartnerCreds;
 
             if (isPartnerCreds) {
-                if (!partnerFormData.partnerApiToken || !partnerFormData.partnerOrgId) {
-                    toast({ title: "Datos Incompletos", description: "El Token de Acceso y el Organization ID son obligatorios.", variant: "destructive" });
+                 if (!partnerFormData.clientId || !partnerFormData.clientSecret) {
+                    toast({ title: "Datos Incompletos", description: "El Client ID y Client Secret son obligatorios.", variant: "destructive" });
                     setSaving(false); return;
                 }
-                keyToSave = 'shopify_partner';
+                keyToSave = `partner_app`;
                 dataToSave = partnerFormData;
             } else {
                  const urlsToValidate = [
@@ -609,12 +588,14 @@ export default function ConnectionsPage() {
                 dataToSave = formData;
             }
 
-            const payload: any = { key: keyToSave, connectionData: dataToSave, setActive };
-            if (editingTarget.type === 'company') {
-                payload.companyId = editingTarget.id;
-            } else { // type is 'user'
-                payload.userId = editingTarget.id;
-            }
+            const payload: any = { 
+                key: keyToSave, 
+                connectionData: dataToSave, 
+                setActive,
+                isPartner: isPartnerCreds,
+                entityId: editingTarget.id,
+                entityType: editingTarget.type,
+            };
 
             const response = await fetch('/api/user-settings/connections', {
                 method: 'POST',
@@ -632,6 +613,12 @@ export default function ConnectionsPage() {
             setRefreshKey(k => k + 1);
             window.dispatchEvent(new Event('connections-updated'));
 
+            if (isPartnerCreds) {
+                // Now redirect to Shopify for OAuth
+                const authUrl = `https://partners.shopify.com/oauth/authorize?client_id=${partnerFormData.clientId}&scope=write_development_stores&redirect_uri=${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback&state=${editingTarget.type}:${editingTarget.id}`;
+                window.location.href = authUrl;
+            }
+
         } catch (error: any) {
             toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
         } finally {
@@ -643,19 +630,19 @@ export default function ConnectionsPage() {
         if (keyToDelete === 'new') return;
         setIsDeleting(keyToDelete);
         const user = auth.currentUser;
-        if (!user) {
+        if (!user || !editingTarget.id) {
             toast({ title: "Error de autenticación", variant: "destructive" });
             setIsDeleting(null); return;
         }
 
         try {
             const token = await user.getIdToken();
-            const payload: any = { key: keyToDelete };
-             if (editingTarget.type === 'company') {
-                payload.companyId = editingTarget.id;
-            } else { // type is 'user'
-                payload.userId = editingTarget.id;
-            }
+            const payload: any = { 
+                key: keyToDelete,
+                isPartner: keyToDelete.startsWith('partner_app'),
+                entityId: editingTarget.id,
+                entityType: editingTarget.type,
+            };
             
             await fetch('/api/user-settings/connections', {
                 method: 'DELETE',
@@ -674,7 +661,7 @@ export default function ConnectionsPage() {
         }
     };
     
-    const connectionKeys = Object.keys(allConnections).filter(k => k !== 'shopify_partner');
+    const connectionKeys = Object.keys(allConnections);
     const title = currentUser?.role === 'super_admin' ? `Editando Conexiones para: ${editingTarget.name}` : `Conexiones API para ${currentUser?.companyName || 'Mis Conexiones'}`;
     
     let description = 'Gestiona tus credenciales para conectar con servicios externos.';
@@ -890,14 +877,520 @@ export default function ConnectionsPage() {
                          editingTarget={editingTarget}
                          partnerFormData={partnerFormData}
                          onPartnerFormDataChange={handlePartnerFormDataChange}
-                         onSave={() => handleSave(true)}
+                         onSaveAndConnect={() => handleSave(true)}
                          isSavingPartner={isSavingPartner}
-                         onDelete={() => handleDelete('shopify_partner')}
-                         isDeleting={isDeleting === 'shopify_partner'}
+                         onDelete={() => handleDelete('partner_app')}
+                         isDeleting={isDeleting === 'partner_app'}
                        />
                     )}
                 </div>
             )}
         </div>
     );
+}
+
+```
+  <change>
+    <file>/src/lib/api-helpers.ts</file>
+    <content><![CDATA[
+// src/lib/api-helpers.ts
+import type * as admin from 'firebase-admin';
+import { adminDb } from '@/lib/firebase-admin';
+import { createWooCommerceApi } from '@/lib/woocommerce';
+import { createWordPressApi } from '@/lib/wordpress';
+import { createShopifyApi } from '@/lib/shopify';
+import type WooCommerceRestApiType from '@woocommerce/woocommerce-rest-api';
+import type { AxiosInstance } from 'axios';
+import axios from 'axios';
+import FormData from 'form-data';
+import type { ExtractedWidget } from './types';
+import { z } from 'zod';
+import crypto from 'crypto';
+
+// THIS IS NOW THE SINGLE SOURCE OF TRUTH
+export const partnerAppConnectionDataSchema = z.object({
+  clientId: z.string().min(1, "Client ID is required"),
+  clientSecret: z.string().min(1, "Client Secret is required"),
+});
+
+interface ApiClients {
+  wooApi: WooCommerceRestApiType | null;
+  wpApi: AxiosInstance | null;
+  shopifyApi: AxiosInstance | null;
+  activeConnectionKey: string | null;
+  settings: admin.firestore.DocumentData | undefined;
+}
+
+export async function getPartnerAppCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ clientId: string; clientSecret: string; }> {
+    if (!adminDb) throw new Error("Firestore not configured on server");
+
+    const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
+    const settingsRef = adminDb.collection(settingsCollection).doc(entityId);
+    
+    const doc = await settingsRef.get();
+    if (!doc.exists) throw new Error(`${entityType === 'company' ? 'Company' : 'User'} settings not found`);
+
+    const connections = doc.data()?.connections || {};
+    const partnerAppData = connections['partner_app'];
+
+    if (!partnerAppData) {
+      throw new Error(`Invalid or missing Shopify Partner App credentials. Please configure them in Settings > Connections.`);
+    }
+
+    const validation = partnerAppConnectionDataSchema.safeParse(partnerAppData);
+     if (!validation.success) {
+        throw new Error(`Invalid or missing Shopify Partner App credentials. Please configure them in Settings > Connections.`);
+    }
+    return validation.data;
+}
+
+
+/**
+ * Retrieves Shopify Partner credentials from Firestore.
+ * @param entityId The Firebase UID of the user or the ID of the company.
+ * @param entityType The type of entity ('user' or 'company').
+ * @returns An object containing the access token and organization ID.
+ * @throws If credentials are not configured or invalid.
+ */
+export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ partnerApiToken: string; partnerOrgId: string; }> {
+    if (!adminDb) {
+        console.error('getPartnerCredentials: Firestore no está configurado');
+        throw new Error("Firestore not configured on server");
+    }
+
+    const settingsRef = entityType === 'company' 
+        ? adminDb.collection('companies').doc(entityId)
+        : adminDb.collection('user_settings').doc(entityId);
+    
+    const doc = await settingsRef.get();
+    if (!doc.exists) {
+        console.error('getPartnerCredentials: Documento no encontrado', settingsRef.path);
+        throw new Error(`${entityType === 'company' ? 'Company' : 'User'} settings not found`);
+    }
+
+    const docData = doc.data();
+    
+    const partnerData = docData?.partnerConnections?.[`${entityType}_${entityId}`];
+    
+    if (!partnerData) {
+        throw new Error("Shopify Partner credentials not configured");
+    }
+
+    // Since we're moving away from this, the schema is now for the new method.
+    // This function will need to be phased out or adapted. For now, assume it works with the old shape.
+    return {
+        partnerApiToken: partnerData.partnerApiToken,
+        partnerOrgId: partnerData.partnerOrgId,
+    };
+}
+
+
+function extractHeadingsRecursive(elements: any[], widgets: ExtractedWidget[]): void {
+    if (!elements || !Array.isArray(elements)) return;
+
+    for (const element of elements) {
+        if (element.elType === 'widget' && element.widgetType === 'heading' && element.settings?.title) {
+            widgets.push({
+                id: element.id,
+                tag: element.settings.header_size || 'h2',
+                text: element.settings.title,
+                type: 'heading', // Added for clarity on the frontend
+            });
+        }
+        
+        if (element.elements && element.elements.length > 0) {
+            extractHeadingsRecursive(element.elements, widgets);
+        }
+    }
+}
+
+export function extractElementorHeadings(elementorDataString: string): ExtractedWidget[] {
+    try {
+        const widgets: ExtractedWidget[] = [];
+        if (!elementorDataString) return widgets;
+        const elementorData = JSON.parse(elementorDataString);
+        extractHeadingsRecursive(elementorData, widgets);
+        return widgets;
+    } catch (e) {
+        console.error("Failed to parse or extract Elementor headings", e);
+        return [];
+    }
+}
+
+
+/**
+ * Recursively traverses Elementor's data structure to collect all user-visible text content.
+ * @param data The 'elements' array or any nested object/array from Elementor's data.
+ * @param texts The array to push found texts into.
+ */
+function collectElementorTextsRecursive(data: any, texts: string[]): void {
+    if (!data) return;
+
+    if (Array.isArray(data)) {
+        data.forEach(item => collectElementorTextsRecursive(item, texts));
+        return;
+    }
+
+    if (typeof data === 'object') {
+        const keysToTranslate = [
+            'title', 'editor', 'text', 'button_text', 'header_title', 'header_subtitle',
+            'description', 'cta_text', 'label', 'placeholder', 'heading', 'sub_heading',
+            'alert_title', 'alert_description',
+            // Added based on user's JSON from theme "The7"
+            'title_text', 'description_text', 'list_title'
+        ];
+
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                const value = data[key];
+
+                if (keysToTranslate.includes(key) && typeof value === 'string' && value.trim() !== '') {
+                    texts.push(value);
+                } else if (typeof value === 'object' && value !== null) {
+                    collectElementorTextsRecursive(value, texts);
+                }
+            }
+        }
+    }
+}
+
+export function collectElementorTexts(elements: any[]): string[] {
+    const texts: string[] = [];
+    collectElementorTextsRecursive(elements, texts);
+    return texts;
+}
+
+/**
+ * Recursively traverses a deep copy of Elementor's data structure and replaces text content
+ * with items from an array of translated strings.
+ * @param data A deep copy of the original 'elements' array or nested object/array.
+ * @param translatedTexts A mutable array of translated strings.
+ * @returns The Elementor data structure with translated text.
+ */
+function replaceElementorTextsRecursive(data: any, translatedTexts: string[]): any {
+    if (!data) return data;
+
+    if (Array.isArray(data)) {
+        return data.map(item => replaceElementorTextsRecursive(item, translatedTexts));
+    }
+
+    if (typeof data === 'object') {
+        const newData = { ...data };
+        const keysToTranslate = [
+            'title', 'editor', 'text', 'button_text', 'header_title', 'header_subtitle',
+            'description', 'cta_text', 'label', 'placeholder', 'heading', 'sub_heading',
+            'alert_title', 'alert_description',
+            // Added based on user's JSON from theme "The7"
+            'title_text', 'description_text', 'list_title'
+        ];
+
+        for (const key in newData) {
+            if (Object.prototype.hasOwnProperty.call(newData, key)) {
+                const value = newData[key];
+
+                if (keysToTranslate.includes(key) && typeof value === 'string' && value.trim() !== '') {
+                    if (translatedTexts.length > 0) {
+                        newData[key] = translatedTexts.shift();
+                    }
+                } else if (typeof value === 'object' && value !== null) {
+                    newData[key] = replaceElementorTextsRecursive(value, translatedTexts);
+                }
+            }
+        }
+        return newData;
+    }
+
+    return data;
+}
+
+export function replaceElementorTexts(elementorData: any, translatedTexts: string[]): any {
+  if (!elementorData || !Array.isArray(elementorData)) return elementorData;
+  return replaceElementorTextsRecursive(elementorData, translatedTexts);
+}
+
+
+/**
+ * Downloads, processes (resizes, converts to WebP), and uploads an image to the WordPress media library.
+ * This function now loads 'sharp' dynamically to avoid bundling it in routes that don't need it.
+ * @param imageUrl The URL of the image to process.
+ * @param seoFilename A desired filename for SEO purposes. The extension will be replaced with .webp.
+ * @param imageMetadata Metadata for the image (title, alt, etc.).
+ * @param wpApi Initialized Axios instance for WordPress API.
+ * @returns The ID of the newly uploaded media item.
+ */
+export async function uploadImageToWordPress(
+  imageUrl: string,
+  seoFilename: string,
+  imageMetadata: { title: string; alt_text: string; caption: string; description: string; },
+  wpApi: AxiosInstance
+): Promise<number> {
+    try {
+        // Dynamically import sharp ONLY when this function is called.
+        const sharp = (await import('sharp')).default;
+
+        // 1. Download the image
+        const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+        const originalBuffer = Buffer.from(imageResponse.data, 'binary');
+
+        // 2. Process the image with Sharp
+        const processedBuffer = await sharp(originalBuffer)
+            .resize(1200, 1200, {
+                fit: 'inside', // Resize while maintaining aspect ratio
+                withoutEnlargement: true, // Don't enlarge smaller images
+            })
+            .webp({ quality: 80 }) // Convert to WebP with 80% quality
+            .toBuffer();
+            
+        // 3. Prepare FormData for WordPress upload
+        const webpFilename = seoFilename.replace(/\.[^/.]+$/, "") + ".webp"; // Ensure filename is .webp
+        const formData = new FormData();
+        formData.append('file', processedBuffer, webpFilename);
+        formData.append('title', imageMetadata.title);
+        formData.append('alt_text', imageMetadata.alt_text);
+        formData.append('caption', imageMetadata.caption);
+        formData.append('description', imageMetadata.description);
+
+        // 4. Upload the processed image to WordPress
+        const mediaResponse = await wpApi.post('/media', formData, {
+            headers: {
+                ...formData.getHeaders(),
+                'Content-Disposition': `attachment; filename=${webpFilename}`,
+            },
+        });
+
+        return mediaResponse.data.id;
+
+    } catch (uploadError: any) {
+        let errorMsg = `Error al procesar la imagen desde la URL '${imageUrl}'.`;
+        if (uploadError.response?.data?.message) {
+            errorMsg += ` Razón: ${uploadError.response.data.message}`;
+            if (uploadError.response.status === 401 || uploadError.response.status === 403) {
+                errorMsg += ' Esto es probablemente un problema de permisos. Asegúrate de que el usuario de la Contraseña de Aplicación tiene el rol de "Editor" o "Administrador" en WordPress.';
+            }
+        } else {
+            errorMsg += ` Razón: ${uploadError.message}`;
+        }
+        console.error(errorMsg, uploadError.response?.data);
+        throw new Error(errorMsg);
+    }
+}
+
+/**
+ * Finds a category by its path (e.g., "Parent > Child") or creates it if it doesn't exist.
+ * @param pathString The category path string.
+ * @param wooApi An initialized WooCommerce API client.
+ * @returns The ID of the final category in the path.
+ */
+export async function findOrCreateCategoryByPath(pathString: string, wooApi: WooCommerceRestApiType): Promise<number | null> {
+    if (!pathString || !pathString.trim()) {
+        return null;
+    }
+
+    const pathParts = pathString.split('>').map(part => part.trim());
+    let parentId = 0;
+    let finalCategoryId: number | null = null;
+    
+    // Fetch all categories once to avoid multiple API calls in the loop
+    const allCategoriesResponse = await wooApi.get("products/categories", { per_page: 100 });
+    const allCategories = allCategoriesResponse.data;
+
+    for (const part of pathParts) {
+        let foundCategory = allCategories.find(
+            (cat: any) => cat.name.toLowerCase() === part.toLowerCase() && cat.parent === parentId
+        );
+
+        if (foundCategory) {
+            parentId = foundCategory.id;
+        } else {
+            // Create the new category
+            const { data: newCategory } = await wooApi.post("products/categories", {
+                name: part,
+                parent: parentId,
+            });
+            // Add the new category to our local list to be found by the next iteration
+            allCategories.push(newCategory);
+            parentId = newCategory.id;
+        }
+        finalCategoryId = parentId;
+    }
+
+    return finalCategoryId;
+}
+
+/**
+ * Finds a WP post category by its path (e.g., "Parent > Child") or creates it if it doesn't exist.
+ * @param pathString The category path string.
+ * @param wpApi An initialized Axios instance for the WordPress API.
+ * @returns The ID of the final category in the path.
+ */
+export async function findOrCreateWpCategoryByPath(pathString: string, wpApi: AxiosInstance): Promise<number | null> {
+    if (!pathString || !pathString.trim()) {
+        return null;
+    }
+
+    const pathParts = pathString.split('>').map(part => part.trim());
+    let parentId = 0;
+    let finalCategoryId: number | null = null;
+    
+    // Fetch all categories once to avoid multiple API calls in the loop
+    const allCategoriesResponse = await wpApi.get("/categories", { params: { per_page: 100 } });
+    const allCategories = allCategoriesResponse.data;
+
+    for (const part of pathParts) {
+        let foundCategory = allCategories.find(
+            (cat: any) => cat.name.toLowerCase() === part.toLowerCase() && cat.parent === parentId
+        );
+
+        if (foundCategory) {
+            parentId = foundCategory.id;
+        } else {
+            // Create the new category
+            const { data: newCategory } = await wpApi.post("/categories", {
+                name: part,
+                parent: parentId,
+            });
+            // Add the new category to our local list to be found by the next iteration
+            allCategories.push(newCategory);
+            parentId = newCategory.id;
+        }
+        finalCategoryId = parentId;
+    }
+
+    return finalCategoryId;
+}
+
+/**
+ * Finds tags by name or creates them if they don't exist in WordPress.
+ * @param tagNames An array of tag names.
+ * @param wpApi An initialized Axios instance for the WordPress API.
+ * @returns A promise that resolves to an array of tag IDs.
+ */
+export async function findOrCreateTags(tagNames: string[], wpApi: AxiosInstance): Promise<number[]> {
+  if (!tagNames || tagNames.length === 0) {
+    return [];
+  }
+  const tagIds: number[] = [];
+
+  for (const name of tagNames) {
+    try {
+      // 1. Search for the tag
+      const searchResponse = await wpApi.get('/tags', { params: { search: name, per_page: 1 } });
+      const existingTag = searchResponse.data.find((tag: any) => tag.name.toLowerCase() === name.toLowerCase());
+
+      if (existingTag) {
+        tagIds.push(existingTag.id);
+      } else {
+        // 2. Create the tag if it doesn't exist
+        const createResponse = await wpApi.post('/tags', { name });
+        tagIds.push(createResponse.data.id);
+      }
+    } catch (error: any) {
+        console.error(`Failed to find or create tag "${name}":`, error.response?.data || error.message);
+        // Continue to the next tag even if one fails
+    }
+  }
+  return tagIds;
+}
+
+export function validateHmac(searchParams: URLSearchParams, clientSecret: string): boolean {
+    const hmac = searchParams.get('hmac');
+    if (!hmac) return false;
+
+    // Create a new URLSearchParams object without the hmac
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('hmac');
+    
+    // The parameters must be sorted alphabetically
+    params.sort();
+
+    const calculatedHmac = crypto
+        .createHmac('sha256', clientSecret)
+        .update(params.toString())
+        .digest('hex');
+
+    // Use a timing-safe comparison to prevent timing attacks
+    try {
+        return crypto.timingSafeEqual(Buffer.from(hmac, 'hex'), Buffer.from(calculatedHmac, 'hex'));
+    } catch {
+        return false;
+    }
+}
+
+
+// This is now the single source of truth for getting API clients.
+// It also handles the plugin verification.
+export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
+  if (!adminDb) {
+    throw new Error('Firestore admin is not initialized.');
+  }
+
+  const userDocRef = await adminDb.collection('users').doc(uid).get();
+  const userData = userDocRef.data();
+  
+  let settingsSource: admin.firestore.DocumentData | undefined;
+  if(userData?.companyId) {
+      const companyDoc = await adminDb.collection('companies').doc(userData.companyId).get();
+      if (companyDoc.exists) settingsSource = companyDoc.data();
+  } else {
+      const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+      if (userSettingsDoc.exists) settingsSource = userSettingsDoc.data();
+  }
+  
+  if (!settingsSource) {
+    throw new Error('No settings found for user or their company. Please configure API connections.');
+  }
+  
+  const allConnections = settingsSource.connections;
+  const activeConnectionKey = settingsSource.activeConnectionKey;
+
+  if (!activeConnectionKey || !allConnections || !allConnections[activeConnectionKey]) {
+    throw new Error('No active API connection is configured. Please select or create one in Settings.');
+  }
+
+  const activeConnection = allConnections[activeConnectionKey];
+  const { wordpressApiUrl, wordpressUsername, wordpressApplicationPassword } = activeConnection;
+
+  // Verification is only needed for WordPress-based connections
+  if (wordpressApiUrl && wordpressUsername && wordpressApplicationPassword) {
+    const tempWpApi = createWordPressApi({
+      url: wordpressApiUrl,
+      username: wordpressUsername,
+      applicationPassword: wordpressApplicationPassword,
+    });
+    
+    if (tempWpApi) {
+        const siteUrl = tempWpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
+        const statusEndpoint = `${siteUrl}/wp-json/custom/v1/status`;
+        try {
+            const response = await tempWpApi.get(statusEndpoint, { timeout: 15000 });
+            if (response.status !== 200 || response.data?.verified !== true) {
+                throw new Error("Conexión no verificada. Comprueba que la API Key del plugin es correcta y está activa en tu sitio de WordPress.");
+            }
+        } catch (e: any) {
+            if (e.response?.status === 404) {
+                 throw new Error('Endpoint de verificación no encontrado. Actualiza el plugin AutoPress AI Helper en tu WordPress.');
+            }
+            throw new Error(e.message || "No se pudo verificar el estado del plugin en WordPress. Revisa la URL y las credenciales.");
+        }
+    }
+  }
+
+  const wooApi = createWooCommerceApi({
+    url: activeConnection.wooCommerceStoreUrl,
+    consumerKey: activeConnection.wooCommerceApiKey,
+    consumerSecret: activeConnection.wooCommerceApiSecret,
+  });
+
+  const wpApi = createWordPressApi({
+    url: wordpressApiUrl,
+    username: wordpressUsername,
+    applicationPassword: wordpressApplicationPassword,
+  });
+
+  const shopifyApi = createShopifyApi({
+    url: activeConnection.shopifyStoreUrl,
+    accessToken: activeConnection.shopifyApiPassword,
+  });
+
+  return { wooApi, wpApi, shopifyApi, activeConnectionKey, settings: settingsSource };
 }

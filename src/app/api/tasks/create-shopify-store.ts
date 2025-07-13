@@ -4,7 +4,7 @@ import axios from 'axios';
 import { generateShopifyStoreContent, type GeneratedContent, type GenerationInput } from '@/ai/flows/shopify-content-flow';
 import { createShopifyApi } from '@/lib/shopify';
 import type { AxiosInstance } from 'axios';
-import { getPartnerCredentials } from '@/lib/api-helpers';
+import { getPartnerAppCredentials } from '@/lib/api-helpers'; // Changed helper
 import { CloudTasksClient } from '@google-cloud/tasks';
 
 
@@ -69,13 +69,16 @@ export async function handleCreateShopifyStore(jobId: string) {
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
         const jobData = jobDoc.data()!;
         
+        const entityId = jobData.entity.id;
+        const entityType = jobData.entity.type as 'user' | 'company';
+
         let settingsSource;
-        if (jobData.entity.type === 'company') {
-            const companyDoc = await adminDb.collection('companies').doc(jobData.entity.id).get();
-            if (!companyDoc.exists) throw new Error(`Company ${jobData.entity.id} not found.`);
+        if (entityType === 'company') {
+            const companyDoc = await adminDb.collection('companies').doc(entityId).get();
+            if (!companyDoc.exists) throw new Error(`Company ${entityId} not found.`);
             settingsSource = companyDoc.data();
         } else {
-            const userSettingsDoc = await adminDb.collection('user_settings').doc(jobData.entity.id).get();
+            const userSettingsDoc = await adminDb.collection('user_settings').doc(entityId).get();
             settingsSource = userSettingsDoc.data();
         }
 
@@ -91,13 +94,21 @@ export async function handleCreateShopifyStore(jobId: string) {
              jobData.creationOptions.theme = defaultTheme;
         }
 
-        const { partnerApiToken, partnerOrgId } = await getPartnerCredentials(jobData.entity.id, jobData.entity.type);
-        
-        if (!partnerOrgId) {
-            throw new Error('El Organization ID no está configurado. No se puede continuar.');
+        const partnerApiToken = settingsSource?.partnerApiToken;
+        if (!partnerApiToken) {
+            throw new Error('El token de acceso de Partner no se encontró para la entidad. Por favor, vuelve a conectar desde Ajustes.');
         }
 
-        const graphqlEndpoint = `https://partners.shopify.com/api/${partnerOrgId}/graphql.json`;
+        const orgResponse = await axios.get('https://partners.shopify.com/api/2025-01/organizations.json', {
+             headers: { 'Authorization': `Bearer ${partnerApiToken}` }
+        });
+
+        const partnerOrgId = orgResponse.data.organizations?.[0]?.id;
+        if (!partnerOrgId) {
+            throw new Error('No se pudo obtener el ID de la organización de Partner. Revisa los permisos del token.');
+        }
+
+        const graphqlEndpoint = `https://partners.shopify.com/${partnerOrgId}/api/2025-01/graphql.json`;
 
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
@@ -149,7 +160,7 @@ export async function handleCreateShopifyStore(jobId: string) {
 
         const userErrors = responseData.data?.developmentStoreCreate?.userErrors;
         if (userErrors && userErrors.length > 0) {
-            const errorMessages = userErrors.map((e: any) => `${e.field.join('.')}: ${e.message}`).join(', ');
+            const errorMessages = userErrors.map((e: any) => `${e.field?.join('.') || 'input'}: ${e.message}`).join(', ');
             throw new Error(`Shopify devolvió errores: ${errorMessages}`);
         }
 
@@ -158,19 +169,14 @@ export async function handleCreateShopifyStore(jobId: string) {
             throw new Error('La API de Shopify no devolvió los datos de la tienda creada.');
         }
         
-        // This flow is for shops that don't need app installation.
-        // We will directly enqueue the population task.
         await updateJobStatus(jobId, 'processing', `Tienda base creada en: ${createdStore.storeUrl}. Encolando tarea de población de tienda.`, {
             createdStoreUrl: createdStore.storeUrl,
             createdStoreAdminUrl: createdStore.adminUrl,
         });
         
-        // Because we're not installing an app via OAuth, we need another way to get an admin token.
-        // For development stores created via Partner API, there isn't a direct way to get an Admin API token
-        // without manual intervention or installing a custom app.
-        // For now, we'll log this and stop, assuming population is manual or handled by another process.
-        await updateJobStatus(jobId, 'completed', '¡Tienda Creada! La población de contenido debe hacerse manualmente o instalando una app personalizada, ya que la API de Partner no provee un token de Admin para la nueva tienda.');
-
+        // This flow is for shops that don't need app installation.
+        // The population task will check for a custom app password to proceed.
+        await enqueueShopifyPopulationTask(jobId);
 
     } catch (error: any) {
         console.error(`[Job ${jobId}] Failed to create Shopify store:`, error.message);
@@ -193,9 +199,12 @@ export async function populateShopifyStore(jobId: string) {
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
         const jobData = jobDoc.data()!;
 
-        if (!jobData.storeAccessToken || !jobData.createdStoreUrl) {
-            // Because we can't get this token automatically, we will now throw the error.
-            throw new Error("El trabajo no tiene un token de acceso a la tienda. La población de contenido debe realizarse manualmente o instalando una app personalizada en la nueva tienda.");
+        // The custom app password must be stored in the MAIN connection profile, not the partner one.
+        const { shopifyApi } = await getApiClientsForUser(jobData.entity.id);
+        
+        if (!shopifyApi) {
+             await updateJobStatus(jobId, 'completed', '¡Tienda Creada! La población de contenido no se pudo ejecutar. Configura una conexión a esta nueva tienda en Ajustes > Conexiones y ejecuta la población manualmente (próximamente).');
+             return;
         }
 
         const entityUid = jobData.entity.type === 'user' ? jobData.entity.id : '';
@@ -217,8 +226,6 @@ export async function populateShopifyStore(jobId: string) {
             generatedContent: generatedContent,
         });
 
-        const shopifyApi = createShopifyApi({ url: jobData.createdStoreUrl, accessToken: jobData.storeAccessToken });
-        if (!shopifyApi) throw new Error("No se pudo inicializar el cliente de la API de Shopify para la nueva tienda.");
         await updateJobStatus(jobId, 'processing', 'Cliente de API de tienda creado. Iniciando población de contenido...');
 
         // Create pages
@@ -393,6 +400,3 @@ async function setupBasicNavigation(jobId: string, api: AxiosInstance, createdPa
         await updateJobStatus(jobId, 'processing', `Error configurando la navegación: ${errorMessage}`);
     }
 }
-
-
-    
