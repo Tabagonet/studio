@@ -1,50 +1,19 @@
 
-
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, admin } from '@/lib/firebase-admin';
-import { validateHmac, getPartnerCredentials as getPartnerClientIdAndSecret } from '@/lib/api-helpers';
+import { validateHmac, getPartnerCredentials as getPartnerAppCredentials } from '@/lib/api-helpers';
 import axios from 'axios';
 import { CloudTasksClient } from '@google-cloud/tasks';
-
-async function enqueueShopifyPopulationTask(jobId: string) {
-  const PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
-  const LOCATION_ID = process.env.CLOUD_TASKS_LOCATION || 'europe-west1';
-  const QUEUE_ID = 'autopress-jobs';
-  const serviceAccountEmail = process.env.FIREBASE_CLIENT_EMAIL;
-
-  if (!PROJECT_ID || !LOCATION_ID || !QUEUE_ID || !serviceAccountEmail) {
-    throw new Error('Cloud Tasks environment variables are not fully configured.');
-  }
-  const tasksClient = new CloudTasksClient();
-  const parent = tasksClient.queuePath(PROJECT_ID, LOCATION_ID, QUEUE_ID);
-  
-  const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/populate-shopify-store`;
-
-  const task = {
-    httpRequest: {
-      httpMethod: 'POST' as const,
-      url: targetUri,
-      headers: { 'Content-Type': 'application/json' },
-      body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
-      oidcToken: { serviceAccountEmail },
-    },
-    scheduleTime: { seconds: Date.now() / 1000 + 2 },
-  };
-
-  const [response] = await tasksClient.createTask({ parent, task });
-  console.log(`[Cloud Task] Enqueued population task: ${response.name}`);
-  return response;
-}
 
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const code = searchParams.get('code');
     const hmac = searchParams.get('hmac');
-    const shop = searchParams.get('shop');
+    const shop = searchParams.get('shop'); // shop domain is the entityId in our state
     const state = searchParams.get('state'); // This is our Job ID
 
     if (!code || !hmac || !shop || !state) {
-        return new NextResponse("Petición inválida desde Shopify.", { status: 400 });
+        return new NextResponse("Petición inválida desde Shopify: faltan parámetros.", { status: 400 });
     }
     
     try {
@@ -52,51 +21,53 @@ export async function GET(req: NextRequest) {
             throw new Error("El servicio de base de datos no está disponible.");
         }
         
-        const jobDoc = await adminDb.collection('shopify_creation_jobs').doc(state).get();
-        if (!jobDoc.exists) {
-            throw new Error(`No se encontró el trabajo de creación con ID: ${state}`);
-        }
-        const jobData = jobDoc.data()!;
-        
-        // **This part is now deprecated in favor of the new flow**
-        // We keep it as a fallback but the creation task should no longer rely on it.
-        // In a real refactor, this entire endpoint might be removed if not needed.
-        console.warn(`[Shopify Callback] Received callback for Job ID ${state}, but this flow is deprecated. The creation task should complete without this step.`);
+        // The state contains entityType:entityId, e.g., "company:xyz123"
+        const [entityType, entityId] = state.split(':');
 
-        return new NextResponse(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Autorización de App</title>
-                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background-color: #f4f6f8; margin: 0; }
-                    .container { text-align: center; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-                    h1 { color: #202223; }
-                    p { color: #6d7175; }
-                </style>
-            </head>
-            <body>
-                 <div class="container">
-                    <h1>✅ ¡Tienda Creada!</h1>
-                    <p>La tienda base ha sido creada en Shopify. La población de contenido se ha iniciado en segundo plano.</p>
-                    <p><strong>Puedes cerrar esta ventana.</strong></p>
-                </div>
-            </body>
-            </html>
-        `, {
-            headers: { 'Content-Type': 'text/html' },
+        if (!entityType || !entityId || (entityType !== 'user' && entityType !== 'company')) {
+             throw new Error("El parámetro 'state' de la autorización es inválido.");
+        }
+        
+        const { clientId, clientSecret } = await getPartnerAppCredentials(entityId, entityType as 'user' | 'company');
+
+        // 1. Validate HMAC to ensure the request is from Shopify
+        if (!validateHmac(searchParams, clientSecret)) {
+            return new NextResponse("HMAC validation failed. La petición no es de Shopify.", { status: 403 });
+        }
+
+        // 2. Exchange authorization code for an access token
+        const tokenUrl = `https://${shop}/admin/oauth/access_token`;
+        const tokenResponse = await axios.post(tokenUrl, {
+            client_id: clientId,
+            client_secret: clientSecret,
+            code,
         });
 
-    } catch (error: any) {
-        console.error(`[Shopify Callback Error] Job ID ${state}:`, error.response?.data || error.message);
-        if (state && adminDb && admin.firestore.FieldValue) {
-            await adminDb.collection('shopify_creation_jobs').doc(state).update({
-                status: 'error',
-                logs: admin.firestore.FieldValue.arrayUnion({ timestamp: new Date(), message: `Error en callback de autorización: ${error.message}` }),
-            });
+        const accessToken = tokenResponse.data.access_token;
+        if (!accessToken) {
+             throw new Error("No se recibió un token de acceso de Shopify.");
         }
-        return new NextResponse(`Error en la autorización: ${error.message}`, { status: 500 });
+        
+        // 3. Save the access token securely to the user/company settings
+        const settingsRef = entityType === 'company'
+            ? adminDb.collection('companies').doc(entityId)
+            : adminDb.collection('user_settings').doc(entityId);
+            
+        await settingsRef.set({
+            shopifyPartnerAccessToken: accessToken,
+            shopifyPartnerShop: shop, // Store the shop domain it was installed on for future reference
+        }, { merge: true });
+
+        // 4. Redirect user back to the settings page with a success message
+        const settingsUrl = new URL('/settings/connections', req.nextUrl.origin);
+        settingsUrl.searchParams.set('shopify_auth', 'success');
+        return NextResponse.redirect(settingsUrl);
+
+    } catch (error: any) {
+        console.error(`[Shopify Callback Error] State: ${state}, Error:`, error.response?.data || error.message);
+        const settingsUrl = new URL('/settings/connections', req.nextUrl.origin);
+        settingsUrl.searchParams.set('shopify_auth', 'error');
+        settingsUrl.searchParams.set('error_message', error.message || 'Error desconocido durante la autorización.');
+        return NextResponse.redirect(settingsUrl);
     }
 }
-
-    

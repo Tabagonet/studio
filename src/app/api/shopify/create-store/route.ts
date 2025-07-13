@@ -38,7 +38,7 @@ const shopifyStoreCreationSchema = z.object({
 
 const tasksClient = new CloudTasksClient();
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID!;
-const LOCATION_ID = 'europe-west1'; // IMPORTANTE: Cambia esto a la región donde creaste la cola
+const LOCATION_ID = 'europe-west1'; 
 const QUEUE_ID = 'autopress-jobs';
 
 
@@ -106,6 +106,17 @@ export async function POST(req: NextRequest) {
 
   try {
     const { entity } = validation.data;
+    const settingsCollection = entity.type === 'company' ? 'companies' : 'user_settings';
+    const entityDoc = await adminDb.collection(settingsCollection).doc(entity.id).get();
+
+    if (!entityDoc.exists) {
+        throw new Error(`La entidad especificada (${entity.type}: ${entity.id}) no existe.`);
+    }
+
+    const entityData = entityDoc.data()!;
+    if (!entityData.shopifyPartnerAccessToken) {
+        return NextResponse.json({ error: 'La entidad no tiene una conexión de Shopify Partner activa. Por favor, conecta tu cuenta en Ajustes > Conexiones.' }, { status: 403 });
+    }
 
     if (entity.type === 'user') {
         const userDoc = await adminDb.collection('users').doc(entity.id).get();

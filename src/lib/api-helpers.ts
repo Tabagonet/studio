@@ -1,3 +1,4 @@
+
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -18,12 +19,35 @@ export const partnerConnectionDataSchema = z.object({
     partnerOrgId: z.string().min(1, "Partner Organization ID is required"),
 });
 
+export const partnerAppConnectionDataSchema = z.object({
+    clientId: z.string().min(1, "Client ID is required"),
+    clientSecret: z.string().min(1, "Client Secret is required"),
+});
+
 interface ApiClients {
   wooApi: WooCommerceRestApiType | null;
   wpApi: AxiosInstance | null;
   shopifyApi: AxiosInstance | null;
   activeConnectionKey: string | null;
   settings: admin.firestore.DocumentData | undefined;
+}
+
+export async function getPartnerAppCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ clientId: string; clientSecret: string; }> {
+    if (!adminDb) throw new Error("Firestore not configured on server");
+
+    const settingsRef = entityType === 'company' 
+        ? adminDb.collection('companies').doc(entityId)
+        : adminDb.collection('user_settings').doc(entityId);
+    
+    const doc = await settingsRef.get();
+    if (!doc.exists) throw new Error(`${entityType === 'company' ? 'Company' : 'User'} settings not found`);
+
+    const data = doc.data();
+    const validation = partnerAppConnectionDataSchema.safeParse(data);
+     if (!validation.success) {
+        throw new Error(`Invalid or missing Shopify Partner App credentials. Please configure them in Settings > Connections.`);
+    }
+    return validation.data;
 }
 
 
@@ -387,15 +411,24 @@ export function validateHmac(searchParams: URLSearchParams, clientSecret: string
     const hmac = searchParams.get('hmac');
     if (!hmac) return false;
 
-    searchParams.delete('hmac');
-    searchParams.sort();
+    // Create a new URLSearchParams object without the hmac
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('hmac');
+    
+    // The parameters must be sorted alphabetically
+    params.sort();
 
     const calculatedHmac = crypto
         .createHmac('sha256', clientSecret)
-        .update(searchParams.toString())
+        .update(params.toString())
         .digest('hex');
 
-    return crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(calculatedHmac));
+    // Use a timing-safe comparison to prevent timing attacks
+    try {
+        return crypto.timingSafeEqual(Buffer.from(hmac, 'hex'), Buffer.from(calculatedHmac, 'hex'));
+    } catch {
+        return false;
+    }
 }
 
 
