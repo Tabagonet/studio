@@ -1,5 +1,4 @@
 
-// src/app/api/shopify/verify-partner/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getPartnerCredentials } from '@/lib/api-helpers';
@@ -28,10 +27,12 @@ export async function POST(req: NextRequest) {
         
         const { entityId, entityType } = validation.data;
         
-        const { partnerApiToken } = await getPartnerCredentials(entityId, entityType);
+        const { partnerApiToken, partnerOrgId } = await getPartnerCredentials(entityId, entityType);
 
-        // This is the correct, static GraphQL endpoint for the Partner API
-        const graphqlEndpoint = `https://partners.shopify.com/api/2025-04/graphql.json`;
+        // Endpoint GraphQL correcto con organization_id y una versión estable de la API
+        const graphqlEndpoint = `https://partners.shopify.com/${partnerOrgId}/api/2024-07/graphql.json`;
+        
+        console.log('Verificando Shopify Partner con endpoint:', graphqlEndpoint);
         
         const response = await axios.post(
             graphqlEndpoint,
@@ -39,11 +40,13 @@ export async function POST(req: NextRequest) {
             {
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Shopify-Access-Token': partnerApiToken,
+                    'X-Shopify-Access-Token': partnerApiToken, // El token de Partner usa este header
                 },
                 timeout: 15000,
             }
         );
+
+        console.log('Respuesta de Shopify API:', response.data);
 
         if (response.data.errors) {
             const errorMessage = response.data.errors[0]?.message || 'Credenciales o permisos inválidos.';
@@ -59,6 +62,6 @@ export async function POST(req: NextRequest) {
     } catch (error: any) {
         console.error("Shopify Partner Verification Error:", error.response?.data || error.message);
         const errorMessage = error.response?.data?.errors?.[0]?.message || error.message || 'Fallo al verificar las credenciales de Partner.';
-        return NextResponse.json({ success: false, error: errorMessage }, { status: 400 });
+        return NextResponse.json({ success: false, error: errorMessage }, { status: error.response?.status || 400 });
     }
 }
