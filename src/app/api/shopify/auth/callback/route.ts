@@ -11,7 +11,12 @@ export async function GET(req: NextRequest) {
     const shop = searchParams.get('shop'); // shop domain of the partner's account
     const state = searchParams.get('state'); // This is our entity info "entityType:entityId"
 
-    const settingsUrl = new URL('/settings/connections', req.nextUrl.origin);
+    // Use the environment variable for the base URL to construct the redirect URL.
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    if (!baseUrl) {
+        throw new Error("NEXT_PUBLIC_BASE_URL is not set in environment variables.");
+    }
+    const settingsUrl = new URL('/settings/connections', baseUrl);
 
     if (!code || !hmac || !shop || !state) {
         settingsUrl.searchParams.set('shopify_auth', 'error');
@@ -20,7 +25,7 @@ export async function GET(req: NextRequest) {
     }
     
     try {
-        if (!adminDb || !admin.firestore.FieldValue) {
+        if (!adminDb) {
             throw new Error("El servicio de base de datos no está disponible.");
         }
         
@@ -50,13 +55,10 @@ export async function GET(req: NextRequest) {
              throw new Error("No se recibió un token de acceso de Shopify Partner.");
         }
         
-        const partnerDetailsResponse = await axios.get('https://partners.shopify.com/api/v1/organizations.json', {
-            headers: { Authorization: `Bearer ${accessToken}` }
-        });
-        
-        const partnerOrgId = partnerDetailsResponse.data?.organizations?.[0]?.id;
+        // As a temporary measure, we will hardcode the org ID. In a future version, we would fetch this.
+        const partnerOrgId = process.env.SHOPIFY_PARTNER_ORG_ID;
         if (!partnerOrgId) {
-            throw new Error("No se pudo obtener el ID de la organización del Partner.");
+            throw new Error("SHOPIFY_PARTNER_ORG_ID no está configurado en el servidor.");
         }
 
         const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';

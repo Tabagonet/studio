@@ -1,7 +1,7 @@
 
 # Guía: Configurar Aplicación de Shopify Partner (Flujo OAuth)
 
-Sigue estos pasos para crear una aplicación personalizada en tu panel de Shopify Partner. Esto nos dará los permisos necesarios para crear tiendas de desarrollo en tu nombre de forma segura y automática. Solo necesitas hacerlo una vez por cada cuenta de Partner que quieras conectar.
+Sigue estos pasos para crear una aplicación personalizada en tu panel de Shopify Partner. Esto nos dará los permisos necesarios para crear tiendas de desarrollo en tu nombre de forma segura y automática. Solo necesitas hacerlo una vez.
 
 ### Paso 1: Crea una nueva aplicación
 
@@ -12,28 +12,17 @@ Sigue estos pasos para crear una aplicación personalizada en tu panel de Shopif
 
 ### Paso 2: Rellena los datos básicos y las URLs
 
-Ahora verás una pantalla de configuración. Rellena los siguientes campos:
+Ahora verás una pantalla de configuración. Rellena los siguientes campos con la información que te proporciona la plataforma AutoPress AI en **Ajustes > Conexiones**.
 
 *   **App name:** Escribe un nombre que la identifique, por ejemplo: `AutoPress AI Creator`. Es solo para tu referencia interna.
 
-*   **App URL:** Esta URL le dice a Shopify cuál es la página de inicio principal de tu herramienta. **Debe coincidir con la URL base del entorno que estás usando**.
-    *   **Si usas la versión de producción:** `https://autopress.intelvisual.es`
-    *   **Si estás en Firebase Studio:** La URL que ves en la barra del navegador, por ejemplo: `https://[TU_ID_DE_STUDIO].cluster-xyz.cloudworkstations.dev`
-    *   **Si trabajas en local:** `http://localhost:9002`
+*   **App URL:** Esta es la URL base de la aplicación. **Copia y pégala desde la sección "URLs Requeridas" en la página de conexiones de AutoPress AI**.
+    *   Ejemplo para producción: `https://autopress.intelvisual.es`
 
-*   **Allowed redirection URL(s):** Esta es la parte más importante para la seguridad. Shopify solo permitirá redirigir a los usuarios a las URLs que estén en esta lista blanca después de autorizar la conexión. **Debes añadir una URL por cada entorno donde vayas a probar o usar la aplicación.**
+*   **Allowed redirection URL(s):** Esta es la parte más importante para la seguridad. Shopify solo permitirá redirigir a los usuarios a la URL que pongas aquí. **Copia y pégala desde la sección "URLs Requeridas" en la página de conexiones de AutoPress AI**.
+    *   Ejemplo para producción: `https://autopress.intelvisual.es/api/shopify/auth/callback`
 
-    *   **Para Producción (Obligatorio):**
-        `https://autopress.intelvisual.es/api/shopify/auth/callback`
-
-    *   **Para Firebase Studio (Si estás desarrollando aquí):**
-        `https://[TU_ID_DE_STUDIO].cluster-xyz.cloudworkstations.dev/api/shopify/auth/callback`
-        (Reemplaza `[TU_ID_DE_STUDIO].cluster-xyz.cloudworkstations.dev` con la URL que ves en la barra de tu navegador).
-
-    *   **Para Desarrollo Local (Si trabajas en tu propio PC):**
-        `http://localhost:9002/api/shopify/auth/callback`
-
-    **Consejo:** Puedes añadir las tres URLs desde el principio para no tener que volver a editarlo más adelante.
+    **Importante:** Si estás usando la aplicación en diferentes entornos (ej. local, Firebase Studio, producción), debes añadir la URL de redirección específica para **cada uno** de esos entornos en esta lista.
 
 Haz clic en el botón **"Create"**.
 
