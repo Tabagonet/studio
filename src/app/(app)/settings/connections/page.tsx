@@ -203,6 +203,7 @@ const ShopifyPartnerCard = ({
     const [baseUrl, setBaseUrl] = useState('');
 
     useEffect(() => {
+        // This effect runs only on the client, so window is available.
         setBaseUrl(process.env.NEXT_PUBLIC_BASE_URL || window.location.origin);
     }, []);
     
@@ -617,7 +618,7 @@ export default function ConnectionsPage() {
 
             if (isPartnerCreds) {
                 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || window.location.origin;
-                const authUrl = `https://partners.shopify.com/oauth/authorize?client_id=${partnerFormData.clientId}&scope=write_development_stores&redirect_uri=${baseUrl}/api/shopify/auth/callback&state=${editingTarget.type}:${editingTarget.id}`;
+                const authUrl = `https://partners.shopify.com/oauth/authorize?client_id=${partnerFormData.clientId}&scope=write_development_stores,read_development_stores&redirect_uri=${baseUrl}/api/shopify/auth/callback&state=${editingTarget.type}:${editingTarget.id}`;
                 window.location.href = authUrl;
             }
 
