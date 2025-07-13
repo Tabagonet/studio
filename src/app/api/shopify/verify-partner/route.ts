@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
         
         const { partnerApiToken } = await getPartnerCredentials(entityId, entityType);
 
-        // CORRECTED: The GraphQL endpoint for the Partner API is static and does not include the organization ID.
+        // This is the correct, static GraphQL endpoint for the Partner API
         const graphqlEndpoint = `https://partners.shopify.com/api/2025-04/graphql.json`;
         
         const response = await axios.post(
