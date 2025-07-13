@@ -99,9 +99,11 @@ export async function GET(req: NextRequest) {
 
       // Check partner connection
       const partnerAppData = partnerAppConnectionDataSchema.safeParse(allConnections['partner_app'] || {});
-      if (partnerAppData.success && partnerAppData.data.partnerApiToken && partnerAppData.data.partnerShopDomain && partnerAppData.data.partnerOrgId) {
+      if (partnerAppData.success && partnerAppData.data.partnerApiToken && partnerAppData.data.partnerShopDomain) {
           try {
-              const graphqlEndpoint = `https://partners.shopify.com/${partnerAppData.data.partnerOrgId}/api/2024-07/graphql.json`;
+              const shopUrl = `https://${partnerAppData.data.partnerShopDomain}`;
+              // A simple GraphQL query to verify the token and domain
+              const graphqlEndpoint = `${shopUrl}/admin/api/2024-07/graphql.json`;
               await axios.post(graphqlEndpoint, { query: '{ shop { name } }' }, { headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': partnerAppData.data.partnerApiToken }, timeout: 8000 });
               userConfig.shopifyPartnerConfigured = true;
           } catch(e) {

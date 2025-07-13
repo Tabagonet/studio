@@ -419,7 +419,7 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
     throw new Error('No settings found for user or their company. Please configure API connections.');
   }
   
-  const allConnections = settingsSource.connections;
+  const allConnections = settingsSource.connections || {};
   const activeConnectionKey = settingsSource.activeConnectionKey;
 
   if (!activeConnectionKey || !allConnections || !allConnections[activeConnectionKey]) {
