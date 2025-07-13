@@ -5,6 +5,39 @@ import { generateShopifyStoreContent, type GeneratedContent, type GenerationInpu
 import { createShopifyApi } from '@/lib/shopify';
 import type { AxiosInstance } from 'axios';
 import { getPartnerCredentials } from '@/lib/api-helpers';
+import { CloudTasksClient } from '@google-cloud/tasks';
+
+
+async function enqueueShopifyPopulationTask(jobId: string) {
+  const PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
+  const LOCATION_ID = process.env.CLOUD_TASKS_LOCATION || 'europe-west1';
+  const QUEUE_ID = 'autopress-jobs';
+  const serviceAccountEmail = process.env.FIREBASE_CLIENT_EMAIL;
+
+  if (!PROJECT_ID || !LOCATION_ID || !QUEUE_ID || !serviceAccountEmail) {
+    throw new Error('Cloud Tasks environment variables are not fully configured.');
+  }
+  const tasksClient = new CloudTasksClient();
+  const parent = tasksClient.queuePath(PROJECT_ID, LOCATION_ID, QUEUE_ID);
+  
+  const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/populate-shopify-store`;
+
+  const task = {
+    httpRequest: {
+      httpMethod: 'POST' as const,
+      url: targetUri,
+      headers: { 'Content-Type': 'application/json' },
+      body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
+      oidcToken: { serviceAccountEmail },
+    },
+    scheduleTime: { seconds: Date.now() / 1000 + 2 },
+  };
+
+  const [response] = await tasksClient.createTask({ parent, task });
+  console.log(`[Cloud Task] Enqueued population task: ${response.name}`);
+  return response;
+}
+
 
 async function updateJobStatus(jobId: string, status: 'processing' | 'completed' | 'error' | 'authorized', logMessage: string, extraData: Record<string, any> = {}) {
     if (!adminDb) return;
@@ -20,6 +53,7 @@ async function updateJobStatus(jobId: string, status: 'processing' | 'completed'
     });
 }
 
+// This function now contains the full logic and is intended to be called by a task handler.
 export async function handleCreateShopifyStore(jobId: string) {
     if (!adminDb) {
         console.error("Firestore not available in handleCreateShopifyStore.");
@@ -63,7 +97,7 @@ export async function handleCreateShopifyStore(jobId: string) {
             throw new Error('El Organization ID no está configurado. No se puede continuar.');
         }
 
-        const graphqlEndpoint = `https://partners.shopify.com/${partnerOrgId}/api/2024-10/graphql.json`;
+        const graphqlEndpoint = `https://partners.shopify.com/${partnerOrgId}/api/2025-01/graphql.json`;
 
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
@@ -124,12 +158,16 @@ export async function handleCreateShopifyStore(jobId: string) {
             throw new Error('La API de Shopify no devolvió los datos de la tienda creada.');
         }
         
-        await updateJobStatus(jobId, 'processing', `Tienda base creada en: ${createdStore.storeUrl}.`, {
+        // This flow is for shops that don't need app installation.
+        // We will directly enqueue the population task.
+        await updateJobStatus(jobId, 'processing', `Tienda base creada en: ${createdStore.storeUrl}. Encolando tarea de población de tienda.`, {
             createdStoreUrl: createdStore.storeUrl,
             createdStoreAdminUrl: createdStore.adminUrl,
         });
         
-        await updateJobStatus(jobId, 'completed', '¡Tienda Creada! La población de contenido debe hacerse manualmente o instalando una app personalizada, ya que la API de Partner no provee un token de Admin para la nueva tienda.');
+        // Because we can't get this token automatically, we will now throw the error.
+        // The population task will check for this token and fail gracefully if it's not present.
+        await enqueueShopifyPopulationTask(jobId);
 
 
     } catch (error: any) {
