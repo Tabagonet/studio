@@ -55,7 +55,8 @@ const connectionDataSchema = z.object({
 });
 
 const partnerConnectionDataSchema = z.object({
-    partnerApiToken: z.string().optional(),
+    partnerApiToken: z.string().min(1, "El Token de Acceso de Partner es obligatorio."),
+    partnerOrgId: z.string().min(1, "El ID de Organización es obligatorio."),
 });
 
 export async function GET(req: NextRequest) {
@@ -141,7 +142,6 @@ export async function POST(req: NextRequest) {
             }
         }
         
-        // ** THE FIX **: Use dot notation for a safe update/merge operation
         const updatePayload: { [key: string]: any } = {
             [`connections.${key}`]: connectionData
         };
@@ -153,7 +153,6 @@ export async function POST(req: NextRequest) {
         const settingsSnap = await settingsRef.get();
         const isUpdate = settingsSnap.exists && settingsSnap.data()?.connections?.[key];
         
-        // Site limit check for non-super admins editing their own connections
         const isEditingOwnSettings = !targetCompanyId && (!targetUserId || targetUserId === uid);
         if (role !== 'super_admin' && isEditingOwnSettings) {
              const userDoc = await adminDb.collection('users').doc(uid).get();
@@ -164,7 +163,6 @@ export async function POST(req: NextRequest) {
              }
         }
         
-        // This will create the document if it doesn't exist, or merge into the existing one
         await settingsRef.set(updatePayload, { merge: true });
         
         const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = connectionData as ConnectionData;
