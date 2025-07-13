@@ -75,9 +75,6 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
     }
 
     const docData = doc.data();
-    
-    // This logic is now part of the new OAuth flow, but kept for potential legacy checks.
-    // The permanent token is stored at the root of the settings document now.
     const partnerApiToken = docData?.partnerApiToken;
     const partnerOrgId = docData?.partnerOrgId;
     

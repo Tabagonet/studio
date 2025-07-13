@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
     }
 
     const entityData = entityDoc.data()!;
-    if (!entityData.shopifyPartnerAccessToken) {
+    if (!entityData.partnerApiToken) {
         return NextResponse.json({ error: 'La entidad no tiene una conexión de Shopify Partner activa. Por favor, conecta tu cuenta en Ajustes > Conexiones.' }, { status: 403 });
     }
 

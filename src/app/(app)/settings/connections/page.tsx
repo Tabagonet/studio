@@ -200,16 +200,21 @@ const ShopifyPartnerCard = ({
   isDeleting: boolean;
 }) => {
     const { toast } = useToast();
+    const [baseUrl, setBaseUrl] = useState('');
+
+    useEffect(() => {
+        setBaseUrl(process.env.NEXT_PUBLIC_BASE_URL || window.location.origin);
+    }, []);
     
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const { name, value } = e.target;
       onPartnerFormDataChange({ ...partnerFormData, [name]: value });
     };
     
-    const REDIRECT_URI = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
+    const REDIRECT_URI = baseUrl ? `${baseUrl}/api/shopify/auth/callback` : 'Loading...';
 
     const handleCopy = (text: string | undefined) => {
-        if (!text) return;
+        if (!text || text === 'Loading...') return;
         navigator.clipboard.writeText(text);
         toast({ title: 'Copiado al portapapeles' });
     };
@@ -238,8 +243,8 @@ const ShopifyPartnerCard = ({
                         <div className="space-y-1">
                             <Label className="text-xs text-muted-foreground">URL de la aplicación</Label>
                             <div className="flex items-center gap-2">
-                                <Input readOnly value={process.env.NEXT_PUBLIC_BASE_URL} className="text-xs h-8 bg-background"/>
-                                <Button variant="outline" size="icon-sm" onClick={() => handleCopy(process.env.NEXT_PUBLIC_BASE_URL || '')}><Copy className="h-3 w-3"/></Button>
+                                <Input readOnly value={baseUrl || 'Loading...'} className="text-xs h-8 bg-background"/>
+                                <Button variant="outline" size="icon-sm" onClick={() => handleCopy(baseUrl)}><Copy className="h-3 w-3"/></Button>
                             </div>
                         </div>
                         <div className="space-y-1">
@@ -304,7 +309,6 @@ export default function ConnectionsPage() {
     const { toast } = useToast();
 
     const [allConnections, setAllConnections] = useState<AllConnections>({});
-    const [allPartnerConnections, setAllPartnerConnections] = useState<AllPartnerConnections>({});
     const [activeKey, setActiveKey] = useState<string | null>(null);
     const [selectedKey, setSelectedKey] = useState<string>('new');
     
@@ -333,7 +337,6 @@ export default function ConnectionsPage() {
         setIsLoading(true);
         if (!targetId) {
             setAllConnections({});
-            setAllPartnerConnections({});
             setActiveKey(null);
             setSelectedKey('new');
             setFormData(INITIAL_STATE);
@@ -359,10 +362,7 @@ export default function ConnectionsPage() {
                 const data = await response.json();
                 const connections = data.allConnections || {};
                 setAllConnections(connections);
-                setAllPartnerConnections(data.partnerConnections || {});
-
-                const partnerCreds = data.partnerConnections?.[`${targetType}_${targetId}`] || INITIAL_PARTNER_APP_STATE;
-                setPartnerFormData(partnerCreds);
+                setPartnerFormData(data.partnerAppData || INITIAL_PARTNER_APP_STATE);
                 
                 const currentActiveKey = data.activeConnectionKey || null;
                 setActiveKey(currentActiveKey);
@@ -594,9 +594,9 @@ export default function ConnectionsPage() {
                 key: keyToSave, 
                 connectionData: dataToSave, 
                 setActive,
-                isPartner: isPartnerCreds,
                 entityId: editingTarget.id,
                 entityType: editingTarget.type,
+                isPartner: isPartnerCreds,
             };
 
             const response = await fetch('/api/user-settings/connections', {
@@ -616,8 +616,8 @@ export default function ConnectionsPage() {
             window.dispatchEvent(new Event('connections-updated'));
 
             if (isPartnerCreds) {
-                // Now redirect to Shopify for OAuth
-                const authUrl = `https://partners.shopify.com/oauth/authorize?client_id=${partnerFormData.clientId}&scope=write_development_stores&redirect_uri=${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback&state=${editingTarget.type}:${editingTarget.id}`;
+                const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || window.location.origin;
+                const authUrl = `https://partners.shopify.com/oauth/authorize?client_id=${partnerFormData.clientId}&scope=write_development_stores&redirect_uri=${baseUrl}/api/shopify/auth/callback&state=${editingTarget.type}:${editingTarget.id}`;
                 window.location.href = authUrl;
             }
 
@@ -641,7 +641,6 @@ export default function ConnectionsPage() {
             const token = await user.getIdToken();
             const payload: any = { 
                 key: keyToDelete,
-                isPartner: keyToDelete.startsWith('partner_app'),
                 entityId: editingTarget.id,
                 entityType: editingTarget.type,
             };

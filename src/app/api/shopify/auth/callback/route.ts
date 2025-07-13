@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
         }
         
         // 2. Exchange authorization code for a permanent access token for the PARTNER API
-        const tokenUrl = `https://${shop}/oauth/access_token`;
+        const tokenUrl = `https://partners.shopify.com/oauth/access_token`;
         const tokenResponse = await axios.post(tokenUrl, {
             client_id: clientId,
             client_secret: clientSecret,
@@ -55,7 +55,6 @@ export async function GET(req: NextRequest) {
         const settingsRef = adminDb.collection(settingsCollection).doc(entityId);
             
         await settingsRef.set({
-            // This token gives us access to the Partner API on behalf of the user
             partnerApiToken: accessToken,
         }, { merge: true });
 

@@ -41,7 +41,7 @@ Después de crear la app, Shopify te llevará a la página de configuración.
 
 1.  Busca la sección **"Distribución"** (Distribution).
 2.  Haz clic en **"Seleccionar método de distribución"** y elige **"Distribución personalizada"** (Custom distribution). Esto indica que la app es para tu uso privado.
-3.  Shopify podría pedirte un **"Dominio de la tienda"** como requisito. No te preocupes, esto no instalará la app en esa tienda. Simplemente introduce el dominio `.myshopify.com` de cualquiera de tus tiendas de desarrollo existentes como un valor temporal.
+3.  Shopify podría pedirte un **"Dominio de la tienda"** como requisito. No te preocupes, esto no instalará la app en esa tienda. Puedes usar cualquier tienda de desarrollo activa como valor temporal.
 4.  Ahora, ve a la pestaña **"Acceso a la API"** (API access) o busca una opción llamada **"Configurar ámbitos de la API de Administrador"** (Configure Admin API scopes).
 5.  Se desplegará una lista larga de permisos. Busca y marca las casillas para los siguientes dos permisos:
     *   ✅ `write_development_stores`

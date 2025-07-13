@@ -91,49 +91,29 @@ export async function handleCreateShopifyStore(jobId: string) {
              jobData.creationOptions.theme = defaultTheme;
         }
 
-        const { partnerApiToken, partnerOrgId } = await getPartnerCredentials(jobData.entity.id, jobData.entity.type);
-        
-        if (!partnerOrgId) {
-            throw new Error('El Organization ID no está configurado. No se puede continuar.');
+        const partnerApiToken = settingsSource?.partnerApiToken;
+        if (!partnerApiToken) {
+            throw new Error('La entidad no tiene una conexión de Shopify Partner activa. Por favor, conecta tu cuenta en Ajustes > Conexiones.');
         }
-
-        const graphqlEndpoint = `https://partners.shopify.com/${partnerOrgId}/api/2025-01/graphql.json`;
 
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
-        const mutation = `
-            mutation DevelopmentStoreCreate($input: DevelopmentStoreCreateInput!) {
-              developmentStoreCreate(input: $input) {
-                store {
-                  shopId
-                  shopName
-                  storeUrl
-                  adminUrl
-                }
-                userErrors {
-                  field
-                  message
-                }
-              }
-            }
-        `;
-        
-        const variables: any = {
-            input: {
-                name: jobData.storeName,
-                businessEmail: jobData.businessEmail,
-                countryCode: jobData.countryCode,
-            }
-        };
-
-        if (jobData.creationOptions?.theme) {
-            variables.input.template = jobData.creationOptions.theme;
-            await updateJobStatus(jobId, 'processing', `Usando la plantilla de tema: "${jobData.creationOptions.theme}".`);
+        // As a temporary measure, we will hardcode the org ID. In a future version, we would fetch this.
+        const partnerOrgId = process.env.SHOPIFY_PARTNER_ORG_ID;
+        if (!partnerOrgId) {
+            throw new Error("SHOPIFY_PARTNER_ORG_ID no está configurado en el servidor.");
         }
-        
+
+        const graphqlEndpoint = `https://partners.shopify.com/api/v1/${partnerOrgId}/stores`;
+
         const response = await axios.post(
             graphqlEndpoint,
-            { query: mutation, variables },
+            {
+                shop_name: jobData.storeName,
+                business_email: jobData.businessEmail,
+                shop_country: jobData.countryCode,
+                // Add more fields as needed from jobData
+            },
             {
                 headers: {
                     'Content-Type': 'application/json',
@@ -144,25 +124,23 @@ export async function handleCreateShopifyStore(jobId: string) {
         
         const responseData = response.data;
         if (responseData.errors) {
-            throw new Error(`Error de GraphQL: ${JSON.stringify(responseData.errors)}`);
-        }
-
-        const userErrors = responseData.data?.developmentStoreCreate?.userErrors;
-        if (userErrors && userErrors.length > 0) {
-            const errorMessages = userErrors.map((e: any) => `${e.field?.join('.') || 'input'}: ${e.message}`).join(', ');
+            const errorMessages = typeof responseData.errors === 'object' ? JSON.stringify(responseData.errors) : responseData.errors;
             throw new Error(`Shopify devolvió errores: ${errorMessages}`);
         }
 
-        const createdStore = responseData.data?.developmentStoreCreate?.store;
-        if (!createdStore) {
+        const createdStore = responseData.shop;
+        if (!createdStore || !createdStore.domain || !createdStore.id) {
             throw new Error('La API de Shopify no devolvió los datos de la tienda creada.');
         }
+
+        const storeAdminUrl = `https://${createdStore.domain}/admin`;
+        const storeUrl = `https://${createdStore.domain}`;
         
         // This flow is for shops that don't need app installation.
         // We will directly enqueue the population task.
-        await updateJobStatus(jobId, 'processing', `Tienda base creada en: ${createdStore.storeUrl}. Encolando tarea de población de tienda.`, {
-            createdStoreUrl: createdStore.storeUrl,
-            createdStoreAdminUrl: createdStore.adminUrl,
+        await updateJobStatus(jobId, 'processing', `Tienda base creada en: ${storeUrl}. Encolando tarea de población de tienda.`, {
+            createdStoreUrl: storeUrl,
+            createdStoreAdminUrl: storeAdminUrl,
         });
         
         // Because we can't get this token automatically, we will now throw the error.
@@ -171,7 +149,7 @@ export async function handleCreateShopifyStore(jobId: string) {
 
 
     } catch (error: any) {
-        console.error(`[Job ${jobId}] Failed to create Shopify store:`, error.message);
+        console.error(`[Job ${jobId}] Failed to create Shopify store:`, error.response?.data || error.message);
         await updateJobStatus(jobId, 'error', `Error fatal en la creación: ${error.message}`);
     }
 }
