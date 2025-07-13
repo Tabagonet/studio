@@ -97,7 +97,7 @@ export async function handleCreateShopifyStore(jobId: string) {
             throw new Error('El Organization ID no está configurado. No se puede continuar.');
         }
 
-        const graphqlEndpoint = `https://partners.shopify.com/${partnerOrgId}/api/2024-07/graphql.json`;
+        const graphqlEndpoint = `https://partners.shopify.com/${partnerOrgId}/api/2024-04/graphql.json`;
 
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
