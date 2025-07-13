@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { addRemotePattern } from '@/lib/next-config-manager';
-import { partnerConnectionDataSchema } from '@/lib/api-helpers'; // Import the correct schema
+import { partnerConnectionDataSchema } from '@/lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +52,31 @@ const connectionDataSchema = z.object({
     wordpressApplicationPassword: z.string().optional(),
     shopifyStoreUrl: shopifyUrlOrEmptyString.optional(),
     shopifyApiPassword: z.string().optional(),
+});
+
+// Final refined payload schema
+const payloadSchema = z.object({
+    key: z.string().min(1, "Key is required"),
+    connectionData: z.record(z.any()), // Start with a generic object
+    setActive: z.boolean().optional().default(false),
+    companyId: z.string().optional(),
+    userId: z.string().optional(),
+}).superRefine((data, ctx) => {
+    if (data.key === 'shopify_partner') {
+        const result = partnerConnectionDataSchema.safeParse(data.connectionData);
+        if (!result.success) {
+            result.error.issues.forEach(issue => {
+                ctx.addIssue({ ...issue, path: ['connectionData', ...issue.path] });
+            });
+        }
+    } else {
+        const result = connectionDataSchema.safeParse(data.connectionData);
+        if (!result.success) {
+            result.error.issues.forEach(issue => {
+                ctx.addIssue({ ...issue, path: ['connectionData', ...issue.path] });
+            });
+        }
+    }
 });
 
 
@@ -109,14 +134,6 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         console.log('POST /api/user-settings/connections: Payload recibido', body);
 
-        const payloadSchema = z.object({
-            key: z.string().min(1, "Key is required"),
-            connectionData: z.union([connectionDataSchema, partnerConnectionDataSchema]),
-            setActive: z.boolean().optional().default(false),
-            companyId: z.string().optional(),
-            userId: z.string().optional(),
-        });
-
         const validationResult = payloadSchema.safeParse(body);
         if (!validationResult.success) {
             console.error('POST /api/user-settings/connections: Validación fallida', validationResult.error.flatten());
@@ -173,7 +190,7 @@ export async function POST(req: NextRequest) {
         await settingsRef.set(updatePayload, { merge: true });
         console.log('POST /api/user-settings/connections: Escritura en Firestore completada');
         
-        const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = connectionData as ConnectionData;
+        const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = connectionData as any;
         const hostnamesToAdd = new Set<string>();
 
         const addHostname = (url: string | undefined) => {
@@ -194,7 +211,7 @@ export async function POST(req: NextRequest) {
         if (hostnamesToAdd.size > 0) {
             console.log('POST /api/user-settings/connections: Añadiendo patrones remotos', Array.from(hostnamesToAdd));
             const promises = Array.from(hostnamesToAdd).map(hostname => addRemotePattern(hostname).catch(err => console.error(`Failed to add remote pattern for ${hostname}:`, err)));
-            Promise.all(promises).catch(err => console.error("Error batch updating remote patterns:", err));
+            await Promise.all(promises);
         }
 
         return NextResponse.json({ success: true, message: 'Connection saved successfully.' });
