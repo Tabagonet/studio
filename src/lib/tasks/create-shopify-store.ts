@@ -4,7 +4,7 @@ import axios from 'axios';
 import { generateShopifyStoreContent, type GeneratedContent, type GenerationInput } from '@/ai/flows/shopify-content-flow';
 import { createShopifyApi } from '@/lib/shopify';
 import type { AxiosInstance } from 'axios';
-import { getPartnerAppCredentials, getPartnerCredentials } from '@/lib/api-helpers';
+import { getPartnerCredentials } from '@/lib/api-helpers';
 import { CloudTasksClient } from '@google-cloud/tasks';
 
 
@@ -103,15 +103,12 @@ export async function handleCreateShopifyStore(jobId: string) {
         const storeAdminUrl = `https://${createdStore.domain}/admin`;
         const storeUrl = `https://${createdStore.domain}`;
         
-        // This flow is for shops that don't need app installation.
-        // We will directly enqueue the population task.
+        // The population task will check for this token and fail gracefully if it's not present.
         await updateJobStatus(jobId, 'processing', `Tienda base creada en: ${storeUrl}. Encolando tarea de población de tienda.`, {
             createdStoreUrl: storeUrl,
             createdStoreAdminUrl: storeAdminUrl,
         });
         
-        // Because we can't get this token automatically, we will now throw the error.
-        // The population task will check for this token and fail gracefully if it's not present.
         await enqueueShopifyPopulationTask(jobId);
 
 

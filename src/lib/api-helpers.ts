@@ -1,4 +1,3 @@
-
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -15,8 +14,7 @@ import crypto from 'crypto';
 
 export const partnerAppConnectionDataSchema = z.object({
   partnerOrgId: z.string().optional(),
-  clientId: z.string().optional(),
-  clientSecret: z.string().optional(),
+  partnerApiToken: z.string().optional(), // Changed from clientId/Secret to direct token
 });
 export type PartnerAppConnectionData = z.infer<typeof partnerAppConnectionDataSchema>;
 
@@ -26,25 +24,6 @@ interface ApiClients {
   shopifyApi: AxiosInstance | null;
   activeConnectionKey: string | null;
   settings: admin.firestore.DocumentData | undefined;
-}
-
-export async function getPartnerAppCredentials(entityId: string, entityType: 'user' | 'company'): Promise<PartnerAppConnectionData> {
-    if (!adminDb) throw new Error("Firestore not configured on server");
-
-    const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
-    const settingsRef = adminDb.collection(settingsCollection).doc(entityId);
-    
-    const doc = await settingsRef.get();
-    if (!doc.exists) throw new Error(`${entityType === 'company' ? 'Company' : 'User'} settings not found`);
-
-    const connections = doc.data()?.connections || {};
-    const partnerAppData = connections['partner_app'];
-
-    const validation = partnerAppConnectionDataSchema.safeParse(partnerAppData || {});
-     if (!validation.success) {
-        throw new Error(`Invalid or missing Shopify Partner App credentials. Please configure them in Settings > Connections.`);
-    }
-    return validation.data;
 }
 
 
@@ -70,17 +49,16 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
         throw new Error(`${entityType === 'company' ? 'Company' : 'User'} settings not found`);
     }
 
-    const docData = doc.data();
-    const partnerApiToken = docData?.partnerApiToken;
-    const partnerOrgId = docData?.connections?.partner_app?.partnerOrgId;
-    
-    if (!partnerApiToken || !partnerOrgId) {
-        throw new Error("Shopify Partner credentials not configured or missing org ID.");
+    const connections = doc.data()?.connections || {};
+    const partnerAppData = partnerAppConnectionDataSchema.safeParse(connections['partner_app'] || {});
+
+    if (!partnerAppData.success || !partnerAppData.data.partnerApiToken || !partnerAppData.data.partnerOrgId) {
+        throw new Error("Las credenciales de Shopify Partner (ID de Organización y Token de Acceso) no están configuradas o son inválidas.");
     }
 
     return {
-        partnerApiToken,
-        partnerOrgId,
+        partnerApiToken: partnerAppData.data.partnerApiToken,
+        partnerOrgId: partnerAppData.data.partnerOrgId,
     };
 }
 
