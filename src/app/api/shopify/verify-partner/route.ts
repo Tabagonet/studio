@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getPartnerCredentials } from '@/lib/api-helpers';
@@ -26,14 +27,13 @@ export async function POST(req: NextRequest) {
         
         const { entityId, entityType } = validation.data;
         
-        // This function now attempts the token exchange, which serves as verification.
-        const { partnerApiToken } = await getPartnerCredentials(entityId, entityType);
+        // This function now returns the permanent token and the org ID from Firestore
+        const { partnerApiToken, partnerOrgId } = await getPartnerCredentials(entityId, entityType);
 
-        // Fetch organization ID dynamically from the Shopify Partner API.
-        // This makes the solution more robust as it doesn't rely on hardcoded IDs.
-        const orgsResponse = await axios.post(
-            `https://partners.shopify.com/api/2024-07/graphql.json`,
-            { query: `{ organizations(first: 1) { nodes { id } } }` },
+        // Make a test call to the Shopify Partner GraphQL API
+        const response = await axios.post(
+            `https://partners.shopify.com/api/${partnerOrgId}/graphql.json`, // Use the dynamic org ID
+            { query: `{ organizations(first: 1) { nodes { id } } }` }, // A simple query to test the connection
             {
                 headers: {
                     'Content-Type': 'application/json',
@@ -43,12 +43,12 @@ export async function POST(req: NextRequest) {
             }
         );
 
-        if (orgsResponse.data.errors) {
-            const errorMessage = orgsResponse.data.errors[0]?.message || 'Credenciales o permisos inválidos.';
+        if (response.data.errors) {
+            const errorMessage = response.data.errors[0]?.message || 'Credenciales o permisos inválidos.';
             throw new Error(errorMessage);
         }
 
-        if (orgsResponse.data.data?.organizations?.nodes?.length > 0) {
+        if (response.data.data?.organizations?.nodes?.length > 0) {
             return NextResponse.json({ success: true, message: '¡Credenciales verificadas correctamente!' });
         } else {
             throw new Error('No se pudo obtener la información de la organización de Partner. Revisa los permisos de tus credenciales.');
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
 
     } catch (error: any) {
         console.error("Shopify Partner Verification Error:", error.response?.data || error.message);
-        const errorMessage = error.response?.data?.error_description || error.response?.data?.errors?.[0]?.message || error.message || 'Fallo al verificar las credenciales de Partner.';
+        const errorMessage = error.response?.data?.errors?.[0]?.message || error.message || 'Fallo al verificar las credenciales de Partner.';
         return NextResponse.json({ success: false, error: errorMessage }, { status: 400 });
     }
 }
