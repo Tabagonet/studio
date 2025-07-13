@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const code = searchParams.get('code');
     const hmac = searchParams.get('hmac');
-    const shop = searchParams.get('shop'); // shop domain of the partner's account
+    const shop = searchParams.get('shop'); // The partner's shop domain that authorized
     const state = searchParams.get('state'); // This is our entity info "entityType:entityId"
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
@@ -34,17 +34,17 @@ export async function GET(req: NextRequest) {
              throw new Error("El parámetro 'state' de la autorización es inválido.");
         }
         
-        const { clientId, clientSecret } = await getPartnerAppCredentials(entityId, entityType as 'user' | 'company');
+        const { clientSecret } = await getPartnerAppCredentials(entityId, entityType as 'user' | 'company');
 
         // 1. Validate HMAC to ensure the request is from Shopify
         if (!validateHmac(searchParams, clientSecret)) {
             return new NextResponse("HMAC validation failed. La petición no es de Shopify.", { status: 403 });
         }
         
-        // 2. Exchange authorization code for a permanent access token for the PARTNER API
-        const tokenUrl = `https://partners.shopify.com/oauth/access_token`;
+        // 2. Exchange authorization code for a permanent access token
+        const tokenUrl = `https://${shop}/admin/oauth/access_token`;
         const tokenResponse = await axios.post(tokenUrl, {
-            client_id: clientId,
+            client_id: searchParams.get('client_id'), // The client_id is passed back in the request
             client_secret: clientSecret,
             code,
         });

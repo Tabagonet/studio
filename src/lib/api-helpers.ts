@@ -15,8 +15,9 @@ import crypto from 'crypto';
 
 // THIS IS NOW THE SINGLE SOURCE OF TRUTH
 export const partnerAppConnectionDataSchema = z.object({
-  clientId: z.string().min(1, "Client ID is required"),
-  clientSecret: z.string().min(1, "Client Secret is required"),
+  partnerShopDomain: z.string().optional(),
+  clientId: z.string().optional(),
+  clientSecret: z.string().optional(),
 });
 export type PartnerAppConnectionData = z.infer<typeof partnerAppConnectionDataSchema>;
 
@@ -28,7 +29,7 @@ interface ApiClients {
   settings: admin.firestore.DocumentData | undefined;
 }
 
-export async function getPartnerAppCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ clientId: string; clientSecret: string; }> {
+export async function getPartnerAppCredentials(entityId: string, entityType: 'user' | 'company'): Promise<PartnerAppConnectionData> {
     if (!adminDb) throw new Error("Firestore not configured on server");
 
     const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
@@ -40,11 +41,7 @@ export async function getPartnerAppCredentials(entityId: string, entityType: 'us
     const connections = doc.data()?.connections || {};
     const partnerAppData = connections['partner_app'];
 
-    if (!partnerAppData) {
-      throw new Error(`Invalid or missing Shopify Partner App credentials. Please configure them in Settings > Connections.`);
-    }
-
-    const validation = partnerAppConnectionDataSchema.safeParse(partnerAppData);
+    const validation = partnerAppConnectionDataSchema.safeParse(partnerAppData || {});
      if (!validation.success) {
         throw new Error(`Invalid or missing Shopify Partner App credentials. Please configure them in Settings > Connections.`);
     }
@@ -65,9 +62,8 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
         throw new Error("Firestore not configured on server");
     }
 
-    const settingsRef = entityType === 'company' 
-        ? adminDb.collection('companies').doc(entityId)
-        : adminDb.collection('user_settings').doc(entityId);
+    const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
+    const settingsRef = adminDb.collection(settingsCollection).doc(entityId);
     
     const doc = await settingsRef.get();
     if (!doc.exists) {

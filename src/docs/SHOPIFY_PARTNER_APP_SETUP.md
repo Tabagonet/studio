@@ -32,7 +32,7 @@ Después de crear la app, Shopify te llevará a la página de configuración.
 
 1.  Busca la sección **"Distribución"** (Distribution).
 2.  Haz clic en **"Seleccionar método de distribución"** y elige **"Distribución personalizada"** (Custom distribution). Esto indica que la app es para tu uso privado.
-3.  Shopify podría pedirte un **"Dominio de la tienda"** como requisito. No te preocupes, esto no instalará la app en esa tienda. Puedes usar cualquier tienda de desarrollo activa como valor temporal.
+3.  Shopify podría pedirte un **"Dominio de la tienda"** como requisito. **Aquí debes poner la URL de tu propia cuenta de Partner**, la que tiene el formato `tu-agencia.myshopify.com`. No te preocupes, esto no instalará la app en esa tienda, solo se usa como un identificador para la app.
 4.  Ahora, ve a la pestaña **"Acceso a la API"** (API access) o busca una opción llamada **"Configurar ámbitos de la API de Administrador"** (Configure Admin API scopes).
 5.  Se desplegará una lista larga de permisos. Busca y marca las casillas para los siguientes dos permisos:
     *   ✅ `write_development_stores`
@@ -47,7 +47,12 @@ Después de crear la app, Shopify te llevará a la página de configuración.
 2.  Copia el valor de **`Client ID`**.
 3.  Vuelve a la plataforma AutoPress AI, a **Ajustes > Conexiones**. En la tarjeta "Conexión Global de Shopify Partners", pega el valor en el campo **"Client ID"**.
 4.  Vuelve al panel de Shopify Partner y copia el valor de **`Client Secret`**.
-5.  Pega este valor en el campo **"Client Secret"** de nuestra plataforma.
-6.  Finalmente, haz clic en el botón **"Guardar y Conectar con Shopify"**.
+5.  Pega este valor en el campo **"Client Secret"**.
+6.  **MUY IMPORTANTE:** Copia el dominio de tu tienda de Partner (ej: `mi-agencia.myshopify.com`) y pégalo en el campo **"Dominio de tu Tienda de Partner"**.
+7.  Haz clic en **"Guardar Credenciales"**.
 
-Serás redirigido a una página de Shopify para autorizar la conexión. Haz clic en "Aprobar" y el proceso habrá finalizado. ¡Ya podrás crear tiendas automáticamente!
+### Paso 5: Conecta tu cuenta
+
+1. Después de guardar, haz clic en el botón **"Conectar con Shopify"**.
+2. Serás redirigido a una página de Shopify para autorizar la conexión. Haz clic en "Aprobar".
+3. Serás redirigido de vuelta a la aplicación. ¡Ya podrás crear tiendas automáticamente!

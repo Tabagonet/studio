@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, Copy, ExternalLink, Loader2, Save, Trash2, Link as LinkIcon } from "lucide-react";
+import { AlertCircle, Copy, ExternalLink, Loader2, Link as LinkIcon, Save, Trash2 } from "lucide-react";
 import type { PartnerAppConnectionData } from '@/lib/api-helpers';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -21,7 +21,6 @@ interface ShopifyPartnerCardProps {
   isSavingPartner: boolean;
   onDelete: () => void;
   isDeleting: boolean;
-  onSaveAndConnect: () => void;
 }
 
 export function ShopifyPartnerCard({
@@ -32,7 +31,6 @@ export function ShopifyPartnerCard({
   isSavingPartner,
   onDelete,
   isDeleting,
-  onSaveAndConnect,
 }: ShopifyPartnerCardProps) {
   const { toast } = useToast();
   const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
@@ -40,6 +38,28 @@ export function ShopifyPartnerCard({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     onPartnerFormDataChange({ ...partnerFormData, [name]: value });
+  };
+
+  const handleSaveAndConnect = () => {
+    // 1. First, save the current credentials to ensure they are persisted before redirecting.
+    onSave();
+
+    // 2. Then, construct the authorization URL and redirect.
+    const redirectUri = `${BASE_URL}/api/shopify/auth/callback`;
+    const scopes = 'write_development_stores,read_development_stores';
+    
+    // The state parameter passes our internal entity ID to the callback
+    const state = `${editingTarget.type}:${editingTarget.id}`;
+    
+    if (!partnerFormData.partnerShopDomain) {
+      toast({ title: 'Datos Incompletos', description: 'El Dominio de Partner es necesario para conectar.', variant: 'destructive' });
+      return;
+    }
+    const shopDomain = partnerFormData.partnerShopDomain.replace(/^https|:\/\//, '').replace(/\/$/, '');
+    
+    const authUrl = `https://${shopDomain}/admin/oauth/authorize?client_id=${partnerFormData.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${state}&grant_options[]=per-user`;
+    
+    window.location.href = authUrl;
   };
 
   const REDIRECT_URI = BASE_URL ? `${BASE_URL}/api/shopify/auth/callback` : '';
@@ -98,14 +118,20 @@ export function ShopifyPartnerCard({
           </AlertDescription>
         </Alert>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="clientId">Client ID</Label>
-            <Input id="clientId" name="clientId" value={partnerFormData.clientId || ''} onChange={handleInputChange} placeholder="Tu Client ID de la app de Partner" disabled={isSavingPartner} />
+        <div className="grid grid-cols-1 gap-4">
+           <div>
+            <Label htmlFor="partnerShopDomain">Dominio de tu Tienda de Partner (.myshopify.com)</Label>
+            <Input id="partnerShopDomain" name="partnerShopDomain" value={partnerFormData?.partnerShopDomain || ''} onChange={handleInputChange} placeholder="ejemplo-agencia.myshopify.com" disabled={isSavingPartner} />
           </div>
-          <div>
-            <Label htmlFor="clientSecret">Client Secret</Label>
-            <Input id="clientSecret" name="clientSecret" type="password" value={partnerFormData.clientSecret || ''} onChange={handleInputChange} placeholder="••••••••••••••••••••••••••••••••••••" disabled={isSavingPartner} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="clientId">Client ID</Label>
+              <Input id="clientId" name="clientId" value={partnerFormData?.clientId || ''} onChange={handleInputChange} placeholder="Tu Client ID de la app de Partner" disabled={isSavingPartner} />
+            </div>
+            <div>
+              <Label htmlFor="clientSecret">Client Secret</Label>
+              <Input id="clientSecret" name="clientSecret" type="password" value={partnerFormData?.clientSecret || ''} onChange={handleInputChange} placeholder="••••••••••••••••••••••••••••••••••••" disabled={isSavingPartner} />
+            </div>
           </div>
         </div>
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
@@ -114,9 +140,9 @@ export function ShopifyPartnerCard({
               {isSavingPartner ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2"/>}
               Guardar Credenciales
             </Button>
-             <Button onClick={onSaveAndConnect} disabled={!partnerFormData.clientId || !partnerFormData.clientSecret}>
+             <Button onClick={handleSaveAndConnect} disabled={!partnerFormData?.clientId}>
               <LinkIcon className="h-4 w-4 mr-2" />
-              Guardar y Conectar
+              Conectar con Shopify
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -144,4 +170,4 @@ export function ShopifyPartnerCard({
       </CardContent>
     </Card>
   );
-};
+}
