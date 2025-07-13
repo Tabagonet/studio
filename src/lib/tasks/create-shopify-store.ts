@@ -1,3 +1,4 @@
+
 import { admin, adminDb } from '@/lib/firebase-admin';
 import axios from 'axios';
 import { generateShopifyStoreContent, type GeneratedContent, type GenerationInput } from '@/ai/flows/shopify-content-flow';
@@ -57,22 +58,13 @@ export async function handleCreateShopifyStore(jobId: string) {
              jobData.creationOptions.theme = defaultTheme;
         }
 
-        const { partnerApiToken, partnerApiClientId } = await getPartnerCredentials(jobData.entity.id, jobData.entity.type);
+        const { partnerApiToken, partnerOrgId, partnerApiClientId } = await getPartnerCredentials(jobData.entity.id, jobData.entity.type);
         
-        const orgsResponse = await axios.post(
-            `https://partners.shopify.com/api/2024-07/graphql.json`,
-            { query: `{ organizations(first: 1) { nodes { id } } }` },
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Shopify-Access-Token': partnerApiToken,
-                },
-            }
-        );
-        const orgId = orgsResponse.data.data?.organizations?.nodes?.[0]?.id;
-        if (!orgId) throw new Error("Could not determine Shopify Partner Organization ID.");
-        
-        const graphqlEndpoint = `https://partners.shopify.com/api/2024-07/graphql.json`;
+        if (!partnerOrgId) {
+            throw new Error('El Organization ID no está configurado. No se puede continuar.');
+        }
+
+        const graphqlEndpoint = `https://partners.shopify.com/api/${partnerOrgId}/graphql.json`;
 
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
@@ -143,9 +135,6 @@ export async function handleCreateShopifyStore(jobId: string) {
             throw new Error('La API de Shopify no devolvió los datos de la tienda creada.');
         }
         
-        // Instead of waiting for callback, we can proceed directly if we get the store data.
-        // We will need a way to get the final access token for the store to populate it.
-        // The current flow relies on the redirect for this. For now, we update the status.
         await updateJobStatus(jobId, 'processing', `Tienda base creada en: ${createdStore.storeUrl}. La instalación de la app se ha iniciado. Se necesita intervención manual del Partner para autorizar.`, {
             createdStoreUrl: createdStore.storeUrl,
             createdStoreAdminUrl: createdStore.adminUrl,

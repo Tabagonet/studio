@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, admin } from '@/lib/firebase-admin';
 import { validateHmac } from '@/lib/api-helpers';
@@ -69,6 +70,8 @@ export async function GET(req: NextRequest) {
         }
 
         const partnerConnection = settingsSource?.connections?.['shopify_partner'];
+        // **This needs to be corrected in a future step** if we stick to Client ID/Secret
+        // For now, we assume it's stored, which is the old logic.
         const { partnerApiClientId, partnerApiSecret } = partnerConnection || {};
         
         if (!partnerApiClientId || !partnerApiSecret) {
