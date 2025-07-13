@@ -69,22 +69,38 @@ export async function handleCreateShopifyStore(jobId: string) {
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
         const jobData = jobDoc.data()!;
         
-        const { partnerApiToken, partnerOrgId } = await getPartnerCredentials(jobData.entity.id, jobData.entity.type);
+        const { partnerApiToken, partnerShopDomain } = await getPartnerCredentials(jobData.entity.id, jobData.entity.type);
         
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
-        const graphqlEndpoint = `https://partners.shopify.com/api/v1/${partnerOrgId}/development_stores.json`;
+        const graphqlEndpoint = `https://${partnerShopDomain}/admin/api/2024-07/graphql.json`;
+        
+        const graphqlMutation = {
+          query: `
+            mutation developmentStoreCreate($name: String!) {
+              developmentStoreCreate(name: $name) {
+                store {
+                  shopId
+                  domain
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }`,
+          variables: {
+            name: jobData.storeName,
+          },
+        };
 
         const response = await axios.post(
             graphqlEndpoint,
-            {
-                shop_name: jobData.storeName,
-                // Add more fields as needed from jobData
-            },
+            graphqlMutation,
             {
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${partnerApiToken}`,
+                    'X-Shopify-Access-Token': partnerApiToken,
                 },
             }
         );
@@ -92,11 +108,17 @@ export async function handleCreateShopifyStore(jobId: string) {
         const responseData = response.data;
         if (responseData.errors) {
             const errorMessages = typeof responseData.errors === 'object' ? JSON.stringify(responseData.errors) : responseData.errors;
-            throw new Error(`Shopify devolvió errores: ${errorMessages}`);
+            throw new Error(`Shopify devolvió errores en GraphQL: ${errorMessages}`);
+        }
+        
+        const creationResult = responseData.data.developmentStoreCreate;
+        if (creationResult.userErrors && creationResult.userErrors.length > 0) {
+            const errorMessages = creationResult.userErrors.map((e: any) => `${e.field}: ${e.message}`).join(', ');
+            throw new Error(`Shopify devolvió errores de usuario: ${errorMessages}`);
         }
 
-        const createdStore = responseData.shop;
-        if (!createdStore || !createdStore.domain || !createdStore.id) {
+        const createdStore = creationResult.store;
+        if (!createdStore || !createdStore.domain || !createdStore.shopId) {
             throw new Error('La API de Shopify no devolvió los datos de la tienda creada.');
         }
 

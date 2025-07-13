@@ -244,11 +244,6 @@ export async function DELETE(req: NextRequest) {
             updatePayload.activeConnectionKey = otherKeys.length > 0 ? otherKeys[0] : null;
         }
         
-        if (key === 'partner_app') {
-            updatePayload.partnerApiToken = admin.firestore.FieldValue.delete();
-            updatePayload.partnerOrgId = admin.firestore.FieldValue.delete();
-        }
-
         await settingsRef.update(updatePayload);
 
         return NextResponse.json({ success: true, message: 'Connection deleted successfully.' });

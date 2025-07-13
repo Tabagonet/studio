@@ -1,3 +1,4 @@
+
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -13,8 +14,8 @@ import { z } from 'zod';
 import crypto from 'crypto';
 
 export const partnerAppConnectionDataSchema = z.object({
-  partnerOrgId: z.string().optional(),
-  partnerApiToken: z.string().optional(), // Changed from clientId/Secret to direct token
+  partnerShopDomain: z.string().optional(),
+  partnerApiToken: z.string().optional(),
 });
 export type PartnerAppConnectionData = z.infer<typeof partnerAppConnectionDataSchema>;
 
@@ -34,7 +35,7 @@ interface ApiClients {
  * @returns An object containing the access token and organization ID.
  * @throws If credentials are not configured or invalid.
  */
-export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ partnerApiToken: string; partnerOrgId: string; }> {
+export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ partnerApiToken: string; partnerShopDomain: string; }> {
     if (!adminDb) {
         console.error('getPartnerCredentials: Firestore no está configurado');
         throw new Error("Firestore not configured on server");
@@ -52,13 +53,13 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
     const connections = doc.data()?.connections || {};
     const partnerAppData = partnerAppConnectionDataSchema.safeParse(connections['partner_app'] || {});
 
-    if (!partnerAppData.success || !partnerAppData.data.partnerApiToken || !partnerAppData.data.partnerOrgId) {
-        throw new Error("Las credenciales de Shopify Partner (ID de Organización y Token de Acceso) no están configuradas o son inválidas.");
+    if (!partnerAppData.success || !partnerAppData.data.partnerApiToken || !partnerAppData.data.partnerShopDomain) {
+        throw new Error("Las credenciales de Shopify Partner (Dominio de la tienda y Token de Acceso) no están configuradas o son inválidas.");
     }
 
     return {
         partnerApiToken: partnerAppData.data.partnerApiToken,
-        partnerOrgId: partnerAppData.data.partnerOrgId,
+        partnerShopDomain: partnerAppData.data.partnerShopDomain,
     };
 }
 

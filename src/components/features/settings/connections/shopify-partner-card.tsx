@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -41,7 +42,7 @@ export function ShopifyPartnerCard({
       <CardHeader>
         <CardTitle>Conexión Global de Shopify Partners</CardTitle>
         <CardDescription>
-          Introduce tus credenciales de la API de Partner para la creación automatizada de tiendas para <strong>{editingTarget.name}</strong>.
+          Introduce las credenciales de una App Personalizada de tu tienda de Partner para la creación automatizada de tiendas para <strong>{editingTarget.name}</strong>.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -49,17 +50,17 @@ export function ShopifyPartnerCard({
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>¿Cómo obtener las credenciales?</AlertTitle>
           <AlertDescription>
-            Sigue nuestra <Link href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank" className="font-semibold underline">guía paso a paso</Link> para generar un Token de Acceso a la API en tu panel de Shopify Partner.
+            Sigue nuestra <Link href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank" className="font-semibold underline">guía paso a paso</Link> para generar un Token de Acceso de API en una App Personalizada dentro de tu tienda de Partner.
           </AlertDescription>
         </Alert>
         
         <div className="grid grid-cols-1 gap-4">
           <div>
-            <Label htmlFor="partnerOrgId">ID de tu Organización de Partner</Label>
-            <Input id="partnerOrgId" name="partnerOrgId" value={partnerFormData?.partnerOrgId || ''} onChange={handleInputChange} placeholder="Ej: 1234567 (encuéntralo en la URL de tu panel)" disabled={isSavingPartner} />
+            <Label htmlFor="partnerShopDomain">Dominio de tu Tienda de Partner (.myshopify.com)</Label>
+            <Input id="partnerShopDomain" name="partnerShopDomain" value={partnerFormData?.partnerShopDomain || ''} onChange={handleInputChange} placeholder="ej: mi-agencia.myshopify.com" disabled={isSavingPartner} />
           </div>
           <div>
-            <Label htmlFor="partnerApiToken">Token de Acceso de la API de Partner</Label>
+            <Label htmlFor="partnerApiToken">Token de Acceso de la API de Admin (shpat_...)</Label>
             <Input id="partnerApiToken" name="partnerApiToken" type="password" value={partnerFormData?.partnerApiToken || ''} onChange={handleInputChange} placeholder="••••••••••••••••••••••••••••••••••••" disabled={isSavingPartner} />
           </div>
         </div>
@@ -67,7 +68,7 @@ export function ShopifyPartnerCard({
           <div className="flex items-center gap-2 flex-wrap">
             <Button onClick={onSave} disabled={isSavingPartner}>
               {isSavingPartner ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2"/>}
-              Guardar Credenciales
+              Guardar Credenciales de Partner
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>

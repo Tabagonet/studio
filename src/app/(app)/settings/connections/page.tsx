@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User, Globe, Store, PlugZap, AlertCircle, RefreshCw, CheckCircle, Copy, ExternalLink } from "lucide-react";
+import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User, Globe, Store, PlugZap, AlertCircle, RefreshCw } from "lucide-react";
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -59,9 +59,8 @@ const INITIAL_STATE: ConnectionData = {
 };
 
 const INITIAL_PARTNER_APP_STATE: PartnerAppConnectionData = {
-    partnerOrgId: undefined,
-    clientId: undefined,
-    clientSecret: undefined,
+    partnerShopDomain: undefined,
+    partnerApiToken: undefined,
 };
 
 function getHostname(url: string | null | undefined): string | null {
@@ -311,12 +310,6 @@ export default function ConnectionsPage() {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
                 await fetchInitialData(user);
-                 const authSuccess = searchParams.get('shopify_auth');
-                 if(authSuccess === 'success') {
-                    toast({title: "¡Conexión con Shopify Exitosa!", description: "Se ha autorizado la aplicación correctamente."});
-                 } else if (authSuccess === 'error') {
-                     toast({title: "Error en la Conexión con Shopify", description: searchParams.get('error_message') || "No se pudo completar la autorización.", variant: "destructive"});
-                 }
             } else {
                 setIsLoading(false);
                 setIsDataLoading(false);
@@ -438,8 +431,8 @@ export default function ConnectionsPage() {
             const setActive = !isPartnerCreds;
 
             if (isPartnerCreds) {
-                 if (!partnerFormData.clientId || !partnerFormData.clientSecret || !partnerFormData.partnerOrgId) {
-                    toast({ title: "Datos Incompletos", description: "El Client ID, Client Secret y el ID de Organización son obligatorios.", variant: "destructive" });
+                 if (!partnerFormData.partnerShopDomain || !partnerFormData.partnerApiToken) {
+                    toast({ title: "Datos Incompletos", description: "El Dominio de la Tienda de Partner y el Token de Acceso son obligatorios.", variant: "destructive" });
                     setSaving(false); return;
                 }
                 keyToSave = `partner_app`;
