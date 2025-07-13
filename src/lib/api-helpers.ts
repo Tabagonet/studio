@@ -18,6 +18,7 @@ export const partnerAppConnectionDataSchema = z.object({
   clientId: z.string().min(1, "Client ID is required"),
   clientSecret: z.string().min(1, "Client Secret is required"),
 });
+export type PartnerAppConnectionData = z.infer<typeof partnerAppConnectionDataSchema>;
 
 interface ApiClients {
   wooApi: WooCommerceRestApiType | null;
