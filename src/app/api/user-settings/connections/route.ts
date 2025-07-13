@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
 
         const payloadSchema = z.object({
             key: z.string().min(1, "Key is required"),
-            connectionData: z.record(z.any()), // Raw data
+            connectionData: z.record(z.any()),
             setActive: z.boolean().optional().default(false),
             companyId: z.string().optional(),
             userId: z.string().optional(),
@@ -133,14 +133,12 @@ export async function POST(req: NextRequest) {
         
         const { key, connectionData, setActive, companyId: targetCompanyId, userId: targetUserId } = validationResult.data;
         
-        // ** THE FIX IS HERE: Parse the data again with the correct schema to get a clean object **
         let cleanConnectionData;
         if (key === 'shopify_partner') {
             cleanConnectionData = partnerConnectionDataSchema.parse(connectionData);
         } else {
             cleanConnectionData = connectionDataSchema.parse(connectionData);
         }
-
         console.log('POST /api/user-settings/connections: Datos validados', { key, connectionData: cleanConnectionData, setActive, targetCompanyId, targetUserId });
 
         let settingsRef;
@@ -163,29 +161,35 @@ export async function POST(req: NextRequest) {
             }
         }
         
-        const updatePayload: { [key: string]: any } = {
-            [`connections.${key}`]: cleanConnectionData // Use the clean data object
-        };
-
-        if (setActive) {
-            updatePayload.activeConnectionKey = key;
-        }
-
         const settingsSnap = await settingsRef.get();
-        const isUpdate = settingsSnap.exists && settingsSnap.data()?.connections?.[key];
-        console.log('POST /api/user-settings/connections: ¿Es actualización?', !!isUpdate);
+        const existingConnections = settingsSnap.exists ? settingsSnap.data()?.connections || {} : {};
+        const isUpdate = !!existingConnections[key];
+        console.log('POST /api/user-settings/connections: ¿Es actualización?', isUpdate);
 
         const isEditingOwnSettings = !targetCompanyId && (!targetUserId || targetUserId === uid);
         if (role !== 'super_admin' && isEditingOwnSettings) {
             const userDoc = await adminDb.collection('users').doc(uid).get();
             const siteLimit = userDoc.data()?.siteLimit ?? 1;
-            const connectionCount = settingsSnap.exists ? Object.keys(settingsSnap.data()?.connections || {}).filter(k => k !== 'shopify_partner').length : 0;
+            const connectionCount = Object.keys(existingConnections).filter(k => k !== 'shopify_partner').length;
             if (!isUpdate && key !== 'shopify_partner' && connectionCount >= siteLimit) {
                 console.error('POST /api/user-settings/connections: Límite de sitios alcanzado', { siteLimit, connectionCount });
                 return NextResponse.json({ error: `Límite de sitios alcanzado. Tu plan permite ${siteLimit} sitio(s).` }, { status: 403 });
             }
         }
         
+        const newConnections = {
+            ...existingConnections,
+            [key]: cleanConnectionData,
+        };
+        
+        const updatePayload: { [key: string]: any } = {
+            connections: newConnections
+        };
+        
+        if (setActive) {
+            updatePayload.activeConnectionKey = key;
+        }
+
         console.log('POST /api/user-settings/connections: Escribiendo en Firestore', { path: settingsRef.path, updatePayload });
         await settingsRef.set(updatePayload, { merge: true });
         console.log('POST /api/user-settings/connections: Escritura en Firestore completada');
