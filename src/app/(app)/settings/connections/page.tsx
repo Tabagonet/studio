@@ -1,3 +1,4 @@
+
 // src/app/(app)/settings/connections/page.tsx
 "use client";
 
@@ -32,8 +33,8 @@ interface ConnectionData {
 }
 
 type PartnerConnectionData = {
-    partnerApiToken: string;
-    partnerOrgId: string;
+  partnerApiToken: string;
+  partnerOrgId: string;
 };
 
 type AllConnections = { [key: string]: ConnectionData | PartnerConnectionData };
@@ -266,7 +267,7 @@ const ShopifyPartnerCard = ({
                     <AlertTitle>¿Cómo obtener las credenciales?</AlertTitle>
                     <AlertDescription>
                         <ol className="list-decimal list-inside space-y-1 mt-2">
-                            <li>Ve a tu panel de Shopify Partner: <strong>Ajustes &gt; Clientes de la API</strong>.</li>
+                            <li>Ve a tu panel de Shopify Partner y haz clic en: <strong>Ajustes &gt; Clientes de la API</strong>.</li>
                             <li>Crea o selecciona un <strong>Cliente de la API de Partner</strong>.</li>
                             <li>Copia el <strong>Token de acceso</strong> y el <strong>Organization ID</strong> (de la URL del panel) y pégalos abajo.</li>
                         </ol>
@@ -311,6 +312,7 @@ export default function ConnectionsPage() {
 
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [isSavingPartner, setIsSavingPartner] = useState(false); // New separate state
     
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
     
@@ -537,11 +539,13 @@ export default function ConnectionsPage() {
     };
     
     const handleSave = async (isPartnerCreds: boolean = false) => {
-        setIsSaving(true);
+        const setSaving = isPartnerCreds ? setIsSavingPartner : setIsSaving;
+        setSaving(true);
+
         const user = auth.currentUser;
         if (!user) {
             toast({ title: "Error de autenticación", variant: "destructive" });
-            setIsSaving(false); return;
+            setSaving(false); return;
         }
 
         try {
@@ -553,7 +557,7 @@ export default function ConnectionsPage() {
             if (isPartnerCreds) {
                 if (!partnerFormData.partnerApiToken || !partnerFormData.partnerOrgId) {
                     toast({ title: "Datos Incompletos", description: "El Token de Acceso y el Organization ID son obligatorios.", variant: "destructive" });
-                    setIsSaving(false); return;
+                    setSaving(false); return;
                 }
                 keyToSave = 'shopify_partner';
                 dataToSave = partnerFormData;
@@ -565,7 +569,7 @@ export default function ConnectionsPage() {
                 for (const item of urlsToValidate) {
                     if (item.url) {
                         try { new URL(item.url.includes('://') ? item.url : `https://${item.url}`); }
-                        catch (e) { toast({ title: "URL Inválida", description: `El formato de la URL para ${item.name} no es válido.`, variant: "destructive" }); setIsSaving(false); return; }
+                        catch (e) { toast({ title: "URL Inválida", description: `El formato de la URL para ${item.name} no es válido.`, variant: "destructive" }); setSaving(false); return; }
                     }
                 }
                 const wooHostname = getHostname(formData.wooCommerceStoreUrl);
@@ -575,7 +579,7 @@ export default function ConnectionsPage() {
                 keyToSave = selectedKey !== 'new' ? selectedKey : (wooHostname || wpHostname || shopifyHostname || '');
                 if (!keyToSave) {
                     toast({ title: "Datos Incompletos", description: "Por favor, introduce una URL válida para que sirva como identificador.", variant: "destructive" });
-                    setIsSaving(false); return;
+                    setSaving(false); return;
                 }
                 dataToSave = formData;
             }
@@ -606,7 +610,7 @@ export default function ConnectionsPage() {
         } catch (error: any) {
             toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
         } finally {
-            setIsSaving(false);
+            setSaving(false);
         }
     };
     
@@ -862,7 +866,7 @@ export default function ConnectionsPage() {
                          partnerFormData={partnerFormData}
                          onPartnerFormDataChange={handlePartnerFormDataChange}
                          onSave={() => handleSave(true)}
-                         isSavingPartner={isSaving}
+                         isSavingPartner={isSavingPartner}
                        />
                     )}
                 </div>
@@ -870,4 +874,3 @@ export default function ConnectionsPage() {
         </div>
     );
 }
-
