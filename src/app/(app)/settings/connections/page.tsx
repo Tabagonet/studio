@@ -21,6 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { ShopifyIcon } from '@/components/core/icons';
 import { ShopifyPartnerCard } from '@/components/features/settings/connections/shopify-partner-card';
+import type { PartnerAppConnectionData } from '@/lib/api-helpers';
 
 
 interface ConnectionData {
@@ -33,11 +34,6 @@ interface ConnectionData {
     shopifyStoreUrl?: string;
     shopifyApiPassword?: string;
 }
-
-type PartnerAppConnectionData = {
-  clientId: string;
-  clientSecret: string;
-};
 
 type AllConnections = { [key: string]: ConnectionData };
 
@@ -63,8 +59,9 @@ const INITIAL_STATE: ConnectionData = {
 };
 
 const INITIAL_PARTNER_APP_STATE: PartnerAppConnectionData = {
-    clientId: '',
-    clientSecret: '',
+    clientId: undefined,
+    clientSecret: undefined,
+    partnerShopDomain: undefined,
 };
 
 function getHostname(url: string | null | undefined): string | null {
@@ -438,7 +435,6 @@ export default function ConnectionsPage() {
             let keyToSave: string;
             let dataToSave: any;
             
-            // For partner creds, we just save. For store creds, we also set active.
             const setActive = !isPartnerCreds;
 
             if (isPartnerCreds) {

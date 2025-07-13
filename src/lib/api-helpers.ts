@@ -13,7 +13,6 @@ import type { ExtractedWidget } from './types';
 import { z } from 'zod';
 import crypto from 'crypto';
 
-// THIS IS NOW THE SINGLE SOURCE OF TRUTH
 export const partnerAppConnectionDataSchema = z.object({
   partnerShopDomain: z.string().optional(),
   clientId: z.string().optional(),
