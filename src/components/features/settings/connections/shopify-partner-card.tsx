@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, Copy, ExternalLink, Loader2, Trash2, Link as LinkIcon } from "lucide-react";
+import { AlertCircle, Copy, ExternalLink, Loader2, Save, Trash2, Link as LinkIcon } from "lucide-react";
 import type { PartnerAppConnectionData } from '@/lib/api-helpers';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
