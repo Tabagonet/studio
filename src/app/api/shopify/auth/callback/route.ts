@@ -34,7 +34,11 @@ export async function GET(req: NextRequest) {
              throw new Error("El parámetro 'state' de la autorización es inválido.");
         }
         
-        const { clientSecret } = await getPartnerAppCredentials(entityId, entityType as 'user' | 'company');
+        const { clientSecret, clientId } = await getPartnerAppCredentials(entityId, entityType as 'user' | 'company');
+
+        if (!clientSecret || !clientId) {
+            throw new Error("Client ID y Client Secret no están configurados en AutoPress AI para esta entidad.");
+        }
 
         // 1. Validate HMAC to ensure the request is from Shopify
         if (!validateHmac(searchParams, clientSecret)) {
@@ -44,7 +48,7 @@ export async function GET(req: NextRequest) {
         // 2. Exchange authorization code for a permanent access token
         const tokenUrl = `https://${shop}/admin/oauth/access_token`;
         const tokenResponse = await axios.post(tokenUrl, {
-            client_id: searchParams.get('client_id'), // The client_id is passed back in the request
+            client_id: clientId, // Use the fetched clientId
             client_secret: clientSecret,
             code,
         });
