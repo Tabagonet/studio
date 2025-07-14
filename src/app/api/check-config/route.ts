@@ -100,8 +100,8 @@ export async function GET(req: NextRequest) {
       const partnerAppData = partnerAppConnectionDataSchema.safeParse(allConnections['partner_app'] || {});
       if (partnerAppData.success && partnerAppData.data.partnerApiToken) {
           try {
-              const graphqlEndpoint = `https://partners.shopify.com/api/2025-07/graphql.json`;
-              await axios.post(graphqlEndpoint, { query: '{ organizations(first: 1) { nodes { id } } }' }, { 
+              const partnerApiEndpoint = `https://partners.shopify.com/api/2025-07/organizations.json`;
+              await axios.get(partnerApiEndpoint, { 
                 headers: { 
                     'Content-Type': 'application/json',
                     'X-Shopify-Access-Token': partnerAppData.data.partnerApiToken 

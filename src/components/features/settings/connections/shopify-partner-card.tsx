@@ -74,7 +74,7 @@ export function ShopifyPartnerCard({
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>¿Cómo obtener el token?</AlertTitle>
           <AlertDescription>
-            Sigue nuestra <Link href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank" className="font-semibold underline">guía paso a paso</Link> para crear un **Partner API client** y obtener tu token.
+            Sigue nuestra <Link href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank" className="font-semibold underline">guía paso a paso</Link> para crear un **Cliente de la API de Partner** y obtener tu token.
           </AlertDescription>
         </Alert>
         
