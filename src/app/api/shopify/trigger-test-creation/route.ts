@@ -5,7 +5,6 @@ import axios from 'axios';
 
 // This is a secure, internal-only API route. Its job is to read the server-side
 // secret key and then call the public-facing API endpoint with that key.
-// This ensures the secret key is never exposed and is always available.
 export async function POST(req: NextRequest) {
     console.log('[API /trigger-test-creation] Received POST request.');
     // 1. Authenticate the user making the request from the app
