@@ -68,7 +68,7 @@ export function ShopifyPartnerCard({
         <Alert>
           <AlertTitle>¿Cómo obtener las credenciales?</AlertTitle>
           <AlertDescription>
-            Sigue nuestra <Link href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank" className="font-semibold underline">guía paso a paso</Link> para crear un cliente de API en tu panel de Shopify Partner y obtener las credenciales.
+            Sigue nuestra <Link href="/docs/shopify-partner-setup" target="_blank" className="font-semibold underline">guía paso a paso</Link> para crear un cliente de API en tu panel de Shopify Partner y obtener las credenciales.
           </AlertDescription>
         </Alert>
         

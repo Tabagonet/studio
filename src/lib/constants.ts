@@ -28,7 +28,6 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'Shopify',
     requiredPlatform: 'shopify',
     items: [
-      { title: 'Automatizar Tienda', href: '/shopify', icon: ShopifyIcon, requiredRoles: ['admin', 'super_admin', 'product_manager'], disabled: true },
       { title: 'Trabajos de Creación', href: '/shopify/jobs', icon: ListChecks, requiredRoles: ['admin', 'super_admin'] },
     ]
   },
