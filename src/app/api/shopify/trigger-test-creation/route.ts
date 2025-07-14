@@ -1,4 +1,3 @@
-
 // src/app/api/shopify/trigger-test-creation/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -8,17 +7,21 @@ import axios from 'axios';
 // secret key and then call the public-facing API endpoint with that key.
 // This ensures the secret key is never exposed and is always available.
 export async function POST(req: NextRequest) {
+    console.log('[API /trigger-test-creation] Received POST request.');
     // 1. Authenticate the user making the request from the app
     let uid: string;
     try {
         const token = req.headers.get('Authorization')?.split('Bearer ')[1];
         if (!token) {
+            console.error('[API /trigger-test-creation] Auth Error: No token provided.');
             return NextResponse.json({ error: 'Authentication token not provided.' }, { status: 401 });
         }
         if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
         const decodedToken = await adminAuth.verifyIdToken(token);
         uid = decodedToken.uid;
+        console.log(`[API /trigger-test-creation] User ${uid} authenticated successfully.`);
     } catch (error: any) {
+        console.error('[API /trigger-test-creation] Auth Error:', error.message);
         return NextResponse.json({ error: 'Authentication failed.' }, { status: 401 });
     }
 
@@ -28,8 +31,10 @@ export async function POST(req: NextRequest) {
         console.error('SERVER ERROR: SHOPIFY_AUTOMATION_API_KEY is not set.');
         return NextResponse.json({ error: 'Servicio de automatización no configurado en el servidor.' }, { status: 500 });
     }
+    console.log('[API /trigger-test-creation] Internal API key found.');
 
     if (!process.env.NEXT_PUBLIC_BASE_URL || !adminDb) {
+        console.error('SERVER ERROR: NEXT_PUBLIC_BASE_URL or adminDb is not configured.');
         return NextResponse.json({ error: 'Error de configuración del servidor.' }, { status: 500 });
     }
 
@@ -47,6 +52,7 @@ export async function POST(req: NextRequest) {
             legalBusinessName: "AutoPress Testing SL",
             businessAddress: "Calle Ficticia 123, 08001, Barcelona, España"
         };
+        console.log('[API /trigger-test-creation] Test store data generated.');
 
         const companyQuery = await adminDb.collection('companies').where('name', '==', 'Grupo 4 alas S.L.').limit(1).get();
         if (companyQuery.empty) {
@@ -84,15 +90,19 @@ export async function POST(req: NextRequest) {
             id: ownerCompanyId,
           }
         };
+        console.log('[API /trigger-test-creation] Job payload constructed.');
 
         // 4. Call the public-facing API with the secret key
         const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/create-store`;
+        console.log(`[API /trigger-test-creation] Calling public API at ${targetUri}`);
+        
         const response = await axios.post(targetUri, jobPayload, {
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${internalApiKey}`,
             }
         });
+        console.log(`[API /trigger-test-creation] Public API responded with status ${response.status}.`);
 
         // 5. Return the result to the original caller (the server action)
         return NextResponse.json(response.data, { status: response.status });
@@ -100,7 +110,13 @@ export async function POST(req: NextRequest) {
     } catch (error: any) {
         const errorDetails = error.response?.data?.details || error.response?.data?.error || error.message;
         const errorMessage = `No se pudo iniciar el trabajo: ${errorDetails}`;
-        console.error('[trigger-test-creation Error]', errorMessage);
+        console.error('[API /trigger-test-creation] Error during job creation call:', errorMessage);
         return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
+}
+
+
+export async function GET(req: NextRequest) {
+    console.error("[API /trigger-test-creation] ERROR: Received a GET request, but this endpoint only supports POST. This is likely the cause of the 405 error.");
+    return NextResponse.json({ error: 'Method Not Allowed. This endpoint only accepts POST requests.' }, { status: 405 });
 }

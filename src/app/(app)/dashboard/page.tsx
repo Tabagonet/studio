@@ -112,8 +112,8 @@ export default function DashboardPage() {
     }
 
     try {
-        const token = await user.getIdToken();
         console.log('[Paso 2] Llamando a la acción del servidor...');
+        const token = await user.getIdToken();
         const result = await triggerShopifyCreationTestAction(token);
         
         if (result.success) {

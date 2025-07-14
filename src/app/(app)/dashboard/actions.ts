@@ -1,8 +1,8 @@
-
+// src/app/(app)/dashboard/actions.ts
 'use server';
 
-import axios from 'axios';
 import { adminAuth } from '@/lib/firebase-admin';
+import axios from 'axios';
 
 // This server action is now a secure proxy to call our internal API endpoint.
 // It uses the user's authentication to authorize itself.
@@ -19,33 +19,35 @@ export async function triggerShopifyCreationTestAction(token: string): Promise<{
     }
 
     if (!process.env.NEXT_PUBLIC_BASE_URL) {
+        console.error('[Server Action Config Error] NEXT_PUBLIC_BASE_URL is not set.');
         return { success: false, message: 'Error de configuración: La URL base de la aplicación no está definida en el servidor.' };
     }
     
-    // The target API route is now an internal, authenticated endpoint.
     const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/trigger-test-creation`;
-    console.log(`[Server Action] Calling secure proxy API endpoint: ${targetUri}`);
+    console.log(`[Server Action] Attempting to call secure proxy API endpoint via POST: ${targetUri}`);
 
     try {
-        // We use axios.post and pass the user's auth token for verification on the other side.
-        const response = await axios.post(targetUri, {}, {
+        const response = await fetch(targetUri, {
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
             }
         });
+        
+        console.log(`[Server Action] Proxy API responded with status: ${response.status}`);
+        const responseData = await response.json();
 
-        if (response.status !== 200 && response.status !== 202) {
-             throw new Error(`La API interna devolvió un estado inesperado: ${response.status}`);
+        if (!response.ok) {
+             throw new Error(`Proxy API call failed with status ${response.status}: ${responseData.error || JSON.stringify(responseData)}`);
         }
 
-        const jobId = response.data.jobId;
+        const jobId = responseData.jobId;
         console.log('[Server Action] Job creation successfully triggered by the internal API. Job ID:', jobId);
         return { success: true, message: '¡Trabajo de creación de tienda enviado! Revisa el progreso en la sección de Trabajos.', jobId: jobId };
 
     } catch (error: any) {
-        const errorDetails = error.response?.data?.details || error.response?.data?.error || error.message;
-        const errorMessage = `No se pudo iniciar el trabajo: ${errorDetails}`;
+        const errorMessage = `No se pudo iniciar el trabajo: ${error.message}`;
         console.error('[Server Action Error] Failed to trigger store creation via internal API:', errorMessage);
         return { success: false, message: errorMessage };
     }
