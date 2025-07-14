@@ -1,30 +1,21 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { handleCreateShopifyStore } from '@/lib/tasks/create-shopify-store';
-import { adminAuth } from '@/lib/firebase-admin';
 
-// This endpoint is now designed to be called by Cloud Tasks.
+// This endpoint is designed to be called by Cloud Tasks.
+// It uses a simple secret key for authentication.
 export async function POST(req: NextRequest) {
     console.log('[Task Handler] Received POST request to /api/tasks/create-shopify-store.');
     
     try {
-        // Security check is temporarily disabled to isolate the execution issue.
-        // It's crucial to re-enable this for production.
-        /*
-        const oidcToken = req.headers.get('Authorization')?.split('Bearer ')[1];
-        if (!oidcToken) {
-            console.warn('[Task Handler] Unauthorized: Missing OIDC token.');
-            return NextResponse.json({ error: 'Unauthorized: Missing token' }, { status: 401 });
-        }
+        const { searchParams } = new URL(req.url);
+        const secret = searchParams.get('secret');
 
-        if (!adminAuth) {
-            throw new Error("[Task Handler] Firebase Admin SDK is not initialized.");
+        if (secret !== process.env.CRON_SECRET) {
+            console.error('[Task Handler] Unauthorized: Invalid or missing secret key.');
+            return NextResponse.json({ error: 'Unauthorized: Invalid secret' }, { status: 401 });
         }
-        
-        const audience = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
-        await adminAuth.verifyIdToken(oidcToken, true);
-        console.log('[Task Handler] OIDC token verified successfully.');
-        */
+        console.log('[Task Handler] Secret key verified successfully.');
         
         const body = await req.json();
         const jobId = body.jobId;
@@ -47,7 +38,6 @@ export async function POST(req: NextRequest) {
         console.error(`[Task Handler] Critical error processing job:`, {
             message: error.message,
             stack: error.stack,
-            code: error.code
         });
         // Return a 500 error to signal failure, so Cloud Tasks will retry
         return NextResponse.json({ error: 'Task execution failed', details: error.message }, { status: 500 });

@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, admin, adminAuth, getServiceAccountCredentials } from '@/lib/firebase-admin';
+import { adminDb, admin, adminAuth } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { CloudTasksClient } from '@google-cloud/tasks';
 import { getPartnerCredentials } from '@/lib/api-helpers';
@@ -51,31 +51,25 @@ const testCreationSchema = z.object({
 async function enqueueShopifyCreationTask(jobId: string) {
     console.log(`[Shopify Create Store] Step 5.1: Enqueuing task for Job ID: ${jobId}`);
     
-    // Initialize client inside the function with explicit credentials for robustness
-    const tasksClient = new CloudTasksClient({
-      credentials: getServiceAccountCredentials(),
-      projectId: getServiceAccountCredentials().project_id,
-    });
-
+    if (!process.env.CRON_SECRET) {
+      throw new Error('CRON_SECRET environment variable is not set. Cannot create task.');
+    }
+    
+    const tasksClient = new CloudTasksClient();
     const projectId = process.env.FIREBASE_PROJECT_ID!;
     const LOCATION_ID = 'europe-west1'; 
     const QUEUE_ID = 'autopress-jobs1';
     
     const parent = tasksClient.queuePath(projectId, LOCATION_ID, QUEUE_ID);
     
-    const serviceAccountEmail = getServiceAccountCredentials().client_email;
-    if (!serviceAccountEmail) {
-        throw new Error('FIREBASE_CLIENT_EMAIL environment variable is not set. Cannot create task.');
-    }
-
-    const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
+    const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store?secret=${process.env.CRON_SECRET}`;
+    
     const task = {
         httpRequest: {
             httpMethod: 'POST' as const,
             url: targetUri,
             headers: { 'Content-Type': 'application/json' },
             body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
-            oidcToken: { serviceAccountEmail },
         },
     };
 
@@ -86,10 +80,7 @@ async function enqueueShopifyCreationTask(jobId: string) {
         return response;
     } catch (error: any) {
          console.error('[Shopify Create Store] Error al crear la tarea en Cloud Tasks:', error);
-         if (error.code === 7 && error.details?.includes('iam.serviceAccounts.actAs')) {
-            throw new Error(`Error de Permisos de IAM: La cuenta de servicio necesita el rol "Usuario de cuenta de servicio" sobre sí misma. Detalles: ${error.details}`);
-        }
-        if (error.code === 5) { // NOT_FOUND
+         if (error.code === 5) { // NOT_FOUND
             throw new Error(`La cola de tareas "${QUEUE_ID}" no existe en la ubicación "${LOCATION_ID}". Por favor, créala o verifica el nombre en queue.yaml. Error: ${error.details}`);
         }
         throw error;
