@@ -25,7 +25,6 @@ const GenerationInputSchema = z.object({
     numberOfBlogPosts: z.number().optional().default(2),
     setupBasicNav: z.boolean(),
   }),
-  entityId: z.string(), // Added to track AI usage
 });
 export type GenerationInput = z.infer<typeof GenerationInputSchema>;
 
@@ -112,7 +111,7 @@ Based on the context, generate a JSON object with the following keys. Only inclu
 Now, generate the JSON content based on these instructions.
 `;
 
-export async function generateShopifyStoreContent(input: GenerationInput): Promise<GeneratedContent> {
+export async function generateShopifyStoreContent(input: GenerationInput, entityId: string): Promise<GeneratedContent> {
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
   const model = genAI.getGenerativeModel({ 
       model: "gemini-1.5-flash-latest", 
@@ -132,8 +131,8 @@ export async function generateShopifyStoreContent(input: GenerationInput): Promi
   }
   
   // Increment AI usage count
-  if (adminDb && input.entityId) {
-      const userSettingsRef = adminDb.collection('user_settings').doc(input.entityId);
+  if (adminDb && entityId) {
+      const userSettingsRef = adminDb.collection('user_settings').doc(entityId);
       await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
   }
 

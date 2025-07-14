@@ -210,9 +210,8 @@ export async function populateShopifyStore(jobId: string) {
                 numberOfProducts: jobData.creationOptions.numberOfProducts ?? 3,
                 numberOfBlogPosts: jobData.creationOptions.numberOfBlogPosts ?? 2,
             },
-            entityId: jobData.entity.id, // Pass the entity ID for usage tracking
         };
-        const generatedContent = await generateShopifyStoreContent(aiInput);
+        const generatedContent = await generateShopifyStoreContent(aiInput, jobData.entity.id);
         
         await updateJobStatus(jobId, 'processing', 'Contenido generado. Creando páginas...');
         
