@@ -1,7 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { handleCreateShopifyStore } from '@/lib/tasks/create-shopify-store';
-import { adminAuth } from '@/lib/firebase-admin';
+import { adminAuth, getServiceAccountCredentials } from '@/lib/firebase-admin';
 
 // This endpoint is now designed to be called by Cloud Tasks.
 // It includes a verification step to ensure only authorized requests can invoke it.
@@ -16,7 +16,8 @@ export async function POST(req: NextRequest) {
         if (!adminAuth) {
             throw new Error("Firebase Admin SDK is not initialized.");
         }
-
+        
+        // Use the audience from your task creation if you set one, otherwise it defaults.
         await adminAuth.verifyIdToken(oidcToken, true);
 
         const body = await req.json();
