@@ -4,9 +4,8 @@ import { adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { CloudTasksClient } from '@google-cloud/tasks';
 
-// IMPORTANT: This API route is now only for external clients (like a real chatbot).
-// The internal test button now uses a Server Action directly.
-// This preserves the external API contract while simplifying the internal test flow.
+// This API route handles requests to create new Shopify stores.
+// It validates the input, creates a job record in Firestore, and enqueues a Cloud Task.
 
 export const dynamic = 'force-dynamic';
 

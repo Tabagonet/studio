@@ -5,13 +5,19 @@ import { adminDb, admin } from '@/lib/firebase-admin';
 import axios from 'axios';
 
 // This is a server action, designed to be called from a client component.
-// It now creates the job in Firestore and then DIRECTLY calls the task handler endpoint.
+// It now creates the job by calling the public API endpoint, mimicking an external request.
+// This ensures the entire task queuing flow is properly tested.
 
 export async function triggerShopifyCreationTestAction(): Promise<{ success: boolean; message: string; jobId?: string; }> {
-    console.log('[Server Action] Triggering Shopify Creation Test...');
+    console.log('[Server Action] Triggering Shopify Creation Test via public API endpoint...');
     
     if (!adminDb) {
         return { success: false, message: "Error del servidor: Firestore no está configurado." };
+    }
+    
+    const internalApiKey = process.env.SHOPIFY_AUTOMATION_API_KEY;
+    if (!internalApiKey) {
+        return { success: false, message: "Error de configuración: La clave SHOPIFY_AUTOMATION_API_KEY no está configurada en el servidor." };
     }
 
     const timestamp = Date.now();
@@ -65,40 +71,28 @@ export async function triggerShopifyCreationTestAction(): Promise<{ success: boo
             }
         };
 
-        const jobRef = adminDb.collection('shopify_creation_jobs').doc();
+        const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/create-store`;
         
-        await jobRef.set({
-          ...jobPayload,
-          status: 'pending',
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          logs: [{ timestamp: new Date(), message: 'Trabajo creado desde el botón de prueba.' }]
-        });
-    
-        const jobId = jobRef.id;
-
-        // Directly call the task handler endpoint instead of enqueuing a task
-        const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
+        console.log(`[Server Action] Calling API endpoint: ${targetUri}`);
         
-        // Note: For a production app, you'd secure this call, but since this is an internal
-        // test action running on the server, we can call it directly. The endpoint's own
-        // security is what matters for external calls.
-        console.log(`[Server Action] Directly calling task handler for Job ID: ${jobId} at ${targetUri}`);
-        
-        // This is a fire-and-forget call. We don't wait for it to finish.
-        axios.post(targetUri, { jobId }, {
-            // We don't need an OIDC token here because we are not acting as a Cloud Task.
-            // The endpoint security will need to be adjusted to allow this server-to-server call.
-        }).catch(error => {
-            // Log the error but don't fail the user-facing action, as the job is already created.
-            console.error(`[Server Action] Error calling task handler for job ${jobId}:`, error.message);
+        const response = await axios.post(targetUri, jobPayload, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${internalApiKey}`,
+            }
         });
 
-        console.log('[Server Action] Job creation triggered successfully. Job ID:', jobId);
+        if (response.status !== 202) {
+             throw new Error(`La API devolvió un estado inesperado: ${response.status}`);
+        }
+
+        const jobId = response.data.jobId;
+        console.log('[Server Action] Job creation successfully enqueued by the API. Job ID:', jobId);
         return { success: true, message: '¡Trabajo de creación de tienda enviado! Revisa el progreso en la sección de Trabajos.', jobId: jobId };
 
     } catch (error: any) {
-        console.error('[Server Action Error] Failed to trigger store creation:', error);
-        return { success: false, message: `No se pudo iniciar el trabajo: ${error.message}` };
+        console.error('[Server Action Error] Failed to trigger store creation:', error.response?.data || error.message);
+        const details = error.response?.data?.details?.message || error.message;
+        return { success: false, message: `No se pudo iniciar el trabajo: ${details}` };
     }
 }
