@@ -6,14 +6,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Loader2, Save, Trash2, Eye, EyeOff, Link as LinkIcon, ExternalLink, ShieldCheck } from "lucide-react";
+import { Loader2, Save, Trash2, Eye, EyeOff, Link as LinkIcon, ExternalLink, ShieldCheck, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
 import type { PartnerAppConnectionData } from '@/lib/api-helpers';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
-import { ConnectionStatusIndicator } from '@/components/core/ConnectionStatusIndicator';
-import { useRouter } from 'next/navigation';
 import { ShopifyIcon } from '@/components/core/icons';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
+
 
 interface ShopifyPartnerCardProps {
   editingTarget: { type: 'user' | 'company'; id: string | null; name: string };
@@ -27,6 +28,35 @@ interface ShopifyPartnerCardProps {
   onRefreshStatus: () => void;
   isCheckingStatus: boolean;
 }
+
+const ConnectionStatusBadge = ({ status, isLoading, text, helpText }: { status?: boolean, isLoading: boolean, text: string, helpText: string }) => {
+    return (
+        <TooltipProvider><Tooltip delayDuration={100}>
+            <TooltipTrigger>
+                <div className="flex items-center gap-2 text-sm p-2 border rounded-md w-full justify-center">
+                    {isLoading ? (
+                        <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Verificando...</span>
+                        </>
+                    ) : status ? (
+                        <>
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                            <span className="text-green-600 font-semibold">{text} Configurada</span>
+                        </>
+                    ) : (
+                        <>
+                            <AlertCircle className="h-4 w-4 text-destructive" />
+                            <span className="text-destructive font-semibold">{text} No Configurada</span>
+                        </>
+                    )}
+                </div>
+            </TooltipTrigger>
+            <TooltipContent><p>{helpText}</p></TooltipContent>
+        </Tooltip></TooltipProvider>
+    );
+};
+
 
 export function ShopifyPartnerCard({
   editingTarget,
@@ -42,7 +72,6 @@ export function ShopifyPartnerCard({
 }: ShopifyPartnerCardProps) {
   
   const [isTokenVisible, setIsTokenVisible] = React.useState(false);
-  const router = useRouter();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -59,17 +88,29 @@ export function ShopifyPartnerCard({
                 Credenciales para crear tiendas y para instalar la app que las poblará. Aplica a <strong>{editingTarget.name}</strong>.
                 </CardDescription>
             </div>
-             <div className="flex flex-col items-end gap-2">
-                <ConnectionStatusIndicator 
-                    status={configStatus} 
-                    isLoading={isCheckingStatus}
-                    onRefresh={onRefreshStatus}
-                    platformToShow="shopify_partner"
-                />
+             <div className="flex items-center gap-2">
+                 <TooltipProvider><Tooltip><TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon-sm" onClick={onRefreshStatus} disabled={isCheckingStatus}><RefreshCw className={cn("h-4 w-4 text-muted-foreground", isCheckingStatus && "animate-spin")} /></Button>
+                 </TooltipTrigger><TooltipContent><p>Refrescar Estados</p></TooltipContent></Tooltip></TooltipProvider>
              </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <ConnectionStatusBadge
+                status={configStatus?.shopifyPartnerConfigured}
+                isLoading={isCheckingStatus}
+                text="API de Partner"
+                helpText="Verifica si las credenciales de Partner API son válidas."
+            />
+            <ConnectionStatusBadge
+                status={configStatus?.shopifyCustomAppConfigured}
+                isLoading={isCheckingStatus}
+                text="App Personalizada (OAuth)"
+                helpText="Verifica si el Client ID y Secret para la autorización están guardados."
+            />
+        </div>
+
         <Alert>
           <AlertTitle>¿Cómo obtener las credenciales?</AlertTitle>
           <AlertDescription>

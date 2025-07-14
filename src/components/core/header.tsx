@@ -1,3 +1,4 @@
+
 // src/components/core/header.tsx
 "use client";
 
@@ -6,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { UserCircle, LogOut, Settings as SettingsIcon, Globe, Bell, Loader2, Store, PlugZap, AlertCircle, RefreshCw } from "lucide-react";
+import { UserCircle, LogOut, Settings as SettingsIcon, Bell, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,9 +23,6 @@ import { Skeleton } from '../ui/skeleton';
 import type { UserNotification } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-import { cn } from '@/lib/utils';
-import { ShopifyIcon } from './icons';
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 
 interface ConfigStatus {
@@ -33,6 +31,8 @@ interface ConfigStatus {
     wordPressConfigured: boolean;
     shopifyConfigured: boolean;
     shopifyPartnerConfigured?: boolean;
+    shopifyPartnerError?: string;
+    shopifyCustomAppConfigured?: boolean;
     pluginActive: boolean;
     activePlatform: 'woocommerce' | 'shopify' | null;
     assignedPlatform: 'woocommerce' | 'shopify' | null;
@@ -97,16 +97,7 @@ export function Header() {
         });
         if (response.ok) {
           const data = await response.json();
-          setConfigStatus({
-            activeStoreUrl: data.activeStoreUrl,
-            wooCommerceConfigured: data.wooCommerceConfigured,
-            wordPressConfigured: data.wordPressConfigured,
-            shopifyConfigured: data.shopifyConfigured,
-            shopifyPartnerConfigured: data.shopifyPartnerConfigured,
-            pluginActive: data.pluginActive,
-            activePlatform: data.activePlatform,
-            assignedPlatform: data.assignedPlatform,
-          });
+          setConfigStatus(data);
         } else {
           setConfigStatus(null);
         }
