@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
         
         // Verify the OIDC token to ensure the request is from a legitimate Cloud Task.
         // The audience must match the URL of this endpoint.
-        const serviceAccountEmail = getServiceAccountCredentials().clientEmail;
+        const serviceAccountEmail = getServiceAccountCredentials().client_email;
         if (!serviceAccountEmail) {
             throw new Error("[Task Handler] Could not determine service account email for token verification.");
         }
