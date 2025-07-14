@@ -4,6 +4,8 @@ import { adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { CloudTasksClient } from '@google-cloud/tasks';
 
+export const dynamic = 'force-dynamic';
+
 const shopifyStoreCreationSchema = z.object({
   webhookUrl: z.string().url({ message: "La URL del webhook no es válida." }),
   storeName: z.string().min(3, "El nombre de la tienda debe tener al menos 3 caracteres."),
