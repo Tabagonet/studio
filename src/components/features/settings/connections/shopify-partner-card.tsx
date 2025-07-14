@@ -78,10 +78,6 @@ export function ShopifyPartnerCard({
         
         <div className="grid grid-cols-1 gap-4">
           <div>
-            <Label htmlFor="partnerShopDomain">Dominio de tu Tienda de Partner (.myshopify.com)</Label>
-            <Input id="partnerShopDomain" name="partnerShopDomain" value={partnerFormData?.partnerShopDomain || ''} onChange={handleInputChange} placeholder="ej: tu-agencia.myshopify.com" disabled={isSavingPartner} />
-          </div>
-          <div>
             <Label htmlFor="partnerApiToken">Token de Acceso de la API de Admin (shpat_...)</Label>
             <Input id="partnerApiToken" name="partnerApiToken" type="password" value={partnerFormData?.partnerApiToken || ''} onChange={handleInputChange} placeholder="••••••••••••••••••••••••••••••••••••" disabled={isSavingPartner} />
           </div>

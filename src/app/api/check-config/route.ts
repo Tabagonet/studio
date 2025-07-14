@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     wooCommerceConfigured: false,
     wordPressConfigured: false,
     shopifyConfigured: false,
-    shopifyPartnerConfigured: false, // New field
+    shopifyPartnerConfigured: false,
     pluginActive: false,
     aiUsageCount: 0,
   };
@@ -99,12 +99,18 @@ export async function GET(req: NextRequest) {
 
       // Check partner connection
       const partnerAppData = partnerAppConnectionDataSchema.safeParse(allConnections['partner_app'] || {});
-      if (partnerAppData.success && partnerAppData.data.partnerApiToken && partnerAppData.data.partnerShopDomain) {
+      if (partnerAppData.success && partnerAppData.data.partnerApiToken) {
           try {
-              const shopUrl = `https://${partnerAppData.data.partnerShopDomain}`;
-              // A simple GraphQL query to verify the token and domain
-              const graphqlEndpoint = `${shopUrl}/admin/api/2024-07/graphql.json`;
-              await axios.post(graphqlEndpoint, { query: '{ shop { name } }' }, { headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': partnerAppData.data.partnerApiToken }, timeout: 8000 });
+              // The GraphQL endpoint for Partners API is generic and doesn't depend on the partner's shop domain.
+              const graphqlEndpoint = 'https://partners.shopify.com/api/2024-07/graphql.json';
+              // A simple query to verify the token is valid.
+              await axios.post(graphqlEndpoint, { query: '{ organizations(first: 1) { nodes { id } } }' }, { 
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Shopify-Access-Token': partnerAppData.data.partnerApiToken 
+                }, 
+                timeout: 8000 
+              });
               userConfig.shopifyPartnerConfigured = true;
           } catch(e) {
               console.warn("Shopify Partner API verification failed.", (e as any).response?.data || (e as any).message);

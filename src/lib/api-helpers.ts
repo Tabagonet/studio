@@ -14,7 +14,6 @@ import { z } from 'zod';
 import crypto from 'crypto';
 
 export const partnerAppConnectionDataSchema = z.object({
-  partnerShopDomain: z.string().optional(),
   partnerApiToken: z.string().optional(),
 });
 export type PartnerAppConnectionData = z.infer<typeof partnerAppConnectionDataSchema>;
@@ -35,7 +34,7 @@ interface ApiClients {
  * @returns An object containing the access token and organization ID.
  * @throws If credentials are not configured or invalid.
  */
-export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ partnerApiToken: string; partnerShopDomain: string; }> {
+export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ partnerApiToken: string; }> {
     if (!adminDb) {
         console.error('getPartnerCredentials: Firestore no está configurado');
         throw new Error("Firestore not configured on server");
@@ -53,13 +52,12 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
     const connections = doc.data()?.connections || {};
     const partnerAppData = partnerAppConnectionDataSchema.safeParse(connections['partner_app'] || {});
 
-    if (!partnerAppData.success || !partnerAppData.data.partnerApiToken || !partnerAppData.data.partnerShopDomain) {
-        throw new Error("Las credenciales de Shopify Partner (Dominio de la tienda y Token de Acceso) no están configuradas o son inválidas.");
+    if (!partnerAppData.success || !partnerAppData.data.partnerApiToken) {
+        throw new Error("El Token de Acceso de Shopify Partner no está configurado o es inválido.");
     }
 
     return {
         partnerApiToken: partnerAppData.data.partnerApiToken,
-        partnerShopDomain: partnerAppData.data.partnerShopDomain,
     };
 }
 

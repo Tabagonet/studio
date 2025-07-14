@@ -1,3 +1,4 @@
+
 # Guía: Obtener Token de Acceso para la API de Shopify
 
 Sigue estos pasos para generar un **token de acceso de una App Personalizada**. Este token nos permitirá crear tiendas de desarrollo en tu nombre de forma segura y automática. Solo necesitas hacerlo una vez por cada cuenta de Partner.
@@ -40,8 +41,7 @@ Esta es la parte más importante.
 ### Paso 6: Pega las Credenciales en AutoPress AI
 
 1.  Vuelve a la plataforma AutoPress AI, a **Ajustes > Conexiones**.
-2.  En la tarjeta "Conexión Global de Shopify Partners", pega los siguientes datos:
-    *   **Dominio de tu Tienda de Partner**: La URL de tu tienda de Partner, por ejemplo, `tu-agencia.myshopify.com`.
+2.  En la tarjeta "Conexión Global de Shopify Partners", pega el siguiente dato:
     *   **Token de Acceso de la API de Admin**: El token `shpat_...` que acabas de copiar.
 3.  Haz clic en **"Guardar Credenciales de Partner"**.
 
