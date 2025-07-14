@@ -22,7 +22,8 @@ type ServerConfigStatus = {
   wooCommerceConfigured: boolean;
   wordPressConfigured: boolean;
   shopifyConfigured: boolean;
-  shopifyPartnerConfigured?: boolean;
+  shopifyPartnerConfigured: boolean;
+  shopifyCustomAppConfigured: boolean;
   firebaseAdminSdk: boolean;
   recaptchaConfigured: boolean;
   apiKey: string | null;
@@ -462,6 +463,13 @@ export default function SettingsPage() {
                         Conexión Shopify Partner
                     </Label>
                     <StatusBadge status={serverConfig?.shopifyPartnerConfigured} loading={isLoadingConfig} />
+                </div>
+                <div className="flex items-center justify-between p-3 border rounded-md">
+                    <Label className="flex items-center">
+                        <ShieldCheck className="h-4 w-4 mr-2 text-blue-500" />
+                        App Personalizada (OAuth)
+                    </Label>
+                    <StatusBadge status={serverConfig?.shopifyCustomAppConfigured} loading={isLoadingConfig} />
                 </div>
             </>
           )}

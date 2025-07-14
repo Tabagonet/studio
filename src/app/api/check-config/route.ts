@@ -38,6 +38,7 @@ export async function GET(req: NextRequest) {
     wordPressConfigured: false,
     shopifyConfigured: false,
     shopifyPartnerConfigured: false,
+    shopifyCustomAppConfigured: false, // New status for the Custom OAuth App
     pluginActive: false,
     aiUsageCount: 0,
   };
@@ -97,17 +98,18 @@ export async function GET(req: NextRequest) {
       const activeKey = settingsSource.activeConnectionKey;
 
       const partnerAppData = partnerAppConnectionDataSchema.safeParse(allConnections['partner_app'] || {});
+      
+      // Check for Custom App (OAuth) credentials
+      userConfig.shopifyCustomAppConfigured = !!(partnerAppData.success && partnerAppData.data.clientId && partnerAppData.data.clientSecret);
+
+      // Check for Partner API credentials
       if (partnerAppData.success && partnerAppData.data.partnerApiToken && partnerAppData.data.organizationId) {
           try {
               const verificationEndpoint = `https://partners.shopify.com/${partnerAppData.data.organizationId}/api/2025-07/graphql.json`;
-              
               await axios.post(verificationEndpoint, 
                 { query: "{ shopifyQlSchema { queryRoot { fields { name } } } }" },
                 {
-                  headers: { 
-                      'Content-Type': 'application/json',
-                      'X-Shopify-Access-Token': partnerAppData.data.partnerApiToken 
-                  }, 
+                  headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': partnerAppData.data.partnerApiToken }, 
                   timeout: 8000 
               });
               userConfig.shopifyPartnerConfigured = true;

@@ -6,13 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Loader2, Save, Trash2, Eye, EyeOff, Link as LinkIcon, ExternalLink } from "lucide-react";
+import { Loader2, Save, Trash2, Eye, EyeOff, Link as LinkIcon, ExternalLink, ShieldCheck } from "lucide-react";
 import type { PartnerAppConnectionData } from '@/lib/api-helpers';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
 import { ConnectionStatusIndicator } from '@/components/core/ConnectionStatusIndicator';
 import { useRouter } from 'next/navigation';
+import { ShopifyIcon } from '@/components/core/icons';
 
 interface ShopifyPartnerCardProps {
   editingTarget: { type: 'user' | 'company'; id: string | null; name: string };
@@ -47,25 +48,6 @@ export function ShopifyPartnerCard({
     const { name, value } = e.target;
     onPartnerFormDataChange({ ...partnerFormData, [name]: value });
   };
-
-  const handleConnect = () => {
-    // This is a simplified OAuth flow starter.
-    // In a real app, you'd want to securely generate and store a state.
-    const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
-    const scopes = 'write_products,write_content,write_themes,read_products,read_content,read_themes';
-    
-    // We get the Client ID from the saved credentials for our Custom App
-    const clientId = partnerFormData.clientId; 
-
-    if (!clientId) {
-      alert("Por favor, guarda primero el Client ID de tu App Personalizada de Shopify.");
-      return;
-    }
-
-    const authUrl = `https://{SHOP_NAME}.myshopify.com/admin/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${editingTarget.id}`;
-    
-    alert("Esta es una URL de ejemplo. En una implementación real, {SHOP_NAME} sería reemplazado por la tienda del usuario.\n\n" + authUrl);
-  };
   
   return (
     <Card className="mt-8 border-primary/50">
@@ -77,12 +59,14 @@ export function ShopifyPartnerCard({
                 Credenciales para crear tiendas y para instalar la app que las poblará. Aplica a <strong>{editingTarget.name}</strong>.
                 </CardDescription>
             </div>
-             <ConnectionStatusIndicator 
-                status={configStatus} 
-                isLoading={isCheckingStatus}
-                onRefresh={onRefreshStatus}
-                platformToShow="shopify_partner"
-             />
+             <div className="flex flex-col items-end gap-2">
+                <ConnectionStatusIndicator 
+                    status={configStatus} 
+                    isLoading={isCheckingStatus}
+                    onRefresh={onRefreshStatus}
+                    platformToShow="shopify_partner"
+                />
+             </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -94,7 +78,10 @@ export function ShopifyPartnerCard({
         </Alert>
 
         <div className="pt-4 border-t">
-          <h3 className="text-lg font-semibold text-foreground">1. Credenciales de la API de Partner</h3>
+          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+            <ShopifyIcon className="h-5 w-5 text-[#7ab55c]" />
+            1. Credenciales de la API de Partner
+          </h3>
            <p className="text-sm text-muted-foreground mb-4">Necesarias para crear nuevas tiendas de desarrollo.</p>
             <div>
                 <Label htmlFor="organizationId">ID de Organización</Label>
@@ -133,7 +120,10 @@ export function ShopifyPartnerCard({
         </div>
 
         <div className="pt-4 border-t">
-            <h3 className="text-lg font-semibold text-foreground">2. Credenciales de la App Personalizada</h3>
+            <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-blue-500" />
+                2. Credenciales de la App Personalizada (OAuth)
+            </h3>
             <p className="text-sm text-muted-foreground mb-4">
               Necesarias para que, una vez creada la tienda, el cliente pueda autorizar que nuestra app la configure.
             </p>
