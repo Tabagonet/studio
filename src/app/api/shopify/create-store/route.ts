@@ -49,25 +49,24 @@ const testCreationSchema = z.object({
 
 async function enqueueShopifyCreationTask(jobId: string) {
     console.log(`[Shopify Create Store] Step 5.1: Enqueuing task for Job ID: ${jobId}`);
-
+    
+    // Explicitly get credentials first.
     const credentials = getServiceAccountCredentials();
-    const projectId = credentials.project_id;
     const serviceAccountEmail = credentials.client_email;
-
+    const projectId = credentials.project_id;
+    
     if (!serviceAccountEmail) {
         throw new Error('No se pudo obtener el email de la cuenta de servicio desde las credenciales.');
     }
-    
-    // Explicitly pass credentials to the client constructor
+    if (!projectId) {
+        throw new Error('No se pudo obtener el ID del proyecto desde las credenciales.');
+    }
+
     const tasksClient = new CloudTasksClient({ projectId, credentials });
 
     const LOCATION_ID = 'europe-west1'; 
     const QUEUE_ID = 'autopress-jobs';
     
-    if (!projectId) {
-        throw new Error('FIREBASE_PROJECT_ID no está configurado en las variables de entorno.');
-    }
-
     const parent = tasksClient.queuePath(projectId, LOCATION_ID, QUEUE_ID);
     const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
 
@@ -82,9 +81,16 @@ async function enqueueShopifyCreationTask(jobId: string) {
     };
 
     console.log(`[Shopify Create Store] Step 5.2: About to create task with payload for URI: ${targetUri}`);
-    const [response] = await tasksClient.createTask({ parent, task });
-    console.log(`[Shopify Create Store] Step 5.3: Task created successfully: ${response.name}`);
-    return response;
+    try {
+        const [response] = await tasksClient.createTask({ parent, task });
+        console.log(`[Shopify Create Store] Step 5.3: Task created successfully: ${response.name}`);
+        return response;
+    } catch (error: any) {
+         if (error.code === 7 && error.details?.includes('iam.serviceAccounts.actAs')) {
+            throw new Error(`Error de Permisos de IAM: La cuenta de servicio necesita el rol "Usuario de cuenta de servicio" sobre sí misma. Detalles: ${error.details}`);
+        }
+        throw error;
+    }
 }
 
 

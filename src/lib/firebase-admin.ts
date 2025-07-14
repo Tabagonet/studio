@@ -19,12 +19,7 @@ export function getServiceAccountCredentials(): { client_email: string; private_
         if (!parsedCredentials.client_email || !parsedCredentials.private_key || !parsedCredentials.project_id) {
            throw new Error("El JSON de la cuenta de servicio es inválido o le faltan propiedades clave (project_id, private_key, client_email).");
         }
-        // This object has the correct snake_case properties for Google Cloud libraries
-        return {
-            client_email: parsedCredentials.client_email,
-            private_key: parsedCredentials.private_key,
-            project_id: parsedCredentials.project_id,
-        };
+        return parsedCredentials;
       } catch (e: any) {
         console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", e.message);
         throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON no es un JSON válido.");
@@ -47,15 +42,11 @@ export function getServiceAccountCredentials(): { client_email: string; private_
 // Initialize the app only if it hasn't been initialized yet
 if (!admin_sdk.apps.length) {
   try {
-    const serviceAccountForFirebase = getServiceAccountCredentials();
+    const serviceAccount = getServiceAccountCredentials();
     admin_sdk.initializeApp({
-      // The Firebase SDK for Node.js expects camelCase properties.
-      // We are providing a manually constructed object that satisfies the `admin.ServiceAccount` interface.
-      credential: admin_sdk.credential.cert({
-          projectId: serviceAccountForFirebase.project_id,
-          clientEmail: serviceAccountForFirebase.client_email,
-          privateKey: serviceAccountForFirebase.private_key,
-      }),
+      // The Firebase SDK for Node.js expects camelCase properties, but the Google Cloud libraries need snake_case.
+      // Providing the direct serviceAccount object works for firebase-admin's internal initialization.
+      credential: admin_sdk.credential.cert(serviceAccount),
       storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
     });
     console.log('Firebase Admin SDK initialized successfully.');
