@@ -114,6 +114,7 @@ async function handleTestCreation(uid: string) {
       throw new Error("La empresa propietaria 'Grupo 4 alas S.L.' no se encuentra en la base de datos.");
     }
     const ownerCompanyId = companyQuery.docs[0].id;
+    console.log(`[Shopify Create Store] Test Call: Found owner company ID: ${ownerCompanyId}`);
 
     const jobPayload = {
       webhookUrl: "https://webhook.site/#!/view/1b8a9b3f-8c3b-4c1e-9d2a-9e1b5f6a7d1c", 
@@ -145,7 +146,7 @@ async function handleTestCreation(uid: string) {
         id: ownerCompanyId,
       }
     };
-    console.log(`[Shopify Create Store] Test Call: Test data generated.`);
+    console.log(`[Shopify Create Store] Test Call: Test data generated successfully.`);
     return jobPayload;
 }
 
@@ -235,11 +236,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, jobId: jobId }, { status: 202 });
 
   } catch (error: any) {
-    console.error('Error creating Shopify creation job:', { message: error.message, stack: error.stack });
+    console.error('Error creating Shopify creation job:', { 
+        message: error.message, 
+        stack: error.stack,
+        code: error.code,
+        details: error.response?.data || error
+    });
     const status = error.message?.includes('No autorizado') ? 401 : 500;
     return NextResponse.json({ 
         error: 'No se pudo crear el trabajo.', 
-        details: { message: error.message, stack: error.stack }
+        details: { message: error.message, stack: error.stack, code: error.code }
     }, { status });
   }
 }
