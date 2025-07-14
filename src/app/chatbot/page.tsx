@@ -55,6 +55,7 @@ function ChatbotComponent() {
             setMessages([{ id: 'start-1', role: 'model', content: data.response }]);
 
         } catch (error: any) {
+            console.error("Chatbot start error:", error);
             toast({ title: "Error del Chatbot", description: error.message, variant: "destructive" });
         } finally {
             setIsLoading(false);
@@ -96,6 +97,8 @@ function ChatbotComponent() {
 
             if (!response.ok) {
                 const errorData = await response.json();
+                // This is the new logging part for debugging
+                console.error("Chatbot API Error Response:", errorData);
                 throw new Error(errorData.error || "El chatbot no pudo responder.");
             }
 
