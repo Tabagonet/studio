@@ -167,15 +167,16 @@ export async function extractAnalysisData(messages: Message[]) {
 export async function extractStoreCreationData(messages: Message[]) {
     const conversationText = messages.map(m => m.content).join('\n\n');
 
+    // More robust regexes to capture data, ignoring case and looking for simple key-value patterns.
     return {
-        storeName: extractData(conversationText, /\*\*nombre de la tienda\*\*:\s*(.*?)(?:\n|\.|$)/i),
-        businessEmail: extractData(conversationText, /\*\*email del negocio\*\*:\s*(.*?)(?:\n|\.|$)/i),
-        countryCode: extractData(conversationText, /\*\*país\*\*:\s*(.*?)(?:\n|\.|$)/i),
-        currency: extractData(conversationText, /\*\*moneda\*\*:\s*(.*?)(?:\n|\.|$)/i),
-        brandDescription: extractData(conversationText, /\*\*descripción de la marca\*\*:\s*(.*?)(?:\n|\.|$)/i),
-        targetAudience: extractData(conversationText, /\*\*público objetivo\*\*:\s*(.*?)(?:\n|\.|$)/i),
-        brandPersonality: extractData(conversationText, /\*\*personalidad de marca\*\*:\s*(.*?)(?:\n|\.|$)/i),
-        legalBusinessName: extractData(conversationText, /\*\*nombre fiscal\*\*:\s*(.*?)(?:\n|\.|$)/i),
-        businessAddress: extractData(conversationText, /\*\*dirección fiscal\*\*:\s*(.*?)(?:\n|\.|$)/i),
+        storeName: extractData(conversationText, /nombre de la tienda(?:\s*es)?\s*:\s*"?([^"\n]+)"?/i),
+        businessEmail: extractData(conversationText, /email del negocio(?:\s*es)?\s*:\s*"?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"?/i),
+        countryCode: extractData(conversationText, /país(?:\s*es)?\s*:\s*"?([^"\n,]+)"?/i),
+        currency: extractData(conversationText, /moneda(?:\s*es)?\s*:\s*"?([^"\n,]+)"?/i),
+        brandDescription: extractData(conversationText, /descripción de la marca(?:\s*es)?\s*:\s*"?([^"\n]+)"?/i),
+        targetAudience: extractData(conversationText, /público objetivo(?:\s*es)?\s*:\s*"?([^"\n]+)"?/i),
+        brandPersonality: extractData(conversationText, /personalidad de marca(?:\s*es)?\s*:\s*"?([^"\n]+)"?/i),
+        legalBusinessName: extractData(conversationText, /nombre fiscal(?:\s*es)?\s*:\s*"?([^"\n]+)"?/i),
+        businessAddress: extractData(conversationText, /dirección fiscal(?:\s*es)?\s*:\s*"?([^"\n]+)"?/i),
     };
 }
