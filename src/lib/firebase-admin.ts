@@ -9,14 +9,12 @@ let adminAuth: admin.auth.Auth | null = null;
 let adminStorage: admin.storage.Storage | null = null;
 
 // Function to get the credentials, can be called from other server modules
-export function getServiceAccountCredentials(): admin.ServiceAccount {
+function getServiceAccountCredentials() {
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
     
     if (serviceAccountJson) {
       try {
         const parsedCredentials = JSON.parse(serviceAccountJson);
-        // The google-auth-library expects snake_case keys from the original JSON file.
-        // We will pass this object directly, so we need to ensure the keys are correct.
         if (!parsedCredentials.client_email || !parsedCredentials.private_key || !parsedCredentials.project_id) {
            throw new Error("El JSON de la cuenta de servicio es inválido o le faltan propiedades clave (project_id, private_key, client_email).");
         }
@@ -27,7 +25,6 @@ export function getServiceAccountCredentials(): admin.ServiceAccount {
       }
     } 
     
-    // Construct the object with snake_case keys for the auth library.
     const serviceAccountFromVars = {
       project_id: process.env.FIREBASE_PROJECT_ID,
       private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
@@ -35,25 +32,25 @@ export function getServiceAccountCredentials(): admin.ServiceAccount {
     };
     
     if (serviceAccountFromVars.project_id && serviceAccountFromVars.private_key && serviceAccountFromVars.client_email) {
-      // Cast to any to bypass the strict TypeScript check for the property names, then cast to ServiceAccount.
-      // We know this structure is correct for the underlying libraries.
-      return serviceAccountFromVars as any as admin.ServiceAccount;
+      return serviceAccountFromVars;
     }
 
-    throw new Error("Las credenciales de la cuenta de servicio de Firebase no están configuradas. Define FIREBASE_SERVICE_ACCOUNT_JSON (recomendado) o las variables FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, y FIREBASE_CLIENT_EMAIL.");
+    // Fallback: If no explicit credentials, Google Cloud environments might provide them automatically.
+    // Return undefined to let the SDK try its default discovery.
+    return undefined;
 }
 
 
 // Initialize the app only if it hasn't been initialized yet
 if (!admin_sdk.apps.length) {
   try {
-    const serviceAccount = getServiceAccountCredentials();
+    const credential = getServiceAccountCredentials();
     admin_sdk.initializeApp({
-      // The `cert` method correctly handles the object with snake_case keys.
-      credential: admin_sdk.credential.cert(serviceAccount),
+      // Use cert() only if we have explicit credentials, otherwise let the SDK find them.
+      credential: credential ? admin_sdk.credential.cert(credential) : undefined,
       storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
     });
-    console.log('Firebase Admin SDK initialized successfully.');
+    console.log('Firebase Admin SDK initialized.');
   } catch (error: any) {
     console.warn(`Firebase Admin SDK initialization error: ${error.message}`);
   }
@@ -67,4 +64,4 @@ if (admin_sdk.apps.length > 0) {
 }
 
 // Export the required value as 'admin' to maintain compatibility with other files
-export { adminDb, adminAuth, adminStorage, admin_sdk as admin };
+export { adminDb, adminAuth, adminStorage, admin_sdk as admin, getServiceAccountCredentials };

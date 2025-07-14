@@ -4,7 +4,6 @@ import { adminDb, admin, adminAuth } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { CloudTasksClient } from '@google-cloud/tasks';
 import { getPartnerCredentials } from '@/lib/api-helpers';
-import { getServiceAccountCredentials } from '@/lib/firebase-admin';
 
 
 // This API route handles requests to create new Shopify stores.
@@ -52,15 +51,9 @@ const testCreationSchema = z.object({
 async function enqueueShopifyCreationTask(jobId: string) {
     console.log(`[Shopify Create Store] Step 5.1: Enqueuing task for Job ID: ${jobId}`);
     
-    // Explicitly get credentials first.
-    const credentials = getServiceAccountCredentials();
-    const serviceAccountEmail = credentials.clientEmail;
-    
-    if (!serviceAccountEmail) {
-        throw new Error('No se pudo obtener el email de la cuenta de servicio desde las credenciales.');
-    }
-
-    const tasksClient = new CloudTasksClient({ credentials });
+    // The CloudTasksClient will automatically find the application default credentials
+    // in a standard Google Cloud environment. No need to pass them explicitly.
+    const tasksClient = new CloudTasksClient();
 
     const PROJECT_ID = process.env.FIREBASE_PROJECT_ID!;
     const LOCATION_ID = 'europe-west1'; 
@@ -68,6 +61,18 @@ async function enqueueShopifyCreationTask(jobId: string) {
     
     if (!PROJECT_ID) {
         throw new Error('FIREBASE_PROJECT_ID no está configurado en las variables de entorno.');
+    }
+    
+    // Get the service account email associated with the application's default credentials
+    const auth = admin.app().options.credential;
+    if (!auth || typeof auth !== 'object' || !('getAccessToken' in auth)) {
+      throw new Error("Could not determine service account email from initialized app.");
+    }
+    // This is a workaround to get the client email from the running app's credentials
+    const { client_email: serviceAccountEmail } = JSON.parse(JSON.stringify(auth));
+    
+    if (!serviceAccountEmail) {
+      throw new Error("No se pudo determinar el email de la cuenta de servicio desde las credenciales de la app.");
     }
 
     const parent = tasksClient.queuePath(PROJECT_ID, LOCATION_ID, QUEUE_ID);
