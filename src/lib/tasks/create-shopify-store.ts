@@ -52,16 +52,16 @@ export async function handleCreateShopifyStore(jobId: string) {
         
         const graphqlEndpoint = `https://partners.shopify.com/${partnerCreds.organizationId}/api/2025-07/graphql.json`;
         
+        // --- CORRECTED GRAPHQL MUTATION ---
         const graphqlMutation = {
           query: `
-            mutation DevelopmentStoreCreate($name: String!) {
-              appDevelopmentStoreCreate(input: {name: $name}) {
-                store {
-                  shopId
-                  domain: shopDomain
-                  transferDisabled
+            mutation shopCreate($name: String!) {
+              shopCreate(name: $name, type: DEVELOPMENT) {
+                shop {
+                  id
+                  name
+                  myshopifyDomain
                   password
-                  shop
                 }
                 userErrors {
                   field
@@ -94,21 +94,21 @@ export async function handleCreateShopifyStore(jobId: string) {
             throw new Error(`Shopify returned GraphQL errors: ${errorMessages}`);
         }
         
-        const creationResult = responseData.data.appDevelopmentStoreCreate;
+        const creationResult = responseData.data.shopCreate;
         if (creationResult.userErrors && creationResult.userErrors.length > 0) {
             const errorMessages = creationResult.userErrors.map((e: any) => `${e.field}: ${e.message}`).join(', ');
             throw new Error(`Shopify returned user errors: ${errorMessages}`);
         }
 
-        const createdStore = creationResult.store;
-        if (!createdStore || !createdStore.domain || !createdStore.shopId) {
+        const createdStore = creationResult.shop;
+        if (!createdStore || !createdStore.myshopifyDomain || !createdStore.id) {
             throw new Error('Shopify API did not return the created store data.');
         }
 
-        console.log(`[Task Logic - Job ${jobId}] Store created successfully: ${createdStore.domain}`);
+        console.log(`[Task Logic - Job ${jobId}] Store created successfully: ${createdStore.myshopifyDomain}`);
 
-        const storeAdminUrl = `https://${createdStore.domain}/admin`;
-        const storeUrl = `https://${createdStore.domain}`;
+        const storeAdminUrl = `https://${createdStore.myshopifyDomain}/admin`;
+        const storeUrl = `https://${createdStore.myshopifyDomain}`;
 
         if (!partnerCreds.clientId) {
             throw new Error("El Client ID de la App Personalizada no está configurado en los ajustes globales.");
@@ -117,7 +117,7 @@ export async function handleCreateShopifyStore(jobId: string) {
 
         const scopes = 'write_products,write_content,write_themes,read_products,read_content,read_themes,write_navigation,read_navigation';
         const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
-        const installUrl = `https://${createdStore.domain}/admin/oauth/authorize?client_id=${partnerCreds.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${jobId}`;
+        const installUrl = `https://${createdStore.myshopifyDomain}/admin/oauth/authorize?client_id=${partnerCreds.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${jobId}`;
         console.log(`[Task Logic - Job ${jobId}] Generated install URL: ${installUrl}`);
         
         await updateJobStatus(jobId, 'awaiting_auth', 'Tienda creada. Esperando autorización del usuario para poblar contenido.', {
