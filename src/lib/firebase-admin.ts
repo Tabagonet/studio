@@ -1,4 +1,3 @@
-
 // src/lib/firebase-admin.ts
 import type * as admin from 'firebase-admin';
 
