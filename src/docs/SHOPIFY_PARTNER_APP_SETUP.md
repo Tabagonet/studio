@@ -29,7 +29,7 @@ Sigue estos pasos para crear un "Cliente de API de Partner" en tu panel de Shopi
 ¡Casi has terminado! Después de guardar, la página se refrescará y verás tu nuevo cliente de API en la lista.
 
 1.  Busca la sección **"Credentials"** o **"API credentials"**.
-2.  Copia tu **ID de Organización (Organization ID)**. Suele ser un número que también puedes ver en la URL de tu navegador (ej: `https://partners.shopify.com/1234567/...).`
+2.  Copia tu **ID de Organización (Organization ID)**. Suele ser un número que también puedes ver en la URL de tu navegador (ej: `https://partners.shopify.com/1234567/...`).
 3.  Copia el **Token de Acceso (Access token)**. Este es un token largo que empieza por `shptka_...` o similar. Trátalo como una contraseña, es secreto.
 4.  Vuelve a la plataforma **AutoPress AI**, ve a `Ajustes > Conexiones` y, en la tarjeta de "Conexión Global de Shopify Partners", pega los dos valores en sus respectivos campos:
     *   `ID de Organización`

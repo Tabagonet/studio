@@ -22,6 +22,7 @@ type ServerConfigStatus = {
   wooCommerceConfigured: boolean;
   wordPressConfigured: boolean;
   shopifyConfigured: boolean;
+  shopifyPartnerConfigured?: boolean;
   firebaseAdminSdk: boolean;
   recaptchaConfigured: boolean;
   apiKey: string | null;
@@ -447,13 +448,22 @@ export default function SettingsPage() {
           )}
 
           {(isSuperAdmin || effectivePlatform === 'shopify') && (
-            <div className="flex items-center justify-between p-3 border rounded-md">
-                <Label className="flex items-center">
-                    <ShopifyIcon className="h-4 w-4 mr-2 text-green-600" />
-                    Conexión Shopify
-                </Label>
-                <StatusBadge status={serverConfig?.shopifyConfigured} loading={isLoadingConfig} />
-            </div>
+            <>
+                <div className="flex items-center justify-between p-3 border rounded-md">
+                    <Label className="flex items-center">
+                        <ShopifyIcon className="h-4 w-4 mr-2 text-green-600" />
+                        Conexión a Tienda Shopify
+                    </Label>
+                    <StatusBadge status={serverConfig?.shopifyConfigured} loading={isLoadingConfig} />
+                </div>
+                <div className="flex items-center justify-between p-3 border rounded-md">
+                    <Label className="flex items-center">
+                        <ShopifyIcon className="h-4 w-4 mr-2 text-[#7ab55c]" />
+                        Conexión Shopify Partner
+                    </Label>
+                    <StatusBadge status={serverConfig?.shopifyPartnerConfigured} loading={isLoadingConfig} />
+                </div>
+            </>
           )}
           
            <div className="mt-2 p-3 bg-accent/50 rounded-md flex items-start space-x-2">

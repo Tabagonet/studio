@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
               const verificationEndpoint = `https://partners.shopify.com/${partnerAppData.data.organizationId}/api/2025-07/graphql.json`;
               
               await axios.post(verificationEndpoint, 
-                { query: "{ shopifyQlSchema { queryRoot { fields { name } } } }" }, // A minimal, non-sensitive query
+                { query: "{ shopifyQlSchema { queryRoot { fields { name } } } }" },
                 {
                   headers: { 
                       'Content-Type': 'application/json',
