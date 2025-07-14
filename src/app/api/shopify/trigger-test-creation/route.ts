@@ -1,3 +1,4 @@
+
 // src/app/api/shopify/trigger-test-creation/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -107,6 +108,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(response.data, { status: response.status });
 
     } catch (error: any) {
+        // --- THIS IS THE CRITICAL FIX ---
+        // Ensure that even on failure, we return a valid JSON error response.
         const errorDetails = error.response?.data?.details || error.response?.data?.error || error.message;
         const errorMessage = `No se pudo iniciar el trabajo: ${errorDetails}`;
         console.error('[API /trigger-test-creation] Error during job creation call:', errorMessage);
