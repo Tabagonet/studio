@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Loader2, Save, Trash2, Eye, EyeOff } from "lucide-react";
 import type { PartnerAppConnectionData } from '@/lib/api-helpers';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
 import { ConnectionStatusIndicator } from '@/components/core/ConnectionStatusIndicator';
@@ -97,7 +97,7 @@ export function ShopifyPartnerCard({
                     type={isTokenVisible ? 'text' : 'password'} 
                     value={partnerFormData?.partnerApiToken || ''} 
                     onChange={handleInputChange} 
-                    placeholder="shpat_..." 
+                    placeholder="shptka_..." 
                     disabled={isSavingPartner}
                     className="font-mono"
                  />
