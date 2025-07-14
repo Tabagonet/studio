@@ -1,3 +1,4 @@
+
 import type { LucideIcon } from 'lucide-react';
 import type { SeoInterpretationOutput, SuggestLinksInput, SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
 
@@ -425,6 +426,7 @@ export interface ShopifyCreationJob {
       type: 'user' | 'company';
       id: string;
   };
-  createdStoreUrl?: string;
-  createdStoreAdminUrl?: string;
+  createdStoreUrl?: string | null;
+  createdStoreAdminUrl?: string | null;
+  storefrontPassword?: string | null;
 }

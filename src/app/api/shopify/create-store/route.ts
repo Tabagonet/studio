@@ -114,10 +114,13 @@ export async function POST(req: NextRequest) {
     }
 
     const entityData = entityDoc.data()!;
-    if (!entityData.partnerApiToken) {
+    const partnerAppData = entityData.connections?.partner_app;
+
+    if (!partnerAppData || !partnerAppData.partnerApiToken || !partnerAppData.organizationId) {
         return NextResponse.json({ error: 'La entidad no tiene una conexión de Shopify Partner activa. Por favor, conecta tu cuenta en Ajustes > Conexiones.' }, { status: 403 });
     }
-
+    
+    // Site limit check can remain if it's a per-user limit.
     if (entity.type === 'user') {
         const userDoc = await adminDb.collection('users').doc(entity.id).get();
         if (!userDoc.exists) throw new Error("El usuario especificado para crear la tienda no existe.");
@@ -150,7 +153,6 @@ export async function POST(req: NextRequest) {
 
     const jobId = jobRef.id;
 
-    // Enqueue the task to be run by Cloud Tasks
     await enqueueShopifyCreationTask(jobId);
 
     return NextResponse.json({ success: true, jobId: jobId }, { status: 202 });

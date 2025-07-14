@@ -100,18 +100,51 @@ export async function handleCreateShopifyStore(jobId: string) {
         const storeAdminUrl = `https://${createdStore.domain}/admin`;
         const storeUrl = `https://${createdStore.domain}`;
         
-        await updateJobStatus(jobId, 'processing', `Tienda base creada en: ${storeUrl}. La población de contenido no está soportada en este flujo.`, {
+        // This is the final successful state.
+        await updateJobStatus(jobId, 'completed', '¡Tienda creada con éxito! La población automática de contenido no está soportada. Por favor, accede al admin para continuar.', {
             createdStoreUrl: storeUrl,
             createdStoreAdminUrl: storeAdminUrl,
             storefrontPassword: createdStore.password, 
         });
         
-        await updateJobStatus(jobId, 'completed', '¡Tienda creada con éxito!');
+        // Notify the webhook of success
+        if (jobData.webhookUrl) {
+            const webhookPayload = {
+                jobId: jobId,
+                status: 'completed',
+                message: '¡Tienda creada y poblada con éxito!',
+                storeName: jobData.storeName,
+                storeUrl: storeUrl,
+                adminUrl: storeAdminUrl,
+            };
+            try {
+                await axios.post(jobData.webhookUrl, webhookPayload, { timeout: 10000 });
+            } catch (webhookError: any) {
+                console.warn(`[Job ${jobId}] Failed to send success webhook to ${jobData.webhookUrl}: ${webhookError.message}`);
+                // Don't fail the job if the webhook fails, just log it.
+            }
+        }
 
 
     } catch (error: any) {
         console.error(`[Job ${jobId}] Failed to create Shopify store:`, error.response?.data || error.message);
-        await updateJobStatus(jobId, 'error', `Error fatal en la creación: ${error.message}`);
+        const errorMessage = error.message;
+        await updateJobStatus(jobId, 'error', `Error fatal en la creación: ${errorMessage}`);
+        
+        const jobDoc = await jobRef.get();
+        if (jobDoc.exists && jobDoc.data()?.webhookUrl) {
+             const webhookPayload = {
+                jobId: jobId,
+                status: 'error',
+                message: errorMessage,
+                storeName: jobDoc.data()!.storeName,
+            };
+            try {
+                 await axios.post(jobDoc.data()!.webhookUrl, webhookPayload, { timeout: 10000 });
+            } catch (webhookError: any) {
+                 console.warn(`[Job ${jobId}] Failed to send ERROR webhook to ${jobDoc.data()!.webhookUrl}: ${webhookError.message}`);
+            }
+        }
     }
 }
 
