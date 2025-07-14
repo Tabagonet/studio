@@ -1,6 +1,6 @@
 
 import { admin, adminDb } from '@/lib/firebase-admin';
-import axios, { AxiosInstance } from 'axios';
+import axios from 'axios';
 import { getPartnerCredentials } from '@/lib/api-helpers';
 import { createShopifyApi } from '@/lib/shopify';
 import { GenerationInput, generateShopifyStoreContent } from '@/ai/flows/shopify-content-flow';
@@ -56,7 +56,7 @@ export async function handleCreateShopifyStore(jobId: string) {
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
         // --- Execute Shopify CLI command ---
-        const cliCommand = `shopify app dev store create --name "${jobData.storeName}" --organization-id ${partnerCreds.organizationId} --store-type development`;
+        const cliCommand = `./node_modules/.bin/shopify app dev store create --name "${jobData.storeName}" --organization-id ${partnerCreds.organizationId} --store-type development`;
         console.log(`[Task Logic - Job ${jobId}] Executing Shopify CLI command: ${cliCommand}`);
 
         // Set the SHOPIFY_CLI_PARTNERS_TOKEN environment variable for the command

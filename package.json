@@ -76,6 +76,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@shopify/cli": "^3.64.0",
     "@types/async-retry": "^1.4.8",
     "@types/cheerio": "^0.22.35",
     "@types/form-data": "^2.5.0",
