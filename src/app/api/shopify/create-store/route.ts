@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, admin, adminAuth } from '@/lib/firebase-admin';
+import { adminDb, admin, adminAuth, getServiceAccountCredentials } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { CloudTasksClient } from '@google-cloud/tasks';
 import { getPartnerCredentials } from '@/lib/api-helpers';
@@ -50,24 +50,25 @@ const testCreationSchema = z.object({
 async function enqueueShopifyCreationTask(jobId: string) {
     console.log(`[Shopify Create Store] Step 5.1: Enqueuing task for Job ID: ${jobId}`);
 
-    // Get the service account email safely from the service account JSON
-    const serviceAccountEmail = admin.app().options.credential.clientEmail;
+    const credentials = getServiceAccountCredentials();
+    const projectId = credentials.project_id;
+    const serviceAccountEmail = credentials.client_email;
+
     if (!serviceAccountEmail) {
-        throw new Error('No se pudo determinar el email de la cuenta de servicio desde las credenciales de la app.');
+        throw new Error('No se pudo obtener el email de la cuenta de servicio desde las credenciales.');
     }
     
-    // CloudTasksClient will use the application's default credentials, which are now correctly initialized.
-    const tasksClient = new CloudTasksClient();
+    // Explicitly pass credentials to the client constructor
+    const tasksClient = new CloudTasksClient({ projectId, credentials });
 
-    const PROJECT_ID = process.env.FIREBASE_PROJECT_ID!;
     const LOCATION_ID = 'europe-west1'; 
     const QUEUE_ID = 'autopress-jobs';
     
-    if (!PROJECT_ID) {
+    if (!projectId) {
         throw new Error('FIREBASE_PROJECT_ID no está configurado en las variables de entorno.');
     }
 
-    const parent = tasksClient.queuePath(PROJECT_ID, LOCATION_ID, QUEUE_ID);
+    const parent = tasksClient.queuePath(projectId, LOCATION_ID, QUEUE_ID);
     const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
 
     const task = {
