@@ -11,6 +11,7 @@ import {
   useReactTable,
   type ColumnFiltersState,
   type SortingState,
+  type RowSelectionState,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -20,13 +21,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getColumns } from "./columns"; 
 import type { ShopifyCreationJob } from "@/lib/types";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
+import { Checkbox } from "@/components/ui/checkbox";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { deleteShopifyJobsAction } from "./actions";
+
 
 export function JobsDataTable() {
   const [data, setData] = React.useState<ShopifyCreationJob[]>([]);
@@ -34,8 +39,12 @@ export function JobsDataTable() {
   
   const [sorting, setSorting] = React.useState<SortingState>([{ id: 'createdAt', desc: true }]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
 
   const { toast } = useToast();
+  const [isDeleting, setIsDeleting] = React.useState<string[]>([]);
+  const [isBatchDeleting, setIsBatchDeleting] = React.useState(false);
+
 
   const fetchData = React.useCallback(async () => {
     setIsLoading(true);
@@ -78,8 +87,41 @@ export function JobsDataTable() {
         clearInterval(intervalId);
     };
   }, [fetchData]);
+  
+  const handleDelete = async (jobIds: string[]) => {
+      const user = auth.currentUser;
+      if (!user) {
+          toast({ title: "No autenticado", variant: "destructive" });
+          return;
+      }
+      const token = await user.getIdToken();
+      const result = await deleteShopifyJobsAction(jobIds, token);
+      
+      if (result.success) {
+          toast({ title: "Trabajo(s) eliminado(s)", description: `${jobIds.length} trabajo(s) han sido eliminados.`});
+          fetchData();
+          if (jobIds.length > 1) {
+              setRowSelection({});
+          }
+      } else {
+          toast({ title: "Error al eliminar", description: result.error, variant: "destructive" });
+      }
+  };
 
-  const columns = React.useMemo(() => getColumns(), []);
+  const handleSingleDelete = async (jobId: string) => {
+    setIsDeleting([jobId]);
+    await handleDelete([jobId]);
+    setIsDeleting([]);
+  };
+
+  const handleBatchDelete = async () => {
+    const selectedIds = Object.keys(rowSelection);
+    setIsBatchDeleting(true);
+    await handleDelete(selectedIds);
+    setIsBatchDeleting(false);
+  };
+  
+  const columns = React.useMemo(() => getColumns(handleSingleDelete, (jobId) => isDeleting.includes(jobId)), [isDeleting]);
 
   const table = useReactTable({
     data,
@@ -87,6 +129,7 @@ export function JobsDataTable() {
     state: {
       sorting,
       columnFilters,
+      rowSelection,
     },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
@@ -94,6 +137,7 @@ export function JobsDataTable() {
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    onRowSelectionChange: setRowSelection,
   });
 
   return (
@@ -107,6 +151,30 @@ export function JobsDataTable() {
           }
           className="max-w-sm"
         />
+        {Object.keys(rowSelection).length > 0 && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+                <Button variant="destructive" disabled={isBatchDeleting}>
+                    {isBatchDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4"/>}
+                    Eliminar ({Object.keys(rowSelection).length})
+                </Button>
+            </AlertDialogTrigger>
+             <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>¿Confirmar eliminación en lote?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Esta acción eliminará permanentemente los {Object.keys(rowSelection).length} trabajos seleccionados. No se pueden recuperar.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleBatchDelete} className={buttonVariants({ variant: 'destructive' })}>
+                        Sí, eliminar
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </div>
 
       <div className="rounded-md border">
@@ -131,7 +199,7 @@ export function JobsDataTable() {
               </TableRow>
             ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
