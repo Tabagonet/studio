@@ -21,11 +21,16 @@ const chatbotRequestSchema = z.object({
 
 async function verifyRecaptcha(token: string | undefined) {
     const secretKey = process.env.RECAPTCHA_SECRET_KEY;
+    
+    // If secret key is not set, bypass verification (useful for local dev)
     if (!secretKey) {
-        console.error("RECAPTCHA_SECRET_KEY is not set in environment variables. Chatbot verification is not possible.");
-        throw new Error("El servicio de chatbot no está configurado correctamente en el servidor.");
+        console.warn("RECAPTCHA_SECRET_KEY is not set. Bypassing reCAPTCHA verification. THIS SHOULD NOT HAPPEN IN PRODUCTION.");
+        return true;
     }
+    
+    // If secret is set, but no token provided, fail verification
     if (!token || token === 'not-available') {
+        console.warn("reCAPTCHA token not provided by client.");
         throw new Error("Verificación de seguridad reCAPTCHA fallida. Por favor, refresca la página e inténtalo de nuevo.");
     }
     
