@@ -1,8 +1,9 @@
+
 # Defines the Cloud Tasks queues used by the application.
 # This file is used by gcloud CLI and Firebase App Hosting to provision queues.
 
 queue:
-- name: autopress-jobs
+- name: autopress-jobs1
   rate: 5/s
   retry_config:
     task_age_limit: 24h
