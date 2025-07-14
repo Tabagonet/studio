@@ -44,8 +44,6 @@ if (!admin_sdk.apps.length) {
   try {
     const serviceAccount = getServiceAccountCredentials();
     admin_sdk.initializeApp({
-      // The Firebase SDK for Node.js expects camelCase properties, but the Google Cloud libraries need snake_case.
-      // Providing the direct serviceAccount object works for firebase-admin's internal initialization.
       credential: admin_sdk.credential.cert(serviceAccount),
       storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
     });

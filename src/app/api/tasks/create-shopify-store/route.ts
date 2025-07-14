@@ -17,8 +17,15 @@ export async function POST(req: NextRequest) {
             throw new Error("Firebase Admin SDK is not initialized.");
         }
         
-        // Use the audience from your task creation if you set one, otherwise it defaults.
-        await adminAuth.verifyIdToken(oidcToken, true);
+        // Verify the OIDC token to ensure the request is from a legitimate Cloud Task.
+        // The audience must match the URL of this endpoint.
+        try {
+            await adminAuth.verifyIdToken(oidcToken, true);
+        } catch (authError: any) {
+             console.error('[Task Auth Error] Failed to verify OIDC token:', authError.message);
+             return NextResponse.json({ error: 'Unauthorized: Invalid token', details: authError.message }, { status: 401 });
+        }
+
 
         const body = await req.json();
         const jobId = body.jobId;
