@@ -55,10 +55,11 @@ export async function handleCreateShopifyStore(jobId: string) {
         
         // --- Execute Shopify CLI command using spawn ---
         const cliArgs = [
-            'app', 'dev', 'store', 'create',
-            `--name="${jobData.storeName}"`,
+            'app',
+            'dev',
+            `--store-name`, `"${jobData.storeName}"`,
             `--organization-id=${partnerCreds.organizationId}`,
-            '--store-type=development'
+            // We can add other flags if needed, like --email
         ];
         
         const cliCommand = './node_modules/.bin/shopify';
@@ -67,7 +68,7 @@ export async function handleCreateShopifyStore(jobId: string) {
         // Set the SHOPIFY_CLI_PARTNERS_TOKEN environment variable for the command
         const env = { ...process.env, SHOPIFY_CLI_PARTNERS_TOKEN: partnerCreds.partnerApiToken };
         
-        const child = spawn(cliCommand, cliArgs, { env: env, shell: true });
+        const child = spawn(cliCommand, cliArgs, { env: env, shell: false }); // Set shell to false for better security
 
         let stdout = '';
         let stderr = '';
