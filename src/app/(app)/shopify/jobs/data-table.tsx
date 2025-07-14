@@ -43,8 +43,6 @@ export function JobsDataTable() {
 
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = React.useState<string[]>([]);
-  const [isBatchDeleting, setIsBatchDeleting] = React.useState(false);
-
 
   const fetchData = React.useCallback(async () => {
     setIsLoading(true);
@@ -95,6 +93,8 @@ export function JobsDataTable() {
           return;
       }
       const token = await user.getIdToken();
+      setIsDeleting(jobIds);
+
       const result = await deleteShopifyJobsAction(jobIds, token);
       
       if (result.success) {
@@ -106,22 +106,15 @@ export function JobsDataTable() {
       } else {
           toast({ title: "Error al eliminar", description: result.error, variant: "destructive" });
       }
+      setIsDeleting([]);
   };
 
-  const handleSingleDelete = async (jobId: string) => {
-    setIsDeleting([jobId]);
-    await handleDelete([jobId]);
-    setIsDeleting([]);
-  };
-
-  const handleBatchDelete = async () => {
-    const selectedIds = Object.keys(rowSelection);
-    setIsBatchDeleting(true);
-    await handleDelete(selectedIds);
-    setIsBatchDeleting(false);
-  };
+  const isJobDeleting = (jobId: string) => isDeleting.includes(jobId) || isDeleting.includes('batch');
   
-  const columns = React.useMemo(() => getColumns(handleSingleDelete, (jobId) => isDeleting.includes(jobId)), [isDeleting]);
+  const columns = React.useMemo(() => getColumns(
+      (jobId) => handleDelete([jobId]),
+      isJobDeleting
+  ), [isDeleting]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const table = useReactTable({
     data,
@@ -154,8 +147,8 @@ export function JobsDataTable() {
         {Object.keys(rowSelection).length > 0 && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={isBatchDeleting}>
-                    {isBatchDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4"/>}
+                <Button variant="destructive" disabled={isDeleting.length > 0}>
+                    {isDeleting.includes('batch') ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4"/>}
                     Eliminar ({Object.keys(rowSelection).length})
                 </Button>
             </AlertDialogTrigger>
@@ -168,7 +161,7 @@ export function JobsDataTable() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleBatchDelete} className={buttonVariants({ variant: 'destructive' })}>
+                    <AlertDialogAction onClick={() => handleDelete(Object.keys(rowSelection))} className={buttonVariants({ variant: 'destructive' })}>
                         Sí, eliminar
                     </AlertDialogAction>
                 </AlertDialogFooter>
