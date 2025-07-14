@@ -102,14 +102,21 @@ export default function DashboardPage() {
 
   const handleRunTest = async () => {
     setIsTestRunning(true);
-    const result = await triggerShopifyCreationTestAction();
-    if (result.success) {
-      toast({ title: '¡Éxito!', description: result.message });
-      router.push('/shopify/jobs');
-    } else {
-      toast({ title: 'Error en la Prueba', description: result.message, variant: 'destructive' });
+    try {
+        const result = await triggerShopifyCreationTestAction();
+        if (result.success) {
+          toast({ title: '¡Éxito!', description: result.message });
+          router.push('/shopify/jobs');
+        } else {
+          // This will now catch the structured error from the server action
+          throw new Error(result.message || 'La acción del servidor falló sin un mensaje de error específico.');
+        }
+    } catch(error: any) {
+        console.error("Error al iniciar la prueba de creación de tienda:", error);
+        toast({ title: 'Error en la Prueba', description: error.message, variant: 'destructive', duration: 10000 });
+    } finally {
+        setIsTestRunning(false);
     }
-    setIsTestRunning(false);
   }
 
   const filteredLogs = useMemo(() => {
@@ -288,12 +295,12 @@ export default function DashboardPage() {
              <TooltipProvider>
                 <Tooltip delayDuration={100}>
                   <TooltipTrigger asChild>
-                    <div className={cn(!shopifyPartnerConfigured && "cursor-not-allowed")}>
-                      <Card className={cn("shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col", !shopifyPartnerConfigured && "bg-muted/50")}>
+                    <div className={cn(!configStatus?.shopifyPartnerConfigured && "cursor-not-allowed")}>
+                      <Card className={cn("shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col", !configStatus?.shopifyPartnerConfigured && "bg-muted/50")}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-lg font-medium">Prueba de Creación de Tienda</CardTitle><PlayCircle className="h-6 w-6 text-[#7ab55c]" /></CardHeader>
                         <CardContent className="flex flex-col flex-grow">
                           <CardDescription className="mb-4 text-sm">Ejecuta una prueba completa del flujo de creación de tiendas de desarrollo con datos de ejemplo.</CardDescription>
-                          <Button onClick={handleRunTest} disabled={isTestRunning || !shopifyPartnerConfigured}>
+                          <Button onClick={handleRunTest} disabled={isTestRunning || !configStatus?.shopifyPartnerConfigured}>
                             {isTestRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShopifyIcon className="mr-2 h-4 w-4" />}
                             {isTestRunning ? 'Ejecutando...' : 'Iniciar Prueba'}
                           </Button>
@@ -301,7 +308,7 @@ export default function DashboardPage() {
                       </Card>
                     </div>
                   </TooltipTrigger>
-                  {!shopifyPartnerConfigured && (<TooltipContent><p>La conexión global de Shopify Partner no está configurada.</p></TooltipContent>)}
+                  {!configStatus?.shopifyPartnerConfigured && (<TooltipContent><p>La conexión global de Shopify Partner no está configurada.</p></TooltipContent>)}
                 </Tooltip>
             </TooltipProvider>
           </div>

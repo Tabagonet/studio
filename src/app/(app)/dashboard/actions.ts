@@ -71,6 +71,7 @@ export async function triggerShopifyCreationTestAction(): Promise<{ success: boo
 
         const apiEndpoint = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/create-store`;
         
+        console.log(`[Server Action] Calling endpoint: ${apiEndpoint}`);
         const response = await axios.post(apiEndpoint, jobPayload, {
             headers: {
                 'Content-Type': 'application/json',
@@ -88,6 +89,6 @@ export async function triggerShopifyCreationTestAction(): Promise<{ success: boo
 
     } catch (error: any) {
         console.error('[Server Action Error] Failed to trigger store creation:', error.response?.data || error.message);
-        return { success: false, message: `No se pudo iniciar el trabajo: ${error.response?.data?.details || error.message}` };
+        return { success: false, message: `No se pudo iniciar el trabajo: ${error.response?.data?.details?.message || error.response?.data?.error || error.message}` };
     }
 }
