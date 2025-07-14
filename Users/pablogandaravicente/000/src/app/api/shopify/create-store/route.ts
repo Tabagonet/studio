@@ -77,7 +77,7 @@ async function enqueueShopifyCreationTask(jobId: string) {
         },
     };
 
-    console.log(`[Shopify Create Store] Step 5.2: About to create task with payload for URI: ${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`);
+    console.log(`[Shopify Create Store] Step 5.2: About to create task with payload for URI: ${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store?secret=${cronSecret}`);
     try {
         const [response] = await tasksClient.createTask({ parent, task });
         console.log(`[Shopify Create Store] Step 5.3: Task created successfully: ${response.name}`);
