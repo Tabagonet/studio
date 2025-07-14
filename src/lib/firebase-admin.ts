@@ -12,21 +12,25 @@ let adminStorage: admin.storage.Storage | null = null;
 export function getServiceAccountCredentials(): admin.ServiceAccount {
     // The credentials can be provided as a single JSON string or as individual environment variables.
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-    const serviceAccountFromVars = {
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      // Replace escaped newlines in private key
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    };
-
+    
     if (serviceAccountJson) {
       try {
-        return JSON.parse(serviceAccountJson);
+        const parsedCredentials = JSON.parse(serviceAccountJson);
+        if (!parsedCredentials.client_email || !parsedCredentials.private_key || !parsedCredentials.project_id) {
+           throw new Error("El JSON de la cuenta de servicio es inválido o le faltan propiedades clave (project_id, private_key, client_email).");
+        }
+        return parsedCredentials;
       } catch (e) {
         console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", e);
         throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON no es un JSON válido.");
       }
     } 
+    
+    const serviceAccountFromVars = {
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    };
     
     if (serviceAccountFromVars.projectId && serviceAccountFromVars.privateKey && serviceAccountFromVars.clientEmail) {
       return {
@@ -36,7 +40,7 @@ export function getServiceAccountCredentials(): admin.ServiceAccount {
       };
     }
 
-    throw new Error("Las credenciales de la cuenta de servicio de Firebase no están configuradas en las variables de entorno.");
+    throw new Error("Las credenciales de la cuenta de servicio de Firebase no están configuradas. Define FIREBASE_SERVICE_ACCOUNT_JSON (recomendado) o las variables FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, y FIREBASE_CLIENT_EMAIL.");
 }
 
 
