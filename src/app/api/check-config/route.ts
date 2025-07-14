@@ -100,25 +100,23 @@ export async function GET(req: NextRequest) {
       const partnerAppData = partnerAppConnectionDataSchema.safeParse(allConnections['partner_app'] || {});
       if (partnerAppData.success && partnerAppData.data.partnerApiToken) {
           try {
-              const graphqlEndpoint = `https://partners.shopify.com/api/2025-07/graphql.json`;
-              await axios.post(
-                graphqlEndpoint, 
-                { query: '{ shop: developmentStoreCreate(name: "test-connection-12345") { userErrors { field message } } }' }, // A lightweight query
-                { 
+              // CORRECTED: Using the REST API endpoint for verification, which is more stable and less prone to 404s.
+              const verificationEndpoint = `https://partners.shopify.com/api/2024-04/organization.json`;
+              await axios.get(verificationEndpoint, {
                   headers: { 
                       'Content-Type': 'application/json',
                       'Authorization': `Bearer ${partnerAppData.data.partnerApiToken}` 
                   }, 
                   timeout: 8000 
-                }
-              );
-              // A successful call (even with userErrors for a duplicate store) means the token is valid.
+              });
+              // A successful 200 OK from this endpoint means the token is valid.
               userConfig.shopifyPartnerConfigured = true;
           } catch(e) {
               const error = e as any;
               console.error("[API /check-config] Shopify Partner API verification failed. Details:", error.response?.data || error.message);
               userConfig.shopifyPartnerConfigured = false;
-              userConfig.shopifyPartnerError = error.response?.data?.errors?.[0]?.message || error.response?.data?.error_description || error.message;
+              // Pass the specific error message to the frontend for better debugging.
+              userConfig.shopifyPartnerError = error.response?.data?.errors || error.message || "Error desconocido";
           }
       }
       
