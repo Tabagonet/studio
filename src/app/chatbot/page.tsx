@@ -32,13 +32,13 @@ function ChatbotComponent() {
     const { executeRecaptcha } = useGoogleReCaptcha();
 
     const startConversation = useCallback(async () => {
-        if (messages.length > 0 || isLoading) {
+        if (messages.length > 0 || isLoading || !executeRecaptcha) {
             return;
         }
 
         setIsLoading(true);
         try {
-            const recaptchaToken = executeRecaptcha ? await executeRecaptcha('chatbot_interaction') : 'not-available';
+            const recaptchaToken = await executeRecaptcha('chatbot_interaction');
             
             const response = await fetch('/api/chatbot', {
                 method: 'POST',
@@ -63,8 +63,11 @@ function ChatbotComponent() {
     }, [executeRecaptcha, messages.length, isLoading, toast]);
 
     useEffect(() => {
-        startConversation();
-    }, [startConversation]);
+        // Only start the conversation if executeRecaptcha is ready and we haven't started yet.
+        if (executeRecaptcha && messages.length === 0) {
+            startConversation();
+        }
+    }, [executeRecaptcha, startConversation, messages.length]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -84,7 +87,10 @@ function ChatbotComponent() {
         setIsLoading(true);
 
         try {
-            const recaptchaToken = executeRecaptcha ? await executeRecaptcha('chatbot_interaction') : 'not-available';
+            if (!executeRecaptcha) {
+                throw new Error("La verificación de seguridad reCAPTCHA no está lista. Por favor, refresca la página e inténtalo de nuevo.");
+            }
+            const recaptchaToken = await executeRecaptcha('chatbot_interaction');
 
             const response = await fetch('/api/chatbot', {
                 method: 'POST',
@@ -97,7 +103,6 @@ function ChatbotComponent() {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                // This is the new logging part for debugging
                 console.error("Chatbot API Error Response:", errorData);
                 throw new Error(errorData.error || "El chatbot no pudo responder.");
             }
