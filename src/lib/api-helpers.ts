@@ -15,6 +15,9 @@ import crypto from 'crypto';
 
 export const partnerAppConnectionDataSchema = z.object({
   partnerApiToken: z.string().optional(),
+  partnerShopDomain: z.string().optional(),
+  clientId: z.string().optional(),
+  clientSecret: z.string().optional(),
 });
 export type PartnerAppConnectionData = z.infer<typeof partnerAppConnectionDataSchema>;
 
@@ -28,13 +31,48 @@ interface ApiClients {
 
 
 /**
+ * Retrieves Shopify Partner App credentials from Firestore for the given entity.
+ * @param entityId The Firebase UID of the user or the ID of the company.
+ * @param entityType The type of entity ('user' or 'company').
+ * @returns The credentials object.
+ * @throws If credentials are not configured.
+ */
+export async function getPartnerAppCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ clientId: string; clientSecret: string; partnerApiToken?: string; }> {
+    if (!adminDb) {
+        console.error('getPartnerAppCredentials: Firestore no está configurado');
+        throw new Error("Firestore not configured on server");
+    }
+
+    const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
+    const settingsRef = adminDb.collection(settingsCollection).doc(entityId);
+    
+    const doc = await settingsRef.get();
+    if (!doc.exists) {
+        throw new Error(`${entityType === 'company' ? 'Company' : 'User'} settings not found`);
+    }
+
+    const partnerAppData = partnerAppConnectionDataSchema.safeParse(doc.data() || {});
+
+    if (!partnerAppData.success || !partnerAppData.data.clientId || !partnerAppData.data.clientSecret) {
+        throw new Error("El Client ID y Client Secret de la App de Partner no están configurados.");
+    }
+
+    return {
+        clientId: partnerAppData.data.clientId,
+        clientSecret: partnerAppData.data.clientSecret,
+        partnerApiToken: partnerAppData.data.partnerApiToken,
+    };
+}
+
+
+/**
  * Retrieves Shopify Partner credentials from Firestore.
  * @param entityId The Firebase UID of the user or the ID of the company.
  * @param entityType The type of entity ('user' or 'company').
  * @returns An object containing the access token and organization ID.
  * @throws If credentials are not configured or invalid.
  */
-export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ partnerApiToken: string; }> {
+export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ partnerApiToken: string; partnerShopDomain: string; }> {
     if (!adminDb) {
         console.error('getPartnerCredentials: Firestore no está configurado');
         throw new Error("Firestore not configured on server");
@@ -49,15 +87,15 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
         throw new Error(`${entityType === 'company' ? 'Company' : 'User'} settings not found`);
     }
 
-    const connections = doc.data()?.connections || {};
-    const partnerAppData = partnerAppConnectionDataSchema.safeParse(connections['partner_app'] || {});
+    const partnerAppData = partnerAppConnectionDataSchema.safeParse(doc.data() || {});
 
-    if (!partnerAppData.success || !partnerAppData.data.partnerApiToken) {
-        throw new Error("El Token de Acceso de Shopify Partner no está configurado o es inválido.");
+    if (!partnerAppData.success || !partnerAppData.data.partnerApiToken || !partnerAppData.data.partnerShopDomain) {
+        throw new Error("El Token de Acceso y/o el Dominio de la Tienda de Partner de Shopify no están configurados o son inválidos.");
     }
 
     return {
         partnerApiToken: partnerAppData.data.partnerApiToken,
+        partnerShopDomain: partnerAppData.data.partnerShopDomain,
     };
 }
 

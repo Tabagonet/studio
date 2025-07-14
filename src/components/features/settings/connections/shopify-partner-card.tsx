@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, Loader2, Save, Trash2, CheckCircle } from "lucide-react";
+import { AlertCircle, Loader2, Save, Trash2, CheckCircle, Link as LinkIcon } from "lucide-react";
 import type { PartnerAppConnectionData } from '@/lib/api-helpers';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
@@ -54,6 +54,22 @@ export function ShopifyPartnerCard({
     onPartnerFormDataChange({ ...partnerFormData, [name]: value });
   };
   
+  const handleConnect = () => {
+    const { clientId } = partnerFormData;
+    if (!clientId) {
+      alert("Por favor, guarda primero tu Client ID.");
+      return;
+    }
+
+    const scopes = "write_development_stores,read_development_stores";
+    const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
+    const state = `${editingTarget.type}:${editingTarget.id}`;
+
+    const authUrl = `https://partners.shopify.com/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${state}`;
+    
+    window.location.href = authUrl;
+  };
+  
   return (
     <Card className="mt-8 border-primary/50">
       <CardHeader>
@@ -72,21 +88,26 @@ export function ShopifyPartnerCard({
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>¿Cómo obtener las credenciales?</AlertTitle>
           <AlertDescription>
-            Sigue nuestra <Link href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank" className="font-semibold underline">guía paso a paso</Link> para generar un Token de Acceso para tu organización de Partner.
+            Sigue nuestra <Link href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank" className="font-semibold underline">guía paso a paso</Link> para crear una App en tu Panel de Partner.
           </AlertDescription>
         </Alert>
         
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <Label htmlFor="partnerApiToken">Token de Acceso de la API de Admin (shpat_...)</Label>
-            <Input id="partnerApiToken" name="partnerApiToken" type="password" value={partnerFormData?.partnerApiToken || ''} onChange={handleInputChange} placeholder="••••••••••••••••••••••••••••••••••••" disabled={isSavingPartner} />
+            <Label htmlFor="clientId">Client ID</Label>
+            <Input id="clientId" name="clientId" value={partnerFormData?.clientId || ''} onChange={handleInputChange} placeholder="Ej: 547a82a4abfb..." disabled={isSavingPartner} />
+          </div>
+          <div>
+            <Label htmlFor="clientSecret">Client Secret</Label>
+            <Input id="clientSecret" name="clientSecret" type="password" value={partnerFormData?.clientSecret || ''} onChange={handleInputChange} placeholder="••••••••••••••••••••••••••••••••" disabled={isSavingPartner} />
           </div>
         </div>
+
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
           <div className="flex items-center gap-2 flex-wrap">
             <Button onClick={onSave} disabled={isSavingPartner}>
               {isSavingPartner ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2"/>}
-              Guardar Credenciales de Partner
+              Guardar Credenciales
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -110,6 +131,10 @@ export function ShopifyPartnerCard({
               </AlertDialogContent>
             </AlertDialog>
           </div>
+          <Button onClick={handleConnect} disabled={isSavingPartner || !partnerFormData.clientId}>
+            <LinkIcon className="mr-2 h-4 w-4" />
+            Conectar con Shopify
+          </Button>
         </div>
       </CardContent>
     </Card>

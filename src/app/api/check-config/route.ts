@@ -77,16 +77,9 @@ export async function GET(req: NextRequest) {
         }
     }
     
-    if (entityType === 'company') {
-        const companyDoc = await adminDb.collection('companies').doc(entityId).get();
-        settingsSource = companyDoc.data();
-        if (settingsSource) assignedPlatform = settingsSource.platform;
-    } else { // user
-        const userSettingsDoc = await adminDb.collection('user_settings').doc(entityId).get();
-        settingsSource = userSettingsDoc.data();
-        const targetUserDoc = await adminDb.collection('users').doc(entityId).get();
-        if (targetUserDoc.exists) assignedPlatform = targetUserDoc.data()?.platform || null;
-    }
+    const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
+    const settingsDoc = await adminDb.collection(settingsCollection).doc(entityId).get();
+    settingsSource = settingsDoc.data();
     
     const loggedInUserSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
     if (loggedInUserSettingsDoc.exists) {
@@ -94,17 +87,21 @@ export async function GET(req: NextRequest) {
     }
     
     if (settingsSource) {
+      if (entityType === 'company') {
+          assignedPlatform = settingsSource.platform || null;
+      } else {
+          const userDoc = await adminDb.collection('users').doc(entityId).get();
+          if (userDoc.exists) assignedPlatform = userDoc.data()?.platform || null;
+      }
+
       const allConnections = settingsSource.connections || {};
       const activeKey = settingsSource.activeConnectionKey;
 
-      // Check partner connection
-      const partnerAppData = partnerAppConnectionDataSchema.safeParse(allConnections['partner_app'] || {});
-      if (partnerAppData.success && partnerAppData.data.partnerApiToken) {
+      const partnerAppData = partnerAppConnectionDataSchema.safeParse(settingsSource || {});
+      if (partnerAppData.success && partnerAppData.data.partnerApiToken && partnerAppData.data.partnerShopDomain) {
           try {
-              // The GraphQL endpoint for Partners API is generic and doesn't depend on the partner's shop domain.
-              const graphqlEndpoint = 'https://partners.shopify.com/api/2024-07/graphql.json';
-              // A simple query to verify the token is valid.
-              await axios.post(graphqlEndpoint, { query: '{ organizations(first: 1) { nodes { id } } }' }, { 
+              const graphqlEndpoint = `https://${partnerAppData.data.partnerShopDomain}/admin/api/2024-07/graphql.json`;
+              await axios.post(graphqlEndpoint, { query: '{ shop { name } }' }, { 
                 headers: { 
                     'Content-Type': 'application/json',
                     'X-Shopify-Access-Token': partnerAppData.data.partnerApiToken 

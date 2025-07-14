@@ -4,7 +4,7 @@ import axios from 'axios';
 import { generateShopifyStoreContent, type GeneratedContent, type GenerationInput } from '@/ai/flows/shopify-content-flow';
 import { createShopifyApi } from '@/lib/shopify';
 import type { AxiosInstance } from 'axios';
-import { getPartnerCredentials } from '@/lib/api-helpers';
+import { getPartnerAppCredentials } from '@/lib/api-helpers';
 import { CloudTasksClient } from '@google-cloud/tasks';
 
 
@@ -69,7 +69,7 @@ export async function handleCreateShopifyStore(jobId: string) {
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
         const jobData = jobDoc.data()!;
         
-        const { partnerApiToken, partnerShopDomain } = await getPartnerCredentials(jobData.entity.id, jobData.entity.type);
+        const { partnerApiToken, partnerShopDomain } = await getPartnerAppCredentials(jobData.entity.id, jobData.entity.type);
         
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
@@ -82,6 +82,9 @@ export async function handleCreateShopifyStore(jobId: string) {
                 store {
                   shopId
                   domain
+                  transferDisabled
+                  password
+                  shop
                 }
                 userErrors {
                   field
@@ -125,13 +128,17 @@ export async function handleCreateShopifyStore(jobId: string) {
         const storeAdminUrl = `https://${createdStore.domain}/admin`;
         const storeUrl = `https://${createdStore.domain}`;
         
-        // The population task will check for this token and fail gracefully if it's not present.
-        await updateJobStatus(jobId, 'processing', `Tienda base creada en: ${storeUrl}. Encolando tarea de población de tienda.`, {
+        await updateJobStatus(jobId, 'processing', `Tienda base creada en: ${storeUrl}.`, {
             createdStoreUrl: storeUrl,
             createdStoreAdminUrl: storeAdminUrl,
+            // The password can be used for manual access if needed, but the primary flow for the user
+            // will be through the transfer link sent to their email by Shopify.
+            storefrontPassword: createdStore.password, 
         });
         
-        await enqueueShopifyPopulationTask(jobId);
+        // At this point, the task is considered complete from a creation standpoint.
+        // Population is a separate, optional step that might be handled differently in the future.
+        await updateJobStatus(jobId, 'completed', '¡Tienda creada con éxito!');
 
 
     } catch (error: any) {

@@ -60,6 +60,7 @@ const INITIAL_STATE: ConnectionData = {
 };
 
 const INITIAL_PARTNER_APP_STATE: PartnerAppConnectionData = {
+    partnerShopDomain: undefined,
     partnerApiToken: undefined,
 };
 
@@ -431,8 +432,8 @@ export default function ConnectionsPage() {
             const setActive = !isPartnerCreds;
 
             if (isPartnerCreds) {
-                 if (!partnerFormData.partnerApiToken) {
-                    toast({ title: "Datos Incompletos", description: "El Token de Acceso es obligatorio.", variant: "destructive" });
+                 if (!partnerFormData.clientId || !partnerFormData.clientSecret) {
+                    toast({ title: "Datos Incompletos", description: "El Client ID y Client Secret son obligatorios.", variant: "destructive" });
                     setSaving(false); return;
                 }
                 keyToSave = `partner_app`;
