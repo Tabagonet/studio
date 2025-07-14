@@ -15,6 +15,7 @@ export async function triggerShopifyCreationTestAction(): Promise<{ success: boo
 
     const internalApiKey = process.env.SHOPIFY_AUTOMATION_API_KEY;
     if (!internalApiKey) {
+        console.error("[Server Action Error] SHOPIFY_AUTOMATION_API_KEY is not defined in the server environment.");
         return { success: false, message: "Error del servidor: La clave SHOPIFY_AUTOMATION_API_KEY no está configurada." };
     }
 
