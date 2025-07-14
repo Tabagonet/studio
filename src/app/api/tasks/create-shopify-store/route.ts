@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { handleCreateShopifyStore } from '@/lib/tasks/create-shopify-store';
 import { adminAuth } from '@/lib/firebase-admin';
 
-// This endpoint is now designed to be called directly from server actions OR by Cloud Tasks.
+// This endpoint is now designed to be called by Cloud Tasks.
 // It includes a verification step to ensure only authorized requests can invoke it.
 export async function POST(req: NextRequest) {
     try {
