@@ -5,7 +5,7 @@ import { getPartnerCredentials } from '@/lib/api-helpers';
 import { createShopifyApi } from '@/lib/shopify';
 import { GenerationInput, generateShopifyStoreContent } from '@/ai/flows/shopify-content-flow';
 import type { ShopifyCreationJob } from '@/lib/types';
-import { spawn } from 'child_process';
+import { exec } from 'child_process';
 import retry from 'async-retry';
 import type { AxiosInstance } from 'axios';
 
@@ -41,7 +41,7 @@ export async function handleCreateShopifyStore(jobId: string) {
         
         const jobDoc = await jobRef.get();
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
-        const jobData = jobDoc.data()!;
+        const jobData = jobDoc.data()! as ShopifyCreationJob;
         console.log(`[Task Logic - Job ${jobId}] Job data loaded successfully.`);
 
         console.log(`[Task Logic - Job ${jobId}] Attempting to get partner credentials...`);
@@ -53,52 +53,30 @@ export async function handleCreateShopifyStore(jobId: string) {
         
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
-        // --- Execute Shopify CLI command using spawn ---
-        const cliArgs = [
-            'app',
-            'dev',
-            `--store-name`, `"${jobData.storeName}"`,
-            `--organization-id=${partnerCreds.organizationId}`,
-            // We can add other flags if needed, like --email
-        ];
+        // --- Execute Shopify CLI command using exec ---
+        const cliCommand = `./node_modules/.bin/shopify app dev --store "${jobData.storeName}" --organization-id ${partnerCreds.organizationId}`;
         
-        const cliCommand = './node_modules/.bin/shopify';
-        console.log(`[Task Logic - Job ${jobId}] Executing Shopify CLI command: ${cliCommand} ${cliArgs.join(' ')}`);
+        console.log(`[Task Logic - Job ${jobId}] Executing Shopify CLI command: ${cliCommand}`);
 
-        // Set the SHOPIFY_CLI_PARTNERS_TOKEN environment variable for the command
         const env = { ...process.env, SHOPIFY_CLI_PARTNERS_TOKEN: partnerCreds.partnerApiToken };
         
-        const child = spawn(cliCommand, cliArgs, { env: env, shell: false }); // Set shell to false for better security
-
-        let stdout = '';
-        let stderr = '';
-
-        child.stdout.on('data', (data) => {
-            stdout += data.toString();
-            console.log(`[CLI STDOUT - Job ${jobId}]`, data.toString());
-        });
-        child.stderr.on('data', (data) => {
-            stderr += data.toString();
-            console.error(`[CLI STDERR - Job ${jobId}]`, data.toString());
-        });
-
-        await new Promise<void>((resolve, reject) => {
-            child.on('close', (code) => {
-                if (code === 0) {
-                    resolve();
-                } else {
-                    reject(new Error(`Shopify CLI process exited with code ${code}. Stderr: ${stderr}`));
+        const output = await new Promise<string>((resolve, reject) => {
+            const process = exec(cliCommand, { env }, (error, stdout, stderr) => {
+                if (error) {
+                    console.error(`[CLI Exec Error - Job ${jobId}]`, stderr);
+                    reject(new Error(`Shopify CLI failed with code ${error.code}. Stderr: ${stderr}`));
+                    return;
                 }
+                resolve(stdout);
             });
-            child.on('error', (err) => {
-                reject(new Error(`Failed to start Shopify CLI process: ${err.message}`));
-            });
+            process.stdout?.on('data', (data) => console.log(`[CLI STDOUT - Job ${jobId}]`, data.toString()));
+            process.stderr?.on('data', (data) => console.error(`[CLI STDERR - Job ${jobId}]`, data.toString()));
         });
 
         // --- Parse CLI output to get store domain ---
-        const domainMatch = stdout.match(/https?:\/\/([a-zA-Z0-9-]+\.myshopify\.com)/);
+        const domainMatch = output.match(/https?:\/\/([a-zA-Z0-9-]+\.myshopify\.com)/);
         if (!domainMatch || !domainMatch[1]) {
-            throw new Error(`Could not parse the store domain from the Shopify CLI output. Output: ${stdout}`);
+            throw new Error(`Could not parse the store domain from the Shopify CLI output. Output: ${output}`);
         }
         const storeDomain = domainMatch[1];
         console.log(`[Task Logic - Job ${jobId}] Store created successfully: ${storeDomain}`);
