@@ -82,18 +82,21 @@ export async function GET(req: NextRequest) {
         }
         
         const settingsDoc = await settingsRef.get();
+        const globalSettingsDoc = await adminDb.collection('companies').doc('global_settings').get();
 
-        if (settingsDoc && settingsDoc.exists) {
-            const data = settingsDoc.data();
-            const connections = data?.connections || {};
-            
-            return NextResponse.json({
-                allConnections: connections,
-                activeConnectionKey: data?.activeConnectionKey || null,
-                partnerAppData: connections.partner_app || null, // Also return partner app data
-            });
+        const allConnections = settingsDoc.exists ? settingsDoc.data()?.connections || {} : {};
+        const partnerAppData = globalSettingsDoc.exists ? globalSettingsDoc.data()?.connections?.partner_app || null : null;
+        
+        if (partnerAppData) {
+            allConnections.partner_app = partnerAppData;
         }
-        return NextResponse.json({ allConnections: {}, activeConnectionKey: null, partnerAppData: null });
+
+        return NextResponse.json({
+            allConnections: allConnections,
+            activeConnectionKey: settingsDoc.exists ? settingsDoc.data()?.activeConnectionKey || null : null,
+            partnerAppData: partnerAppData,
+        });
+
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         console.error('Error fetching connections:', error);
@@ -111,7 +114,6 @@ export async function POST(req: NextRequest) {
         const { uid, role, companyId: userCompanyId } = await getUserContext(req);
         const body = await req.json();
 
-        // This schema now handles both regular and partner credentials based on the isPartner flag
         const payloadSchema = z.object({
             key: z.string().min(1, "Key is required"),
             connectionData: z.record(z.any()),
@@ -119,14 +121,6 @@ export async function POST(req: NextRequest) {
             entityId: z.string(),
             entityType: z.enum(['user', 'company']),
             isPartner: z.boolean().optional().default(false),
-        }).refine(data => {
-            if (data.isPartner) {
-                return partnerAppConnectionDataSchema.safeParse(data.connectionData).success;
-            }
-            return connectionDataSchema.safeParse(data.connectionData).success;
-        }, {
-            message: "connectionData does not match the expected schema",
-            path: ["connectionData"],
         });
 
 
@@ -138,43 +132,41 @@ export async function POST(req: NextRequest) {
         const { key, connectionData, setActive, entityId, entityType, isPartner } = validationResult.data;
         
         let settingsRef;
+        let finalConnectionData;
+        let existingConnections;
         
-        // Super Admin saving partner creds always targets the global document
-        if (role === 'super_admin' && isPartner) {
+        // --- Determine the correct Firestore document to update ---
+        if (isPartner && role === 'super_admin') {
+            // Partner creds are always global, edited by Super Admin
             settingsRef = adminDb.collection('companies').doc('global_settings');
+            const validation = partnerAppConnectionDataSchema.safeParse(connectionData);
+            if (!validation.success) { return NextResponse.json({ error: "Invalid Partner App data", details: validation.error.flatten() }, { status: 400 }); }
+            finalConnectionData = validation.data;
         } else {
-             const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
-             settingsRef = adminDb.collection(settingsCollection).doc(entityId);
+             // Regular connections depend on the entity being edited
+            const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
+            settingsRef = adminDb.collection(settingsCollection).doc(entityId);
+            const validation = connectionDataSchema.safeParse(connectionData);
+            if (!validation.success) { return NextResponse.json({ error: "Invalid connection data", details: validation.error.flatten() }, { status: 400 }); }
+            finalConnectionData = validation.data;
         }
         
         const settingsDoc = await settingsRef.get();
-        const existingConnections = settingsDoc.exists ? settingsDoc.data()?.connections || {} : {};
-        const isUpdate = !!existingConnections[key];
-        
-        if (role !== 'super_admin' && entityType === 'user') {
-            const userDoc = await adminDb.collection('users').doc(uid).get();
-            const siteLimit = userDoc.data()?.siteLimit ?? 1;
-            const connectionCount = Object.keys(existingConnections).filter(k => k !== 'partner_app').length;
-            if (!isUpdate && !isPartner && connectionCount >= siteLimit) {
-                return NextResponse.json({ error: `Límite de sitios alcanzado. Tu plan permite ${siteLimit} sitio(s).` }, { status: 403 });
-            }
-        }
-        
-        // Merge new data with existing data for the same key
-        const finalConnectionData = {
+        existingConnections = settingsDoc.exists ? settingsDoc.data()?.connections || {} : {};
+
+        // Merge new data with any existing data for the same key to prevent overwriting partial updates
+        const mergedConnectionData = {
             ...(existingConnections[key] || {}),
-            ...connectionData
+            ...finalConnectionData
         };
 
-        const newConnections = {
-            ...existingConnections,
-            [key]: finalConnectionData,
-        };
-        
         const updatePayload: { [key: string]: any } = {
-            connections: newConnections
+            connections: {
+                ...existingConnections,
+                [key]: mergedConnectionData
+            }
         };
-        
+
         // Set active key only if it's a regular connection, not partner creds
         if (setActive && !isPartner) {
             updatePayload.activeConnectionKey = key;
@@ -182,27 +174,29 @@ export async function POST(req: NextRequest) {
 
         await settingsRef.set(updatePayload, { merge: true });
         
-        const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = connectionData as Partial<typeof connectionDataSchema._type>;
-        const hostnamesToAdd = new Set<string>();
+        // If not partner creds, handle remote patterns for images
+        if (!isPartner) {
+             const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = finalConnectionData;
+             const hostnamesToAdd = new Set<string>();
 
-        const addHostname = (url: string | undefined) => {
-            if (url) {
-                try { 
-                    const fullUrl = url.startsWith('http') ? url : `https://${url}`;
-                    hostnamesToAdd.add(new URL(fullUrl).hostname); 
+            const addHostname = (url: string | undefined) => {
+                if (url) {
+                    try { 
+                        const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+                        hostnamesToAdd.add(new URL(fullUrl).hostname); 
+                    }
+                    catch { console.warn(`Invalid URL provided, skipping remote pattern: ${url}`); }
                 }
-                catch { console.warn(`Invalid URL provided, skipping remote pattern: ${url}`); }
+            };
+            addHostname(wooCommerceStoreUrl);
+            addHostname(wordpressApiUrl);
+            addHostname(shopifyStoreUrl);
+            if (hostnamesToAdd.size > 0) {
+                const promises = Array.from(hostnamesToAdd).map(hostname => addRemotePattern(hostname).catch(err => console.error(`Failed to add remote pattern for ${hostname}:`, err)));
+                await Promise.all(promises);
             }
-        };
-
-        addHostname(wooCommerceStoreUrl);
-        addHostname(wordpressApiUrl);
-        addHostname(shopifyStoreUrl);
-
-        if (hostnamesToAdd.size > 0) {
-            const promises = Array.from(hostnamesToAdd).map(hostname => addRemotePattern(hostname).catch(err => console.error(`Failed to add remote pattern for ${hostname}:`, err)));
-            await Promise.all(promises);
         }
+        
 
         return NextResponse.json({ success: true, message: 'Connection saved successfully.' });
 
@@ -219,7 +213,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     try {
-        const { uid, role } = await getUserContext(req);
+        const { role } = await getUserContext(req);
         const body = await req.json();
 
         const payloadSchema = z.object({
