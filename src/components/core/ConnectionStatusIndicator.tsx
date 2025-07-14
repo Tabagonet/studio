@@ -1,3 +1,4 @@
+
 // src/components/core/ConnectionStatusIndicator.tsx
 "use client";
 
@@ -20,6 +21,14 @@ interface ConfigStatus {
     assignedPlatform: 'woocommerce' | 'shopify' | null;
 }
 
+interface ConnectionStatusIndicatorProps {
+    status: ConfigStatus | null;
+    isLoading: boolean;
+    onRefresh: () => void;
+    platformToShow?: 'all' | 'woocommerce' | 'shopify' | 'shopify_partner';
+}
+
+
 function getHostname(url: string | null): string | null {
     if (!url) return null;
     try {
@@ -31,7 +40,7 @@ function getHostname(url: string | null): string | null {
     }
 }
 
-export const ConnectionStatusIndicator = ({ status, isLoading, onRefresh }: { status: ConfigStatus | null, isLoading: boolean, onRefresh: () => void }) => {
+export const ConnectionStatusIndicator = ({ status, isLoading, onRefresh, platformToShow = 'all' }: ConnectionStatusIndicatorProps) => {
   if (isLoading) {
     return (
         <div className="flex items-center gap-2 text-sm text-muted-foreground border p-3 rounded-md bg-muted/50">
@@ -40,7 +49,38 @@ export const ConnectionStatusIndicator = ({ status, isLoading, onRefresh }: { st
     );
   }
 
-  if (!status || (!status.activeStoreUrl && !status.shopifyPartnerConfigured)) {
+  const hostname = getHostname(status?.activeStoreUrl || null);
+  const wpActive = !!status?.wordPressConfigured;
+  const wooActive = !!status?.wooCommerceConfigured;
+  const isPluginVerifiedAndActive = wpActive && !!status?.pluginActive;
+
+  const showWooCommerce = platformToShow === 'all' || platformToShow === 'woocommerce';
+  const showShopify = platformToShow === 'all' || platformToShow === 'shopify';
+  const showShopifyPartner = platformToShow === 'all' || platformToShow === 'shopify_partner';
+
+  // Specific state for the Shopify Partner card
+  if (platformToShow === 'shopify_partner') {
+     const isPartnerConnected = !!status?.shopifyPartnerConfigured;
+      return (
+          <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 text-sm" title={isPartnerConnected ? "La conexión con la API de Partner está activa." : "No se pudo verificar la conexión con la API de Partner."}>
+                  {isPartnerConnected ? (
+                       <CheckCircle className="h-4 w-4 text-green-500" />
+                  ) : (
+                       <AlertCircle className="h-4 w-4 text-destructive" />
+                  )}
+                  <span className={cn(isPartnerConnected ? "text-green-600 font-semibold" : "text-destructive font-semibold")}>
+                    {isPartnerConnected ? "Conectado" : "No Conectado"}
+                  </span>
+              </div>
+              <TooltipProvider><Tooltip><TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon-sm" onClick={onRefresh} disabled={isLoading}><RefreshCw className={cn("h-4 w-4 text-muted-foreground", isLoading && "animate-spin")} /></Button>
+              </TooltipTrigger><TooltipContent><p>Refrescar Estado</p></TooltipContent></Tooltip></TooltipProvider>
+          </div>
+      );
+  }
+
+  if (!status || !status.activeStoreUrl) {
     return (
       <div className="flex items-center gap-2">
          <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Configurar conexión">
@@ -53,17 +93,8 @@ export const ConnectionStatusIndicator = ({ status, isLoading, onRefresh }: { st
       </div>
     );
   }
-  
-  const hostname = getHostname(status.activeStoreUrl);
-  const isSuperAdminScope = !status.assignedPlatform;
-  const showWooCommerce = status.assignedPlatform === 'woocommerce' || (isSuperAdminScope && status.activePlatform === 'woocommerce');
-  const showShopify = status.assignedPlatform === 'shopify' || (isSuperAdminScope && status.activePlatform === 'shopify');
 
-  const wpActive = status.wordPressConfigured;
-  const wooActive = status.wooCommerceConfigured;
-  const isPluginVerifiedAndActive = wpActive && status.pluginActive;
-
-  if (showWooCommerce && !isPluginVerifiedAndActive && status.activeStoreUrl) {
+  if (showWooCommerce && status.activePlatform === 'woocommerce' && !isPluginVerifiedAndActive) {
       return (
         <div className="flex items-center gap-2">
             <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-destructive hover:text-destructive/80 transition-colors" title="La conexión con WordPress no está verificada. Haz clic para ir a Ajustes.">
@@ -84,7 +115,7 @@ export const ConnectionStatusIndicator = ({ status, isLoading, onRefresh }: { st
                 <span className="hidden md:inline font-medium">{hostname}</span>
                 
                 <div className="flex items-center gap-2 flex-shrink-0">
-                    {showWooCommerce && status.activeStoreUrl && (
+                    {showWooCommerce && status.activePlatform === 'woocommerce' && (
                         <div className="flex items-center gap-2">
                             <Tooltip>
                                 <TooltipTrigger>
@@ -112,7 +143,7 @@ export const ConnectionStatusIndicator = ({ status, isLoading, onRefresh }: { st
                             </Tooltip>
                         </div>
                     )}
-                    {showShopify && status.activeStoreUrl && (
+                    {showShopify && status.activePlatform === 'shopify' && (
                         <div className="flex items-center gap-2">
                             <Tooltip>
                                 <TooltipTrigger>
@@ -120,18 +151,6 @@ export const ConnectionStatusIndicator = ({ status, isLoading, onRefresh }: { st
                                 </TooltipTrigger>
                                 <TooltipContent>
                                     <p>Shopify (App Privada): {status.shopifyConfigured ? "Configurado" : "No Configurado"}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </div>
-                    )}
-                    {showShopify && status.shopifyPartnerConfigured && (
-                        <div className="flex items-center gap-2">
-                            <Tooltip>
-                                <TooltipTrigger>
-                                    <CheckCircle className="h-4 w-4 text-green-500" />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Shopify Partner API: Conectado</p>
                                 </TooltipContent>
                             </Tooltip>
                         </div>

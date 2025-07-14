@@ -60,6 +60,7 @@ export function ShopifyPartnerCard({
                 status={configStatus} 
                 isLoading={isCheckingStatus}
                 onRefresh={onRefreshStatus}
+                platformToShow="shopify_partner"
              />
         </div>
       </CardHeader>
