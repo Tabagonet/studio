@@ -1,22 +1,68 @@
 
 'use server';
 
-import axios from 'axios';
-import { adminDb } from '@/lib/firebase-admin';
+import { adminDb, admin } from '@/lib/firebase-admin';
+import { CloudTasksClient } from '@google-cloud/tasks';
 
 // This is a server action, designed to be called from a client component.
-// It securely handles the logic of triggering a test Shopify store creation job.
+// It now contains the full logic to create the job and enqueue the task.
+
+const tasksClient = new CloudTasksClient();
+const PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
+const LOCATION_ID = 'europe-west1'; 
+const QUEUE_ID = 'autopress-jobs';
+
+
+async function enqueueShopifyCreationTask(jobId: string) {
+  if (!PROJECT_ID) {
+    throw new Error('FIREBASE_PROJECT_ID no está configurado en las variables de entorno.');
+  }
+
+  const parent = tasksClient.queuePath(PROJECT_ID, LOCATION_ID, QUEUE_ID);
+  const serviceAccountEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  
+  if (!serviceAccountEmail) {
+    throw new Error('FIREBASE_CLIENT_EMAIL no está configurado. Es necesario para autenticar las tareas.');
+  }
+  
+  const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
+
+  const task = {
+    httpRequest: {
+      httpMethod: 'POST' as const,
+      url: targetUri,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
+       oidcToken: {
+          serviceAccountEmail: serviceAccountEmail,
+       },
+    },
+    scheduleTime: {
+      seconds: Date.now() / 1000 + 5, // Schedule 5 seconds in the future.
+    },
+  };
+
+  console.log(`[Server Action] Enqueuing task for Job ID: ${jobId} to target ${targetUri}`);
+  const [response] = await tasksClient.createTask({ parent, task });
+  console.log(`[Server Action] Task created: ${response.name}`);
+  return response;
+}
+
+
 export async function triggerShopifyCreationTestAction(): Promise<{ success: boolean; message: string; jobId?: string; }> {
     console.log('[Server Action] Triggering Shopify Creation Test...');
 
+    const serverApiKey = process.env.SHOPIFY_AUTOMATION_API_KEY;
+    if (!serverApiKey) {
+        console.error("[Server Action Error] SHOPIFY_AUTOMATION_API_KEY is not configured on the server.");
+        // This is the error we were seeing, confirming the action can read the env var.
+        return { success: false, message: "Servicio de automatización no configurado en el servidor." };
+    }
+    
     if (!adminDb) {
         return { success: false, message: "Error del servidor: Firestore no está configurado." };
-    }
-
-    const internalApiKey = process.env.SHOPIFY_AUTOMATION_API_KEY;
-    if (!internalApiKey) {
-        console.error("[Server Action Error] SHOPIFY_AUTOMATION_API_KEY is not defined in the server environment.");
-        return { success: false, message: "Error del servidor: La clave SHOPIFY_AUTOMATION_API_KEY no está configurada." };
     }
 
     const timestamp = Date.now();
@@ -70,26 +116,25 @@ export async function triggerShopifyCreationTestAction(): Promise<{ success: boo
             }
         };
 
-        const apiEndpoint = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/create-store`;
+        const jobRef = adminDb.collection('shopify_creation_jobs').doc();
         
-        console.log(`[Server Action] Calling endpoint: ${apiEndpoint}`);
-        const response = await axios.post(apiEndpoint, jobPayload, {
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${internalApiKey}`,
-            },
-            timeout: 15000 // 15-second timeout
+        await jobRef.set({
+          ...jobPayload,
+          status: 'pending',
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          logs: [{ timestamp: new Date(), message: 'Trabajo creado y encolado desde el botón de prueba.' }]
         });
-        
-        if (response.status === 202 && response.data.success) {
-            console.log('[Server Action] Job enqueued successfully. Job ID:', response.data.jobId);
-            return { success: true, message: '¡Trabajo de creación de tienda enviado! Revisa el progreso en la sección de Trabajos.', jobId: response.data.jobId };
-        } else {
-            throw new Error(`La API respondió con estado ${response.status}: ${response.data.error || 'Error desconocido'}`);
-        }
+    
+        const jobId = jobRef.id;
+
+        await enqueueShopifyCreationTask(jobId);
+
+        console.log('[Server Action] Job enqueued successfully. Job ID:', jobId);
+        return { success: true, message: '¡Trabajo de creación de tienda enviado! Revisa el progreso en la sección de Trabajos.', jobId: jobId };
 
     } catch (error: any) {
-        console.error('[Server Action Error] Failed to trigger store creation:', error.response?.data || error.message);
-        return { success: false, message: `No se pudo iniciar el trabajo: ${error.response?.data?.details?.message || error.response?.data?.error || error.message}` };
+        console.error('[Server Action Error] Failed to trigger store creation:', error);
+        return { success: false, message: `No se pudo iniciar el trabajo: ${error.message}` };
     }
 }

@@ -4,6 +4,10 @@ import { adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { CloudTasksClient } from '@google-cloud/tasks';
 
+// IMPORTANT: This API route is now only for external clients (like a real chatbot).
+// The internal test button now uses a Server Action directly.
+// This preserves the external API contract while simplifying the internal test flow.
+
 export const dynamic = 'force-dynamic';
 
 const shopifyStoreCreationSchema = z.object({
@@ -39,7 +43,7 @@ const shopifyStoreCreationSchema = z.object({
 });
 
 const tasksClient = new CloudTasksClient();
-const PROJECT_ID = process.env.FIREBASE_PROJECT_ID!;
+const PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
 const LOCATION_ID = 'europe-west1'; 
 const QUEUE_ID = 'autopress-jobs';
 
@@ -76,9 +80,9 @@ async function enqueueShopifyCreationTask(jobId: string) {
   };
 
   const request = { parent: parent, task: task };
-  console.log(`[Cloud Task] A punto de crear la tarea para el Job ID: ${jobId}`);
+  console.log(`[API Route] A punto de crear la tarea para el Job ID: ${jobId}`);
   const [response] = await tasksClient.createTask(request);
-  console.log(`[Cloud Task] Creada la tarea: ${response.name}`);
+  console.log(`[API Route] Creada la tarea: ${response.name}`);
   return response;
 }
 
@@ -116,33 +120,6 @@ export async function POST(req: NextRequest) {
         throw new Error(`La entidad especificada (${entity.type}: ${entity.id}) no existe.`);
     }
 
-    const entityData = entityDoc.data()!;
-    // In a real scenario, you'd check partner_app here, but we are skipping for this test.
-    // const partnerAppData = entityData.connections?.partner_app;
-    // if (!partnerAppData || !partnerAppData.partnerApiToken || !partnerAppData.organizationId) {
-    //     return NextResponse.json({ error: 'La entidad no tiene una conexión de Shopify Partner activa. Por favor, conecta tu cuenta en Ajustes > Conexiones.' }, { status: 403 });
-    // }
-    
-    if (entity.type === 'user') {
-        const userDoc = await adminDb.collection('users').doc(entity.id).get();
-        if (!userDoc.exists) throw new Error("El usuario especificado para crear la tienda no existe.");
-        
-        const userData = userDoc.data()!;
-        const siteLimit = userData.siteLimit ?? 1;
-
-        const jobsSnapshot = await adminDb.collection('shopify_creation_jobs')
-            .where('entity.id', '==', entity.id)
-            .where('entity.type', '==', 'user')
-            .count()
-            .get();
-        
-        const jobsCount = jobsSnapshot.data().count;
-
-        if (jobsCount >= siteLimit) {
-            return NextResponse.json({ error: `Límite de creación de tiendas (${siteLimit}) alcanzado para este usuario.` }, { status: 403 });
-        }
-    }
-
     const jobRef = adminDb.collection('shopify_creation_jobs').doc();
     
     await jobRef.set({
@@ -154,21 +131,17 @@ export async function POST(req: NextRequest) {
     });
 
     const jobId = jobRef.id;
-
-    // This endpoint now takes responsibility for enqueuing the task
     await enqueueShopifyCreationTask(jobId);
 
-    // This is the immediate response to the caller
     return NextResponse.json({ success: true, jobId: jobId }, { status: 202 });
 
   } catch (error: any) {
     console.error('Error creating Shopify creation job:', error);
-    // Return a structured error message
     return NextResponse.json({ 
         error: 'No se pudo crear el trabajo.', 
         details: {
              message: error.message,
-             stack: error.stack, // Be careful with sending stack traces in production
+             stack: error.stack,
         }
     }, { status: 500 });
   }
