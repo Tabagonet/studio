@@ -32,13 +32,14 @@ function ChatbotComponent() {
     const { executeRecaptcha } = useGoogleReCaptcha();
 
     const startConversation = useCallback(async () => {
-        if (messages.length > 0 || isLoading || !executeRecaptcha) {
+        if (messages.length > 0 || isLoading) {
             return;
         }
 
         setIsLoading(true);
         try {
-            const recaptchaToken = await executeRecaptcha('chatbot_interaction');
+            // Use 'not-available' if executeRecaptcha isn't ready. The backend will handle it.
+            const recaptchaToken = executeRecaptcha ? await executeRecaptcha('chatbot_interaction') : 'not-available';
             
             const response = await fetch('/api/chatbot', {
                 method: 'POST',
@@ -63,11 +64,13 @@ function ChatbotComponent() {
     }, [executeRecaptcha, messages.length, isLoading, toast]);
 
     useEffect(() => {
-        // Only start the conversation if executeRecaptcha is ready and we haven't started yet.
+        // This effect now depends on `executeRecaptcha`. When it becomes available,
+        // it will trigger the conversation start if it hasn't already started.
         if (executeRecaptcha && messages.length === 0) {
             startConversation();
         }
     }, [executeRecaptcha, startConversation, messages.length]);
+
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

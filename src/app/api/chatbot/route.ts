@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getChatbotResponse, extractStoreCreationData } from '@/ai/flows/chatbot-flow';
+import { getChatbotResponse } from '@/ai/flows/chatbot-flow';
 import { handleStoreCreationAction } from './actions';
 import { z } from 'zod';
 
@@ -26,8 +26,6 @@ async function verifyRecaptcha(token: string | undefined) {
     }
     
     if (!token || token === 'not-available') {
-        // This is a controlled case for when the frontend isn't ready.
-        // It's better to ask the user to retry than to fail silently.
         throw new Error("La verificación de seguridad reCAPTCHA no estaba lista. Por favor, refresca la página e inténtalo de nuevo.");
     }
     
@@ -45,7 +43,6 @@ async function verifyRecaptcha(token: string | undefined) {
         return true;
     } catch (error: any) {
         console.error("Error during reCAPTCHA verification:", error.message);
-        // Re-throw specific user-facing errors, or a generic one for network issues.
         if (error.message.includes("La verificación de reCAPTCHA ha fallado")) {
             throw error;
         }
@@ -91,6 +88,6 @@ export async function POST(req: NextRequest) {
         console.error('Error in /api/chatbot POST handler:', error);
         
         // Send a user-friendly and specific error message back to the client
-        return NextResponse.json({ error: error.message || 'Failed to get response from chatbot AI' }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to get response from chatbot AI', message: error.message }, { status: 500 });
     }
 }
