@@ -55,13 +55,13 @@ export async function handleCreateShopifyStore(jobId: string) {
         // --- CORRECTED GRAPHQL MUTATION ---
         const graphqlMutation = {
           query: `
-            mutation shopCreate($name: String!) {
-              shopCreate(name: $name, type: DEVELOPMENT) {
+            mutation shopCreate($input: ShopCreateInput!) {
+              shopCreate(input: $input) {
                 shop {
                   id
                   name
                   myshopifyDomain
-                  password
+                  password: storefrontPassword
                 }
                 userErrors {
                   field
@@ -70,7 +70,10 @@ export async function handleCreateShopifyStore(jobId: string) {
               }
             }`,
           variables: {
-            name: jobData.storeName,
+            input: {
+                name: jobData.storeName,
+                type: "DEVELOPMENT"
+            }
           },
         };
         
