@@ -1,4 +1,3 @@
-
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -15,6 +14,7 @@ import crypto from 'crypto';
 
 export const partnerAppConnectionDataSchema = z.object({
   partnerApiToken: z.string().optional(),
+  organizationId: z.string().optional(),
 });
 export type PartnerAppConnectionData = z.infer<typeof partnerAppConnectionDataSchema>;
 
@@ -34,7 +34,7 @@ interface ApiClients {
  * @returns The credentials object.
  * @throws If credentials are not configured.
  */
-export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ partnerApiToken?: string; }> {
+export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ partnerApiToken?: string; organizationId?: string; }> {
     if (!adminDb) {
         console.error('getPartnerCredentials: Firestore no está configurado');
         throw new Error("Firestore not configured on server");
@@ -57,6 +57,7 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
 
     return {
         partnerApiToken: partnerAppData.data.partnerApiToken,
+        organizationId: partnerAppData.data.organizationId,
     };
 }
 

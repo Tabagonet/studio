@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Loader2, Save, Trash2, Eye, EyeOff } from "lucide-react";
 import type { PartnerAppConnectionData } from '@/lib/api-helpers';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
 import { ConnectionStatusIndicator } from '@/components/core/ConnectionStatusIndicator';
@@ -66,12 +66,28 @@ export function ShopifyPartnerCard({
       </CardHeader>
       <CardContent className="space-y-6">
         <Alert>
-          <AlertTitle>¿Cómo obtener el token de acceso?</AlertTitle>
+          <AlertTitle>¿Cómo obtener las credenciales?</AlertTitle>
           <AlertDescription>
-            Sigue nuestra <Link href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank" className="font-semibold underline">guía paso a paso</Link> para crear un cliente de API en tu panel de Shopify Partner y obtener el token.
+            Sigue nuestra <Link href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank" className="font-semibold underline">guía paso a paso</Link> para crear un cliente de API en tu panel de Shopify Partner y obtener las credenciales.
           </AlertDescription>
         </Alert>
         
+        <div>
+            <Label htmlFor="organizationId">ID de Organización</Label>
+             <Input 
+                id="organizationId" 
+                name="organizationId" 
+                type="text"
+                value={partnerFormData?.organizationId || ''} 
+                onChange={handleInputChange} 
+                placeholder="Ej: 1234567" 
+                disabled={isSavingPartner}
+             />
+             <p className="text-xs text-muted-foreground mt-1">
+                Puedes encontrar este ID en la URL de tu panel de Partner (ej: partners.shopify.com/1234567/...).
+             </p>
+        </div>
+
         <div>
             <Label htmlFor="partnerApiToken">Token de Acceso de la API de Partner</Label>
             <div className="flex items-center gap-2">
@@ -94,7 +110,7 @@ export function ShopifyPartnerCard({
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
             <Button onClick={onSave} disabled={isSavingPartner}>
               {isSavingPartner ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2"/>}
-              Guardar Token
+              Guardar Credenciales de Partner
             </Button>
           <AlertDialog>
               <AlertDialogTrigger asChild>

@@ -1,4 +1,3 @@
-
 // src/app/api/check-config/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -98,25 +97,25 @@ export async function GET(req: NextRequest) {
       const activeKey = settingsSource.activeConnectionKey;
 
       const partnerAppData = partnerAppConnectionDataSchema.safeParse(allConnections['partner_app'] || {});
-      if (partnerAppData.success && partnerAppData.data.partnerApiToken) {
+      if (partnerAppData.success && partnerAppData.data.partnerApiToken && partnerAppData.data.organizationId) {
           try {
-              // CORRECTED: Using the REST API endpoint for verification, which is more stable and less prone to 404s.
-              const verificationEndpoint = `https://partners.shopify.com/api/2024-04/organization.json`;
-              await axios.get(verificationEndpoint, {
+              const verificationEndpoint = `https://partners.shopify.com/${partnerAppData.data.organizationId}/api/2025-07/graphql.json`;
+              
+              await axios.post(verificationEndpoint, 
+                { query: "{ shopifyQlSchema { queryRoot { fields { name } } } }" }, // A minimal, non-sensitive query
+                {
                   headers: { 
                       'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${partnerAppData.data.partnerApiToken}` 
+                      'X-Shopify-Access-Token': partnerAppData.data.partnerApiToken 
                   }, 
                   timeout: 8000 
               });
-              // A successful 200 OK from this endpoint means the token is valid.
               userConfig.shopifyPartnerConfigured = true;
           } catch(e) {
               const error = e as any;
               console.error("[API /check-config] Shopify Partner API verification failed. Details:", error.response?.data || error.message);
               userConfig.shopifyPartnerConfigured = false;
-              // Pass the specific error message to the frontend for better debugging.
-              userConfig.shopifyPartnerError = error.response?.data?.errors || error.message || "Error desconocido";
+              userConfig.shopifyPartnerError = error.response?.data?.errors?.[0]?.message || error.message || "Error desconocido";
           }
       }
       

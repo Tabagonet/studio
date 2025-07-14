@@ -38,14 +38,14 @@ export async function handleCreateShopifyStore(jobId: string) {
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
         const jobData = jobDoc.data()!;
 
-        const { partnerApiToken } = await getPartnerCredentials(jobData.entity.id, jobData.entity.type);
-        if (!partnerApiToken) {
-            throw new Error("El token de acceso de la API de Partner no está configurado.");
+        const { partnerApiToken, organizationId } = await getPartnerCredentials(jobData.entity.id, jobData.entity.type);
+        if (!partnerApiToken || !organizationId) {
+            throw new Error("El token de acceso y el ID de organización de la API de Partner no están configurados.");
         }
         
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
-        const graphqlEndpoint = `https://partners.shopify.com/api/2025-07/graphql.json`;
+        const graphqlEndpoint = `https://partners.shopify.com/${organizationId}/api/2025-07/graphql.json`;
         
         const graphqlMutation = {
           query: `
@@ -75,7 +75,7 @@ export async function handleCreateShopifyStore(jobId: string) {
             {
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${partnerApiToken}`,
+                    'X-Shopify-Access-Token': partnerApiToken,
                 },
             }
         );
