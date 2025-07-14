@@ -55,13 +55,13 @@ async function enqueueShopifyCreationTask(jobId: string) {
       throw new Error('CRON_SECRET environment variable is not set. Cannot create task.');
     }
 
-    // Explicitly initialize the client with credentials to avoid default lookup issues.
+    const credentials = getServiceAccountCredentials();
     const tasksClient = new CloudTasksClient({
-      credentials: getServiceAccountCredentials(),
-      projectId: process.env.FIREBASE_PROJECT_ID,
+        credentials,
+        projectId: credentials.project_id,
     });
     
-    const projectId = process.env.FIREBASE_PROJECT_ID!;
+    const projectId = credentials.project_id;
     const LOCATION_ID = 'europe-west1'; 
     const QUEUE_ID = 'autopress-jobs1';
     
@@ -85,9 +85,6 @@ async function enqueueShopifyCreationTask(jobId: string) {
         return response;
     } catch (error: any) {
          console.error('[Shopify Create Store] Error al crear la tarea en Cloud Tasks:', error);
-         if (error.code === 5) { // NOT_FOUND
-            throw new Error(`La cola de tareas "${QUEUE_ID}" no existe en la ubicación "${LOCATION_ID}". Por favor, créala o verifica el nombre en queue.yaml. Error: ${error.details}`);
-        }
         throw error;
     }
 }
