@@ -46,8 +46,7 @@ export async function GET(req: NextRequest) {
   let activeStoreUrl: string | null = null;
   let activePlatform: 'woocommerce' | 'shopify' | null = null;
   let assignedPlatform: 'woocommerce' | 'shopify' | null = null;
-  let settingsSource: admin.firestore.DocumentData | undefined;
-
+  
   if (!adminDb) {
       console.warn("/api/check-config: Firestore is not available.");
       return NextResponse.json({ ...globalConfig, ...userConfig, activeStoreUrl: null, activePlatform: null, pluginActive: false, assignedPlatform: null });
@@ -78,15 +77,31 @@ export async function GET(req: NextRequest) {
         }
     }
     
+    // Fetch settings for the specific user or company
     const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
     const settingsDoc = await adminDb.collection(settingsCollection).doc(entityId).get();
-    settingsSource = settingsDoc.data();
+    const settingsSource = settingsDoc.exists ? settingsDoc.data() : undefined;
     
+    // Fetch global partner settings separately
+    const globalSettingsDoc = await adminDb.collection('companies').doc('global_settings').get();
+    const globalSettingsSource = globalSettingsDoc.exists ? globalSettingsDoc.data() : undefined;
+    
+    // Process logged-in user AI usage
     const loggedInUserSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
     if (loggedInUserSettingsDoc.exists) {
         userConfig.aiUsageCount = loggedInUserSettingsDoc.data()?.aiUsageCount || 0;
     }
     
+    // Process partner credentials from global settings
+    if (globalSettingsSource) {
+      const partnerAppData = partnerAppConnectionDataSchema.safeParse(globalSettingsSource.connections?.partner_app || {});
+      userConfig.shopifyCustomAppConfigured = !!(partnerAppData.success && partnerAppData.data.clientId && partnerAppData.data.clientSecret);
+      if (partnerAppData.success && partnerAppData.data.partnerApiToken && partnerAppData.data.organizationId) {
+          userConfig.shopifyPartnerConfigured = true;
+      }
+    }
+
+    // Process user/company specific connections
     if (settingsSource) {
       if (entityType === 'company') {
           assignedPlatform = settingsSource.platform || null;
@@ -97,14 +112,6 @@ export async function GET(req: NextRequest) {
 
       const allConnections = settingsSource.connections || {};
       const activeKey = settingsSource.activeConnectionKey;
-
-      const partnerAppData = partnerAppConnectionDataSchema.safeParse(allConnections['partner_app'] || {});
-      
-      userConfig.shopifyCustomAppConfigured = !!(partnerAppData.success && partnerAppData.data.clientId && partnerAppData.data.clientSecret);
-
-      if (partnerAppData.success && partnerAppData.data.partnerApiToken && partnerAppData.data.organizationId) {
-          userConfig.shopifyPartnerConfigured = true;
-      }
       
       if (activeKey && allConnections[activeKey]) {
         const activeConnection = allConnections[activeKey];
