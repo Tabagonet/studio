@@ -66,10 +66,12 @@ export async function GET(req: NextRequest) {
         const settingsRef = adminDb.collection(settingsCollection).doc(entityId);
         
         // This token is for creating stores, we save it in a specific field.
-        await settingsRef.set({
-            partnerApiToken: accessToken,
-            partnerShopDomain: shop,
-        }, { merge: true });
+        const updateData = {
+          'connections.partner_app.partnerApiToken': accessToken,
+          'connections.partner_app.partnerShopDomain': shop,
+        };
+
+        await settingsRef.set(updateData, { merge: true });
 
         settingsUrl.searchParams.set('shopify_auth', 'success');
         return NextResponse.redirect(settingsUrl);

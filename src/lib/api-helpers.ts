@@ -14,11 +14,10 @@ import { z } from 'zod';
 import crypto from 'crypto';
 
 export const partnerAppConnectionDataSchema = z.object({
-  appUrl: z.string().optional(),
   clientId: z.string().optional(),
   clientSecret: z.string().optional(),
-  partnerApiToken: z.string().optional(), // For the direct Partner API access
-  partnerShopDomain: z.string().optional(), // For the direct Partner API access
+  partnerShopDomain: z.string().optional(), // The {shop}.myshopify.com domain of the partner account itself
+  partnerApiToken: z.string().optional(), // The final access token after OAuth
 });
 export type PartnerAppConnectionData = z.infer<typeof partnerAppConnectionDataSchema>;
 
@@ -38,7 +37,7 @@ interface ApiClients {
  * @returns The credentials object.
  * @throws If credentials are not configured.
  */
-export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ clientId: string; clientSecret: string; partnerApiToken?: string; }> {
+export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ clientId: string; clientSecret: string; partnerShopDomain?: string; partnerApiToken?: string; }> {
     if (!adminDb) {
         console.error('getPartnerCredentials: Firestore no está configurado');
         throw new Error("Firestore not configured on server");
@@ -51,8 +50,9 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
     if (!doc.exists) {
         throw new Error(`${entityType === 'company' ? 'Company' : 'User'} settings not found`);
     }
-
-    const partnerAppData = partnerAppConnectionDataSchema.safeParse(doc.data()?.connections?.partner_app || {});
+    
+    const settingsData = doc.data() || {};
+    const partnerAppData = partnerAppConnectionDataSchema.safeParse(settingsData.connections?.partner_app || {});
 
     if (!partnerAppData.success || !partnerAppData.data.clientId || !partnerAppData.data.clientSecret) {
         throw new Error("El Client ID y Client Secret de la App de Partner no están configurados.");
@@ -61,6 +61,8 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
     return {
         clientId: partnerAppData.data.clientId,
         clientSecret: partnerAppData.data.clientSecret,
+        partnerShopDomain: partnerAppData.data.partnerShopDomain,
+        partnerApiToken: partnerAppData.data.partnerApiToken,
     };
 }
 

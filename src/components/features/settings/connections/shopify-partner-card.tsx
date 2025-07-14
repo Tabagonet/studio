@@ -55,7 +55,7 @@ export function ShopifyPartnerCard({
   };
   
   const handleConnect = () => {
-    const { clientId } = partnerFormData;
+    const { clientId, partnerShopDomain } = partnerFormData;
     if (!clientId) {
       alert("Por favor, guarda primero tu Client ID.");
       return;
@@ -65,8 +65,8 @@ export function ShopifyPartnerCard({
     const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
     const state = `${editingTarget.type}:${editingTarget.id}`;
 
-    // This URL points to the Partner dashboard for authorization
-    const authUrl = `https://partners.shopify.com/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${state}&grant_options[]=per-user`;
+    // Use the correct authorization URL for a specific shop (the partner's own shop)
+    const authUrl = `https://${partnerShopDomain}/admin/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${state}&grant_options[]=per-user`;
     
     window.location.href = authUrl;
   };
@@ -93,15 +93,21 @@ export function ShopifyPartnerCard({
           </AlertDescription>
         </Alert>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="clientId">Client ID</Label>
-            <Input id="clientId" name="clientId" value={partnerFormData?.clientId || ''} onChange={handleInputChange} placeholder="Ej: 547a82a4abfb..." disabled={isSavingPartner} />
-          </div>
-          <div>
-            <Label htmlFor="clientSecret">Client Secret</Label>
-            <Input id="clientSecret" name="clientSecret" type="password" value={partnerFormData?.clientSecret || ''} onChange={handleInputChange} placeholder="••••••••••••••••••••••••••••••••" disabled={isSavingPartner} />
-          </div>
+        <div className="space-y-4">
+            <div>
+                <Label htmlFor="partnerShopDomain">Dominio de tu Tienda de Partner (.myshopify.com)</Label>
+                <Input id="partnerShopDomain" name="partnerShopDomain" value={partnerFormData?.partnerShopDomain || ''} onChange={handleInputChange} placeholder="tu-agencia.myshopify.com" disabled={isSavingPartner} />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <Label htmlFor="clientId">Client ID</Label>
+                    <Input id="clientId" name="clientId" value={partnerFormData?.clientId || ''} onChange={handleInputChange} placeholder="Ej: 547a82a4abfb..." disabled={isSavingPartner} />
+                </div>
+                <div>
+                    <Label htmlFor="clientSecret">Client Secret</Label>
+                    <Input id="clientSecret" name="clientSecret" type="password" value={partnerFormData?.clientSecret || ''} onChange={handleInputChange} placeholder="••••••••••••••••••••••••••••••••" disabled={isSavingPartner} />
+                </div>
+            </div>
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
@@ -132,7 +138,7 @@ export function ShopifyPartnerCard({
               </AlertDialogContent>
             </AlertDialog>
           </div>
-          <Button onClick={handleConnect} disabled={isSavingPartner || !partnerFormData.clientId}>
+          <Button onClick={handleConnect} disabled={isSavingPartner || !partnerFormData.clientId || !partnerFormData.partnerShopDomain}>
             <LinkIcon className="mr-2 h-4 w-4" />
             Conectar con Shopify
           </Button>

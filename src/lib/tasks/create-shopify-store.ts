@@ -69,10 +69,15 @@ export async function handleCreateShopifyStore(jobId: string) {
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
         const jobData = jobDoc.data()!;
 
+        // The token is now retrieved from the OAuth flow for the partner account.
         const { partnerApiToken } = await getPartnerCredentials(jobData.entity.id, jobData.entity.type);
+        if (!partnerApiToken) {
+            throw new Error("El token de acceso de la API de Partner no se ha obtenido tras la autorización OAuth.");
+        }
         
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
+        // The endpoint for the Partner GraphQL API
         const graphqlEndpoint = `https://partners.shopify.com/api/2025-07/graphql.json`;
         
         const graphqlMutation = {

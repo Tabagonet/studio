@@ -97,11 +97,11 @@ export async function GET(req: NextRequest) {
       const allConnections = settingsSource.connections || {};
       const activeKey = settingsSource.activeConnectionKey;
 
-      const partnerAppData = partnerAppConnectionDataSchema.safeParse(settingsSource || {});
-      if (partnerAppData.success && partnerAppData.data.partnerApiToken && partnerAppData.data.partnerShopDomain) {
+      const partnerAppData = partnerAppConnectionDataSchema.safeParse(allConnections['partner_app'] || {});
+      if (partnerAppData.success && partnerAppData.data.partnerApiToken) {
           try {
-              const graphqlEndpoint = `https://${partnerAppData.data.partnerShopDomain}/admin/api/2024-07/graphql.json`;
-              await axios.post(graphqlEndpoint, { query: '{ shop { name } }' }, { 
+              const graphqlEndpoint = `https://partners.shopify.com/api/2024-07/graphql.json`;
+              await axios.post(graphqlEndpoint, { query: '{ organizations(first: 1) { nodes { id } } }' }, { 
                 headers: { 
                     'Content-Type': 'application/json',
                     'X-Shopify-Access-Token': partnerAppData.data.partnerApiToken 
