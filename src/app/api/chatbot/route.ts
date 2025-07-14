@@ -1,11 +1,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getChatbotResponse } from '@/ai/flows/chatbot-flow';
-import { adminDb, admin } from '@/lib/firebase-admin';
+import { adminDb } from '@/lib/firebase-admin';
 import axios from 'axios';
 import { z } from 'zod';
-import { CloudTasksClient } from '@google-cloud/tasks';
-
 
 interface Message {
     role: 'user' | 'model';
@@ -58,40 +56,8 @@ async function handleAnalysisCompletion(messages: Message[]) {
     return '¡Genial! Hemos recibido toda la información. Uno de nuestros expertos la revisará y se pondrá en contacto contigo muy pronto. ¡Gracias!';
 }
 
-async function enqueueShopifyCreationTask(jobId: string) {
-    const tasksClient = new CloudTasksClient();
-    const PROJECT_ID = process.env.FIREBASE_PROJECT_ID!;
-    const LOCATION_ID = 'europe-west1'; 
-    const QUEUE_ID = 'autopress-jobs';
 
-    if (!PROJECT_ID) {
-      throw new Error('FIREBASE_PROJECT_ID no está configurado en las variables de entorno.');
-    }
-    
-    const parent = tasksClient.queuePath(PROJECT_ID, LOCATION_ID, QUEUE_ID);
-    const serviceAccountEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    
-    if (!serviceAccountEmail) {
-      throw new Error('FIREBASE_CLIENT_EMAIL no está configurado. Es necesario para autenticar las tareas.');
-    }
-    
-    const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
-  
-    const task = {
-      httpRequest: {
-        httpMethod: 'POST' as const,
-        url: targetUri,
-        headers: { 'Content-Type': 'application/json' },
-        body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
-        oidcToken: { serviceAccountEmail },
-      },
-    };
-    await tasksClient.createTask({ parent, task });
-    console.log(`[Chatbot API] Enqueued task for Shopify creation job: ${jobId}`);
-}
-
-
-async function handleStoreCreation(messages: Message[]) {
+async function handleStoreCreation() {
     if (!adminDb) {
       throw new Error("Firestore is not configured.");
     }
@@ -108,13 +74,14 @@ async function handleStoreCreation(messages: Message[]) {
         legalBusinessName: "AutoPress Testing SL",
         businessAddress: "Calle Ficticia 123, 08001, Barcelona, España"
     };
-
+    
     const companyQuery = await adminDb.collection('companies').where('name', '==', 'Grupo 4 alas S.L.').limit(1).get();
     if (companyQuery.empty) {
       throw new Error("Owner company 'Grupo 4 alas S.L.' not found in the database.");
     }
     const ownerCompanyId = companyQuery.docs[0].id;
-    
+
+    // This payload is sent to our OWN API, which will then enqueue the task.
     const jobPayload = {
       webhookUrl: "https://webhook.site/#!/view/1b8a9b3f-8c3b-4c1e-9d2a-9e1b5f6a7d1c", // Test webhook
       storeName: storeData.storeName,
@@ -144,16 +111,21 @@ async function handleStoreCreation(messages: Message[]) {
         type: 'company',
         id: ownerCompanyId,
       },
-      status: 'pending',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      logs: [{ timestamp: new Date(), message: 'Trabajo creado desde el chatbot y encolado.' }]
     };
 
-    const jobRef = await adminDb.collection('shopify_creation_jobs').add(jobPayload);
-    
-    // Now, enqueue the background task to process this job
-    await enqueueShopifyCreationTask(jobRef.id);
+    const targetUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/create-store`;
+    const apiKey = process.env.SHOPIFY_AUTOMATION_API_KEY;
+
+    if (!apiKey) {
+        throw new Error("SHOPIFY_AUTOMATION_API_KEY is not configured on the server.");
+    }
+
+    await axios.post(targetUrl, jobPayload, {
+        headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+        }
+    });
 
     return `¡Perfecto! Usando datos de ejemplo, estamos iniciando la creación de tu tienda Shopify: "${storeData.storeName}". Ve al panel para ver el progreso.`;
 }
@@ -181,14 +153,14 @@ export async function POST(req: NextRequest) {
         }
 
         if (trimmedResponse === 'FIN-TIENDA') {
-            const responseMessage = await handleStoreCreation(messages);
+            const responseMessage = await handleStoreCreation();
             return NextResponse.json({ response: responseMessage, isComplete: true });
         }
         
         return NextResponse.json({ response: aiResponseText, isComplete: false });
 
     } catch (error: any) {
-        console.error('Error in chatbot API route:', error);
+        console.error('Error in chatbot API route:', error.response?.data || error.message);
         return NextResponse.json({ error: error.message || 'Failed to get response from chatbot AI' }, { status: 500 });
     }
 }
