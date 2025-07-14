@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Loader2, Save, Trash2, Eye, EyeOff, Link as LinkIcon, ExternalLink, ShieldCheck, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
+import { Loader2, Save, Trash2, Eye, EyeOff, ShieldCheck, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
 import type { PartnerAppConnectionData } from '@/lib/api-helpers';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
@@ -76,20 +76,6 @@ export function ShopifyPartnerCard({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     onPartnerFormDataChange({ ...partnerFormData, [name]: value });
-  };
-  
-  const handleConnectClick = () => {
-    if (!partnerFormData?.clientId) {
-      alert("Por favor, guarda un Client ID antes de intentar conectar.");
-      return;
-    }
-    const scopes = 'write_products,write_content,write_themes,read_products,read_content,read_themes,write_navigation,read_navigation';
-    const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
-    // Usamos una tienda de prueba o un placeholder para construir la URL de autorización
-    const shop = 'autopress-ai-test-shop.myshopify.com'; 
-    const state = 'connection_test'; // Un estado de prueba
-    const authUrl = `https://${shop}/admin/oauth/authorize?client_id=${partnerFormData.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${state}`;
-    window.open(authUrl, 'ShopifyAuth', 'width=600,height=700');
   };
   
   return (
@@ -214,12 +200,6 @@ export function ShopifyPartnerCard({
                   {process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback
                 </code>
             </p>
-            <div className="mt-4">
-              <Button variant="secondary" onClick={handleConnectClick} disabled={!partnerFormData?.clientId}>
-                <LinkIcon className="mr-2 h-4 w-4" />
-                Conectar con Shopify (Prueba de Autorización)
-              </Button>
-            </div>
         </div>
         
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">

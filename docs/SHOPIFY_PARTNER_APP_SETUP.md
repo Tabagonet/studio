@@ -50,8 +50,7 @@ Después de crear la app, Shopify te llevará a la página de configuración.
 5.  Pega este valor en el campo **"Client Secret"** de nuestra plataforma.
 6.  Haz clic en **"Guardar Credenciales"**.
 
-### Paso 5: Conecta tu cuenta
+### Paso 5: Verifica la conexión
 
-1. Después de guardar, haz clic en el botón **"Conectar con Shopify"**.
-2. Serás redirigido a una página de Shopify para autorizar la conexión. Haz clic en "Aprobar".
-3. Serás redirigido de vuelta a la aplicación. ¡Ya podrás crear tiendas automáticamente!
+*   **Verificación Implícita:** A diferencia de la API de Partner, las credenciales de OAuth no se pueden "verificar" con una simple llamada. La única forma de asegurarse de que funcionan es completar el flujo de creación de una tienda.
+*   **Prueba Real:** La mejor forma de probarlo es seguir nuestra **Guía de Pruebas** para crear una tienda. Si el proceso te redirige a Shopify para autorizar la app y luego finaliza correctamente, ¡tus credenciales de OAuth están bien configuradas!

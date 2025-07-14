@@ -1,3 +1,4 @@
+
 # Plan de Pruebas: Automatización de Shopify
 
 Esta guía describe los pasos para realizar una prueba completa (end-to-end) del flujo de creación de tiendas de Shopify.
@@ -9,7 +10,7 @@ Esta guía describe los pasos para realizar una prueba completa (end-to-end) del
 Antes de empezar, asegúrate de tener:
 
 1.  **Una cuenta de Shopify Partner:** Puedes crear una gratis en [partners.shopify.com](https://partners.shopify.com).
-2.  **Una API Key de Sistema:** En el archivo `.env.local` de este proyecto, asegúrate de que la variable `SHOPIFY_AUTOMATION_API_KEY` tiene un valor secreto que hayas inventado (ej: `super-secret-key-for-testing`). Esta clave es para autenticar el webhook, no tiene que ver con las credenciales de Partner.
+2.  **Una API Key de Sistema:** En el archivo `.env.local` de este proyecto, asegúrate de que la variable `SHOPIFY_AUTOMATION_API_KEY` tiene un valor secreto que hayas inventado (ej: `super-secret-key-for-testing`). Esta clave es para autenticar la petición inicial del chatbot, no tiene que ver con las credenciales de Partner.
 
 ---
 
@@ -29,9 +30,9 @@ Al final de este paso, deberías tener un **Client ID** y un **Client Secret**.
 2.  Ve a **Ajustes > Conexiones**.
 3.  Busca la tarjeta **"Conexión Global de Shopify Partners"**.
 4.  Pega aquí el **Client ID** y el **Client Secret** que obtuviste en el paso anterior.
-5.  Haz clic en **"Guardar Credenciales"**.
-6.  Haz clic en **"Conectar con Shopify"**. Serás redirigido a Shopify para autorizar la conexión. Sigue los pasos y vuelve a la aplicación.
-7.  Refresca la página o el estado de la conexión. Deberías ver un indicador de estado activo.
+5.  Haz clic en **"Guardar Credenciales de Shopify"**.
+6.  Ahora, sigue la guía del documento `SHOPIFY_PARTNER_APP_SETUP.md` para configurar también las **Credenciales de la API de Partner** (ID de Organización y Token). Guarda también esas credenciales.
+7.  Refresca la página o el estado de la conexión. Deberías ver los indicadores de estado en verde o, al menos, como "Configurada".
 
 ---
 
@@ -89,8 +90,11 @@ curl -X POST https://autopress.intelvisual.es/api/shopify/create-store \
 2.  **Panel de AutoPress AI:** Ve a la sección **Shopify > Trabajos de Creación** en la aplicación.
 3.  **Verificar Estado:** Deberías ver una nueva fila en la tabla para "Mi Tienda de Prueba Definitiva".
     *   El estado inicial será **Pendiente**.
-    *   Tras unos segundos, cambiará a **Procesando**. La página se actualiza sola.
-    *   El proceso completo puede tardar varios minutos.
+    *   Tras unos segundos, cambiará a **Procesando** y luego a **Esperando Autorización**. La página se actualiza sola.
+    *   **¡Este es el paso clave!** En esta fase, el sistema te habría enviado (al `webhookUrl`) la URL de instalación. Como no tenemos un chatbot real, ve a la base de datos de Firestore, busca el `job` por su ID y copia el campo `installUrl`.
+    *   Pega esa `installUrl` en tu navegador. Deberías ver la pantalla de consentimiento de Shopify. **¡Si ves esta pantalla, las credenciales de la App Personalizada (OAuth) funcionan!**
+    *   Autoriza la instalación.
+    *   El estado en la tabla de trabajos debería cambiar a **Autorizado**, luego a **Procesando** de nuevo mientras se puebla el contenido.
     *   Finalmente debería llegar a **Completado**.
 
 ---
