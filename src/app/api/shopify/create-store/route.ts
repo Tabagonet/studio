@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, admin, adminAuth, getServiceAccountCredentials } from '@/lib/firebase-admin';
+import { adminDb, admin, adminAuth } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { CloudTasksClient } from '@google-cloud/tasks';
 import { getPartnerCredentials } from '@/lib/api-helpers';
@@ -51,27 +51,22 @@ const testCreationSchema = z.object({
 async function enqueueShopifyCreationTask(jobId: string) {
     console.log(`[Shopify Create Store] Step 5.1: Enqueuing task for Job ID: ${jobId}`);
     
-    // Explicitly initialize the client with credentials to avoid environment issues.
-    const credentials = getServiceAccountCredentials();
-    const tasksClient = new CloudTasksClient({
-        credentials,
-        projectId: credentials.project_id,
-    });
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret) {
+        throw new Error('CRON_SECRET environment variable is not set. Cannot create task.');
+    }
     
-    const projectId = credentials.project_id;
+    const tasksClient = new CloudTasksClient();
+    
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    if (!projectId) throw new Error("FIREBASE_PROJECT_ID env var is not set.");
+    
     const LOCATION_ID = 'europe-west1'; 
     const QUEUE_ID = 'autopress-jobs1';
     
     const parent = tasksClient.queuePath(projectId, LOCATION_ID, QUEUE_ID);
     
-    // The target URI for the task to call. This endpoint will be secured with OIDC.
-    const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
-    
-    // Use the service account email associated with our credentials for OIDC token generation.
-    const serviceAccountEmail = credentials.client_email;
-    if (!serviceAccountEmail) {
-        throw new Error("client_email is missing from service account credentials.");
-    }
+    const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store?secret=${cronSecret}`;
     
     const task = {
         httpRequest: {
@@ -79,14 +74,10 @@ async function enqueueShopifyCreationTask(jobId: string) {
             url: targetUri,
             headers: { 'Content-Type': 'application/json' },
             body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
-            // Instruct Cloud Tasks to generate an OIDC token for authentication.
-            oidcToken: {
-                serviceAccountEmail,
-            },
         },
     };
 
-    console.log(`[Shopify Create Store] Step 5.2: About to create task with payload for URI: ${targetUri}`);
+    console.log(`[Shopify Create Store] Step 5.2: About to create task with payload for URI: ${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store?secret=${cronSecret}`);
     try {
         const [response] = await tasksClient.createTask({ parent, task });
         console.log(`[Shopify Create Store] Step 5.3: Task created successfully: ${response.name}`);

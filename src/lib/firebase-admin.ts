@@ -1,3 +1,4 @@
+
 // src/lib/firebase-admin.ts
 import type * as admin from 'firebase-admin';
 
@@ -30,21 +31,6 @@ function getServiceAccount() {
     
     throw new Error("Firebase Admin credentials are not set. Please provide FIREBASE_SERVICE_ACCOUNT_JSON or the individual environment variables.");
 }
-
-/**
- * Returns the service account credentials in the format required by Google Cloud clients.
- * This is now the single source of truth for credentials.
- * @returns {object} The service account credentials object.
- */
-export function getServiceAccountCredentials() {
-    const serviceAccount = getServiceAccount();
-    return {
-        client_email: serviceAccount.clientEmail,
-        private_key: serviceAccount.privateKey,
-        project_id: serviceAccount.projectId,
-    };
-}
-
 
 // Initialize the app only if it hasn't been initialized yet
 if (!admin_sdk.apps.length) {
