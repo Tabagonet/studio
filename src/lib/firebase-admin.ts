@@ -1,3 +1,4 @@
+
 // src/lib/firebase-admin.ts
 import type * as admin from 'firebase-admin';
 
@@ -16,12 +17,18 @@ export function getServiceAccountCredentials(): admin.ServiceAccount {
     if (serviceAccountJson) {
       try {
         const parsedCredentials = JSON.parse(serviceAccountJson);
-        if (!parsedCredentials.client_email || !parsedCredentials.private_key || !parsedCredentials.project_id) {
-           throw new Error("El JSON de la cuenta de servicio es inválido o le faltan propiedades clave (project_id, private_key, client_email).");
+        if (!parsedCredentials.clientEmail || !parsedCredentials.privateKey || !parsedCredentials.projectId) {
+           throw new Error("El JSON de la cuenta de servicio es inválido o le faltan propiedades clave (projectId, privateKey, clientEmail).");
         }
-        return parsedCredentials;
-      } catch (e) {
-        console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", e);
+        // Normalize the private_key to clientEmail for consistency with the ServiceAccount interface
+        return {
+            ...parsedCredentials,
+            clientEmail: parsedCredentials.client_email,
+            privateKey: parsedCredentials.private_key,
+            projectId: parsedCredentials.project_id
+        };
+      } catch (e: any) {
+        console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", e.message);
         throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON no es un JSON válido.");
       }
     } 

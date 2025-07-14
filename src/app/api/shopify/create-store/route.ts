@@ -1,9 +1,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, admin, adminAuth, getServiceAccountCredentials } from '@/lib/firebase-admin';
+import { adminDb, admin, adminAuth } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { CloudTasksClient } from '@google-cloud/tasks';
 import { getPartnerCredentials } from '@/lib/api-helpers';
+import { getServiceAccountCredentials } from '@/lib/firebase-admin';
 
 
 // This API route handles requests to create new Shopify stores.
@@ -48,39 +49,28 @@ const testCreationSchema = z.object({
 });
 
 
-// Initialize the Cloud Tasks client once.
-let tasksClient: CloudTasksClient | null = null;
-try {
-    // This now relies on the globally initialized Firebase Admin SDK
-    tasksClient = new CloudTasksClient();
-} catch(e) {
-    console.error("Failed to initialize CloudTasksClient on module load:", (e as Error).message);
-}
-
-
 async function enqueueShopifyCreationTask(jobId: string) {
-    const PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
+    console.log(`[Shopify Create Store] Step 5.1: Enqueuing task for Job ID: ${jobId}`);
+    
+    // Explicitly get credentials first.
+    const credentials = getServiceAccountCredentials();
+    const serviceAccountEmail = credentials.clientEmail;
+    
+    if (!serviceAccountEmail) {
+        throw new Error('No se pudo obtener el email de la cuenta de servicio desde las credenciales.');
+    }
+
+    const tasksClient = new CloudTasksClient({ credentials });
+
+    const PROJECT_ID = process.env.FIREBASE_PROJECT_ID!;
     const LOCATION_ID = 'europe-west1'; 
     const QUEUE_ID = 'autopress-jobs';
     
-    console.log(`[Shopify Create Store] Step 5.1: Enqueuing task for Job ID: ${jobId}`);
-
-    if (!tasksClient) {
-        throw new Error('Cloud Tasks client is not initialized.');
-    }
     if (!PROJECT_ID) {
         throw new Error('FIREBASE_PROJECT_ID no está configurado en las variables de entorno.');
     }
 
     const parent = tasksClient.queuePath(PROJECT_ID, LOCATION_ID, QUEUE_ID);
-    
-    // Get the service account email safely from the same source as the client credentials
-    const serviceAccountEmail = getServiceAccountCredentials().clientEmail;
-
-    if (!serviceAccountEmail) {
-        throw new Error('No se pudo obtener el email de la cuenta de servicio desde las credenciales.');
-    }
-    
     const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
 
     const task = {
