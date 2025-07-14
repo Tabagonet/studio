@@ -1,8 +1,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, admin, getServiceAccountCredentials } from '@/lib/firebase-admin';
+import { adminDb, admin, adminAuth, getServiceAccountCredentials } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { CloudTasksClient } from '@google-cloud/tasks';
+import { getPartnerCredentials } from '@/lib/api-helpers';
+
 
 // This API route handles requests to create new Shopify stores.
 // It validates the input, creates a job record in Firestore, and enqueues a Cloud Task.
@@ -40,6 +42,11 @@ const shopifyStoreCreationSchema = z.object({
     id: z.string(),
   })
 });
+
+const testCreationSchema = z.object({
+  isTest: z.boolean().optional(),
+});
+
 
 // Initialize the Cloud Tasks client once.
 const tasksClient = new CloudTasksClient({ credentials: getServiceAccountCredentials() });
@@ -89,43 +96,120 @@ async function enqueueShopifyCreationTask(jobId: string) {
 }
 
 
+async function handleTestCreation(uid: string) {
+    if (!adminDb) {
+      throw new Error("Firestore is not configured.");
+    }
+    
+    const timestamp = Date.now();
+    const storeData = {
+        storeName: `Tienda de Prueba ${timestamp}`,
+        businessEmail: `test-${timestamp}@example.com`,
+    };
+    
+    const companyQuery = await adminDb.collection('companies').where('name', '==', 'Grupo 4 alas S.L.').limit(1).get();
+    if (companyQuery.empty) {
+      throw new Error("La empresa propietaria 'Grupo 4 alas S.L.' no se encuentra en la base de datos.");
+    }
+    const ownerCompanyId = companyQuery.docs[0].id;
+
+    const jobPayload = {
+      webhookUrl: "https://webhook.site/#!/view/1b8a9b3f-8c3b-4c1e-9d2a-9e1b5f6a7d1c", 
+      storeName: storeData.storeName,
+      businessEmail: storeData.businessEmail,
+      countryCode: "ES",
+      currency: "EUR",
+      brandDescription: "Una tienda de prueba generada automáticamente para verificar el flujo de creación de AutoPress AI.",
+      targetAudience: "Desarrolladores y equipo de producto.",
+      brandPersonality: "Funcional, robusta y eficiente.",
+      productTypeDescription: 'Productos de ejemplo para tienda nueva',
+      creationOptions: {
+        createExampleProducts: true,
+        numberOfProducts: 3,
+        createAboutPage: true,
+        createContactPage: true,
+        createLegalPages: true,
+        createBlogWithPosts: true,
+        numberOfBlogPosts: 2,
+        setupBasicNav: true,
+        theme: "dawn",
+      },
+      legalInfo: {
+        legalBusinessName: "AutoPress Testing SL",
+        businessAddress: "Calle Ficticia 123, 08001, Barcelona, España",
+      },
+      entity: {
+        type: 'company' as 'user' | 'company',
+        id: ownerCompanyId,
+      }
+    };
+
+    return jobPayload;
+}
+
+
 export async function POST(req: NextRequest) {
   try {
     const providedApiKey = req.headers.get('Authorization')?.split('Bearer ')[1];
-    const serverApiKey = process.env.SHOPIFY_AUTOMATION_API_KEY;
+    let uid: string | null = null;
+    let isTestCall = false;
 
-    if (!serverApiKey) {
-      console.error('SHOPIFY_AUTOMATION_API_KEY is not set on the server.');
-      return NextResponse.json({ error: 'Servicio de automatización no configurado en el servidor.' }, { status: 500 });
+    // --- Authentication: Check for internal user call OR external API key call ---
+    if (providedApiKey) {
+      try {
+        if (!adminAuth) throw new Error("Firebase Admin Auth no está inicializado.");
+        const decodedToken = await adminAuth.verifyIdToken(providedApiKey);
+        uid = decodedToken.uid;
+      } catch (firebaseError) {
+        // If it's not a Firebase token, treat it as a potential API key
+        const partnerCreds = await getPartnerCredentials();
+        const serverApiKey = partnerCreds.automationApiKey;
+        if (!serverApiKey) {
+          throw new Error('Servicio de automatización no configurado en el servidor.');
+        }
+        if (providedApiKey !== serverApiKey) {
+          throw new Error('No autorizado: Clave de API no válida.');
+        }
+      }
+    } else {
+        throw new Error('No autorizado: Falta el token de autenticación o la clave de API.');
     }
-
-    if (providedApiKey !== serverApiKey) {
-      return NextResponse.json({ error: 'No autorizado.' }, { status: 401 });
-    }
-
+    
     if (!adminDb) {
       return NextResponse.json({ error: 'Servicio de base de datos no disponible.' }, { status: 503 });
     }
 
     const body = await req.json();
-    const validation = shopifyStoreCreationSchema.safeParse(body);
-
-    if (!validation.success) {
-      return NextResponse.json({ error: 'Cuerpo de la petición inválido.', details: validation.error.flatten() }, { status: 400 });
+    
+    // --- Determine if it's a test call ---
+    const testCheck = testCreationSchema.safeParse(body);
+    if (uid && testCheck.success && testCheck.data.isTest) {
+        isTestCall = true;
     }
 
-    const { entity } = validation.data;
+    let jobData: z.infer<typeof shopifyStoreCreationSchema>;
+
+    if (isTestCall) {
+        if (!uid) throw new Error("La llamada de prueba debe provenir de un usuario autenticado.");
+        jobData = await handleTestCreation(uid);
+    } else {
+        const validation = shopifyStoreCreationSchema.safeParse(body);
+        if (!validation.success) {
+            return NextResponse.json({ error: 'Cuerpo de la petición inválido.', details: validation.error.flatten() }, { status: 400 });
+        }
+        jobData = validation.data;
+    }
+    
+    const { entity } = jobData;
     const settingsCollection = entity.type === 'company' ? 'companies' : 'user_settings';
     const entityDoc = await adminDb.collection(settingsCollection).doc(entity.id).get();
-
     if (!entityDoc.exists) {
         throw new Error(`La entidad especificada (${entity.type}: ${entity.id}) no existe.`);
     }
 
     const jobRef = adminDb.collection('shopify_creation_jobs').doc();
-    
     await jobRef.set({
-      ...validation.data,
+      ...jobData,
       status: 'pending',
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -139,12 +223,10 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error('Error creating Shopify creation job:', error);
+    const status = error.message?.includes('No autorizado') ? 401 : 500;
     return NextResponse.json({ 
         error: 'No se pudo crear el trabajo.', 
-        details: {
-             message: error.message,
-             stack: error.stack,
-        }
-    }, { status: 500 });
+        details: { message: error.message, stack: error.stack }
+    }, { status });
   }
 }

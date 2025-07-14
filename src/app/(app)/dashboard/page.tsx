@@ -114,12 +114,16 @@ export default function DashboardPage() {
         console.log('[Paso 2] Obteniendo token y llamando a la API...');
         const token = await user.getIdToken();
         
-        const response = await fetch('/api/shopify/trigger-test-creation', {
+        // This now calls the public-facing API. The API will check if the call comes
+        // from an authenticated user and allow it, OR if it has a valid Bearer token for external services.
+        const response = await fetch('/api/shopify/create-store', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-            }
+                'Authorization': `Bearer ${token}`, // Use user token for auth
+            },
+            // We'll send a minimal payload just to trigger the test logic in the endpoint
+            body: JSON.stringify({ isTest: true })
         });
 
         const result = await response.json();

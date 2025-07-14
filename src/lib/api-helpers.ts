@@ -18,6 +18,7 @@ export const partnerAppConnectionDataSchema = z.object({
   organizationId: z.string().optional(),
   clientId: z.string().optional(),
   clientSecret: z.string().optional(),
+  automationApiKey: z.string().optional(), // Added field for system key
 });
 export type PartnerAppConnectionData = z.infer<typeof partnerAppConnectionDataSchema>;
 

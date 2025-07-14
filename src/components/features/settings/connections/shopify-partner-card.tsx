@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Loader2, Save, Trash2, Eye, EyeOff, ShieldCheck, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
+import { Loader2, Save, Trash2, Eye, EyeOff, ShieldCheck, CheckCircle, AlertCircle, RefreshCw, KeyRound } from "lucide-react";
 import type { PartnerAppConnectionData } from '@/lib/api-helpers';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
@@ -72,6 +72,7 @@ export function ShopifyPartnerCard({
 }: ShopifyPartnerCardProps) {
   
   const [isTokenVisible, setIsTokenVisible] = React.useState(false);
+  const [isApiKeyVisible, setIsApiKeyVisible] = React.useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -203,6 +204,31 @@ export function ShopifyPartnerCard({
                   {process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback
                 </code>
             </p>
+        </div>
+
+         <div className="pt-4 border-t">
+            <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <KeyRound className="h-5 w-5 text-amber-500" />
+                3. Clave API de Sistema (Webhook)
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+                Una clave secreta que inventes para proteger el endpoint público de creación de tiendas.
+            </p>
+            <div className="flex items-center gap-2">
+                <Input 
+                    id="automationApiKey" 
+                    name="automationApiKey" 
+                    type={isApiKeyVisible ? 'text' : 'password'} 
+                    value={partnerFormData?.automationApiKey || ''} 
+                    onChange={handleInputChange} 
+                    placeholder="Introduce una clave larga y segura..." 
+                    disabled={isSavingPartner}
+                    className="font-mono"
+                />
+                <Button variant="outline" size="icon" onClick={() => setIsApiKeyVisible(!isApiKeyVisible)}>
+                    {isApiKeyVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+            </div>
         </div>
         
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
