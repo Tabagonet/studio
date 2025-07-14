@@ -9,19 +9,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User, Globe, Store, PlugZap, AlertCircle, RefreshCw } from "lucide-react";
+import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User, Store, PlugZap, AlertCircle, RefreshCw } from "lucide-react";
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator, SelectLabel, SelectGroup } from '@/components/ui/select';
 import type { Company, User as AppUser } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { ShopifyIcon } from '@/components/core/icons';
 import { ShopifyPartnerCard } from '@/components/features/settings/connections/shopify-partner-card';
 import type { PartnerAppConnectionData } from '@/lib/api-helpers';
+import { ConnectionStatusIndicator } from '@/components/core/ConnectionStatusIndicator';
 
 
 interface ConnectionData {
@@ -41,7 +41,7 @@ interface SelectedEntityStatus {
     wooCommerceConfigured: boolean;
     wordPressConfigured: boolean;
     shopifyConfigured: boolean;
-    shopifyPartnerConfigured?: boolean; // Now optional
+    shopifyPartnerConfigured?: boolean;
     pluginActive: boolean;
     activeStoreUrl: string | null;
     activePlatform: 'woocommerce' | 'shopify' | null;
@@ -73,114 +73,9 @@ function getHostname(url: string | null | undefined): string | null {
         const parsedUrl = new URL(fullUrl);
         return parsedUrl.hostname.replace(/^www\./, '');
     } catch (e) {
-        return url; // Fallback to the original string if URL parsing fails
+        return url;
     }
 }
-
-
-const ConnectionStatusIndicator = ({ status, isLoading, onRefresh }: { status: SelectedEntityStatus | null, isLoading: boolean, onRefresh: () => void }) => {
-  if (isLoading) {
-    return (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground border p-3 rounded-md bg-muted/50">
-            <Loader2 className="h-4 w-4 animate-spin" /> Verificando conexión...
-        </div>
-    );
-  }
-
-  if (!status || !status.activeStoreUrl) {
-    return (
-      <div className="flex items-center gap-2">
-         <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Configurar conexión">
-            <Globe className="h-4 w-4 text-destructive" />
-            <span className="hidden md:inline">No conectado</span>
-        </Link>
-        <TooltipProvider><Tooltip><TooltipTrigger asChild>
-            <Button variant="ghost" size="icon-sm" onClick={onRefresh} disabled={isLoading}><RefreshCw className={cn("h-4 w-4 text-muted-foreground", isLoading && "animate-spin")} /></Button>
-        </TooltipTrigger><TooltipContent><p>Refrescar Estado</p></TooltipContent></Tooltip></TooltipProvider>
-      </div>
-    );
-  }
-  
-  const hostname = getHostname(status.activeStoreUrl);
-  const isSuperAdminScope = !status.assignedPlatform;
-  const showWooCommerce = status.assignedPlatform === 'woocommerce' || (isSuperAdminScope && status.activePlatform === 'woocommerce');
-  const showShopify = status.assignedPlatform === 'shopify' || (isSuperAdminScope && status.activePlatform === 'shopify');
-
-  const wpActive = status.wordPressConfigured;
-  const wooActive = status.wooCommerceConfigured;
-  const isPluginVerifiedAndActive = wpActive && status.pluginActive;
-
-  if (showWooCommerce && !isPluginVerifiedAndActive) {
-      return (
-        <div className="flex items-center gap-2">
-            <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-destructive hover:text-destructive/80 transition-colors" title="La conexión con WordPress no está verificada. Haz clic para ir a Ajustes.">
-                <AlertCircle className="h-4 w-4" />
-                <span className="hidden md:inline">Conexión no verificada</span>
-            </Link>
-            <TooltipProvider><Tooltip><TooltipTrigger asChild>
-                <Button variant="ghost" size="icon-sm" onClick={onRefresh} disabled={isLoading}><RefreshCw className={cn("h-4 w-4 text-muted-foreground", isLoading && "animate-spin")} /></Button>
-            </TooltipTrigger><TooltipContent><p>Refrescar Estado</p></TooltipContent></Tooltip></TooltipProvider>
-        </div>
-      )
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-        <TooltipProvider delayDuration={100}>
-            <Link href="/settings/connections" className="flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Gestionar conexiones">
-                <span className="hidden md:inline font-medium">{hostname}</span>
-                
-                <div className="flex items-center gap-2 flex-shrink-0">
-                    {showWooCommerce && (
-                        <div className="flex items-center gap-2">
-                            <Tooltip>
-                                <TooltipTrigger>
-                                <Store className={cn("h-4 w-4", wooActive ? "text-green-500" : "text-muted-foreground")} />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>WooCommerce: {wooActive ? "Configurado" : "No Configurado"}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                                <TooltipTrigger>
-                                <Globe className={cn("h-4 w-4", wpActive ? "text-green-500" : "text-destructive")} />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>WordPress: {wpActive ? "Configurado" : "No Configurado"}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                                <TooltipTrigger>
-                                <PlugZap className={cn("h-4 w-4", isPluginVerifiedAndActive ? "text-green-500" : "text-destructive")} />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Plugin AutoPress AI: {isPluginVerifiedAndActive ? "Activo y Verificado" : "No Detectado o No Verificado"}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </div>
-                    )}
-                    {showShopify && (
-                        <div className="flex items-center gap-2">
-                            <Tooltip>
-                                <TooltipTrigger>
-                                <ShopifyIcon className={cn("h-4 w-4", status.shopifyConfigured ? "text-green-500" : "text-destructive")} />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Shopify: {status.shopifyConfigured ? "Configurado" : "No Configurado"}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </div>
-                    )}
-                </div>
-            </Link>
-        </TooltipProvider>
-         <TooltipProvider><Tooltip><TooltipTrigger asChild>
-            <Button variant="ghost" size="icon-sm" onClick={onRefresh} disabled={isLoading}><RefreshCw className={cn("h-4 w-4 text-muted-foreground", isLoading && "animate-spin")} /></Button>
-        </TooltipTrigger><TooltipContent><p>Refrescar Estado</p></TooltipContent></Tooltip></TooltipProvider>
-    </div>
-  );
-};
-
 
 export default function ConnectionsPage() {
     const searchParams = useSearchParams();
@@ -272,6 +167,42 @@ export default function ConnectionsPage() {
         }
     }, [toast, selectedKey]);
     
+    const fetchStatus = useCallback(async (targetType: 'user' | 'company', targetId: string) => {
+        setIsCheckingStatus(true);
+        const user = auth.currentUser;
+        if (!user) {
+            setIsCheckingStatus(false);
+            return;
+        }
+
+        try {
+            const token = await user.getIdToken();
+            const url = new URL('/api/check-config', window.location.origin);
+            if (targetType === 'company') {
+                url.searchParams.append('companyId', targetId);
+            } else { // 'user'
+                url.searchParams.append('userId', targetId);
+            }
+
+            const response = await fetch(url.toString(), {
+                headers: { 'Authorization': `Bearer ${token}` },
+                cache: 'no-store'
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                setSelectedEntityStatus(data);
+            } else {
+                setSelectedEntityStatus(null);
+            }
+        } catch (error) {
+            console.error("Failed to fetch connection status for selected entity", error);
+            setSelectedEntityStatus(null);
+        } finally {
+            setIsCheckingStatus(false);
+        }
+    }, []);
+
     useEffect(() => {
         const fetchInitialData = async (user: FirebaseUser) => {
             setIsDataLoading(true);
@@ -306,13 +237,25 @@ export default function ConnectionsPage() {
             
             setEditingTarget(newEditingTarget);
             setEditingTargetPlatform(newEditingTarget.platform);
-            await fetchConnections(user, newEditingTarget.type as 'user' | 'company', newEditingTarget.id);
+            if (newEditingTarget.id) {
+                await fetchConnections(user, newEditingTarget.type as 'user' | 'company', newEditingTarget.id);
+                await fetchStatus(newEditingTarget.type as 'user'|'company', newEditingTarget.id);
+            }
             setIsDataLoading(false);
         };
         
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
                 await fetchInitialData(user);
+                 const shopifyAuthStatus = searchParams.get('shopify_auth');
+                 if (shopifyAuthStatus === 'success') {
+                    toast({ title: '¡Conexión con Shopify Exitosa!', description: 'Tu cuenta de Partner ha sido conectada.' });
+                    window.history.replaceState(null, '', '/settings/connections');
+                 } else if (shopifyAuthStatus === 'error') {
+                    const errorMessage = searchParams.get('error_message');
+                    toast({ title: 'Error de Conexión con Shopify', description: decodeURIComponent(errorMessage || 'Ha ocurrido un error desconocido.'), variant: 'destructive' });
+                     window.history.replaceState(null, '', '/settings/connections');
+                 }
             } else {
                 setIsLoading(false);
                 setIsDataLoading(false);
@@ -320,54 +263,7 @@ export default function ConnectionsPage() {
         });
         return () => unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [fetchConnections, searchParams]);
-
-     useEffect(() => {
-        const targetId = editingTarget.id;
-        const targetType = editingTarget.type;
-
-        if (!targetId) {
-            setSelectedEntityStatus(null);
-            return;
-        }
-
-        const fetchStatus = async () => {
-            setIsCheckingStatus(true);
-            const user = auth.currentUser;
-            if (!user) {
-                setIsCheckingStatus(false);
-                return;
-            }
-
-            try {
-                const token = await user.getIdToken();
-                const url = new URL('/api/check-config', window.location.origin);
-                if (targetType === 'company') {
-                    url.searchParams.append('companyId', targetId);
-                } else { // 'user'
-                    url.searchParams.append('userId', targetId);
-                }
-
-                const response = await fetch(url.toString(), {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    setSelectedEntityStatus(data);
-                } else {
-                    setSelectedEntityStatus(null);
-                }
-            } catch (error) {
-                console.error("Failed to fetch connection status for selected entity", error);
-                setSelectedEntityStatus(null);
-            } finally {
-                setIsCheckingStatus(false);
-            }
-        };
-
-        fetchStatus();
-    }, [editingTarget, refreshKey]);
+    }, [fetchConnections, searchParams, fetchStatus]);
 
     const handleTargetChange = (value: string) => {
         const user = auth.currentUser;
@@ -389,7 +285,10 @@ export default function ConnectionsPage() {
         }
         setEditingTarget(newEditingTarget);
         setEditingTargetPlatform(newEditingTarget.platform);
-        fetchConnections(user, newEditingTarget.type as 'user' | 'company', newEditingTarget.id);
+        if(newEditingTarget.id) {
+            fetchConnections(user, newEditingTarget.type as 'user' | 'company', newEditingTarget.id);
+            fetchStatus(newEditingTarget.type as 'user' | 'company', newEditingTarget.id);
+        }
     };
 
 
@@ -616,7 +515,7 @@ export default function ConnectionsPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                     <ConnectionStatusIndicator status={selectedEntityStatus} isLoading={isCheckingStatus} onRefresh={() => setRefreshKey(k => k + 1)} />
+                     <ConnectionStatusIndicator status={selectedEntityStatus} isLoading={isCheckingStatus} onRefresh={() => fetchStatus(editingTarget.type, editingTarget.id!)} />
                     <div className="flex-1">
                         <Label htmlFor="profile-selector">Selecciona un perfil para editar o añade uno nuevo</Label>
                         <Select value={selectedKey} onValueChange={setSelectedKey} disabled={isSaving || isLoading}>
@@ -745,9 +644,7 @@ export default function ConnectionsPage() {
                          isSavingPartner={isSavingPartner}
                          onDelete={() => handleDelete('partner_app')}
                          isDeleting={isDeleting === 'partner_app'}
-                         isConnectionVerified={selectedEntityStatus?.shopifyPartnerConfigured}
-                         isVerifying={isCheckingStatus}
-                         onRefresh={() => setRefreshKey(k => k + 1)}
+                         configStatus={selectedEntityStatus}
                        />
                     )}
                 </div>

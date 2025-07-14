@@ -1,4 +1,3 @@
-
 // src/components/core/header.tsx
 "use client";
 
@@ -26,123 +25,18 @@ import { es } from 'date-fns/locale';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { cn } from '@/lib/utils';
 import { ShopifyIcon } from './icons';
+import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 
 interface ConfigStatus {
     activeStoreUrl: string | null;
     wooCommerceConfigured: boolean;
     wordPressConfigured: boolean;
     shopifyConfigured: boolean;
+    shopifyPartnerConfigured?: boolean;
     pluginActive: boolean;
     activePlatform: 'woocommerce' | 'shopify' | null;
     assignedPlatform: 'woocommerce' | 'shopify' | null;
 }
-
-function getHostname(url: string | null): string | null {
-    if (!url) return null;
-    try {
-        const fullUrl = url.startsWith('http') ? url : `https://${url}`;
-        const parsedUrl = new URL(fullUrl);
-        return parsedUrl.hostname.replace(/^www\./, '');
-    } catch (e) {
-        return url; // Fallback to the original string if URL parsing fails
-    }
-}
-
-const ConnectionStatusIndicator = ({ status, isLoading, onRefresh }: { status: ConfigStatus | null, isLoading: boolean, onRefresh: () => void }) => {
-  if (!status || !status.activeStoreUrl) {
-    return (
-      <div className="flex items-center gap-2">
-         <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Configurar conexión">
-            <Globe className="h-4 w-4 text-destructive" />
-            <span className="hidden md:inline">No conectado</span>
-        </Link>
-        <TooltipProvider><Tooltip><TooltipTrigger asChild>
-            <Button variant="ghost" size="icon-sm" onClick={onRefresh} disabled={isLoading}><RefreshCw className={cn("h-4 w-4 text-muted-foreground", isLoading && "animate-spin")} /></Button>
-        </TooltipTrigger><TooltipContent><p>Refrescar Estado</p></TooltipContent></Tooltip></TooltipProvider>
-      </div>
-    );
-  }
-  
-  const hostname = getHostname(status.activeStoreUrl);
-  const isSuperAdminScope = !status.assignedPlatform;
-  const showWooCommerce = status.assignedPlatform === 'woocommerce' || (isSuperAdminScope && status.activePlatform === 'woocommerce');
-  const showShopify = status.assignedPlatform === 'shopify' || (isSuperAdminScope && status.activePlatform === 'shopify');
-
-  const wpActive = status.wordPressConfigured;
-  const wooActive = status.wooCommerceConfigured;
-  const isPluginVerifiedAndActive = wpActive && status.pluginActive;
-
-  if (showWooCommerce && !isPluginVerifiedAndActive) {
-      return (
-        <div className="flex items-center gap-2">
-            <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-destructive hover:text-destructive/80 transition-colors" title="La conexión con WordPress no está verificada. Haz clic para ir a Ajustes.">
-                <AlertCircle className="h-4 w-4" />
-                <span className="hidden md:inline">Conexión no verificada</span>
-            </Link>
-            <TooltipProvider><Tooltip><TooltipTrigger asChild>
-                <Button variant="ghost" size="icon-sm" onClick={onRefresh} disabled={isLoading}><RefreshCw className={cn("h-4 w-4 text-muted-foreground", isLoading && "animate-spin")} /></Button>
-            </TooltipTrigger><TooltipContent><p>Refrescar Estado</p></TooltipContent></Tooltip></TooltipProvider>
-        </div>
-      )
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-        <TooltipProvider delayDuration={100}>
-            <Link href="/settings/connections" className="flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-colors" title="Gestionar conexiones">
-                <span className="hidden md:inline font-medium">{hostname}</span>
-                
-                <div className="flex items-center gap-2 flex-shrink-0">
-                    {showWooCommerce && (
-                        <div className="flex items-center gap-2">
-                            <Tooltip>
-                                <TooltipTrigger>
-                                <Store className={cn("h-4 w-4", wooActive ? "text-green-500" : "text-muted-foreground")} />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>WooCommerce: {wooActive ? "Configurado" : "No Configurado"}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                                <TooltipTrigger>
-                                <Globe className={cn("h-4 w-4", wpActive ? "text-green-500" : "text-destructive")} />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>WordPress: {wpActive ? "Configurado" : "No Configurado"}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                                <TooltipTrigger>
-                                <PlugZap className={cn("h-4 w-4", isPluginVerifiedAndActive ? "text-green-500" : "text-destructive")} />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Plugin AutoPress AI: {isPluginVerifiedAndActive ? "Activo y Verificado" : "No Detectado o No Verificado"}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </div>
-                    )}
-                    {showShopify && (
-                        <div className="flex items-center gap-2">
-                            <Tooltip>
-                                <TooltipTrigger>
-                                <ShopifyIcon className={cn("h-4 w-4", status.shopifyConfigured ? "text-green-500" : "text-destructive")} />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Shopify: {status.shopifyConfigured ? "Configurado" : "No Configurado"}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </div>
-                    )}
-                </div>
-            </Link>
-        </TooltipProvider>
-         <TooltipProvider><Tooltip><TooltipTrigger asChild>
-            <Button variant="ghost" size="icon-sm" onClick={onRefresh} disabled={isLoading}><RefreshCw className={cn("h-4 w-4 text-muted-foreground", isLoading && "animate-spin")} /></Button>
-        </TooltipTrigger><TooltipContent><p>Refrescar Estado</p></TooltipContent></Tooltip></TooltipProvider>
-    </div>
-  );
-};
-
 
 export function Header() {
   const router = useRouter();
@@ -208,6 +102,7 @@ export function Header() {
             wooCommerceConfigured: data.wooCommerceConfigured,
             wordPressConfigured: data.wordPressConfigured,
             shopifyConfigured: data.shopifyConfigured,
+            shopifyPartnerConfigured: data.shopifyPartnerConfigured,
             pluginActive: data.pluginActive,
             activePlatform: data.activePlatform,
             assignedPlatform: data.assignedPlatform,

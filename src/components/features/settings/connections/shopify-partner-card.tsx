@@ -6,12 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, Loader2, Save, Trash2, CheckCircle, Link as LinkIcon, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { AlertCircle, Loader2, Save, Trash2, CheckCircle, Link as LinkIcon, Eye, EyeOff } from "lucide-react";
 import type { PartnerAppConnectionData } from '@/lib/api-helpers';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
-import { cn } from '@/lib/utils';
 
 interface ShopifyPartnerCardProps {
   editingTarget: { type: 'user' | 'company'; id: string | null; name: string };
@@ -21,34 +20,7 @@ interface ShopifyPartnerCardProps {
   isSavingPartner: boolean;
   onDelete: () => void;
   isDeleting: boolean;
-  isConnectionVerified: boolean | undefined;
-  isVerifying: boolean;
-  onRefresh: () => void;
-}
-
-const ConnectionStatus = ({ isVerified, isVerifying, onRefresh }: { isVerified: boolean | undefined, isVerifying: boolean, onRefresh: () => void }) => {
-    if (isVerifying) {
-        return <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/> Verificando...</div>
-    }
-    if (isVerified === undefined) {
-        return <Button variant="ghost" size="sm" onClick={onRefresh}><RefreshCw className="h-4 w-4 mr-2"/>Verificar Conexión</Button>
-    }
-    
-    if (isVerified) {
-        return (
-            <div className="flex items-center gap-2">
-                <div className="flex items-center gap-2 text-sm text-green-600 font-medium"><CheckCircle className="h-4 w-4"/> Conectado</div>
-                <Button variant="ghost" size="icon-sm" onClick={onRefresh}><RefreshCw className="h-4 w-4"/></Button>
-            </div>
-        )
-    }
-
-    return (
-        <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 text-sm text-destructive font-medium"><AlertCircle className="h-4 w-4"/> Error en la conexión</div>
-            <Button variant="ghost" size="icon-sm" onClick={onRefresh}><RefreshCw className="h-4 w-4"/></Button>
-        </div>
-    )
+  configStatus: any;
 }
 
 export function ShopifyPartnerCard({
@@ -59,18 +31,36 @@ export function ShopifyPartnerCard({
   isSavingPartner,
   onDelete,
   isDeleting,
-  isConnectionVerified,
-  isVerifying,
-  onRefresh,
+  configStatus,
 }: ShopifyPartnerCardProps) {
   
   const [isTokenVisible, setIsTokenVisible] = React.useState(false);
+  const [isSecretVisible, setIsSecretVisible] = React.useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     onPartnerFormDataChange({ ...partnerFormData, [name]: value });
   };
   
+  const handleConnectClick = () => {
+    const { clientId } = partnerFormData;
+    const { id: entityId, type: entityType } = editingTarget;
+    
+    if (!clientId) {
+        alert("Por favor, guarda primero tu Client ID.");
+        return;
+    }
+
+    const state = `${entityType}:${entityId}`;
+    const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
+    const scopes = 'write_development_stores,read_development_stores';
+    
+    const authUrl = `https://partners.shopify.com/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${state}`;
+    window.location.href = authUrl;
+  };
+  
+  const isConnected = !!configStatus?.shopifyPartnerConfigured;
+
   return (
     <Card className="mt-8 border-primary/50">
       <CardHeader>
@@ -81,46 +71,102 @@ export function ShopifyPartnerCard({
                 Credenciales para crear tiendas para <strong>{editingTarget.name}</strong>.
                 </CardDescription>
             </div>
-             <ConnectionStatus isVerified={isConnectionVerified} isVerifying={isVerifying} onRefresh={onRefresh} />
+             <div className="flex items-center gap-2">
+                 {isConnected ? (
+                     <span className="flex items-center gap-2 text-sm text-green-600 font-medium"><CheckCircle className="h-4 w-4"/> Conectado</span>
+                 ) : (
+                      <span className="flex items-center gap-2 text-sm text-amber-600 font-medium"><AlertCircle className="h-4 w-4"/> No Conectado</span>
+                 )}
+            </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
         <Alert>
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>¿Cómo obtener el token?</AlertTitle>
+          <AlertTitle>¿Cómo obtener las credenciales?</AlertTitle>
           <AlertDescription>
-            Sigue nuestra <Link href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank" className="font-semibold underline">guía paso a paso</Link> para crear un **Cliente de la API de Partner** y obtener tu token.
+            Sigue nuestra <Link href="/docs/SHOPIFY_PARTNER_APP_SETUP.md" target="_blank" className="font-semibold underline">guía paso a paso</Link> para crear una App en tu panel de Shopify Partner y obtener las credenciales.
           </AlertDescription>
         </Alert>
         
-        <div className="space-y-4">
+        <div className="grid md:grid-cols-2 gap-4">
            <div>
-            <Label htmlFor="partnerApiToken">Token de Acceso de la API de Partner</Label>
+            <Label htmlFor="clientId">Client ID</Label>
+             <Input 
+                id="clientId" 
+                name="clientId" 
+                value={partnerFormData?.clientId || ''} 
+                onChange={handleInputChange} 
+                placeholder="Ej: 547a82a4abfb630a..." 
+                disabled={isSavingPartner}
+             />
+          </div>
+           <div>
+            <Label htmlFor="clientSecret">Client Secret</Label>
             <div className="flex items-center gap-2">
                  <Input 
-                    id="partnerApiToken" 
-                    name="partnerApiToken" 
-                    type={isTokenVisible ? 'text' : 'password'} 
-                    value={partnerFormData?.partnerApiToken || ''} 
+                    id="clientSecret" 
+                    name="clientSecret" 
+                    type={isSecretVisible ? 'text' : 'password'} 
+                    value={partnerFormData?.clientSecret || ''} 
                     onChange={handleInputChange} 
-                    placeholder="shptka_..." 
+                    placeholder="shpss_..." 
                     disabled={isSavingPartner}
                     className="font-mono"
                  />
-                 <Button variant="outline" size="icon" onClick={() => setIsTokenVisible(!isTokenVisible)}>
-                    {isTokenVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                 <Button variant="outline" size="icon" onClick={() => setIsSecretVisible(!isSecretVisible)}>
+                    {isSecretVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                  </Button>
             </div>
           </div>
+           <div className="md:col-span-2">
+             <Label htmlFor="partnerShopDomain">Tu Dominio de Partner (.myshopify.com)</Label>
+                 <Input 
+                    id="partnerShopDomain" 
+                    name="partnerShopDomain" 
+                    value={partnerFormData?.partnerShopDomain || ''} 
+                    onChange={handleInputChange} 
+                    placeholder="ejemplo-partner.myshopify.com" 
+                    disabled={isSavingPartner}
+                 />
+                 <p className="text-xs text-muted-foreground mt-1">
+                    Es el dominio de tu tienda principal dentro del panel de Partner, NO una tienda de desarrollo.
+                 </p>
+          </div>
         </div>
+        
+         <div className="space-y-2 pt-4 border-t">
+          <h4 className="font-medium text-sm">Token de Acceso</h4>
+           {partnerFormData?.partnerApiToken ? (
+            <div className="flex items-center gap-2">
+              <Input 
+                readOnly
+                type={isTokenVisible ? 'text' : 'password'} 
+                value={partnerFormData.partnerApiToken} 
+                className="font-mono bg-muted"
+              />
+              <Button variant="outline" size="icon" onClick={() => setIsTokenVisible(!isTokenVisible)}>
+                {isTokenVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
+           ) : (
+            <p className="text-sm text-muted-foreground italic">Guarda las credenciales y haz clic en "Conectar con Shopify" para obtener el token.</p>
+           )}
+        </div>
+
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
           <div className="flex items-center gap-2 flex-wrap">
-            <Button onClick={onSave} disabled={isSavingPartner || !partnerFormData.partnerApiToken}>
+            <Button onClick={onSave} disabled={isSavingPartner}>
               {isSavingPartner ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2"/>}
-              Guardar Token
+              Guardar Credenciales
             </Button>
-            <AlertDialog>
+            <Button onClick={handleConnectClick} disabled={isSavingPartner || !partnerFormData.clientId || !partnerFormData.partnerShopDomain}>
+              <LinkIcon className="h-4 w-4 mr-2"/>
+              {isConnected ? 'Reconectar con Shopify' : 'Conectar con Shopify'}
+            </Button>
+          </div>
+          <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" disabled={isSavingPartner || isDeleting}>
                   <Trash2 className="mr-2 h-4 w-4" /> Borrar
@@ -141,7 +187,6 @@ export function ShopifyPartnerCard({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          </div>
         </div>
       </CardContent>
     </Card>
