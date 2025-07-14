@@ -82,13 +82,11 @@ export async function GET(req: NextRequest) {
         }
         
         const settingsDoc = await settingsRef.get();
-        // The partner app data is ALWAYS global, so we fetch it separately.
         const globalSettingsDoc = await adminDb.collection('companies').doc('global_settings').get();
 
         const allConnections = settingsDoc.exists ? settingsDoc.data()?.connections || {} : {};
         const partnerAppData = globalSettingsDoc.exists ? globalSettingsDoc.data()?.connections?.partner_app || null : null;
         
-        // We only add the partner app data to the response object; we don't save it to the user/company document.
         if (partnerAppData) {
             allConnections.partner_app = partnerAppData;
         }
@@ -223,15 +221,17 @@ export async function DELETE(req: NextRequest) {
         }
         
         const { key, entityId, entityType } = validationResult.data;
-        let settingsRef;
+        let settingsRef: FirebaseFirestore.DocumentReference;
 
-        if (key === 'partner_app' && role === 'super_admin') {
+        // Correctly determine the document to modify
+        if (key === 'partner_app') {
+            if (role !== 'super_admin') {
+                return NextResponse.json({ error: 'Forbidden: Only Super Admins can delete global partner credentials.' }, { status: 403 });
+            }
             settingsRef = adminDb.collection('companies').doc('global_settings');
-        } else if (key !== 'partner_app') {
-             const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
-             settingsRef = adminDb.collection(settingsCollection).doc(entityId);
         } else {
-             return NextResponse.json({ error: 'Forbidden: Only Super Admins can delete global partner credentials.' }, { status: 403 });
+            const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
+            settingsRef = adminDb.collection(settingsCollection).doc(entityId);
         }
         
         const doc = await settingsRef.get();
@@ -244,6 +244,7 @@ export async function DELETE(req: NextRequest) {
             [`connections.${key}`]: admin.firestore.FieldValue.delete()
         };
 
+        // If the deleted key was the active key, find a new active key
         if (currentData?.activeConnectionKey === key) {
             const otherKeys = Object.keys(currentData.connections || {}).filter(k => k !== key && k !== 'partner_app');
             updatePayload.activeConnectionKey = otherKeys.length > 0 ? otherKeys[0] : null;
