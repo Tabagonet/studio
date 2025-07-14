@@ -50,28 +50,32 @@ export async function GET(req: NextRequest) {
 
         const jobs: ShopifyCreationJob[] = snapshot.docs.map(doc => {
             const data = doc.data();
+            // Map ALL relevant fields from the ShopifyCreationJob type
             return {
                 id: doc.id,
                 status: data.status || 'pending',
                 createdAt: data.createdAt.toDate().toISOString(),
                 updatedAt: data.updatedAt.toDate().toISOString(),
+                logs: data.logs || [],
+                webhookUrl: data.webhookUrl || '',
                 storeName: data.storeName || 'N/A',
                 businessEmail: data.businessEmail || 'N/A',
+                countryCode: data.countryCode || '',
+                currency: data.currency || '',
+                brandDescription: data.brandDescription || '',
+                targetAudience: data.targetAudience || '',
+                brandPersonality: data.brandPersonality || '',
+                colorPaletteSuggestion: data.colorPaletteSuggestion,
+                productTypeDescription: data.productTypeDescription || '',
+                creationOptions: data.creationOptions || {},
+                legalInfo: data.legalInfo || {},
+                entity: data.entity || {},
                 createdStoreUrl: data.createdStoreUrl || null,
                 createdStoreAdminUrl: data.createdStoreAdminUrl || null,
-                installUrl: data.installUrl || null,
                 storefrontPassword: data.storefrontPassword || null,
-                webhookUrl: data.webhookUrl,
-                countryCode: data.countryCode,
-                currency: data.currency,
-                brandDescription: data.brandDescription,
-                targetAudience: data.targetAudience,
-                brandPersonality: data.brandPersonality,
-                productTypeDescription: data.productTypeDescription,
-                creationOptions: data.creationOptions,
-                legalInfo: data.legalInfo,
-                entity: data.entity,
-            } as ShopifyCreationJob;
+                installUrl: data.installUrl || null,
+                storeAccessToken: data.storeAccessToken || null,
+            };
         });
 
         return NextResponse.json({ jobs });

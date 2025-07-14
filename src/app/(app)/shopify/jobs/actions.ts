@@ -2,8 +2,6 @@
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
-import type { ShopifyCreationJob } from '@/lib/types';
-
 
 export async function deleteShopifyJobsAction(
     jobIds: string[],
@@ -31,51 +29,26 @@ export async function deleteShopifyJobsAction(
     }
 
     try {
-        const batch = adminDb.batch();
-        const jobsRef = adminDb.collection('shopify_creation_jobs');
-        
-        if (jobIds.length > 500) {
-             return { success: false, error: 'No se pueden eliminar más de 500 trabajos a la vez.' };
-        }
-
-        // Firestore 'in' query is limited to 30 elements in array.
-        // We need to batch the reads if more than 30 IDs are provided.
-        const idChunks: string[][] = [];
-        for (let i = 0; i < jobIds.length; i += 30) {
-            idChunks.push(jobIds.slice(i, i + 30));
-        }
-        
-        let authorizedDeletions = 0;
-        
-        for (const chunk of idChunks) {
-            const snapshot = await jobsRef.where(adminDb.firestore.FieldPath.documentId(), 'in', chunk).get();
-            
-            snapshot.docs.forEach(doc => {
-                const jobData = doc.data() as ShopifyCreationJob;
-                
-                let isAuthorized = false;
-                if (context.role === 'super_admin') {
-                    isAuthorized = true;
-                } else if (jobData.entity.type === 'company' && jobData.entity.id === context.companyId) {
-                    isAuthorized = true;
-                } else if (jobData.entity.type === 'user' && jobData.entity.id === context.uid) {
-                    isAuthorized = true;
-                }
-
-                if (isAuthorized) {
-                    batch.delete(doc.ref);
-                    authorizedDeletions++;
+        // Since we now have a dedicated API endpoint, we can simplify this.
+        // For batch deletion, we'll just loop and call the single delete endpoint.
+        // This is less efficient for huge batches but much simpler and reuses logic.
+        for (const jobId of jobIds) {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/jobs/${jobId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
                 }
             });
+
+            if (!response.ok) {
+                 const errorData = await response.json();
+                 console.warn(`Failed to delete job ${jobId}:`, errorData.error);
+                 // We can decide to stop on first error or continue. Let's continue.
+            }
         }
         
-        if (authorizedDeletions === 0 && jobIds.length > 0) {
-             return { success: false, error: 'Permission denied. You do not own any of the selected jobs.' };
-        }
-
-        await batch.commit();
-
         return { success: true };
+
     } catch (error: any) {
         console.error(`Error deleting Shopify jobs:`, error);
         return { success: false, error: 'An unknown error occurred while deleting the jobs.' };
