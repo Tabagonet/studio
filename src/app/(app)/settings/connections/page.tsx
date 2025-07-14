@@ -42,6 +42,7 @@ interface SelectedEntityStatus {
     shopifyConfigured: boolean;
     shopifyPartnerConfigured?: boolean;
     shopifyPartnerError?: string; // New field for error details
+    shopifyCustomAppConfigured?: boolean; // Added this property
     pluginActive: boolean;
     activeStoreUrl: string | null;
     activePlatform: 'woocommerce' | 'shopify' | null;
@@ -61,6 +62,9 @@ const INITIAL_STATE: ConnectionData = {
 
 const INITIAL_PARTNER_APP_STATE: PartnerAppConnectionData = {
     partnerApiToken: undefined,
+    organizationId: undefined,
+    clientId: undefined,
+    clientSecret: undefined,
 };
 
 function getHostname(url: string | null | undefined): string | null {
@@ -384,6 +388,7 @@ export default function ConnectionsPage() {
             toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
         } finally {
             setSaving(false);
+            setIsSavingPartner(false);
         }
     };
     
@@ -404,16 +409,26 @@ export default function ConnectionsPage() {
                 entityType: editingTarget.type,
             };
             
-            await fetch('/api/user-settings/connections', {
+            const response = await fetch('/api/user-settings/connections', {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(payload)
             });
+
+            if (!response.ok) {
+                throw new Error((await response.json()).error || "No se pudo eliminar la conexión.");
+            }
             
             toast({ title: "Conexión Eliminada", description: `El perfil para '${keyToDelete}' ha sido eliminado.` });
+            
+            // Critical fix: reset state after successful deletion
+            if (keyToDelete === 'partner_app') {
+                setPartnerFormData(INITIAL_PARTNER_APP_STATE);
+            }
             await fetchConnections(user, editingTarget.type, editingTarget.id);
             await fetchStatus(editingTarget.type, editingTarget.id);
             window.dispatchEvent(new Event('connections-updated'));
+            
         } catch (error: any) {
             toast({ title: "Error al Eliminar", description: error.message, variant: "destructive" });
         } finally {
