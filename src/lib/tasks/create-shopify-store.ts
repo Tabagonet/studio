@@ -52,10 +52,9 @@ export async function handleCreateShopifyStore(jobId: string) {
         
         const graphqlEndpoint = `https://partners.shopify.com/${partnerCreds.organizationId}/api/2025-07/graphql.json`;
         
-        // --- CORRECTED GRAPHQL MUTATION ---
         const graphqlMutation = {
           query: `
-            mutation DevelopmentStoreCreate($input: DevelopmentStoreCreateInput!) {
+            mutation DevelopmentStoreCreate($input: DevelopmentStoreInput!) {
               developmentStoreCreate(input: $input) {
                 shop {
                   id
@@ -304,5 +303,3 @@ export async function populateShopifyStore(jobId: string) {
         }
     }
 }
-
-    
