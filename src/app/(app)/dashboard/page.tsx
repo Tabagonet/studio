@@ -102,17 +102,21 @@ export default function DashboardPage() {
 
   const handleRunTest = async () => {
     setIsTestRunning(true);
+    console.log('[Paso 1] Iniciando prueba de creación de tienda...');
     try {
+        console.log('[Paso 2] Llamando a la acción del servidor...');
         const result = await triggerShopifyCreationTestAction();
+        
         if (result.success) {
+          console.log('[Paso 3] Éxito. La acción del servidor devolvió:', result);
           toast({ title: '¡Éxito!', description: result.message });
           router.push('/shopify/jobs');
         } else {
-          // This will now catch the structured error from the server action
+          console.error('[ERROR] Falló la acción del servidor:', result.message);
           throw new Error(result.message || 'La acción del servidor falló sin un mensaje de error específico.');
         }
     } catch(error: any) {
-        console.error("Error al iniciar la prueba de creación de tienda:", error);
+        console.error('Error al iniciar la prueba de creación de tienda:', error);
         toast({ title: 'Error en la Prueba', description: error.message, variant: 'destructive', duration: 10000 });
     } finally {
         setIsTestRunning(false);

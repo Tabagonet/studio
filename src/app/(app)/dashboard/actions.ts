@@ -92,7 +92,9 @@ export async function triggerShopifyCreationTestAction(): Promise<{ success: boo
 
     } catch (error: any) {
         console.error('[Server Action Error] Failed to trigger store creation:', error.response?.data || error.message);
-        const details = error.response?.data?.details?.message || error.message;
-        return { success: false, message: `No se pudo iniciar el trabajo: ${details}` };
+        // Extract more detailed error message if available from axios response
+        const errorDetails = error.response?.data?.details?.message || error.response?.data?.error || error.message;
+        const errorMessage = `No se pudo iniciar el trabajo: ${errorDetails}`;
+        return { success: false, message: errorMessage };
     }
 }
