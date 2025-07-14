@@ -59,7 +59,8 @@ export async function GET(req: NextRequest) {
                 businessEmail: data.businessEmail || 'N/A',
                 createdStoreUrl: data.createdStoreUrl || null,
                 createdStoreAdminUrl: data.createdStoreAdminUrl || null,
-                // Avoid sending large objects like logs or generatedContent
+                installUrl: data.installUrl || null,
+                storefrontPassword: data.storefrontPassword || null,
                 webhookUrl: data.webhookUrl,
                 countryCode: data.countryCode,
                 currency: data.currency,

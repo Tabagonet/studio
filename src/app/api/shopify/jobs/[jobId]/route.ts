@@ -2,22 +2,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 
-async function getUserIdFromRequest(req: NextRequest): Promise<string | null> {
+async function getUserContext(req: NextRequest): Promise<{ uid: string; role: string | null; companyId: string | null }> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
-    if (!token) return null;
-    try {
-        if (!adminAuth) throw new Error("Firebase Admin Auth not initialized");
-        const decodedToken = await adminAuth.verifyIdToken(token);
-        return decodedToken.uid;
-    } catch {
-        return null;
-    }
+    if (!token) throw new Error('Authentication token not provided.');
+    if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized.");
+    const decodedToken = await adminAuth.verifyIdToken(token);
+    const uid = decodedToken.uid;
+    const userDoc = await adminDb.collection('users').doc(uid).get();
+    if (!userDoc.exists) throw new Error("User record not found in database.");
+    const userData = userDoc.data();
+    return {
+        uid: uid,
+        role: userData?.role || null,
+        companyId: userData?.companyId || null,
+    };
 }
 
+
 export async function DELETE(req: NextRequest, { params }: { params: { jobId: string } }) {
-    const uid = await getUserIdFromRequest(req);
-    if (!uid) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    let context;
+    try {
+        context = await getUserContext(req);
+    } catch (e: any) {
+        return NextResponse.json({ error: 'Unauthorized: ' + e.message }, { status: 401 });
     }
     
     if (!adminDb) {
@@ -36,13 +43,23 @@ export async function DELETE(req: NextRequest, { params }: { params: { jobId: st
         if (!doc.exists) {
             return NextResponse.json({ success: true, message: 'Job already deleted.' });
         }
+        
+        const jobData = doc.data();
 
-        // Simple security check: user can only delete their own jobs.
-        // A more complex check would involve roles and company affiliations.
-        if (doc.data()?.entity.id !== uid) {
-            return NextResponse.json({ error: 'Forbidden: You can only delete your own jobs.' }, { status: 403 });
+        // Authorization check
+        let isAuthorized = false;
+        if (context.role === 'super_admin') {
+            isAuthorized = true;
+        } else if (jobData?.entity.type === 'company' && jobData?.entity.id === context.companyId) {
+            isAuthorized = true;
+        } else if (jobData?.entity.type === 'user' && jobData?.entity.id === context.uid) {
+            isAuthorized = true;
         }
 
+        if (!isAuthorized) {
+            return NextResponse.json({ error: 'Forbidden: You do not have permission to delete this job.' }, { status: 403 });
+        }
+        
         await jobRef.delete();
 
         return NextResponse.json({ success: true, message: 'Job deleted successfully.' });
