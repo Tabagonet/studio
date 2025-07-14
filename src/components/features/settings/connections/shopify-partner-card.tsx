@@ -6,12 +6,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Loader2, Save, Trash2, Eye, EyeOff } from "lucide-react";
+import { Loader2, Save, Trash2, Eye, EyeOff, Link as LinkIcon, ExternalLink } from "lucide-react";
 import type { PartnerAppConnectionData } from '@/lib/api-helpers';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
 import { ConnectionStatusIndicator } from '@/components/core/ConnectionStatusIndicator';
+import { useRouter } from 'next/navigation';
 
 interface ShopifyPartnerCardProps {
   editingTarget: { type: 'user' | 'company'; id: string | null; name: string };
@@ -40,10 +41,30 @@ export function ShopifyPartnerCard({
 }: ShopifyPartnerCardProps) {
   
   const [isTokenVisible, setIsTokenVisible] = React.useState(false);
+  const router = useRouter();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     onPartnerFormDataChange({ ...partnerFormData, [name]: value });
+  };
+
+  const handleConnect = () => {
+    // This is a simplified OAuth flow starter.
+    // In a real app, you'd want to securely generate and store a state.
+    const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
+    const scopes = 'write_products,write_content,write_themes,read_products,read_content,read_themes';
+    
+    // We get the Client ID from the saved credentials for our Custom App
+    const clientId = partnerFormData.clientId; 
+
+    if (!clientId) {
+      alert("Por favor, guarda primero el Client ID de tu App Personalizada de Shopify.");
+      return;
+    }
+
+    const authUrl = `https://{SHOP_NAME}.myshopify.com/admin/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${editingTarget.id}`;
+    
+    alert("Esta es una URL de ejemplo. En una implementación real, {SHOP_NAME} sería reemplazado por la tienda del usuario.\n\n" + authUrl);
   };
   
   return (
@@ -53,7 +74,7 @@ export function ShopifyPartnerCard({
             <div>
                 <CardTitle>Conexión Global de Shopify Partners</CardTitle>
                 <CardDescription>
-                Credenciales para crear tiendas para <strong>{editingTarget.name}</strong>.
+                Credenciales para crear tiendas y para instalar la app que las poblará. Aplica a <strong>{editingTarget.name}</strong>.
                 </CardDescription>
             </div>
              <ConnectionStatusIndicator 
@@ -71,46 +92,89 @@ export function ShopifyPartnerCard({
             Sigue nuestra <Link href="/docs/shopify-partner-setup" target="_blank" className="font-semibold underline">guía paso a paso</Link> para crear un cliente de API en tu panel de Shopify Partner y obtener las credenciales.
           </AlertDescription>
         </Alert>
-        
-        <div>
-            <Label htmlFor="organizationId">ID de Organización</Label>
-             <Input 
-                id="organizationId" 
-                name="organizationId" 
-                type="text"
-                value={partnerFormData?.organizationId || ''} 
-                onChange={handleInputChange} 
-                placeholder="Ej: 1234567" 
-                disabled={isSavingPartner}
-             />
-             <p className="text-xs text-muted-foreground mt-1">
-                Puedes encontrar este ID en la URL de tu panel de Partner (ej: partners.shopify.com/1234567/...).
-             </p>
+
+        <div className="pt-4 border-t">
+          <h3 className="text-lg font-semibold text-foreground">1. Credenciales de la API de Partner</h3>
+           <p className="text-sm text-muted-foreground mb-4">Necesarias para crear nuevas tiendas de desarrollo.</p>
+            <div>
+                <Label htmlFor="organizationId">ID de Organización</Label>
+                <Input 
+                    id="organizationId" 
+                    name="organizationId" 
+                    type="text"
+                    value={partnerFormData?.organizationId || ''} 
+                    onChange={handleInputChange} 
+                    placeholder="Ej: 1234567" 
+                    disabled={isSavingPartner}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                    Puedes encontrar este ID en la URL de tu panel de Partner (ej: partners.shopify.com/1234567/...).
+                </p>
+            </div>
+
+            <div className="mt-4">
+                <Label htmlFor="partnerApiToken">Token de Acceso de la API de Partner</Label>
+                <div className="flex items-center gap-2">
+                    <Input 
+                        id="partnerApiToken" 
+                        name="partnerApiToken" 
+                        type={isTokenVisible ? 'text' : 'password'} 
+                        value={partnerFormData?.partnerApiToken || ''} 
+                        onChange={handleInputChange} 
+                        placeholder="shptka_..." 
+                        disabled={isSavingPartner}
+                        className="font-mono"
+                    />
+                    <Button variant="outline" size="icon" onClick={() => setIsTokenVisible(!isTokenVisible)}>
+                        {isTokenVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                </div>
+              </div>
         </div>
 
-        <div>
-            <Label htmlFor="partnerApiToken">Token de Acceso de la API de Partner</Label>
-            <div className="flex items-center gap-2">
-                 <Input 
-                    id="partnerApiToken" 
-                    name="partnerApiToken" 
-                    type={isTokenVisible ? 'text' : 'password'} 
-                    value={partnerFormData?.partnerApiToken || ''} 
-                    onChange={handleInputChange} 
-                    placeholder="shptka_..." 
-                    disabled={isSavingPartner}
-                    className="font-mono"
-                 />
-                 <Button variant="outline" size="icon" onClick={() => setIsTokenVisible(!isTokenVisible)}>
-                    {isTokenVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                 </Button>
+        <div className="pt-4 border-t">
+            <h3 className="text-lg font-semibold text-foreground">2. Credenciales de la App Personalizada</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Necesarias para que, una vez creada la tienda, el cliente pueda autorizar que nuestra app la configure.
+            </p>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="clientId">Client ID</Label>
+                   <Input 
+                      id="clientId" 
+                      name="clientId" 
+                      type="text"
+                      value={partnerFormData?.clientId || ''} 
+                      onChange={handleInputChange} 
+                      placeholder="Ej: ab12c34d..." 
+                      disabled={isSavingPartner}
+                   />
+                </div>
+                <div>
+                   <Label htmlFor="clientSecret">Client Secret</Label>
+                   <Input 
+                      id="clientSecret" 
+                      name="clientSecret" 
+                      type="password"
+                      value={partnerFormData?.clientSecret || ''} 
+                      onChange={handleInputChange} 
+                      placeholder="shpss_..." 
+                      disabled={isSavingPartner}
+                   />
+                </div>
             </div>
-          </div>
+            <p className="text-xs text-muted-foreground mt-2">
+                Recuerda que la "URL de redirección permitida" en tu App de Shopify debe ser: 
+                <code className="ml-1 bg-muted text-foreground p-1 rounded-md text-[11px]">
+                  {process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback
+                </code>
+            </p>
+        </div>
         
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
-            <Button onClick={onSave} disabled={isSavingPartner}>
+            <Button onClick={onSave} disabled={isSavingPartner || isDeleting}>
               {isSavingPartner ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2"/>}
-              Guardar Credenciales de Partner
+              Guardar Credenciales de Shopify
             </Button>
           <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -122,7 +186,7 @@ export function ShopifyPartnerCard({
                 <AlertDialogHeader>
                   <AlertDialogTitle>¿Confirmar eliminación?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Esta acción eliminará permanentemente las credenciales de Shopify Partner.
+                    Esta acción eliminará permanentemente las credenciales de Shopify Partner y de la App Personalizada.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

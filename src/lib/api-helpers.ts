@@ -16,6 +16,8 @@ import crypto from 'crypto';
 export const partnerAppConnectionDataSchema = z.object({
   partnerApiToken: z.string().optional(),
   organizationId: z.string().optional(),
+  clientId: z.string().optional(),
+  clientSecret: z.string().optional(),
 });
 export type PartnerAppConnectionData = z.infer<typeof partnerAppConnectionDataSchema>;
 

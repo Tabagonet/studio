@@ -4,7 +4,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { ShopifyCreationJob } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown, ExternalLink, Loader2, CheckCircle, AlertCircle, Circle } from "lucide-react";
+import { ArrowUpDown, ExternalLink, Loader2, CheckCircle, AlertCircle, Circle, LockOpen } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -18,25 +18,20 @@ const StatusBadge = ({ status }: { status: ShopifyCreationJob['status'] }) => {
 
     switch(status) {
         case 'processing':
-            variant = 'secondary';
-            Icon = Loader2;
-            label = "Procesando";
-            break;
+            variant = 'secondary'; Icon = Loader2; label = "Procesando"; break;
+        case 'awaiting_auth':
+            variant = 'secondary'; Icon = LockOpen; label = "Esperando Autorización"; break;
+        case 'authorized':
+             variant = 'secondary'; Icon = CheckCircle; label = "Autorizado"; break;
         case 'completed':
-            variant = 'default';
-            Icon = CheckCircle;
-            label = "Completado";
-            break;
+            variant = 'default'; Icon = CheckCircle; label = "Completado"; break;
         case 'error':
-            variant = 'destructive';
-            Icon = AlertCircle;
-            label = "Error";
-            break;
+            variant = 'destructive'; Icon = AlertCircle; label = "Error"; break;
     }
     
     return (
         <Badge variant={variant} className="capitalize">
-            <Icon className={cn("mr-1 h-3 w-3", status === 'processing' && "animate-spin")} />
+            <Icon className={cn("mr-1 h-3 w-3", ['processing'].includes(status) && "animate-spin")} />
             {label}
         </Badge>
     );

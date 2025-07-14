@@ -1,4 +1,5 @@
 
+
 import type { LucideIcon } from 'lucide-react';
 import type { SeoInterpretationOutput, SuggestLinksInput, SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
 
@@ -393,7 +394,7 @@ export interface Prospect {
 
 export interface ShopifyCreationJob {
   id: string;
-  status: 'pending' | 'processing' | 'authorized' | 'completed' | 'error';
+  status: 'pending' | 'processing' | 'awaiting_auth' | 'authorized' | 'completed' | 'error';
   createdAt: string; // ISO String
   updatedAt: string; // ISO String
   logs: { timestamp: string, message: string }[];
@@ -429,4 +430,6 @@ export interface ShopifyCreationJob {
   createdStoreUrl?: string | null;
   createdStoreAdminUrl?: string | null;
   storefrontPassword?: string | null;
+  installUrl?: string | null;
+  storeAccessToken?: string | null; // For populating content after authorization
 }

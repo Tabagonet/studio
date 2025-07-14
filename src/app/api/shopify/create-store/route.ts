@@ -8,8 +8,8 @@ const shopifyStoreCreationSchema = z.object({
   webhookUrl: z.string().url({ message: "La URL del webhook no es válida." }),
   storeName: z.string().min(3, "El nombre de la tienda debe tener al menos 3 caracteres."),
   businessEmail: z.string().email("El email del negocio no es válido."),
-  countryCode: z.string().length(2, "El código de país debe tener 2 caracteres."),
-  currency: z.string().length(3, "El código de moneda debe tener 3 caracteres."),
+  countryCode: z.string().length(2, "El código de país debe tener 2 caracteres.").optional(),
+  currency: z.string().length(3, "El código de moneda debe tener 3 caracteres.").optional(),
   brandDescription: z.string().min(1, "La descripción de la marca es obligatoria."),
   targetAudience: z.string().min(1, "El público objetivo es obligatorio."),
   brandPersonality: z.string().min(1, "La personalidad de la marca es obligatoria."),
@@ -69,7 +69,7 @@ async function enqueueShopifyCreationTask(jobId: string) {
        },
     },
     scheduleTime: {
-      seconds: Date.now() / 1000 + 5, // Schedule 5 seconds in the future
+      seconds: Date.now() / 1000 + 5,
     },
   };
 
@@ -155,6 +155,7 @@ export async function POST(req: NextRequest) {
 
     await enqueueShopifyCreationTask(jobId);
 
+    // This is the immediate response to the chatbot
     return NextResponse.json({ success: true, jobId: jobId }, { status: 202 });
 
   } catch (error: any) {

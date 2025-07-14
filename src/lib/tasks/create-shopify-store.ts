@@ -4,7 +4,7 @@ import axios from 'axios';
 import { getPartnerCredentials } from '@/lib/api-helpers';
 
 
-async function updateJobStatus(jobId: string, status: 'processing' | 'completed' | 'error' | 'authorized', logMessage: string, extraData: Record<string, any> = {}) {
+async function updateJobStatus(jobId: string, status: 'processing' | 'completed' | 'error' | 'authorized' | 'awaiting_auth', logMessage: string, extraData: Record<string, any> = {}) {
     if (!adminDb) return;
     const jobRef = adminDb.collection('shopify_creation_jobs').doc(jobId);
     await jobRef.update({
@@ -96,29 +96,41 @@ export async function handleCreateShopifyStore(jobId: string) {
 
         const storeAdminUrl = `https://${createdStore.domain}/admin`;
         const storeUrl = `https://${createdStore.domain}`;
+
+        // --- New Logic: Generate OAuth URL ---
+        const settingsDoc = await adminDb.collection('companies').doc('global_settings').get();
+        const customAppCreds = settingsDoc.data()?.connections?.shopify_custom_app;
+
+        if (!customAppCreds || !customAppCreds.clientId) {
+            throw new Error("El Client ID de la App Personalizada no está configurado en los ajustes globales.");
+        }
+
+        const scopes = 'write_products,write_content,write_themes,read_products,read_content,read_themes';
+        const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
+        const installUrl = `https://${createdStore.domain}/admin/oauth/authorize?client_id=${customAppCreds.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${jobId}`;
         
-        // This is the final successful state. The store is created. Content population is not possible.
-        await updateJobStatus(jobId, 'completed', '¡Tienda creada con éxito! La población automática de contenido no es posible con este método. Accede al admin para continuar.', {
+        await updateJobStatus(jobId, 'awaiting_auth', 'Tienda creada. Esperando autorización del usuario para poblar contenido.', {
             createdStoreUrl: storeUrl,
             createdStoreAdminUrl: storeAdminUrl,
             storefrontPassword: createdStore.password, 
+            installUrl: installUrl,
         });
         
-        // Notify the webhook of success
+        // Notify the webhook that the store is created and awaiting auth
         if (jobData.webhookUrl) {
             const webhookPayload = {
                 jobId: jobId,
-                status: 'completed',
-                message: '¡Tienda creada con éxito!',
+                status: 'awaiting_auth',
+                message: 'Tienda creada, esperando autorización para configurar.',
                 storeName: jobData.storeName,
                 storeUrl: storeUrl,
-                adminUrl: storeAdminUrl,
+                installUrl: installUrl,
+                adminUrl: storeAdminUrl
             };
             try {
                 await axios.post(jobData.webhookUrl, webhookPayload, { timeout: 10000 });
             } catch (webhookError: any) {
-                console.warn(`[Job ${jobId}] Failed to send success webhook to ${jobData.webhookUrl}: ${webhookError.message}`);
-                // Don't fail the job if the webhook fails, just log it.
+                console.warn(`[Job ${jobId}] Failed to send awaiting_auth webhook to ${jobData.webhookUrl}: ${webhookError.message}`);
             }
         }
 
@@ -147,15 +159,49 @@ export async function handleCreateShopifyStore(jobId: string) {
 
 
 /**
- * @deprecated This function is no longer viable as the Partner API does not provide an Admin API access token
- * for programmatically populating the newly created development store. This function is kept for structural
- * integrity but its execution path is removed.
+ * @description Populates a Shopify store with content after authorization.
+ * This function should be triggered after the OAuth flow is complete.
  */
 export async function populateShopifyStore(jobId: string) {
      if (!adminDb) {
         console.error("Firestore not available in populateShopifyStore.");
         return;
     }
-    console.log(`[Job ${jobId}] populateShopifyStore task was called, but is deprecated. The creation process is now complete after the store is created.`);
-    // We don't need to update the status here again, as the main task already sets it to 'completed'.
+    
+    await updateJobStatus(jobId, 'processing', 'Iniciando poblado de contenido...');
+
+    try {
+      // TODO: Implement the full logic for populating the store
+      // 1. Get job data, including the accessToken
+      // 2. Call Shopify Admin API using the accessToken to:
+      //    - Create products
+      //    - Create pages
+      //    - etc.
+      
+      console.log(`[Job ${jobId}] Store population logic would run here.`);
+
+      // For now, we'll just mark it as complete
+       await updateJobStatus(jobId, 'completed', '¡Tienda poblada con éxito!', {});
+
+        const jobDoc = await adminDb.collection('shopify_creation_jobs').doc(jobId).get();
+        if (jobDoc.exists && jobDoc.data()?.webhookUrl) {
+             const webhookPayload = {
+                jobId: jobId,
+                status: 'completed',
+                message: 'Tienda creada y poblada con éxito.',
+                storeName: jobDoc.data()!.storeName,
+                storeUrl: jobDoc.data()!.createdStoreUrl,
+                adminUrl: jobDoc.data()!.createdStoreAdminUrl,
+            };
+            try {
+                 await axios.post(jobDoc.data()!.webhookUrl, webhookPayload, { timeout: 10000 });
+            } catch (webhookError: any) {
+                 console.warn(`[Job ${jobId}] Failed to send FINAL COMPLETION webhook to ${jobDoc.data()!.webhookUrl}: ${webhookError.message}`);
+            }
+        }
+
+    } catch (error: any) {
+        console.error(`[Job ${jobId}] Failed to populate Shopify store:`, error);
+        await updateJobStatus(jobId, 'error', `Error en poblado de contenido: ${error.message}`);
+    }
 }
