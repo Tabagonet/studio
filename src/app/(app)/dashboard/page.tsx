@@ -20,7 +20,6 @@ import { cn } from '@/lib/utils';
 import { APP_NAME } from '@/lib/constants';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ShopifyIcon } from '@/components/core/icons';
-import { triggerShopifyCreationTestAction } from './actions';
 import { useRouter } from 'next/navigation';
 
 type FilterType = 'this_month' | 'last_30_days' | 'all_time';
@@ -112,18 +111,28 @@ export default function DashboardPage() {
     }
 
     try {
-        console.log('[Paso 2] Llamando a la acción del servidor...');
+        console.log('[Paso 2] Obteniendo token y llamando a la API...');
         const token = await user.getIdToken();
-        const result = await triggerShopifyCreationTestAction(token);
         
-        if (result.success) {
-          console.log('[Paso 3] Éxito. La acción del servidor devolvió:', result);
-          toast({ title: '¡Éxito!', description: result.message });
+        const response = await fetch('/api/shopify/trigger-test-creation', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            }
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+          console.log('[Paso 3] Éxito. La API respondió:', result);
+          toast({ title: '¡Éxito!', description: '¡Trabajo de creación de tienda enviado! Revisa el progreso en la sección de Trabajos.' });
           router.push('/shopify/jobs');
         } else {
-          console.error('[ERROR] Falló la acción del servidor:', result.message);
-          throw new Error(result.message || 'La acción del servidor falló sin un mensaje de error específico.');
+          console.error('[ERROR] La API falló:', result.error);
+          throw new Error(result.error || `La API respondió con un estado inesperado: ${response.status}`);
         }
+
     } catch(error: any) {
         console.error('Error al iniciar la prueba de creación de tienda:', error);
         toast({ title: 'Error en la Prueba', description: error.message, variant: 'destructive', duration: 10000 });
