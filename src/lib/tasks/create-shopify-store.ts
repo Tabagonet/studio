@@ -7,7 +7,7 @@ import { GenerationInput, generateShopifyStoreContent } from '@/ai/flows/shopify
 import type { ShopifyCreationJob } from '@/lib/types';
 
 
-async function updateJobStatus(jobId: string, status: 'processing' | 'completed' | 'error' | 'authorized' | 'awaiting_auth', logMessage: string, extraData: Record<string, any> = {}) {
+async function updateJobStatus(jobId: string, status: 'processing' | 'completed' | 'error' | 'awaiting_auth' | 'authorized', logMessage: string, extraData: Record<string, any> = {}) {
     if (!adminDb) return;
     const jobRef = adminDb.collection('shopify_creation_jobs').doc(jobId);
     await jobRef.update({
@@ -203,23 +203,31 @@ export async function populateShopifyStore(jobId: string) {
         const createdPages: { [key: string]: any } = {};
 
         // --- 2. Create Pages ---
-        if (generatedContent.aboutPage) {
+        if (generatedContent.aboutPage && jobData.creationOptions.createAboutPage) {
             const { data } = await shopifyApi.post('/pages.json', { page: { title: generatedContent.aboutPage.title, body_html: generatedContent.aboutPage.htmlContent } });
             createdPages['about'] = data.page;
         }
-        if (generatedContent.contactPage) {
+        if (generatedContent.contactPage && jobData.creationOptions.createContactPage) {
             const { data } = await shopifyApi.post('/pages.json', { page: { title: generatedContent.contactPage.title, body_html: generatedContent.contactPage.htmlContent } });
             createdPages['contact'] = data.page;
         }
-        if (generatedContent.legalPages) {
+        if (generatedContent.legalPages && jobData.creationOptions.createLegalPages) {
             for (const page of generatedContent.legalPages) {
-                const { data } = await shopifyApi.post('/pages.json', { page: { title: page.title, body_html: page.htmlContent.replace(/\[.*?\]/g, jobData.legalInfo.legalBusinessName) } });
+                // Replace placeholders in legal text
+                const legalBusinessName = jobData.legalInfo?.legalBusinessName || jobData.storeName;
+                const businessAddress = jobData.legalInfo?.businessAddress || 'Dirección no proporcionada';
+                const contactEmail = jobData.businessEmail || 'Email no proporcionado';
+                let content = page.htmlContent.replace(/\[Nombre del Negocio\]/gi, legalBusinessName);
+                content = content.replace(/\[Dirección\]/gi, businessAddress);
+                content = content.replace(/\[Email de Contacto\]/gi, contactEmail);
+                
+                const { data } = await shopifyApi.post('/pages.json', { page: { title: page.title, body_html: content } });
                 createdPages[page.title.toLowerCase().replace(/ /g, '_')] = data.page;
             }
         }
         
         // --- 3. Create Products ---
-        if (generatedContent.exampleProducts) {
+        if (generatedContent.exampleProducts && jobData.creationOptions.createExampleProducts) {
              await updateJobStatus(jobId, 'processing', 'Páginas creadas. Creando productos...');
              for (const product of generatedContent.exampleProducts) {
                  await shopifyApi.post('/products.json', { product: { title: product.title, body_html: product.descriptionHtml, tags: product.tags.join(',') } });
@@ -227,7 +235,7 @@ export async function populateShopifyStore(jobId: string) {
         }
         
         // --- 4. Create Blog Posts ---
-        if (generatedContent.blogPosts) {
+        if (generatedContent.blogPosts && jobData.creationOptions.createBlogWithPosts) {
             await updateJobStatus(jobId, 'processing', 'Productos creados. Creando entradas de blog...');
             const { data: blogs } = await shopifyApi.get('/blogs.json');
             let blogId = blogs.blogs[0]?.id;
