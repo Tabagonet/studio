@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, UploadCloud, History, BarChart3, Layers, Loader2, Link as LinkIcon, Calendar, Download, Newspaper, BrainCircuit } from "lucide-react";
+import { PlusCircle, UploadCloud, History, BarChart3, Layers, Loader2, Link as LinkIcon, Calendar, Download, Newspaper, BrainCircuit, PlayCircle } from "lucide-react";
 import Link from "next/link";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
@@ -20,6 +20,8 @@ import { cn } from '@/lib/utils';
 import { APP_NAME } from '@/lib/constants';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ShopifyIcon } from '@/components/core/icons';
+import { triggerShopifyCreationTestAction } from './actions';
+import { useRouter } from 'next/navigation';
 
 type FilterType = 'this_month' | 'last_30_days' | 'all_time';
 
@@ -38,12 +40,14 @@ interface UserData {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [configStatus, setConfigStatus] = useState<ConfigStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
   const [filter, setFilter] = useState<FilterType>('this_month');
+  const [isTestRunning, setIsTestRunning] = useState(false);
   const { toast } = useToast();
   
   const fetchData = useCallback(async (user: FirebaseUser) => {
@@ -95,6 +99,17 @@ export default function DashboardPage() {
     };
   }, [fetchData]);
 
+  const handleRunTest = async () => {
+    setIsTestRunning(true);
+    const result = await triggerShopifyCreationTestAction();
+    if (result.success) {
+      toast({ title: '¡Éxito!', description: result.message });
+      router.push('/shopify/jobs');
+    } else {
+      toast({ title: 'Error en la Prueba', description: result.message, variant: 'destructive' });
+    }
+    setIsTestRunning(false);
+  }
 
   const filteredLogs = useMemo(() => {
     const now = new Date();
@@ -274,15 +289,18 @@ export default function DashboardPage() {
                   <TooltipTrigger asChild>
                     <div className={cn(!shopifyConfigured && "cursor-not-allowed")}>
                       <Card className={cn("shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col", !shopifyConfigured && "bg-muted/50")}>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-lg font-medium">Automatizar Tienda</CardTitle><ShopifyIcon className="h-6 w-6 text-[#7ab55c]" /></CardHeader>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-lg font-medium">Prueba de Creación de Tienda</CardTitle><PlayCircle className="h-6 w-6 text-[#7ab55c]" /></CardHeader>
                         <CardContent className="flex flex-col flex-grow">
-                          <CardDescription className="mb-4 text-sm">Próximamente: Asistente para crear tiendas Shopify para clientes.</CardDescription>
-                          <Button className="w-full mt-auto" disabled={!shopifyConfigured}><Link href="#" className={cn(!shopifyConfigured && "pointer-events-none")}>Iniciar Asistente</Link></Button>
+                          <CardDescription className="mb-4 text-sm">Ejecuta una prueba completa del flujo de creación de tiendas de desarrollo con datos de ejemplo.</CardDescription>
+                          <Button onClick={handleRunTest} disabled={isTestRunning || !shopifyConfigured}>
+                            {isTestRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShopifyIcon className="mr-2 h-4 w-4" />}
+                            {isTestRunning ? 'Ejecutando...' : 'Iniciar Prueba'}
+                          </Button>
                         </CardContent>
                       </Card>
                     </div>
                   </TooltipTrigger>
-                  {!shopifyConfigured && (<TooltipContent><p>Configuración de Shopify incompleta.</p></TooltipContent>)}
+                  {!shopifyConfigured && (<TooltipContent><p>La conexión global de Shopify Partner no está configurada.</p></TooltipContent>)}
                 </Tooltip>
             </TooltipProvider>
           </div>

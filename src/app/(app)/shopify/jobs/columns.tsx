@@ -4,7 +4,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { ShopifyCreationJob } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown, ExternalLink, Loader2, CheckCircle, AlertCircle, Circle, LockOpen } from "lucide-react";
+import { ArrowUpDown, ExternalLink, Loader2, CheckCircle, AlertCircle, Circle, LockOpen, Key } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -79,14 +79,33 @@ export const getColumns = (): ColumnDef<ShopifyCreationJob>[] => [
     id: "actions",
     cell: ({ row }) => {
       const job = row.original;
+      const canAuthorize = job.status === 'awaiting_auth' && job.installUrl;
+      const canOpenAdmin = job.status === 'completed' && job.createdStoreAdminUrl;
+
       return (
         <div className="text-right">
-          <Button disabled={!job.createdStoreAdminUrl} variant="outline" size="sm" asChild>
-            <Link href={job.createdStoreAdminUrl || ''} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="h-4 w-4 mr-2" />
-              Abrir Admin
-            </Link>
-          </Button>
+            {canAuthorize && (
+                 <Button variant="default" size="sm" asChild>
+                    <Link href={job.installUrl!} target="_blank" rel="noopener noreferrer">
+                        <Key className="h-4 w-4 mr-2" />
+                        Autorizar Instalación
+                    </Link>
+                </Button>
+            )}
+            {canOpenAdmin && (
+                 <Button variant="outline" size="sm" asChild>
+                    <Link href={job.createdStoreAdminUrl!} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Abrir Admin
+                    </Link>
+                </Button>
+            )}
+            {!canAuthorize && !canOpenAdmin && (
+                <Button variant="outline" size="sm" disabled>
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Abrir Admin
+                </Button>
+            )}
         </div>
       );
     },
