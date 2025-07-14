@@ -15,6 +15,9 @@ const shopifyStoreCreationSchema = z.object({
   webhookUrl: z.string().url({ message: "La URL del webhook no es válida." }),
   storeName: z.string().min(3, "El nombre de la tienda debe tener al menos 3 caracteres."),
   businessEmail: z.string().email("El email del negocio no es válido."),
+  ownerFirstName: z.string().min(1, "El nombre del propietario es obligatorio."),
+  ownerLastName: z.string().min(1, "El apellido del propietario es obligatorio."),
+  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres.").optional(),
   countryCode: z.string().length(2, "El código de país debe tener 2 caracteres.").optional(),
   currency: z.string().length(3, "El código de moneda debe tener 3 caracteres.").optional(),
   brandDescription: z.string().min(1, "La descripción de la marca es obligatoria."),
@@ -48,48 +51,6 @@ const testCreationSchema = z.object({
 });
 
 
-async function enqueueShopifyCreationTask(jobId: string) {
-    console.log(`[Shopify Create Store] Step 5.1: Enqueuing task for Job ID: ${jobId}`);
-    
-    // Explicitly initialize the client with credentials
-    const tasksClient = new CloudTasksClient({
-      credentials: getServiceAccountCredentials(),
-      projectId: process.env.FIREBASE_PROJECT_ID,
-    });
-    
-    const projectId = process.env.FIREBASE_PROJECT_ID;
-    if (!projectId) throw new Error("FIREBASE_PROJECT_ID env var is not set.");
-    
-    const LOCATION_ID = 'europe-west1'; 
-    const QUEUE_ID = 'autopress-jobs1';
-    
-    const parent = tasksClient.queuePath(projectId, LOCATION_ID, QUEUE_ID);
-    
-    const serviceAccountEmail = getServiceAccountCredentials().client_email;
-    const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/populate-shopify-store`;
-
-    const task = {
-        httpRequest: {
-            httpMethod: 'POST' as const,
-            url: targetUri,
-            headers: { 'Content-Type': 'application/json' },
-            body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
-            oidcToken: { serviceAccountEmail },
-        },
-    };
-
-    console.log(`[Shopify Create Store] Step 5.2: About to create task with payload for URI: ${targetUri}`);
-    try {
-        const [response] = await tasksClient.createTask({ parent, task });
-        console.log(`[Shopify Create Store] Step 5.3: Task created successfully: ${response.name}`);
-        return response;
-    } catch (error: any) {
-         console.error('[Shopify Create Store] Error al crear la tarea en Cloud Tasks:', error);
-        throw error;
-    }
-}
-
-
 async function handleTestCreation(uid: string) {
     console.log(`[Shopify Create Store] Test Call: Generating test data...`);
     if (!adminDb) {
@@ -113,6 +74,9 @@ async function handleTestCreation(uid: string) {
       webhookUrl: "https://webhook.site/#!/view/1b8a9b3f-8c3b-4c1e-9d2a-9e1b5f6a7d1c", 
       storeName: storeData.storeName,
       businessEmail: storeData.businessEmail,
+      ownerFirstName: "Test",
+      ownerLastName: "User",
+      password: `Segura${Date.now()}!`,
       countryCode: "ES",
       currency: "EUR",
       brandDescription: "Una tienda de prueba generada automáticamente para verificar el flujo de creación de AutoPress AI.",
@@ -232,7 +196,7 @@ export async function POST(req: NextRequest) {
           projectId: process.env.FIREBASE_PROJECT_ID,
         });
         
-        const parent = tasksClient.queuePath(process.env.FIREBASE_PROJECT_ID!, 'europe-west1', 'autopress-jobs1');
+        const parent = tasksClient.queuePath(process.env.FIREBASE_PROJECT_ID!, 'europe-west1', 'autopress-jobs');
         const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
         const task = {
             httpRequest: {
