@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, admin, adminAuth } from '@/lib/firebase-admin';
+import { adminDb, admin, adminAuth, getServiceAccountCredentials } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { CloudTasksClient } from '@google-cloud/tasks';
 import { getPartnerCredentials } from '@/lib/api-helpers';
@@ -51,12 +51,11 @@ const testCreationSchema = z.object({
 async function enqueueShopifyCreationTask(jobId: string) {
     console.log(`[Shopify Create Store] Step 5.1: Enqueuing task for Job ID: ${jobId}`);
     
-    const cronSecret = process.env.CRON_SECRET;
-    if (!cronSecret) {
-        throw new Error('CRON_SECRET environment variable is not set. Cannot create task.');
-    }
-    
-    const tasksClient = new CloudTasksClient();
+    // Explicitly initialize the client with credentials
+    const tasksClient = new CloudTasksClient({
+      credentials: getServiceAccountCredentials(),
+      projectId: process.env.FIREBASE_PROJECT_ID,
+    });
     
     const projectId = process.env.FIREBASE_PROJECT_ID;
     if (!projectId) throw new Error("FIREBASE_PROJECT_ID env var is not set.");
@@ -66,18 +65,20 @@ async function enqueueShopifyCreationTask(jobId: string) {
     
     const parent = tasksClient.queuePath(projectId, LOCATION_ID, QUEUE_ID);
     
-    const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store?secret=${cronSecret}`;
-    
+    const serviceAccountEmail = getServiceAccountCredentials().client_email;
+    const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/populate-shopify-store`;
+
     const task = {
         httpRequest: {
             httpMethod: 'POST' as const,
             url: targetUri,
             headers: { 'Content-Type': 'application/json' },
             body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
+            oidcToken: { serviceAccountEmail },
         },
     };
 
-    console.log(`[Shopify Create Store] Step 5.2: About to create task with payload for URI: ${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store?secret=${cronSecret}`);
+    console.log(`[Shopify Create Store] Step 5.2: About to create task with payload for URI: ${targetUri}`);
     try {
         const [response] = await tasksClient.createTask({ parent, task });
         console.log(`[Shopify Create Store] Step 5.3: Task created successfully: ${response.name}`);
@@ -219,8 +220,38 @@ export async function POST(req: NextRequest) {
     console.log(`[Shopify Create Store] Step 4: Firestore job document created with ID: ${jobRef.id}`);
 
     const jobId = jobRef.id;
-    await enqueueShopifyCreationTask(jobId);
-    console.log(`[Shopify Create Store] Step 5: Task enqueued successfully.`);
+    // For local development, we'll now call the task handler directly instead of enqueuing.
+    // This provides immediate feedback and avoids Cloud Tasks environment issues.
+    if (process.env.NODE_ENV === 'development') {
+        console.log(`[Shopify Create Store] Step 5: DEV MODE - Calling task handler directly for Job ID: ${jobId}`);
+        const { handleCreateShopifyStore } = require('@/lib/tasks/create-shopify-store');
+        // We don't await this call, allowing the API to respond immediately (asynchronous behavior).
+        handleCreateShopifyStore(jobId).catch((e: any) => {
+            console.error(`[DEV Direct Call] Error executing task for job ${jobId}:`, e);
+        });
+    } else {
+        // In production, we still use Cloud Tasks.
+        // We'll now enqueue the task that starts the process, not the population task.
+        const tasksClient = new CloudTasksClient({
+          credentials: getServiceAccountCredentials(),
+          projectId: process.env.FIREBASE_PROJECT_ID,
+        });
+        
+        const parent = tasksClient.queuePath(process.env.FIREBASE_PROJECT_ID!, 'europe-west1', 'autopress-jobs1');
+        const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
+        const task = {
+            httpRequest: {
+                httpMethod: 'POST' as const,
+                url: targetUri,
+                headers: { 'Content-Type': 'application/json' },
+                body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
+                oidcToken: { serviceAccountEmail: getServiceAccountCredentials().client_email },
+            },
+        };
+        await tasksClient.createTask({ parent, task });
+    }
+    
+    console.log(`[Shopify Create Store] Step 6: Task processing initiated.`);
 
     return NextResponse.json({ success: true, jobId: jobId }, { status: 202 });
 

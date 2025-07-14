@@ -1,4 +1,3 @@
-
 // src/lib/firebase-admin.ts
 import type * as admin from 'firebase-admin';
 
@@ -31,6 +30,17 @@ function getServiceAccount() {
     
     throw new Error("Firebase Admin credentials are not set. Please provide FIREBASE_SERVICE_ACCOUNT_JSON or the individual environment variables.");
 }
+
+// Function to export credentials for other Google Cloud services
+export function getServiceAccountCredentials() {
+    const serviceAccount = getServiceAccount();
+    return {
+        client_email: serviceAccount.clientEmail,
+        private_key: serviceAccount.privateKey,
+        project_id: serviceAccount.projectId,
+    };
+}
+
 
 // Initialize the app only if it hasn't been initialized yet
 if (!admin_sdk.apps.length) {

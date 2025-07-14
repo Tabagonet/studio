@@ -1,27 +1,28 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { handleCreateShopifyStore } from '@/lib/tasks/create-shopify-store';
+import { adminAuth } from '@/lib/firebase-admin';
+
 
 // This endpoint is designed to be called by Cloud Tasks.
-// It uses a shared secret for authentication.
+// It includes a verification step to ensure only Cloud Tasks can invoke it.
 export async function POST(req: NextRequest) {
     console.log('[Task Handler] Received POST request to /api/tasks/create-shopify-store.');
     
     try {
-        const cronSecret = process.env.CRON_SECRET;
-        if (!cronSecret) {
-            console.error('[Task Handler] CRON_SECRET is not set on the server.');
-            throw new Error("Server configuration error: secret not set.");
+        // --- Security Check: Verify the request is from Cloud Tasks ---
+        const oidcToken = req.headers.get('Authorization')?.split('Bearer ')[1];
+        if (!oidcToken) {
+            console.warn('[Task Handler] Unauthorized: Called without OIDC token.');
+            return NextResponse.json({ error: 'Unauthorized: Missing token' }, { status: 401 });
         }
 
-        const { searchParams } = new URL(req.url);
-        const secret = searchParams.get('secret');
-
-        if (secret !== cronSecret) {
-            console.error('[Task Handler] Unauthorized: Invalid secret provided.');
-            return NextResponse.json({ error: 'Unauthorized: Invalid secret.' }, { status: 401 });
+        if (!adminAuth) {
+            throw new Error("Firebase Admin SDK is not initialized.");
         }
-        console.log('[Task Handler] Secret verified successfully.');
+        
+        await adminAuth.verifyIdToken(oidcToken, true);
+        console.log("[Task Handler] OIDC Token Verified.");
 
         const body = await req.json();
         const jobId = body.jobId;
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest) {
             message: error.message,
             stack: error.stack,
         });
+        // Return a 500 error to signal to Cloud Tasks that the task failed and should be retried.
         return NextResponse.json({ error: 'Task execution failed', details: error.message }, { status: 500 });
     }
 }
