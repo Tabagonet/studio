@@ -1,9 +1,9 @@
+
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, admin, adminAuth } from '@/lib/firebase-admin';
+import { adminDb, admin, adminAuth, getServiceAccountCredentials } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { CloudTasksClient } from '@google-cloud/tasks';
 import { getPartnerCredentials } from '@/lib/api-helpers';
-import { getServiceAccountCredentials } from '@/lib/firebase-admin';
 
 
 // This API route handles requests to create new Shopify stores.
@@ -51,8 +51,10 @@ const testCreationSchema = z.object({
 async function enqueueShopifyCreationTask(jobId: string) {
     console.log(`[Shopify Create Store] Step 5.1: Enqueuing task for Job ID: ${jobId}`);
     
+    // Initialize client inside the function with explicit credentials for robustness
     const tasksClient = new CloudTasksClient({
-        credentials: getServiceAccountCredentials(),
+      credentials: getServiceAccountCredentials(),
+      projectId: getServiceAccountCredentials().project_id,
     });
 
     const projectId = process.env.FIREBASE_PROJECT_ID!;
@@ -86,6 +88,9 @@ async function enqueueShopifyCreationTask(jobId: string) {
          console.error('[Shopify Create Store] Error al crear la tarea en Cloud Tasks:', error);
          if (error.code === 7 && error.details?.includes('iam.serviceAccounts.actAs')) {
             throw new Error(`Error de Permisos de IAM: La cuenta de servicio necesita el rol "Usuario de cuenta de servicio" sobre sí misma. Detalles: ${error.details}`);
+        }
+        if (error.code === 5) { // NOT_FOUND
+            throw new Error(`La cola de tareas "${QUEUE_ID}" no existe en la ubicación "${LOCATION_ID}". Por favor, créala o verifica el nombre en queue.yaml. Error: ${error.details}`);
         }
         throw error;
     }

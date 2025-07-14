@@ -1,12 +1,27 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { handleCreateShopifyStore } from '@/lib/tasks/create-shopify-store';
+import { adminAuth } from '@/lib/firebase-admin';
 
 // This endpoint is now designed to be called by Cloud Tasks.
 export async function POST(req: NextRequest) {
     console.log('[Task Handler] Received POST request to /api/tasks/create-shopify-store.');
     
     try {
+        // --- Security Check (Temporarily disabled for debugging, re-enable for production) ---
+        // const oidcToken = req.headers.get('Authorization')?.split('Bearer ')[1];
+        // if (!oidcToken) {
+        //     console.warn('Populate task handler called without OIDC token.');
+        //     return NextResponse.json({ error: 'Unauthorized: Missing token' }, { status: 401 });
+        // }
+
+        // if (!adminAuth) {
+        //     throw new Error("Firebase Admin SDK is not initialized.");
+        // }
+        
+        // const audience = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
+        // await adminAuth.verifyIdToken(oidcToken, true);
+        
         const body = await req.json();
         const jobId = body.jobId;
         console.log(`[Task Handler] Extracted Job ID: ${jobId}`);
