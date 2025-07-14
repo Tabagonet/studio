@@ -51,9 +51,7 @@ async function enqueueShopifyCreationTask(jobId: string) {
     console.log(`[Shopify Create Store] Step 5.1: Enqueuing task for Job ID: ${jobId}`);
     
     // Explicitly get credentials first.
-    const credentials = getServiceAccountCredentials();
-    const serviceAccountEmail = credentials.client_email;
-    const projectId = credentials.project_id;
+    const { client_email: serviceAccountEmail, project_id: projectId } = getServiceAccountCredentials();
     
     if (!serviceAccountEmail) {
         throw new Error('No se pudo obtener el email de la cuenta de servicio desde las credenciales.');
@@ -62,10 +60,10 @@ async function enqueueShopifyCreationTask(jobId: string) {
         throw new Error('No se pudo obtener el ID del proyecto desde las credenciales.');
     }
 
-    const tasksClient = new CloudTasksClient({ projectId, credentials });
+    const tasksClient = new CloudTasksClient();
 
     const LOCATION_ID = 'europe-west1'; 
-    const QUEUE_ID = 'autopress-jobs';
+    const QUEUE_ID = 'autopress-jobs1';
     
     const parent = tasksClient.queuePath(projectId, LOCATION_ID, QUEUE_ID);
     const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
@@ -86,6 +84,7 @@ async function enqueueShopifyCreationTask(jobId: string) {
         console.log(`[Shopify Create Store] Step 5.3: Task created successfully: ${response.name}`);
         return response;
     } catch (error: any) {
+         console.error('[Shopify Create Store] Error al crear la tarea en Cloud Tasks:', error);
          if (error.code === 7 && error.details?.includes('iam.serviceAccounts.actAs')) {
             throw new Error(`Error de Permisos de IAM: La cuenta de servicio necesita el rol "Usuario de cuenta de servicio" sobre sí misma. Detalles: ${error.details}`);
         }

@@ -1,0 +1,24 @@
+# queue.yaml
+# Defines the configuration for a Cloud Tasks queue.
+# When this file is deployed, App Hosting automatically creates a queue with these settings.
+# For more information, see https://firebase.google.com/docs/app-hosting/reference/queue-yaml
+
+# The name of the queue. This is the value you'll use in your code to enqueue tasks.
+queue: autopress-jobs1
+
+# The maximum rate at which tasks are dispatched from this queue.
+rate: 5/s
+
+# The maximum number of concurrent tasks that can be dispatched.
+max_concurrent_dispatches: 10
+
+# Retry configuration for failed tasks.
+retry_config:
+  # The maximum number of times to retry a failed task.
+  max_attempts: 5
+  # The maximum duration to wait before retrying a task.
+  max_backoff: 3600s
+  # The maximum number of times a task can be retried in a single-hour period.
+  max_doublings: 10
+  # The minimum duration to wait before retrying a task.
+  min_backoff: 0.1s
