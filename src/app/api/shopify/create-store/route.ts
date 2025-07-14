@@ -75,7 +75,7 @@ async function enqueueShopifyCreationTask(jobId: string) {
     const parent = tasksClient.queuePath(PROJECT_ID, LOCATION_ID, QUEUE_ID);
     
     // Get the service account email safely from the same source as the client credentials
-    const serviceAccountEmail = getServiceAccountCredentials().client_email;
+    const serviceAccountEmail = getServiceAccountCredentials().clientEmail;
 
     if (!serviceAccountEmail) {
         throw new Error('No se pudo obtener el email de la cuenta de servicio desde las credenciales.');
