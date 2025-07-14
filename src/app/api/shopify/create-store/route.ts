@@ -42,7 +42,7 @@ const shopifyStoreCreationSchema = z.object({
 });
 
 // Initialize the Cloud Tasks client once.
-const tasksClient = new CloudTasksClient();
+const tasksClient = new CloudTasksClient({ credentials: getServiceAccountCredentials() });
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
 const LOCATION_ID = 'europe-west1'; 
 const QUEUE_ID = 'autopress-jobs';
@@ -56,7 +56,7 @@ async function enqueueShopifyCreationTask(jobId: string) {
   const parent = tasksClient.queuePath(PROJECT_ID, LOCATION_ID, QUEUE_ID);
   
   // Get the service account email safely
-  const serviceAccountEmail = getServiceAccountCredentials()?.clientEmail;
+  const serviceAccountEmail = getServiceAccountCredentials()?.client_email;
 
   if (!serviceAccountEmail) {
     throw new Error('No se pudo obtener el email de la cuenta de servicio desde el SDK de Firebase Admin.');
