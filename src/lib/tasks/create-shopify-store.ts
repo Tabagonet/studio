@@ -1,10 +1,6 @@
 
-
 import { admin, adminDb } from '@/lib/firebase-admin';
 import axios from 'axios';
-import { generateShopifyStoreContent, type GeneratedContent, type GenerationInput } from '@/ai/flows/shopify-content-flow';
-import { createShopifyApi } from '@/lib/shopify';
-import type { AxiosInstance } from 'axios';
 import { getPartnerCredentials } from '@/lib/api-helpers';
 
 
@@ -22,7 +18,8 @@ async function updateJobStatus(jobId: string, status: 'processing' | 'completed'
     });
 }
 
-// This function now contains the full logic and is intended to be called by a task handler.
+// This function contains the full logic for creating a development store.
+// It's the primary task executed by the Cloud Task queue.
 export async function handleCreateShopifyStore(jobId: string) {
     if (!adminDb) {
         console.error("Firestore not available in handleCreateShopifyStore.");
@@ -100,8 +97,8 @@ export async function handleCreateShopifyStore(jobId: string) {
         const storeAdminUrl = `https://${createdStore.domain}/admin`;
         const storeUrl = `https://${createdStore.domain}`;
         
-        // This is the final successful state.
-        await updateJobStatus(jobId, 'completed', '¡Tienda creada con éxito! La población automática de contenido no está soportada. Por favor, accede al admin para continuar.', {
+        // This is the final successful state. The store is created. Content population is not possible.
+        await updateJobStatus(jobId, 'completed', '¡Tienda creada con éxito! La población automática de contenido no es posible con este método. Accede al admin para continuar.', {
             createdStoreUrl: storeUrl,
             createdStoreAdminUrl: storeAdminUrl,
             storefrontPassword: createdStore.password, 
@@ -112,7 +109,7 @@ export async function handleCreateShopifyStore(jobId: string) {
             const webhookPayload = {
                 jobId: jobId,
                 status: 'completed',
-                message: '¡Tienda creada y poblada con éxito!',
+                message: '¡Tienda creada con éxito!',
                 storeName: jobData.storeName,
                 storeUrl: storeUrl,
                 adminUrl: storeAdminUrl,
@@ -149,30 +146,16 @@ export async function handleCreateShopifyStore(jobId: string) {
 }
 
 
+/**
+ * @deprecated This function is no longer viable as the Partner API does not provide an Admin API access token
+ * for programmatically populating the newly created development store. This function is kept for structural
+ * integrity but its execution path is removed.
+ */
 export async function populateShopifyStore(jobId: string) {
      if (!adminDb) {
         console.error("Firestore not available in populateShopifyStore.");
         return;
     }
-    const jobRef = adminDb.collection('shopify_creation_jobs').doc(jobId);
-    let createdPages: { title: string; handle: string; }[] = [];
-
-    try {
-        await updateJobStatus(jobId, 'processing', 'Tarea de población iniciada.');
-        const jobDoc = await jobRef.get();
-        if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
-        const jobData = jobDoc.data()!;
-
-        // This flow is now deprecated as we can't get an Admin API token this way.
-        // We will just log a message and complete the job.
-        if (!jobData.createdStoreUrl) {
-            throw new Error("El trabajo no tiene una URL de tienda creada. No se puede poblar.");
-        }
-        
-        await updateJobStatus(jobId, 'completed', '¡Proceso finalizado! La tienda ha sido creada. La población de contenido debe realizarse manualmente.');
-
-    } catch (error: any) {
-        console.error(`[Job ${jobId}] Failed to populate Shopify store:`, error.message);
-        await updateJobStatus(jobId, 'error', `Error al poblar la tienda: ${error.message}`);
-    }
+    console.log(`[Job ${jobId}] populateShopifyStore task was called, but is deprecated. The creation process is now complete after the store is created.`);
+    // We don't need to update the status here again, as the main task already sets it to 'completed'.
 }

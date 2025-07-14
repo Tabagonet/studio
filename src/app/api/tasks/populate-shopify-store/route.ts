@@ -5,6 +5,7 @@ import { adminAuth } from '@/lib/firebase-admin';
 
 // This endpoint is designed to be called by Cloud Tasks.
 // It includes a verification step to ensure only Cloud Tasks can invoke it.
+// DEPRECATED: This task is no longer enqueued, but the endpoint is kept for potential future use.
 export async function POST(req: NextRequest) {
     try {
         // --- Security Check: Verify the request is from Cloud Tasks ---
@@ -35,10 +36,10 @@ export async function POST(req: NextRequest) {
         // --- Execute the Task ---
         await populateShopifyStore(jobId);
 
-        return NextResponse.json({ success: true, message: `Population task for job ${jobId} executed.` });
+        return NextResponse.json({ success: true, message: `Population task for job ${jobId} was called but is deprecated.` });
 
     } catch (error: any) {
-        console.error(`[Task Handler] Error processing population job:`, error);
+        console.error(`[Task Handler] Error processing deprecated population job:`, error);
         // Return a 500 error to signal to Cloud Tasks that the task failed and should be retried.
         return NextResponse.json({ error: 'Population task execution failed', details: error.message }, { status: 500 });
     }
