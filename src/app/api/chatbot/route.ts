@@ -1,7 +1,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getChatbotResponse } from '@/ai/flows/chatbot-flow';
-import { handleStoreCreationAction } from './actions';
+import { getChatbotResponse, extractAnalysisData } from '@/ai/flows/chatbot-flow';
+import { adminDb } from '@/lib/firebase-admin';
+import axios from 'axios';
 import { z } from 'zod';
 
 interface Message {
@@ -56,6 +57,83 @@ async function handleAnalysisCompletion(messages: Message[]) {
     return '¡Genial! Hemos recibido toda la información. Uno de nuestros expertos la revisará y se pondrá en contacto contigo muy pronto. ¡Gracias!';
 }
 
+
+/**
+ * Handles the logic for initiating a Shopify store creation process.
+ * It now calls the dedicated /api/shopify/create-store endpoint.
+ */
+async function triggerStoreCreationWithExampleData() {
+    if (!adminDb) {
+      throw new Error("Firestore is not configured.");
+    }
+    
+    const internalApiKey = process.env.SHOPIFY_AUTOMATION_API_KEY;
+    if (!internalApiKey) {
+        throw new Error("La clave SHOPIFY_AUTOMATION_API_KEY no está configurada en el servidor.");
+    }
+
+    const timestamp = Date.now();
+    const storeData = {
+        storeName: `Tienda de Prueba ${timestamp}`,
+        businessEmail: `test-${timestamp}@example.com`,
+        countryCode: "ES",
+        currency: "EUR",
+        brandDescription: "Una tienda de prueba generada automáticamente para verificar el flujo de creación de AutoPress AI.",
+        targetAudience: "Desarrolladores y equipo de producto.",
+        brandPersonality: "Funcional, robusta y eficiente.",
+        legalBusinessName: "AutoPress Testing SL",
+        businessAddress: "Calle Ficticia 123, 08001, Barcelona, España"
+    };
+    
+    const companyQuery = await adminDb.collection('companies').where('name', '==', 'Grupo 4 alas S.L.').limit(1).get();
+    if (companyQuery.empty) {
+      throw new Error("La empresa propietaria 'Grupo 4 alas S.L.' no se encuentra en la base de datos.");
+    }
+    const ownerCompanyId = companyQuery.docs[0].id;
+
+    const jobPayload = {
+      webhookUrl: "https://webhook.site/#!/view/1b8a9b3f-8c3b-4c1e-9d2a-9e1b5f6a7d1c", 
+      storeName: storeData.storeName,
+      businessEmail: storeData.businessEmail,
+      countryCode: storeData.countryCode,
+      currency: storeData.currency,
+      brandDescription: storeData.brandDescription,
+      targetAudience: storeData.targetAudience,
+      brandPersonality: storeData.brandPersonality,
+      productTypeDescription: 'Productos de ejemplo para tienda nueva',
+      creationOptions: {
+        createExampleProducts: true,
+        numberOfProducts: 3,
+        createAboutPage: true,
+        createContactPage: true,
+        createLegalPages: true,
+        createBlogWithPosts: true,
+        numberOfBlogPosts: 2,
+        setupBasicNav: true,
+        theme: "dawn",
+      },
+      legalInfo: {
+        legalBusinessName: storeData.legalBusinessName,
+        businessAddress: storeData.businessAddress,
+      },
+      entity: {
+        type: 'company',
+        id: ownerCompanyId,
+      }
+    };
+    
+    // Call our own API to create the job and enqueue the task
+    await axios.post(`${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/create-store`, jobPayload, {
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${internalApiKey}`,
+        }
+    });
+    
+    return `¡Perfecto! Usando datos de ejemplo, estamos iniciando la creación de tu tienda Shopify: "${storeData.storeName}". Ve al panel de "Trabajos de Creación" para ver el progreso.`;
+}
+
+
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
@@ -66,7 +144,7 @@ export async function POST(req: NextRequest) {
         
         const { messages, recaptchaToken } = validation.data;
         
-        // Skip reCAPTCHA check if it's not the first message
+        // Only verify reCAPTCHA on the first message from a new user.
         if (messages.length === 0) {
             await verifyRecaptcha(recaptchaToken);
         }
@@ -81,17 +159,14 @@ export async function POST(req: NextRequest) {
         }
 
         if (trimmedResponse === 'FIN-TIENDA') {
-            const responseMessage = await handleStoreCreationAction();
+            const responseMessage = await triggerStoreCreationWithExampleData();
             return NextResponse.json({ response: responseMessage, isComplete: true });
         }
         
         return NextResponse.json({ response: aiResponseText, isComplete: false });
 
     } catch (error: any) {
-        // Log the full error to the server console for debugging
         console.error('Error in /api/chatbot POST handler:', error);
-        
-        // Send a user-friendly and specific error message back to the client
         return NextResponse.json({ error: 'Failed to get response from chatbot AI', message: error.message }, { status: 500 });
     }
 }
