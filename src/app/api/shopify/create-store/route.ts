@@ -51,10 +51,7 @@ const testCreationSchema = z.object({
 async function enqueueShopifyCreationTask(jobId: string) {
     console.log(`[Shopify Create Store] Step 5.1: Enqueuing task for Job ID: ${jobId}`);
     
-    if (!process.env.CRON_SECRET) {
-      throw new Error('CRON_SECRET environment variable is not set. Cannot create task.');
-    }
-
+    // Explicitly initialize the client with credentials to avoid environment issues.
     const credentials = getServiceAccountCredentials();
     const tasksClient = new CloudTasksClient({
         credentials,
@@ -67,7 +64,14 @@ async function enqueueShopifyCreationTask(jobId: string) {
     
     const parent = tasksClient.queuePath(projectId, LOCATION_ID, QUEUE_ID);
     
-    const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store?secret=${process.env.CRON_SECRET}`;
+    // The target URI for the task to call. This endpoint will be secured with OIDC.
+    const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
+    
+    // Use the service account email associated with our credentials for OIDC token generation.
+    const serviceAccountEmail = credentials.client_email;
+    if (!serviceAccountEmail) {
+        throw new Error("client_email is missing from service account credentials.");
+    }
     
     const task = {
         httpRequest: {
@@ -75,6 +79,10 @@ async function enqueueShopifyCreationTask(jobId: string) {
             url: targetUri,
             headers: { 'Content-Type': 'application/json' },
             body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
+            // Instruct Cloud Tasks to generate an OIDC token for authentication.
+            oidcToken: {
+                serviceAccountEmail,
+            },
         },
     };
 
