@@ -50,17 +50,16 @@ export async function handleCreateShopifyStore(jobId: string) {
         
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
-        const graphqlEndpoint = `https://partners.shopify.com/${partnerCreds.organizationId}/api/2025-07/graphql.json`;
+        const graphqlEndpoint = `https://partners.shopify.com/${partnerCreds.organizationId}/api/2025-04/graphql.json`;
         
         const graphqlMutation = {
           query: `
-            mutation appDevelopmentStoreCreate($input: AppDevelopmentStoreCreateInput!) {
-              appDevelopmentStoreCreate(input: $input) {
-                shop {
+            mutation createPartnerDevelopmentStore($input: PartnerDevelopmentStoreCreateInput!) {
+              createPartnerDevelopmentStore(input: $input) {
+                partnerDevelopmentStore {
                   id
-                  name
-                  myshopifyDomain
-                  storefrontPassword
+                  shopDomain
+                  shopId
                 }
                 userErrors {
                   field
@@ -71,7 +70,7 @@ export async function handleCreateShopifyStore(jobId: string) {
           variables: {
             input: {
                 name: jobData.storeName,
-                developmentStoreType: "DEVELOPMENT"
+                storeType: "DEVELOPMENT",
             }
           },
         };
@@ -96,21 +95,21 @@ export async function handleCreateShopifyStore(jobId: string) {
             throw new Error(`Shopify returned GraphQL errors: ${errorMessages}`);
         }
         
-        const creationResult = responseData.data.appDevelopmentStoreCreate;
+        const creationResult = responseData.data.createPartnerDevelopmentStore;
         if (creationResult.userErrors && creationResult.userErrors.length > 0) {
             const errorMessages = creationResult.userErrors.map((e: any) => `${e.field}: ${e.message}`).join(', ');
             throw new Error(`Shopify returned user errors: ${errorMessages}`);
         }
 
-        const createdStore = creationResult.shop;
-        if (!createdStore || !createdStore.myshopifyDomain || !createdStore.id) {
+        const createdStore = creationResult.partnerDevelopmentStore;
+        if (!createdStore || !createdStore.shopDomain || !createdStore.shopId) {
             throw new Error('Shopify API did not return the created store data.');
         }
 
-        console.log(`[Task Logic - Job ${jobId}] Store created successfully: ${createdStore.myshopifyDomain}`);
+        console.log(`[Task Logic - Job ${jobId}] Store created successfully: ${createdStore.shopDomain}`);
 
-        const storeAdminUrl = `https://${createdStore.myshopifyDomain}/admin`;
-        const storeUrl = `https://${createdStore.myshopifyDomain}`;
+        const storeAdminUrl = `https://${createdStore.shopDomain}/admin`;
+        const storeUrl = `https://${createdStore.shopDomain}`;
 
         if (!partnerCreds.clientId) {
             throw new Error("El Client ID de la App Personalizada no está configurado en los ajustes globales.");
@@ -119,13 +118,15 @@ export async function handleCreateShopifyStore(jobId: string) {
 
         const scopes = 'write_products,write_content,write_themes,read_products,read_content,read_themes,write_navigation,read_navigation';
         const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
-        const installUrl = `https://${createdStore.myshopifyDomain}/admin/oauth/authorize?client_id=${partnerCreds.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${jobId}`;
+        const installUrl = `https://${createdStore.shopDomain}/admin/oauth/authorize?client_id=${partnerCreds.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${jobId}`;
         console.log(`[Task Logic - Job ${jobId}] Generated install URL: ${installUrl}`);
         
+        // Since we no longer get the storefront password from this new mutation,
+        // we'll set it to null. The user will need to set it via the "forgot password" flow.
         await updateJobStatus(jobId, 'awaiting_auth', 'Tienda creada. Esperando autorización del usuario para poblar contenido.', {
             createdStoreUrl: storeUrl,
             createdStoreAdminUrl: storeAdminUrl,
-            storefrontPassword: createdStore.storefrontPassword, 
+            storefrontPassword: null, 
             installUrl: installUrl,
         });
         
