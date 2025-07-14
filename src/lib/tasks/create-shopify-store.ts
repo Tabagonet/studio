@@ -40,24 +40,23 @@ export async function handleCreateShopifyStore(jobId: string) {
         const jobData = jobDoc.data()!;
         console.log(`[Job ${jobId}] Job data loaded successfully.`);
 
-        // Corrected logic: Partner credentials are now always retrieved from the global settings
-        const { partnerApiToken, organizationId } = await getPartnerCredentials();
-        if (!partnerApiToken || !organizationId) {
+        const partnerCreds = await getPartnerCredentials();
+        if (!partnerCreds.partnerApiToken || !partnerCreds.organizationId) {
             throw new Error("El token de acceso y el ID de organización de la API de Partner no están configurados en los ajustes globales.");
         }
         console.log(`[Job ${jobId}] Credenciales de Partner obtenidas.`);
         
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
-        const graphqlEndpoint = `https://partners.shopify.com/${organizationId}/api/2025-07/graphql.json`;
+        const graphqlEndpoint = `https://partners.shopify.com/${partnerCreds.organizationId}/api/2024-07/graphql.json`;
         
         const graphqlMutation = {
           query: `
             mutation developmentStoreCreate($name: String!) {
-              developmentStoreCreate(name: $name) {
+              developmentStoreCreate(input: {name: $name}) {
                 store {
                   shopId
-                  domain
+                  domain: shopDomain
                   transferDisabled
                   password
                   shop
@@ -80,13 +79,13 @@ export async function handleCreateShopifyStore(jobId: string) {
             {
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Shopify-Access-Token': partnerApiToken,
+                    'X-Shopify-Access-Token': partnerCreds.partnerApiToken,
                 },
             }
         );
         
         const responseData = response.data;
-        console.log(`[Job ${jobId}] Respuesta recibida de Shopify Partner API.`);
+        console.log(`[Job ${jobId}] Respuesta completa de Shopify:`, JSON.stringify(responseData, null, 2));
         
         if (responseData.errors) {
             const errorMessages = typeof responseData.errors === 'object' ? JSON.stringify(responseData.errors) : responseData.errors;
@@ -109,18 +108,14 @@ export async function handleCreateShopifyStore(jobId: string) {
         const storeAdminUrl = `https://${createdStore.domain}/admin`;
         const storeUrl = `https://${createdStore.domain}`;
 
-        // global_settings are now stored in the 'companies' collection under a specific ID
-        const settingsDoc = await adminDb.collection('companies').doc('global_settings').get();
-        const customAppCreds = settingsDoc.data()?.connections?.partner_app;
-
-        if (!customAppCreds || !customAppCreds.clientId) {
+        if (!partnerCreds.clientId) {
             throw new Error("El Client ID de la App Personalizada no está configurado en los ajustes globales.");
         }
         console.log(`[Job ${jobId}] Obtenido Client ID de la App Personalizada.`);
 
         const scopes = 'write_products,write_content,write_themes,read_products,read_content,read_themes,write_navigation,read_navigation';
         const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
-        const installUrl = `https://${createdStore.domain}/admin/oauth/authorize?client_id=${customAppCreds.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${jobId}`;
+        const installUrl = `https://${createdStore.domain}/admin/oauth/authorize?client_id=${partnerCreds.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${jobId}`;
         console.log(`[Job ${jobId}] URL de instalación generada: ${installUrl}`);
         
         await updateJobStatus(jobId, 'awaiting_auth', 'Tienda creada. Esperando autorización del usuario para poblar contenido.', {

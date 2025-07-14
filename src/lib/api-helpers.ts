@@ -31,12 +31,12 @@ interface ApiClients {
 
 
 /**
- * Retrieves Shopify Partner App credentials from Firestore. This function is now simplified
- * to always read from a global configuration document, ensuring consistency.
- * @returns The credentials object.
+ * Retrieves Shopify Partner App credentials from Firestore. This function now reads
+ * from the global configuration and returns all necessary credential fields.
+ * @returns The credentials object including partner and custom app details.
  * @throws If credentials are not configured in the global settings.
  */
-export async function getPartnerCredentials(): Promise<{ partnerApiToken?: string; organizationId?: string; }> {
+export async function getPartnerCredentials(): Promise<PartnerAppConnectionData> {
     if (!adminDb) {
         console.error('getPartnerCredentials: Firestore no está configurado');
         throw new Error("Firestore not configured on server");
@@ -56,10 +56,7 @@ export async function getPartnerCredentials(): Promise<{ partnerApiToken?: strin
         throw new Error("Los datos de la App de Partner en la configuración global no son válidos.");
     }
 
-    return {
-        partnerApiToken: partnerAppData.data.partnerApiToken,
-        organizationId: partnerAppData.data.organizationId,
-    };
+    return partnerAppData.data;
 }
 
 

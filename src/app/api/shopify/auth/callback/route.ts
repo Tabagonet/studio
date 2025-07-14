@@ -4,6 +4,8 @@ import { adminDb, admin } from '@/lib/firebase-admin';
 import axios from 'axios';
 import { z } from 'zod';
 import { CloudTasksClient } from '@google-cloud/tasks';
+import { getPartnerCredentials } from '@/lib/api-helpers';
+
 
 const shopifyCallbackSchema = z.object({
     code: z.string(),
@@ -40,15 +42,13 @@ export async function GET(req: NextRequest) {
             throw new Error(`El trabajo con ID ${jobId} no existe.`);
         }
         
-        // Use the global_settings for the custom app credentials
-        const settingsDoc = await adminDb.collection('companies').doc('global_settings').get();
-        const customAppCreds = settingsDoc.data()?.connections?.shopify_custom_app;
-
-        if (!customAppCreds || !customAppCreds.clientId || !customAppCreds.clientSecret) {
-             throw new Error("Las credenciales de la App Personalizada de Shopify no están configuradas en la plataforma.");
+        // Use the global helper to get all partner credentials
+        const partnerCreds = await getPartnerCredentials();
+        if (!partnerCreds.clientId || !partnerCreds.clientSecret) {
+             throw new Error("Las credenciales de la App Personalizada de Shopify (Client ID/Secret) no están configuradas en los ajustes globales.");
         }
         
-        const { clientId, clientSecret } = customAppCreds;
+        const { clientId, clientSecret } = partnerCreds;
 
         // Exchange the authorization code for a permanent access token
         const tokenUrl = `https://${shop}/admin/oauth/access_token`;
