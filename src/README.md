@@ -53,8 +53,9 @@ Secret keys and configuration values are stored in environment variables. The pr
         -   Copy the values from the `firebaseConfig` object and paste them into the corresponding `NEXT_PUBLIC_` variables in your `.env.local` file.
     
     -   `SHOPIFY_AUTOMATION_API_KEY`:
-        -   This is a secret key that you invent yourself to protect the Shopify store creation API endpoint. It should be a long, random, and unpredictable string. You can use an online password generator to create one.
-        -   This same key must be used by any external service (like a chatbot) that wants to call the API. For local testing, a simple value like `super-secret-key-for-testing-12345` is sufficient.
+        -   **¡Importante!** Esta clave es un secreto que **tú inventas** para proteger la API de creación de tiendas. No la obtienes de ningún sitio.
+        -   Debe ser una cadena de texto larga y aleatoria. Puedes usar un generador de contraseñas online o simplemente escribir algo como `mi-secreto-super-seguro-para-probar-12345`.
+        -   Esta clave es la que la propia aplicación utiliza para autenticarse contra sí misma. Para que la prueba de creación de tiendas funcione, esta variable **DEBE** estar definida en tu archivo `.env.local`.
 
 **Important:** The `.env.local` file contains sensitive information and should **never** be committed to public version control (like GitHub).
 
