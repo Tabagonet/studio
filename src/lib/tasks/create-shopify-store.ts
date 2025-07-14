@@ -68,8 +68,21 @@ export async function handleCreateShopifyStore(jobId: string) {
         const jobDoc = await jobRef.get();
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
         const jobData = jobDoc.data()!;
+
+        // Fetch the entity settings again to get the partnerShopDomain
+        const settingsCollection = jobData.entity.type === 'company' ? 'companies' : 'user_settings';
+        const entityDoc = await adminDb.collection(settingsCollection).doc(jobData.entity.id).get();
+        if (!entityDoc.exists) {
+            throw new Error(`Entity settings not found for ${jobData.entity.type} ID ${jobData.entity.id}`);
+        }
+        const entitySettings = entityDoc.data();
         
-        const { partnerApiToken, partnerShopDomain } = await getPartnerAppCredentials(jobData.entity.id, jobData.entity.type);
+        const { partnerApiToken } = await getPartnerAppCredentials(jobData.entity.id, jobData.entity.type);
+        const partnerShopDomain = entitySettings?.partnerShopDomain;
+
+        if (!partnerShopDomain) {
+            throw new Error('partnerShopDomain is not set for the entity. The OAuth flow may not have completed successfully.');
+        }
         
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
@@ -131,13 +144,9 @@ export async function handleCreateShopifyStore(jobId: string) {
         await updateJobStatus(jobId, 'processing', `Tienda base creada en: ${storeUrl}.`, {
             createdStoreUrl: storeUrl,
             createdStoreAdminUrl: storeAdminUrl,
-            // The password can be used for manual access if needed, but the primary flow for the user
-            // will be through the transfer link sent to their email by Shopify.
             storefrontPassword: createdStore.password, 
         });
         
-        // At this point, the task is considered complete from a creation standpoint.
-        // Population is a separate, optional step that might be handled differently in the future.
         await updateJobStatus(jobId, 'completed', '¡Tienda creada con éxito!');
 
 
@@ -163,7 +172,6 @@ export async function populateShopifyStore(jobId: string) {
         const jobData = jobDoc.data()!;
 
         if (!jobData.storeAccessToken || !jobData.createdStoreUrl) {
-            // Because we can't get this token automatically, we will now throw the error.
             throw new Error("El trabajo no tiene un token de acceso a la tienda. La población de contenido debe realizarse manualmente o instalando una app personalizada en la nueva tienda.");
         }
 
