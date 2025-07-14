@@ -14,10 +14,7 @@ import { z } from 'zod';
 import crypto from 'crypto';
 
 export const partnerAppConnectionDataSchema = z.object({
-  clientId: z.string().optional(),
-  clientSecret: z.string().optional(),
-  partnerShopDomain: z.string().optional(), // The {shop}.myshopify.com domain of the partner account itself
-  partnerApiToken: z.string().optional(), // The final access token after OAuth
+  partnerApiToken: z.string().optional(),
 });
 export type PartnerAppConnectionData = z.infer<typeof partnerAppConnectionDataSchema>;
 
@@ -37,7 +34,7 @@ interface ApiClients {
  * @returns The credentials object.
  * @throws If credentials are not configured.
  */
-export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ clientId: string; clientSecret: string; partnerShopDomain?: string; partnerApiToken?: string; }> {
+export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ partnerApiToken?: string; }> {
     if (!adminDb) {
         console.error('getPartnerCredentials: Firestore no está configurado');
         throw new Error("Firestore not configured on server");
@@ -54,14 +51,11 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
     const settingsData = doc.data() || {};
     const partnerAppData = partnerAppConnectionDataSchema.safeParse(settingsData.connections?.partner_app || {});
 
-    if (!partnerAppData.success || !partnerAppData.data.clientId || !partnerAppData.data.clientSecret) {
-        throw new Error("El Client ID y Client Secret de la App de Partner no están configurados.");
+    if (!partnerAppData.success) {
+        throw new Error("Los datos de la App de Partner no son válidos.");
     }
 
     return {
-        clientId: partnerAppData.data.clientId,
-        clientSecret: partnerAppData.data.clientSecret,
-        partnerShopDomain: partnerAppData.data.partnerShopDomain,
         partnerApiToken: partnerAppData.data.partnerApiToken,
     };
 }

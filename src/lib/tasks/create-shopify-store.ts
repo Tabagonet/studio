@@ -1,42 +1,11 @@
 
+
 import { admin, adminDb } from '@/lib/firebase-admin';
 import axios from 'axios';
 import { generateShopifyStoreContent, type GeneratedContent, type GenerationInput } from '@/ai/flows/shopify-content-flow';
 import { createShopifyApi } from '@/lib/shopify';
 import type { AxiosInstance } from 'axios';
 import { getPartnerCredentials } from '@/lib/api-helpers';
-import { CloudTasksClient } from '@google-cloud/tasks';
-
-
-async function enqueueShopifyPopulationTask(jobId: string) {
-  const PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
-  const LOCATION_ID = process.env.CLOUD_TASKS_LOCATION || 'europe-west1';
-  const QUEUE_ID = 'autopress-jobs';
-  const serviceAccountEmail = process.env.FIREBASE_CLIENT_EMAIL;
-
-  if (!PROJECT_ID || !LOCATION_ID || !QUEUE_ID || !serviceAccountEmail) {
-    throw new Error('Cloud Tasks environment variables are not fully configured.');
-  }
-  const tasksClient = new CloudTasksClient();
-  const parent = tasksClient.queuePath(PROJECT_ID, LOCATION_ID, QUEUE_ID);
-  
-  const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/populate-shopify-store`;
-
-  const task = {
-    httpRequest: {
-      httpMethod: 'POST' as const,
-      url: targetUri,
-      headers: { 'Content-Type': 'application/json' },
-      body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
-      oidcToken: { serviceAccountEmail },
-    },
-    scheduleTime: { seconds: Date.now() / 1000 + 2 },
-  };
-
-  const [response] = await tasksClient.createTask({ parent, task });
-  console.log(`[Cloud Task] Enqueued population task: ${response.name}`);
-  return response;
-}
 
 
 async function updateJobStatus(jobId: string, status: 'processing' | 'completed' | 'error' | 'authorized', logMessage: string, extraData: Record<string, any> = {}) {
@@ -69,7 +38,6 @@ export async function handleCreateShopifyStore(jobId: string) {
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
         const jobData = jobDoc.data()!;
 
-        // The token is now retrieved from the Partner API Client settings.
         const { partnerApiToken } = await getPartnerCredentials(jobData.entity.id, jobData.entity.type);
         if (!partnerApiToken) {
             throw new Error("El token de acceso de la API de Partner no está configurado.");
@@ -107,7 +75,7 @@ export async function handleCreateShopifyStore(jobId: string) {
             {
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Shopify-Access-Token': partnerApiToken,
+                    'Authorization': `Bearer ${partnerApiToken}`,
                 },
             }
         );
@@ -132,7 +100,7 @@ export async function handleCreateShopifyStore(jobId: string) {
         const storeAdminUrl = `https://${createdStore.domain}/admin`;
         const storeUrl = `https://${createdStore.domain}`;
         
-        await updateJobStatus(jobId, 'processing', `Tienda base creada en: ${storeUrl}.`, {
+        await updateJobStatus(jobId, 'processing', `Tienda base creada en: ${storeUrl}. La población de contenido no está soportada en este flujo.`, {
             createdStoreUrl: storeUrl,
             createdStoreAdminUrl: storeAdminUrl,
             storefrontPassword: createdStore.password, 
@@ -162,202 +130,16 @@ export async function populateShopifyStore(jobId: string) {
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
         const jobData = jobDoc.data()!;
 
-        if (!jobData.storeAccessToken || !jobData.createdStoreUrl) {
-            throw new Error("El trabajo no tiene un token de acceso a la tienda. La población de contenido debe realizarse manually o instalando una app personalizada en la nueva tienda.");
-        }
-
-        const entityUid = jobData.entity.type === 'user' ? jobData.entity.id : '';
-
-        await updateJobStatus(jobId, 'processing', 'Generando contenido con IA...');
-        
-        const generationInput: GenerationInput = {
-            storeName: jobData.storeName,
-            brandDescription: jobData.brandDescription,
-            targetAudience: jobData.targetAudience,
-            brandPersonality: jobData.brandPersonality,
-            colorPaletteSuggestion: jobData.colorPaletteSuggestion,
-            productTypeDescription: jobData.productTypeDescription,
-            creationOptions: jobData.creationOptions,
-        };
-
-        const generatedContent = await generateShopifyStoreContent(generationInput, entityUid);
-        await updateJobStatus(jobId, 'processing', 'Contenido generado. Guardando resultados y preparando para poblar la tienda...', {
-            generatedContent: generatedContent,
-        });
-
-        const shopifyApi = createShopifyApi({ url: jobData.createdStoreUrl, accessToken: jobData.storeAccessToken });
-        if (!shopifyApi) throw new Error("No se pudo inicializar el cliente de la API de Shopify para la nueva tienda.");
-        await updateJobStatus(jobId, 'processing', 'Cliente de API de tienda creado. Iniciando población de contenido...');
-
-        // Create pages
-        if (jobData.creationOptions.createAboutPage && generatedContent.aboutPage) {
-            const page = await createShopifyPage(jobId, shopifyApi, generatedContent.aboutPage);
-            if (page) createdPages.push(page);
-        }
-        if (jobData.creationOptions.createContactPage && generatedContent.contactPage) {
-             const page = await createShopifyPage(jobId, shopifyApi, generatedContent.contactPage);
-             if (page) createdPages.push(page);
-        }
-        if (jobData.creationOptions.createLegalPages && generatedContent.legalPages) {
-            for (const pageData of generatedContent.legalPages) {
-                 const page = await createShopifyPage(jobId, shopifyApi, pageData);
-                 if (page) createdPages.push(page);
-            }
+        // This flow is now deprecated as we can't get an Admin API token this way.
+        // We will just log a message and complete the job.
+        if (!jobData.createdStoreUrl) {
+            throw new Error("El trabajo no tiene una URL de tienda creada. No se puede poblar.");
         }
         
-        // Create products
-        if (jobData.creationOptions.createExampleProducts && generatedContent.exampleProducts) {
-            for (const product of generatedContent.exampleProducts) {
-                await createShopifyProduct(jobId, shopifyApi, product);
-            }
-        }
-        
-        // Create blog posts
-        if (jobData.creationOptions.createBlogWithPosts && generatedContent.blogPosts) {
-            const blog = await findOrCreateBlog(jobId, shopifyApi, "Noticias");
-            if (blog) {
-                for (const post of generatedContent.blogPosts) {
-                    await createShopifyBlogPost(jobId, shopifyApi, blog.id, post);
-                }
-            }
-        }
-        
-        // Setup navigation
-        if (jobData.creationOptions.setupBasicNav) {
-            await setupBasicNavigation(jobId, shopifyApi, createdPages);
-        }
-
-        
-        await updateJobStatus(jobId, 'completed', '¡Proceso finalizado! La tienda ha sido creada y poblada con contenido inicial.');
+        await updateJobStatus(jobId, 'completed', '¡Proceso finalizado! La tienda ha sido creada. La población de contenido debe realizarse manualmente.');
 
     } catch (error: any) {
         console.error(`[Job ${jobId}] Failed to populate Shopify store:`, error.message);
         await updateJobStatus(jobId, 'error', `Error al poblar la tienda: ${error.message}`);
-    }
-}
-
-async function createShopifyPage(jobId: string, api: AxiosInstance, pageData: { title: string, htmlContent: string }): Promise<{ title: string; handle: string; } | null> {
-    try {
-        await updateJobStatus(jobId, 'processing', `Creando página: "${pageData.title}"...`);
-        const response = await api.post('pages.json', {
-            page: {
-                title: pageData.title,
-                body_html: pageData.htmlContent,
-            }
-        });
-        return { title: response.data.page.title, handle: response.data.page.handle };
-    } catch (error: any) {
-        const errorMessage = error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message;
-        await updateJobStatus(jobId, 'processing', `Error al crear la página "${pageData.title}": ${errorMessage}`);
-        return null;
-    }
-}
-
-async function createShopifyProduct(jobId: string, api: AxiosInstance, productData: { title: string; descriptionHtml: string; tags: string[]; imagePrompt: string; }) {
-    try {
-        await updateJobStatus(jobId, 'processing', `Creando producto: "${productData.title}"...`);
-        
-        const payload: any = {
-            product: {
-                title: productData.title,
-                body_html: productData.descriptionHtml,
-                tags: productData.tags.join(','),
-                status: 'active',
-            }
-        };
-
-        if (productData.imagePrompt) {
-            payload.product.images = [{
-                src: 'https://placehold.co/600x600.png',
-                alt: productData.imagePrompt,
-            }];
-        }
-
-        const response = await api.post('products.json', payload);
-        const createdProduct = response.data.product;
-
-        let logMessage = `Producto "${productData.title}" creado (ID: ${createdProduct.id}).`;
-        if (payload.product.images) {
-            logMessage += ' Se ha añadido una imagen de marcador de posición.';
-        }
-        
-        await updateJobStatus(jobId, 'processing', logMessage);
-        
-    } catch (error: any) {
-        const errorMessage = error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message;
-        await updateJobStatus(jobId, 'processing', `Error al crear el producto "${productData.title}": ${errorMessage}`);
-    }
-}
-
-async function findOrCreateBlog(jobId: string, api: AxiosInstance, blogTitle: string): Promise<{ id: number } | null> {
-    try {
-        await updateJobStatus(jobId, 'processing', 'Verificando o creando blog...');
-        const { data } = await api.get('blogs.json');
-        let blog = data.blogs.find((b: any) => b.title === blogTitle);
-        if (!blog) {
-            const createResponse = await api.post('blogs.json', { blog: { title: blogTitle } });
-            blog = createResponse.data.blog;
-        }
-        return blog;
-    } catch (error: any) {
-         const errorMessage = error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message;
-        await updateJobStatus(jobId, 'processing', `Error al buscar o crear el blog: ${errorMessage}`);
-        return null;
-    }
-}
-
-async function createShopifyBlogPost(jobId: string, api: AxiosInstance, blogId: number, postData: { title: string; contentHtml: string; tags: string[] }) {
-     try {
-        await updateJobStatus(jobId, 'processing', `Creando post del blog: "${postData.title}"...`);
-        await api.post(`blogs/${blogId}/articles.json`, {
-            article: {
-                title: postData.title,
-                author: 'Admin',
-                body_html: postData.contentHtml,
-                tags: postData.tags.join(','),
-            }
-        });
-    } catch (error: any) {
-        const errorMessage = error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message;
-        await updateJobStatus(jobId, 'processing', `Error al crear el post "${postData.title}": ${errorMessage}`);
-    }
-}
-
-
-async function setupBasicNavigation(jobId: string, api: AxiosInstance, createdPages: { title: string; handle: string }[]) {
-    try {
-        await updateJobStatus(jobId, 'processing', 'Configurando menú de navegación...');
-        const { data: navData } = await api.get('navigation.json');
-        
-        let mainMenu = navData.navigation.find((nav: any) => nav.handle === 'main-menu');
-        
-        if (!mainMenu) {
-            const createNavResponse = await api.post('navigation.json', {
-                navigation: { title: 'Main Menu', handle: 'main-menu' }
-            });
-            mainMenu = createNavResponse.data.navigation;
-            await updateJobStatus(jobId, 'processing', 'Menú principal no encontrado, creando uno nuevo.');
-        }
-
-        const linksToAdd: { title: string; url: string }[] = [
-            { title: 'Inicio', url: '/' },
-        ];
-        
-        const aboutPage = createdPages.find(p => p.title.toLowerCase().includes('sobre nosotros'));
-        if (aboutPage) linksToAdd.push({ title: aboutPage.title, url: `/pages/${aboutPage.handle}` });
-
-        const contactPage = createdPages.find(p => p.title.toLowerCase().includes('contacto'));
-        if (contactPage) linksToAdd.push({ title: contactPage.title, url: `/pages/${contactPage.handle}` });
-        
-        for (const link of linksToAdd) {
-            await api.post(`navigation/${mainMenu.id}/links.json`, {
-                link: { title: link.title, url: link.url }
-            });
-            await updateJobStatus(jobId, 'processing', `Añadido enlace "${link.title}" al menú principal.`);
-        }
-        
-    } catch (error: any) {
-        const errorMessage = error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message;
-        await updateJobStatus(jobId, 'processing', `Error configurando la navegación: ${errorMessage}`);
     }
 }

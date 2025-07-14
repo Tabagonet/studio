@@ -100,11 +100,12 @@ export async function GET(req: NextRequest) {
       const partnerAppData = partnerAppConnectionDataSchema.safeParse(allConnections['partner_app'] || {});
       if (partnerAppData.success && partnerAppData.data.partnerApiToken) {
           try {
-              const partnerApiEndpoint = `https://partners.shopify.com/api/2025-07/organizations.json`;
+              // This is a simple query to verify the token works against the Partner API.
+              const partnerApiEndpoint = `https://partners.shopify.com/api/2024-07/organization.json`;
               await axios.get(partnerApiEndpoint, { 
                 headers: { 
                     'Content-Type': 'application/json',
-                    'X-Shopify-Access-Token': partnerAppData.data.partnerApiToken 
+                    'Authorization': `Bearer ${partnerAppData.data.partnerApiToken}` 
                 }, 
                 timeout: 8000 
               });

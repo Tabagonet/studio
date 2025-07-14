@@ -4,7 +4,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -35,7 +34,7 @@ interface ConnectionData {
     shopifyApiPassword?: string;
 }
 
-type AllConnections = { [key: string]: ConnectionData };
+type AllConnections = { [key: string]: ConnectionData | PartnerAppConnectionData };
 
 interface SelectedEntityStatus {
     wooCommerceConfigured: boolean;
@@ -60,9 +59,6 @@ const INITIAL_STATE: ConnectionData = {
 };
 
 const INITIAL_PARTNER_APP_STATE: PartnerAppConnectionData = {
-    clientId: undefined,
-    clientSecret: undefined,
-    partnerShopDomain: undefined,
     partnerApiToken: undefined,
 };
 
@@ -78,7 +74,6 @@ function getHostname(url: string | null | undefined): string | null {
 }
 
 export default function ConnectionsPage() {
-    const searchParams = useSearchParams();
     const { toast } = useToast();
 
     const [allConnections, setAllConnections] = useState<AllConnections>({});
@@ -104,7 +99,6 @@ export default function ConnectionsPage() {
 
     const [selectedEntityStatus, setSelectedEntityStatus] = useState<SelectedEntityStatus | null>(null);
     const [isCheckingStatus, setIsCheckingStatus] = useState(false);
-    const [refreshKey, setRefreshKey] = useState(0);
 
     const fetchConnections = useCallback(async (user: FirebaseUser, targetType: 'user' | 'company', targetId: string | null) => {
         setIsLoading(true);
@@ -135,7 +129,7 @@ export default function ConnectionsPage() {
                 const data = await response.json();
                 const connections = data.allConnections || {};
                 setAllConnections(connections);
-                setPartnerFormData(data.partnerAppData || INITIAL_PARTNER_APP_STATE);
+                setPartnerFormData(connections.partner_app || INITIAL_PARTNER_APP_STATE);
                 
                 const currentActiveKey = data.activeConnectionKey || null;
                 setActiveKey(currentActiveKey);
@@ -238,8 +232,8 @@ export default function ConnectionsPage() {
             setEditingTarget(newEditingTarget);
             setEditingTargetPlatform(newEditingTarget.platform);
             if (newEditingTarget.id) {
-                await fetchConnections(user, newEditingTarget.type as 'user' | 'company', newEditingTarget.id);
-                await fetchStatus(newEditingTarget.type as 'user'|'company', newEditingTarget.id);
+                await fetchConnections(user, newEditingTarget.type, newEditingTarget.id);
+                await fetchStatus(newEditingTarget.type, newEditingTarget.id);
             }
             setIsDataLoading(false);
         };
@@ -247,15 +241,6 @@ export default function ConnectionsPage() {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
                 await fetchInitialData(user);
-                 const shopifyAuthStatus = searchParams.get('shopify_auth');
-                 if (shopifyAuthStatus === 'success') {
-                    toast({ title: '¡Conexión con Shopify Exitosa!', description: 'Tu cuenta de Partner ha sido conectada.' });
-                    window.history.replaceState(null, '', '/settings/connections');
-                 } else if (shopifyAuthStatus === 'error') {
-                    const errorMessage = searchParams.get('error_message');
-                    toast({ title: 'Error de Conexión con Shopify', description: decodeURIComponent(errorMessage || 'Ha ocurrido un error desconocido.'), variant: 'destructive' });
-                     window.history.replaceState(null, '', '/settings/connections');
-                 }
             } else {
                 setIsLoading(false);
                 setIsDataLoading(false);
@@ -263,7 +248,7 @@ export default function ConnectionsPage() {
         });
         return () => unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [fetchConnections, searchParams, fetchStatus]);
+    }, [fetchConnections, fetchStatus]);
 
     const handleTargetChange = (value: string) => {
         const user = auth.currentUser;
@@ -286,8 +271,8 @@ export default function ConnectionsPage() {
         setEditingTarget(newEditingTarget);
         setEditingTargetPlatform(newEditingTarget.platform);
         if(newEditingTarget.id) {
-            fetchConnections(user, newEditingTarget.type as 'user' | 'company', newEditingTarget.id);
-            fetchStatus(newEditingTarget.type as 'user' | 'company', newEditingTarget.id);
+            fetchConnections(user, newEditingTarget.type, newEditingTarget.id);
+            fetchStatus(newEditingTarget.type, newEditingTarget.id);
         }
     };
 
@@ -380,7 +365,7 @@ export default function ConnectionsPage() {
             toast({ title: "Credenciales Guardadas", description: `Los datos para '${keyToSave}' han sido guardados.` });
             
             await fetchConnections(user, editingTarget.type, editingTarget.id);
-            setRefreshKey(k => k + 1);
+            await fetchStatus(editingTarget.type, editingTarget.id);
             window.dispatchEvent(new Event('connections-updated'));
 
         } catch (error: any) {
@@ -415,7 +400,7 @@ export default function ConnectionsPage() {
             
             toast({ title: "Conexión Eliminada", description: `El perfil para '${keyToDelete}' ha sido eliminado.` });
             await fetchConnections(user, editingTarget.type, editingTarget.id);
-            setRefreshKey(k => k + 1);
+            await fetchStatus(editingTarget.type, editingTarget.id);
             window.dispatchEvent(new Event('connections-updated'));
         } catch (error: any) {
             toast({ title: "Error al Eliminar", description: error.message, variant: "destructive" });
@@ -645,6 +630,8 @@ export default function ConnectionsPage() {
                          onDelete={() => handleDelete('partner_app')}
                          isDeleting={isDeleting === 'partner_app'}
                          configStatus={selectedEntityStatus}
+                         onRefreshStatus={() => fetchStatus(editingTarget.type, editingTarget.id!)}
+                         isCheckingStatus={isCheckingStatus}
                        />
                     )}
                 </div>
