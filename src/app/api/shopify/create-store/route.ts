@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, admin, adminAuth } from '@/lib/firebase-admin';
+import { adminDb, admin, adminAuth, getServiceAccountCredentials } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { CloudTasksClient } from '@google-cloud/tasks';
 import { getPartnerCredentials } from '@/lib/api-helpers';
@@ -54,8 +54,13 @@ async function enqueueShopifyCreationTask(jobId: string) {
     if (!process.env.CRON_SECRET) {
       throw new Error('CRON_SECRET environment variable is not set. Cannot create task.');
     }
+
+    // Explicitly initialize the client with credentials to avoid default lookup issues.
+    const tasksClient = new CloudTasksClient({
+      credentials: getServiceAccountCredentials(),
+      projectId: process.env.FIREBASE_PROJECT_ID,
+    });
     
-    const tasksClient = new CloudTasksClient();
     const projectId = process.env.FIREBASE_PROJECT_ID!;
     const LOCATION_ID = 'europe-west1'; 
     const QUEUE_ID = 'autopress-jobs1';
