@@ -55,9 +55,9 @@ export function ShopifyPartnerCard({
   };
   
   const handleConnect = () => {
-    const { clientId } = partnerFormData;
-    if (!clientId) {
-      alert("Por favor, guarda primero tu Client ID.");
+    const { clientId, appUrl } = partnerFormData;
+    if (!clientId || !appUrl) {
+      alert("Por favor, guarda primero tu URL de la aplicación y Client ID.");
       return;
     }
 
@@ -65,7 +65,8 @@ export function ShopifyPartnerCard({
     const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
     const state = `${editingTarget.type}:${editingTarget.id}`;
 
-    const authUrl = `https://partners.shopify.com/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${state}`;
+    // The authorization URL is built against the APP's URL, not partners.shopify.com
+    const authUrl = `${appUrl}/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${state}&grant_options[]=per-user`;
     
     window.location.href = authUrl;
   };
@@ -92,6 +93,11 @@ export function ShopifyPartnerCard({
           </AlertDescription>
         </Alert>
         
+         <div>
+            <Label htmlFor="appUrl">URL de la Aplicación</Label>
+            <Input id="appUrl" name="appUrl" value={partnerFormData?.appUrl || ''} onChange={handleInputChange} placeholder="La URL base que configuraste en Shopify" disabled={isSavingPartner} />
+          </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="clientId">Client ID</Label>
@@ -131,7 +137,7 @@ export function ShopifyPartnerCard({
               </AlertDialogContent>
             </AlertDialog>
           </div>
-          <Button onClick={handleConnect} disabled={isSavingPartner || !partnerFormData.clientId}>
+          <Button onClick={handleConnect} disabled={isSavingPartner || !partnerFormData.clientId || !partnerFormData.appUrl}>
             <LinkIcon className="mr-2 h-4 w-4" />
             Conectar con Shopify
           </Button>
