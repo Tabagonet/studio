@@ -5,7 +5,12 @@ import { getPartnerCredentials } from '@/lib/api-helpers';
 import { createShopifyApi } from '@/lib/shopify';
 import { GenerationInput, generateShopifyStoreContent } from '@/ai/flows/shopify-content-flow';
 import type { ShopifyCreationJob } from '@/lib/types';
+import { exec } from 'child_process';
+import util from 'util';
+import retry from 'async-retry';
 
+
+const execPromise = util.promisify(exec);
 
 async function updateJobStatus(jobId: string, status: 'processing' | 'completed' | 'error' | 'awaiting_auth' | 'authorized', logMessage: string, extraData: Record<string, any> = {}) {
     if (!adminDb) return;
@@ -50,72 +55,33 @@ export async function handleCreateShopifyStore(jobId: string) {
         
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
-        const graphqlEndpoint = `https://partners.shopify.com/${partnerCreds.organizationId}/api/2025-04/graphql.json`;
+        // --- Execute Shopify CLI command ---
+        const cliCommand = `shopify app dev store create --name "${jobData.storeName}" --organization-id ${partnerCreds.organizationId} --store-type development`;
+        console.log(`[Task Logic - Job ${jobId}] Executing Shopify CLI command: ${cliCommand}`);
+
+        // Set the SHOPIFY_CLI_PARTNERS_TOKEN environment variable for the command
+        const env = { ...process.env, SHOPIFY_CLI_PARTNERS_TOKEN: partnerCreds.partnerApiToken };
         
-        const graphqlMutation = {
-          query: `
-            mutation createPartnerDevelopmentStore($input: PartnerDevelopmentStoreCreateInput!) {
-              createPartnerDevelopmentStore(input: $input) {
-                partnerDevelopmentStore {
-                  id
-                  shopDomain
-                  shopId
-                }
-                userErrors {
-                  field
-                  message
-                }
-              }
-            }`,
-          variables: {
-            input: {
-                name: jobData.storeName,
-                email: jobData.businessEmail || "test@example.com",
-                shopOwner: {
-                    firstName: "Admin",
-                    lastName: "User"
-                },
-                password: `Pass_${Date.now()}$`,
-                countryCode: jobData.countryCode || "ES",
+        const { stdout, stderr } = await execPromise(cliCommand, { env });
+        
+        if (stderr) {
+            console.error(`[Task Logic - Job ${jobId}] Shopify CLI stderr: ${stderr}`);
+            if (stderr.toLowerCase().includes('error')) {
+                throw new Error(`Shopify CLI returned an error: ${stderr}`);
             }
-          },
-        };
-        
-        console.log(`[Task Logic - Job ${jobId}] Sending GraphQL request to Shopify Partner API: ${graphqlEndpoint}`);
-        const response = await axios.post(
-            graphqlEndpoint,
-            graphqlMutation,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Shopify-Access-Token': partnerCreds.partnerApiToken,
-                },
-            }
-        );
-        
-        const responseData = response.data;
-        console.log(`[Task Logic - Job ${jobId}] Full Shopify response:`, JSON.stringify(responseData, null, 2));
-        
-        if (responseData.errors) {
-            const errorMessages = typeof responseData.errors === 'object' ? JSON.stringify(responseData.errors) : responseData.errors;
-            throw new Error(`Shopify returned GraphQL errors: ${errorMessages}`);
         }
-        
-        const creationResult = responseData.data.createPartnerDevelopmentStore;
-        if (creationResult.userErrors && creationResult.userErrors.length > 0) {
-            const errorMessages = creationResult.userErrors.map((e: any) => `${e.field}: ${e.message}`).join(', ');
-            throw new Error(`Shopify returned user errors: ${errorMessages}`);
+        console.log(`[Task Logic - Job ${jobId}] Shopify CLI stdout: ${stdout}`);
+
+        // --- Parse CLI output to get store domain ---
+        const domainMatch = stdout.match(/https?:\/\/([a-zA-Z0-9-]+\.myshopify\.com)/);
+        if (!domainMatch || !domainMatch[1]) {
+            throw new Error('Could not parse the store domain from the Shopify CLI output.');
         }
+        const storeDomain = domainMatch[1];
+        console.log(`[Task Logic - Job ${jobId}] Store created successfully: ${storeDomain}`);
 
-        const createdStore = creationResult.partnerDevelopmentStore;
-        if (!createdStore || !createdStore.shopDomain || !createdStore.shopId) {
-            throw new Error('Shopify API did not return the created store data.');
-        }
-
-        console.log(`[Task Logic - Job ${jobId}] Store created successfully: ${createdStore.shopDomain}`);
-
-        const storeAdminUrl = `https://${createdStore.shopDomain}/admin`;
-        const storeUrl = `https://${createdStore.shopDomain}`;
+        const storeAdminUrl = `https://${storeDomain}/admin`;
+        const storeUrl = `https://${storeDomain}`;
 
         if (!partnerCreds.clientId) {
             throw new Error("El Client ID de la App Personalizada no está configurado en los ajustes globales.");
@@ -124,7 +90,7 @@ export async function handleCreateShopifyStore(jobId: string) {
 
         const scopes = 'write_products,write_content,write_themes,read_products,read_content,read_themes,write_navigation,read_navigation';
         const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
-        const installUrl = `https://${createdStore.shopDomain}/admin/oauth/authorize?client_id=${partnerCreds.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${jobId}`;
+        const installUrl = `https://${storeDomain}/admin/oauth/authorize?client_id=${partnerCreds.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${jobId}`;
         console.log(`[Task Logic - Job ${jobId}] Generated install URL: ${installUrl}`);
         
         await updateJobStatus(jobId, 'awaiting_auth', 'Tienda creada. Esperando autorización del usuario para poblar contenido.', {
@@ -145,13 +111,14 @@ export async function handleCreateShopifyStore(jobId: string) {
                 adminUrl: storeAdminUrl
             };
             try {
-                await axios.post(jobData.webhookUrl, webhookPayload, { timeout: 10000 });
+                await retry(async () => {
+                     await axios.post(jobData.webhookUrl, webhookPayload, { timeout: 10000 });
+                }, { retries: 2, minTimeout: 1000 });
                 console.log(`[Task Logic - Job ${jobId}] Webhook 'awaiting_auth' sent to ${jobData.webhookUrl}`);
             } catch (webhookError: any) {
                 console.warn(`[Task Logic - Job ${jobId}] Failed to send awaiting_auth webhook to ${jobData.webhookUrl}: ${webhookError.message}`);
             }
         }
-
 
     } catch (error: any) {
         const errorMessage = error.response?.data ? JSON.stringify(error.response.data) : error.message;
@@ -167,7 +134,9 @@ export async function handleCreateShopifyStore(jobId: string) {
                 storeName: jobDoc.data()!.storeName,
             };
             try {
-                 await axios.post(jobDoc.data()!.webhookUrl, webhookPayload, { timeout: 10000 });
+                 await retry(async () => {
+                    await axios.post(jobDoc.data()!.webhookUrl, webhookPayload, { timeout: 10000 });
+                 }, { retries: 2, minTimeout: 1000 });
                  console.log(`[Task Logic - Job ${jobId}] ERROR webhook sent to ${jobDoc.data()!.webhookUrl}`);
             } catch (webhookError: any) {
                  console.warn(`[Task Logic - Job ${jobId}] Failed to send ERROR webhook to ${jobDoc.data()!.webhookUrl}: ${webhookError.message}`);

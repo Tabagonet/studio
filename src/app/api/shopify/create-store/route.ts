@@ -48,48 +48,6 @@ const testCreationSchema = z.object({
 });
 
 
-async function enqueueShopifyCreationTask(jobId: string) {
-    console.log(`[Shopify Create Store] Step 5.1: Enqueuing task for Job ID: ${jobId}`);
-    
-    // Explicitly initialize the client with credentials
-    const tasksClient = new CloudTasksClient({
-      credentials: getServiceAccountCredentials(),
-      projectId: process.env.FIREBASE_PROJECT_ID,
-    });
-    
-    const projectId = process.env.FIREBASE_PROJECT_ID;
-    if (!projectId) throw new Error("FIREBASE_PROJECT_ID env var is not set.");
-    
-    const LOCATION_ID = 'europe-west1'; 
-    const QUEUE_ID = 'autopress-jobs1';
-    
-    const parent = tasksClient.queuePath(projectId, LOCATION_ID, QUEUE_ID);
-    
-    const serviceAccountEmail = getServiceAccountCredentials().client_email;
-    const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/populate-shopify-store`;
-
-    const task = {
-        httpRequest: {
-            httpMethod: 'POST' as const,
-            url: targetUri,
-            headers: { 'Content-Type': 'application/json' },
-            body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
-            oidcToken: { serviceAccountEmail },
-        },
-    };
-
-    console.log(`[Shopify Create Store] Step 5.2: About to create task with payload for URI: ${targetUri}`);
-    try {
-        const [response] = await tasksClient.createTask({ parent, task });
-        console.log(`[Shopify Create Store] Step 5.3: Task created successfully: ${response.name}`);
-        return response;
-    } catch (error: any) {
-         console.error('[Shopify Create Store] Error al crear la tarea en Cloud Tasks:', error);
-        throw error;
-    }
-}
-
-
 async function handleTestCreation(uid: string) {
     console.log(`[Shopify Create Store] Test Call: Generating test data...`);
     if (!adminDb) {
@@ -220,24 +178,19 @@ export async function POST(req: NextRequest) {
     console.log(`[Shopify Create Store] Step 4: Firestore job document created with ID: ${jobRef.id}`);
 
     const jobId = jobRef.id;
-    // For local development, we'll now call the task handler directly instead of enqueuing.
-    // This provides immediate feedback and avoids Cloud Tasks environment issues.
     if (process.env.NODE_ENV === 'development') {
         console.log(`[Shopify Create Store] Step 5: DEV MODE - Calling task handler directly for Job ID: ${jobId}`);
         const { handleCreateShopifyStore } = require('@/lib/tasks/create-shopify-store');
-        // We don't await this call, allowing the API to respond immediately (asynchronous behavior).
         handleCreateShopifyStore(jobId).catch((e: any) => {
             console.error(`[DEV Direct Call] Error executing task for job ${jobId}:`, e);
         });
     } else {
-        // In production, we still use Cloud Tasks.
-        // We'll now enqueue the task that starts the process, not the population task.
         const tasksClient = new CloudTasksClient({
           credentials: getServiceAccountCredentials(),
           projectId: process.env.FIREBASE_PROJECT_ID,
         });
         
-        const parent = tasksClient.queuePath(process.env.FIREBASE_PROJECT_ID!, 'europe-west1', 'autopress-jobs1');
+        const parent = tasksClient.queuePath(process.env.FIREBASE_PROJECT_ID!, 'europe-west1', 'autopress-jobs');
         const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
         const task = {
             httpRequest: {
