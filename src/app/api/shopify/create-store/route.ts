@@ -153,6 +153,7 @@ export async function POST(req: NextRequest) {
 
     const jobId = jobRef.id;
 
+    // This endpoint now takes responsibility for enqueuing the task
     await enqueueShopifyCreationTask(jobId);
 
     // This is the immediate response to the chatbot

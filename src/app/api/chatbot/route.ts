@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getChatbotResponse } from '@/ai/flows/chatbot-flow';
 import { handleStoreCreationAction } from './actions';
@@ -65,7 +66,10 @@ export async function POST(req: NextRequest) {
         
         const { messages, recaptchaToken } = validation.data;
         
-        await verifyRecaptcha(recaptchaToken);
+        // Skip reCAPTCHA check if it's not the first message
+        if (messages.length === 0) {
+            await verifyRecaptcha(recaptchaToken);
+        }
         
         const aiResponseText = await getChatbotResponse(messages);
         
