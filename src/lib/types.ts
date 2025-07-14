@@ -355,7 +355,7 @@ export interface Company {
   seoHourlyRate?: number;
   platform?: 'woocommerce' | 'shopify';
   shopifyCreationDefaults?: {
-    createProducts: boolean;
+    createProducts?: boolean;
     theme?: string;
   };
 }
@@ -407,6 +407,7 @@ export interface ShopifyCreationJob {
   brandDescription: string;
   targetAudience: string;
   brandPersonality: string;
+  colorPaletteSuggestion?: string;
   productTypeDescription: string;
   creationOptions: {
     createExampleProducts: boolean;

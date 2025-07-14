@@ -137,6 +137,7 @@ export async function getChatbotResponse(messages: Message[]): Promise<string> {
 // Helper to extract data from the conversation history
 const extractData = (conversationText: string, regex: RegExp): string => {
     const matches = [...conversationText.matchAll(regex)];
+    // Return the last captured group, or an empty string.
     if (matches.length > 0) {
         return (matches[matches.length - 1][1] || '').trim();
     }
@@ -167,14 +168,14 @@ export async function extractStoreCreationData(messages: Message[]) {
     const conversationText = messages.map(m => m.content).join('\n\n');
 
     return {
-        storeName: extractData(conversationText, /\*\*Nombre de la Tienda:\*\*\s*(.*?)\n/gi),
-        businessEmail: extractData(conversationText, /\*\*Email del Negocio:\*\*\s*(.*?)\n/gi),
-        countryCode: extractData(conversationText, /\*\*País:\*\*\s*(.*?)\n/gi),
-        currency: extractData(conversationText, /\*\*Moneda:\*\*\s*(.*?)\n/gi),
-        brandDescription: extractData(conversationText, /\*\*Descripción de la Marca:\*\*\s*(.*?)\n/gi),
-        targetAudience: extractData(conversationText, /\*\*Público Objetivo:\*\*\s*(.*?)\n/gi),
-        brandPersonality: extractData(conversationText, /\*\*Personalidad de Marca:\*\*\s*(.*?)\n/gi),
-        legalBusinessName: extractData(conversationText, /\*\*Nombre Fiscal:\*\*\s*(.*?)\n/gi),
-        businessAddress: extractData(conversationText, /\*\*Dirección Fiscal:\*\*\s*(.*?)\n/gi),
+        storeName: extractData(conversationText, /\*\*nombre de la tienda\*\*:\s*(.*?)(?:\n|\.|$)/i),
+        businessEmail: extractData(conversationText, /\*\*email del negocio\*\*:\s*(.*?)(?:\n|\.|$)/i),
+        countryCode: extractData(conversationText, /\*\*país\*\*:\s*(.*?)(?:\n|\.|$)/i),
+        currency: extractData(conversationText, /\*\*moneda\*\*:\s*(.*?)(?:\n|\.|$)/i),
+        brandDescription: extractData(conversationText, /\*\*descripción de la marca\*\*:\s*(.*?)(?:\n|\.|$)/i),
+        targetAudience: extractData(conversationText, /\*\*público objetivo\*\*:\s*(.*?)(?:\n|\.|$)/i),
+        brandPersonality: extractData(conversationText, /\*\*personalidad de marca\*\*:\s*(.*?)(?:\n|\.|$)/i),
+        legalBusinessName: extractData(conversationText, /\*\*nombre fiscal\*\*:\s*(.*?)(?:\n|\.|$)/i),
+        businessAddress: extractData(conversationText, /\*\*dirección fiscal\*\*:\s*(.*?)(?:\n|\.|$)/i),
     };
 }

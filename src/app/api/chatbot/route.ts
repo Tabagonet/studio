@@ -90,15 +90,29 @@ async function handleAnalysisCompletion(messages: Message[]) {
     return '¡Genial! Hemos recibido toda la información. Uno de nuestros expertos la revisará y se pondrá en contacto contigo muy pronto. ¡Gracias!';
 }
 
+async function getOwnerCompanyId(): Promise<string> {
+    if (!adminDb) {
+      throw new Error("Firestore is not configured.");
+    }
+    // "Grupo 4 alas S.L." is the owner company. We find its ID to assign the new store to it.
+    const companyQuery = await adminDb.collection('companies').where('name', '==', 'Grupo 4 alas S.L.').limit(1).get();
+    if (companyQuery.empty) {
+      throw new Error("Owner company 'Grupo 4 alas S.L.' not found in the database.");
+    }
+    return companyQuery.docs[0].id;
+}
+
+
 async function handleStoreCreation(messages: Message[]) {
     const storeData = await extractStoreCreationData(messages);
+    const ownerCompanyId = await getOwnerCompanyId();
 
     const apiPayload = {
       webhookUrl: "https://webhook.site/#!/view/1b8a9b3f-8c3b-4c1e-9d2a-9e1b5f6a7d1c", // Test webhook
       storeName: storeData.storeName,
       businessEmail: storeData.businessEmail,
-      countryCode: storeData.countryCode.substring(0,2).toUpperCase(),
-      currency: storeData.currency.substring(0,3).toUpperCase(),
+      countryCode: storeData.countryCode?.substring(0,2).toUpperCase() || 'ES',
+      currency: storeData.currency?.substring(0,3).toUpperCase() || 'EUR',
       brandDescription: storeData.brandDescription,
       targetAudience: storeData.targetAudience,
       brandPersonality: storeData.brandPersonality,
@@ -119,8 +133,8 @@ async function handleStoreCreation(messages: Message[]) {
         businessAddress: storeData.businessAddress,
       },
       entity: {
-        type: 'user',
-        id: process.env.SHOPIFY_FALLBACK_USER_ID!,
+        type: 'company',
+        id: ownerCompanyId,
       }
     };
     
