@@ -1,9 +1,8 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { getChatbotResponse } from '@/ai/flows/chatbot-flow';
-import { adminDb } from '@/lib/firebase-admin';
 import axios from 'axios';
 import { z } from 'zod';
+import { handleStoreCreationAction } from './actions';
 
 interface Message {
     role: 'user' | 'model';
@@ -28,7 +27,6 @@ async function verifyRecaptcha(token: string | undefined) {
     }
     
     if (!token || token === 'not-available') {
-        console.warn("reCAPTCHA token not provided by client, but secret key is set. Failing verification.");
         throw new Error("La verificación de seguridad reCAPTCHA ha fallado. Por favor, refresca la página e inténtalo de nuevo.");
     }
     
@@ -56,81 +54,6 @@ async function handleAnalysisCompletion(messages: Message[]) {
     return '¡Genial! Hemos recibido toda la información. Uno de nuestros expertos la revisará y se pondrá en contacto contigo muy pronto. ¡Gracias!';
 }
 
-
-async function handleStoreCreation() {
-    if (!adminDb) {
-      throw new Error("Firestore is not configured.");
-    }
-
-    const timestamp = Date.now();
-    const storeData = {
-        storeName: `Tienda de Prueba ${timestamp}`,
-        businessEmail: `test-${timestamp}@example.com`,
-        countryCode: "ES",
-        currency: "EUR",
-        brandDescription: "Una tienda de prueba generada automáticamente para verificar el flujo de creación de AutoPress AI.",
-        targetAudience: "Desarrolladores y equipo de producto.",
-        brandPersonality: "Funcional, robusta y eficiente.",
-        legalBusinessName: "AutoPress Testing SL",
-        businessAddress: "Calle Ficticia 123, 08001, Barcelona, España"
-    };
-    
-    const companyQuery = await adminDb.collection('companies').where('name', '==', 'Grupo 4 alas S.L.').limit(1).get();
-    if (companyQuery.empty) {
-      throw new Error("Owner company 'Grupo 4 alas S.L.' not found in the database.");
-    }
-    const ownerCompanyId = companyQuery.docs[0].id;
-
-    // This payload is sent to our OWN API, which will then enqueue the task.
-    const jobPayload = {
-      webhookUrl: "https://webhook.site/#!/view/1b8a9b3f-8c3b-4c1e-9d2a-9e1b5f6a7d1c", // Test webhook
-      storeName: storeData.storeName,
-      businessEmail: storeData.businessEmail,
-      countryCode: storeData.countryCode,
-      currency: storeData.currency,
-      brandDescription: storeData.brandDescription,
-      targetAudience: storeData.targetAudience,
-      brandPersonality: storeData.brandPersonality,
-      productTypeDescription: 'Productos de ejemplo para tienda nueva',
-      creationOptions: {
-        createExampleProducts: true,
-        numberOfProducts: 3,
-        createAboutPage: true,
-        createContactPage: true,
-        createLegalPages: true,
-        createBlogWithPosts: true,
-        numberOfBlogPosts: 2,
-        setupBasicNav: true,
-        theme: "dawn",
-      },
-      legalInfo: {
-        legalBusinessName: storeData.legalBusinessName,
-        businessAddress: storeData.businessAddress,
-      },
-      entity: {
-        type: 'company',
-        id: ownerCompanyId,
-      },
-    };
-
-    const targetUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/create-store`;
-    const apiKey = process.env.SHOPIFY_AUTOMATION_API_KEY;
-
-    if (!apiKey) {
-        throw new Error("SHOPIFY_AUTOMATION_API_KEY is not configured on the server.");
-    }
-
-    await axios.post(targetUrl, jobPayload, {
-        headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json'
-        }
-    });
-
-    return `¡Perfecto! Usando datos de ejemplo, estamos iniciando la creación de tu tienda Shopify: "${storeData.storeName}". Ve al panel para ver el progreso.`;
-}
-
-
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
@@ -153,7 +76,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (trimmedResponse === 'FIN-TIENDA') {
-            const responseMessage = await handleStoreCreation();
+            const responseMessage = await handleStoreCreationAction();
             return NextResponse.json({ response: responseMessage, isComplete: true });
         }
         
