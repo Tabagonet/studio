@@ -10,7 +10,7 @@ import type { ShopifyCreationJob } from '@/lib/types';
 async function updateJobStatus(jobId: string, status: 'processing' | 'completed' | 'error' | 'awaiting_auth' | 'authorized', logMessage: string, extraData: Record<string, any> = {}) {
     if (!adminDb) return;
     const jobRef = adminDb.collection('shopify_creation_jobs').doc(jobId);
-    console.log(`[Job ${jobId}] Updating status to ${status}. Log: "${logMessage}"`);
+    console.log(`[Task Logic - Job ${jobId}] Updating status to ${status}. Log: "${logMessage}"`);
     await jobRef.update({
         status,
         ...extraData,
@@ -25,8 +25,9 @@ async function updateJobStatus(jobId: string, status: 'processing' | 'completed'
 // This function contains the full logic for creating a development store.
 // It's the primary task executed by the Cloud Task queue.
 export async function handleCreateShopifyStore(jobId: string) {
+    console.log(`[Task Logic] Starting handleCreateShopifyStore for Job ID: ${jobId}`);
     if (!adminDb) {
-        console.error("Firestore not available in handleCreateShopifyStore.");
+        console.error("[Task Logic] Firestore not available in handleCreateShopifyStore.");
         throw new Error("Firestore not available.");
     }
 
@@ -38,13 +39,14 @@ export async function handleCreateShopifyStore(jobId: string) {
         const jobDoc = await jobRef.get();
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
         const jobData = jobDoc.data()!;
-        console.log(`[Job ${jobId}] Job data loaded successfully.`);
+        console.log(`[Task Logic - Job ${jobId}] Job data loaded successfully.`);
 
+        console.log(`[Task Logic - Job ${jobId}] Attempting to get partner credentials...`);
         const partnerCreds = await getPartnerCredentials();
         if (!partnerCreds.partnerApiToken || !partnerCreds.organizationId) {
             throw new Error("El token de acceso y el ID de organización de la API de Partner no están configurados en los ajustes globales.");
         }
-        console.log(`[Job ${jobId}] Credenciales de Partner obtenidas.`);
+        console.log(`[Task Logic - Job ${jobId}] Credenciales de Partner obtenidas. Organization ID: ${partnerCreds.organizationId}`);
         
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
@@ -72,7 +74,7 @@ export async function handleCreateShopifyStore(jobId: string) {
           },
         };
         
-        console.log(`[Job ${jobId}] Enviando petición a Shopify Partner API: ${graphqlEndpoint}`);
+        console.log(`[Task Logic - Job ${jobId}] Sending GraphQL request to Shopify Partner API: ${graphqlEndpoint}`);
         const response = await axios.post(
             graphqlEndpoint,
             graphqlMutation,
@@ -85,25 +87,25 @@ export async function handleCreateShopifyStore(jobId: string) {
         );
         
         const responseData = response.data;
-        console.log(`[Job ${jobId}] Respuesta completa de Shopify:`, JSON.stringify(responseData, null, 2));
+        console.log(`[Task Logic - Job ${jobId}] Full Shopify response:`, JSON.stringify(responseData, null, 2));
         
         if (responseData.errors) {
             const errorMessages = typeof responseData.errors === 'object' ? JSON.stringify(responseData.errors) : responseData.errors;
-            throw new Error(`Shopify devolvió errores en GraphQL: ${errorMessages}`);
+            throw new Error(`Shopify returned GraphQL errors: ${errorMessages}`);
         }
         
         const creationResult = responseData.data.developmentStoreCreate;
         if (creationResult.userErrors && creationResult.userErrors.length > 0) {
             const errorMessages = creationResult.userErrors.map((e: any) => `${e.field}: ${e.message}`).join(', ');
-            throw new Error(`Shopify devolvió errores de usuario: ${errorMessages}`);
+            throw new Error(`Shopify returned user errors: ${errorMessages}`);
         }
 
         const createdStore = creationResult.store;
         if (!createdStore || !createdStore.domain || !createdStore.shopId) {
-            throw new Error('La API de Shopify no devolvió los datos de la tienda creada.');
+            throw new Error('Shopify API did not return the created store data.');
         }
 
-        console.log(`[Job ${jobId}] Tienda creada con éxito: ${createdStore.domain}`);
+        console.log(`[Task Logic - Job ${jobId}] Store created successfully: ${createdStore.domain}`);
 
         const storeAdminUrl = `https://${createdStore.domain}/admin`;
         const storeUrl = `https://${createdStore.domain}`;
@@ -111,12 +113,12 @@ export async function handleCreateShopifyStore(jobId: string) {
         if (!partnerCreds.clientId) {
             throw new Error("El Client ID de la App Personalizada no está configurado en los ajustes globales.");
         }
-        console.log(`[Job ${jobId}] Obtenido Client ID de la App Personalizada.`);
+        console.log(`[Task Logic - Job ${jobId}] Custom App Client ID obtained.`);
 
         const scopes = 'write_products,write_content,write_themes,read_products,read_content,read_themes,write_navigation,read_navigation';
         const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
         const installUrl = `https://${createdStore.domain}/admin/oauth/authorize?client_id=${partnerCreds.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${jobId}`;
-        console.log(`[Job ${jobId}] URL de instalación generada: ${installUrl}`);
+        console.log(`[Task Logic - Job ${jobId}] Generated install URL: ${installUrl}`);
         
         await updateJobStatus(jobId, 'awaiting_auth', 'Tienda creada. Esperando autorización del usuario para poblar contenido.', {
             createdStoreUrl: storeUrl,
@@ -137,16 +139,16 @@ export async function handleCreateShopifyStore(jobId: string) {
             };
             try {
                 await axios.post(jobData.webhookUrl, webhookPayload, { timeout: 10000 });
-                console.log(`[Job ${jobId}] Webhook de 'awaiting_auth' enviado a ${jobData.webhookUrl}`);
+                console.log(`[Task Logic - Job ${jobId}] Webhook 'awaiting_auth' sent to ${jobData.webhookUrl}`);
             } catch (webhookError: any) {
-                console.warn(`[Job ${jobId}] Failed to send awaiting_auth webhook to ${jobData.webhookUrl}: ${webhookError.message}`);
+                console.warn(`[Task Logic - Job ${jobId}] Failed to send awaiting_auth webhook to ${jobData.webhookUrl}: ${webhookError.message}`);
             }
         }
 
 
     } catch (error: any) {
-        console.error(`[Job ${jobId}] Error fatal en la creación de la tienda:`, error.response?.data || error.message);
-        const errorMessage = error.message;
+        const errorMessage = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+        console.error(`[Task Logic - Job ${jobId}] Fatal error in store creation:`, errorMessage);
         await updateJobStatus(jobId, 'error', `Error fatal en la creación: ${errorMessage}`);
         
         const jobDoc = await jobRef.get();
@@ -159,9 +161,9 @@ export async function handleCreateShopifyStore(jobId: string) {
             };
             try {
                  await axios.post(jobDoc.data()!.webhookUrl, webhookPayload, { timeout: 10000 });
-                 console.log(`[Job ${jobId}] Webhook de ERROR enviado a ${jobDoc.data()!.webhookUrl}`);
+                 console.log(`[Task Logic - Job ${jobId}] ERROR webhook sent to ${jobDoc.data()!.webhookUrl}`);
             } catch (webhookError: any) {
-                 console.warn(`[Job ${jobId}] Failed to send ERROR webhook to ${jobDoc.data()!.webhookUrl}: ${webhookError.message}`);
+                 console.warn(`[Task Logic - Job ${jobId}] Failed to send ERROR webhook to ${jobDoc.data()!.webhookUrl}: ${webhookError.message}`);
             }
         }
     }
