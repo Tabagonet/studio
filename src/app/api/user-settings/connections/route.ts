@@ -65,28 +65,31 @@ export async function GET(req: NextRequest) {
         const targetCompanyId = req.nextUrl.searchParams.get('companyId');
         const targetUserId = req.nextUrl.searchParams.get('userId');
         
-        let settingsRef;
-
+        let settingsRef: FirebaseFirestore.DocumentReference;
+        let entityConnections = {};
+        
+        // Determine the primary entity being requested (user or company)
         if (role === 'super_admin') {
-            if (targetCompanyId) {
-                settingsRef = adminDb.collection('companies').doc(targetCompanyId);
-            } else {
-                settingsRef = adminDb.collection('user_settings').doc(targetUserId || uid);
-            }
+            const effectiveId = targetCompanyId || targetUserId || uid;
+            const collection = targetCompanyId ? 'companies' : 'user_settings';
+            settingsRef = adminDb.collection(collection).doc(effectiveId);
         } else {
-            if (userCompanyId) {
-                settingsRef = adminDb.collection('companies').doc(userCompanyId);
-            } else {
-                settingsRef = adminDb.collection('user_settings').doc(uid);
-            }
+            const collection = userCompanyId ? 'companies' : 'user_settings';
+            const effectiveId = userCompanyId || uid;
+            settingsRef = adminDb.collection(collection).doc(effectiveId);
         }
         
         const settingsDoc = await settingsRef.get();
-        const globalSettingsDoc = await adminDb.collection('companies').doc('global_settings').get();
+        if (settingsDoc.exists) {
+            entityConnections = settingsDoc.data()?.connections || {};
+        }
 
-        const allConnections = settingsDoc.exists ? settingsDoc.data()?.connections || {} : {};
+        // Always fetch global partner settings separately
+        const globalSettingsDoc = await adminDb.collection('companies').doc('global_settings').get();
         const partnerAppData = globalSettingsDoc.exists ? globalSettingsDoc.data()?.connections?.partner_app || null : null;
         
+        // Construct the final connections object, prioritizing global partner data
+        const allConnections = { ...entityConnections };
         if (partnerAppData) {
             allConnections.partner_app = partnerAppData;
         }
@@ -104,7 +107,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-    if (!adminDb) {
+    if (!adminDb || !admin.firestore.FieldValue) {
         console.error('POST /api/user-settings/connections: Firestore no está configurado en el servidor');
         return NextResponse.json({ error: 'Firestore not configured on server' }, { status: 503 });
     }
@@ -122,7 +125,6 @@ export async function POST(req: NextRequest) {
             isPartner: z.boolean().optional().default(false),
         });
 
-
         const validationResult = payloadSchema.safeParse(body);
         if (!validationResult.success) {
             return NextResponse.json({ error: 'Invalid data', details: validationResult.error.flatten() }, { status: 400 });
@@ -130,7 +132,7 @@ export async function POST(req: NextRequest) {
         
         const { key, connectionData, setActive, entityId, entityType, isPartner } = validationResult.data;
         
-        let settingsRef;
+        let settingsRef: FirebaseFirestore.DocumentReference;
         let finalConnectionData;
         
         if (isPartner && role === 'super_admin') {
@@ -169,6 +171,19 @@ export async function POST(req: NextRequest) {
 
         await settingsRef.set(updatePayload, { merge: true });
         
+        // === Data Cleanup Logic ===
+        // If we just successfully saved global partner data, ensure it's removed from the user/company doc to prevent conflicts.
+        if (isPartner && role === 'super_admin') {
+            const userOrCompanySettingsRef = adminDb.collection(entityType === 'company' ? 'companies' : 'user_settings').doc(entityId);
+            const userOrCompanyDoc = await userOrCompanySettingsRef.get();
+            if (userOrCompanyDoc.exists && userOrCompanyDoc.data()?.connections?.partner_app) {
+                await userOrCompanySettingsRef.update({
+                    'connections.partner_app': admin.firestore.FieldValue.delete()
+                });
+                console.log(`Cleaned up old partner_app data from ${entityType}/${entityId}`);
+            }
+        }
+        
         if (!isPartner) {
              const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = finalConnectionData;
              const hostnamesToAdd = new Set<string>();
@@ -190,7 +205,6 @@ export async function POST(req: NextRequest) {
                 await Promise.all(promises);
             }
         }
-        
 
         return NextResponse.json({ success: true, message: 'Connection saved successfully.' });
 
