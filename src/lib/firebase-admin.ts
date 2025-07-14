@@ -19,6 +19,7 @@ export function getServiceAccountCredentials(): { client_email: string; private_
         if (!parsedCredentials.client_email || !parsedCredentials.private_key || !parsedCredentials.project_id) {
            throw new Error("El JSON de la cuenta de servicio es inválido o le faltan propiedades clave (project_id, private_key, client_email).");
         }
+        // This object has the correct snake_case properties for Google Cloud libraries
         return {
             client_email: parsedCredentials.client_email,
             private_key: parsedCredentials.private_key,
@@ -30,6 +31,7 @@ export function getServiceAccountCredentials(): { client_email: string; private_
       }
     } 
     
+    // Fallback to individual environment variables
     const projectId = process.env.FIREBASE_PROJECT_ID;
     const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
@@ -47,7 +49,8 @@ if (!admin_sdk.apps.length) {
   try {
     const serviceAccountForFirebase = getServiceAccountCredentials();
     admin_sdk.initializeApp({
-      // The Firebase SDK expects camelCase, so we provide a version for it.
+      // The Firebase SDK for Node.js expects camelCase properties.
+      // We are providing a manually constructed object that satisfies the `admin.ServiceAccount` interface.
       credential: admin_sdk.credential.cert({
           projectId: serviceAccountForFirebase.project_id,
           clientEmail: serviceAccountForFirebase.client_email,
