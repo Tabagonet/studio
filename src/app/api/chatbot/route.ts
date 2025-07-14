@@ -119,12 +119,11 @@ async function handleStoreCreation(messages: Message[]) {
         businessAddress: storeData.businessAddress,
       },
       entity: {
-        type: 'user', // For now, we assume a generic user triggers this from the chatbot
-        id: process.env.SHOPIFY_FALLBACK_USER_ID || 'y7yP5f6XzY...YOUR_UID...GUh1', // A fallback super_admin UID
+        type: 'user',
+        id: process.env.SHOPIFY_FALLBACK_USER_ID!,
       }
     };
     
-    // Call the internal API to create the store
     const createStoreUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/create-store`;
     await axios.post(createStoreUrl, apiPayload, {
       headers: {

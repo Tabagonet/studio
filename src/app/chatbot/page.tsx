@@ -32,21 +32,14 @@ function ChatbotComponent() {
     const { executeRecaptcha } = useGoogleReCaptcha();
 
     const startConversation = useCallback(async () => {
-        if (!executeRecaptcha) {
-            console.log("reCAPTCHA not available yet");
-            return;
-        }
-        
         if (messages.length > 0 || isLoading) {
             return;
         }
 
         setIsLoading(true);
         try {
-            const recaptchaToken = await executeRecaptcha('chatbot_interaction');
-            if (!recaptchaToken) {
-                throw new Error("Could not get reCAPTCHA token.");
-            }
+            const recaptchaToken = executeRecaptcha ? await executeRecaptcha('chatbot_interaction') : 'not-available';
+            
             const response = await fetch('/api/chatbot', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -83,15 +76,6 @@ function ChatbotComponent() {
         e.preventDefault();
         if (!input.trim() || isLoading || isComplete) return;
 
-        if (!executeRecaptcha) {
-            toast({
-                title: "Error de Seguridad",
-                description: "El servicio de reCAPTCHA no está listo. Por favor, refresca la página.",
-                variant: "destructive"
-            });
-            return;
-        }
-
         const userMessage: Message = { id: `user-${Date.now()}`, role: 'user', content: input };
         const newMessages = [...messages, userMessage];
         setMessages(newMessages);
@@ -99,10 +83,7 @@ function ChatbotComponent() {
         setIsLoading(true);
 
         try {
-            const recaptchaToken = await executeRecaptcha('chatbot_interaction');
-            if (!recaptchaToken) {
-                throw new Error("Could not get reCAPTCHA token.");
-            }
+            const recaptchaToken = executeRecaptcha ? await executeRecaptcha('chatbot_interaction') : 'not-available';
 
             const response = await fetch('/api/chatbot', {
                 method: 'POST',
