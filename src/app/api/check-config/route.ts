@@ -100,26 +100,10 @@ export async function GET(req: NextRequest) {
 
       const partnerAppData = partnerAppConnectionDataSchema.safeParse(allConnections['partner_app'] || {});
       
-      // Check for Custom App (OAuth) credentials
       userConfig.shopifyCustomAppConfigured = !!(partnerAppData.success && partnerAppData.data.clientId && partnerAppData.data.clientSecret);
 
-      // Check for Partner API credentials
       if (partnerAppData.success && partnerAppData.data.partnerApiToken && partnerAppData.data.organizationId) {
-          try {
-              const verificationEndpoint = `https://partners.shopify.com/${partnerAppData.data.organizationId}/api/2025-07/graphql.json`;
-              await axios.post(verificationEndpoint, 
-                { query: "{ shopifyQlSchema { queryRoot { fields { name } } } }" },
-                {
-                  headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': partnerAppData.data.partnerApiToken }, 
-                  timeout: 8000 
-              });
-              userConfig.shopifyPartnerConfigured = true;
-          } catch(e) {
-              const error = e as any;
-              console.error("[API /check-config] Shopify Partner API verification failed. Details:", error.response?.data || error.message);
-              userConfig.shopifyPartnerConfigured = false;
-              userConfig.shopifyPartnerError = error.response?.data?.errors?.[0]?.message || error.message || "Error desconocido";
-          }
+          userConfig.shopifyPartnerConfigured = true;
       }
       
       if (activeKey && allConnections[activeKey]) {

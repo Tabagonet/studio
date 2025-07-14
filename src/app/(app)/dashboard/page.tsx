@@ -29,6 +29,7 @@ interface ConfigStatus {
   wooCommerceConfigured: boolean;
   wordPressConfigured: boolean;
   shopifyConfigured: boolean;
+  shopifyPartnerConfigured: boolean; // Added this property
   aiUsageCount?: number;
 }
 
@@ -201,7 +202,7 @@ export default function DashboardPage() {
   const wpConfigured = !!configStatus?.wordPressConfigured;
   const wooWpConfigured = wooConfigured && wpConfigured;
 
-  const shopifyConfigured = !!configStatus?.shopifyConfigured;
+  const shopifyPartnerConfigured = !!configStatus?.shopifyPartnerConfigured;
 
   if (isLoading) {
     return (
@@ -287,12 +288,12 @@ export default function DashboardPage() {
              <TooltipProvider>
                 <Tooltip delayDuration={100}>
                   <TooltipTrigger asChild>
-                    <div className={cn(!shopifyConfigured && "cursor-not-allowed")}>
-                      <Card className={cn("shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col", !shopifyConfigured && "bg-muted/50")}>
+                    <div className={cn(!shopifyPartnerConfigured && "cursor-not-allowed")}>
+                      <Card className={cn("shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col", !shopifyPartnerConfigured && "bg-muted/50")}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-lg font-medium">Prueba de Creación de Tienda</CardTitle><PlayCircle className="h-6 w-6 text-[#7ab55c]" /></CardHeader>
                         <CardContent className="flex flex-col flex-grow">
                           <CardDescription className="mb-4 text-sm">Ejecuta una prueba completa del flujo de creación de tiendas de desarrollo con datos de ejemplo.</CardDescription>
-                          <Button onClick={handleRunTest} disabled={isTestRunning || !shopifyConfigured}>
+                          <Button onClick={handleRunTest} disabled={isTestRunning || !shopifyPartnerConfigured}>
                             {isTestRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShopifyIcon className="mr-2 h-4 w-4" />}
                             {isTestRunning ? 'Ejecutando...' : 'Iniciar Prueba'}
                           </Button>
@@ -300,7 +301,7 @@ export default function DashboardPage() {
                       </Card>
                     </div>
                   </TooltipTrigger>
-                  {!shopifyConfigured && (<TooltipContent><p>La conexión global de Shopify Partner no está configurada.</p></TooltipContent>)}
+                  {!shopifyPartnerConfigured && (<TooltipContent><p>La conexión global de Shopify Partner no está configurada.</p></TooltipContent>)}
                 </Tooltip>
             </TooltipProvider>
           </div>
