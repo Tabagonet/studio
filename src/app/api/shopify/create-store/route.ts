@@ -51,8 +51,8 @@ const testCreationSchema = z.object({
 // Initialize the Cloud Tasks client once.
 let tasksClient: CloudTasksClient | null = null;
 try {
-    const credentials = getServiceAccountCredentials();
-    tasksClient = new CloudTasksClient({ credentials });
+    // This now relies on the globally initialized Firebase Admin SDK
+    tasksClient = new CloudTasksClient();
 } catch(e) {
     console.error("Failed to initialize CloudTasksClient on module load:", (e as Error).message);
 }
