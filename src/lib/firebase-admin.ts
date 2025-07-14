@@ -9,40 +9,34 @@ let adminDb: admin.firestore.Firestore | null = null;
 let adminAuth: admin.auth.Auth | null = null;
 let adminStorage: admin.storage.Storage | null = null;
 
-// Function to get the credentials, can be called from other server modules
-export function getServiceAccountCredentials(): { client_email: string; private_key: string; project_id: string } {
+function getServiceAccount() {
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-    
     if (serviceAccountJson) {
-      try {
-        const parsedCredentials = JSON.parse(serviceAccountJson);
-        if (!parsedCredentials.client_email || !parsedCredentials.private_key || !parsedCredentials.project_id) {
-           throw new Error("El JSON de la cuenta de servicio es inválido o le faltan propiedades clave (project_id, private_key, client_email).");
+        try {
+            return JSON.parse(serviceAccountJson);
+        } catch (e) {
+            console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", (e as Error).message);
+            throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON is not a valid JSON.");
         }
-        return parsedCredentials;
-      } catch (e: any) {
-        console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", e.message);
-        throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON no es un JSON válido.");
-      }
-    } 
-    
-    // Fallback to individual environment variables
-    const projectId = process.env.FIREBASE_PROJECT_ID;
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    
-    if (projectId && privateKey && clientEmail) {
-      return { project_id: projectId, private_key: privateKey, client_email: clientEmail };
     }
-
-    throw new Error("No se pudieron cargar las credenciales de la cuenta de servicio de Firebase. Configura FIREBASE_SERVICE_ACCOUNT_JSON o las variables individuales (PROJECT_ID, PRIVATE_KEY, CLIENT_EMAIL).");
+    
+    // Fallback to individual environment variables if the JSON isn't provided
+    if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
+        return {
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        };
+    }
+    
+    throw new Error("Firebase Admin credentials are not set. Please provide FIREBASE_SERVICE_ACCOUNT_JSON or the individual environment variables.");
 }
 
 
 // Initialize the app only if it hasn't been initialized yet
 if (!admin_sdk.apps.length) {
   try {
-    const serviceAccount = getServiceAccountCredentials();
+    const serviceAccount = getServiceAccount();
     admin_sdk.initializeApp({
       credential: admin_sdk.credential.cert(serviceAccount),
       storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
