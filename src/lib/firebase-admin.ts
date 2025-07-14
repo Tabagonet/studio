@@ -9,7 +9,7 @@ let adminAuth: admin.auth.Auth | null = null;
 let adminStorage: admin.storage.Storage | null = null;
 
 // Function to get the credentials, can be called from other server modules
-export function getServiceAccountCredentials(): admin.ServiceAccount | undefined {
+export function getServiceAccountCredentials(): admin.ServiceAccount {
     // The credentials can be provided as a single JSON string or as individual environment variables.
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
     const serviceAccountFromVars = {
@@ -24,7 +24,7 @@ export function getServiceAccountCredentials(): admin.ServiceAccount | undefined
         return JSON.parse(serviceAccountJson);
       } catch (e) {
         console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", e);
-        return undefined;
+        throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON no es un JSON válido.");
       }
     } 
     
@@ -36,26 +36,21 @@ export function getServiceAccountCredentials(): admin.ServiceAccount | undefined
       };
     }
 
-    return undefined;
+    throw new Error("Las credenciales de la cuenta de servicio de Firebase no están configuradas en las variables de entorno.");
 }
 
 
 // Initialize the app only if it hasn't been initialized yet
 if (!admin_sdk.apps.length) {
-  const serviceAccount = getServiceAccountCredentials();
-  if (serviceAccount) {
-    try {
-      admin_sdk.initializeApp({
-        credential: admin_sdk.credential.cert(serviceAccount),
-        storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-      });
-      console.log('Firebase Admin SDK initialized successfully.');
-    } catch (error) {
-      console.error('Firebase Admin SDK initialization error:', error);
-    }
-  } else {
-    // This warning is important for debugging in production environments
-    console.warn('Firebase Admin SDK not initialized: No service account credentials found in environment variables. Check FIREBASE_SERVICE_ACCOUNT_JSON or individual FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, FIREBASE_CLIENT_EMAIL variables.');
+  try {
+    const serviceAccount = getServiceAccountCredentials();
+    admin_sdk.initializeApp({
+      credential: admin_sdk.credential.cert(serviceAccount),
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    });
+    console.log('Firebase Admin SDK initialized successfully.');
+  } catch (error: any) {
+    console.warn(`Firebase Admin SDK initialization error: ${error.message}`);
   }
 }
 

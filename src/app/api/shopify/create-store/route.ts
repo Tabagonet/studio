@@ -49,51 +49,54 @@ const testCreationSchema = z.object({
 
 
 // Initialize the Cloud Tasks client once.
-const tasksClient = new CloudTasksClient({ credentials: getServiceAccountCredentials() });
-const PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
-const LOCATION_ID = 'europe-west1'; 
-const QUEUE_ID = 'autopress-jobs';
+let tasksClient: CloudTasksClient | null = null;
+try {
+    const credentials = getServiceAccountCredentials();
+    tasksClient = new CloudTasksClient({ credentials });
+} catch(e) {
+    console.error("Failed to initialize CloudTasksClient on module load:", (e as Error).message);
+}
 
 
 async function enqueueShopifyCreationTask(jobId: string) {
+    const PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
+    const LOCATION_ID = 'europe-west1'; 
+    const QUEUE_ID = 'autopress-jobs';
+    
     console.log(`[Shopify Create Store] Step 5.1: Enqueuing task for Job ID: ${jobId}`);
-  if (!PROJECT_ID) {
-    throw new Error('FIREBASE_PROJECT_ID no está configurado en las variables de entorno.');
-  }
 
-  const parent = tasksClient.queuePath(PROJECT_ID, LOCATION_ID, QUEUE_ID);
-  
-  // Get the service account email safely
-  const serviceAccountEmail = getServiceAccountCredentials()?.client_email;
+    if (!tasksClient) {
+        throw new Error('Cloud Tasks client is not initialized.');
+    }
+    if (!PROJECT_ID) {
+        throw new Error('FIREBASE_PROJECT_ID no está configurado en las variables de entorno.');
+    }
 
-  if (!serviceAccountEmail) {
-    throw new Error('No se pudo obtener el email de la cuenta de servicio desde el SDK de Firebase Admin.');
-  }
-  
-  const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
+    const parent = tasksClient.queuePath(PROJECT_ID, LOCATION_ID, QUEUE_ID);
+    
+    // Get the service account email safely from the same source as the client credentials
+    const serviceAccountEmail = getServiceAccountCredentials().client_email;
 
-  const task = {
-    httpRequest: {
-      httpMethod: 'POST' as const,
-      url: targetUri,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
-       oidcToken: {
-          serviceAccountEmail: serviceAccountEmail,
-       },
-    },
-    scheduleTime: {
-      seconds: Date.now() / 1000 + 5,
-    },
-  };
+    if (!serviceAccountEmail) {
+        throw new Error('No se pudo obtener el email de la cuenta de servicio desde las credenciales.');
+    }
+    
+    const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
 
-  const request = { parent: parent, task: task };
-  console.log(`[Shopify Create Store] Step 5.2: About to create task with payload for URI: ${targetUri}`);
-  const [response] = await tasksClient.createTask(request);
-  console.log(`[Shopify Create Store] Step 5.3: Task created successfully: ${response.name}`);
-  return response;
+    const task = {
+        httpRequest: {
+            httpMethod: 'POST' as const,
+            url: targetUri,
+            headers: { 'Content-Type': 'application/json' },
+            body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
+            oidcToken: { serviceAccountEmail },
+        },
+    };
+
+    console.log(`[Shopify Create Store] Step 5.2: About to create task with payload for URI: ${targetUri}`);
+    const [response] = await tasksClient.createTask({ parent, task });
+    console.log(`[Shopify Create Store] Step 5.3: Task created successfully: ${response.name}`);
+    return response;
 }
 
 
