@@ -54,8 +54,8 @@ export async function handleCreateShopifyStore(jobId: string) {
         
         const graphqlMutation = {
           query: `
-            mutation developmentStoreCreate($name: String!) {
-              developmentStoreCreate(input: {name: $name}) {
+            mutation appDevelopmentStoreCreate($name: String!) {
+              appDevelopmentStoreCreate(input: {name: $name}) {
                 store {
                   shopId
                   domain: shopDomain
@@ -94,7 +94,7 @@ export async function handleCreateShopifyStore(jobId: string) {
             throw new Error(`Shopify returned GraphQL errors: ${errorMessages}`);
         }
         
-        const creationResult = responseData.data.developmentStoreCreate;
+        const creationResult = responseData.data.appDevelopmentStoreCreate;
         if (creationResult.userErrors && creationResult.userErrors.length > 0) {
             const errorMessages = creationResult.userErrors.map((e: any) => `${e.field}: ${e.message}`).join(', ');
             throw new Error(`Shopify returned user errors: ${errorMessages}`);
