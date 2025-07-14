@@ -47,12 +47,17 @@ export async function DELETE(req: NextRequest, { params }: { params: { jobId: st
         const jobData = doc.data() as ShopifyCreationJob;
         let isAuthorized = false;
 
+        // A super admin can delete any job.
         if (context.role === 'super_admin') {
             isAuthorized = true;
-        } else if (jobData.entity.type === 'company' && jobData.entity.id === context.companyId) {
+        } 
+        // A user can delete a job assigned to them.
+        else if (jobData.entity.type === 'user' && jobData.entity.id === context.uid) {
             isAuthorized = true;
-        } else if (jobData.entity.type === 'user' && jobData.entity.id === context.uid) {
-            isAuthorized = true;
+        }
+        // An admin can delete a job assigned to their company.
+        else if (jobData.entity.type === 'company' && jobData.entity.id === context.companyId) {
+             isAuthorized = true;
         }
 
         if (!isAuthorized) {

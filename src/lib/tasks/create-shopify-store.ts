@@ -10,6 +10,7 @@ import type { ShopifyCreationJob } from '@/lib/types';
 async function updateJobStatus(jobId: string, status: 'processing' | 'completed' | 'error' | 'awaiting_auth' | 'authorized', logMessage: string, extraData: Record<string, any> = {}) {
     if (!adminDb) return;
     const jobRef = adminDb.collection('shopify_creation_jobs').doc(jobId);
+    console.log(`[Job ${jobId}] Updating status to ${status}. Log: "${logMessage}"`);
     await jobRef.update({
         status,
         ...extraData,
@@ -37,11 +38,13 @@ export async function handleCreateShopifyStore(jobId: string) {
         const jobDoc = await jobRef.get();
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
         const jobData = jobDoc.data()!;
+        console.log(`[Job ${jobId}] Job data loaded successfully.`);
 
         const { partnerApiToken, organizationId } = await getPartnerCredentials(jobData.entity.id, jobData.entity.type);
         if (!partnerApiToken || !organizationId) {
             throw new Error("El token de acceso y el ID de organización de la API de Partner no están configurados.");
         }
+        console.log(`[Job ${jobId}] Credenciales de Partner obtenidas.`);
         
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
@@ -68,7 +71,8 @@ export async function handleCreateShopifyStore(jobId: string) {
             name: jobData.storeName,
           },
         };
-
+        
+        console.log(`[Job ${jobId}] Enviando petición a Shopify Partner API: ${graphqlEndpoint}`);
         const response = await axios.post(
             graphqlEndpoint,
             graphqlMutation,
@@ -81,6 +85,8 @@ export async function handleCreateShopifyStore(jobId: string) {
         );
         
         const responseData = response.data;
+        console.log(`[Job ${jobId}] Respuesta recibida de Shopify Partner API.`);
+        
         if (responseData.errors) {
             const errorMessages = typeof responseData.errors === 'object' ? JSON.stringify(responseData.errors) : responseData.errors;
             throw new Error(`Shopify devolvió errores en GraphQL: ${errorMessages}`);
@@ -97,19 +103,24 @@ export async function handleCreateShopifyStore(jobId: string) {
             throw new Error('La API de Shopify no devolvió los datos de la tienda creada.');
         }
 
+        console.log(`[Job ${jobId}] Tienda creada con éxito: ${createdStore.domain}`);
+
         const storeAdminUrl = `https://${createdStore.domain}/admin`;
         const storeUrl = `https://${createdStore.domain}`;
 
+        // global_settings are now stored in the 'companies' collection under a specific ID
         const settingsDoc = await adminDb.collection('companies').doc('global_settings').get();
         const customAppCreds = settingsDoc.data()?.connections?.shopify_custom_app;
 
         if (!customAppCreds || !customAppCreds.clientId) {
             throw new Error("El Client ID de la App Personalizada no está configurado en los ajustes globales.");
         }
+        console.log(`[Job ${jobId}] Obtenido Client ID de la App Personalizada.`);
 
         const scopes = 'write_products,write_content,write_themes,read_products,read_content,read_themes,write_navigation,read_navigation';
         const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
         const installUrl = `https://${createdStore.domain}/admin/oauth/authorize?client_id=${customAppCreds.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${jobId}`;
+        console.log(`[Job ${jobId}] URL de instalación generada: ${installUrl}`);
         
         await updateJobStatus(jobId, 'awaiting_auth', 'Tienda creada. Esperando autorización del usuario para poblar contenido.', {
             createdStoreUrl: storeUrl,
@@ -130,6 +141,7 @@ export async function handleCreateShopifyStore(jobId: string) {
             };
             try {
                 await axios.post(jobData.webhookUrl, webhookPayload, { timeout: 10000 });
+                console.log(`[Job ${jobId}] Webhook de 'awaiting_auth' enviado a ${jobData.webhookUrl}`);
             } catch (webhookError: any) {
                 console.warn(`[Job ${jobId}] Failed to send awaiting_auth webhook to ${jobData.webhookUrl}: ${webhookError.message}`);
             }
@@ -137,7 +149,7 @@ export async function handleCreateShopifyStore(jobId: string) {
 
 
     } catch (error: any) {
-        console.error(`[Job ${jobId}] Failed to create Shopify store:`, error.response?.data || error.message);
+        console.error(`[Job ${jobId}] Error fatal en la creación de la tienda:`, error.response?.data || error.message);
         const errorMessage = error.message;
         await updateJobStatus(jobId, 'error', `Error fatal en la creación: ${errorMessage}`);
         
@@ -151,6 +163,7 @@ export async function handleCreateShopifyStore(jobId: string) {
             };
             try {
                  await axios.post(jobDoc.data()!.webhookUrl, webhookPayload, { timeout: 10000 });
+                 console.log(`[Job ${jobId}] Webhook de ERROR enviado a ${jobDoc.data()!.webhookUrl}`);
             } catch (webhookError: any) {
                  console.warn(`[Job ${jobId}] Failed to send ERROR webhook to ${jobDoc.data()!.webhookUrl}: ${webhookError.message}`);
             }

@@ -7,18 +7,10 @@ export async function deleteShopifyJobsAction(
     jobIds: string[],
     token: string
 ): Promise<{ success: boolean; error?: string }> {
-    let context;
+    // Auth check to ensure user is logged in. Specific permissions are checked in the API endpoint.
     try {
-        if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized");
-        const decodedToken = await adminAuth.verifyIdToken(token);
-        const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
-        if (!userDoc.exists) throw new Error("User record not found in database.");
-        const userData = userDoc.data();
-        context = {
-            uid: decodedToken.uid,
-            role: userData?.role || null,
-            companyId: userData?.companyId || null,
-        };
+        if (!adminAuth) throw new Error("Firebase Admin not initialized");
+        await adminAuth.verifyIdToken(token);
     } catch (error) {
         console.error('Error verifying token in deleteShopifyJobsAction:', error);
         return { success: false, error: 'Authentication failed. Unable to identify user.' };

@@ -60,6 +60,7 @@ export function JobsDataTable() {
         throw new Error((await response.json()).error || 'Failed to fetch Shopify jobs');
       }
       const data = await response.json();
+      console.log("Datos de trabajos recibidos desde la API:", data.jobs); // LOG
       setData(data.jobs || []);
     } catch (error: any) {
       toast({ title: "Error al cargar trabajos", description: error.message, variant: "destructive" });
