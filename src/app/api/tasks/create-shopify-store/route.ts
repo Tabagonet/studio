@@ -1,11 +1,24 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { handleCreateShopifyStore } from '@/lib/tasks/create-shopify-store';
+import { adminAuth } from '@/lib/firebase-admin';
 
 // This endpoint is now designed to be called directly from server actions OR by Cloud Tasks.
-// The security check for Cloud Tasks is removed to allow direct server-side invocation for the test flow.
+// It includes a verification step to ensure only authorized requests can invoke it.
 export async function POST(req: NextRequest) {
     try {
+        const oidcToken = req.headers.get('Authorization')?.split('Bearer ')[1];
+        if (!oidcToken) {
+            console.warn('Create store task handler called without OIDC token.');
+            return NextResponse.json({ error: 'Unauthorized: Missing token' }, { status: 401 });
+        }
+        
+        if (!adminAuth) {
+            throw new Error("Firebase Admin SDK is not initialized.");
+        }
+
+        await adminAuth.verifyIdToken(oidcToken, true);
+
         const body = await req.json();
         const jobId = body.jobId;
 

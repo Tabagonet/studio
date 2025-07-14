@@ -34,6 +34,12 @@ if (serviceAccountJson) {
   };
 }
 
+// Function to get the credentials, can be called from other server modules
+export function getServiceAccountCredentials(): admin.ServiceAccount | undefined {
+    return serviceAccount;
+}
+
+
 // Initialize the app only if it hasn't been initialized yet
 if (!admin_sdk.apps.length) {
   if (serviceAccount) {

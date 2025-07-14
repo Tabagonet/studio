@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, admin, admin_sdk } from '@/lib/firebase-admin';
+import { adminDb, admin, getServiceAccountCredentials } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { CloudTasksClient } from '@google-cloud/tasks';
 
@@ -55,8 +55,8 @@ async function enqueueShopifyCreationTask(jobId: string) {
 
   const parent = tasksClient.queuePath(PROJECT_ID, LOCATION_ID, QUEUE_ID);
   
-  // Get the service account email from the initialized Firebase Admin SDK
-  const serviceAccountEmail = admin_sdk.credential.applicationDefault()?.credential?.client_email;
+  // Get the service account email safely
+  const serviceAccountEmail = getServiceAccountCredentials()?.clientEmail;
 
   if (!serviceAccountEmail) {
     throw new Error('No se pudo obtener el email de la cuenta de servicio desde el SDK de Firebase Admin.');
