@@ -111,9 +111,10 @@ export async function POST(req: NextRequest) {
         const { uid, role, companyId: userCompanyId } = await getUserContext(req);
         const body = await req.json();
 
+        // This schema now handles both regular and partner credentials based on the isPartner flag
         const payloadSchema = z.object({
             key: z.string().min(1, "Key is required"),
-            connectionData: z.record(z.any()),
+            connectionData: z.record(z.any()), // We'll validate this conditionally
             setActive: z.boolean().optional().default(false),
             entityId: z.string(),
             entityType: z.enum(['user', 'company']),
@@ -124,7 +125,7 @@ export async function POST(req: NextRequest) {
             }
             return connectionDataSchema.safeParse(data.connectionData).success;
         }, {
-            message: "connectionData does not match the schema for the given key",
+            message: "connectionData does not match the expected schema",
             path: ["connectionData"],
         });
 
@@ -134,57 +135,66 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid data', details: validationResult.error.flatten() }, { status: 400 });
         }
         
-        const { key, connectionData, setActive, entityId, entityType } = validationResult.data;
+        const { key, connectionData, setActive, entityId, entityType, isPartner } = validationResult.data;
         
-        let cleanConnectionData;
-        if (validationResult.data.isPartner) {
-            cleanConnectionData = partnerAppConnectionDataSchema.parse(connectionData);
+        let settingsRef;
+        let settingsDoc;
+        let isGlobalSettings = false;
+        
+        // Super Admin saving partner creds always targets the global document
+        if (role === 'super_admin' && isPartner) {
+            settingsRef = adminDb.collection('companies').doc('global_settings');
+            isGlobalSettings = true;
         } else {
-            cleanConnectionData = connectionDataSchema.parse(connectionData);
+             const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
+             settingsRef = adminDb.collection(settingsCollection).doc(entityId);
         }
-
-        const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
-        const settingsRef = adminDb.collection(settingsCollection).doc(entityId);
         
-        const settingsSnap = await settingsRef.get();
-        const existingConnections = settingsSnap.exists ? settingsSnap.data()?.connections || {} : {};
+        settingsDoc = await settingsRef.get();
+        const existingConnections = settingsDoc.exists ? settingsDoc.data()?.connections || {} : {};
         const isUpdate = !!existingConnections[key];
         
         if (role !== 'super_admin' && entityType === 'user') {
             const userDoc = await adminDb.collection('users').doc(uid).get();
             const siteLimit = userDoc.data()?.siteLimit ?? 1;
             const connectionCount = Object.keys(existingConnections).filter(k => k !== 'partner_app').length;
-            if (!isUpdate && !validationResult.data.isPartner && connectionCount >= siteLimit) {
+            if (!isUpdate && !isPartner && connectionCount >= siteLimit) {
                 return NextResponse.json({ error: `Límite de sitios alcanzado. Tu plan permite ${siteLimit} sitio(s).` }, { status: 403 });
             }
         }
         
+        // Merge new data with existing data for the same key
+        const finalConnectionData = {
+            ...(existingConnections[key] || {}),
+            ...connectionData
+        };
+
         const newConnections = {
             ...existingConnections,
-            [key]: cleanConnectionData,
+            [key]: finalConnectionData,
         };
         
         const updatePayload: { [key: string]: any } = {
             connections: newConnections
         };
         
-        if (setActive) {
+        // Set active key only if it's a regular connection, not partner creds
+        if (setActive && !isPartner) {
             updatePayload.activeConnectionKey = key;
         }
 
         await settingsRef.set(updatePayload, { merge: true });
         
-        const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = cleanConnectionData as Partial<typeof connectionDataSchema._type>;
+        const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = connectionData as Partial<typeof connectionDataSchema._type>;
         const hostnamesToAdd = new Set<string>();
 
         const addHostname = (url: string | undefined) => {
             if (url) {
-                try {
+                try { 
                     const fullUrl = url.startsWith('http') ? url : `https://${url}`;
-                    hostnamesToAdd.add(new URL(fullUrl).hostname);
-                } catch (e) {
-                    console.warn(`POST /api/user-settings/connections: URL inválida, omitiendo patrón remoto: ${url}`);
+                    hostnamesToAdd.add(new URL(fullUrl).hostname); 
                 }
+                catch { console.warn(`Invalid URL provided, skipping remote pattern: ${url}`); }
             }
         };
 
@@ -226,8 +236,15 @@ export async function DELETE(req: NextRequest) {
         }
         
         const { key, entityId, entityType } = validationResult.data;
-        const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
-        const settingsRef = adminDb.collection(settingsCollection).doc(entityId);
+        let settingsRef;
+
+        // If it's the partner_app key, always target the global settings document.
+        if (key === 'partner_app') {
+            settingsRef = adminDb.collection('companies').doc('global_settings');
+        } else {
+             const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
+             settingsRef = adminDb.collection(settingsCollection).doc(entityId);
+        }
         
         const doc = await settingsRef.get();
         const currentData = doc.data();
@@ -239,6 +256,7 @@ export async function DELETE(req: NextRequest) {
             [`connections.${key}`]: admin.firestore.FieldValue.delete()
         };
 
+        // If we are deleting the active key, find a new one to set as active.
         if (currentData?.activeConnectionKey === key) {
             const otherKeys = Object.keys(currentData.connections || {}).filter(k => k !== key && k !== 'partner_app');
             updatePayload.activeConnectionKey = otherKeys.length > 0 ? otherKeys[0] : null;

@@ -85,13 +85,16 @@ export function ShopifyPartnerCard({
             <div>
                 <CardTitle>Conexión Global de Shopify Partners</CardTitle>
                 <CardDescription>
-                Credenciales para crear tiendas y para instalar la app que las poblará. Aplica a <strong>{editingTarget.name}</strong>.
+                  Credenciales para crear tiendas y para instalar la app que las poblará. 
+                  Estas credenciales son globales para todos los usuarios.
                 </CardDescription>
             </div>
              <div className="flex items-center gap-2">
                  <TooltipProvider><Tooltip><TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon-sm" onClick={onRefreshStatus} disabled={isCheckingStatus}><RefreshCw className={cn("h-4 w-4 text-muted-foreground", isCheckingStatus && "animate-spin")} /></Button>
-                 </TooltipTrigger><TooltipContent><p>Refrescar Estados</p></TooltipContent></Tooltip></TooltipProvider>
+                    <Button variant="ghost" size="icon-sm" onClick={onRefreshStatus} disabled={isCheckingStatus}>
+                      <RefreshCw className={cn("h-4 w-4 text-muted-foreground", isCheckingStatus && "animate-spin")} />
+                    </Button>
+                 </TooltipTrigger><TooltipContent><p>Refrescar Estados de Conexión</p></TooltipContent></Tooltip></TooltipProvider>
              </div>
         </div>
       </CardHeader>
