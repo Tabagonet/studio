@@ -60,10 +60,10 @@ const INITIAL_STATE: ConnectionData = {
 };
 
 const INITIAL_PARTNER_APP_STATE: PartnerAppConnectionData = {
-    partnerShopDomain: undefined,
-    partnerApiToken: undefined,
     clientId: undefined,
     clientSecret: undefined,
+    partnerShopDomain: undefined,
+    partnerApiToken: undefined,
 };
 
 function getHostname(url: string | null | undefined): string | null {
@@ -434,10 +434,6 @@ export default function ConnectionsPage() {
             const setActive = !isPartnerCreds;
 
             if (isPartnerCreds) {
-                 if (!partnerFormData.clientId || !partnerFormData.clientSecret) {
-                    toast({ title: "Datos Incompletos", description: "El Client ID y Client Secret son obligatorios.", variant: "destructive" });
-                    setSaving(false); return;
-                }
                 keyToSave = `partner_app`;
                 dataToSave = partnerFormData;
             } else {
@@ -751,6 +747,7 @@ export default function ConnectionsPage() {
                          isDeleting={isDeleting === 'partner_app'}
                          isConnectionVerified={selectedEntityStatus?.shopifyPartnerConfigured}
                          isVerifying={isCheckingStatus}
+                         onRefresh={() => setRefreshKey(k => k + 1)}
                        />
                     )}
                 </div>

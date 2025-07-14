@@ -6,11 +6,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, Loader2, Save, Trash2, CheckCircle, Link as LinkIcon, Eye, EyeOff } from "lucide-react";
+import { AlertCircle, Loader2, Save, Trash2, CheckCircle, Link as LinkIcon, Eye, EyeOff, RefreshCw } from "lucide-react";
 import type { PartnerAppConnectionData } from '@/lib/api-helpers';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 interface ShopifyPartnerCardProps {
   editingTarget: { type: 'user' | 'company'; id: string | null; name: string };
@@ -22,19 +23,32 @@ interface ShopifyPartnerCardProps {
   isDeleting: boolean;
   isConnectionVerified: boolean | undefined;
   isVerifying: boolean;
+  onRefresh: () => void;
 }
 
-const ConnectionStatus = ({ isVerified, isVerifying }: { isVerified: boolean | undefined, isVerifying: boolean }) => {
+const ConnectionStatus = ({ isVerified, isVerifying, onRefresh }: { isVerified: boolean | undefined, isVerifying: boolean, onRefresh: () => void }) => {
     if (isVerifying) {
         return <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/> Verificando...</div>
     }
-    if (isVerified === undefined) return null;
+    if (isVerified === undefined) {
+        return <Button variant="ghost" size="sm" onClick={onRefresh}><RefreshCw className="h-4 w-4 mr-2"/>Verificar Conexión</Button>
+    }
     
     if (isVerified) {
-        return <div className="flex items-center gap-2 text-sm text-green-600 font-medium"><CheckCircle className="h-4 w-4"/> Conectado</div>
+        return (
+            <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 text-sm text-green-600 font-medium"><CheckCircle className="h-4 w-4"/> Conectado</div>
+                <Button variant="ghost" size="icon-sm" onClick={onRefresh}><RefreshCw className="h-4 w-4"/></Button>
+            </div>
+        )
     }
 
-    return <div className="flex items-center gap-2 text-sm text-destructive font-medium"><AlertCircle className="h-4 w-4"/> Error en la conexión</div>
+    return (
+        <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 text-sm text-destructive font-medium"><AlertCircle className="h-4 w-4"/> Error en la conexión</div>
+            <Button variant="ghost" size="icon-sm" onClick={onRefresh}><RefreshCw className="h-4 w-4"/></Button>
+        </div>
+    )
 }
 
 export function ShopifyPartnerCard({
@@ -47,6 +61,7 @@ export function ShopifyPartnerCard({
   isDeleting,
   isConnectionVerified,
   isVerifying,
+  onRefresh,
 }: ShopifyPartnerCardProps) {
   
   const [isTokenVisible, setIsTokenVisible] = React.useState(false);
@@ -66,7 +81,7 @@ export function ShopifyPartnerCard({
                 Credenciales para crear tiendas para <strong>{editingTarget.name}</strong>.
                 </CardDescription>
             </div>
-             <ConnectionStatus isVerified={isConnectionVerified} isVerifying={isVerifying} />
+             <ConnectionStatus isVerified={isConnectionVerified} isVerifying={isVerifying} onRefresh={onRefresh} />
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
