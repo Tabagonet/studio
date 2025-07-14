@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getChatbotResponse, extractAnalysisData, extractStoreCreationData } from '@/ai/flows/chatbot-flow';
+import { getChatbotResponse, extractAnalysisData } from '@/ai/flows/chatbot-flow';
 import { adminDb, admin } from '@/lib/firebase-admin';
 import axios from 'axios';
 import { z } from 'zod';
@@ -22,16 +22,14 @@ const chatbotRequestSchema = z.object({
 async function verifyRecaptcha(token: string | undefined) {
     const secretKey = process.env.RECAPTCHA_SECRET_KEY;
     
-    // If secret key is not set, bypass verification (useful for local dev)
     if (!secretKey) {
         console.warn("RECAPTCHA_SECRET_KEY is not set. Bypassing reCAPTCHA verification. THIS SHOULD NOT HAPPEN IN PRODUCTION.");
         return true;
     }
     
-    // If secret is set, but no token provided, fail verification
     if (!token || token === 'not-available') {
-        console.warn("reCAPTCHA token not provided by client.");
-        throw new Error("Verificación de seguridad reCAPTCHA fallida. Por favor, refresca la página e inténtalo de nuevo.");
+        console.warn("reCAPTCHA token not provided by client, but secret key is set. Failing verification.");
+        throw new Error("La verificación de seguridad reCAPTCHA ha fallado. Por favor, refresca la página e inténtalo de nuevo.");
     }
     
     const verificationUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${token}`;
@@ -109,15 +107,29 @@ async function getOwnerCompanyId(): Promise<string> {
 
 
 async function handleStoreCreation(messages: Message[]) {
-    const storeData = await extractStoreCreationData(messages);
+    // --- MOCK DATA FOR TESTING ---
+    const timestamp = Date.now();
+    const storeData = {
+        storeName: `Tienda de Prueba ${timestamp}`,
+        businessEmail: `test-${timestamp}@example.com`,
+        countryCode: "ES",
+        currency: "EUR",
+        brandDescription: "Una tienda de prueba generada automáticamente para verificar el flujo de creación de AutoPress AI.",
+        targetAudience: "Desarrolladores y equipo de producto.",
+        brandPersonality: "Funcional, robusta y eficiente.",
+        legalBusinessName: "AutoPress Testing SL",
+        businessAddress: "Calle Ficticia 123, 08001, Barcelona, España"
+    };
+    // --- END MOCK DATA ---
+
     const ownerCompanyId = await getOwnerCompanyId();
 
     const apiPayload = {
       webhookUrl: "https://webhook.site/#!/view/1b8a9b3f-8c3b-4c1e-9d2a-9e1b5f6a7d1c", // Test webhook
       storeName: storeData.storeName,
       businessEmail: storeData.businessEmail,
-      countryCode: storeData.countryCode?.substring(0,2).toUpperCase() || 'ES',
-      currency: storeData.currency?.substring(0,3).toUpperCase() || 'EUR',
+      countryCode: storeData.countryCode,
+      currency: storeData.currency,
       brandDescription: storeData.brandDescription,
       targetAudience: storeData.targetAudience,
       brandPersonality: storeData.brandPersonality,
@@ -150,7 +162,7 @@ async function handleStoreCreation(messages: Message[]) {
       }
     });
 
-    return `¡Perfecto! Hemos recibido los datos. Estamos iniciando la creación de tu tienda Shopify: "${storeData.storeName}". Recibirás una notificación cuando esté lista para que la autorices.`;
+    return `¡Perfecto! Usando datos de ejemplo, estamos iniciando la creación de tu tienda Shopify: "${storeData.storeName}". Recibirás una notificación cuando esté lista para que la autorices.`;
 }
 
 
