@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, admin } from '@/lib/firebase-admin';
+import { adminDb, admin, admin_sdk } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { CloudTasksClient } from '@google-cloud/tasks';
 
@@ -41,6 +41,7 @@ const shopifyStoreCreationSchema = z.object({
   })
 });
 
+// Initialize the Cloud Tasks client once.
 const tasksClient = new CloudTasksClient();
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
 const LOCATION_ID = 'europe-west1'; 
@@ -53,10 +54,12 @@ async function enqueueShopifyCreationTask(jobId: string) {
   }
 
   const parent = tasksClient.queuePath(PROJECT_ID, LOCATION_ID, QUEUE_ID);
-  const serviceAccountEmail = process.env.FIREBASE_CLIENT_EMAIL;
   
+  // Get the service account email from the initialized Firebase Admin SDK
+  const serviceAccountEmail = admin_sdk.credential.applicationDefault()?.credential?.client_email;
+
   if (!serviceAccountEmail) {
-    throw new Error('FIREBASE_CLIENT_EMAIL no está configurado. Es necesario para autenticar las tareas.');
+    throw new Error('No se pudo obtener el email de la cuenta de servicio desde el SDK de Firebase Admin.');
   }
   
   const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
