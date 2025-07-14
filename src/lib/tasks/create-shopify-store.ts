@@ -52,16 +52,17 @@ export async function handleCreateShopifyStore(jobId: string) {
         
         const graphqlEndpoint = `https://partners.shopify.com/${partnerCreds.organizationId}/api/2025-07/graphql.json`;
         
-        // Correct GraphQL mutation as per Shopify Partner API documentation
+        // Correct GraphQL mutation as per latest Shopify Partner API documentation.
+        // It uses `appDevelopmentStoreCreate` with `AppDevelopmentStoreCreateInput`.
         const graphqlMutation = {
           query: `
-            mutation ShopCreate($input: ShopCreateInput!) {
-              shopCreate(input: $input) {
+            mutation AppDevelopmentStoreCreate($input: AppDevelopmentStoreCreateInput!) {
+              appDevelopmentStoreCreate(input: $input) {
                 shop {
                   id
                   name
                   myshopifyDomain
-                  password: storefrontPassword
+                  storefrontPassword
                 }
                 userErrors {
                   field
@@ -72,7 +73,7 @@ export async function handleCreateShopifyStore(jobId: string) {
           variables: {
             input: {
                 name: jobData.storeName,
-                storeType: "DEVELOPMENT" // Correctly specify the store type
+                storeType: "DEVELOPMENT"
             }
           },
         };
@@ -97,7 +98,7 @@ export async function handleCreateShopifyStore(jobId: string) {
             throw new Error(`Shopify returned GraphQL errors: ${errorMessages}`);
         }
         
-        const creationResult = responseData.data.shopCreate;
+        const creationResult = responseData.data.appDevelopmentStoreCreate;
         if (creationResult.userErrors && creationResult.userErrors.length > 0) {
             const errorMessages = creationResult.userErrors.map((e: any) => `${e.field}: ${e.message}`).join(', ');
             throw new Error(`Shopify returned user errors: ${errorMessages}`);
@@ -126,7 +127,7 @@ export async function handleCreateShopifyStore(jobId: string) {
         await updateJobStatus(jobId, 'awaiting_auth', 'Tienda creada. Esperando autorización del usuario para poblar contenido.', {
             createdStoreUrl: storeUrl,
             createdStoreAdminUrl: storeAdminUrl,
-            storefrontPassword: createdStore.password, 
+            storefrontPassword: createdStore.storefrontPassword, 
             installUrl: installUrl,
         });
         
