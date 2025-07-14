@@ -1,4 +1,3 @@
-
 // src/app/api/shopify/trigger-test-creation/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
