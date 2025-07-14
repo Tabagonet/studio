@@ -31,31 +31,29 @@ interface ApiClients {
 
 
 /**
- * Retrieves Shopify Partner App credentials from Firestore for the given entity.
- * @param entityId The Firebase UID of the user or the ID of the company.
- * @param entityType The type of entity ('user' or 'company').
+ * Retrieves Shopify Partner App credentials from Firestore. This function is now simplified
+ * to always read from a global configuration document, ensuring consistency.
  * @returns The credentials object.
- * @throws If credentials are not configured.
+ * @throws If credentials are not configured in the global settings.
  */
-export async function getPartnerCredentials(entityId: string, entityType: 'user' | 'company'): Promise<{ partnerApiToken?: string; organizationId?: string; }> {
+export async function getPartnerCredentials(): Promise<{ partnerApiToken?: string; organizationId?: string; }> {
     if (!adminDb) {
         console.error('getPartnerCredentials: Firestore no está configurado');
         throw new Error("Firestore not configured on server");
     }
 
-    // Shopify Partner credentials are now always global
     const settingsRef = adminDb.collection('companies').doc('global_settings');
-    
     const doc = await settingsRef.get();
+    
     if (!doc.exists) {
-        throw new Error(`Global Shopify settings not found`);
+        throw new Error("Global Shopify settings document ('global_settings') not found.");
     }
     
     const settingsData = doc.data() || {};
     const partnerAppData = partnerAppConnectionDataSchema.safeParse(settingsData.connections?.partner_app || {});
 
     if (!partnerAppData.success) {
-        throw new Error("Los datos de la App de Partner no son válidos.");
+        throw new Error("Los datos de la App de Partner en la configuración global no son válidos.");
     }
 
     return {

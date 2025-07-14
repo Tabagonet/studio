@@ -33,16 +33,17 @@ export async function handleCreateShopifyStore(jobId: string) {
     const jobRef = adminDb.collection('shopify_creation_jobs').doc(jobId);
 
     try {
-        await updateJobStatus(jobId, 'processing', 'Tarea iniciada. Obteniendo credenciales y ajustes de la entidad...');
+        await updateJobStatus(jobId, 'processing', 'Tarea iniciada. Obteniendo credenciales globales de Shopify Partner...');
         
         const jobDoc = await jobRef.get();
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
         const jobData = jobDoc.data()!;
         console.log(`[Job ${jobId}] Job data loaded successfully.`);
 
-        const { partnerApiToken, organizationId } = await getPartnerCredentials(jobData.entity.id, jobData.entity.type);
+        // Corrected logic: Partner credentials are now always retrieved from the global settings
+        const { partnerApiToken, organizationId } = await getPartnerCredentials();
         if (!partnerApiToken || !organizationId) {
-            throw new Error("El token de acceso y el ID de organización de la API de Partner no están configurados.");
+            throw new Error("El token de acceso y el ID de organización de la API de Partner no están configurados en los ajustes globales.");
         }
         console.log(`[Job ${jobId}] Credenciales de Partner obtenidas.`);
         
@@ -110,7 +111,7 @@ export async function handleCreateShopifyStore(jobId: string) {
 
         // global_settings are now stored in the 'companies' collection under a specific ID
         const settingsDoc = await adminDb.collection('companies').doc('global_settings').get();
-        const customAppCreds = settingsDoc.data()?.connections?.shopify_custom_app;
+        const customAppCreds = settingsDoc.data()?.connections?.partner_app;
 
         if (!customAppCreds || !customAppCreds.clientId) {
             throw new Error("El Client ID de la App Personalizada no está configurado en los ajustes globales.");
