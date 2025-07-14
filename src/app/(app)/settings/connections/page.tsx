@@ -134,7 +134,13 @@ export default function ConnectionsPage() {
                 const data = await response.json();
                 const connections = data.allConnections || {};
                 setAllConnections(connections);
-                setPartnerFormData(connections.partner_app || INITIAL_PARTNER_APP_STATE);
+
+                // Set partner data if available, otherwise reset
+                if (connections.partner_app) {
+                    setPartnerFormData(connections.partner_app);
+                } else {
+                    setPartnerFormData(INITIAL_PARTNER_APP_STATE);
+                }
                 
                 const currentActiveKey = data.activeConnectionKey || null;
                 setActiveKey(currentActiveKey);
@@ -191,7 +197,6 @@ export default function ConnectionsPage() {
             const data = await response.json();
             if (response.ok) {
                 setSelectedEntityStatus(data);
-                // Log and toast the specific error if present
                 if (data.shopifyPartnerConfigured === false && data.shopifyPartnerError) {
                     const errorMessage = `Shopify Partner API: ${data.shopifyPartnerError}`;
                     console.error("Shopify Partner Connection Error:", errorMessage);
@@ -421,10 +426,10 @@ export default function ConnectionsPage() {
             
             toast({ title: "Conexión Eliminada", description: `El perfil para '${keyToDelete}' ha sido eliminado.` });
             
-            // Critical fix: reset state after successful deletion
             if (keyToDelete === 'partner_app') {
                 setPartnerFormData(INITIAL_PARTNER_APP_STATE);
             }
+            
             await fetchConnections(user, editingTarget.type, editingTarget.id);
             await fetchStatus(editingTarget.type, editingTarget.id);
             window.dispatchEvent(new Event('connections-updated'));
@@ -641,7 +646,7 @@ export default function ConnectionsPage() {
                         </div>
                         <div className="flex flex-col-reverse gap-4 md:flex-row">
                             <Button onClick={() => handleSave(false)} disabled={isSaving || !!isDeleting} className="w-full md:w-auto">
-                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                                 {isSaving ? "Guardando..." : saveButtonText}
                             </Button>
                         </div>
