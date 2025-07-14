@@ -1,9 +1,10 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, admin, adminAuth } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { CloudTasksClient } from '@google-cloud/tasks';
 import { getPartnerCredentials } from '@/lib/api-helpers';
+import { getServiceAccountCredentials } from '@/lib/firebase-admin';
+
 
 // This API route handles requests to create new Shopify stores.
 // It validates the input, creates a job record in Firestore, and enqueues a Cloud Task.
@@ -50,15 +51,17 @@ const testCreationSchema = z.object({
 async function enqueueShopifyCreationTask(jobId: string) {
     console.log(`[Shopify Create Store] Step 5.1: Enqueuing task for Job ID: ${jobId}`);
     
-    const tasksClient = new CloudTasksClient();
+    const tasksClient = new CloudTasksClient({
+        credentials: getServiceAccountCredentials(),
+    });
+
     const projectId = process.env.FIREBASE_PROJECT_ID!;
     const LOCATION_ID = 'europe-west1'; 
     const QUEUE_ID = 'autopress-jobs1';
     
     const parent = tasksClient.queuePath(projectId, LOCATION_ID, QUEUE_ID);
     
-    // Get the service account email directly from environment variables.
-    const serviceAccountEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    const serviceAccountEmail = getServiceAccountCredentials().client_email;
     if (!serviceAccountEmail) {
         throw new Error('FIREBASE_CLIENT_EMAIL environment variable is not set. Cannot create task.');
     }
