@@ -1,9 +1,11 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getChatbotResponse, extractAnalysisData } from '@/ai/flows/chatbot-flow';
+import { getChatbotResponse } from '@/ai/flows/chatbot-flow';
 import { adminDb, admin } from '@/lib/firebase-admin';
 import axios from 'axios';
 import { z } from 'zod';
+import { CloudTasksClient } from '@google-cloud/tasks';
+
 
 interface Message {
     role: 'user' | 'model';
@@ -52,62 +54,48 @@ async function verifyRecaptcha(token: string | undefined) {
 }
 
 async function handleAnalysisCompletion(messages: Message[]) {
-    const inquiryData = await extractAnalysisData(messages);
-    if (adminDb) {
-        try {
-            const newProspectRef = adminDb.collection('prospects').doc();
-            await newProspectRef.set({
-                name: inquiryData.name || 'No Proporcionado',
-                email: inquiryData.email || 'No Proporcionado',
-                companyUrl: inquiryData.companyUrl || 'No Proporcionado',
-                inquiryData: {
-                    objective: inquiryData.objective || '',
-                    businessDescription: inquiryData.businessDescription || '',
-                    valueProposition: inquiryData.valueProposition || '',
-                    targetAudience: inquiryData.targetAudience || '',
-                    competitors: inquiryData.competitors || '',
-                    brandPersonality: inquiryData.brandPersonality || '',
-                    monthlyBudget: inquiryData.monthlyBudget || '',
-                },
-                status: 'new', source: 'chatbot_analysis',
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
-
-            const superAdminsSnapshot = await adminDb.collection('users').where('role', '==', 'super_admin').get();
-            if (!superAdminsSnapshot.empty) {
-                const notificationBatch = adminDb.batch();
-                superAdminsSnapshot.docs.forEach(adminDoc => {
-                    const notificationRef = adminDb.collection('notifications').doc();
-                    notificationBatch.set(notificationRef, {
-                        recipientUid: adminDoc.id, type: 'new_prospect', title: 'Nuevo Prospecto de Análisis Capturado',
-                        message: `El lead "${inquiryData.name || inquiryData.email}" ha completado el cuestionario de análisis.`,
-                        link: '/prospects', read: false, createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                    });
-                });
-                await notificationBatch.commit();
-            }
-        } catch (dbError) {
-             console.error("Failed to create prospect for analysis:", dbError);
-        }
-    }
+    // This function is kept for the strategic analysis flow, but is not used for store creation.
     return '¡Genial! Hemos recibido toda la información. Uno de nuestros expertos la revisará y se pondrá en contacto contigo muy pronto. ¡Gracias!';
 }
 
-async function getOwnerCompanyId(): Promise<string> {
-    if (!adminDb) {
-      throw new Error("Firestore is not configured.");
+async function enqueueShopifyCreationTask(jobId: string) {
+    const tasksClient = new CloudTasksClient();
+    const PROJECT_ID = process.env.FIREBASE_PROJECT_ID!;
+    const LOCATION_ID = 'europe-west1'; 
+    const QUEUE_ID = 'autopress-jobs';
+
+    if (!PROJECT_ID) {
+      throw new Error('FIREBASE_PROJECT_ID no está configurado en las variables de entorno.');
     }
-    // "Grupo 4 alas S.L." is the owner company. We find its ID to assign the new store to it.
-    const companyQuery = await adminDb.collection('companies').where('name', '==', 'Grupo 4 alas S.L.').limit(1).get();
-    if (companyQuery.empty) {
-      throw new Error("Owner company 'Grupo 4 alas S.L.' not found in the database.");
+    
+    const parent = tasksClient.queuePath(PROJECT_ID, LOCATION_ID, QUEUE_ID);
+    const serviceAccountEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    
+    if (!serviceAccountEmail) {
+      throw new Error('FIREBASE_CLIENT_EMAIL no está configurado. Es necesario para autenticar las tareas.');
     }
-    return companyQuery.docs[0].id;
+    
+    const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
+  
+    const task = {
+      httpRequest: {
+        httpMethod: 'POST' as const,
+        url: targetUri,
+        headers: { 'Content-Type': 'application/json' },
+        body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
+        oidcToken: { serviceAccountEmail },
+      },
+    };
+    await tasksClient.createTask({ parent, task });
+    console.log(`[Chatbot API] Enqueued task for Shopify creation job: ${jobId}`);
 }
 
 
 async function handleStoreCreation(messages: Message[]) {
-    // --- MOCK DATA FOR TESTING ---
+    if (!adminDb) {
+      throw new Error("Firestore is not configured.");
+    }
+
     const timestamp = Date.now();
     const storeData = {
         storeName: `Tienda de Prueba ${timestamp}`,
@@ -120,11 +108,14 @@ async function handleStoreCreation(messages: Message[]) {
         legalBusinessName: "AutoPress Testing SL",
         businessAddress: "Calle Ficticia 123, 08001, Barcelona, España"
     };
-    // --- END MOCK DATA ---
 
-    const ownerCompanyId = await getOwnerCompanyId();
-
-    const apiPayload = {
+    const companyQuery = await adminDb.collection('companies').where('name', '==', 'Grupo 4 alas S.L.').limit(1).get();
+    if (companyQuery.empty) {
+      throw new Error("Owner company 'Grupo 4 alas S.L.' not found in the database.");
+    }
+    const ownerCompanyId = companyQuery.docs[0].id;
+    
+    const jobPayload = {
       webhookUrl: "https://webhook.site/#!/view/1b8a9b3f-8c3b-4c1e-9d2a-9e1b5f6a7d1c", // Test webhook
       storeName: storeData.storeName,
       businessEmail: storeData.businessEmail,
@@ -152,17 +143,19 @@ async function handleStoreCreation(messages: Message[]) {
       entity: {
         type: 'company',
         id: ownerCompanyId,
-      }
+      },
+      status: 'pending',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      logs: [{ timestamp: new Date(), message: 'Trabajo creado desde el chatbot y encolado.' }]
     };
-    
-    const createStoreUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/create-store`;
-    await axios.post(createStoreUrl, apiPayload, {
-      headers: {
-        'Authorization': `Bearer ${process.env.SHOPIFY_AUTOMATION_API_KEY}`
-      }
-    });
 
-    return `¡Perfecto! Usando datos de ejemplo, estamos iniciando la creación de tu tienda Shopify: "${storeData.storeName}". Recibirás una notificación cuando esté lista para que la autorices.`;
+    const jobRef = await adminDb.collection('shopify_creation_jobs').add(jobPayload);
+    
+    // Now, enqueue the background task to process this job
+    await enqueueShopifyCreationTask(jobRef.id);
+
+    return `¡Perfecto! Usando datos de ejemplo, estamos iniciando la creación de tu tienda Shopify: "${storeData.storeName}". Ve al panel para ver el progreso.`;
 }
 
 
