@@ -103,9 +103,18 @@ export default function DashboardPage() {
   const handleRunTest = async () => {
     setIsTestRunning(true);
     console.log('[Paso 1] Iniciando prueba de creación de tienda...');
+    
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: 'Error de Autenticación', description: 'Por favor, inicia sesión para realizar esta acción.', variant: 'destructive' });
+        setIsTestRunning(false);
+        return;
+    }
+
     try {
+        const token = await user.getIdToken();
         console.log('[Paso 2] Llamando a la acción del servidor...');
-        const result = await triggerShopifyCreationTestAction();
+        const result = await triggerShopifyCreationTestAction(token);
         
         if (result.success) {
           console.log('[Paso 3] Éxito. La acción del servidor devolvió:', result);
