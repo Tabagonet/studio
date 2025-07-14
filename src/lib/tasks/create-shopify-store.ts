@@ -1,7 +1,10 @@
 
 import { admin, adminDb } from '@/lib/firebase-admin';
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import { getPartnerCredentials } from '@/lib/api-helpers';
+import { createShopifyApi } from '@/lib/shopify';
+import { GenerationInput, generateShopifyStoreContent } from '@/ai/flows/shopify-content-flow';
+import type { ShopifyCreationJob } from '@/lib/types';
 
 
 async function updateJobStatus(jobId: string, status: 'processing' | 'completed' | 'error' | 'authorized' | 'awaiting_auth', logMessage: string, extraData: Record<string, any> = {}) {
@@ -97,7 +100,6 @@ export async function handleCreateShopifyStore(jobId: string) {
         const storeAdminUrl = `https://${createdStore.domain}/admin`;
         const storeUrl = `https://${createdStore.domain}`;
 
-        // --- New Logic: Generate OAuth URL ---
         const settingsDoc = await adminDb.collection('companies').doc('global_settings').get();
         const customAppCreds = settingsDoc.data()?.connections?.shopify_custom_app;
 
@@ -105,7 +107,7 @@ export async function handleCreateShopifyStore(jobId: string) {
             throw new Error("El Client ID de la App Personalizada no está configurado en los ajustes globales.");
         }
 
-        const scopes = 'write_products,write_content,write_themes,read_products,read_content,read_themes';
+        const scopes = 'write_products,write_content,write_themes,read_products,read_content,read_themes,write_navigation,read_navigation';
         const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
         const installUrl = `https://${createdStore.domain}/admin/oauth/authorize?client_id=${customAppCreds.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${jobId}`;
         
@@ -116,7 +118,6 @@ export async function handleCreateShopifyStore(jobId: string) {
             installUrl: installUrl,
         });
         
-        // Notify the webhook that the store is created and awaiting auth
         if (jobData.webhookUrl) {
             const webhookPayload = {
                 jobId: jobId,
@@ -160,48 +161,120 @@ export async function handleCreateShopifyStore(jobId: string) {
 
 /**
  * @description Populates a Shopify store with content after authorization.
- * This function should be triggered after the OAuth flow is complete.
+ * This function is triggered after the OAuth flow is complete.
  */
 export async function populateShopifyStore(jobId: string) {
-     if (!adminDb) {
+    if (!adminDb) {
         console.error("Firestore not available in populateShopifyStore.");
-        return;
+        throw new Error("Firestore not available.");
     }
     
-    await updateJobStatus(jobId, 'processing', 'Iniciando poblado de contenido...');
+    await updateJobStatus(jobId, 'processing', 'Autorización recibida. Generando contenido con IA...');
+    const jobRef = adminDb.collection('shopify_creation_jobs').doc(jobId);
+    let shopifyApi: AxiosInstance | null = null;
+    let jobData: ShopifyCreationJob;
 
     try {
-      // TODO: Implement the full logic for populating the store
-      // 1. Get job data, including the accessToken
-      // 2. Call Shopify Admin API using the accessToken to:
-      //    - Create products
-      //    - Create pages
-      //    - etc.
-      
-      console.log(`[Job ${jobId}] Store population logic would run here.`);
+        const jobDoc = await jobRef.get();
+        if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
+        jobData = jobDoc.data() as ShopifyCreationJob;
 
-      // For now, we'll just mark it as complete
-       await updateJobStatus(jobId, 'completed', '¡Tienda poblada con éxito!', {});
+        if (!jobData.storeAccessToken || !jobData.createdStoreUrl) {
+            throw new Error("El token de acceso o la URL de la tienda no están presentes en el trabajo.");
+        }
 
-        const jobDoc = await adminDb.collection('shopify_creation_jobs').doc(jobId).get();
-        if (jobDoc.exists && jobDoc.data()?.webhookUrl) {
+        shopifyApi = createShopifyApi({ url: jobData.createdStoreUrl, accessToken: jobData.storeAccessToken });
+        if (!shopifyApi) throw new Error("No se pudo crear el cliente de la API de Shopify.");
+
+        // --- 1. Generate Content with AI ---
+        const aiInput: GenerationInput = {
+            storeName: jobData.storeName,
+            brandDescription: jobData.brandDescription,
+            targetAudience: jobData.targetAudience,
+            brandPersonality: jobData.brandPersonality,
+            colorPaletteSuggestion: jobData.colorPaletteSuggestion,
+            productTypeDescription: jobData.productTypeDescription,
+            creationOptions: jobData.creationOptions,
+        };
+        const generatedContent = await generateShopifyStoreContent(aiInput, jobData.entity.id);
+        
+        await updateJobStatus(jobId, 'processing', 'Contenido generado. Creando páginas...');
+        
+        const createdPages: { [key: string]: any } = {};
+
+        // --- 2. Create Pages ---
+        if (generatedContent.aboutPage) {
+            const { data } = await shopifyApi.post('/pages.json', { page: { title: generatedContent.aboutPage.title, body_html: generatedContent.aboutPage.htmlContent } });
+            createdPages['about'] = data.page;
+        }
+        if (generatedContent.contactPage) {
+            const { data } = await shopifyApi.post('/pages.json', { page: { title: generatedContent.contactPage.title, body_html: generatedContent.contactPage.htmlContent } });
+            createdPages['contact'] = data.page;
+        }
+        if (generatedContent.legalPages) {
+            for (const page of generatedContent.legalPages) {
+                const { data } = await shopifyApi.post('/pages.json', { page: { title: page.title, body_html: page.htmlContent.replace(/\[.*?\]/g, jobData.legalInfo.legalBusinessName) } });
+                createdPages[page.title.toLowerCase().replace(/ /g, '_')] = data.page;
+            }
+        }
+        
+        // --- 3. Create Products ---
+        if (generatedContent.exampleProducts) {
+             await updateJobStatus(jobId, 'processing', 'Páginas creadas. Creando productos...');
+             for (const product of generatedContent.exampleProducts) {
+                 await shopifyApi.post('/products.json', { product: { title: product.title, body_html: product.descriptionHtml, tags: product.tags.join(',') } });
+             }
+        }
+        
+        // --- 4. Create Blog Posts ---
+        if (generatedContent.blogPosts) {
+            await updateJobStatus(jobId, 'processing', 'Productos creados. Creando entradas de blog...');
+            const { data: blogs } = await shopifyApi.get('/blogs.json');
+            let blogId = blogs.blogs[0]?.id;
+            if (!blogId) {
+                const { data: newBlog } = await shopifyApi.post('/blogs.json', { blog: { title: 'Noticias' } });
+                blogId = newBlog.blog.id;
+            }
+            for (const post of generatedContent.blogPosts) {
+                await shopifyApi.post(`/blogs/${blogId}/articles.json`, { article: { title: post.title, body_html: post.contentHtml, tags: post.tags.join(',') } });
+            }
+        }
+        
+        // --- 5. Setup Navigation ---
+        if (jobData.creationOptions.setupBasicNav) {
+            await updateJobStatus(jobId, 'processing', 'Contenido creado. Configurando menú de navegación...');
+            const { data: navs } = await shopifyApi.get('/navigation.json');
+            const mainMenu = navs.navigation.find((n: any) => n.handle === 'main-menu');
+            if (mainMenu) {
+                const links = [];
+                if(createdPages['about']) links.push({ title: createdPages['about'].title, url: `/pages/${createdPages['about'].handle}`});
+                if(createdPages['contact']) links.push({ title: createdPages['contact'].title, url: `/pages/${createdPages['contact'].handle}`});
+                await shopifyApi.put(`/navigation/${mainMenu.id}.json`, { navigation: { ...mainMenu, links }});
+            }
+        }
+
+        await updateJobStatus(jobId, 'completed', '¡Tienda poblada con éxito!', {});
+
+        // --- 6. Send Final Webhook ---
+        if (jobData.webhookUrl) {
              const webhookPayload = {
                 jobId: jobId,
                 status: 'completed',
                 message: 'Tienda creada y poblada con éxito.',
-                storeName: jobDoc.data()!.storeName,
-                storeUrl: jobDoc.data()!.createdStoreUrl,
-                adminUrl: jobDoc.data()!.createdStoreAdminUrl,
+                storeName: jobData.storeName,
+                storeUrl: jobData.createdStoreUrl,
+                adminUrl: jobData.createdStoreAdminUrl,
             };
-            try {
-                 await axios.post(jobDoc.data()!.webhookUrl, webhookPayload, { timeout: 10000 });
-            } catch (webhookError: any) {
-                 console.warn(`[Job ${jobId}] Failed to send FINAL COMPLETION webhook to ${jobDoc.data()!.webhookUrl}: ${webhookError.message}`);
-            }
+            await axios.post(jobData.webhookUrl, webhookPayload, { timeout: 10000 }).catch(e => console.warn(`[Job ${jobId}] Failed to send FINAL COMPLETION webhook to ${jobData.webhookUrl}: ${e.message}`));
         }
 
     } catch (error: any) {
-        console.error(`[Job ${jobId}] Failed to populate Shopify store:`, error);
-        await updateJobStatus(jobId, 'error', `Error en poblado de contenido: ${error.message}`);
+        console.error(`[Job ${jobId}] Failed to populate Shopify store:`, error.response?.data || error.message);
+        const errorMessage = error.response?.data?.error_description || error.message || "Un error desconocido ocurrió durante el poblado de la tienda.";
+        await updateJobStatus(jobId, 'error', `Error en poblado de contenido: ${errorMessage}`);
+         if (jobData! && jobData.webhookUrl) {
+             const webhookPayload = { jobId: jobId, status: 'error', message: `Error en poblado de contenido: ${errorMessage}`, storeName: jobData.storeName };
+             await axios.post(jobData.webhookUrl, webhookPayload, { timeout: 10000 }).catch(e => console.warn(`[Job ${jobId}] Failed to send POPULATE ERROR webhook to ${jobData.webhookUrl}: ${e.message}`));
+        }
     }
 }
