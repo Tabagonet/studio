@@ -82,11 +82,13 @@ export async function GET(req: NextRequest) {
         }
         
         const settingsDoc = await settingsRef.get();
+        // The partner app data is ALWAYS global, so we fetch it separately.
         const globalSettingsDoc = await adminDb.collection('companies').doc('global_settings').get();
 
         const allConnections = settingsDoc.exists ? settingsDoc.data()?.connections || {} : {};
         const partnerAppData = globalSettingsDoc.exists ? globalSettingsDoc.data()?.connections?.partner_app || null : null;
         
+        // We only add the partner app data to the response object; we don't save it to the user/company document.
         if (partnerAppData) {
             allConnections.partner_app = partnerAppData;
         }
@@ -94,7 +96,6 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({
             allConnections: allConnections,
             activeConnectionKey: settingsDoc.exists ? settingsDoc.data()?.activeConnectionKey || null : null,
-            partnerAppData: partnerAppData,
         });
 
     } catch (error) {
@@ -111,7 +112,7 @@ export async function POST(req: NextRequest) {
     }
     
     try {
-        const { uid, role, companyId: userCompanyId } = await getUserContext(req);
+        const { role } = await getUserContext(req);
         const body = await req.json();
 
         const payloadSchema = z.object({
@@ -133,28 +134,25 @@ export async function POST(req: NextRequest) {
         
         let settingsRef;
         let finalConnectionData;
-        let existingConnections;
         
-        // --- Determine the correct Firestore document to update ---
         if (isPartner && role === 'super_admin') {
-            // Partner creds are always global, edited by Super Admin
             settingsRef = adminDb.collection('companies').doc('global_settings');
             const validation = partnerAppConnectionDataSchema.safeParse(connectionData);
             if (!validation.success) { return NextResponse.json({ error: "Invalid Partner App data", details: validation.error.flatten() }, { status: 400 }); }
             finalConnectionData = validation.data;
-        } else {
-             // Regular connections depend on the entity being edited
+        } else if (!isPartner) {
             const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
             settingsRef = adminDb.collection(settingsCollection).doc(entityId);
             const validation = connectionDataSchema.safeParse(connectionData);
             if (!validation.success) { return NextResponse.json({ error: "Invalid connection data", details: validation.error.flatten() }, { status: 400 }); }
             finalConnectionData = validation.data;
+        } else {
+             return NextResponse.json({ error: 'Forbidden: Only Super Admins can edit global partner credentials.' }, { status: 403 });
         }
         
         const settingsDoc = await settingsRef.get();
-        existingConnections = settingsDoc.exists ? settingsDoc.data()?.connections || {} : {};
+        const existingConnections = settingsDoc.exists ? settingsDoc.data()?.connections || {} : {};
 
-        // Merge new data with any existing data for the same key to prevent overwriting partial updates
         const mergedConnectionData = {
             ...(existingConnections[key] || {}),
             ...finalConnectionData
@@ -167,14 +165,12 @@ export async function POST(req: NextRequest) {
             }
         };
 
-        // Set active key only if it's a regular connection, not partner creds
         if (setActive && !isPartner) {
             updatePayload.activeConnectionKey = key;
         }
 
         await settingsRef.set(updatePayload, { merge: true });
         
-        // If not partner creds, handle remote patterns for images
         if (!isPartner) {
              const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = finalConnectionData;
              const hostnamesToAdd = new Set<string>();
@@ -229,12 +225,13 @@ export async function DELETE(req: NextRequest) {
         const { key, entityId, entityType } = validationResult.data;
         let settingsRef;
 
-        // If it's the partner_app key, always target the global settings document.
         if (key === 'partner_app' && role === 'super_admin') {
             settingsRef = adminDb.collection('companies').doc('global_settings');
-        } else {
+        } else if (key !== 'partner_app') {
              const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
              settingsRef = adminDb.collection(settingsCollection).doc(entityId);
+        } else {
+             return NextResponse.json({ error: 'Forbidden: Only Super Admins can delete global partner credentials.' }, { status: 403 });
         }
         
         const doc = await settingsRef.get();
@@ -247,7 +244,6 @@ export async function DELETE(req: NextRequest) {
             [`connections.${key}`]: admin.firestore.FieldValue.delete()
         };
 
-        // If we are deleting the active key, find a new one to set as active.
         if (currentData?.activeConnectionKey === key) {
             const otherKeys = Object.keys(currentData.connections || {}).filter(k => k !== key && k !== 'partner_app');
             updatePayload.activeConnectionKey = otherKeys.length > 0 ? otherKeys[0] : null;
