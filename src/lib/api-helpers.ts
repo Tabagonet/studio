@@ -43,12 +43,12 @@ export async function getPartnerCredentials(entityId: string, entityType: 'user'
         throw new Error("Firestore not configured on server");
     }
 
-    const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
-    const settingsRef = adminDb.collection(settingsCollection).doc(entityId);
+    // Shopify Partner credentials are now always global
+    const settingsRef = adminDb.collection('companies').doc('global_settings');
     
     const doc = await settingsRef.get();
     if (!doc.exists) {
-        throw new Error(`${entityType === 'company' ? 'Company' : 'User'} settings not found`);
+        throw new Error(`Global Shopify settings not found`);
     }
     
     const settingsData = doc.data() || {};

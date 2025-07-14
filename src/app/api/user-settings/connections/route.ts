@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
         // This schema now handles both regular and partner credentials based on the isPartner flag
         const payloadSchema = z.object({
             key: z.string().min(1, "Key is required"),
-            connectionData: z.record(z.any()), // We'll validate this conditionally
+            connectionData: z.record(z.any()),
             setActive: z.boolean().optional().default(false),
             entityId: z.string(),
             entityType: z.enum(['user', 'company']),
@@ -138,19 +138,16 @@ export async function POST(req: NextRequest) {
         const { key, connectionData, setActive, entityId, entityType, isPartner } = validationResult.data;
         
         let settingsRef;
-        let settingsDoc;
-        let isGlobalSettings = false;
         
         // Super Admin saving partner creds always targets the global document
         if (role === 'super_admin' && isPartner) {
             settingsRef = adminDb.collection('companies').doc('global_settings');
-            isGlobalSettings = true;
         } else {
              const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
              settingsRef = adminDb.collection(settingsCollection).doc(entityId);
         }
         
-        settingsDoc = await settingsRef.get();
+        const settingsDoc = await settingsRef.get();
         const existingConnections = settingsDoc.exists ? settingsDoc.data()?.connections || {} : {};
         const isUpdate = !!existingConnections[key];
         
@@ -222,7 +219,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     try {
-        const { uid, role, companyId: userCompanyId } = await getUserContext(req);
+        const { uid, role } = await getUserContext(req);
         const body = await req.json();
 
         const payloadSchema = z.object({
@@ -239,7 +236,7 @@ export async function DELETE(req: NextRequest) {
         let settingsRef;
 
         // If it's the partner_app key, always target the global settings document.
-        if (key === 'partner_app') {
+        if (key === 'partner_app' && role === 'super_admin') {
             settingsRef = adminDb.collection('companies').doc('global_settings');
         } else {
              const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
