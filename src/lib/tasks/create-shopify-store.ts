@@ -205,7 +205,11 @@ export async function populateShopifyStore(jobId: string) {
             brandPersonality: jobData.brandPersonality,
             colorPaletteSuggestion: jobData.colorPaletteSuggestion,
             productTypeDescription: jobData.productTypeDescription,
-            creationOptions: jobData.creationOptions,
+            creationOptions: {
+                ...jobData.creationOptions,
+                numberOfProducts: jobData.creationOptions.numberOfProducts ?? 3,
+                numberOfBlogPosts: jobData.creationOptions.numberOfBlogPosts ?? 2,
+            },
         };
         const generatedContent = await generateShopifyStoreContent(aiInput, jobData.entity.id);
         
