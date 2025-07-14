@@ -5,7 +5,6 @@ import { z } from 'zod';
 import { CloudTasksClient } from '@google-cloud/tasks';
 import { getPartnerCredentials } from '@/lib/api-helpers';
 
-
 // This API route handles requests to create new Shopify stores.
 // It validates the input, creates a job record in Firestore, and enqueues a Cloud Task.
 
@@ -50,9 +49,14 @@ const testCreationSchema = z.object({
 
 async function enqueueShopifyCreationTask(jobId: string) {
     console.log(`[Shopify Create Store] Step 5.1: Enqueuing task for Job ID: ${jobId}`);
+
+    // Get the service account email safely from the service account JSON
+    const serviceAccountEmail = admin.app().options.credential.clientEmail;
+    if (!serviceAccountEmail) {
+        throw new Error('No se pudo determinar el email de la cuenta de servicio desde las credenciales de la app.');
+    }
     
-    // The CloudTasksClient will automatically find the application default credentials
-    // in a standard Google Cloud environment. No need to pass them explicitly.
+    // CloudTasksClient will use the application's default credentials, which are now correctly initialized.
     const tasksClient = new CloudTasksClient();
 
     const PROJECT_ID = process.env.FIREBASE_PROJECT_ID!;
@@ -61,18 +65,6 @@ async function enqueueShopifyCreationTask(jobId: string) {
     
     if (!PROJECT_ID) {
         throw new Error('FIREBASE_PROJECT_ID no está configurado en las variables de entorno.');
-    }
-    
-    // Get the service account email associated with the application's default credentials
-    const auth = admin.app().options.credential;
-    if (!auth || typeof auth !== 'object' || !('getAccessToken' in auth)) {
-      throw new Error("Could not determine service account email from initialized app.");
-    }
-    // This is a workaround to get the client email from the running app's credentials
-    const { client_email: serviceAccountEmail } = JSON.parse(JSON.stringify(auth));
-    
-    if (!serviceAccountEmail) {
-      throw new Error("No se pudo determinar el email de la cuenta de servicio desde las credenciales de la app.");
     }
 
     const parent = tasksClient.queuePath(PROJECT_ID, LOCATION_ID, QUEUE_ID);
@@ -156,7 +148,6 @@ export async function POST(req: NextRequest) {
     let uid: string | null = null;
     let isTestCall = false;
 
-    // --- Authentication: Check for internal user call OR external API key call ---
     if (providedApiKey) {
       try {
         if (!adminAuth) throw new Error("Firebase Admin Auth no está inicializado.");
@@ -165,7 +156,6 @@ export async function POST(req: NextRequest) {
         console.log(`[Shopify Create Store] Step 1.1: Authenticated via Firebase token. UID: ${uid}`);
       } catch (firebaseError) {
         console.log(`[Shopify Create Store] Step 1.1: Not a Firebase token. Checking for system API key...`);
-        // If it's not a Firebase token, treat it as a potential API key
         const partnerCreds = await getPartnerCredentials();
         const serverApiKey = partnerCreds.automationApiKey;
         if (!serverApiKey) {
@@ -187,7 +177,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     console.log(`[Shopify Create Store] Step 2: Request body parsed.`);
     
-    // --- Determine if it's a test call ---
     const testCheck = testCreationSchema.safeParse(body);
     if (uid && testCheck.success && testCheck.data.isTest) {
         isTestCall = true;

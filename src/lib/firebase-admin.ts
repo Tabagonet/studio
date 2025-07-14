@@ -1,3 +1,4 @@
+
 // src/lib/firebase-admin.ts
 import type * as admin from 'firebase-admin';
 
@@ -9,7 +10,7 @@ let adminAuth: admin.auth.Auth | null = null;
 let adminStorage: admin.storage.Storage | null = null;
 
 // Function to get the credentials, can be called from other server modules
-function getServiceAccountCredentials() {
+function getServiceAccountCredentials(): admin.ServiceAccount {
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
     
     if (serviceAccountJson) {
@@ -18,41 +19,44 @@ function getServiceAccountCredentials() {
         if (!parsedCredentials.client_email || !parsedCredentials.private_key || !parsedCredentials.project_id) {
            throw new Error("El JSON de la cuenta de servicio es inválido o le faltan propiedades clave (project_id, private_key, client_email).");
         }
-        return parsedCredentials;
+        // Ensure property names match what the SDK expects ('clientEmail', 'privateKey')
+        return {
+            clientEmail: parsedCredentials.client_email,
+            privateKey: parsedCredentials.private_key,
+            projectId: parsedCredentials.project_id,
+        };
       } catch (e: any) {
         console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", e.message);
         throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON no es un JSON válido.");
       }
     } 
     
-    const serviceAccountFromVars = {
-      project_id: process.env.FIREBASE_PROJECT_ID,
-      private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      client_email: process.env.FIREBASE_CLIENT_EMAIL,
-    };
+    // Fallback to individual env vars
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     
-    if (serviceAccountFromVars.project_id && serviceAccountFromVars.private_key && serviceAccountFromVars.client_email) {
-      return serviceAccountFromVars;
+    if (projectId && privateKey && clientEmail) {
+      return { projectId, privateKey, clientEmail };
     }
 
-    // Fallback: If no explicit credentials, Google Cloud environments might provide them automatically.
-    // Return undefined to let the SDK try its default discovery.
-    return undefined;
+    throw new Error("No se pudieron cargar las credenciales de la cuenta de servicio de Firebase. Configura FIREBASE_SERVICE_ACCOUNT_JSON o las variables individuales (PROJECT_ID, PRIVATE_KEY, CLIENT_EMAIL).");
 }
 
 
 // Initialize the app only if it hasn't been initialized yet
 if (!admin_sdk.apps.length) {
   try {
-    const credential = getServiceAccountCredentials();
+    const serviceAccount = getServiceAccountCredentials();
     admin_sdk.initializeApp({
-      // Use cert() only if we have explicit credentials, otherwise let the SDK find them.
-      credential: credential ? admin_sdk.credential.cert(credential) : undefined,
+      credential: admin_sdk.credential.cert(serviceAccount),
       storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
     });
-    console.log('Firebase Admin SDK initialized.');
+    console.log('Firebase Admin SDK initialized successfully.');
   } catch (error: any) {
-    console.warn(`Firebase Admin SDK initialization error: ${error.message}`);
+    console.error(`Firebase Admin SDK initialization error: ${error.message}`);
+    // This will prevent the app from starting if creds are bad, which is intended.
+    throw error;
   }
 }
 
