@@ -50,7 +50,7 @@ export async function handleCreateShopifyStore(jobId: string) {
         
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
-        const graphqlEndpoint = `https://partners.shopify.com/${partnerCreds.organizationId}/api/2024-04/graphql.json`;
+        const graphqlEndpoint = `https://partners.shopify.com/${partnerCreds.organizationId}/api/2025-07/graphql.json`;
         
         const graphqlMutation = {
           query: `

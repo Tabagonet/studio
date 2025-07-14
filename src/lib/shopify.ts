@@ -6,7 +6,7 @@ interface ShopifyCredentials {
   accessToken: string; // The "API Password" is the access token
 }
 
-const SHOPIFY_API_VERSION = '2024-07';
+const SHOPIFY_API_VERSION = '2025-07';
 
 /**
  * Creates a new Axios instance configured for the Shopify Admin REST API.
