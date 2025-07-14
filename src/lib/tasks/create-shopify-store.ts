@@ -4,7 +4,7 @@ import axios from 'axios';
 import { generateShopifyStoreContent, type GeneratedContent, type GenerationInput } from '@/ai/flows/shopify-content-flow';
 import { createShopifyApi } from '@/lib/shopify';
 import type { AxiosInstance } from 'axios';
-import { getPartnerAppCredentials } from '@/lib/api-helpers';
+import { getPartnerCredentials } from '@/lib/api-helpers';
 import { CloudTasksClient } from '@google-cloud/tasks';
 
 
@@ -69,24 +69,11 @@ export async function handleCreateShopifyStore(jobId: string) {
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
         const jobData = jobDoc.data()!;
 
-        // Fetch the entity settings again to get the partnerShopDomain
-        const settingsCollection = jobData.entity.type === 'company' ? 'companies' : 'user_settings';
-        const entityDoc = await adminDb.collection(settingsCollection).doc(jobData.entity.id).get();
-        if (!entityDoc.exists) {
-            throw new Error(`Entity settings not found for ${jobData.entity.type} ID ${jobData.entity.id}`);
-        }
-        const entitySettings = entityDoc.data();
-        
-        const { partnerApiToken } = await getPartnerAppCredentials(jobData.entity.id, jobData.entity.type);
-        const partnerShopDomain = entitySettings?.partnerShopDomain;
-
-        if (!partnerShopDomain) {
-            throw new Error('partnerShopDomain is not set for the entity. The OAuth flow may not have completed successfully.');
-        }
+        const { partnerApiToken } = await getPartnerCredentials(jobData.entity.id, jobData.entity.type);
         
         await updateJobStatus(jobId, 'processing', `Creando tienda de desarrollo para "${jobData.storeName}"...`);
         
-        const graphqlEndpoint = `https://${partnerShopDomain}/admin/api/2024-07/graphql.json`;
+        const graphqlEndpoint = `https://partners.shopify.com/api/2025-07/graphql.json`;
         
         const graphqlMutation = {
           query: `
@@ -172,7 +159,7 @@ export async function populateShopifyStore(jobId: string) {
         const jobData = jobDoc.data()!;
 
         if (!jobData.storeAccessToken || !jobData.createdStoreUrl) {
-            throw new Error("El trabajo no tiene un token de acceso a la tienda. La población de contenido debe realizarse manualmente o instalando una app personalizada en la nueva tienda.");
+            throw new Error("El trabajo no tiene un token de acceso a la tienda. La población de contenido debe realizarse manually o instalando una app personalizada en la nueva tienda.");
         }
 
         const entityUid = jobData.entity.type === 'user' ? jobData.entity.id : '';

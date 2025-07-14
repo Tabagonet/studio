@@ -1,7 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
-import { validateHmac, getPartnerAppCredentials } from '@/lib/api-helpers';
+import { validateHmac, getPartnerCredentials } from '@/lib/api-helpers';
 import axios from 'axios';
 
 export async function GET(req: NextRequest) {
@@ -17,29 +17,35 @@ export async function GET(req: NextRequest) {
     }
     const settingsUrl = new URL('/settings/connections', baseUrl);
 
-    // Security check
-    if (!hmac || !validateHmac(searchParams, process.env.SHOPIFY_CLIENT_SECRET!)) {
-        console.error("Shopify callback HMAC validation failed.");
-        settingsUrl.searchParams.set('shopify_auth', 'error');
-        settingsUrl.searchParams.set('error_message', 'HMAC validation failed. Security check failed.');
-        return NextResponse.redirect(settingsUrl);
-    }
-
-    if (!code || !shop || !state) {
-        settingsUrl.searchParams.set('shopify_auth', 'error');
-        settingsUrl.searchParams.set('error_message', 'Missing required parameters from Shopify callback.');
-        return NextResponse.redirect(settingsUrl);
+    if (!state) {
+         settingsUrl.searchParams.set('shopify_auth', 'error');
+         settingsUrl.searchParams.set('error_message', 'Invalid state parameter received from Shopify.');
+         return NextResponse.redirect(settingsUrl);
     }
     
     const [entityType, entityId] = state.split(':');
     if ((entityType !== 'user' && entityType !== 'company') || !entityId) {
         settingsUrl.searchParams.set('shopify_auth', 'error');
-        settingsUrl.searchParams.set('error_message', 'Invalid state parameter received from Shopify.');
+        settingsUrl.searchParams.set('error_message', 'Invalid state parameter structure.');
         return NextResponse.redirect(settingsUrl);
     }
-
+    
     try {
-        const { clientId, clientSecret } = await getPartnerAppCredentials(entityId, entityType as 'user' | 'company');
+        const { clientId, clientSecret } = await getPartnerCredentials(entityId, entityType as 'user' | 'company');
+
+        // Security check
+        if (!hmac || !validateHmac(searchParams, clientSecret)) {
+            console.error("Shopify callback HMAC validation failed.");
+            settingsUrl.searchParams.set('shopify_auth', 'error');
+            settingsUrl.searchParams.set('error_message', 'HMAC validation failed. Security check failed.');
+            return NextResponse.redirect(settingsUrl);
+        }
+
+        if (!code || !shop) {
+            settingsUrl.searchParams.set('shopify_auth', 'error');
+            settingsUrl.searchParams.set('error_message', 'Missing required parameters from Shopify callback.');
+            return NextResponse.redirect(settingsUrl);
+        }
 
         const accessTokenUrl = `https://${shop}/admin/oauth/access_token`;
         const response = await axios.post(accessTokenUrl, {
@@ -59,6 +65,7 @@ export async function GET(req: NextRequest) {
         const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
         const settingsRef = adminDb.collection(settingsCollection).doc(entityId);
         
+        // This token is for creating stores, we save it in a specific field.
         await settingsRef.set({
             partnerApiToken: accessToken,
             partnerShopDomain: shop,

@@ -62,6 +62,8 @@ const INITIAL_STATE: ConnectionData = {
 const INITIAL_PARTNER_APP_STATE: PartnerAppConnectionData = {
     partnerShopDomain: undefined,
     partnerApiToken: undefined,
+    clientId: undefined,
+    clientSecret: undefined,
 };
 
 function getHostname(url: string | null | undefined): string | null {
@@ -249,7 +251,7 @@ export default function ConnectionsPage() {
                     setSelectedKey(currentActiveKey);
                     setFormData(connections[currentActiveKey]);
                 } else {
-                    const firstKey = Object.keys(connections)[0];
+                    const firstKey = Object.keys(connections).find(k => k !== 'partner_app');
                     if (firstKey) {
                         setSelectedKey(firstKey);
                         setFormData(connections[firstKey]);
@@ -392,7 +394,7 @@ export default function ConnectionsPage() {
 
 
     useEffect(() => {
-        const connectionKeys = Object.keys(allConnections);
+        const connectionKeys = Object.keys(allConnections).filter(k => k !== 'partner_app');
         if (selectedKey === 'new') {
             setFormData(INITIAL_STATE);
         } else if (allConnections[selectedKey]) {
@@ -527,7 +529,7 @@ export default function ConnectionsPage() {
         }
     };
     
-    const connectionKeys = Object.keys(allConnections);
+    const connectionKeys = Object.keys(allConnections).filter(k => k !== 'partner_app');
     const title = currentUser?.role === 'super_admin' ? `Editando Conexiones para: ${editingTarget.name}` : `Conexiones API para ${currentUser?.companyName || 'Mis Conexiones'}`;
     
     let description = 'Gestiona tus credenciales para conectar con servicios externos.';
