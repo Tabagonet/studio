@@ -1,4 +1,3 @@
-
 // src/lib/firebase-admin.ts
 import type * as admin from 'firebase-admin';
 
@@ -9,39 +8,41 @@ let adminDb: admin.firestore.Firestore | null = null;
 let adminAuth: admin.auth.Auth | null = null;
 let adminStorage: admin.storage.Storage | null = null;
 
-// The credentials can be provided as a single JSON string or as individual environment variables.
-const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-const serviceAccountFromVars = {
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  // Replace escaped newlines in private key
-  privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-  clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-};
-
-let serviceAccount: admin.ServiceAccount | undefined;
-
-if (serviceAccountJson) {
-  try {
-    serviceAccount = JSON.parse(serviceAccountJson);
-  } catch (e) {
-    console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", e);
-  }
-} else if (serviceAccountFromVars.projectId && serviceAccountFromVars.privateKey && serviceAccountFromVars.clientEmail) {
-  serviceAccount = {
-    projectId: serviceAccountFromVars.projectId,
-    privateKey: serviceAccountFromVars.privateKey,
-    clientEmail: serviceAccountFromVars.clientEmail,
-  };
-}
-
 // Function to get the credentials, can be called from other server modules
 export function getServiceAccountCredentials(): admin.ServiceAccount | undefined {
-    return serviceAccount;
+    // The credentials can be provided as a single JSON string or as individual environment variables.
+    const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    const serviceAccountFromVars = {
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      // Replace escaped newlines in private key
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    };
+
+    if (serviceAccountJson) {
+      try {
+        return JSON.parse(serviceAccountJson);
+      } catch (e) {
+        console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", e);
+        return undefined;
+      }
+    } 
+    
+    if (serviceAccountFromVars.projectId && serviceAccountFromVars.privateKey && serviceAccountFromVars.clientEmail) {
+      return {
+        projectId: serviceAccountFromVars.projectId,
+        privateKey: serviceAccountFromVars.privateKey,
+        clientEmail: serviceAccountFromVars.clientEmail,
+      };
+    }
+
+    return undefined;
 }
 
 
 // Initialize the app only if it hasn't been initialized yet
 if (!admin_sdk.apps.length) {
+  const serviceAccount = getServiceAccountCredentials();
   if (serviceAccount) {
     try {
       admin_sdk.initializeApp({
