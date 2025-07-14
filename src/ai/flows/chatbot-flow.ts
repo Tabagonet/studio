@@ -6,6 +6,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import Handlebars from 'handlebars';
 import { scrapeUrl } from '@/services/scraper';
 import { adminDb } from '@/lib/firebase-admin';
+import axios from 'axios';
 
 const CHATBOT_PROMPT_TEMPLATE = `Eres un asistente de estrategia digital amigable, experto y muy conciso llamado 'AutoPress AI Assistant'. Tu objetivo es guiar a un cliente potencial a través de un cuestionario para entender su negocio.
 
@@ -169,14 +170,14 @@ export async function extractStoreCreationData(messages: Message[]) {
 
     // More robust regexes to capture data, ignoring case and looking for simple key-value patterns.
     return {
-        storeName: extractData(conversationText, /nombre de la tienda(?:\s*es)?\s*:\s*"?([^"\n]+)"?/i),
-        businessEmail: extractData(conversationText, /email del negocio(?:\s*es)?\s*:\s*"?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"?/i),
-        countryCode: extractData(conversationText, /país(?:\s*es)?\s*:\s*"?([^"\n,]+)"?/i),
-        currency: extractData(conversationText, /moneda(?:\s*es)?\s*:\s*"?([^"\n,]+)"?/i),
-        brandDescription: extractData(conversationText, /descripción de la marca(?:\s*es)?\s*:\s*"?([^"\n]+)"?/i),
-        targetAudience: extractData(conversationText, /público objetivo(?:\s*es)?\s*:\s*"?([^"\n]+)"?/i),
-        brandPersonality: extractData(conversationText, /personalidad de marca(?:\s*es)?\s*:\s*"?([^"\n]+)"?/i),
-        legalBusinessName: extractData(conversationText, /nombre fiscal(?:\s*es)?\s*:\s*"?([^"\n]+)"?/i),
-        businessAddress: extractData(conversationText, /dirección fiscal(?:\s*es)?\s*:\s*"?([^"\n]+)"?/i),
+        storeName: extractData(conversationText, /nombre de la tienda.*:\s*"?([^"\n]+)"?/gi),
+        businessEmail: extractData(conversationText, /email del negocio.*:\s*"?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"?/gi),
+        countryCode: extractData(conversationText, /país.*:\s*"?([^"\n,]+)"?/gi),
+        currency: extractData(conversationText, /moneda.*:\s*"?([^"\n,]+)"?/gi),
+        brandDescription: extractData(conversationText, /descripción de la marca.*:\s*"?([^"\n]+)"?/gi),
+        targetAudience: extractData(conversationText, /público objetivo.*:\s*"?([^"\n]+)"?/gi),
+        brandPersonality: extractData(conversationText, /personalidad de marca.*:\s*"?([^"\n]+)"?/gi),
+        legalBusinessName: extractData(conversationText, /nombre fiscal.*:\s*"?([^"\n]+)"?/gi),
+        businessAddress: extractData(conversationText, /dirección fiscal.*:\s*"?([^"\n]+)"?/gi),
     };
 }
