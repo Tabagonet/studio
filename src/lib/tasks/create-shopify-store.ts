@@ -54,8 +54,8 @@ export async function handleCreateShopifyStore(jobId: string) {
         
         const graphqlMutation = {
           query: `
-            mutation DevelopmentStoreCreate($input: DevelopmentStoreInput!) {
-              developmentStoreCreate(input: $input) {
+            mutation DevelopmentStoreCreate($name: String!) {
+              developmentStoreCreate(name: $name) {
                 shop {
                   id
                   name
@@ -69,10 +69,7 @@ export async function handleCreateShopifyStore(jobId: string) {
               }
             }`,
           variables: {
-            input: {
-                name: jobData.storeName,
-                type: "DEVELOPMENT"
-            }
+            name: jobData.storeName
           },
         };
         
