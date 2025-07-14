@@ -52,10 +52,11 @@ export async function handleCreateShopifyStore(jobId: string) {
         
         const graphqlEndpoint = `https://partners.shopify.com/${partnerCreds.organizationId}/api/2025-07/graphql.json`;
         
+        // Correct GraphQL mutation as per Shopify Partner API documentation
         const graphqlMutation = {
           query: `
-            mutation DevelopmentStoreCreate($name: String!) {
-              developmentStoreCreate(name: $name) {
+            mutation ShopCreate($input: ShopCreateInput!) {
+              shopCreate(input: $input) {
                 shop {
                   id
                   name
@@ -69,7 +70,10 @@ export async function handleCreateShopifyStore(jobId: string) {
               }
             }`,
           variables: {
-            name: jobData.storeName
+            input: {
+                name: jobData.storeName,
+                storeType: "DEVELOPMENT" // Correctly specify the store type
+            }
           },
         };
         
@@ -93,7 +97,7 @@ export async function handleCreateShopifyStore(jobId: string) {
             throw new Error(`Shopify returned GraphQL errors: ${errorMessages}`);
         }
         
-        const creationResult = responseData.data.developmentStoreCreate;
+        const creationResult = responseData.data.shopCreate;
         if (creationResult.userErrors && creationResult.userErrors.length > 0) {
             const errorMessages = creationResult.userErrors.map((e: any) => `${e.field}: ${e.message}`).join(', ');
             throw new Error(`Shopify returned user errors: ${errorMessages}`);
