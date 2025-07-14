@@ -1,4 +1,3 @@
-
 // src/lib/firebase-admin.ts
 import type * as admin from 'firebase-admin';
 
@@ -11,40 +10,34 @@ let adminStorage: admin.storage.Storage | null = null;
 
 // Function to get the credentials, can be called from other server modules
 export function getServiceAccountCredentials(): admin.ServiceAccount {
-    // The credentials can be provided as a single JSON string or as individual environment variables.
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
     
     if (serviceAccountJson) {
       try {
         const parsedCredentials = JSON.parse(serviceAccountJson);
-        if (!parsedCredentials.clientEmail || !parsedCredentials.privateKey || !parsedCredentials.projectId) {
-           throw new Error("El JSON de la cuenta de servicio es inválido o le faltan propiedades clave (projectId, privateKey, clientEmail).");
+        // The google-auth-library expects snake_case keys from the original JSON file.
+        // We will pass this object directly, so we need to ensure the keys are correct.
+        if (!parsedCredentials.client_email || !parsedCredentials.private_key || !parsedCredentials.project_id) {
+           throw new Error("El JSON de la cuenta de servicio es inválido o le faltan propiedades clave (project_id, private_key, client_email).");
         }
-        // Normalize the private_key to clientEmail for consistency with the ServiceAccount interface
-        return {
-            ...parsedCredentials,
-            clientEmail: parsedCredentials.client_email,
-            privateKey: parsedCredentials.private_key,
-            projectId: parsedCredentials.project_id
-        };
+        return parsedCredentials;
       } catch (e: any) {
         console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", e.message);
         throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON no es un JSON válido.");
       }
     } 
     
+    // Construct the object with snake_case keys for the auth library.
     const serviceAccountFromVars = {
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      project_id: process.env.FIREBASE_PROJECT_ID,
+      private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      client_email: process.env.FIREBASE_CLIENT_EMAIL,
     };
     
-    if (serviceAccountFromVars.projectId && serviceAccountFromVars.privateKey && serviceAccountFromVars.clientEmail) {
-      return {
-        projectId: serviceAccountFromVars.projectId,
-        privateKey: serviceAccountFromVars.privateKey,
-        clientEmail: serviceAccountFromVars.clientEmail,
-      };
+    if (serviceAccountFromVars.project_id && serviceAccountFromVars.private_key && serviceAccountFromVars.client_email) {
+      // Cast to any to bypass the strict TypeScript check for the property names, then cast to ServiceAccount.
+      // We know this structure is correct for the underlying libraries.
+      return serviceAccountFromVars as any as admin.ServiceAccount;
     }
 
     throw new Error("Las credenciales de la cuenta de servicio de Firebase no están configuradas. Define FIREBASE_SERVICE_ACCOUNT_JSON (recomendado) o las variables FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, y FIREBASE_CLIENT_EMAIL.");
@@ -56,6 +49,7 @@ if (!admin_sdk.apps.length) {
   try {
     const serviceAccount = getServiceAccountCredentials();
     admin_sdk.initializeApp({
+      // The `cert` method correctly handles the object with snake_case keys.
       credential: admin_sdk.credential.cert(serviceAccount),
       storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
     });
