@@ -1,5 +1,4 @@
 
-
 // src/components/core/sidebar-nav.tsx
 "use client";
 
@@ -32,6 +31,7 @@ interface ConfigStatus {
   wooCommerceConfigured: boolean;
   wordPressConfigured: boolean;
   shopifyConfigured: boolean;
+  shopifyPartnerConfigured: boolean;
   pluginActive: boolean;
 }
 
@@ -62,13 +62,13 @@ export function SidebarNav() {
       if(configResponse.ok) {
         setConfigStatus(await configResponse.json());
       } else {
-        setConfigStatus({ wooCommerceConfigured: false, wordPressConfigured: false, shopifyConfigured: false, pluginActive: false });
+        setConfigStatus({ wooCommerceConfigured: false, wordPressConfigured: false, shopifyConfigured: false, shopifyPartnerConfigured: false, pluginActive: false });
       }
 
     } catch (error) {
       console.error("Failed to fetch user/config for sidebar", error);
       setUserData(null);
-      setConfigStatus({ wooCommerceConfigured: false, wordPressConfigured: false, shopifyConfigured: false, pluginActive: false });
+      setConfigStatus({ wooCommerceConfigured: false, wordPressConfigured: false, shopifyConfigured: false, shopifyPartnerConfigured: false, pluginActive: false });
     } finally {
       setIsLoading(false);
     }
@@ -177,9 +177,11 @@ export function SidebarNav() {
                 }
             }
 
-            if (group.requiredPlatform === 'shopify' && (!configStatus || !configStatus.shopifyConfigured)) {
-               isDisabled = true;
-               tooltipText = "Requiere una conexión a Shopify configurada.";
+            if (group.requiredPlatform === 'shopify') {
+                if (!configStatus?.shopifyPartnerConfigured) {
+                   isDisabled = true;
+                   tooltipText = "Requiere una conexión a Shopify Partner activa.";
+                }
             }
 
             return (
