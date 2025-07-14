@@ -41,6 +41,7 @@ interface SelectedEntityStatus {
     wordPressConfigured: boolean;
     shopifyConfigured: boolean;
     shopifyPartnerConfigured?: boolean;
+    shopifyPartnerError?: string; // New field for error details
     pluginActive: boolean;
     activeStoreUrl: string | null;
     activePlatform: 'woocommerce' | 'shopify' | null;
@@ -183,9 +184,20 @@ export default function ConnectionsPage() {
                 cache: 'no-store'
             });
             
+            const data = await response.json();
             if (response.ok) {
-                const data = await response.json();
                 setSelectedEntityStatus(data);
+                // Log and toast the specific error if present
+                if (data.shopifyPartnerConfigured === false && data.shopifyPartnerError) {
+                    const errorMessage = `Shopify Partner API: ${data.shopifyPartnerError}`;
+                    console.error("Shopify Partner Connection Error:", errorMessage);
+                    toast({
+                        title: "Error de Conexión Shopify Partner",
+                        description: errorMessage,
+                        variant: "destructive",
+                        duration: 10000,
+                    });
+                }
             } else {
                 setSelectedEntityStatus(null);
             }
@@ -195,7 +207,7 @@ export default function ConnectionsPage() {
         } finally {
             setIsCheckingStatus(false);
         }
-    }, []);
+    }, [toast]);
 
     useEffect(() => {
         const fetchInitialData = async (user: FirebaseUser) => {

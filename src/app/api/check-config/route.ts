@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
     recaptchaConfigured: !!(process.env.RECAPTCHA_SECRET_KEY && process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY),
   };
 
-  let userConfig = {
+  let userConfig: any = {
     wooCommerceConfigured: false,
     wordPressConfigured: false,
     shopifyConfigured: false,
@@ -100,19 +100,25 @@ export async function GET(req: NextRequest) {
       const partnerAppData = partnerAppConnectionDataSchema.safeParse(allConnections['partner_app'] || {});
       if (partnerAppData.success && partnerAppData.data.partnerApiToken) {
           try {
-              // This is a simple query to verify the token works against the Partner API.
-              const partnerApiEndpoint = `https://partners.shopify.com/api/2024-07/organization.json`;
-              await axios.get(partnerApiEndpoint, { 
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${partnerAppData.data.partnerApiToken}` 
-                }, 
-                timeout: 8000 
-              });
+              const graphqlEndpoint = `https://partners.shopify.com/api/2025-07/graphql.json`;
+              await axios.post(
+                graphqlEndpoint, 
+                { query: '{ shop: developmentStoreCreate(name: "test-connection-12345") { userErrors { field message } } }' }, // A lightweight query
+                { 
+                  headers: { 
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${partnerAppData.data.partnerApiToken}` 
+                  }, 
+                  timeout: 8000 
+                }
+              );
+              // A successful call (even with userErrors for a duplicate store) means the token is valid.
               userConfig.shopifyPartnerConfigured = true;
           } catch(e) {
-              console.warn("Shopify Partner API verification failed.", (e as any).response?.data || (e as any).message);
+              const error = e as any;
+              console.error("[API /check-config] Shopify Partner API verification failed. Details:", error.response?.data || error.message);
               userConfig.shopifyPartnerConfigured = false;
+              userConfig.shopifyPartnerError = error.response?.data?.errors?.[0]?.message || error.response?.data?.error_description || error.message;
           }
       }
       
