@@ -70,7 +70,13 @@ export async function handleCreateShopifyStore(jobId: string) {
           variables: {
             input: {
                 name: jobData.storeName,
-                storeType: "DEVELOPMENT",
+                email: jobData.businessEmail || "test@example.com",
+                shopOwner: {
+                    firstName: "Admin",
+                    lastName: "User"
+                },
+                password: `Pass_${Date.now()}$`,
+                countryCode: jobData.countryCode || "ES",
             }
           },
         };
@@ -121,8 +127,6 @@ export async function handleCreateShopifyStore(jobId: string) {
         const installUrl = `https://${createdStore.shopDomain}/admin/oauth/authorize?client_id=${partnerCreds.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${jobId}`;
         console.log(`[Task Logic - Job ${jobId}] Generated install URL: ${installUrl}`);
         
-        // Since we no longer get the storefront password from this new mutation,
-        // we'll set it to null. The user will need to set it via the "forgot password" flow.
         await updateJobStatus(jobId, 'awaiting_auth', 'Tienda creada. Esperando autorización del usuario para poblar contenido.', {
             createdStoreUrl: storeUrl,
             createdStoreAdminUrl: storeAdminUrl,
