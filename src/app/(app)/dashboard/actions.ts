@@ -2,64 +2,13 @@
 'use server';
 
 import { adminDb, admin } from '@/lib/firebase-admin';
-import { CloudTasksClient } from '@google-cloud/tasks';
+import axios from 'axios';
 
 // This is a server action, designed to be called from a client component.
-// It now contains the full logic to create the job and enqueue the task.
-
-const tasksClient = new CloudTasksClient();
-const PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
-const LOCATION_ID = 'europe-west1'; 
-const QUEUE_ID = 'autopress-jobs';
-
-
-async function enqueueShopifyCreationTask(jobId: string) {
-  if (!PROJECT_ID) {
-    throw new Error('FIREBASE_PROJECT_ID no está configurado en las variables de entorno.');
-  }
-
-  const parent = tasksClient.queuePath(PROJECT_ID, LOCATION_ID, QUEUE_ID);
-  const serviceAccountEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  
-  if (!serviceAccountEmail) {
-    throw new Error('FIREBASE_CLIENT_EMAIL no está configurado. Es necesario para autenticar las tareas.');
-  }
-  
-  const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
-
-  const task = {
-    httpRequest: {
-      httpMethod: 'POST' as const,
-      url: targetUri,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
-       oidcToken: {
-          serviceAccountEmail: serviceAccountEmail,
-       },
-    },
-    scheduleTime: {
-      seconds: Date.now() / 1000 + 5, // Schedule 5 seconds in the future.
-    },
-  };
-
-  console.log(`[Server Action] Enqueuing task for Job ID: ${jobId} to target ${targetUri}`);
-  const [response] = await tasksClient.createTask({ parent, task });
-  console.log(`[Server Action] Task created: ${response.name}`);
-  return response;
-}
-
+// It now creates the job in Firestore and then DIRECTLY calls the task handler endpoint.
 
 export async function triggerShopifyCreationTestAction(): Promise<{ success: boolean; message: string; jobId?: string; }> {
     console.log('[Server Action] Triggering Shopify Creation Test...');
-
-    const serverApiKey = process.env.SHOPIFY_AUTOMATION_API_KEY;
-    if (!serverApiKey) {
-        console.error("[Server Action Error] SHOPIFY_AUTOMATION_API_KEY is not configured on the server.");
-        // This is the error we were seeing, confirming the action can read the env var.
-        return { success: false, message: "Servicio de automatización no configurado en el servidor." };
-    }
     
     if (!adminDb) {
         return { success: false, message: "Error del servidor: Firestore no está configurado." };
@@ -123,14 +72,29 @@ export async function triggerShopifyCreationTestAction(): Promise<{ success: boo
           status: 'pending',
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          logs: [{ timestamp: new Date(), message: 'Trabajo creado y encolado desde el botón de prueba.' }]
+          logs: [{ timestamp: new Date(), message: 'Trabajo creado desde el botón de prueba.' }]
         });
     
         const jobId = jobRef.id;
 
-        await enqueueShopifyCreationTask(jobId);
+        // Directly call the task handler endpoint instead of enqueuing a task
+        const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
+        
+        // Note: For a production app, you'd secure this call, but since this is an internal
+        // test action running on the server, we can call it directly. The endpoint's own
+        // security is what matters for external calls.
+        console.log(`[Server Action] Directly calling task handler for Job ID: ${jobId} at ${targetUri}`);
+        
+        // This is a fire-and-forget call. We don't wait for it to finish.
+        axios.post(targetUri, { jobId }, {
+            // We don't need an OIDC token here because we are not acting as a Cloud Task.
+            // The endpoint security will need to be adjusted to allow this server-to-server call.
+        }).catch(error => {
+            // Log the error but don't fail the user-facing action, as the job is already created.
+            console.error(`[Server Action] Error calling task handler for job ${jobId}:`, error.message);
+        });
 
-        console.log('[Server Action] Job enqueued successfully. Job ID:', jobId);
+        console.log('[Server Action] Job creation triggered successfully. Job ID:', jobId);
         return { success: true, message: '¡Trabajo de creación de tienda enviado! Revisa el progreso en la sección de Trabajos.', jobId: jobId };
 
     } catch (error: any) {
