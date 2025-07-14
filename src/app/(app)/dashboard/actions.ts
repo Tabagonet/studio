@@ -17,7 +17,7 @@ export async function triggerShopifyCreationTestAction(token: string): Promise<{
     const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/trigger-test-creation`;
     
     try {
-        // Use axios for more detailed error responses
+        // Use axios for more detailed error responses and explicit method definition.
         const response = await axios.post(targetUri, {}, {
             headers: {
                 'Authorization': `Bearer ${token}`, // Use the user's auth token to authorize with our own secure endpoint
