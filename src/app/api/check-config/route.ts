@@ -1,3 +1,4 @@
+
 // src/app/api/check-config/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
     wordPressConfigured: false,
     shopifyConfigured: false,
     shopifyPartnerConfigured: false,
-    shopifyCustomAppConfigured: false, // New status for the Custom OAuth App
+    shopifyCustomAppConfigured: false,
     pluginActive: false,
     aiUsageCount: 0,
   };

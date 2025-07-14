@@ -153,6 +153,14 @@ export const ConnectionStatusIndicator = ({ status, isLoading, onRefresh, platfo
                                     <p>Shopify (App Privada): {status.shopifyConfigured ? "Configurado" : "No Configurado"}</p>
                                 </TooltipContent>
                             </Tooltip>
+                             <Tooltip>
+                                <TooltipTrigger>
+                                    <ShopifyIcon className={cn("h-4 w-4", status.shopifyPartnerConfigured ? "text-green-500" : "text-destructive")} />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Shopify Partner: {status.shopifyPartnerConfigured ? "Conectado" : "No Conectado"}</p>
+                                </TooltipContent>
+                            </Tooltip>
                         </div>
                     )}
                 </div>
