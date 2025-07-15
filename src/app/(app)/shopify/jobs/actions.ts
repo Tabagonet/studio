@@ -1,13 +1,12 @@
 
 'use server';
 
-import { adminAuth, adminDb } from '@/lib/firebase-admin';
+import { adminAuth } from '@/lib/firebase-admin';
 
 export async function deleteShopifyJobsAction(
     jobIds: string[],
     token: string
-): Promise<{ success: boolean; error?: string }> {
-    // Auth check to ensure user is logged in. Specific permissions are checked in the API endpoint.
+): Promise<{ success: boolean; error?: string; details?: any }> {
     try {
         if (!adminAuth) throw new Error("Firebase Admin not initialized");
         await adminAuth.verifyIdToken(token);
@@ -20,11 +19,14 @@ export async function deleteShopifyJobsAction(
         return { success: false, error: 'No job IDs provided for deletion.' };
     }
 
-    try {
-        // Since we now have a dedicated API endpoint, we can simplify this.
-        // For batch deletion, we'll just loop and call the single delete endpoint.
-        // This is less efficient for huge batches but much simpler and reuses logic.
-        for (const jobId of jobIds) {
+    const results = {
+        success: 0,
+        failed: 0,
+        errors: [] as { jobId: string, message: string }[],
+    };
+
+    for (const jobId of jobIds) {
+        try {
             const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/jobs/${jobId}`, {
                 method: 'DELETE',
                 headers: {
@@ -33,16 +35,30 @@ export async function deleteShopifyJobsAction(
             });
 
             if (!response.ok) {
-                 const errorData = await response.json();
-                 console.warn(`Failed to delete job ${jobId}:`, errorData.error);
-                 // We can decide to stop on first error or continue. Let's continue.
+                // Try to parse error, but handle cases where body is empty
+                let errorMessage = `Failed with status ${response.status}`;
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.error || errorMessage;
+                } catch (e) {
+                    // Ignore JSON parsing error if body is empty
+                }
+                console.warn(`Failed to delete job ${jobId}:`, errorMessage);
+                results.failed++;
+                results.errors.push({ jobId, message: errorMessage });
+            } else {
+                results.success++;
             }
+        } catch (error: any) {
+             console.error(`Error processing delete for job ${jobId}:`, error);
+             results.failed++;
+             results.errors.push({ jobId, message: error.message || 'Unknown fetch error' });
         }
-        
-        return { success: true };
-
-    } catch (error: any) {
-        console.error(`Error deleting Shopify jobs:`, error);
-        return { success: false, error: 'An unknown error occurred while deleting the jobs.' };
     }
+    
+    if (results.failed > 0) {
+        return { success: false, error: `Failed to delete ${results.failed} job(s).`, details: results.errors };
+    }
+
+    return { success: true };
 }
