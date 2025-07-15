@@ -64,15 +64,14 @@ export function ShopifyPartnerCard({
   onPartnerFormDataChange,
   onSave,
   isSavingPartner,
-  onDelete,
   isDeleting,
   configStatus,
   onRefreshStatus,
   isCheckingStatus,
 }: ShopifyPartnerCardProps) {
   
-  const [isTokenVisible, setIsTokenVisible] = React.useState(false);
   const [isApiKeyVisible, setIsApiKeyVisible] = React.useState(false);
+  const [isClientSecretVisible, setIsClientSecretVisible] = React.useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -84,9 +83,9 @@ export function ShopifyPartnerCard({
       <CardHeader>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div>
-                <CardTitle>Conexión Global de Shopify Partners</CardTitle>
+                <CardTitle>Conexión Global de Shopify</CardTitle>
                 <CardDescription>
-                  Credenciales para crear tiendas y para instalar la app que las poblará. 
+                  Credenciales para el flujo de autorización (OAuth) y para proteger los webhooks.
                   Estas credenciales son globales para todos los usuarios.
                 </CardDescription>
             </div>
@@ -100,13 +99,7 @@ export function ShopifyPartnerCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <ConnectionStatusBadge
-                status={configStatus?.shopifyPartnerConfigured}
-                isLoading={isCheckingStatus}
-                text="API de Partner"
-                helpText="Verifica si las credenciales de Partner API son válidas."
-            />
+        <div className="grid grid-cols-1">
             <ConnectionStatusBadge
                 status={configStatus?.shopifyCustomAppConfigured}
                 isLoading={isCheckingStatus}
@@ -123,51 +116,9 @@ export function ShopifyPartnerCard({
         </Alert>
 
         <div className="pt-4 border-t">
-          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            <ShopifyIcon className="h-5 w-5 text-[#7ab55c]" />
-            1. Credenciales de la API de Partner
-          </h3>
-           <p className="text-sm text-muted-foreground mb-4">Necesarias para crear nuevas tiendas de desarrollo.</p>
-            <div>
-                <Label htmlFor="organizationId">ID de Organización</Label>
-                <Input 
-                    id="organizationId" 
-                    name="organizationId" 
-                    type="text"
-                    value={partnerFormData?.organizationId || ''} 
-                    onChange={handleInputChange} 
-                    placeholder="Ej: 1234567" 
-                    disabled={isSavingPartner}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                    Puedes encontrar este ID en la URL de tu panel de Partner (ej: partners.shopify.com/1234567/...).
-                </p>
-            </div>
-
-            <div className="mt-4">
-                <Label htmlFor="partnerApiToken">Token de Acceso de la API de Partner</Label>
-                <div className="flex items-center gap-2">
-                    <Input 
-                        id="partnerApiToken" 
-                        name="partnerApiToken" 
-                        type={isTokenVisible ? 'text' : 'password'} 
-                        value={partnerFormData?.partnerApiToken || ''} 
-                        onChange={handleInputChange} 
-                        placeholder="shptka_..." 
-                        disabled={isSavingPartner}
-                        className="font-mono"
-                    />
-                    <Button variant="outline" size="icon" onClick={() => setIsTokenVisible(!isTokenVisible)}>
-                        {isTokenVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                </div>
-              </div>
-        </div>
-
-        <div className="pt-4 border-t">
             <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
                 <ShieldCheck className="h-5 w-5 text-blue-500" />
-                2. Credenciales de la App Personalizada (OAuth)
+                1. Credenciales de la App Personalizada (OAuth)
             </h3>
             <p className="text-sm text-muted-foreground mb-4">
               Necesarias para que, una vez creada la tienda, el cliente pueda autorizar que nuestra app la configure.
@@ -187,15 +138,21 @@ export function ShopifyPartnerCard({
                 </div>
                 <div>
                    <Label htmlFor="clientSecret">Client Secret</Label>
-                   <Input 
-                      id="clientSecret" 
-                      name="clientSecret" 
-                      type="password"
-                      value={partnerFormData?.clientSecret || ''} 
-                      onChange={handleInputChange} 
-                      placeholder="shpss_..." 
-                      disabled={isSavingPartner}
-                   />
+                    <div className="flex items-center gap-2">
+                       <Input 
+                          id="clientSecret" 
+                          name="clientSecret" 
+                          type={isClientSecretVisible ? 'text' : 'password'}
+                          value={partnerFormData?.clientSecret || ''} 
+                          onChange={handleInputChange} 
+                          placeholder="shpss_..." 
+                          disabled={isSavingPartner}
+                          className="font-mono"
+                       />
+                        <Button variant="outline" size="icon" onClick={() => setIsClientSecretVisible(!isClientSecretVisible)}>
+                          {isClientSecretVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                    </div>
                 </div>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
@@ -209,7 +166,7 @@ export function ShopifyPartnerCard({
          <div className="pt-4 border-t">
             <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
                 <KeyRound className="h-5 w-5 text-amber-500" />
-                3. Clave API de Sistema (Webhook)
+                2. Clave API de Sistema (Webhook)
             </h3>
             <p className="text-sm text-muted-foreground mb-4">
                 Una clave secreta que inventes para proteger el endpoint público de creación de tiendas.
@@ -234,19 +191,19 @@ export function ShopifyPartnerCard({
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
             <Button onClick={onSave} disabled={isSavingPartner || isDeleting}>
               {isSavingPartner ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2"/>}
-              Guardar Credenciales de Shopify
+              Guardar Credenciales Globales
             </Button>
           <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" disabled={isSavingPartner || isDeleting}>
-                  <Trash2 className="mr-2 h-4 w-4" /> Borrar
+                  <Trash2 className="mr-2 h-4 w-4" /> Borrar Todo
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>¿Confirmar eliminación?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Esta acción eliminará permanentemente las credenciales de Shopify Partner y de la App Personalizada.
+                    Esta acción eliminará permanentemente las credenciales de la App Personalizada y la Clave de Sistema. Deberás volver a configurarlas.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
