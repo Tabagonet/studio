@@ -24,18 +24,21 @@ export async function GET(req: NextRequest) {
 
         console.log('[API get-oauth-params] Partner credentials retrieved.');
 
-        // Corrected scopes according to Shopify's official documentation
+        // Use the request's URL to build a dynamic redirect URI
+        const requestUrl = new URL(req.url);
+        const redirectUri = `${requestUrl.origin}/api/shopify/auth/callback`;
+
         const scopes = [
             'read_products', 'write_products',
             'read_themes', 'write_themes',
-            'read_content', 'write_content', // This covers Pages, Blogs, Articles
+            'read_content', 'write_content',
             'read_online_store_navigation', 'write_online_store_navigation',
             'read_files', 'write_files',
         ].join(',');
 
         const responsePayload = {
             clientId: partnerCreds.clientId,
-            redirectUri: `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`,
+            redirectUri: redirectUri,
             scopes: scopes,
         };
 
