@@ -36,6 +36,7 @@ interface ConnectionData {
 type AllConnections = { [key: string]: ConnectionData | PartnerAppConnectionData };
 
 interface SelectedEntityStatus {
+    activeStoreUrl: string | null;
     wooCommerceConfigured: boolean;
     wordPressConfigured: boolean;
     shopifyConfigured: boolean;
@@ -43,7 +44,6 @@ interface SelectedEntityStatus {
     shopifyPartnerError?: string; 
     shopifyCustomAppConfigured?: boolean; 
     pluginActive: boolean;
-    activeStoreUrl: string | null;
     activePlatform: 'woocommerce' | 'shopify' | null;
     assignedPlatform: 'woocommerce' | 'shopify' | null;
 }
@@ -92,7 +92,7 @@ export default function ConnectionsPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [isSavingPartner, setIsSavingPartner] = useState(false);
     
-    const [isDeleting, setIsDeleting] = useState<string | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     
     const [currentUser, setCurrentUser] = useState<{ uid: string | null; role: string | null; companyId: string | null; companyName: string | null; } | null>(null);
     const [allCompanies, setAllCompanies] = useState<Company[]>([]);
@@ -105,7 +105,7 @@ export default function ConnectionsPage() {
     const [selectedEntityStatus, setSelectedEntityStatus] = useState<SelectedEntityStatus | null>(null);
     const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
-    const fetchConnections = useCallback(async (user: FirebaseUser, targetType: 'user' | 'company', targetId: string | null) => {
+    const fetchAllDataForTarget = useCallback(async (user: FirebaseUser, targetType: 'user' | 'company', targetId: string | null) => {
         setIsLoading(true);
         if (!targetId) {
             setAllConnections({});
@@ -160,6 +160,7 @@ export default function ConnectionsPage() {
             } else {
                 throw new Error((await response.json()).error || "Fallo al cargar las conexiones.");
             }
+            await fetchStatus(targetType, targetId, token);
         } catch (error) {
             console.error("Error fetching connections:", error);
             const errorMessage = error instanceof Error ? error.message : "Error desconocido.";
@@ -167,22 +168,15 @@ export default function ConnectionsPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [toast, selectedKey]);
+    }, [toast, selectedKey]); // Removed fetchStatus from dependency array to break potential loops
     
-    const fetchStatus = useCallback(async (targetType: 'user' | 'company' | null, targetId: string | null) => {
+    const fetchStatus = useCallback(async (targetType: 'user' | 'company' | null, targetId: string | null, token: string) => {
         if (!targetType || !targetId) {
             setSelectedEntityStatus(null);
             return;
         }
         setIsCheckingStatus(true);
-        const user = auth.currentUser;
-        if (!user) {
-            setIsCheckingStatus(false);
-            return;
-        }
-
         try {
-            const token = await user.getIdToken();
             const url = new URL('/api/check-config', window.location.origin);
             if (targetType === 'company') {
                 url.searchParams.append('companyId', targetId);
@@ -231,7 +225,7 @@ export default function ConnectionsPage() {
             let newEditingTarget: { type: 'user' | 'company'; id: string | null; name: string; platform: 'woocommerce' | 'shopify' | null };
 
             if (userData.role === 'super_admin') {
-                const [companiesResponse, usersResponse] = await Promise.all([
+                 const [companiesResponse, usersResponse] = await Promise.all([
                     fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } }),
                     fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } })
                 ]);
@@ -240,7 +234,7 @@ export default function ConnectionsPage() {
                     const allUsers = (await usersResponse.json()).users;
                     setUnassignedUsers(allUsers.filter((u: any) => u.role !== 'super_admin' && !u.companyId));
                 }
-                newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)', platform: null };
+                 newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)', platform: null };
             } else {
                 const effectivePlatform = userData.companyPlatform || userData.platform;
                 newEditingTarget = { 
@@ -254,19 +248,11 @@ export default function ConnectionsPage() {
             setEditingTarget(newEditingTarget);
             setEditingTargetPlatform(newEditingTarget.platform);
             if (newEditingTarget.id) {
-                await fetchConnections(user, newEditingTarget.type, newEditingTarget.id);
-                await fetchStatus(newEditingTarget.type, newEditingTarget.id);
+                await fetchAllDataForTarget(user, newEditingTarget.type, newEditingTarget.id);
             }
             setIsDataLoading(false);
         };
         
-        const handleConnectionsUpdate = () => {
-            if (auth.currentUser && editingTarget.id && editingTarget.type) {
-                fetchStatus(editingTarget.type, editingTarget.id);
-                fetchConnections(auth.currentUser, editingTarget.type, editingTarget.id);
-            }
-        };
-
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
                 await fetchInitialData(user);
@@ -276,14 +262,8 @@ export default function ConnectionsPage() {
             }
         });
         
-        window.addEventListener('connections-updated', handleConnectionsUpdate);
-
-        return () => {
-            unsubscribe();
-            window.removeEventListener('connections-updated', handleConnectionsUpdate);
-        };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        return () => unsubscribe();
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleTargetChange = (value: string) => {
         const user = auth.currentUser;
@@ -306,8 +286,7 @@ export default function ConnectionsPage() {
         setEditingTarget(newEditingTarget);
         setEditingTargetPlatform(newEditingTarget.platform);
         if(newEditingTarget.id) {
-            fetchConnections(user, newEditingTarget.type, newEditingTarget.id);
-            fetchStatus(newEditingTarget.type, newEditingTarget.id);
+            fetchAllDataForTarget(user, newEditingTarget.type, newEditingTarget.id);
         }
     };
 
@@ -356,21 +335,11 @@ export default function ConnectionsPage() {
                 keyToSave = `partner_app`;
                 dataToSave = partnerFormData;
             } else {
-                 const urlsToValidate = [
-                    { name: 'WooCommerce', url: formData.wooCommerceStoreUrl },
-                    { name: 'WordPress', url: formData.wordpressApiUrl },
-                ];
-                for (const item of urlsToValidate) {
-                    if (item.url) {
-                        try { new URL(item.url.includes('://') ? item.url : `https://${item.url}`); }
-                        catch (e) { toast({ title: "URL Inválida", description: `El formato de la URL para ${item.name} no es válido.`, variant: "destructive" }); setSaving(false); return; }
-                    }
-                }
-                const wooHostname = getHostname(formData.wooCommerceStoreUrl);
-                const wpHostname = getHostname(formData.wordpressApiUrl);
-                const shopifyHostname = getHostname(formData.shopifyStoreUrl);
+                 const wooHostname = getHostname(formData.wooCommerceStoreUrl);
+                 const wpHostname = getHostname(formData.wordpressApiUrl);
+                 const shopifyHostname = getHostname(formData.shopifyStoreUrl);
                 
-                keyToSave = selectedKey !== 'new' ? selectedKey : (wooHostname || wpHostname || shopifyHostname || '');
+                 keyToSave = selectedKey !== 'new' ? selectedKey : (wooHostname || wpHostname || shopifyHostname || '');
                 if (!keyToSave) {
                     toast({ title: "Datos Incompletos", description: "Por favor, introduce una URL válida para que sirva como identificador.", variant: "destructive" });
                     setSaving(false); return;
@@ -399,11 +368,12 @@ export default function ConnectionsPage() {
             
             toast({ title: "Credenciales Guardadas", description: `Los datos para '${keyToSave}' han sido guardados.` });
             
-            if (setActive && !isPartnerCreds) {
-                setActiveKey(keyToSave);
+            // Re-fetch all data to ensure UI is in sync.
+            await fetchAllDataForTarget(user, editingTarget.type, editingTarget.id);
+            if (!isPartnerCreds) {
+                setSelectedKey(keyToSave);
             }
-            // Trigger a re-fetch of all data after save
-            window.dispatchEvent(new Event('connections-updated'));
+             window.dispatchEvent(new CustomEvent('connections-updated'));
 
         } catch (error: any) {
             toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
@@ -415,11 +385,11 @@ export default function ConnectionsPage() {
     
     const handleDelete = async (keyToDelete: string) => {
         if (keyToDelete === 'new') return;
-        setIsDeleting(keyToDelete);
+        setIsDeleting(true);
         const user = auth.currentUser;
         if (!user || !editingTarget.id) {
             toast({ title: "Error de autenticación", variant: "destructive" });
-            setIsDeleting(null); return;
+            setIsDeleting(false); return;
         }
 
         try {
@@ -442,16 +412,17 @@ export default function ConnectionsPage() {
             
             toast({ title: "Conexión Eliminada", description: `El perfil para '${keyToDelete}' ha sido eliminado.` });
             
-            if (keyToDelete === 'partner_app') {
-                setPartnerFormData(INITIAL_PARTNER_APP_STATE);
-            }
+            // Re-fetch data and reset selection
+            await fetchAllDataForTarget(user, editingTarget.type, editingTarget.id);
+            const remainingKeys = Object.keys(allConnections).filter(k => k !== keyToDelete && k !== 'partner_app');
+            setSelectedKey(remainingKeys.length > 0 ? remainingKeys[0] : 'new');
 
-            window.dispatchEvent(new Event('connections-updated'));
+            window.dispatchEvent(new CustomEvent('connections-updated'));
             
         } catch (error: any) {
             toast({ title: "Error al Eliminar", description: error.message, variant: "destructive" });
         } finally {
-            setIsDeleting(null);
+            setIsDeleting(false);
         }
     };
     
@@ -546,7 +517,7 @@ export default function ConnectionsPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                     <ConnectionStatusIndicator status={selectedEntityStatus} isLoading={isCheckingStatus} onRefresh={() => fetchStatus(editingTarget.type, editingTarget.id)} />
+                     <ConnectionStatusIndicator status={selectedEntityStatus} isLoading={isCheckingStatus} onRefresh={() => fetchAllDataForTarget(auth.currentUser!, editingTarget.type, editingTarget.id)} />
                     <div className="flex-1">
                         <Label htmlFor="profile-selector">Selecciona un perfil para editar o añade uno nuevo</Label>
                         <Select value={selectedKey} onValueChange={setSelectedKey} disabled={isSaving || isLoading}>
@@ -650,7 +621,7 @@ export default function ConnectionsPage() {
                         <div>
                             {selectedKey !== 'new' && (
                                 <AlertDialog>
-                                    <AlertDialogTrigger asChild><Button variant="destructive" disabled={isSaving || !!isDeleting} className="w-full md:w-auto"><Trash2 className="mr-2 h-4 w-4" />Eliminar Perfil</Button></AlertDialogTrigger>
+                                    <AlertDialogTrigger asChild><Button variant="destructive" disabled={isSaving || isDeleting} className="w-full md:w-auto"><Trash2 className="mr-2 h-4 w-4" />Eliminar Perfil</Button></AlertDialogTrigger>
                                     <AlertDialogContent>
                                         <AlertDialogHeader><AlertDialogTitle>¿Estás seguro?</AlertDialogTitle><AlertDialogDescription>Se eliminará permanentemente el perfil de conexión para <strong>{selectedKey}</strong>.</AlertDialogDescription></AlertDialogHeader>
                                         <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDelete(selectedKey)} className="bg-destructive hover:bg-destructive/90">Continuar</AlertDialogAction></AlertDialogFooter>
@@ -659,7 +630,7 @@ export default function ConnectionsPage() {
                             )}
                         </div>
                         <div className="flex flex-col-reverse gap-4 md:flex-row">
-                            <Button onClick={() => handleSave(false)} disabled={isSaving || !!isDeleting} className="w-full md:w-auto">
+                            <Button onClick={() => handleSave(false)} disabled={isSaving || isDeleting} className="w-full md:w-auto">
                                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                                 {isSaving ? "Guardando..." : saveButtonText}
                             </Button>
@@ -674,9 +645,9 @@ export default function ConnectionsPage() {
                          onSave={() => handleSave(true)}
                          isSavingPartner={isSavingPartner}
                          onDelete={() => handleDelete('partner_app')}
-                         isDeleting={isDeleting === 'partner_app'}
+                         isDeleting={isDeleting}
                          configStatus={selectedEntityStatus}
-                         onRefreshStatus={() => fetchStatus(editingTarget.type, editingTarget.id)}
+                         onRefreshStatus={() => fetchAllDataForTarget(auth.currentUser!, editingTarget.type, editingTarget.id)}
                          isCheckingStatus={isCheckingStatus}
                        />
                     )}
