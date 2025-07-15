@@ -1,7 +1,7 @@
 
 // src/app/api/shopify/jobs/[jobId]/assign/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebase-admin';
+import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { getPartnerCredentials } from '@/lib/api-helpers';
 
