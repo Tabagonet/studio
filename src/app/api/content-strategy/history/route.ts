@@ -32,11 +32,24 @@ export async function GET(req: NextRequest) {
         
         const history = snapshot.docs.map(doc => {
             const data = doc.data();
+            
+            // FIX: Ensure createdAt is a string, handling both Timestamp and existing string formats.
+            let createdAtString = new Date().toISOString(); // Default to now if missing
+            if (data.createdAt) {
+                if (typeof data.createdAt.toDate === 'function') {
+                    // It's a Firestore Timestamp, convert it
+                    createdAtString = data.createdAt.toDate().toISOString();
+                } else if (typeof data.createdAt === 'string') {
+                    // It's already a string
+                    createdAtString = data.createdAt;
+                }
+            }
+            
             return {
                 id: doc.id,
                 businessContext: data.businessContext,
-                url: data.url || null, // Include the URL, defaulting to null if not present
-                createdAt: data.createdAt.toDate().toISOString(),
+                url: data.url || null,
+                createdAt: createdAtString,
                 ...data.plan,
             };
         });
