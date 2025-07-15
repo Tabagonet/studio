@@ -1,4 +1,4 @@
-
+// src/app/(app)/shopify/jobs/columns.tsx
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import Link from 'next/link';
 
 
 const StatusBadge = ({ status }: { status: ShopifyCreationJob['status'] }) => {
@@ -157,8 +158,10 @@ export const getColumns = (
                         </DropdownMenuItem>
                     )}
                     {canAuthorize && (
-                       <DropdownMenuItem onSelect={() => onAuthorize(job.id)}>
-                           <Key className="h-4 w-4 mr-2" /> Autorizar Instalación
+                       <DropdownMenuItem asChild>
+                           <Link href={`/api/shopify/auth/initiate?jobId=${job.id}`} target="_blank">
+                                <Key className="h-4 w-4 mr-2" /> Autorizar Instalación
+                           </Link>
                        </DropdownMenuItem>
                     )}
                     {canPopulate && (

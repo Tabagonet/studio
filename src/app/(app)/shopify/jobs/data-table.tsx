@@ -1,4 +1,4 @@
-
+// src/app/(app)/shopify/jobs/data-table.tsx
 "use client";
 
 import * as React from "react";
@@ -25,17 +25,14 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getColumns } from "./columns"; 
 import type { ShopifyCreationJob } from "@/lib/types";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { deleteShopifyJobsAction, initiateAuthAction } from "./actions";
+import { deleteShopifyJobsAction } from "./actions";
 import { AssignStoreDialog } from "./assign-store-dialog";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from 'next/link';
-import { AlertCircle } from 'lucide-react';
-
 
 export function JobsDataTable() {
   const [data, setData] = React.useState<ShopifyCreationJob[]>([]);
@@ -84,7 +81,6 @@ export function JobsDataTable() {
       if (user) fetchData();
     });
     
-    // Set up a poller to refresh data every 10 seconds
     const intervalId = setInterval(() => {
         if(auth.currentUser) {
             fetchData();
@@ -121,22 +117,14 @@ export function JobsDataTable() {
   };
 
   const handleAuthorize = async (jobId: string) => {
-    const user = auth.currentUser;
-    if (!user) {
-        toast({ title: "No autenticado", variant: "destructive" });
-        return;
-    }
-    const token = await user.getIdToken();
+    // This is now handled by a direct link, but we keep the function stub
+    // in case we need to revert to a server action flow.
     setAuthorizingJobId(jobId);
-
-    const result = await initiateAuthAction(jobId, token);
-    
-    if (result.success && result.installUrl) {
-        window.open(result.installUrl, '_blank');
-    } else {
-        toast({ title: "Error de Autorización", description: result.error || "No se pudo obtener la URL de instalación.", variant: "destructive" });
-    }
-    setAuthorizingJobId(null);
+    // The link will open in a new tab, so we just need to re-fetch data periodically.
+    setTimeout(() => {
+      fetchData();
+      setAuthorizingJobId(null);
+    }, 5000); // Give user time to authorize
   }
 
   const handlePopulate = async (jobId: string) => {

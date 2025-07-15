@@ -1,4 +1,4 @@
-
+// src/app/(app)/shopify/jobs/actions.ts
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -113,26 +113,4 @@ export async function deleteShopifyJobsAction(
         console.error('[Action - deleteShopifyJobs] Error committing batch delete:', error);
         return { success: false, error: 'A server error occurred during batch deletion.' };
     }
-}
-
-export async function initiateAuthAction(jobId: string, token: string): Promise<{ success: boolean; installUrl?: string; error?: string }> {
-  try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/initiate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ jobId })
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to get installation URL');
-    }
-    
-    return { success: true, installUrl: data.installUrl };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
 }

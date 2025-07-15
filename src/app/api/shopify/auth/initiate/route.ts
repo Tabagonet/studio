@@ -3,21 +3,37 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { getPartnerCredentials } from '@/lib/api-helpers';
 
-// This endpoint is now called from a server action and returns the URL as JSON
-// instead of performing a redirect itself.
+export const dynamic = 'force-dynamic';
 
-export async function POST(req: NextRequest) {
+export async function GET(req: NextRequest) {
     let uid: string;
     try {
-        const token = req.headers.get('Authorization')?.split('Bearer ')[1];
-        if (!token) throw new Error('No auth token provided');
-        if (!adminAuth) throw new Error("Firebase Admin not initialized");
-        uid = (await adminAuth.verifyIdToken(token)).uid;
+        // Since this is a direct navigation, we can't use Authorization headers.
+        // We must rely on the user's browser session cookie, which Next.js automatically handles
+        // when calling adminAuth.verifyIdToken with the session cookie.
+        // This is a common pattern for server-side auth checks on navigation.
+        // For this to work in production, proper cookie configuration is needed.
+        // Note: This part of the auth flow is complex. For now, we'll verify the user is logged in.
+        // A more robust solution might involve a temporary, single-use token.
+        const sessionCookie = req.cookies.get('__session')?.value;
+        if (!sessionCookie) {
+             const token = req.headers.get('Authorization')?.split('Bearer ')[1];
+             if(!token) throw new Error('No auth token or session found.');
+             uid = (await adminAuth.verifyIdToken(token)).uid;
+        } else {
+             const decodedToken = await adminAuth.verifySessionCookie(sessionCookie, true);
+             uid = decodedToken.uid;
+        }
+
     } catch(e: any) {
-         return NextResponse.json({ error: 'Forbidden', details: e.message }, { status: 403 });
+         console.error("Auth error in initiate route:", e.message);
+         // Redirect to login if auth fails
+         const loginUrl = new URL('/login', req.nextUrl.origin);
+         return NextResponse.redirect(loginUrl.toString());
     }
 
-    const { jobId } = await req.json();
+    const { searchParams } = new URL(req.url);
+    const jobId = searchParams.get('jobId');
 
     if (!jobId) {
         return NextResponse.json({ error: 'Job ID is required.' }, { status: 400 });
@@ -50,7 +66,6 @@ export async function POST(req: NextRequest) {
              return NextResponse.json({ error: 'Forbidden: You are not authorized to perform this action for this job.' }, { status: 403 });
         }
 
-        // Generate the install URL
         const partnerCreds = await getPartnerCredentials();
         if (!partnerCreds.clientId) throw new Error("Client ID de la App Personalizada no configurado.");
         if (!jobData.storeDomain) throw new Error("El dominio de la tienda no está asignado a este trabajo.");
@@ -60,12 +75,16 @@ export async function POST(req: NextRequest) {
         
         console.log(`[Shopify Auth Initiate] Generated Redirect URI for Shopify: ${redirectUri}`);
 
-        const installUrl = `https://${jobData.storeDomain}/admin/oauth/authorize?client_id=${partnerCreds.clientId}&scope=${scopes}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${jobId}`;
+        const installUrl = new URL(`https://${jobData.storeDomain}/admin/oauth/authorize`);
+        installUrl.searchParams.set('client_id', partnerCreds.clientId);
+        installUrl.searchParams.set('scope', scopes);
+        installUrl.searchParams.set('redirect_uri', redirectUri);
+        installUrl.searchParams.set('state', jobId);
         
-        // Update the job with the generated URL, but return it in the response.
-        await jobRef.update({ installUrl });
+        await jobRef.update({ installUrl: installUrl.toString() });
 
-        return NextResponse.json({ installUrl });
+        // Redirect the user's browser to the Shopify authorization page
+        return NextResponse.redirect(installUrl.toString());
 
     } catch (error: any) {
         console.error(`Error initiating auth for job ${jobId}:`, error);
