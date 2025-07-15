@@ -1,41 +1,23 @@
-
 // src/app/api/shopify/auth/initiate/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { getPartnerCredentials } from '@/lib/api-helpers';
 
-async function isAuthorized(req: NextRequest): Promise<boolean> {
-    // This function can be simplified now that we rely on the browser's session cookie
-    // but we keep it for security. The cookie is automatically sent by the browser.
-    const token = req.cookies.get('__session')?.value;
-    if (!token) {
-        // Fallback for direct API calls, if any
-        const authHeader = req.headers.get('Authorization')?.split('Bearer ')[1];
-        if(!authHeader) return false;
-        try {
-            await adminAuth.verifyIdToken(authHeader);
-            return true;
-        } catch {
-            return false;
-        }
-    }
+// This endpoint is now called from a server action and returns the URL as JSON
+// instead of performing a redirect itself.
 
+export async function POST(req: NextRequest) {
+    let uid: string;
     try {
+        const token = req.headers.get('Authorization')?.split('Bearer ')[1];
+        if (!token) throw new Error('No auth token provided');
         if (!adminAuth) throw new Error("Firebase Admin not initialized");
-        await adminAuth.verifySessionCookie(token, true);
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-export async function GET(req: NextRequest) {
-    if (!await isAuthorized(req)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        uid = (await adminAuth.verifyIdToken(token)).uid;
+    } catch(e: any) {
+         return NextResponse.json({ error: 'Forbidden', details: e.message }, { status: 403 });
     }
 
-    const { searchParams } = new URL(req.url);
-    const jobId = searchParams.get('jobId');
+    const { jobId } = await req.json();
 
     if (!jobId) {
         return NextResponse.json({ error: 'Job ID is required.' }, { status: 400 });
@@ -51,23 +33,36 @@ export async function GET(req: NextRequest) {
         }
         const jobData = jobDoc.data()!;
 
-        if (!jobData.installUrl) {
-            // This part is a fallback, but the URL should ideally be generated during assignment.
-            console.log(`Install URL not found for job ${jobId}, generating it now...`);
-            const partnerCreds = await getPartnerCredentials();
-            if (!partnerCreds.clientId) throw new Error("Client ID de la App Personalizada no configurado.");
-            if (!jobData.storeDomain) throw new Error("El dominio de la tienda no está asignado a este trabajo.");
-
-            const scopes = 'write_products,write_content,write_themes,read_products,read_content,read_themes,write_navigation,read_navigation,write_files,read_files,write_blogs,read_blogs';
-            const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
-            const installUrl = `https://${jobData.storeDomain}/admin/oauth/authorize?client_id=${partnerCreds.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${jobId}`;
-            
-            await jobRef.update({ installUrl });
-            return NextResponse.redirect(installUrl);
+        // Security check: ensure the user initiating is related to the job's entity.
+        const userDoc = await adminDb.collection('users').doc(uid).get();
+        const userData = userDoc.data();
+        
+        let isAuthorized = false;
+        if (userData?.role === 'super_admin') {
+            isAuthorized = true;
+        } else if (jobData.entity.type === 'company' && userData?.companyId === jobData.entity.id) {
+            isAuthorized = true;
+        } else if (jobData.entity.type === 'user' && uid === jobData.entity.id) {
+            isAuthorized = true;
         }
 
-        // Redirect the user to the pre-generated install URL
-        return NextResponse.redirect(jobData.installUrl);
+        if (!isAuthorized) {
+             return NextResponse.json({ error: 'Forbidden: You are not authorized to perform this action for this job.' }, { status: 403 });
+        }
+
+        // Generate the install URL
+        const partnerCreds = await getPartnerCredentials();
+        if (!partnerCreds.clientId) throw new Error("Client ID de la App Personalizada no configurado.");
+        if (!jobData.storeDomain) throw new Error("El dominio de la tienda no está asignado a este trabajo.");
+
+        const scopes = 'write_products,write_content,write_themes,read_products,read_content,read_themes,write_navigation,read_navigation,write_files,read_files,write_blogs,read_blogs';
+        const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
+        const installUrl = `https://${jobData.storeDomain}/admin/oauth/authorize?client_id=${partnerCreds.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${jobId}`;
+        
+        // Update the job with the generated URL, but return it in the response.
+        await jobRef.update({ installUrl });
+
+        return NextResponse.json({ installUrl });
 
     } catch (error: any) {
         console.error(`Error initiating auth for job ${jobId}:`, error);

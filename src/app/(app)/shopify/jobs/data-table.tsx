@@ -30,7 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { deleteShopifyJobsAction } from "./actions";
+import { deleteShopifyJobsAction, initiateAuthAction } from "./actions";
 import { AssignStoreDialog } from "./assign-store-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from 'next/link';
@@ -49,6 +49,7 @@ export function JobsDataTable() {
   const [isDeleting, setIsDeleting] = React.useState<string[]>([]);
   const [jobToAssign, setJobToAssign] = React.useState<ShopifyCreationJob | null>(null);
   const [populatingJobId, setPopulatingJobId] = React.useState<string | null>(null);
+  const [authorizingJobId, setAuthorizingJobId] = React.useState<string | null>(null);
 
   const [showConfigErrorDialog, setShowConfigErrorDialog] = React.useState(false);
   const [configErrorMessage, setConfigErrorMessage] = React.useState('');
@@ -119,6 +120,25 @@ export function JobsDataTable() {
       setIsDeleting([]);
   };
 
+  const handleAuthorize = async (jobId: string) => {
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: "No autenticado", variant: "destructive" });
+        return;
+    }
+    const token = await user.getIdToken();
+    setAuthorizingJobId(jobId);
+
+    const result = await initiateAuthAction(jobId, token);
+    
+    if (result.success && result.installUrl) {
+        window.open(result.installUrl, '_blank');
+    } else {
+        toast({ title: "Error de Autorización", description: result.error || "No se pudo obtener la URL de instalación.", variant: "destructive" });
+    }
+    setAuthorizingJobId(null);
+  }
+
   const handlePopulate = async (jobId: string) => {
      const user = auth.currentUser;
       if (!user) {
@@ -168,9 +188,11 @@ export function JobsDataTable() {
       (jobId) => handleDelete([jobId]),
       (job) => setJobToAssign(job),
       handlePopulate,
+      handleAuthorize,
       isJobDeleting,
-      populatingJobId
-  ), [isDeleting, populatingJobId]); 
+      populatingJobId,
+      authorizingJobId
+  ), [isDeleting, populatingJobId, authorizingJobId]); 
 
   const table = useReactTable({
     data,

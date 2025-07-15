@@ -8,7 +8,6 @@ import { ArrowUpDown, ExternalLink, Loader2, CheckCircle, AlertCircle, Circle, L
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-import Link from 'next/link';
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -56,8 +55,10 @@ export const getColumns = (
   onDelete: (jobId: string) => void,
   onAssign: (job: ShopifyCreationJob) => void,
   onPopulate: (jobId: string) => void,
+  onAuthorize: (jobId: string) => void,
   isDeleting: (jobId: string) => boolean,
-  isPopulating: string | null
+  isPopulating: string | null,
+  isAuthorizing: string | null,
 ): ColumnDef<ShopifyCreationJob>[] => [
   {
     id: "select",
@@ -133,19 +134,18 @@ export const getColumns = (
     cell: ({ row }) => {
       const job = row.original;
       const canAssign = job.status === 'pending';
-      const canAuthorize = job.status === 'awaiting_auth' && job.installUrl;
+      const canAuthorize = job.status === 'awaiting_auth';
       const canPopulate = job.status === 'authorized';
       const canOpenAdmin = ['authorized', 'populating', 'completed'].includes(job.status) && job.storeDomain;
-      const isJobDeleting = isDeleting(job.id);
-      const isJobPopulating = isPopulating === job.id;
+      const isLoading = isDeleting(job.id) || isPopulating === job.id || isAuthorizing === job.id;
 
       return (
         <div className="text-right">
              <AlertDialog>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="h-8 w-8 p-0" disabled={isJobDeleting || isJobPopulating}>
-                       {isJobDeleting || isJobPopulating ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
+                    <Button variant="ghost" className="h-8 w-8 p-0" disabled={isLoading}>
+                       {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -157,10 +157,8 @@ export const getColumns = (
                         </DropdownMenuItem>
                     )}
                     {canAuthorize && (
-                       <DropdownMenuItem asChild>
-                           <Link href={`/api/shopify/auth/initiate?jobId=${job.id}`} target="_blank" rel="noopener noreferrer">
-                                <Key className="h-4 w-4 mr-2" /> Autorizar Instalación
-                           </Link>
+                       <DropdownMenuItem onSelect={() => onAuthorize(job.id)}>
+                           <Key className="h-4 w-4 mr-2" /> Autorizar Instalación
                        </DropdownMenuItem>
                     )}
                     {canPopulate && (
@@ -170,9 +168,9 @@ export const getColumns = (
                     )}
                     {canOpenAdmin && (
                         <DropdownMenuItem asChild>
-                             <Link href={`https://${job.storeDomain}/admin`} target="_blank" rel="noopener noreferrer">
+                             <a href={`https://${job.storeDomain}/admin`} target="_blank" rel="noopener noreferrer">
                                 <ExternalLink className="h-4 w-4 mr-2" /> Abrir Admin
-                            </Link>
+                            </a>
                         </DropdownMenuItem>
                     )}
                     <DropdownMenuSeparator />
