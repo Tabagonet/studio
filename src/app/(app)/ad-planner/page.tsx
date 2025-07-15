@@ -295,8 +295,12 @@ CUESTIONARIO GENERAL PARA EMPRESAS - PLANIFICACIÓN DE ESTRATEGIA DIGITAL
                     <div className="flex items-center space-x-3">
                         <Megaphone className="h-8 w-8 text-primary" />
                         <div>
-                            <CardTitle>Planificador de Publicidad con IA</CardTitle>
-                            <CardDescription>Genera planes de publicidad digital profesionales para cualquier web.</CardDescription>
+                            <CardTitle>
+                                {adPlan ? `Plan de Publicidad: ${adPlan.url}` : 'Planificador de Publicidad con IA'}
+                            </CardTitle>
+                            <CardDescription>
+                                {adPlan ? 'Revisa, edita y guarda tu plan estratégico.' : 'Genera planes de publicidad digital profesionales para cualquier web.'}
+                            </CardDescription>
                         </div>
                     </div>
                 </CardHeader>
