@@ -11,17 +11,22 @@ async function fetchAdPlanData(uid: string, url: string | null) {
     try {
         let query = adminDb.collection('ad_plans').where('userId', '==', uid);
         
-        // If a specific URL is provided, filter by it.
-        // Otherwise, just get the most recent plan for the user.
         if (url) {
             query = query.where('url', '==', url);
         }
         
-        const adPlansSnapshot = await query.orderBy('createdAt', 'desc').limit(1).get();
+        const adPlansSnapshot = await query.get();
             
         if (adPlansSnapshot.empty) return null;
+
+        // Sort in-memory to find the most recent plan
+        const sortedDocs = adPlansSnapshot.docs.sort((a, b) => {
+            const dateA = a.data().createdAt?.toDate() || 0;
+            const dateB = b.data().createdAt?.toDate() || 0;
+            return dateB - dateA;
+        });
         
-        const adPlan = adPlansSnapshot.docs[0].data();
+        const adPlan = sortedDocs[0].data();
         return {
             objectives: adPlan.objectives,
             valueProposition: adPlan.valueProposition,
@@ -40,13 +45,19 @@ async function fetchSeoAnalysesData(uid: string) {
     try {
         const analysesSnapshot = await adminDb.collection('seo_analyses')
             .where('userId', '==', uid)
-            .orderBy('createdAt', 'desc')
-            .limit(10)
+            .limit(10) // Limit to a reasonable number to avoid large reads
             .get();
 
         if (analysesSnapshot.empty) return [];
+        
+        // Sort in-memory
+        const sortedDocs = analysesSnapshot.docs.sort((a, b) => {
+            const dateA = a.data().createdAt?.toDate() || 0;
+            const dateB = b.data().createdAt?.toDate() || 0;
+            return dateB - dateA;
+        });
 
-        return analysesSnapshot.docs.map(doc => {
+        return sortedDocs.map(doc => {
             const data = doc.data();
             return {
                 title: data.analysis?.title,
