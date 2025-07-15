@@ -16,6 +16,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { deleteStrategyPlanAction } from './actions';
+import Link from 'next/link';
 
 
 interface KeywordCluster {
@@ -119,11 +120,19 @@ const PlanView = ({ plan, onReset }: { plan: StrategyPlan, onReset: () => void }
                                     <CardDescription>Intención de búsqueda: <strong>{cluster.intent}</strong></CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <ul className="list-disc list-inside space-y-2">
+                                    <ul className="list-disc list-inside space-y-3">
                                         {cluster.articles.map((article, i) => (
-                                            <li key={i}>
-                                                <span className="font-semibold">{article.title}</span>
-                                                <p className="text-sm text-muted-foreground pl-4">Palabras clave: {article.keywords.join(', ')}</p>
+                                            <li key={i} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                                <div>
+                                                  <span className="font-semibold">{article.title}</span>
+                                                  <p className="text-sm text-muted-foreground sm:pl-4">Palabras clave: {article.keywords.join(', ')}</p>
+                                                </div>
+                                                <Button asChild size="sm" variant="secondary" className="flex-shrink-0">
+                                                    <Link href={`/blog-creator?topic=${encodeURIComponent(article.title)}&keywords=${encodeURIComponent(article.keywords.join(','))}`}>
+                                                        <Newspaper className="h-4 w-4 mr-2"/>
+                                                        Crear Entrada
+                                                    </Link>
+                                                </Button>
                                             </li>
                                         ))}
                                     </ul>
@@ -152,12 +161,10 @@ export default function ContentStrategyPage() {
   
   const fetchHistory = useCallback(async () => {
     setIsLoadingHistory(true);
-    console.log('[Content Strategy Page] Starting to fetch history...');
     const user = auth.currentUser;
     if (!user) {
         setIsLoadingHistory(false);
         setHistory([]);
-        console.log('[Content Strategy Page] No user, history fetch aborted.');
         return;
     }
     try {
@@ -166,18 +173,14 @@ export default function ContentStrategyPage() {
         const data = await response.json();
         
         if (response.ok) {
-            console.log(`[Content Strategy Page] Successfully fetched ${data.history?.length || 0} history items.`);
             setHistory(data.history);
         } else {
-            console.error('[Content Strategy Page] API error fetching history:', data);
             throw new Error(data.error || 'Failed to fetch history');
         }
     } catch (error: any) {
-        console.error('[Content Strategy Page] Catch block error fetching history:', error);
         toast({ title: "Error al cargar historial", description: error.message, variant: "destructive" });
     } finally {
         setIsLoadingHistory(false);
-        console.log('[Content Strategy Page] Finished fetching history.');
     }
   }, [toast]);
   

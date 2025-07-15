@@ -1,7 +1,8 @@
 
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import type { BlogPostData, SubmissionStep, SubmissionStatus, ProductPhoto } from '@/lib/types';
 import { INITIAL_BLOG_DATA } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
@@ -31,10 +32,19 @@ export function BlogCreator() {
   const [finalLinks, setFinalLinks] = useState<{ url: string; title: string }[]>([]);
 
   const { toast } = useToast();
+  const searchParams = useSearchParams();
 
   const updatePostData = useCallback((data: Partial<BlogPostData>) => {
     setPostData(prev => ({ ...prev, ...data }));
   }, []);
+
+  useEffect(() => {
+    const topic = searchParams.get('topic');
+    const keywords = searchParams.get('keywords');
+    if (topic) {
+        updatePostData({ topic, keywords: keywords || '' });
+    }
+  }, [searchParams, updatePostData]);
 
   const updateStepStatus = (id: string, status: SubmissionStep['status'], error?: string) => {
     setSteps(prevSteps => 
