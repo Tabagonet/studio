@@ -6,44 +6,50 @@ import type { StrategyPlan } from '@/app/(app)/content-strategy/page';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+    console.log('[Content Strategy History] GET request received.');
     let uid: string;
     try {
         const token = req.headers.get('Authorization')?.split('Bearer ')[1];
         if (!token) throw new Error('Auth token missing');
         if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized.");
         uid = (await adminAuth.verifyIdToken(token)).uid;
+        console.log(`[Content Strategy History] User authenticated. UID: ${uid}`);
     } catch (e: any) {
+        console.error('[Content Strategy History] Authentication failed:', e.message);
         return NextResponse.json({ error: 'Auth failed', message: e.message }, { status: 401 });
     }
     
     if (!adminDb) {
+        console.error('[Content Strategy History] Firestore not configured.');
         return NextResponse.json({ error: 'Firestore not configured.' }, { status: 503 });
     }
 
     try {
+        console.log('[Content Strategy History] Querying content_strategy_plans collection...');
         const snapshot = await adminDb.collection('content_strategy_plans')
             .where('userId', '==', uid)
             .orderBy('createdAt', 'desc')
             .limit(50)
             .get();
+        console.log(`[Content Strategy History] Firestore query returned ${snapshot.size} documents.`);
 
         if (snapshot.empty) {
+            console.log('[Content Strategy History] No plans found. Returning empty history.');
             return NextResponse.json({ history: [] });
         }
         
         const history: StrategyPlan[] = [];
         snapshot.docs.forEach(doc => {
+            console.log(`[Content Strategy History] Processing document ID: ${doc.id}`);
             try {
                 const data = doc.data();
-                // Basic validation to ensure the document has the minimum required structure
                 if (!data || !data.createdAt || typeof data.createdAt.toDate !== 'function' || !data.businessContext || !data.plan) {
-                     console.warn(`Skipping malformed content strategy plan document: ${doc.id}`);
+                     console.warn(`[Content Strategy History] Skipping malformed document: ${doc.id}. Data:`, data);
                      return;
                 }
 
                 const createdAtString = data.createdAt.toDate().toISOString();
                 
-                // Construct a valid plan object, providing defaults for missing fields
                 const plan: StrategyPlan = {
                     id: doc.id,
                     businessContext: data.businessContext,
@@ -53,17 +59,17 @@ export async function GET(req: NextRequest) {
                     keywordClusters: data.plan?.keywordClusters || [],
                 };
                 history.push(plan);
-
+                console.log(`[Content Strategy History] Successfully processed document ID: ${doc.id}`);
             } catch (innerError: any) {
-                // Log the error for the specific document but don't crash the entire request
-                console.error(`Failed to process document ${doc.id} in content strategy history:`, innerError.message);
+                console.error(`[Content Strategy History] Failed to process document ${doc.id}:`, innerError.message);
             }
         });
 
+        console.log(`[Content Strategy History] Successfully processed ${history.length} plans. Sending response.`);
         return NextResponse.json({ history });
 
     } catch (error: any) {
-        console.error('Error fetching content strategy history:', error);
+        console.error('[Content Strategy History] Final catch block error:', error);
         return NextResponse.json({ error: 'Failed to fetch history', details: error.message }, { status: 500 });
     }
 }

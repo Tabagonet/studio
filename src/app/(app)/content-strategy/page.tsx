@@ -152,24 +152,32 @@ export default function ContentStrategyPage() {
   
   const fetchHistory = useCallback(async () => {
     setIsLoadingHistory(true);
+    console.log('[Content Strategy Page] Starting to fetch history...');
     const user = auth.currentUser;
     if (!user) {
         setIsLoadingHistory(false);
         setHistory([]);
+        console.log('[Content Strategy Page] No user, history fetch aborted.');
         return;
     }
     try {
         const token = await user.getIdToken();
         const response = await fetch('/api/content-strategy/history', { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await response.json();
+        
         if (response.ok) {
-            setHistory((await response.json()).history);
+            console.log(`[Content Strategy Page] Successfully fetched ${data.history?.length || 0} history items.`);
+            setHistory(data.history);
         } else {
-            throw new Error((await response.json()).error || 'Failed to fetch history');
+            console.error('[Content Strategy Page] API error fetching history:', data);
+            throw new Error(data.error || 'Failed to fetch history');
         }
     } catch (error: any) {
+        console.error('[Content Strategy Page] Catch block error fetching history:', error);
         toast({ title: "Error al cargar historial", description: error.message, variant: "destructive" });
     } finally {
         setIsLoadingHistory(false);
+        console.log('[Content Strategy Page] Finished fetching history.');
     }
   }, [toast]);
   
