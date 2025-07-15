@@ -1,3 +1,4 @@
+
 // src/app/(app)/settings/connections/page.tsx
 "use client";
 
@@ -246,7 +247,7 @@ export default function ConnectionsPage() {
                 initialName = userData.companyName || 'Mis Conexiones';
                 initialPlatform = userData.companyPlatform || userData.platform;
             }
-
+            console.log(`[FE] Initializing for Entity -> Type: ${initialType}, ID: ${initialId}, Name: ${initialName}`);
             setEditingTarget({ type: initialType, id: initialId, name: initialName });
             setEditingTargetPlatform(initialPlatform);
             if (initialId) {
@@ -290,6 +291,7 @@ export default function ConnectionsPage() {
             const company = allCompanies.find(c => c.id === id);
             newEditingTarget = { type: 'company', id: id, name: company?.name || 'Empresa Desconocida', platform: company?.platform || null };
         }
+        console.log(`[FE] User changed target entity to -> Type: ${newEditingTarget.type}, ID: ${newEditingTarget.id}`);
         setEditingTarget(newEditingTarget);
         setEditingTargetPlatform(newEditingTarget.platform);
         if(newEditingTarget.id) {
@@ -324,6 +326,7 @@ export default function ConnectionsPage() {
     const handleSave = async (isPartnerCreds: boolean = false) => {
         const setSaving = isPartnerCreds ? setIsSavingPartner : setIsSaving;
         setSaving(true);
+        console.log(`[FE] handleSave called. isPartner: ${isPartnerCreds}`);
 
         const user = auth.currentUser;
         if (!user || !editingTarget.id) {
@@ -362,6 +365,7 @@ export default function ConnectionsPage() {
                 entityType: editingTarget.type,
                 isPartner: isPartnerCreds,
             };
+            console.log(`[FE] Sending SAVE payload to API:`, payload);
 
             const response = await fetch('/api/user-settings/connections', {
                 method: 'POST',
@@ -406,6 +410,7 @@ export default function ConnectionsPage() {
                 entityId: editingTarget.id,
                 entityType: editingTarget.type,
             };
+            console.log(`[FE] Sending DELETE payload to API:`, payload);
             
             const response = await fetch('/api/user-settings/connections', {
                 method: 'DELETE',
@@ -419,6 +424,7 @@ export default function ConnectionsPage() {
             
             toast({ title: "Conexión Eliminada", description: `El perfil para '${keyToDelete}' ha sido eliminado.` });
             
+            // This now waits for the server to confirm before refetching data
             await fetchAllDataForTarget(user, editingTarget.type, editingTarget.id);
             window.dispatchEvent(new CustomEvent('connections-updated'));
             
@@ -475,11 +481,7 @@ export default function ConnectionsPage() {
                     <CardHeader><CardTitle>Selector de Entidad</CardTitle></CardHeader>
                     <CardContent>
                         <Label>Selecciona qué configuración deseas editar</Label>
-                        <Select
-                            value={`${editingTarget.type}:${editingTarget.id}`}
-                            onValueChange={handleTargetChange}
-                            disabled={isSaving || isDataLoading}
-                        >
+                        <Select value={`${editingTarget.type}:${editingTarget.id}`} onValueChange={handleTargetChange}>
                             <SelectTrigger><SelectValue placeholder="Elige una entidad..." /></SelectTrigger>
                             <SelectContent>
                                 <SelectGroup>

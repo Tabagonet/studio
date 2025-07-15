@@ -1,3 +1,4 @@
+
 // src/app/api/user-settings/connections/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -54,7 +55,7 @@ const connectionDataSchema = z.object({
 });
 type ConnectionData = z.infer<typeof connectionDataSchema>;
 type PartnerAppData = z.infer<typeof partnerAppConnectionDataSchema>;
-type AllConnections = { [key: string]: ConnectionData | PartnerAppData };
+type AllConnections = { [key: string]: ConnectionData | PartnerAppConnectionData };
 
 
 export async function GET(req: NextRequest) {
@@ -66,6 +67,7 @@ export async function GET(req: NextRequest) {
         const { uid, role, companyId: userCompanyId } = await getUserContext(req);
         const targetCompanyId = req.nextUrl.searchParams.get('companyId');
         const targetUserId = req.nextUrl.searchParams.get('userId');
+        console.log(`[API-CONN-GET] Request from UID: ${uid}, Role: ${role}. Target Company: ${targetCompanyId}, Target User: ${targetUserId}`);
         
         let settingsRef: FirebaseFirestore.DocumentReference;
         let entityConnections = {};
@@ -75,20 +77,26 @@ export async function GET(req: NextRequest) {
             const effectiveId = targetCompanyId || targetUserId || uid;
             const collection = targetCompanyId ? 'companies' : 'user_settings';
             settingsRef = adminDb.collection(collection).doc(effectiveId);
+             console.log(`[API-CONN-GET] Super Admin targeting -> Collection: ${collection}, Doc ID: ${effectiveId}`);
         } else {
             const collection = userCompanyId ? 'companies' : 'user_settings';
             const effectiveId = userCompanyId || uid;
             settingsRef = adminDb.collection(collection).doc(effectiveId);
+            console.log(`[API-CONN-GET] Regular Admin/User targeting -> Collection: ${collection}, Doc ID: ${effectiveId}`);
         }
         
         const settingsDoc = await settingsRef.get();
         if (settingsDoc.exists) {
             entityConnections = settingsDoc.data()?.connections || {};
+            console.log(`[API-CONN-GET] Found ${Object.keys(entityConnections).length} connections for entity.`);
+        } else {
+            console.log(`[API-CONN-GET] No settings document found for entity.`);
         }
 
         // Always fetch global partner settings separately
         const globalSettingsDoc = await adminDb.collection('companies').doc('global_settings').get();
         const partnerAppData = globalSettingsDoc.exists ? globalSettingsDoc.data()?.connections?.partner_app || null : null;
+        if(partnerAppData) console.log(`[API-CONN-GET] Found global partner app data.`);
         
         // Construct the final connections object, prioritizing global partner data
         const allConnections: AllConnections = { ...entityConnections };
@@ -103,7 +111,7 @@ export async function GET(req: NextRequest) {
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-        console.error('Error fetching connections:', error);
+        console.error('[API-CONN-GET] Error fetching connections:', error);
         return NextResponse.json({ error: errorMessage || 'Authentication required' }, { status: 401 });
     }
 }
@@ -133,18 +141,22 @@ export async function POST(req: NextRequest) {
         }
         
         const { key, connectionData, setActive, entityId, entityType, isPartner } = validationResult.data;
+        console.log(`[API-CONN-POST] Received save request. Entity: ${entityType}:${entityId}, Key: ${key}, IsPartner: ${isPartner}`);
         
         let settingsRef: FirebaseFirestore.DocumentReference;
+        let finalConnectionData: ConnectionData | PartnerAppData;
         
         if (isPartner && role === 'super_admin') {
             settingsRef = adminDb.collection('companies').doc('global_settings');
             const validation = partnerAppConnectionDataSchema.safeParse(connectionData);
             if (!validation.success) { return NextResponse.json({ error: "Invalid Partner App data", details: validation.error.flatten() }, { status: 400 }); }
+            finalConnectionData = validation.data;
         } else if (!isPartner) {
             const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
             settingsRef = adminDb.collection(settingsCollection).doc(entityId);
             const validation = connectionDataSchema.safeParse(connectionData);
             if (!validation.success) { return NextResponse.json({ error: "Invalid connection data", details: validation.error.flatten() }, { status: 400 }); }
+            finalConnectionData = validation.data;
         } else {
              return NextResponse.json({ error: 'Forbidden: Only Super Admins can edit global partner credentials.' }, { status: 403 });
         }
@@ -154,36 +166,25 @@ export async function POST(req: NextRequest) {
 
         const mergedConnectionData = {
             ...(existingConnections[key] || {}),
-            ...connectionData
+            ...finalConnectionData
         };
 
         const updatePayload: { [key: string]: any } = {
-            connections: {
-                ...existingConnections,
-                [key]: mergedConnectionData
-            }
+            [`connections.${key}`]: mergedConnectionData
         };
 
         if (setActive && !isPartner) {
             updatePayload.activeConnectionKey = key;
         }
-
+        console.log(`[API-CONN-POST] Writing to Firestore Doc: ${settingsRef.path}. Payload:`, JSON.stringify(updatePayload));
+        
+        // Using set with merge to handle both creation and update of the doc itself
         await settingsRef.set(updatePayload, { merge: true });
-        
-        if (isPartner && role === 'super_admin') {
-            const userOrCompanySettingsRef = adminDb.collection(entityType === 'company' ? 'companies' : 'user_settings').doc(entityId);
-            const userOrCompanyDoc = await userOrCompanySettingsRef.get();
-            if (userOrCompanyDoc.exists && userOrCompanyDoc.data()?.connections?.partner_app) {
-                await userOrCompanySettingsRef.update({
-                    'connections.partner_app': admin.firestore.FieldValue.delete()
-                });
-                console.log(`Cleaned up old partner_app data from ${entityType}/${entityId}`);
-            }
-        }
-        
-        // Add hostnames to next.config.js only for non-partner connections
+        console.log(`[API-CONN-POST] Firestore write successful.`);
+
+        // Only add remote patterns for non-partner connections
         if (!isPartner) {
-            const data = connectionData as ConnectionData;
+            const data = finalConnectionData as ConnectionData;
             const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = data;
             const hostnamesToAdd = new Set<string>();
 
@@ -193,7 +194,7 @@ export async function POST(req: NextRequest) {
                         const fullUrl = url.startsWith('http') ? url : `https://${url}`;
                         hostnamesToAdd.add(new URL(fullUrl).hostname); 
                     }
-                    catch { console.warn(`Invalid URL provided, skipping remote pattern: ${url}`); }
+                    catch { console.warn(`[API-CONN-POST] Invalid URL provided, skipping remote pattern: ${url}`); }
                 }
             };
             addHostname(wooCommerceStoreUrl);
@@ -201,7 +202,8 @@ export async function POST(req: NextRequest) {
             addHostname(shopifyStoreUrl);
             
             if (hostnamesToAdd.size > 0) {
-                const promises = Array.from(hostnamesToAdd).map(hostname => addRemotePattern(hostname).catch(err => console.error(`Failed to add remote pattern for ${hostname}:`, err)));
+                 console.log(`[API-CONN-POST] Attempting to add hostnames to next.config.js:`, Array.from(hostnamesToAdd));
+                const promises = Array.from(hostnamesToAdd).map(hostname => addRemotePattern(hostname).catch(err => console.error(`[API-CONN-POST] Failed to add remote pattern for ${hostname}:`, err)));
                 await Promise.all(promises);
             }
         }
@@ -210,7 +212,7 @@ export async function POST(req: NextRequest) {
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-        console.error('POST /api/user-settings/connections: Error al guardar conexiones', error);
+        console.error('[API-CONN-POST] Error saving connection:', error);
         return NextResponse.json({ error: errorMessage || 'Failed to save connections' }, { status: 500 });
     }
 }
@@ -235,6 +237,8 @@ export async function DELETE(req: NextRequest) {
         }
         
         const { key, entityId, entityType } = validationResult.data;
+        console.log(`[API-CONN-DELETE] Received delete request. Entity: ${entityType}:${entityId}, Key: ${key}`);
+        
         let settingsRef: FirebaseFirestore.DocumentReference;
 
         if (key === 'partner_app') {
@@ -250,6 +254,7 @@ export async function DELETE(req: NextRequest) {
         const doc = await settingsRef.get();
         const currentData = doc.data();
         if (!doc.exists || !currentData?.connections?.[key]) {
+             console.log(`[API-CONN-DELETE] Connection key '${key}' not found. No action taken.`);
             return NextResponse.json({ success: true, message: 'Connection already deleted.' });
         }
 
@@ -260,15 +265,18 @@ export async function DELETE(req: NextRequest) {
         if (currentData?.activeConnectionKey === key) {
             const otherKeys = Object.keys(currentData.connections || {}).filter(k => k !== key && k !== 'partner_app');
             updatePayload.activeConnectionKey = otherKeys.length > 0 ? otherKeys[0] : null;
+             console.log(`[API-CONN-DELETE] Deleting active key. New active key will be: ${updatePayload.activeConnectionKey}`);
         }
         
+        console.log(`[API-CONN-DELETE] Deleting from Firestore Doc: ${settingsRef.path}. Payload:`, JSON.stringify(updatePayload));
         await settingsRef.update(updatePayload);
+        console.log(`[API-CONN-DELETE] Firestore delete successful.`);
 
         return NextResponse.json({ success: true, message: 'Connection deleted successfully.' });
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-        console.error('Error deleting user connection:', error);
+        console.error('[API-CONN-DELETE] Error deleting user connection:', error);
         return NextResponse.json({ error: errorMessage || 'Failed to delete connection' }, { status: 500 });
     }
 }
