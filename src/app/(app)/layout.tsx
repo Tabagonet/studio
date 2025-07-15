@@ -16,12 +16,14 @@ export default function AuthenticatedAppLayout({
 }) {
   const router = useRouter();
   const [authStatus, setAuthStatus] = useState<AuthStatus>('loading');
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
       if (!user) {
         setAuthStatus('unauthenticated');
         router.replace('/login'); 
+        setIsLoading(false);
         return;
       }
 
@@ -55,18 +57,18 @@ export default function AuthenticatedAppLayout({
 
       } catch (error) {
         console.error("Error verifying user role:", error);
-        // Fallback to unauthenticated to prevent access on error
         setAuthStatus('unauthenticated');
-        // Optionally sign out the user if verification fails critically
-        // await auth.signOut(); 
         router.replace('/login');
+      } finally {
+        setIsLoading(false);
       }
     });
 
     return () => unsubscribe(); 
-  }, [router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
-  if (authStatus === 'loading') {
+  if (isLoading || authStatus === 'loading') {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
