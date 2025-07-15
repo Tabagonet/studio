@@ -1,13 +1,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, admin, adminAuth, getServiceAccountCredentials } from '@/lib/firebase-admin';
+import { adminDb, admin, adminAuth } from '@/lib/firebase-admin';
 import { z } from 'zod';
-import { CloudTasksClient } from '@google-cloud/tasks';
 
 // This API route handles requests to create new Shopify jobs.
-// It validates the input, creates a job record in Firestore.
-// The actual store creation is a manual step by the partner.
-// The assignment of a store and population is handled by other endpoints/tasks.
+// It validates the input and creates a job record in Firestore.
 
 export const dynamic = 'force-dynamic';
 
@@ -45,19 +42,79 @@ const shopifyJobCreationSchema = z.object({
   })
 });
 
+const testCreationSchema = z.object({
+  isTest: z.boolean().optional(),
+});
+
+
+async function handleTestCreation(uid: string) {
+    console.log(`[Shopify Job] Test Call: Generating test data for user ${uid}...`);
+    if (!adminDb) {
+      throw new Error("Firestore is not configured.");
+    }
+    
+    const timestamp = Date.now();
+    const storeData = {
+        storeName: `Tienda de Prueba ${timestamp}`,
+        businessEmail: `test-${timestamp}@example.com`,
+    };
+    
+    const companyQuery = await adminDb.collection('companies').where('name', '==', 'Grupo 4 alas S.L.').limit(1).get();
+    if (companyQuery.empty) {
+      throw new Error("La empresa propietaria 'Grupo 4 alas S.L.' no se encuentra en la base de datos.");
+    }
+    const ownerCompanyId = companyQuery.docs[0].id;
+    console.log(`[Shopify Job] Test Call: Found owner company ID: ${ownerCompanyId}`);
+
+    const jobPayload = {
+      webhookUrl: "https://webhook.site/#!/view/1b8a9b3f-8c3b-4c1e-9d2a-9e1b5f6a7d1c", // Placeholder
+      storeName: storeData.storeName,
+      businessEmail: storeData.businessEmail,
+      brandDescription: "Una tienda de prueba generada automáticamente para verificar el flujo de creación de AutoPress AI.",
+      targetAudience: "Desarrolladores y equipo de producto.",
+      brandPersonality: "Funcional, robusta y eficiente.",
+      productTypeDescription: 'Productos de ejemplo para tienda nueva',
+      creationOptions: {
+        createExampleProducts: true,
+        numberOfProducts: 3,
+        createAboutPage: true,
+        createContactPage: true,
+        createLegalPages: true,
+        createBlogWithPosts: true,
+        numberOfBlogPosts: 2,
+        setupBasicNav: true,
+        theme: "dawn",
+      },
+      legalInfo: {
+        legalBusinessName: "AutoPress Testing SL",
+        businessAddress: "Calle Ficticia 123, 08001, Barcelona, España",
+      },
+      entity: {
+        type: 'company' as 'user' | 'company',
+        id: ownerCompanyId,
+      }
+    };
+    console.log(`[Shopify Job] Test Call: Test data generated successfully.`);
+    return jobPayload;
+}
+
 
 export async function POST(req: NextRequest) {
     console.log(`[Shopify Job] Step 1: POST request received to create a new job.`);
   try {
     const providedApiKey = req.headers.get('Authorization')?.split('Bearer ')[1];
+    let uid: string | null = null;
+    let isTestCall = false;
+
     if (!providedApiKey) {
         throw new Error('No autorizado: Falta el token de autenticación o la clave de API.');
     }
 
     try {
         if (!adminAuth) throw new Error("Firebase Admin Auth no está inicializado.");
-        await adminAuth.verifyIdToken(providedApiKey);
-        console.log(`[Shopify Job] Authenticated via Firebase token.`);
+        const decodedToken = await adminAuth.verifyIdToken(providedApiKey);
+        uid = decodedToken.uid;
+        console.log(`[Shopify Job] Authenticated via Firebase token. UID: ${uid}`);
     } catch (firebaseError) {
         console.log(`[Shopify Job] Not a Firebase token. Checking for system API key...`);
         const serverApiKey = process.env.SHOPIFY_AUTOMATION_API_KEY;
@@ -74,13 +131,26 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     console.log(`[Shopify Job] Step 2: Request body parsed.`);
     
-    const validation = shopifyJobCreationSchema.safeParse(body);
-    if (!validation.success) {
-        console.error('[Shopify Job] Step 2.1: Schema validation failed.', validation.error.flatten());
-        return NextResponse.json({ error: 'Cuerpo de la petición inválido.', details: validation.error.flatten() }, { status: 400 });
+    const testCheck = testCreationSchema.safeParse(body);
+    if (testCheck.success && testCheck.data.isTest) {
+        isTestCall = true;
+        console.log(`[Shopify Job] Step 2.1: Detected as a test call.`);
     }
-    const jobData = validation.data;
-    console.log(`[Shopify Job] Step 2.1: Schema validated successfully for job: ${jobData.storeName}`);
+
+    let jobData: z.infer<typeof shopifyJobCreationSchema>;
+
+    if (isTestCall) {
+        if (!uid) throw new Error("La llamada de prueba debe provenir de un usuario autenticado.");
+        jobData = await handleTestCreation(uid);
+    } else {
+        const validation = shopifyJobCreationSchema.safeParse(body);
+        if (!validation.success) {
+            console.error('[Shopify Job] Step 2.1: Schema validation failed.', validation.error.flatten());
+            return NextResponse.json({ error: 'Cuerpo de la petición inválido.', details: validation.error.flatten() }, { status: 400 });
+        }
+        jobData = validation.data;
+        console.log(`[Shopify Job] Step 2.1: Schema validated successfully for job: ${jobData.storeName}`);
+    }
     
     const { entity } = jobData;
     const settingsCollection = entity.type === 'company' ? 'companies' : 'user_settings';

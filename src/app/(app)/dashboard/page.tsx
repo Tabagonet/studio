@@ -28,7 +28,9 @@ interface ConfigStatus {
   wooCommerceConfigured: boolean;
   wordPressConfigured: boolean;
   shopifyConfigured: boolean;
-  shopifyPartnerConfigured: boolean; // Added this property
+  shopifyPartnerConfigured: boolean;
+  shopifyCustomAppConfigured?: boolean;
+  pluginActive: boolean;
   aiUsageCount?: number;
 }
 
@@ -114,15 +116,12 @@ export default function DashboardPage() {
         console.log('[Paso 2] Obteniendo token y llamando a la API...');
         const token = await user.getIdToken();
         
-        // This now calls the public-facing API. The API will check if the call comes
-        // from an authenticated user and allow it, OR if it has a valid Bearer token for external services.
         const response = await fetch('/api/shopify/create-store', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`, // Use user token for auth
+                'Authorization': `Bearer ${token}`, 
             },
-            // We'll send a minimal payload just to trigger the test logic in the endpoint
             body: JSON.stringify({ isTest: true })
         });
 
@@ -134,7 +133,7 @@ export default function DashboardPage() {
           router.push('/shopify/jobs');
         } else {
           console.error('[ERROR] La API falló:', result.error);
-          throw new Error(result.error || `La API respondió con un estado inesperado: ${response.status}`);
+          throw new Error(result.error || result.details?.error?.message || `La API respondió con un estado inesperado: ${response.status}`);
         }
 
     } catch(error: any) {
@@ -231,11 +230,10 @@ export default function DashboardPage() {
   const showWooCommerce = isSuperAdmin || effectivePlatform === 'woocommerce';
   const showShopify = isSuperAdmin || effectivePlatform === 'shopify';
 
-  const wooConfigured = !!configStatus?.wooCommerceConfigured;
-  const wpConfigured = !!configStatus?.wordPressConfigured;
-  const wooWpConfigured = wooConfigured && wpConfigured;
+  const wooWpConfigured = configStatus?.wooCommerceConfigured && configStatus.wordPressConfigured;
+  const wpConfigured = configStatus?.wordPressConfigured;
 
-  const shopifyPartnerConfigured = !!configStatus?.shopifyPartnerConfigured;
+  const shopifyTestReady = configStatus?.shopifyCustomAppConfigured;
 
   if (isLoading) {
     return (
@@ -321,12 +319,12 @@ export default function DashboardPage() {
              <TooltipProvider>
                 <Tooltip delayDuration={100}>
                   <TooltipTrigger asChild>
-                    <div className={cn(!configStatus?.shopifyPartnerConfigured && "cursor-not-allowed")}>
-                      <Card className={cn("shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col", !configStatus?.shopifyPartnerConfigured && "bg-muted/50")}>
+                    <div className={cn(!shopifyTestReady && "cursor-not-allowed")}>
+                      <Card className={cn("shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col", !shopifyTestReady && "bg-muted/50")}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-lg font-medium">Prueba de Creación de Tienda</CardTitle><PlayCircle className="h-6 w-6 text-[#7ab55c]" /></CardHeader>
                         <CardContent className="flex flex-col flex-grow">
                           <CardDescription className="mb-4 text-sm">Ejecuta una prueba completa del flujo de creación de tiendas de desarrollo con datos de ejemplo.</CardDescription>
-                          <Button onClick={handleRunTest} disabled={isTestRunning || !configStatus?.shopifyPartnerConfigured}>
+                          <Button onClick={handleRunTest} disabled={isTestRunning || !shopifyTestReady}>
                             {isTestRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShopifyIcon className="mr-2 h-4 w-4" />}
                             {isTestRunning ? 'Ejecutando...' : 'Iniciar Prueba'}
                           </Button>
@@ -334,7 +332,7 @@ export default function DashboardPage() {
                       </Card>
                     </div>
                   </TooltipTrigger>
-                  {!configStatus?.shopifyPartnerConfigured && (<TooltipContent><p>La conexión global de Shopify Partner no está configurada.</p></TooltipContent>)}
+                  {!shopifyTestReady && (<TooltipContent><p>La conexión global de la App Personalizada de Shopify no está configurada.</p></TooltipContent>)}
                 </Tooltip>
             </TooltipProvider>
           </div>
