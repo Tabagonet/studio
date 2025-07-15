@@ -63,6 +63,7 @@ export function ShopifyPartnerCard({
   partnerFormData,
   onPartnerFormDataChange,
   onSave,
+  onDelete,
   isSavingPartner,
   isDeleting,
   configStatus,
