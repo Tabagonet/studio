@@ -1,4 +1,3 @@
-
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -57,7 +56,6 @@ export async function getPartnerCredentials(): Promise<PartnerAppConnectionData>
         throw new Error("Los datos de la App de Partner en la configuración global no son válidos.");
     }
     
-    // Check for essential credentials for OAuth flow
     if (!partnerAppData.data.clientId || !partnerAppData.data.clientSecret) {
       throw new Error("El Client ID o Client Secret no están configurados en los ajustes globales de Shopify.");
     }
@@ -206,24 +204,20 @@ export async function uploadImageToWordPress(
   wpApi: AxiosInstance
 ): Promise<number> {
     try {
-        // Dynamically import sharp ONLY when this function is called.
         const sharp = (await import('sharp')).default;
 
-        // 1. Download the image
         const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
         const originalBuffer = Buffer.from(imageResponse.data, 'binary');
 
-        // 2. Process the image with Sharp
         const processedBuffer = await sharp(originalBuffer)
             .resize(1200, 1200, {
-                fit: 'inside', // Resize while maintaining aspect ratio
-                withoutEnlargement: true, // Don't enlarge smaller images
+                fit: 'inside',
+                withoutEnlargement: true,
             })
-            .webp({ quality: 80 }) // Convert to WebP with 80% quality
+            .webp({ quality: 80 })
             .toBuffer();
             
-        // 3. Prepare FormData for WordPress upload
-        const webpFilename = seoFilename.replace(/\.[^/.]+$/, "") + ".webp"; // Ensure filename is .webp
+        const webpFilename = seoFilename.replace(/\.[^/.]+$/, "") + ".webp";
         const formData = new FormData();
         formData.append('file', processedBuffer, webpFilename);
         formData.append('title', imageMetadata.title);
@@ -231,7 +225,6 @@ export async function uploadImageToWordPress(
         formData.append('caption', imageMetadata.caption);
         formData.append('description', imageMetadata.description);
 
-        // 4. Upload the processed image to WordPress
         const mediaResponse = await wpApi.post('/media', formData, {
             headers: {
                 ...formData.getHeaders(),
@@ -271,7 +264,6 @@ export async function findOrCreateCategoryByPath(pathString: string, wooApi: Woo
     let parentId = 0;
     let finalCategoryId: number | null = null;
     
-    // Fetch all categories once to avoid multiple API calls in the loop
     const allCategoriesResponse = await wooApi.get("products/categories", { per_page: 100 });
     const allCategories = allCategoriesResponse.data;
 
@@ -283,12 +275,10 @@ export async function findOrCreateCategoryByPath(pathString: string, wooApi: Woo
         if (foundCategory) {
             parentId = foundCategory.id;
         } else {
-            // Create the new category
             const { data: newCategory } = await wooApi.post("products/categories", {
                 name: part,
                 parent: parentId,
             });
-            // Add the new category to our local list to be found by the next iteration
             allCategories.push(newCategory);
             parentId = newCategory.id;
         }
@@ -313,7 +303,6 @@ export async function findOrCreateWpCategoryByPath(pathString: string, wpApi: Ax
     let parentId = 0;
     let finalCategoryId: number | null = null;
     
-    // Fetch all categories once to avoid multiple API calls in the loop
     const allCategoriesResponse = await wpApi.get("/categories", { params: { per_page: 100 } });
     const allCategories = allCategoriesResponse.data;
 
@@ -325,12 +314,10 @@ export async function findOrCreateWpCategoryByPath(pathString: string, wpApi: Ax
         if (foundCategory) {
             parentId = foundCategory.id;
         } else {
-            // Create the new category
             const { data: newCategory } = await wpApi.post("/categories", {
                 name: part,
                 parent: parentId,
             });
-            // Add the new category to our local list to be found by the next iteration
             allCategories.push(newCategory);
             parentId = newCategory.id;
         }
@@ -354,20 +341,17 @@ export async function findOrCreateTags(tagNames: string[], wpApi: AxiosInstance)
 
   for (const name of tagNames) {
     try {
-      // 1. Search for the tag
       const searchResponse = await wpApi.get('/tags', { params: { search: name, per_page: 1 } });
       const existingTag = searchResponse.data.find((tag: any) => tag.name.toLowerCase() === name.toLowerCase());
 
       if (existingTag) {
         tagIds.push(existingTag.id);
       } else {
-        // 2. Create the tag if it doesn't exist
         const createResponse = await wpApi.post('/tags', { name });
         tagIds.push(createResponse.data.id);
       }
     } catch (error: any) {
         console.error(`Failed to find or create tag "${name}":`, error.response?.data || error.message);
-        // Continue to the next tag even if one fails
     }
   }
   return tagIds;
@@ -377,11 +361,9 @@ export function validateHmac(searchParams: URLSearchParams, clientSecret: string
     const hmac = searchParams.get('hmac');
     if (!hmac) return false;
 
-    // Create a new URLSearchParams object without the hmac
     const params = new URLSearchParams(searchParams.toString());
     params.delete('hmac');
     
-    // The parameters must be sorted alphabetically
     params.sort();
 
     const calculatedHmac = crypto
@@ -389,7 +371,6 @@ export function validateHmac(searchParams: URLSearchParams, clientSecret: string
         .update(params.toString())
         .digest('hex');
 
-    // Use a timing-safe comparison to prevent timing attacks
     try {
         return crypto.timingSafeEqual(Buffer.from(hmac, 'hex'), Buffer.from(calculatedHmac, 'hex'));
     } catch {
@@ -398,13 +379,13 @@ export function validateHmac(searchParams: URLSearchParams, clientSecret: string
 }
 
 
-// This is now the single source of truth for getting API clients.
-// It also handles the plugin verification.
+// REFACTORED: This is the single source of truth for getting API clients.
+// It correctly handles user vs. company settings.
 export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   if (!adminDb) {
     throw new Error('Firestore admin is not initialized.');
   }
-
+  
   const userDocRef = await adminDb.collection('users').doc(uid).get();
   if (!userDocRef.exists) {
       throw new Error('User not found. Cannot determine settings.');
@@ -412,13 +393,14 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   const userData = userDocRef.data()!;
   
   let settingsSource: admin.firestore.DocumentData | undefined;
+  
   // If the user belongs to a company, fetch the company's settings.
-  if(userData.companyId) {
+  if (userData.companyId) {
       const companyDoc = await adminDb.collection('companies').doc(userData.companyId).get();
       if (companyDoc.exists) {
         settingsSource = companyDoc.data();
       } else {
-        console.warn(`User ${uid} has a companyId (${userData.companyId}), but the company document was not found. Falling back to user_settings.`);
+        console.warn(`User ${uid} has a companyId (${userData.companyId}), but the company document was not found. Falling back to personal settings.`);
       }
   } 
   
@@ -431,7 +413,7 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   }
   
   if (!settingsSource) {
-    throw new Error('No settings found for user or their company. Please configure API connections.');
+    throw new Error('No settings found for user or their company. Please configure API connections in Settings.');
   }
   
   const allConnections = settingsSource.connections || {};

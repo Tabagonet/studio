@@ -105,8 +105,6 @@ export default function DashboardPage() {
 
   const handleRunTest = async () => {
     setIsTestRunning(true);
-    console.log('[Paso 1] Iniciando prueba de creación de tienda...');
-    
     const user = auth.currentUser;
     if (!user) {
         toast({ title: 'Error de Autenticación', description: 'Por favor, inicia sesión para realizar esta acción.', variant: 'destructive' });
@@ -115,27 +113,20 @@ export default function DashboardPage() {
     }
 
     try {
-        console.log('[Paso 2] Obteniendo token y llamando a la API...');
         const token = await user.getIdToken();
         
         const response = await fetch('/api/shopify/create-store', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`, 
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ isTest: true })
         });
 
         const result = await response.json();
-
         if (response.ok) {
-          console.log('[Paso 3] Éxito. La API respondió:', result);
           toast({ title: '¡Éxito!', description: '¡Trabajo de creación de tienda enviado! Revisa el progreso en la sección de Trabajos.' });
           router.push('/shopify/jobs');
         } else {
-          console.error('[ERROR] La API falló:', result.error);
-          throw new Error(result.error || result.details?.error?.message || `La API respondió con un estado inesperado: ${response.status}`);
+          throw new Error(result.error || result.details?.message || `La API respondió con un estado inesperado: ${response.status}`);
         }
 
     } catch(error: any) {

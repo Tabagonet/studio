@@ -1,4 +1,3 @@
-
 // src/app/(app)/settings/connections/page.tsx
 "use client";
 
@@ -41,8 +40,8 @@ interface SelectedEntityStatus {
     wordPressConfigured: boolean;
     shopifyConfigured: boolean;
     shopifyPartnerConfigured?: boolean;
-    shopifyPartnerError?: string; // New field for error details
-    shopifyCustomAppConfigured?: boolean; // Added this property
+    shopifyPartnerError?: string; 
+    shopifyCustomAppConfigured?: boolean; 
     pluginActive: boolean;
     activeStoreUrl: string | null;
     activePlatform: 'woocommerce' | 'shopify' | null;
@@ -65,6 +64,7 @@ const INITIAL_PARTNER_APP_STATE: PartnerAppConnectionData = {
     organizationId: undefined,
     clientId: undefined,
     clientSecret: undefined,
+    automationApiKey: undefined,
 };
 
 function getHostname(url: string | null | undefined): string | null {
@@ -134,14 +134,11 @@ export default function ConnectionsPage() {
                 const data = await response.json();
                 const connections = data.allConnections || {};
                 setAllConnections(connections);
-
-                // Set partner data if available, otherwise reset
                 if (connections.partner_app) {
                     setPartnerFormData(connections.partner_app);
                 } else {
                     setPartnerFormData(INITIAL_PARTNER_APP_STATE);
                 }
-                
                 const currentActiveKey = data.activeConnectionKey || null;
                 setActiveKey(currentActiveKey);
                 
@@ -505,7 +502,7 @@ export default function ConnectionsPage() {
                     <CardContent>
                         <Label>Selecciona qué configuración deseas editar</Label>
                         <Select
-                            value={`${editingTarget.type}:${editingTarget.id === currentUser.uid ? 'self' : editingTarget.id}`}
+                            value={`${editingTarget.type}:${editingTarget.id}`}
                             onValueChange={handleTargetChange}
                             disabled={isSaving || isDataLoading}
                         >
@@ -513,7 +510,7 @@ export default function ConnectionsPage() {
                             <SelectContent>
                                 <SelectGroup>
                                   <SelectLabel>Super Admin</SelectLabel>
-                                  <SelectItem value="user:self"><Users className="inline-block mr-2 h-4 w-4" />Mis Conexiones (Super Admin)</SelectItem>
+                                  <SelectItem value={`user:${currentUser?.uid}`}><Users className="inline-block mr-2 h-4 w-4" />Mis Conexiones (Super Admin)</SelectItem>
                                 </SelectGroup>
                                 
                                 {allCompanies.length > 0 && <SelectSeparator />}
