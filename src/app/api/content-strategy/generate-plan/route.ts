@@ -23,13 +23,15 @@ const outputSchema = z.object({
     })),
   })),
 });
+export type StrategyPlan = z.infer<typeof outputSchema>;
+
 
 export async function POST(req: NextRequest) {
   let uid: string;
   try {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) throw new Error('No auth token provided.');
-    if (!adminAuth) throw new Error("Firebase Admin is not initialized.");
+    if (!adminAuth || !adminDb) throw new Error("Firebase Admin is not initialized.");
     uid = (await adminAuth.verifyIdToken(token)).uid;
   } catch (error: any) {
     return NextResponse.json({ error: 'Authentication failed', message: error.message }, { status: 401 });
@@ -99,9 +101,23 @@ export async function POST(req: NextRequest) {
       await adminDb.collection('user_settings').doc(uid).set({ 
         aiUsageCount: admin.firestore.FieldValue.increment(1) 
       }, { merge: true });
-    }
 
+      // Save the generated plan to history
+      const newPlanRef = adminDb.collection('content_strategy_plans').doc();
+      const planToSave = {
+        userId: uid,
+        businessContext,
+        url: url || null,
+        plan,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      await newPlanRef.set(planToSave);
+
+      return NextResponse.json({ ...plan, id: newPlanRef.id, businessContext, url: url || null, createdAt: new Date().toISOString() });
+    }
+    
     return NextResponse.json(plan);
+
   } catch (error: any) {
     console.error('Error generating content plan:', error);
     return NextResponse.json({ error: 'Failed to generate content plan', details: error.message }, { status: 500 });
