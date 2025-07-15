@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Lightbulb, Loader2, Sparkles, Wand2, Newspaper, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { auth, onAuthStateChanged } from '@/lib/firebase';
+import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -76,7 +76,7 @@ const PlanHistory = ({ history, onViewPlan, onDeletePlan }: { history: StrategyP
                                                 </AlertDialogHeader>
                                                 <AlertDialogFooter>
                                                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => onDelete(item.id!)} className="bg-destructive hover:bg-destructive/90">Sí, eliminar</AlertDialogAction>
+                                                    <AlertDialogAction onClick={() => onDeletePlan(item.id!)} className="bg-destructive hover:bg-destructive/90">Sí, eliminar</AlertDialogAction>
                                                 </AlertDialogFooter>
                                             </AlertDialogContent>
                                         </AlertDialog>
@@ -243,7 +243,7 @@ export default function ContentStrategyPage() {
         }
         const plan = await response.json();
         setStrategyPlan(plan);
-        fetchHistory(); // Refresh history after creating a new plan
+        fetchHistory();
     } catch (error: any) {
         toast({ title: "Error al generar el plan", description: error.message, variant: "destructive" });
     } finally {
@@ -259,10 +259,15 @@ export default function ContentStrategyPage() {
     }
     try {
       const token = await user.getIdToken();
-      await fetch(`/api/content-strategy/history?id=${planId}`, { 
+      const response = await fetch(`/api/content-strategy/history?id=${planId}`, { 
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${token}` }
       });
+
+      if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to delete plan.');
+      }
       toast({ title: 'Plan eliminado' });
       fetchHistory();
     } catch (e: any) {
