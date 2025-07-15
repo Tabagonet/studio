@@ -57,7 +57,10 @@ export async function POST(req: NextRequest) {
 
         const scopes = 'write_products,write_content,write_themes,read_products,read_content,read_themes,write_navigation,read_navigation,write_files,read_files,write_blogs,read_blogs';
         const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
-        const installUrl = `https://${jobData.storeDomain}/admin/oauth/authorize?client_id=${partnerCreds.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${jobId}`;
+        
+        console.log(`[Shopify Auth Initiate] Generated Redirect URI for Shopify: ${redirectUri}`);
+
+        const installUrl = `https://${jobData.storeDomain}/admin/oauth/authorize?client_id=${partnerCreds.clientId}&scope=${scopes}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${jobId}`;
         
         // Update the job with the generated URL, but return it in the response.
         await jobRef.update({ installUrl });
