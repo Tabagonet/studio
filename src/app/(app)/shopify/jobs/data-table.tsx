@@ -31,6 +31,7 @@ import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { deleteShopifyJobsAction } from "./actions";
+import { AssignStoreDialog } from "./assign-store-dialog";
 
 
 export function JobsDataTable() {
@@ -43,6 +44,7 @@ export function JobsDataTable() {
 
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = React.useState<string[]>([]);
+  const [jobToAssign, setJobToAssign] = React.useState<ShopifyCreationJob | null>(null);
 
   const fetchData = React.useCallback(async () => {
     setIsLoading(true);
@@ -114,6 +116,7 @@ export function JobsDataTable() {
   
   const columns = React.useMemo(() => getColumns(
       (jobId) => handleDelete([jobId]),
+      (job) => setJobToAssign(job),
       isJobDeleting
   ), [isDeleting]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -136,6 +139,14 @@ export function JobsDataTable() {
 
   return (
     <div className="w-full space-y-4">
+       <AssignStoreDialog 
+        job={jobToAssign}
+        onOpenChange={(open) => !open && setJobToAssign(null)}
+        onSuccess={() => {
+            setJobToAssign(null);
+            fetchData();
+        }}
+       />
       <div className="flex items-center justify-between">
          <Input
           placeholder="Filtrar por nombre de tienda..."

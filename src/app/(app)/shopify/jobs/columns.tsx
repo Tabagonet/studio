@@ -4,7 +4,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { ShopifyCreationJob } from "@/lib/types";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { ArrowUpDown, ExternalLink, Loader2, CheckCircle, AlertCircle, Circle, LockOpen, Key, MoreHorizontal, Trash2 } from "lucide-react";
+import { ArrowUpDown, ExternalLink, Loader2, CheckCircle, AlertCircle, Circle, LockOpen, Key, MoreHorizontal, Trash2, DatabaseZap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -54,6 +54,7 @@ const StatusBadge = ({ status }: { status: ShopifyCreationJob['status'] }) => {
 
 export const getColumns = (
   onDelete: (jobId: string) => void,
+  onAssign: (job: ShopifyCreationJob) => void,
   isDeleting: (jobId: string) => boolean,
 ): ColumnDef<ShopifyCreationJob>[] => [
   {
@@ -129,6 +130,7 @@ export const getColumns = (
     id: "actions",
     cell: ({ row }) => {
       const job = row.original;
+      const canAssign = job.status === 'pending';
       const canAuthorize = job.status === 'awaiting_auth' && job.installUrl;
       const canOpenAdmin = ['authorized', 'populating', 'completed'].includes(job.status) && job.createdStoreAdminUrl;
       const isJobDeleting = isDeleting(job.id);
@@ -144,6 +146,11 @@ export const getColumns = (
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                    {canAssign && (
+                        <DropdownMenuItem onSelect={() => onAssign(job)}>
+                           <DatabaseZap className="h-4 w-4 mr-2" /> Asignar Tienda
+                        </DropdownMenuItem>
+                    )}
                     {canAuthorize && (
                        <DropdownMenuItem asChild>
                            <Link href={`/api/shopify/auth/initiate?jobId=${job.id}`} target="_blank" rel="noopener noreferrer">

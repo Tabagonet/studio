@@ -1,14 +1,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, admin, adminAuth } from '@/lib/firebase-admin';
+import { adminDb, admin, adminAuth, getServiceAccountCredentials } from '@/lib/firebase-admin';
 import { z } from 'zod';
+import { CloudTasksClient } from '@google-cloud/tasks';
 
-// This API route is now responsible only for creating the initial job document.
-// The assignment of a store and the authorization flow are handled by other endpoints.
+// This API route handles requests to create new Shopify jobs.
+// It validates the input, creates a job record in Firestore.
+// The actual store creation is a manual step by the partner.
+// The assignment of a store and population is handled by other endpoints/tasks.
 
 export const dynamic = 'force-dynamic';
 
-// Schema is now much simpler, only receiving the initial request data.
 const shopifyJobCreationSchema = z.object({
   webhookUrl: z.string().url({ message: "La URL del webhook no es válida." }),
   storeName: z.string().min(3, "El nombre de la tienda debe tener al menos 3 caracteres."),
