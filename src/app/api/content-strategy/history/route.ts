@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
+import type { StrategyPlan } from '@/app/(app)/content-strategy/page';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,28 +31,39 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ history: [] });
         }
         
-        const history = snapshot.docs.map(doc => {
-            const data = doc.data();
-            
-            // FIX: Ensure createdAt is a string, handling both Timestamp and existing string formats.
-            let createdAtString = new Date().toISOString(); // Default to now if missing
-            if (data.createdAt) {
-                if (typeof data.createdAt.toDate === 'function') {
-                    // It's a Firestore Timestamp, convert it
-                    createdAtString = data.createdAt.toDate().toISOString();
-                } else if (typeof data.createdAt === 'string') {
-                    // It's already a string
-                    createdAtString = data.createdAt;
+        const history: StrategyPlan[] = [];
+        snapshot.docs.forEach(doc => {
+            try {
+                const data = doc.data();
+                if (!data) return;
+
+                // Robust date handling
+                let createdAtString = new Date().toISOString(); // Default to now if missing
+                if (data.createdAt) {
+                    if (typeof data.createdAt.toDate === 'function') {
+                        // It's a Firestore Timestamp, convert it
+                        createdAtString = data.createdAt.toDate().toISOString();
+                    } else if (typeof data.createdAt === 'string') {
+                        // It's already a string
+                        createdAtString = data.createdAt;
+                    }
                 }
+                
+                // Construct a valid plan object, providing defaults for missing fields
+                const plan: StrategyPlan = {
+                    id: doc.id,
+                    businessContext: data.businessContext || 'Contexto no disponible',
+                    url: data.url || null,
+                    createdAt: createdAtString,
+                    pillarContent: data.plan?.pillarContent || { title: 'Sin título', description: 'Sin descripción' },
+                    keywordClusters: data.plan?.keywordClusters || [],
+                };
+                history.push(plan);
+
+            } catch (innerError: any) {
+                // Log the error for the specific document but don't crash the entire request
+                console.error(`Failed to process document ${doc.id} in content strategy history:`, innerError.message);
             }
-            
-            return {
-                id: doc.id,
-                businessContext: data.businessContext,
-                url: data.url || null,
-                createdAt: createdAtString,
-                ...data.plan,
-            };
         });
 
         return NextResponse.json({ history });
