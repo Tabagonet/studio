@@ -35,24 +35,18 @@ export async function GET(req: NextRequest) {
         snapshot.docs.forEach(doc => {
             try {
                 const data = doc.data();
-                if (!data) return;
-
-                // Robust date handling
-                let createdAtString = new Date().toISOString(); // Default to now if missing
-                if (data.createdAt) {
-                    if (typeof data.createdAt.toDate === 'function') {
-                        // It's a Firestore Timestamp, convert it
-                        createdAtString = data.createdAt.toDate().toISOString();
-                    } else if (typeof data.createdAt === 'string') {
-                        // It's already a string
-                        createdAtString = data.createdAt;
-                    }
+                // Basic validation to ensure the document has the minimum required structure
+                if (!data || !data.createdAt || typeof data.createdAt.toDate !== 'function' || !data.businessContext || !data.plan) {
+                     console.warn(`Skipping malformed content strategy plan document: ${doc.id}`);
+                     return;
                 }
+
+                const createdAtString = data.createdAt.toDate().toISOString();
                 
                 // Construct a valid plan object, providing defaults for missing fields
                 const plan: StrategyPlan = {
                     id: doc.id,
-                    businessContext: data.businessContext || 'Contexto no disponible',
+                    businessContext: data.businessContext,
                     url: data.url || null,
                     createdAt: createdAtString,
                     pillarContent: data.plan?.pillarContent || { title: 'Sin título', description: 'Sin descripción' },
@@ -71,46 +65,5 @@ export async function GET(req: NextRequest) {
     } catch (error: any) {
         console.error('Error fetching content strategy history:', error);
         return NextResponse.json({ error: 'Failed to fetch history', details: error.message }, { status: 500 });
-    }
-}
-
-export async function DELETE(req: NextRequest) {
-    let uid: string;
-    try {
-        const token = req.headers.get('Authorization')?.split('Bearer ')[1];
-        if (!token) throw new Error('Auth token missing');
-        if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized.");
-        uid = (await adminAuth.verifyIdToken(token)).uid;
-    } catch (e: any) {
-        return NextResponse.json({ error: 'Auth failed', message: e.message }, { status: 401 });
-    }
-    
-    if (!adminDb) {
-        return NextResponse.json({ error: 'Firestore not configured.' }, { status: 503 });
-    }
-    
-    const { searchParams } = new URL(req.url);
-    const planId = searchParams.get('id');
-    if (!planId) {
-        return NextResponse.json({ error: 'Plan ID is required.' }, { status: 400 });
-    }
-
-    try {
-        const planRef = adminDb.collection('content_strategy_plans').doc(planId);
-        const doc = await planRef.get();
-
-        if (!doc.exists) {
-            return NextResponse.json({ success: true, message: 'Plan already deleted.' });
-        }
-        if (doc.data()?.userId !== uid) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
-        
-        await planRef.delete();
-        return NextResponse.json({ success: true });
-        
-    } catch (error: any) {
-        console.error('Error deleting content strategy plan:', error);
-        return NextResponse.json({ error: 'Failed to delete plan', details: error.message }, { status: 500 });
     }
 }

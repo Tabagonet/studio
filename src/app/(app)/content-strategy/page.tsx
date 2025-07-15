@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { deleteStrategyPlanAction } from './actions';
 
 
 interface KeywordCluster {
@@ -259,17 +260,13 @@ export default function ContentStrategyPage() {
     }
     try {
       const token = await user.getIdToken();
-      const response = await fetch(`/api/content-strategy/history?id=${planId}`, { 
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to delete plan.');
+      const result = await deleteStrategyPlanAction(planId, token);
+      if (result.success) {
+        toast({ title: 'Plan eliminado' });
+        fetchHistory();
+      } else {
+        throw new Error(result.error || 'No se pudo eliminar el plan.');
       }
-      toast({ title: 'Plan eliminado' });
-      fetchHistory();
     } catch (e: any) {
       toast({ title: 'Error al eliminar', description: e.message, variant: 'destructive' });
     }
