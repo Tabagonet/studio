@@ -172,7 +172,11 @@ export default function ConnectionsPage() {
         }
     }, [toast, selectedKey]);
     
-    const fetchStatus = useCallback(async (targetType: 'user' | 'company', targetId: string) => {
+    const fetchStatus = useCallback(async (targetType: 'user' | 'company' | null, targetId: string | null) => {
+        if (!targetType || !targetId) {
+            setSelectedEntityStatus(null);
+            return;
+        }
         setIsCheckingStatus(true);
         const user = auth.currentUser;
         if (!user) {
@@ -261,8 +265,8 @@ export default function ConnectionsPage() {
         
         const handleConnectionsUpdate = () => {
             if (auth.currentUser && editingTarget.id && editingTarget.type) {
-                fetchConnections(auth.currentUser, editingTarget.type, editingTarget.id);
                 fetchStatus(editingTarget.type, editingTarget.id);
+                fetchConnections(auth.currentUser, editingTarget.type, editingTarget.id);
             }
         };
 
@@ -401,6 +405,7 @@ export default function ConnectionsPage() {
             if (setActive && !isPartnerCreds) {
                 setActiveKey(keyToSave);
             }
+            // Trigger a re-fetch of all data after save
             window.dispatchEvent(new Event('connections-updated'));
 
         } catch (error: any) {
@@ -544,7 +549,7 @@ export default function ConnectionsPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                     <ConnectionStatusIndicator status={selectedEntityStatus} isLoading={isCheckingStatus} onRefresh={() => fetchStatus(editingTarget.type, editingTarget.id!)} />
+                     <ConnectionStatusIndicator status={selectedEntityStatus} isLoading={isCheckingStatus} onRefresh={() => fetchStatus(editingTarget.type, editingTarget.id)} />
                     <div className="flex-1">
                         <Label htmlFor="profile-selector">Selecciona un perfil para editar o añade uno nuevo</Label>
                         <Select value={selectedKey} onValueChange={setSelectedKey} disabled={isSaving || isLoading}>
@@ -674,7 +679,7 @@ export default function ConnectionsPage() {
                          onDelete={() => handleDelete('partner_app')}
                          isDeleting={isDeleting === 'partner_app'}
                          configStatus={selectedEntityStatus}
-                         onRefreshStatus={() => fetchStatus(editingTarget.type, editingTarget.id!)}
+                         onRefreshStatus={() => fetchStatus(editingTarget.type, editingTarget.id)}
                          isCheckingStatus={isCheckingStatus}
                        />
                     )}

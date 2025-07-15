@@ -406,15 +406,28 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   }
 
   const userDocRef = await adminDb.collection('users').doc(uid).get();
-  const userData = userDocRef.data();
+  if (!userDocRef.exists) {
+      throw new Error('User not found. Cannot determine settings.');
+  }
+  const userData = userDocRef.data()!;
   
   let settingsSource: admin.firestore.DocumentData | undefined;
-  if(userData?.companyId) {
+  // If the user belongs to a company, fetch the company's settings.
+  if(userData.companyId) {
       const companyDoc = await adminDb.collection('companies').doc(userData.companyId).get();
-      if (companyDoc.exists) settingsSource = companyDoc.data();
-  } else {
+      if (companyDoc.exists) {
+        settingsSource = companyDoc.data();
+      } else {
+        console.warn(`User ${uid} has a companyId (${userData.companyId}), but the company document was not found. Falling back to user_settings.`);
+      }
+  } 
+  
+  // If no company settings were found (or user has no company), fall back to personal settings.
+  if (!settingsSource) {
       const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
-      if (userSettingsDoc.exists) settingsSource = userSettingsDoc.data();
+      if (userSettingsDoc.exists) {
+        settingsSource = userSettingsDoc.data();
+      }
   }
   
   if (!settingsSource) {
