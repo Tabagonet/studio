@@ -98,7 +98,7 @@ export function AssignStoreDialog({ job, onOpenChange, onSuccess, onError }: Ass
               onChange={(e) => setShopId(e.target.value)}
               placeholder="Ej: 85246282570"
             />
-             <p className="text-xs text-muted-foreground">Puedes encontrar el ID en la URL del panel de Shopify, después de /shop/.</p>
+             <p className="text-xs text-muted-foreground">Puedes encontrar el ID en la URL del panel de Shopify, después de <code className="bg-muted px-1 rounded">/store/</code>.</p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="storeDomain">Dominio de la Tienda</Label>
