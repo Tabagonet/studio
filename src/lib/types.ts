@@ -394,14 +394,12 @@ export interface Prospect {
 
 export interface ShopifyCreationJob {
   id: string;
-  status: 'pending' | 'assigned' | 'populating' | 'completed' | 'error';
+  status: 'pending' | 'assigned' | 'awaiting_auth' | 'authorized' | 'populating' | 'completed' | 'error';
   createdAt: string; // ISO String
   updatedAt: string; // ISO String
   logs: { timestamp: string, message: string }[];
   
-  storeDomain: string;
-  adminApiAccessToken: string;
-
+  // Data from the initial request
   webhookUrl: string;
   storeName: string;
   businessEmail: string;
@@ -429,4 +427,15 @@ export interface ShopifyCreationJob {
       type: 'user' | 'company';
       id: string;
   };
+  
+  // Data added after assignment
+  shopId?: string;
+  storeDomain?: string;
+  installUrl?: string; // The URL to authorize the app
+  
+  // Data added after authorization
+  storeAccessToken?: string;
+
+  // Data added on completion
+  createdStoreAdminUrl?: string;
 }

@@ -1,4 +1,3 @@
-
 // src/components/core/ConnectionStatusIndicator.tsx
 "use client";
 
@@ -16,6 +15,8 @@ interface ConfigStatus {
     wordPressConfigured: boolean;
     shopifyConfigured: boolean;
     shopifyPartnerConfigured?: boolean;
+    shopifyPartnerError?: string;
+    shopifyCustomAppConfigured?: boolean;
     pluginActive: boolean;
     activePlatform: 'woocommerce' | 'shopify' | null;
     assignedPlatform: 'woocommerce' | 'shopify' | null;

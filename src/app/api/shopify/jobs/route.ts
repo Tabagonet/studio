@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
                 updatedAt: data.updatedAt.toDate().toISOString(),
                 logs: data.logs || [],
                 storeDomain: data.storeDomain || '',
-                adminApiAccessToken: data.adminApiAccessToken || '',
+                storeAccessToken: data.storeAccessToken || '',
                 webhookUrl: data.webhookUrl || '',
                 storeName: data.storeName || 'N/A',
                 businessEmail: data.businessEmail || 'N/A',
@@ -69,6 +69,9 @@ export async function GET(req: NextRequest) {
                 creationOptions: data.creationOptions || {},
                 legalInfo: data.legalInfo || {},
                 entity: data.entity || {},
+                shopId: data.shopId || '',
+                installUrl: data.installUrl || '',
+                createdStoreAdminUrl: data.createdStoreAdminUrl || '',
             };
         });
 

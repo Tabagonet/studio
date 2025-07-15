@@ -18,11 +18,6 @@ export async function POST(req: NextRequest) {
             throw new Error("Firebase Admin SDK is not initialized.");
         }
         
-        const serviceAccountEmail = process.env.FIREBASE_CLIENT_EMAIL;
-        if (!serviceAccountEmail) {
-            throw new Error("FIREBASE_CLIENT_EMAIL env var is required for task verification.");
-        }
-        
         await adminAuth.verifyIdToken(oidcToken, true);
 
         const body = await req.json();

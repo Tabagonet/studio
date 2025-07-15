@@ -4,7 +4,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { ShopifyCreationJob } from "@/lib/types";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { ArrowUpDown, ExternalLink, Loader2, CheckCircle, AlertCircle, Circle, LockOpen, Key, MoreHorizontal, Trash2 } from "lucide-react";
+import { ArrowUpDown, ExternalLink, Loader2, CheckCircle, AlertCircle, Circle, MoreHorizontal, Trash2, Key } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -32,9 +32,9 @@ const StatusBadge = ({ status }: { status: ShopifyCreationJob['status'] }) => {
         case 'assigned':
             variant = 'secondary'; Icon = Key; label = "Asignado"; break;
         case 'awaiting_auth':
-            variant = 'secondary'; Icon = LockOpen; label = "Esperando Autorización"; break;
+            variant = 'secondary'; Icon = Loader2; label = "Esperando Autorización"; break;
         case 'authorized':
-             variant = 'secondary'; Icon = CheckCircle; label = "Autorizado"; break;
+            variant = 'secondary'; Icon = CheckCircle; label = "Autorizado"; break;
         case 'populating':
             variant = 'secondary'; Icon = Loader2; label = "Poblando Contenido"; break;
         case 'completed':
@@ -130,7 +130,7 @@ export const getColumns = (
     cell: ({ row }) => {
       const job = row.original;
       const canAuthorize = job.status === 'awaiting_auth' && job.installUrl;
-      const canOpenAdmin = ['authorized', 'populating', 'completed'].includes(job.status) && job.createdStoreAdminUrl;
+      const canOpenAdmin = ['authorized', 'populating', 'completed'].includes(job.status) && job.storeDomain;
       const isJobDeleting = isDeleting(job.id);
 
       return (
@@ -146,14 +146,14 @@ export const getColumns = (
                     <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                     {canAuthorize && (
                        <DropdownMenuItem asChild>
-                           <Link href={`/api/shopify/auth/initiate?jobId=${job.id}`} target="_blank" rel="noopener noreferrer">
+                           <Link href={job.installUrl!} target="_blank" rel="noopener noreferrer">
                                 <Key className="h-4 w-4 mr-2" /> Autorizar Instalación
                            </Link>
                        </DropdownMenuItem>
                     )}
                     {canOpenAdmin && (
                         <DropdownMenuItem asChild>
-                             <Link href={job.createdStoreAdminUrl!} target="_blank" rel="noopener noreferrer">
+                             <Link href={`https://${job.storeDomain}/admin`} target="_blank" rel="noopener noreferrer">
                                 <ExternalLink className="h-4 w-4 mr-2" /> Abrir Admin
                             </Link>
                         </DropdownMenuItem>

@@ -7,25 +7,33 @@ import type { ShopifyCreationJob } from '@/lib/types';
 import type { AxiosInstance } from 'axios';
 
 
-async function updateJobStatus(jobId: string, status: 'populating' | 'completed' | 'error' | 'assigned', logMessage: string, extraData: Record<string, any> = {}) {
+async function updateJobStatus(jobId: string, status: ShopifyCreationJob['status'], logMessage: string, extraData: Record<string, any> = {}) {
     if (!adminDb) return;
     const jobRef = adminDb.collection('shopify_creation_jobs').doc(jobId);
     console.log(`[Task Logic - Job ${jobId}] Updating status to ${status}. Log: "${logMessage}"`);
-    await jobRef.update({
+    
+    const updateObject: any = {
         status,
-        ...extraData,
         logs: admin.firestore.FieldValue.arrayUnion({
             timestamp: new Date(),
             message: logMessage,
         }),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    };
+
+    if (Object.keys(extraData).length > 0) {
+        for (const key in extraData) {
+            updateObject[key] = extraData[key];
+        }
+    }
+
+    await jobRef.update(updateObject);
 }
 
 
 /**
  * @description Populates a Shopify store with content after authorization.
- * This is the main task that runs after a job is created.
+ * This is the main task that runs after a job is created and authorized.
  */
 export async function populateShopifyStore(jobId: string) {
     if (!adminDb) {
@@ -43,11 +51,11 @@ export async function populateShopifyStore(jobId: string) {
         if (!jobDoc.exists) throw new Error(`Job ${jobId} not found.`);
         jobData = jobDoc.data() as ShopifyCreationJob;
 
-        if (!jobData.adminApiAccessToken || !jobData.storeDomain) {
+        if (!jobData.storeAccessToken || !jobData.storeDomain) {
             throw new Error("El token de acceso de Admin API o el dominio de la tienda no están presentes en el trabajo.");
         }
 
-        shopifyApi = createShopifyApi({ url: jobData.storeDomain, accessToken: jobData.adminApiAccessToken });
+        shopifyApi = createShopifyApi({ url: jobData.storeDomain, accessToken: jobData.storeAccessToken });
         if (!shopifyApi) throw new Error("No se pudo crear el cliente de la API de Shopify.");
 
         // --- 1. Generate Content with AI ---
@@ -90,7 +98,7 @@ export async function populateShopifyStore(jobId: string) {
                 content = content.replace(/\[Email de Contacto\]/gi, contactEmail);
                 
                 const { data } = await shopifyApi.post('/pages.json', { page: { title: page.title, body_html: content } });
-                createdPages[page.title.toLowerCase().replace(/ /g, '_')] = data.page;
+                createdPages[page.title.toLowerCase().replace(/\s/g, '_')] = data.page;
             }
         }
         
