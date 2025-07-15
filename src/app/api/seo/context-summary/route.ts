@@ -6,45 +6,55 @@ import { getApiClientsForUser } from '@/lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 
-async function fetchAdPlanData(uid: string, url: string) {
+async function fetchAdPlanData(uid: string, url: string | null) {
     if (!adminDb || !url) return null;
-    const adPlansSnapshot = await adminDb.collection('ad_plans')
-        .where('userId', '==', uid)
-        .where('url', '==', url)
-        .orderBy('createdAt', 'desc')
-        .limit(1)
-        .get();
+    try {
+        const adPlansSnapshot = await adminDb.collection('ad_plans')
+            .where('userId', '==', uid)
+            .where('url', '==', url)
+            .orderBy('createdAt', 'desc')
+            .limit(1)
+            .get();
+            
+        if (adPlansSnapshot.empty) return null;
         
-    if (adPlansSnapshot.empty) return null;
-    
-    const adPlan = adPlansSnapshot.docs[0].data();
-    return {
-        objectives: adPlan.objectives,
-        valueProposition: adPlan.valueProposition,
-        targetAudience: adPlan.targetAudience,
-        priorityObjective: adPlan.priorityObjective,
-        brandPersonality: adPlan.brandPersonality,
-    };
+        const adPlan = adPlansSnapshot.docs[0].data();
+        return {
+            objectives: adPlan.objectives,
+            valueProposition: adPlan.valueProposition,
+            targetAudience: adPlan.targetAudience,
+            priorityObjective: adPlan.priorityObjective,
+            brandPersonality: adPlan.brandPersonality,
+        };
+    } catch(e) {
+        console.error(`Error fetching ad plan data for url ${url}:`, e);
+        return null;
+    }
 }
 
 async function fetchSeoAnalysesData(uid: string) {
     if (!adminDb) return [];
-    const analysesSnapshot = await adminDb.collection('seo_analyses')
-        .where('userId', '==', uid)
-        .orderBy('createdAt', 'desc')
-        .limit(10)
-        .get();
+    try {
+        const analysesSnapshot = await adminDb.collection('seo_analyses')
+            .where('userId', '==', uid)
+            .orderBy('createdAt', 'desc')
+            .limit(10)
+            .get();
 
-    if (analysesSnapshot.empty) return [];
+        if (analysesSnapshot.empty) return [];
 
-    return analysesSnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-            title: data.analysis.title,
-            metaDescription: data.analysis.metaDescription,
-            focusKeyword: data.analysis.aiAnalysis.suggested.focusKeyword,
-        };
-    });
+        return analysesSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                title: data.analysis?.title,
+                metaDescription: data.analysis?.metaDescription,
+                focusKeyword: data.analysis?.aiAnalysis?.suggested?.focusKeyword,
+            };
+        }).filter(item => item.title || item.metaDescription || item.focusKeyword); // Filter out empty records
+    } catch(e) {
+        console.error('Error fetching SEO analyses data:', e);
+        return [];
+    }
 }
 
 
@@ -64,10 +74,15 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        const { settings } = await getApiClientsForUser(uid);
-        const activeUrl = settings?.connections?.[settings?.activeConnectionKey]?.wooCommerceStoreUrl || 
-                          settings?.connections?.[settings?.activeConnectionKey]?.wordpressApiUrl || 
-                          null;
+        let activeUrl: string | null = null;
+        try {
+            const { settings } = await getApiClientsForUser(uid);
+            activeUrl = settings?.connections?.[settings?.activeConnectionKey]?.wooCommerceStoreUrl || 
+                        settings?.connections?.[settings?.activeConnectionKey]?.wordpressApiUrl || 
+                        null;
+        } catch (e) {
+             console.warn("Could not get active connection URL for context summary, proceeding without it.");
+        }
 
         const adPlanData = await fetchAdPlanData(uid, activeUrl);
         const seoAnalysesData = await fetchSeoAnalysesData(uid);
@@ -99,7 +114,8 @@ export async function GET(req: NextRequest) {
         `;
         
         const result = await model.generateContent(prompt);
-        const summary = result.response.text();
+        const response = await result.response;
+        const summary = response.text();
 
         // Increment AI usage count
         await adminDb.collection('user_settings').doc(uid).set({ 
