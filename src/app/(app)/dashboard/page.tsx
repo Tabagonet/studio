@@ -82,6 +82,13 @@ export default function DashboardPage() {
   }, [toast]);
   
   useEffect(() => {
+    const handleConnectionsUpdate = () => {
+        if (auth.currentUser) {
+           fetchData(auth.currentUser);
+        }
+    };
+    window.addEventListener('connections-updated', handleConnectionsUpdate);
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
         if (user) {
             fetchData(user);
@@ -89,11 +96,6 @@ export default function DashboardPage() {
             setIsLoading(false);
         }
     });
-
-    const handleConnectionsUpdate = () => {
-        if (auth.currentUser) fetchData(auth.currentUser);
-    };
-    window.addEventListener('connections-updated', handleConnectionsUpdate);
 
     return () => {
         unsubscribe();

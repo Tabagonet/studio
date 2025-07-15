@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react"
@@ -18,7 +19,7 @@ import {
   type Row,
 } from "@tanstack/react-table"
 import { useToast } from "@/hooks/use-toast"
-import { auth } from "@/lib/firebase"
+import { auth, onAuthStateChanged } from "@/lib/firebase"
 
 import {
   Table,
@@ -224,17 +225,35 @@ export function BlogDataTable() {
       }
     };
     
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const handleConnectionsUpdate = () => {
+        if (auth.currentUser) {
+            auth.currentUser.getIdToken().then(token => {
+                fetchData();
+                fetchStats();
+                fetchCats(token);
+            });
+        }
+    };
+    
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
         if (user) {
-            fetchData();
-            fetchStats();
-            user.getIdToken().then(fetchCats);
+             user.getIdToken().then(token => {
+                fetchData();
+                fetchStats();
+                fetchCats(token);
+            });
         } else {
             setIsLoading(false);
             setData([]);
         }
     });
-    return () => unsubscribe();
+
+    window.addEventListener('connections-updated', handleConnectionsUpdate);
+
+    return () => {
+        unsubscribe();
+        window.removeEventListener('connections-updated', handleConnectionsUpdate);
+    };
   }, [fetchData, fetchStats, toast]);
 
   React.useEffect(() => {

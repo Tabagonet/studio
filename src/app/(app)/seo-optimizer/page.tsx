@@ -192,12 +192,15 @@ export default function SeoOptimizerPage() {
     };
     
     const unsubscribe = onAuthStateChanged(auth, handleAuth);
+    
+    // Add the event listener
     window.addEventListener('connections-updated', fetchContentData);
     
+    // Clean up both the auth listener and the event listener
     return () => {
         unsubscribe();
         window.removeEventListener('connections-updated', fetchContentData);
-    }
+    };
   }, [fetchContentData]);
   
   useEffect(() => {

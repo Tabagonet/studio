@@ -6,6 +6,7 @@ import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { addRemotePattern } from '@/lib/next-config-manager';
 import { partnerAppConnectionDataSchema } from '@/lib/api-helpers';
+import { revalidatePath } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
 
@@ -186,7 +187,6 @@ export async function POST(req: NextRequest) {
             }
         }
         
-        // Add hostnames to next.config.js only for non-partner connections
         if (!isPartner) {
             const data = finalConnectionData as ConnectionData;
             const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = data;

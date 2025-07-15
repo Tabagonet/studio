@@ -259,6 +259,13 @@ export default function ConnectionsPage() {
             setIsDataLoading(false);
         };
         
+        const handleConnectionsUpdate = () => {
+            if (auth.currentUser && editingTarget.id && editingTarget.type) {
+                fetchConnections(auth.currentUser, editingTarget.type, editingTarget.id);
+                fetchStatus(editingTarget.type, editingTarget.id);
+            }
+        };
+
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
                 await fetchInitialData(user);
@@ -267,9 +274,15 @@ export default function ConnectionsPage() {
                 setIsDataLoading(false);
             }
         });
-        return () => unsubscribe();
+        
+        window.addEventListener('connections-updated', handleConnectionsUpdate);
+
+        return () => {
+            unsubscribe();
+            window.removeEventListener('connections-updated', handleConnectionsUpdate);
+        };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [fetchConnections, fetchStatus]);
+    }, []);
 
     const handleTargetChange = (value: string) => {
         const user = auth.currentUser;
@@ -385,8 +398,9 @@ export default function ConnectionsPage() {
             
             toast({ title: "Credenciales Guardadas", description: `Los datos para '${keyToSave}' han sido guardados.` });
             
-            await fetchConnections(user, editingTarget.type, editingTarget.id);
-            await fetchStatus(editingTarget.type, editingTarget.id);
+            if (setActive && !isPartnerCreds) {
+                setActiveKey(keyToSave);
+            }
             window.dispatchEvent(new Event('connections-updated'));
 
         } catch (error: any) {
@@ -429,9 +443,7 @@ export default function ConnectionsPage() {
             if (keyToDelete === 'partner_app') {
                 setPartnerFormData(INITIAL_PARTNER_APP_STATE);
             }
-            
-            await fetchConnections(user, editingTarget.type, editingTarget.id);
-            await fetchStatus(editingTarget.type, editingTarget.id);
+
             window.dispatchEvent(new Event('connections-updated'));
             
         } catch (error: any) {
