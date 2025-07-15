@@ -7,19 +7,17 @@ import { getApiClientsForUser } from '@/lib/api-helpers';
 export const dynamic = 'force-dynamic';
 
 async function fetchAdPlanData(uid: string, url: string | null) {
-    if (!adminDb) return null;
+    if (!adminDb || !url) return null; // Do not proceed if no specific URL is provided
     try {
-        let query = adminDb.collection('ad_plans').where('userId', '==', uid);
-        
-        if (url) {
-            query = query.where('url', '==', url);
-        }
-        
+        const query = adminDb.collection('ad_plans')
+            .where('userId', '==', uid)
+            .where('url', '==', url); // Strict filtering by active URL
+
         const adPlansSnapshot = await query.get();
             
         if (adPlansSnapshot.empty) return null;
 
-        // Sort in-memory to find the most recent plan
+        // Sort in-memory to find the most recent plan FOR THIS URL
         const sortedDocs = adPlansSnapshot.docs.sort((a, b) => {
             const dateA = a.data().createdAt?.toDate() || 0;
             const dateB = b.data().createdAt?.toDate() || 0;
@@ -43,21 +41,23 @@ async function fetchAdPlanData(uid: string, url: string | null) {
 async function fetchSeoAnalysesData(uid: string) {
     if (!adminDb) return [];
     try {
+        // Query without ordering to avoid needing a composite index.
         const analysesSnapshot = await adminDb.collection('seo_analyses')
             .where('userId', '==', uid)
-            .limit(10) // Limit to a reasonable number to avoid large reads
+            .limit(50) // Limit to a reasonable number to avoid large reads
             .get();
 
         if (analysesSnapshot.empty) return [];
         
-        // Sort in-memory
+        // Sort in-memory to get the most recent ones.
         const sortedDocs = analysesSnapshot.docs.sort((a, b) => {
             const dateA = a.data().createdAt?.toDate() || 0;
             const dateB = b.data().createdAt?.toDate() || 0;
             return dateB - dateA;
         });
 
-        return sortedDocs.map(doc => {
+        // Take the top 10 after sorting
+        return sortedDocs.slice(0, 10).map(doc => {
             const data = doc.data();
             return {
                 title: data.analysis?.title,
@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
     try {
         const token = req.headers.get('Authorization')?.split('Bearer ')[1];
         if (!token) throw new Error('No auth token provided.');
-        if (!adminAuth) throw new Error("Firebase Admin is not initialized.");
+        if (!adminAuth) throw new Error("Firebase Admin not initialized.");
         uid = (await adminAuth.verifyIdToken(token)).uid;
     } catch (e: any) {
         return NextResponse.json({ error: 'Authentication failed', message: e.message }, { status: 401 });
