@@ -28,10 +28,9 @@ export async function GET(req: NextRequest) {
         const scopes = [
             'read_products', 'write_products',
             'read_themes', 'write_themes',
-            'read_online_store_pages', 'write_online_store_pages', // Correct scope for "pages"
-            'read_online_store_navigation', 'write_online_store_navigation', // Correct scope for "navigation"
+            'read_content', 'write_content', // This covers Pages, Blogs, Articles
+            'read_online_store_navigation', 'write_online_store_navigation',
             'read_files', 'write_files',
-            'read_blogs', 'write_blogs',
         ].join(',');
 
         const responsePayload = {
