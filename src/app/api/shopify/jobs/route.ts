@@ -3,15 +3,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import type { ShopifyCreationJob } from '@/lib/types';
 
+export const dynamic = 'force-dynamic';
+
 async function getUserContext(req: NextRequest): Promise<{ uid: string; role: string | null; companyId: string | null }> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) throw new Error('Authentication token not provided.');
     
-    console.log('[getUserContext] Verifying token...');
     if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized.");
     const decodedToken = await adminAuth.verifyIdToken(token);
     const uid = decodedToken.uid;
-    console.log(`[getUserContext] Token verified for UID: ${uid}`);
     
     const userDoc = await adminDb.collection('users').doc(uid).get();
     if (!userDoc.exists) {
@@ -19,7 +19,6 @@ async function getUserContext(req: NextRequest): Promise<{ uid: string; role: st
         throw new Error("User record not found in database.");
     }
     const userData = userDoc.data();
-    console.log(`[getUserContext] Fetched user data: role=${userData?.role}, companyId=${userData?.companyId}`);
     
     return {
         uid: uid,
