@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
             return {
                 id: doc.id,
                 businessContext: data.businessContext,
-                url: data.url,
+                url: data.url || null, // Include the URL, defaulting to null if not present
                 createdAt: data.createdAt.toDate().toISOString(),
                 ...data.plan,
             };
