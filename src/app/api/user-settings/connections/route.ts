@@ -53,6 +53,8 @@ const connectionDataSchema = z.object({
     shopifyStoreUrl: shopifyUrlOrEmptyString.optional(),
     shopifyApiPassword: z.string().optional(),
 });
+type ConnectionData = z.infer<typeof connectionDataSchema>;
+type PartnerAppData = z.infer<typeof partnerAppConnectionDataSchema>;
 
 
 export async function GET(req: NextRequest) {
@@ -89,7 +91,7 @@ export async function GET(req: NextRequest) {
         const partnerAppData = globalSettingsDoc.exists ? globalSettingsDoc.data()?.connections?.partner_app || null : null;
         
         // Construct the final connections object, prioritizing global partner data
-        const allConnections: { [key: string]: any } = { ...entityConnections };
+        const allConnections: { [key: string]: ConnectionData | PartnerAppData } = { ...entityConnections };
         if (partnerAppData) {
             allConnections.partner_app = partnerAppData;
         }
@@ -133,7 +135,7 @@ export async function POST(req: NextRequest) {
         const { key, connectionData, setActive, entityId, entityType, isPartner } = validationResult.data;
         
         let settingsRef: FirebaseFirestore.DocumentReference;
-        let finalConnectionData;
+        let finalConnectionData: ConnectionData | PartnerAppData;
         
         if (isPartner && role === 'super_admin') {
             settingsRef = adminDb.collection('companies').doc('global_settings');
@@ -171,8 +173,6 @@ export async function POST(req: NextRequest) {
 
         await settingsRef.set(updatePayload, { merge: true });
         
-        // === Data Cleanup Logic ===
-        // If we just successfully saved global partner data, ensure it's removed from the user/company doc to prevent conflicts.
         if (isPartner && role === 'super_admin') {
             const userOrCompanySettingsRef = adminDb.collection(entityType === 'company' ? 'companies' : 'user_settings').doc(entityId);
             const userOrCompanyDoc = await userOrCompanySettingsRef.get();
@@ -185,8 +185,10 @@ export async function POST(req: NextRequest) {
         }
         
         if (!isPartner) {
-             const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = finalConnectionData;
-             const hostnamesToAdd = new Set<string>();
+            // Type guard to ensure we have the correct data structure
+            const data = finalConnectionData as ConnectionData;
+            const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = data;
+            const hostnamesToAdd = new Set<string>();
 
             const addHostname = (url: string | undefined) => {
                 if (url) {
@@ -200,6 +202,7 @@ export async function POST(req: NextRequest) {
             addHostname(wooCommerceStoreUrl);
             addHostname(wordpressApiUrl);
             addHostname(shopifyStoreUrl);
+            
             if (hostnamesToAdd.size > 0) {
                 const promises = Array.from(hostnamesToAdd).map(hostname => addRemotePattern(hostname).catch(err => console.error(`Failed to add remote pattern for ${hostname}:`, err)));
                 await Promise.all(promises);
@@ -237,7 +240,6 @@ export async function DELETE(req: NextRequest) {
         const { key, entityId, entityType } = validationResult.data;
         let settingsRef: FirebaseFirestore.DocumentReference;
 
-        // Correctly determine the document to modify
         if (key === 'partner_app') {
             if (role !== 'super_admin') {
                 return NextResponse.json({ error: 'Forbidden: Only Super Admins can delete global partner credentials.' }, { status: 403 });
@@ -258,7 +260,6 @@ export async function DELETE(req: NextRequest) {
             [`connections.${key}`]: admin.firestore.FieldValue.delete()
         };
 
-        // If the deleted key was the active key, find a new active key
         if (currentData?.activeConnectionKey === key) {
             const otherKeys = Object.keys(currentData.connections || {}).filter(k => k !== key && k !== 'partner_app');
             updatePayload.activeConnectionKey = otherKeys.length > 0 ? otherKeys[0] : null;
