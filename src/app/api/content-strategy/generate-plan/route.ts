@@ -6,6 +6,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const generatePlanSchema = z.object({
   businessContext: z.string().min(20, "El contexto debe tener al menos 20 caracteres."),
+  url: z.string().url("Por favor, introduce una URL válida.").optional(),
 });
 
 const outputSchema = z.object({
@@ -41,13 +42,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid input', details: validation.error.flatten() }, { status: 400 });
     }
 
-    const { businessContext } = validation.data;
+    const { businessContext, url } = validation.data;
 
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
     
     const prompt = `
         Eres un estratega de contenidos SEO de clase mundial. Tu tarea es analizar la descripción de un negocio y crear una estrategia de contenidos basada en el modelo de "Topic Clusters" (grupos de temas).
+        ${url ? `Toma en cuenta que la estrategia es para el sitio web: ${url}.` : ''}
 
         **Contexto del Negocio:**
         ---

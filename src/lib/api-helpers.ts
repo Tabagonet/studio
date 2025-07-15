@@ -39,7 +39,6 @@ interface ApiClients {
  */
 export async function getPartnerCredentials(): Promise<PartnerAppConnectionData> {
     if (!adminDb) {
-        console.error('getPartnerCredentials: Firestore no está configurado');
         throw new Error("Firestore not configured on server");
     }
 
@@ -403,18 +402,13 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   
   if (userData.companyId) {
       const companyDoc = await adminDb.collection('companies').doc(userData.companyId).get();
-      if (companyDoc.exists) {
-        settingsSource = companyDoc.data();
-      } else {
-        console.warn(`[API-HELPER] User ${uid} has a companyId (${userData.companyId}), but the company document was not found. Falling back to personal settings.`);
-      }
-  } 
+      settingsSource = companyDoc.exists ? companyDoc.data() : undefined;
+  }
   
+  // Fallback to personal settings if no company or company doc not found
   if (!settingsSource) {
       const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
-      if (userSettingsDoc.exists) {
-        settingsSource = userSettingsDoc.data();
-      }
+      settingsSource = userSettingsDoc.exists ? userSettingsDoc.data() : undefined;
   }
   
   if (!settingsSource) {

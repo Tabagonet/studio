@@ -3,7 +3,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
-import { getPartnerCredentials } from '@/lib/api-helpers';
 
 // Helper to check for admin/super_admin role
 async function isAuthorized(req: NextRequest): Promise<boolean> {
@@ -51,13 +50,11 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
         
         const { storeDomain, shopId } = validation.data;
         
-        // This step no longer creates the authorization URL. It just saves the store info.
-        // The authorization URL will be created on the fly when the user clicks the "Authorize" button.
         const jobRef = adminDb.collection('shopify_creation_jobs').doc(jobId);
         await jobRef.update({
             storeDomain,
             shopId,
-            status: 'assigned', // New status: store is assigned, ready for auth.
+            status: 'assigned',
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             logs: admin.firestore.FieldValue.arrayUnion({
                 timestamp: new Date(),

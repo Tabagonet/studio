@@ -10,6 +10,7 @@ import { Lightbulb, Loader2, Sparkles, Wand2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Input } from '@/components/ui/input';
 
 interface KeywordCluster {
   topic: string;
@@ -31,6 +32,7 @@ interface StrategyPlan {
 
 export default function ContentStrategyPage() {
   const [context, setContext] = useState('');
+  const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingContext, setIsFetchingContext] = useState(false);
   const [strategyPlan, setStrategyPlan] = useState<StrategyPlan | null>(null);
@@ -80,10 +82,15 @@ export default function ContentStrategyPage() {
 
     try {
         const token = await user.getIdToken();
+        const payload: { businessContext: string; url?: string } = { businessContext: context };
+        if (url) {
+            payload.url = url;
+        }
+
         const response = await fetch('/api/content-strategy/generate-plan', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ businessContext: context })
+            body: JSON.stringify(payload)
         });
         if (!response.ok) {
             throw new Error((await response.json()).error || "La IA no pudo generar el plan.");
@@ -118,23 +125,36 @@ export default function ContentStrategyPage() {
         <CardHeader>
             <CardTitle>1. Define el Contexto de tu Negocio</CardTitle>
             <CardDescription>
-                Describe tu negocio, público y objetivos, o deja que la IA lo sugiera por ti analizando tu contenido existente.
+                Describe tu negocio, público y objetivos. Puedes usar el botón para autocompletar con los datos de tu web conectada.
             </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-             <Label htmlFor="business-context">Descripción del negocio y público objetivo</Label>
-             <Textarea
-                id="business-context"
-                value={context}
-                onChange={(e) => setContext(e.target.value)}
-                placeholder="Ej: Somos una tienda online de velas artesanales de soja, dirigida a mujeres de 25-45 años interesadas en el bienestar, la decoración del hogar y productos ecológicos. Nuestro objetivo es posicionarnos como una marca de lujo asequible."
-                rows={6}
-                disabled={isLoading}
-             />
+             <div>
+                <Label htmlFor="url-input">URL del Negocio (Opcional)</Label>
+                <Input
+                    id="url-input"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="Ej: https://mi-tienda-de-velas.com"
+                    disabled={isLoading}
+                />
+                 <p className="text-xs text-muted-foreground mt-1">Si se especifica una URL, la IA la tendrá en cuenta para generar una estrategia más enfocada.</p>
+             </div>
+             <div>
+                <Label htmlFor="business-context">Descripción del negocio y público objetivo</Label>
+                 <Textarea
+                    id="business-context"
+                    value={context}
+                    onChange={(e) => setContext(e.target.value)}
+                    placeholder="Ej: Somos una tienda online de velas artesanales de soja, dirigida a mujeres de 25-45 años interesadas en el bienestar, la decoración del hogar y productos ecológicos. Nuestro objetivo es posicionarnos como una marca de lujo asequible."
+                    rows={6}
+                    disabled={isLoading}
+                 />
+             </div>
              <div className="flex flex-col sm:flex-row gap-2">
                  <Button onClick={fetchContext} disabled={isFetchingContext || isLoading}>
                     {isFetchingContext ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                    Sugerir contexto desde mi sitio
+                    Autocompletar con la web conectada
                  </Button>
              </div>
         </CardContent>

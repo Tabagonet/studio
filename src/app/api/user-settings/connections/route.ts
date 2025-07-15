@@ -71,7 +71,6 @@ export async function GET(req: NextRequest) {
         let settingsRef: FirebaseFirestore.DocumentReference;
         let entityConnections = {};
         
-        // Determine the primary entity being requested (user or company)
         if (role === 'super_admin') {
             const effectiveId = targetCompanyId || targetUserId || uid;
             const collection = targetCompanyId ? 'companies' : 'user_settings';
@@ -87,11 +86,9 @@ export async function GET(req: NextRequest) {
             entityConnections = settingsDoc.data()?.connections || {};
         }
 
-        // Always fetch global partner settings separately
         const globalSettingsDoc = await adminDb.collection('companies').doc('global_settings').get();
         const partnerAppData = globalSettingsDoc.exists ? globalSettingsDoc.data()?.connections?.partner_app || null : null;
         
-        // Construct the final connections object, prioritizing global partner data
         const allConnections: AllConnections = { ...entityConnections };
         if (partnerAppData) {
             allConnections.partner_app = partnerAppData;
@@ -104,7 +101,6 @@ export async function GET(req: NextRequest) {
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-        console.error('[API-CONN-GET] Error fetching connections:', error);
         return NextResponse.json({ error: errorMessage || 'Authentication required' }, { status: 401 });
     }
 }
@@ -167,7 +163,6 @@ export async function POST(req: NextRequest) {
         
         await settingsRef.set(updatePayload, { merge: true });
 
-        // Only add remote patterns for non-partner connections
         if (!isPartner) {
             const data = connectionData as ConnectionData;
             const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = data;
@@ -179,7 +174,7 @@ export async function POST(req: NextRequest) {
                         const fullUrl = url.startsWith('http') ? url : `https://${url}`;
                         hostnamesToAdd.add(new URL(fullUrl).hostname); 
                     }
-                    catch { console.warn(`[API-CONN-POST] Invalid URL provided, skipping remote pattern: ${url}`); }
+                    catch { console.warn(`Invalid URL provided, skipping remote pattern: ${url}`); }
                 }
             };
             addHostname(wooCommerceStoreUrl);
@@ -187,7 +182,7 @@ export async function POST(req: NextRequest) {
             addHostname(shopifyStoreUrl);
             
             if (hostnamesToAdd.size > 0) {
-                const promises = Array.from(hostnamesToAdd).map(hostname => addRemotePattern(hostname).catch(err => console.error(`[API-CONN-POST] Failed to add remote pattern for ${hostname}:`, err)));
+                const promises = Array.from(hostnamesToAdd).map(hostname => addRemotePattern(hostname).catch(err => console.error(`Failed to add remote pattern for ${hostname}:`, err)));
                 await Promise.all(promises);
             }
         }
@@ -196,7 +191,6 @@ export async function POST(req: NextRequest) {
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-        console.error('[API-CONN-POST] Error saving connection:', error);
         return NextResponse.json({ error: errorMessage || 'Failed to save connections' }, { status: 500 });
     }
 }
@@ -255,7 +249,6 @@ export async function DELETE(req: NextRequest) {
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-        console.error('[API-CONN-DELETE] Error deleting user connection:', error);
         return NextResponse.json({ error: errorMessage || 'Failed to delete connection' }, { status: 500 });
     }
 }
