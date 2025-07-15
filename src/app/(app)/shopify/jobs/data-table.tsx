@@ -32,6 +32,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { deleteShopifyJobsAction } from "./actions";
 import { AssignStoreDialog } from "./assign-store-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import Link from 'next/link';
+import { AlertCircle } from 'lucide-react';
 
 
 export function JobsDataTable() {
@@ -46,6 +49,9 @@ export function JobsDataTable() {
   const [isDeleting, setIsDeleting] = React.useState<string[]>([]);
   const [jobToAssign, setJobToAssign] = React.useState<ShopifyCreationJob | null>(null);
   const [populatingJobId, setPopulatingJobId] = React.useState<string | null>(null);
+
+  const [showConfigErrorDialog, setShowConfigErrorDialog] = React.useState(false);
+  const [configErrorMessage, setConfigErrorMessage] = React.useState('');
 
 
   const fetchData = React.useCallback(async () => {
@@ -133,13 +139,28 @@ export function JobsDataTable() {
         }
 
         toast({ title: 'Proceso Iniciado', description: 'La tarea de poblado de contenido ha comenzado. El estado se actualizará en breve.' });
-        fetchData(); // Refresh to show the new 'populating' status
+        fetchData(); 
       } catch (error: any) {
          toast({ title: 'Error', description: error.message, variant: 'destructive' });
       } finally {
          setPopulatingJobId(null);
       }
   };
+
+  const handleAssignSuccess = () => {
+    setJobToAssign(null);
+    fetchData();
+  };
+
+  const handleAssignError = (error: { code: string; message: string }) => {
+    if (error.code === 'CONFIGURATION_ERROR') {
+      setConfigErrorMessage(error.message);
+      setShowConfigErrorDialog(true);
+    } else {
+      toast({ title: 'Error al Asignar', description: error.message, variant: 'destructive' });
+    }
+  };
+
 
   const isJobDeleting = (jobId: string) => isDeleting.includes(jobId) || isDeleting.includes('batch');
   
@@ -149,7 +170,7 @@ export function JobsDataTable() {
       handlePopulate,
       isJobDeleting,
       populatingJobId
-  ), [isDeleting, populatingJobId]); // eslint-disable-line react-hooks/exhaustive-deps
+  ), [isDeleting, populatingJobId]); 
 
   const table = useReactTable({
     data,
@@ -166,7 +187,7 @@ export function JobsDataTable() {
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     onRowSelectionChange: setRowSelection,
-    getRowId: (row) => row.id, // Use the actual document ID for the row
+    getRowId: (row) => row.id,
   });
 
   const getSelectedJobIds = () => {
@@ -178,11 +199,32 @@ export function JobsDataTable() {
        <AssignStoreDialog 
         job={jobToAssign}
         onOpenChange={(open) => !open && setJobToAssign(null)}
-        onSuccess={() => {
-            setJobToAssign(null);
-            fetchData();
-        }}
+        onSuccess={handleAssignSuccess}
+        onError={handleAssignError}
        />
+
+        <AlertDialog open={showConfigErrorDialog} onOpenChange={setShowConfigErrorDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertCircle className="text-destructive h-6 w-6"/>
+                Configuración Requerida
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {configErrorMessage}
+                <br/><br/>
+                Para continuar, un Super Administrador debe configurar las credenciales globales de Shopify.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cerrar</AlertDialogCancel>
+              <AlertDialogAction asChild>
+                <Link href="/settings/connections">Ir a Configuración</Link>
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
       <div className="flex items-center justify-between">
          <Input
           placeholder="Filtrar por nombre de tienda..."

@@ -52,10 +52,7 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
         const { storeDomain, shopId } = validation.data;
         
         const partnerCreds = await getPartnerCredentials();
-        if (!partnerCreds.clientId) {
-            throw new Error("El Client ID de la App Personalizada no está configurado en los ajustes globales.");
-        }
-
+        
         const scopes = 'write_products,write_content,write_themes,read_products,read_content,read_themes,write_navigation,read_navigation,write_files,read_files,write_blogs,read_blogs';
         const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
         
@@ -64,7 +61,7 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
         const jobRef = adminDb.collection('shopify_creation_jobs').doc(jobId);
         await jobRef.update({
             storeDomain,
-            shopId, // Save the shopId
+            shopId,
             installUrl,
             status: 'awaiting_auth',
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -78,6 +75,9 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+        if (error instanceof Error && error.message.includes("no están configurados")) {
+             return NextResponse.json({ error: { code: 'CONFIGURATION_ERROR', message: errorMessage }}, { status: 409 });
+        }
         console.error(`Error assigning store to job ${jobId}:`, error);
         return NextResponse.json({ error: 'Failed to assign store', details: errorMessage }, { status: 500 });
     }

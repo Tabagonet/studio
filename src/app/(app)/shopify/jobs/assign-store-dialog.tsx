@@ -23,9 +23,10 @@ interface AssignStoreDialogProps {
   job: ShopifyCreationJob | null;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  onError: (error: { code: string; message: string }) => void;
 }
 
-export function AssignStoreDialog({ job, onOpenChange, onSuccess }: AssignStoreDialogProps) {
+export function AssignStoreDialog({ job, onOpenChange, onSuccess, onError }: AssignStoreDialogProps) {
   const [storeDomain, setStoreDomain] = useState('');
   const [shopId, setShopId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -60,13 +61,17 @@ export function AssignStoreDialog({ job, onOpenChange, onSuccess }: AssignStoreD
 
         const result = await response.json();
         if (!response.ok) {
-            throw new Error(result.error || 'Fallo al asignar la tienda.');
+            if (response.status === 409 && result.error?.code === 'CONFIGURATION_ERROR') {
+                 onError(result.error);
+            } else {
+                throw new Error(result.error || 'Fallo al asignar la tienda.');
+            }
+        } else {
+            toast({ title: '¡Tienda Asignada!', description: `La tienda ${storeDomain} ha sido asignada al trabajo.` });
+            onSuccess();
         }
-
-        toast({ title: '¡Tienda Asignada!', description: `La tienda ${storeDomain} ha sido asignada al trabajo.` });
-        onSuccess();
     } catch (error: any) {
-        toast({ title: 'Error al Asignar', description: error.message, variant: 'destructive' });
+        onError({ code: 'GENERIC_ERROR', message: error.message });
     } finally {
         setIsSubmitting(false);
     }

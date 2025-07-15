@@ -47,7 +47,7 @@ export async function getPartnerCredentials(): Promise<PartnerAppConnectionData>
     const doc = await settingsRef.get();
     
     if (!doc.exists) {
-        throw new Error("Global Shopify settings document ('global_settings') not found.");
+        throw new Error("El documento de ajustes globales ('global_settings') no se encontró.");
     }
     
     const settingsData = doc.data() || {};
@@ -55,6 +55,11 @@ export async function getPartnerCredentials(): Promise<PartnerAppConnectionData>
 
     if (!partnerAppData.success) {
         throw new Error("Los datos de la App de Partner en la configuración global no son válidos.");
+    }
+    
+    // Check for essential credentials for OAuth flow
+    if (!partnerAppData.data.clientId || !partnerAppData.data.clientSecret) {
+      throw new Error("El Client ID o Client Secret no están configurados en los ajustes globales de Shopify.");
     }
 
     return partnerAppData.data;
