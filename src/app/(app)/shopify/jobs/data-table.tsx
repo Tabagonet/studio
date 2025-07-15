@@ -33,10 +33,13 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { deleteShopifyJobsAction } from "./actions";
 import { AssignStoreDialog } from "./assign-store-dialog";
 import Link from 'next/link';
+import { useRouter } from "next/navigation";
+
 
 export function JobsDataTable() {
   const [data, setData] = React.useState<ShopifyCreationJob[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const router = useRouter();
   
   const [sorting, setSorting] = React.useState<SortingState>([{ id: 'createdAt', desc: true }]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -46,7 +49,6 @@ export function JobsDataTable() {
   const [isDeleting, setIsDeleting] = React.useState<string[]>([]);
   const [jobToAssign, setJobToAssign] = React.useState<ShopifyCreationJob | null>(null);
   const [populatingJobId, setPopulatingJobId] = React.useState<string | null>(null);
-  const [authorizingJobId, setAuthorizingJobId] = React.useState<string | null>(null);
 
   const [showConfigErrorDialog, setShowConfigErrorDialog] = React.useState(false);
   const [configErrorMessage, setConfigErrorMessage] = React.useState('');
@@ -116,17 +118,6 @@ export function JobsDataTable() {
       setIsDeleting([]);
   };
 
-  const handleAuthorize = async (jobId: string) => {
-    // This is now handled by a direct link, but we keep the function stub
-    // in case we need to revert to a server action flow.
-    setAuthorizingJobId(jobId);
-    // The link will open in a new tab, so we just need to re-fetch data periodically.
-    setTimeout(() => {
-      fetchData();
-      setAuthorizingJobId(null);
-    }, 5000); // Give user time to authorize
-  }
-
   const handlePopulate = async (jobId: string) => {
      const user = auth.currentUser;
       if (!user) {
@@ -176,11 +167,9 @@ export function JobsDataTable() {
       (jobId) => handleDelete([jobId]),
       (job) => setJobToAssign(job),
       handlePopulate,
-      handleAuthorize,
       isJobDeleting,
       populatingJobId,
-      authorizingJobId
-  ), [isDeleting, populatingJobId, authorizingJobId]); 
+  ), [isDeleting, populatingJobId]); 
 
   const table = useReactTable({
     data,

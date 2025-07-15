@@ -1,30 +1,23 @@
+
 // src/app/api/shopify/auth/initiate/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { getPartnerCredentials } from '@/lib/api-helpers';
+import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
     let uid: string;
     try {
-        // Since this is a direct navigation, we can't use Authorization headers.
-        // We must rely on the user's browser session cookie, which Next.js automatically handles
-        // when calling adminAuth.verifyIdToken with the session cookie.
-        // This is a common pattern for server-side auth checks on navigation.
-        // For this to work in production, proper cookie configuration is needed.
-        // Note: This part of the auth flow is complex. For now, we'll verify the user is logged in.
-        // A more robust solution might involve a temporary, single-use token.
-        const sessionCookie = req.cookies.get('__session')?.value;
+        const sessionCookie = cookies().get('__session')?.value;
         if (!sessionCookie) {
-             const token = req.headers.get('Authorization')?.split('Bearer ')[1];
-             if(!token) throw new Error('No auth token or session found.');
-             uid = (await adminAuth.verifyIdToken(token)).uid;
-        } else {
-             const decodedToken = await adminAuth.verifySessionCookie(sessionCookie, true);
-             uid = decodedToken.uid;
+             throw new Error('No auth session found. Please log in again.');
         }
-
+        
+        if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
+        const decodedToken = await adminAuth.verifySessionCookie(sessionCookie, true);
+        uid = decodedToken.uid;
     } catch(e: any) {
          console.error("Auth error in initiate route:", e.message);
          // Redirect to login if auth fails
