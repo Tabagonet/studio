@@ -7,14 +7,17 @@ import { getApiClientsForUser } from '@/lib/api-helpers';
 export const dynamic = 'force-dynamic';
 
 async function fetchAdPlanData(uid: string, url: string | null) {
-    if (!adminDb || !url) return null;
+    if (!adminDb) return null;
     try {
-        const adPlansSnapshot = await adminDb.collection('ad_plans')
-            .where('userId', '==', uid)
-            .where('url', '==', url)
-            .orderBy('createdAt', 'desc')
-            .limit(1)
-            .get();
+        let query = adminDb.collection('ad_plans').where('userId', '==', uid);
+        
+        // If a specific URL is provided, filter by it.
+        // Otherwise, just get the most recent plan for the user.
+        if (url) {
+            query = query.where('url', '==', url);
+        }
+        
+        const adPlansSnapshot = await query.orderBy('createdAt', 'desc').limit(1).get();
             
         if (adPlansSnapshot.empty) return null;
         
@@ -50,7 +53,7 @@ async function fetchSeoAnalysesData(uid: string) {
                 metaDescription: data.analysis?.metaDescription,
                 focusKeyword: data.analysis?.aiAnalysis?.suggested?.focusKeyword,
             };
-        }).filter(item => item.title || item.metaDescription || item.focusKeyword); // Filter out empty records
+        }).filter(item => item.title || item.metaDescription || item.focusKeyword);
     } catch(e) {
         console.error('Error fetching SEO analyses data:', e);
         return [];
@@ -77,9 +80,11 @@ export async function GET(req: NextRequest) {
         let activeUrl: string | null = null;
         try {
             const { settings } = await getApiClientsForUser(uid);
-            activeUrl = settings?.connections?.[settings?.activeConnectionKey]?.wooCommerceStoreUrl || 
-                        settings?.connections?.[settings?.activeConnectionKey]?.wordpressApiUrl || 
-                        null;
+            const activeConnectionKey = settings?.activeConnectionKey;
+            if (activeConnectionKey) {
+                const activeConnection = settings?.connections?.[activeConnectionKey];
+                activeUrl = activeConnection?.wooCommerceStoreUrl || activeConnection?.wordpressApiUrl || null;
+            }
         } catch (e) {
              console.warn("Could not get active connection URL for context summary, proceeding without it.");
         }
