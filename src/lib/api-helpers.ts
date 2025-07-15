@@ -424,33 +424,8 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   }
 
   const activeConnection = allConnections[activeConnectionKey];
-  const { wordpressApiUrl, wordpressUsername, wordpressApplicationPassword } = activeConnection;
-
-  // Verification is only needed for WordPress-based connections
-  if (wordpressApiUrl && wordpressUsername && wordpressApplicationPassword) {
-    const tempWpApi = createWordPressApi({
-      url: wordpressApiUrl,
-      username: wordpressUsername,
-      applicationPassword: wordpressApplicationPassword,
-    });
-    
-    if (tempWpApi) {
-        const siteUrl = tempWpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
-        const statusEndpoint = `${siteUrl}/wp-json/custom/v1/status`;
-        try {
-            const response = await tempWpApi.get(statusEndpoint, { timeout: 15000 });
-            if (response.status !== 200 || response.data?.verified !== true) {
-                throw new Error("Conexión no verificada. Comprueba que la API Key del plugin es correcta y está activa en tu sitio de WordPress.");
-            }
-        } catch (e: any) {
-            if (e.response?.status === 404) {
-                 throw new Error('Endpoint de verificación no encontrado. Actualiza el plugin AutoPress AI Helper en tu WordPress.');
-            }
-            throw new Error(e.message || "No se pudo verificar el estado del plugin en WordPress. Revisa la URL y las credenciales.");
-        }
-    }
-  }
-
+  
+  // Create API clients based on the active connection's data.
   const wooApi = createWooCommerceApi({
     url: activeConnection.wooCommerceStoreUrl,
     consumerKey: activeConnection.wooCommerceApiKey,
@@ -458,9 +433,9 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   });
 
   const wpApi = createWordPressApi({
-    url: wordpressApiUrl,
-    username: wordpressUsername,
-    applicationPassword: wordpressApplicationPassword,
+    url: activeConnection.wordpressApiUrl,
+    username: activeConnection.wordpressUsername,
+    applicationPassword: activeConnection.wordpressApplicationPassword,
   });
 
   const shopifyApi = createShopifyApi({
