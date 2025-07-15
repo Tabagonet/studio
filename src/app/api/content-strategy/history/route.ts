@@ -25,11 +25,12 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        console.log('[Content Strategy History] Querying content_strategy_plans collection...');
+        console.log('[Content Strategy History] Querying content_strategy_plans collection for user...');
+        // Corrected Query: Remove .orderBy() to avoid needing a composite index.
+        // Sorting will be handled in the application code after fetching.
         const snapshot = await adminDb.collection('content_strategy_plans')
             .where('userId', '==', uid)
-            .orderBy('createdAt', 'desc')
-            .limit(50)
+            .limit(200) // Fetch up to 200 recent plans to sort from.
             .get();
         console.log(`[Content Strategy History] Firestore query returned ${snapshot.size} documents.`);
 
@@ -59,13 +60,15 @@ export async function GET(req: NextRequest) {
                     keywordClusters: data.plan?.keywordClusters || [],
                 };
                 history.push(plan);
-                console.log(`[Content Strategy History] Successfully processed document ID: ${doc.id}`);
             } catch (innerError: any) {
                 console.error(`[Content Strategy History] Failed to process document ${doc.id}:`, innerError.message);
             }
         });
 
-        console.log(`[Content Strategy History] Successfully processed ${history.length} plans. Sending response.`);
+        // Sort the results in memory after fetching
+        history.sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
+
+        console.log(`[Content Strategy History] Successfully processed and sorted ${history.length} plans. Sending response.`);
         return NextResponse.json({ history });
 
     } catch (error: any) {
