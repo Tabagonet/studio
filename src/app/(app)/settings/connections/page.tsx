@@ -213,19 +213,23 @@ export default function ConnectionsPage() {
         }
     }, [toast]);
 
-    useEffect(() => {
-        const fetchInitialData = async (user: FirebaseUser) => {
-            setIsDataLoading(true);
-            const token = await user.getIdToken();
+    const fetchInitialData = useCallback(async (user: FirebaseUser) => {
+        setIsDataLoading(true);
+        const token = await user.getIdToken();
+        try {
             const response = await fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } });
             if (!response.ok) throw new Error("Failed to verify user.");
+            
             const userData = await response.json();
             setCurrentUser(userData);
 
-            let newEditingTarget: { type: 'user' | 'company'; id: string | null; name: string; platform: 'woocommerce' | 'shopify' | null };
+            let initialType: 'user' | 'company' = 'user';
+            let initialId: string | null = null;
+            let initialName = 'Mis Conexiones';
+            let initialPlatform: 'woocommerce' | 'shopify' | null = null;
 
             if (userData.role === 'super_admin') {
-                 const [companiesResponse, usersResponse] = await Promise.all([
+                const [companiesResponse, usersResponse] = await Promise.all([
                     fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } }),
                     fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } })
                 ]);
@@ -234,25 +238,28 @@ export default function ConnectionsPage() {
                     const allUsers = (await usersResponse.json()).users;
                     setUnassignedUsers(allUsers.filter((u: any) => u.role !== 'super_admin' && !u.companyId));
                 }
-                 newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)', platform: null };
-            } else {
-                const effectivePlatform = userData.companyPlatform || userData.platform;
-                newEditingTarget = { 
-                    type: userData.companyId ? 'company' : 'user', 
-                    id: userData.companyId || user.uid, 
-                    name: userData.companyName || 'Mis Conexiones',
-                    platform: effectivePlatform
-                };
+                initialId = user.uid; // Default to self
+                initialName = 'Mis Conexiones (Super Admin)';
+            } else { // Admin or other roles
+                initialType = userData.companyId ? 'company' : 'user';
+                initialId = userData.companyId || user.uid;
+                initialName = userData.companyName || 'Mis Conexiones';
+                initialPlatform = userData.companyPlatform || userData.platform;
             }
-            
-            setEditingTarget(newEditingTarget);
-            setEditingTargetPlatform(newEditingTarget.platform);
-            if (newEditingTarget.id) {
-                await fetchAllDataForTarget(user, newEditingTarget.type, newEditingTarget.id);
+
+            setEditingTarget({ type: initialType, id: initialId, name: initialName });
+            setEditingTargetPlatform(initialPlatform);
+            if (initialId) {
+                await fetchAllDataForTarget(user, initialType, initialId);
             }
+        } catch (e) {
+            console.error("Failed to initialize connections page:", e);
+        } finally {
             setIsDataLoading(false);
-        };
-        
+        }
+    }, [fetchAllDataForTarget]);
+
+    useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
                 await fetchInitialData(user);
@@ -263,7 +270,7 @@ export default function ConnectionsPage() {
         });
         
         return () => unsubscribe();
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [fetchInitialData]);
 
     const handleTargetChange = (value: string) => {
         const user = auth.currentUser;
@@ -273,7 +280,7 @@ export default function ConnectionsPage() {
         let newEditingTarget: { type: 'user' | 'company'; id: string | null; name: string, platform: 'woocommerce' | 'shopify' | null };
 
         if (type === 'user') {
-            if (id === 'self') {
+            if (id === user.uid) { // Super Admin's personal settings
                  newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)', platform: null };
             } else {
                 const selectedUser = unassignedUsers.find(u => u.uid === id);
@@ -373,7 +380,7 @@ export default function ConnectionsPage() {
             if (!isPartnerCreds) {
                 setSelectedKey(keyToSave);
             }
-             window.dispatchEvent(new CustomEvent('connections-updated'));
+            window.dispatchEvent(new CustomEvent('connections-updated'));
 
         } catch (error: any) {
             toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
@@ -412,11 +419,7 @@ export default function ConnectionsPage() {
             
             toast({ title: "Conexión Eliminada", description: `El perfil para '${keyToDelete}' ha sido eliminado.` });
             
-            // Re-fetch data and reset selection
             await fetchAllDataForTarget(user, editingTarget.type, editingTarget.id);
-            const remainingKeys = Object.keys(allConnections).filter(k => k !== keyToDelete && k !== 'partner_app');
-            setSelectedKey(remainingKeys.length > 0 ? remainingKeys[0] : 'new');
-
             window.dispatchEvent(new CustomEvent('connections-updated'));
             
         } catch (error: any) {
@@ -481,7 +484,7 @@ export default function ConnectionsPage() {
                             <SelectContent>
                                 <SelectGroup>
                                   <SelectLabel>Super Admin</SelectLabel>
-                                  <SelectItem value={`user:${currentUser?.uid}`}><Users className="inline-block mr-2 h-4 w-4" />Mis Conexiones (Super Admin)</SelectItem>
+                                  <SelectItem value={`user:${currentUser?.uid}`}><User className="inline-block mr-2 h-4 w-4" />Mis Conexiones (Super Admin)</SelectItem>
                                 </SelectGroup>
                                 
                                 {allCompanies.length > 0 && <SelectSeparator />}
@@ -517,7 +520,7 @@ export default function ConnectionsPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                     <ConnectionStatusIndicator status={selectedEntityStatus} isLoading={isCheckingStatus} onRefresh={() => fetchAllDataForTarget(auth.currentUser!, editingTarget.type, editingTarget.id)} />
+                     <ConnectionStatusIndicator status={selectedEntityStatus} isLoading={isCheckingStatus} onRefresh={() => auth.currentUser && fetchAllDataForTarget(auth.currentUser, editingTarget.type, editingTarget.id)} />
                     <div className="flex-1">
                         <Label htmlFor="profile-selector">Selecciona un perfil para editar o añade uno nuevo</Label>
                         <Select value={selectedKey} onValueChange={setSelectedKey} disabled={isSaving || isLoading}>
@@ -647,7 +650,7 @@ export default function ConnectionsPage() {
                          onDelete={() => handleDelete('partner_app')}
                          isDeleting={isDeleting}
                          configStatus={selectedEntityStatus}
-                         onRefreshStatus={() => fetchAllDataForTarget(auth.currentUser!, editingTarget.type, editingTarget.id)}
+                         onRefreshStatus={() => auth.currentUser && fetchAllDataForTarget(auth.currentUser, editingTarget.type, editingTarget.id)}
                          isCheckingStatus={isCheckingStatus}
                        />
                     )}

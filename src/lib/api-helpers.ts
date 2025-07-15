@@ -379,8 +379,14 @@ export function validateHmac(searchParams: URLSearchParams, clientSecret: string
 }
 
 
-// REFACTORED: This is the single source of truth for getting API clients.
-// It correctly handles user vs. company settings.
+/**
+ * Retrieves API clients based on the user's active configuration, correctly
+ * handling user-specific vs. company-wide settings.
+ *
+ * @param uid The UID of the user making the request.
+ * @returns An object containing initialized API clients and settings info.
+ * @throws If no settings or active connection are found.
+ */
 export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   if (!adminDb) {
     throw new Error('Firestore admin is not initialized.');

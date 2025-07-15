@@ -1,5 +1,3 @@
-
-
 // src/app/api/user-settings/connections/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -137,19 +135,16 @@ export async function POST(req: NextRequest) {
         const { key, connectionData, setActive, entityId, entityType, isPartner } = validationResult.data;
         
         let settingsRef: FirebaseFirestore.DocumentReference;
-        let finalConnectionData: ConnectionData | PartnerAppData;
         
         if (isPartner && role === 'super_admin') {
             settingsRef = adminDb.collection('companies').doc('global_settings');
             const validation = partnerAppConnectionDataSchema.safeParse(connectionData);
             if (!validation.success) { return NextResponse.json({ error: "Invalid Partner App data", details: validation.error.flatten() }, { status: 400 }); }
-            finalConnectionData = validation.data;
         } else if (!isPartner) {
             const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
             settingsRef = adminDb.collection(settingsCollection).doc(entityId);
             const validation = connectionDataSchema.safeParse(connectionData);
             if (!validation.success) { return NextResponse.json({ error: "Invalid connection data", details: validation.error.flatten() }, { status: 400 }); }
-            finalConnectionData = validation.data;
         } else {
              return NextResponse.json({ error: 'Forbidden: Only Super Admins can edit global partner credentials.' }, { status: 403 });
         }
@@ -159,7 +154,7 @@ export async function POST(req: NextRequest) {
 
         const mergedConnectionData = {
             ...(existingConnections[key] || {}),
-            ...finalConnectionData
+            ...connectionData
         };
 
         const updatePayload: { [key: string]: any } = {
@@ -188,7 +183,7 @@ export async function POST(req: NextRequest) {
         
         // Add hostnames to next.config.js only for non-partner connections
         if (!isPartner) {
-            const data = finalConnectionData as ConnectionData;
+            const data = connectionData as ConnectionData;
             const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = data;
             const hostnamesToAdd = new Set<string>();
 
