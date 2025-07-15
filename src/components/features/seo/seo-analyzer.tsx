@@ -29,6 +29,7 @@ interface SeoAnalyzerPost {
   featuredImageUrl?: string | null;
   link?: string;
   postType: 'Post' | 'Page' | 'Producto';
+  lang: string;
 }
 
 interface SeoAnalyzerProps {
@@ -108,7 +109,7 @@ export function SeoAnalyzer({
         
         const payload: any = { 
             mode, 
-            language: 'Spanish',
+            language: post.lang || 'es', // Use the post's language
             existingTitle: post.meta._yoast_wpseo_title || post.title,
             existingContent: typeof post.content === 'string' ? post.content : '',
             keywords: post.meta._yoast_wpseo_focuskw || '',
@@ -144,7 +145,7 @@ export function SeoAnalyzer({
             const user = auth.currentUser; if (!user) return;
             const token = await user.getIdToken();
 
-            const payload = { mode: 'generate_focus_keyword', language: 'Spanish', existingTitle: post.title, existingContent: typeof post.content === 'string' ? post.content : '' };
+            const payload = { mode: 'generate_focus_keyword', language: post.lang || 'es', existingTitle: post.title, existingContent: typeof post.content === 'string' ? post.content : '' };
             const response = await fetch('/api/generate-blog-post', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload) });
             if (response.ok) {
                 const aiContent = await response.json();
@@ -168,7 +169,7 @@ export function SeoAnalyzer({
         const token = await user.getIdToken();
         const payload = {
             mode: 'generate_image_meta',
-            language: 'Spanish',
+            language: post.lang || 'es',
             existingTitle: post.title,
             existingContent: typeof post.content === 'string' ? post.content : '',
         };

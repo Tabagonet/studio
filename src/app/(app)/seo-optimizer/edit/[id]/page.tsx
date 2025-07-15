@@ -38,6 +38,7 @@ interface PostEditState {
   featuredMediaId?: number | null;
   link?: string;
   postType: 'Post' | 'Page' | 'Producto';
+  lang: string; // Added language field
 }
 
 
@@ -139,6 +140,7 @@ function EditPageContent() {
         adminEditLink: postData.adminEditLink || null, featuredImageUrl: postData.featured_image_url || null,
         featuredMediaId: postData.featured_media || null, link: postData.link,
         postType: postType,
+        lang: postData.lang || 'es', // Capture the language code
       };
 
       try {

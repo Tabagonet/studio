@@ -5,6 +5,15 @@ import { z } from 'zod';
 import Handlebars from 'handlebars';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+const languageCodeToName: Record<string, string> = {
+    es: 'Spanish',
+    en: 'English',
+    fr: 'French',
+    de: 'German',
+    pt: 'Portuguese',
+    // Add other mappings as needed
+};
+
 const BlogContentInputSchema = z.object({
   mode: z.enum([
     'generate_from_topic', 'enhance_content', 'enhance_title', 'suggest_keywords',
@@ -71,12 +80,15 @@ export async function POST(req: NextRequest) {
         
         const input = validationResult.data;
         
+        // Convert language code (e.g., 'en') to language name ('English') for the AI
+        const languageName = languageCodeToName[input.language] || input.language;
+        
         const contentSnippet = (input.existingContent || '')
           .replace(/<[^>]+>/g, ' ')
           .replace(/\s+/g, ' ')
           .trim()
           .substring(0, 1500);
-        const modelInput = { ...input, existingContent: contentSnippet };
+        const modelInput = { ...input, language: languageName, existingContent: contentSnippet };
 
         let promptKey = '';
         if (input.postType === 'Producto') {
