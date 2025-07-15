@@ -1,5 +1,4 @@
 
-
 import type { LucideIcon } from 'lucide-react';
 import type { SeoInterpretationOutput, SuggestLinksInput, SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
 
@@ -429,7 +428,7 @@ export interface ShopifyCreationJob {
   };
   
   // Data added after assignment
-  shopId?: string;
+  shopId?: string; // Corrected to string
   storeDomain?: string;
   installUrl?: string; // The URL to authorize the app
   

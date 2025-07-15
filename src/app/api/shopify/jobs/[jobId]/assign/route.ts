@@ -64,7 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
         const jobRef = adminDb.collection('shopify_creation_jobs').doc(jobId);
         await jobRef.update({
             storeDomain,
-            shopId,
+            shopId, // Save the shopId
             installUrl,
             status: 'awaiting_auth',
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
