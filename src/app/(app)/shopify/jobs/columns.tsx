@@ -4,7 +4,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { ShopifyCreationJob } from "@/lib/types";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { ArrowUpDown, ExternalLink, Loader2, CheckCircle, AlertCircle, Circle, LockOpen, Key, MoreHorizontal, Trash2, DatabaseZap } from "lucide-react";
+import { ArrowUpDown, ExternalLink, Loader2, CheckCircle, AlertCircle, Circle, LockOpen, Key, MoreHorizontal, Trash2, DatabaseZap, Wand2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -55,7 +55,9 @@ const StatusBadge = ({ status }: { status: ShopifyCreationJob['status'] }) => {
 export const getColumns = (
   onDelete: (jobId: string) => void,
   onAssign: (job: ShopifyCreationJob) => void,
+  onPopulate: (jobId: string) => void,
   isDeleting: (jobId: string) => boolean,
+  isPopulating: string | null
 ): ColumnDef<ShopifyCreationJob>[] => [
   {
     id: "select",
@@ -132,20 +134,23 @@ export const getColumns = (
       const job = row.original;
       const canAssign = job.status === 'pending';
       const canAuthorize = job.status === 'awaiting_auth' && job.installUrl;
-      const canOpenAdmin = ['authorized', 'populating', 'completed'].includes(job.status) && job.createdStoreAdminUrl;
+      const canPopulate = job.status === 'authorized';
+      const canOpenAdmin = ['authorized', 'populating', 'completed'].includes(job.status) && job.storeDomain;
       const isJobDeleting = isDeleting(job.id);
+      const isJobPopulating = isPopulating === job.id;
 
       return (
         <div className="text-right">
              <AlertDialog>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="h-8 w-8 p-0" disabled={isJobDeleting}>
-                       {isJobDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
+                    <Button variant="ghost" className="h-8 w-8 p-0" disabled={isJobDeleting || isJobPopulating}>
+                       {isJobDeleting || isJobPopulating ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
                     {canAssign && (
                         <DropdownMenuItem onSelect={() => onAssign(job)}>
                            <DatabaseZap className="h-4 w-4 mr-2" /> Asignar Tienda
@@ -156,6 +161,11 @@ export const getColumns = (
                            <Link href={`/api/shopify/auth/initiate?jobId=${job.id}`} target="_blank" rel="noopener noreferrer">
                                 <Key className="h-4 w-4 mr-2" /> Autorizar Instalación
                            </Link>
+                       </DropdownMenuItem>
+                    )}
+                    {canPopulate && (
+                       <DropdownMenuItem onSelect={() => onPopulate(job.id)}>
+                           <Wand2 className="h-4 w-4 mr-2" /> Poblar Contenido
                        </DropdownMenuItem>
                     )}
                     {canOpenAdmin && (

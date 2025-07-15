@@ -45,6 +45,8 @@ export function JobsDataTable() {
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = React.useState<string[]>([]);
   const [jobToAssign, setJobToAssign] = React.useState<ShopifyCreationJob | null>(null);
+  const [populatingJobId, setPopulatingJobId] = React.useState<string | null>(null);
+
 
   const fetchData = React.useCallback(async () => {
     setIsLoading(true);
@@ -62,7 +64,6 @@ export function JobsDataTable() {
         throw new Error((await response.json()).error || 'Failed to fetch Shopify jobs');
       }
       const data = await response.json();
-      console.log("Datos de trabajos recibidos desde la API:", data.jobs); // LOG
       setData(data.jobs || []);
     } catch (error: any) {
       toast({ title: "Error al cargar trabajos", description: error.message, variant: "destructive" });
@@ -112,13 +113,43 @@ export function JobsDataTable() {
       setIsDeleting([]);
   };
 
+  const handlePopulate = async (jobId: string) => {
+     const user = auth.currentUser;
+      if (!user) {
+          toast({ title: "No autenticado", variant: "destructive" });
+          return;
+      }
+      setPopulatingJobId(jobId);
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch(`/api/shopify/jobs/${jobId}/populate`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'No se pudo iniciar el proceso de poblado.');
+        }
+
+        toast({ title: 'Proceso Iniciado', description: 'La tarea de poblado de contenido ha comenzado. El estado se actualizará en breve.' });
+        fetchData(); // Refresh to show the new 'populating' status
+      } catch (error: any) {
+         toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      } finally {
+         setPopulatingJobId(null);
+      }
+  };
+
   const isJobDeleting = (jobId: string) => isDeleting.includes(jobId) || isDeleting.includes('batch');
   
   const columns = React.useMemo(() => getColumns(
       (jobId) => handleDelete([jobId]),
       (job) => setJobToAssign(job),
-      isJobDeleting
-  ), [isDeleting]); // eslint-disable-line react-hooks/exhaustive-deps
+      handlePopulate,
+      isJobDeleting,
+      populatingJobId
+  ), [isDeleting, populatingJobId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const table = useReactTable({
     data,
