@@ -50,18 +50,17 @@ export async function GET(req: NextRequest) {
 
         const jobs: ShopifyCreationJob[] = snapshot.docs.map(doc => {
             const data = doc.data();
-            // Map ALL relevant fields from the ShopifyCreationJob type
             return {
                 id: doc.id,
                 status: data.status || 'pending',
                 createdAt: data.createdAt.toDate().toISOString(),
                 updatedAt: data.updatedAt.toDate().toISOString(),
                 logs: data.logs || [],
+                storeDomain: data.storeDomain || '',
+                adminApiAccessToken: data.adminApiAccessToken || '',
                 webhookUrl: data.webhookUrl || '',
                 storeName: data.storeName || 'N/A',
                 businessEmail: data.businessEmail || 'N/A',
-                countryCode: data.countryCode || '',
-                currency: data.currency || '',
                 brandDescription: data.brandDescription || '',
                 targetAudience: data.targetAudience || '',
                 brandPersonality: data.brandPersonality || '',
@@ -70,11 +69,6 @@ export async function GET(req: NextRequest) {
                 creationOptions: data.creationOptions || {},
                 legalInfo: data.legalInfo || {},
                 entity: data.entity || {},
-                createdStoreUrl: data.createdStoreUrl || null,
-                createdStoreAdminUrl: data.createdStoreAdminUrl || null,
-                storefrontPassword: data.storefrontPassword || null,
-                installUrl: data.installUrl || null,
-                storeAccessToken: data.storeAccessToken || null,
             };
         });
 

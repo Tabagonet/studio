@@ -91,7 +91,12 @@ async function triggerStoreCreationWithExampleData() {
     }
     const ownerCompanyId = companyQuery.docs[0].id;
 
+    // This is a test flow that creates a job with pre-filled data.
+    // The key change is that storeDomain and adminApiAccessToken would need to be provided
+    // for a real-world scenario based on the new workflow. This test implies a pre-configured template store.
     const jobPayload = {
+      storeDomain: process.env.TEST_SHOPIFY_STORE_DOMAIN, // Needs to be configured in .env for this test to work
+      adminApiAccessToken: process.env.TEST_SHOPIFY_ADMIN_TOKEN, // Needs to be configured in .env
       webhookUrl: "https://webhook.site/#!/view/1b8a9b3f-8c3b-4c1e-9d2a-9e1b5f6a7d1c", 
       storeName: storeData.storeName,
       businessEmail: storeData.businessEmail,
@@ -130,7 +135,7 @@ async function triggerStoreCreationWithExampleData() {
         }
     });
     
-    return `¡Perfecto! Usando datos de ejemplo, estamos iniciando la creación de tu tienda Shopify: "${storeData.storeName}". Ve al panel de "Trabajos de Creación" para ver el progreso.`;
+    return `¡Perfecto! Usando datos de ejemplo, estamos iniciando la personalización de tu tienda Shopify: "${storeData.storeName}". Ve al panel de "Trabajos" para ver el progreso.`;
 }
 
 

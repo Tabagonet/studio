@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { populateShopifyStore } from '@/lib/tasks/create-shopify-store';
+import { populateShopifyStore } from '@/lib/tasks/populate-shopify-store';
 import { adminAuth } from '@/lib/firebase-admin';
 
 // This endpoint is designed to be called by Cloud Tasks.

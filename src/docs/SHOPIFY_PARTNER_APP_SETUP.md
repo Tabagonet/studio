@@ -1,44 +1,61 @@
-<h2>Guía: Configurar Cliente de la API de Partner de Shopify</h2>
-<p>Sigue estos pasos para crear un <strong>"Cliente de API de Partner"</strong> en tu panel de Shopify Partner. Esto nos dará los permisos necesarios para crear tiendas de desarrollo en tu nombre de forma segura y automática. Solo necesitas hacerlo una vez.</p>
+<h2>Guía: Configurar App Personalizada en Tienda Shopify</h2>
+<p>Sigue estos pasos para crear una <strong>"App Personalizada"</strong> en el panel de administración de una tienda Shopify de desarrollo. Esto nos dará los permisos necesarios para poblar la tienda con contenido de forma segura y automática.</p>
+<p><strong>Nota:</strong> Este proceso debe realizarse para cada tienda de desarrollo a la que quieras conectar AutoPress AI.</p>
 
-<h3>Paso 1: Accede a los Ajustes de Partner</h3>
+<h3>Paso 1: Habilita el desarrollo de apps personalizadas</h3>
 <ol>
-  <li>Ve a tu panel de <a href="https://partners.shopify.com" target="_blank" rel="noopener noreferrer">Shopify Partner</a> y accede con tu cuenta.</li>
-  <li>En el menú de la izquierda, en la parte inferior, busca y haz clic en <strong>"Ajustes"</strong> (Settings).</li>
-  <li>Dentro de Ajustes, busca y haz clic en la opción <strong>"Partner API clients"</strong>.</li>
+  <li>Accede al panel de administración de tu tienda de desarrollo Shopify.</li>
+  <li>En el menú de la izquierda, ve a <strong>"Aplicaciones y canales de ventas"</strong> (Apps and sales channels).</li>
+  <li>Haz clic en <strong>"Desarrollar aplicaciones"</strong> (Develop apps).</li>
+  <li>Si es la primera vez, haz clic en <strong>"Permitir desarrollo de aplicaciones personalizadas"</strong>. Lee el aviso y confírmalo.</li>
 </ol>
-<p><strong>Importante:</strong> Solo los <strong>propietarios de la organización</strong> de Partner pueden ver y gestionar esta sección. Si no ves esta opción, pide al propietario de tu organización de Partner que realice estos pasos o te conceda los permisos necesarios.</p>
 
-<h3>Paso 2: Crea un nuevo cliente de API</h3>
+<h3>Paso 2: Crea una nueva app personalizada</h3>
 <ol>
-  <li>Dentro de la página "Partner API clients", haz clic en el botón azul <strong>"Create API client"</strong>.</li>
-  <li>Aparecerá un modal para configurar el cliente. Rellena los siguientes campos:</li>
+  <li>En la página "Desarrollar aplicaciones", haz clic en <strong>"Crear una aplicación"</strong>.</li>
+  <li>Dale un nombre que la identifique, por ejemplo: <code>AutoPress AI Content Manager</code>.</li>
+  <li>En el campo "Desarrollador de la aplicación", selecciona tu cuenta de desarrollador.</li>
+  <li>Haz clic en <strong>"Crear aplicación"</strong>.</li>
+</ol>
+
+<h3>Paso 3: Configura los Scopes (Permisos)</h3>
+<p>Después de crear la app, Shopify te llevará a la página de configuración. Es crucial asignar los permisos correctos.</p>
+<ol>
+  <li>Ve a la pestaña <strong>"Configuración"</strong> y luego a <strong>"Configurar ámbitos de la API de Admin"</strong> (Configure Admin API scopes).</li>
+  <li>Busca y marca las casillas para los siguientes permisos (scopes). Esto le dará a AutoPress AI acceso para gestionar el contenido de la tienda:</li>
 </ol>
 <ul>
-    <li><strong>Client name:</strong> Dale un nombre descriptivo, por ejemplo: <code>AutoPress AI - Creador de Tiendas</code>.</li>
-    <li><strong>Description:</strong> Una breve descripción, por ejemplo: <code>Cliente de API para crear tiendas de desarrollo desde la plataforma AutoPress AI.</code>.</li>
+    <li>✅ <code>read_content</code> y <code>write_content</code> (Para páginas y redirecciones)</li>
+    <li>✅ <code>read_products</code> y <code>write_products</code> (Para productos y colecciones)</li>
+    <li>✅ <code>read_themes</code> y <code>write_themes</code> (Para personalizar el tema)</li>
+    <li>✅ <code>read_navigation</code> y <code>write_navigation</code> (Para gestionar menús)</li>
+    <li>✅ <code>read_files</code> y <code>write_files</code> (Para subir imágenes a los archivos de la tienda)</li>
+    <li>✅ <code>read_blogs</code> y <code>write_blogs</code> (Para artículos y blogs)</li>
 </ul>
-
-<h3>Paso 3: Asigna los Permisos Correctos</h3>
-<ol>
-  <li>En la misma ventana modal, verás una sección de <strong>"Permissions"</strong> o <strong>"Access scopes"</strong>.</li>
-  <li>Aquí es crucial que marques la casilla que dice <strong>"Manage apps"</strong>. Este permiso incluye la capacidad de crear y gestionar tiendas de desarrollo (<code>write_development_stores</code>).</li>
-  <li>No necesitas marcar otros permisos como "View financials" o "Manage themes" a menos que quieras usar esas funcionalidades por tu cuenta. Para la creación de tiendas, <strong>"Manage apps"</strong> es el permiso clave.</li>
-  <li>Haz clic en <strong>"Save"</strong>.</li>
+<ol start="3">
+  <li>Haz clic en <strong>"Guardar"</strong> en la parte superior derecha.</li>
 </ol>
 
-<h3>Paso 4: Obtén y Guarda tus Credenciales</h3>
-<p>¡Casi has terminado! Después de guardar, la página se refrescará y verás tu nuevo cliente de API en la lista.</p>
+<h3>Paso 4: Instala la App y Obtén el Token</h3>
+<p>¡Casi has terminado! Ahora necesitas instalar la app en tu tienda para generar el token de acceso.</p>
 <ol>
-  <li>Busca la sección <strong>"Credentials"</strong> o <strong>"API credentials"</strong>.</li>
-  <li>Copia tu <strong>ID de Organización (Organization ID)</strong>. Suele ser un número que también puedes ver en la URL de tu navegador (ej: <code>https://partners.shopify.com/1234567/...</code>).</li>
-  <li>Copia el <strong>Token de Acceso (Access token)</strong>. Este es un token largo que empieza por <code>shptka_...</code> o similar. Trátalo como una contraseña, es secreto.</li>
-  <li>Vuelve a la plataforma <strong>AutoPress AI</strong>, ve a <code>Ajustes > Conexiones</code> y, en la tarjeta de "Conexión Global de Shopify Partners", pega los dos valores en sus respectivos campos:
-    <ul>
-      <li>ID de Organización</li>
-      <li>Token de Acceso de la API de Partner</li>
-    </ul>
-  </li>
-  <li>Haz clic en <strong>"Guardar Credenciales de Partner"</strong>.</li>
-  <li>La aplicación intentará verificar la conexión. Si todo es correcto, el indicador de estado se pondrá en verde. ¡Ya está todo listo para crear tiendas!</li>
+  <li>Ve a la pestaña <strong>"Credenciales de la API"</strong> (API credentials).</li>
+  <li>En la sección "Token de acceso a la API de Admin", haz clic en <strong>"Instalar aplicación"</strong>.</li>
+  <li>Confirma la instalación en la ventana emergente.</li>
+  <li>Una vez instalada, Shopify te mostrará el <strong>"Token de acceso a la API de Admin"</strong>. ¡Es la única vez que se mostrará por completo!</li>
+  <li>Haz clic en <strong>"Mostrar token una vez"</strong> y copia el token (empieza por <code>shpat_...</code>).</li>
 </ol>
+
+<h3>Paso 5: Guarda las Credenciales en AutoPress AI</h3>
+<ol>
+  <li>Vuelve a la plataforma AutoPress AI.</li>
+  <li>Ve a <strong>Ajustes > Conexiones</strong>.</li>
+  <li>Crea un nuevo perfil de conexión o edita uno existente.</li>
+  <li>En la sección de "Conexión a Tienda Shopify", pega los siguientes datos:</li>
+  <ul>
+      <li><strong>URL de la Tienda (.myshopify.com):</strong> La URL de tu tienda de desarrollo (ej: <code>mi-tienda-dev.myshopify.com</code>).</li>
+      <li><strong>Token de Acceso de Admin API:</strong> El token <code>shpat_...</code> que acabas de copiar.</li>
+  </ul>
+  <li>Haz clic en <strong>"Guardar y Activar"</strong>.</li>
+</ol>
+<p>¡Listo! Con esto, AutoPress AI ya tiene los permisos necesarios para poblar y gestionar el contenido de esta tienda de desarrollo específica.</p>
