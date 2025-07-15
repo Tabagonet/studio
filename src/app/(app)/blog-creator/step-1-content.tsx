@@ -522,8 +522,8 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                             </div>
 
                             <div className="pt-4 border-t">
-                                <Label>Etiquetas (separadas por comas)</Label>
-                                <Input name="keywords" value={postData.keywords} onChange={handleInputChange} placeholder="Ej: SEO, marketing, WordPress" />
+                                <Label htmlFor="keywords">Etiquetas (Palabras Clave)</Label>
+                                <Input id="keywords" name="keywords" value={postData.keywords} onChange={handleInputChange} placeholder="Ej: SEO, marketing, WordPress" />
                             </div>
                         </CardContent>
                     </Card>
