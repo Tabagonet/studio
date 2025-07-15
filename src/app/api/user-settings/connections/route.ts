@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
         const partnerAppData = globalSettingsDoc.exists ? globalSettingsDoc.data()?.connections?.partner_app || null : null;
         
         // Construct the final connections object, prioritizing global partner data
-        const allConnections = { ...entityConnections };
+        const allConnections: { [key: string]: any } = { ...entityConnections };
         if (partnerAppData) {
             allConnections.partner_app = partnerAppData;
         }
