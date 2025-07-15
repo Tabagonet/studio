@@ -5,14 +5,25 @@ import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { getPartnerCredentials } from '@/lib/api-helpers';
 
 async function isAuthorized(req: NextRequest): Promise<boolean> {
-    const token = req.headers.get('Authorization')?.split('Bearer ')[1];
-    if (!token) return false;
+    // This function can be simplified now that we rely on the browser's session cookie
+    // but we keep it for security. The cookie is automatically sent by the browser.
+    const token = req.cookies.get('__session')?.value;
+    if (!token) {
+        // Fallback for direct API calls, if any
+        const authHeader = req.headers.get('Authorization')?.split('Bearer ')[1];
+        if(!authHeader) return false;
+        try {
+            await adminAuth.verifyIdToken(authHeader);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
     try {
-        if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized");
-        const decodedToken = await adminAuth.verifyIdToken(token);
-        const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
-        const role = userDoc.data()?.role;
-        return userDoc.exists && ['admin', 'super_admin'].includes(role);
+        if (!adminAuth) throw new Error("Firebase Admin not initialized");
+        await adminAuth.verifySessionCookie(token, true);
+        return true;
     } catch {
         return false;
     }

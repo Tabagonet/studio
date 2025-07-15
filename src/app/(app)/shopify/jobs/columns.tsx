@@ -170,7 +170,7 @@ export const getColumns = (
                     )}
                     {canOpenAdmin && (
                         <DropdownMenuItem asChild>
-                             <Link href={job.createdStoreAdminUrl!} target="_blank" rel="noopener noreferrer">
+                             <Link href={`https://${job.storeDomain}/admin`} target="_blank" rel="noopener noreferrer">
                                 <ExternalLink className="h-4 w-4 mr-2" /> Abrir Admin
                             </Link>
                         </DropdownMenuItem>
