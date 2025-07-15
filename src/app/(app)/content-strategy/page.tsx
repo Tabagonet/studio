@@ -112,9 +112,9 @@ export default function ContentStrategyPage() {
           <div className="flex items-center space-x-3">
             <Lightbulb className="h-8 w-8 text-primary" />
             <div>
-              <CardTitle>Estrategia de Contenidos con IA</CardTitle>
+              <CardTitle>Planificador de Palabras Clave y Contenidos</CardTitle>
               <CardDescription>
-                Describe tu negocio o déjanos analizar tu sitio para generar una estrategia de contenidos y palabras clave.
+                Genera una estrategia de contenidos y palabras clave para mejorar el SEO y atraer a tu público objetivo.
               </CardDescription>
             </div>
           </div>
@@ -125,7 +125,7 @@ export default function ContentStrategyPage() {
         <CardHeader>
             <CardTitle>1. Define el Contexto de tu Negocio</CardTitle>
             <CardDescription>
-                Describe tu negocio, público y objetivos. Puedes usar el botón para autocompletar con los datos de tu web conectada.
+                Describe tu negocio o déjanos analizar tu sitio. Una descripción clara y concisa dará los mejores resultados.
             </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
