@@ -11,22 +11,21 @@ Sigue estos pasos para crear una aplicación personalizada en tu panel de Shopif
 
 ### Paso 2: Rellena los datos básicos y las URLs
 
-Ahora verás una pantalla de configuración. Rellena los siguientes campos con la información que te proporciona la plataforma AutoPress AI en **Ajustes > Conexiones**.
+Ahora verás una pantalla de configuración. Rellena los siguientes campos.
 
 *   **App name:** Escribe un nombre que la identifique, por ejemplo: `AutoPress AI Creator`. Es solo para tu referencia interna.
 
-*   **App URL:** Esta es la URL base de la aplicación. **Copia y pégala desde la sección "URLs Requeridas" en la página de conexiones de AutoPress AI**.
-    *   Ejemplo para producción: `https://autopress.intelvisual.es`
+*   **App URL:** Esta es la URL base de la aplicación. **Este campo es importante.**
+    *   Para producción, usa: `https://autopress.intelvisual.es`
 
 *   **Allowed redirection URL(s):** Esta es la parte más importante para la seguridad. Shopify solo permitirá redirigir a los usuarios a la URL que pongas aquí. Debes añadir una URL por cada entorno donde uses AutoPress AI.
-
     *   **1. URL de Producción (Obligatoria):**
         *   `https://autopress.intelvisual.es/api/shopify/auth/callback`
-
-    *   **2. URL de Desarrollo (Importante):**
-        *   Si usas AutoPress AI en un entorno de desarrollo como Project IDX o en tu máquina local (`localhost`), debes añadir la URL pública de ese entorno. La aplicación intentará mostrarte esta URL en los logs o en la página de conexiones.
-        *   **Ejemplo para Project IDX:** `https://1234.cluster-xyz.cloudworkstations.dev/api/shopify/auth/callback`
-        *   **Ejemplo si usas un túnel como ngrok:** `https://tunnelfe8a.ngrok.io/api/shopify/auth/callback`
+    *   **2. URL de Desarrollo Local (Obligatoria si pruebas en tu máquina):**
+        *   `http://localhost:9002/api/shopify/auth/callback`
+    *   **3. URL de Otros Entornos de Desarrollo (Opcional):**
+        *   Si usas la app en un entorno de desarrollo en la nube como **Project IDX**, debes añadir su URL pública aquí. La URL cambiará cada vez que reinicies el espacio de trabajo. Fíjate en la barra de direcciones de tu navegador para encontrarla.
+        *   **Ejemplo para Project IDX:** `https://1234-5678-abcd.cluster-xyz.cloudworkstations.dev/api/shopify/auth/callback`
 
     **Importante:** Debes tener una entrada por cada entorno. Haz clic en **"Add URL"** para añadir más de una.
 
@@ -43,6 +42,16 @@ Después de crear la app, Shopify te llevará a la página de configuración.
 5.  Se desplegará una lista larga de permisos. Busca y marca las casillas para los siguientes permisos:
     *   ✅ `write_development_stores`
     *   ✅ `read_development_stores`
+    *   ✅ `write_products`
+    *   ✅ `read_products`
+    *   ✅ `write_themes`
+    *   ✅ `read_themes`
+    *   ✅ `write_content`
+    *   ✅ `read_content`
+    *   ✅ `write_online_store_navigation`
+    *   ✅ `read_online_store_navigation`
+    *   ✅ `write_files`
+    *   ✅ `read_files`
 6.  Haz clic en **"Guardar"** en la parte superior derecha de la página para aplicar los cambios de permisos.
 
 ### Paso 4: Obtén y guarda tus credenciales

@@ -49,6 +49,7 @@ export function JobsDataTable() {
   const [isDeleting, setIsDeleting] = React.useState<string[]>([]);
   const [jobToAssign, setJobToAssign] = React.useState<ShopifyCreationJob | null>(null);
   const [populatingJobId, setPopulatingJobId] = React.useState<string | null>(null);
+  const [authActionLoading, setAuthActionLoading] = React.useState(false);
 
   const [showConfigErrorDialog, setShowConfigErrorDialog] = React.useState(false);
   const [configErrorMessage, setConfigErrorMessage] = React.useState('');
@@ -147,42 +148,32 @@ export function JobsDataTable() {
   };
 
   const handleInitiateAuth = async (job: ShopifyCreationJob) => {
-    console.log(`[Auth Action] Iniciando autorización para el trabajo: ${job.id}`);
+    setAuthActionLoading(true);
     const user = auth.currentUser;
     if (!user) {
         toast({ title: "No autenticado", variant: "destructive" });
+        setAuthActionLoading(false);
         return;
     }
+    
     try {
         const token = await user.getIdToken();
-        console.log(`[Auth Action] Obteniendo parámetros de OAuth...`);
-        const paramsResponse = await fetch('/api/shopify/get-oauth-params', {
-            headers: { 'Authorization': `Bearer ${token}` }
+        const response = await fetch('/api/shopify/auth/initiate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ jobId: job.id, clientBaseUrl: window.location.origin })
         });
-        if (!paramsResponse.ok) {
-            throw new Error((await paramsResponse.json()).error || 'No se pudieron obtener los parámetros de autorización.');
-        }
-        const { clientId, redirectUri, scopes } = await paramsResponse.json();
-        console.log(`[Auth Action] Parámetros recibidos: clientId=${clientId}`);
-
-        if (!clientId || !redirectUri || !scopes) {
-             throw new Error("La configuración de la App Personalizada está incompleta en los ajustes globales.");
-        }
-        if (!job.storeDomain) {
-            throw new Error("El dominio de la tienda no está asignado a este trabajo.");
-        }
-
-        const installUrl = `https://${job.storeDomain}/admin/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${job.id}`;
         
-        console.log(`[Auth Action] URL de instalación generada: ${installUrl}`);
-        console.log(`[Auth Action] Redirigiendo al usuario...`);
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || result.details?.message || "Fallo al iniciar la autorización.");
+        }
         
-        // Use window.location.href for a full browser redirect
-        window.location.href = installUrl;
+        window.location.href = result.authorizationUrl;
 
     } catch (error: any) {
-         toast({ title: "Error de Autorización", description: error.message, variant: "destructive" });
-         console.error("[Auth Action] Error:", error);
+        toast({ title: "Error de Autorización", description: error.message, variant: "destructive" });
+        setAuthActionLoading(false);
     }
   };
 
