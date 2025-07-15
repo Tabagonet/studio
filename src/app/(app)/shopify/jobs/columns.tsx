@@ -1,3 +1,4 @@
+
 // src/app/(app)/shopify/jobs/columns.tsx
 "use client";
 
@@ -135,7 +136,7 @@ export const getColumns = (
       cell: ({ row }) => {
         const job = row.original;
         const canAssign = job.status === 'pending';
-        const canAuthorize = job.status === 'awaiting_auth';
+        const canAuthorize = job.status === 'assigned'; // Can only authorize AFTER assignment
         const canPopulate = job.status === 'authorized';
         const canOpenAdmin = ['authorized', 'populating', 'completed'].includes(job.status) && job.storeDomain;
         const isLoading = isDeleting(job.id) || isPopulating === job.id;

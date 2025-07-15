@@ -51,23 +51,17 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
         
         const { storeDomain, shopId } = validation.data;
         
-        const partnerCreds = await getPartnerCredentials();
-        
-        const scopes = 'write_products,write_content,write_themes,read_products,read_content,read_themes,write_navigation,read_navigation,write_files,read_files,write_blogs,read_blogs';
-        const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/auth/callback`;
-        
-        const installUrl = `https://${storeDomain}/admin/oauth/authorize?client_id=${partnerCreds.clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${jobId}`;
-
+        // This step no longer creates the authorization URL. It just saves the store info.
+        // The authorization URL will be created on the fly when the user clicks the "Authorize" button.
         const jobRef = adminDb.collection('shopify_creation_jobs').doc(jobId);
         await jobRef.update({
             storeDomain,
             shopId,
-            installUrl,
-            status: 'awaiting_auth',
+            status: 'assigned', // New status: store is assigned, ready for auth.
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             logs: admin.firestore.FieldValue.arrayUnion({
                 timestamp: new Date(),
-                message: `Tienda ${storeDomain} asignada. Generando URL de autorización.`,
+                message: `Tienda ${storeDomain} asignada. Lista para iniciar autorización.`,
             }),
         });
 

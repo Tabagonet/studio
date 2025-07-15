@@ -1,3 +1,4 @@
+
 // src/app/(app)/shopify/jobs/data-table.tsx
 "use client";
 
@@ -33,13 +34,14 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { deleteShopifyJobsAction } from "./actions";
 import { AssignStoreDialog } from "./assign-store-dialog";
 import Link from 'next/link';
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 
 export function JobsDataTable() {
   const [data, setData] = React.useState<ShopifyCreationJob[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const router = useRouter();
+  const searchParams = useSearchParams();
   
   const [sorting, setSorting] = React.useState<SortingState>([{ id: 'createdAt', desc: true }]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -78,6 +80,20 @@ export function JobsDataTable() {
       setIsLoading(false);
     }
   }, [toast]);
+  
+  React.useEffect(() => {
+    const authSuccess = searchParams.get('auth_success');
+    if(authSuccess === 'true') {
+        toast({ title: '¡Autorización Exitosa!', description: 'La tienda está lista para ser poblada con contenido.' });
+        // Clean the URL
+        router.replace('/shopify/jobs');
+    }
+    const authError = searchParams.get('auth_error');
+    if(authError === 'true') {
+         toast({ title: 'Error de Autorización', description: searchParams.get('error_message') || 'Ocurrió un error desconocido.', variant: 'destructive'});
+         router.replace('/shopify/jobs');
+    }
+  }, [searchParams, toast, router]);
 
   React.useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -169,6 +185,7 @@ export function JobsDataTable() {
             throw new Error(result.error || result.details?.message || "Fallo al iniciar la autorización.");
         }
         
+        // This is now the definitive way to redirect.
         window.location.href = result.authorizationUrl;
 
     } catch (error: any) {
