@@ -393,58 +393,43 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
     throw new Error('Firestore admin is not initialized.');
   }
   
-  console.log(`[API-HELPER] Getting API clients for user: ${uid}`);
-  
   const userDocRef = await adminDb.collection('users').doc(uid).get();
   if (!userDocRef.exists) {
       throw new Error('User not found. Cannot determine settings.');
   }
   const userData = userDocRef.data()!;
-  console.log(`[API-HELPER] User data found. Role: ${userData.role}, CompanyID: ${userData.companyId}`);
   
   let settingsSource: admin.firestore.DocumentData | undefined;
   
-  // If the user belongs to a company, fetch the company's settings.
   if (userData.companyId) {
-      console.log(`[API-HELPER] User belongs to company ${userData.companyId}. Fetching company settings...`);
       const companyDoc = await adminDb.collection('companies').doc(userData.companyId).get();
       if (companyDoc.exists) {
         settingsSource = companyDoc.data();
-        console.log(`[API-HELPER] Company settings found.`);
       } else {
         console.warn(`[API-HELPER] User ${uid} has a companyId (${userData.companyId}), but the company document was not found. Falling back to personal settings.`);
       }
   } 
   
-  // If no company settings were found (or user has no company), fall back to personal settings.
   if (!settingsSource) {
-      console.log(`[API-HELPER] No company settings found or no company assigned. Fetching personal user_settings for ${uid}...`);
       const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
       if (userSettingsDoc.exists) {
         settingsSource = userSettingsDoc.data();
-        console.log(`[API-HELPER] Personal user_settings found.`);
       }
   }
   
   if (!settingsSource) {
-    console.error(`[API-HELPER] No settings document found for user ${uid} OR their company. Throwing error.`);
     throw new Error('No settings found for user or their company. Please configure API connections in Settings.');
   }
   
   const allConnections = settingsSource.connections || {};
   const activeConnectionKey = settingsSource.activeConnectionKey;
 
-  console.log(`[API-HELPER] Active connection key for entity: ${activeConnectionKey}`);
-
   if (!activeConnectionKey || !allConnections || !allConnections[activeConnectionKey]) {
-    console.error(`[API-HELPER] No active connection found for key '${activeConnectionKey}'. Connections available: ${Object.keys(allConnections).join(', ')}`);
     throw new Error('No active API connection is configured. Please select or create one in Settings.');
   }
 
   const activeConnection = allConnections[activeConnectionKey];
-  console.log(`[API-HELPER] Using connection details for key: ${activeConnectionKey}`);
   
-  // Create API clients based on the active connection's data.
   const wooApi = createWooCommerceApi({
     url: activeConnection.wooCommerceStoreUrl,
     consumerKey: activeConnection.wooCommerceApiKey,

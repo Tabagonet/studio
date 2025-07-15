@@ -143,33 +143,29 @@ export default function ConnectionsPage() {
                 const currentActiveKey = data.activeConnectionKey || null;
                 setActiveKey(currentActiveKey);
                 
-                if (selectedKey !== 'new' && connections[selectedKey]) {
-                    setFormData(connections[selectedKey]);
-                } else if (currentActiveKey && connections[currentActiveKey]) {
+                const connectionKeys = Object.keys(connections).filter(k => k !== 'partner_app');
+                
+                if (currentActiveKey && connections[currentActiveKey]) {
                     setSelectedKey(currentActiveKey);
                     setFormData(connections[currentActiveKey]);
+                } else if (connectionKeys.length > 0) {
+                    setSelectedKey(connectionKeys[0]);
+                    setFormData(connections[connectionKeys[0]]);
                 } else {
-                    const firstKey = Object.keys(connections).find(k => k !== 'partner_app');
-                    if (firstKey) {
-                        setSelectedKey(firstKey);
-                        setFormData(connections[firstKey]);
-                    } else {
-                        setSelectedKey('new');
-                        setFormData(INITIAL_STATE);
-                    }
+                    setSelectedKey('new');
+                    setFormData(INITIAL_STATE);
                 }
             } else {
                 throw new Error((await response.json()).error || "Fallo al cargar las conexiones.");
             }
             await fetchStatus(targetType, targetId, token);
         } catch (error) {
-            console.error("Error fetching connections:", error);
             const errorMessage = error instanceof Error ? error.message : "Error desconocido.";
             toast({ title: "Error al Cargar Conexiones", description: errorMessage, variant: "destructive" });
         } finally {
             setIsLoading(false);
         }
-    }, [toast, selectedKey]); // Removed fetchStatus from dependency array to break potential loops
+    }, [toast]); // Removed fetchStatus and selectedKey from dependency array to break potential loops
     
     const fetchStatus = useCallback(async (targetType: 'user' | 'company' | null, targetId: string | null, token: string) => {
         if (!targetType || !targetId) {
@@ -195,7 +191,6 @@ export default function ConnectionsPage() {
                 setSelectedEntityStatus(data);
                 if (data.shopifyPartnerConfigured === false && data.shopifyPartnerError) {
                     const errorMessage = `Shopify Partner API: ${data.shopifyPartnerError}`;
-                    console.error("Shopify Partner Connection Error:", errorMessage);
                     toast({
                         title: "Error de Conexión Shopify Partner",
                         description: errorMessage,
@@ -225,12 +220,12 @@ export default function ConnectionsPage() {
             setCurrentUser(userData);
 
             let initialType: 'user' | 'company' = 'user';
-            let initialId: string | null = null;
+            let initialId: string | null = user.uid;
             let initialName = 'Mis Conexiones';
-            let initialPlatform: 'woocommerce' | 'shopify' | null = null;
+            let initialPlatform: 'woocommerce' | 'shopify' | null = userData.platform || null;
 
             if (userData.role === 'super_admin') {
-                const [companiesResponse, usersResponse] = await Promise.all([
+                 const [companiesResponse, usersResponse] = await Promise.all([
                     fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } }),
                     fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } })
                 ]);
@@ -239,15 +234,15 @@ export default function ConnectionsPage() {
                     const allUsers = (await usersResponse.json()).users;
                     setUnassignedUsers(allUsers.filter((u: any) => u.role !== 'super_admin' && !u.companyId));
                 }
-                initialId = user.uid; // Default to self
-                initialName = 'Mis Conexiones (Super Admin)';
-            } else { // Admin or other roles
-                initialType = userData.companyId ? 'company' : 'user';
-                initialId = userData.companyId || user.uid;
-                initialName = userData.companyName || 'Mis Conexiones';
-                initialPlatform = userData.companyPlatform || userData.platform;
             }
-            console.log(`[FE] Initializing for Entity -> Type: ${initialType}, ID: ${initialId}, Name: ${initialName}`);
+
+            if (userData.companyId) {
+                initialType = 'company';
+                initialId = userData.companyId;
+                initialName = userData.companyName || 'Empresa';
+                initialPlatform = userData.companyPlatform || null;
+            }
+            
             setEditingTarget({ type: initialType, id: initialId, name: initialName });
             setEditingTargetPlatform(initialPlatform);
             if (initialId) {
@@ -291,7 +286,7 @@ export default function ConnectionsPage() {
             const company = allCompanies.find(c => c.id === id);
             newEditingTarget = { type: 'company', id: id, name: company?.name || 'Empresa Desconocida', platform: company?.platform || null };
         }
-        console.log(`[FE] User changed target entity to -> Type: ${newEditingTarget.type}, ID: ${newEditingTarget.id}`);
+        
         setEditingTarget(newEditingTarget);
         setEditingTargetPlatform(newEditingTarget.platform);
         if(newEditingTarget.id) {
@@ -326,7 +321,6 @@ export default function ConnectionsPage() {
     const handleSave = async (isPartnerCreds: boolean = false) => {
         const setSaving = isPartnerCreds ? setIsSavingPartner : setIsSaving;
         setSaving(true);
-        console.log(`[FE] handleSave called. isPartner: ${isPartnerCreds}`);
 
         const user = auth.currentUser;
         if (!user || !editingTarget.id) {
@@ -365,7 +359,6 @@ export default function ConnectionsPage() {
                 entityType: editingTarget.type,
                 isPartner: isPartnerCreds,
             };
-            console.log(`[FE] Sending SAVE payload to API:`, payload);
 
             const response = await fetch('/api/user-settings/connections', {
                 method: 'POST',
@@ -384,8 +377,7 @@ export default function ConnectionsPage() {
             if (!isPartnerCreds) {
                 setSelectedKey(keyToSave);
             }
-            window.dispatchEvent(new CustomEvent('connections-updated'));
-
+            
         } catch (error: any) {
             toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
         } finally {
@@ -410,23 +402,17 @@ export default function ConnectionsPage() {
                 entityId: editingTarget.id,
                 entityType: editingTarget.type,
             };
-            console.log(`[FE] Sending DELETE payload to API:`, payload);
             
-            const response = await fetch('/api/user-settings/connections', {
+            await fetch('/api/user-settings/connections', {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(payload)
             });
-
-            if (!response.ok) {
-                throw new Error((await response.json()).error || "No se pudo eliminar la conexión.");
-            }
             
             toast({ title: "Conexión Eliminada", description: `El perfil para '${keyToDelete}' ha sido eliminado.` });
             
             // This now waits for the server to confirm before refetching data
             await fetchAllDataForTarget(user, editingTarget.type, editingTarget.id);
-            window.dispatchEvent(new CustomEvent('connections-updated'));
             
         } catch (error: any) {
             toast({ title: "Error al Eliminar", description: error.message, variant: "destructive" });
@@ -636,7 +622,7 @@ export default function ConnectionsPage() {
                         </div>
                         <div className="flex flex-col-reverse gap-4 md:flex-row">
                             <Button onClick={() => handleSave(false)} disabled={isSaving || isDeleting} className="w-full md:w-auto">
-                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2"/>}
                                 {isSaving ? "Guardando..." : saveButtonText}
                             </Button>
                         </div>
