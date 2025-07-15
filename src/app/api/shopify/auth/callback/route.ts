@@ -1,6 +1,7 @@
+
 // src/app/api/shopify/auth/callback/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, getServiceAccountCredentials } from '@/lib/firebase-admin';
+import { admin, adminDb, getServiceAccountCredentials } from '@/lib/firebase-admin';
 import { getPartnerCredentials, validateHmac } from '@/lib/api-helpers';
 import axios from 'axios';
 import { CloudTasksClient } from '@google-cloud/tasks';

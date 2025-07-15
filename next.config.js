@@ -16,6 +16,7 @@ const nextConfig = {
       'debug',
       'supports-color',
       'sharp',
+      'class-variance-authority',
     ],
   },
   images: {
