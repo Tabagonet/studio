@@ -43,11 +43,15 @@ export async function deleteShopifyJobsAction(
             const jobData = doc.data() as ShopifyCreationJob;
             let isAuthorized = false;
 
+            // Authorization logic:
+            // 1. A super_admin can delete any job.
             if (context.role === 'super_admin') {
                 isAuthorized = true;
-            } else if (jobData.entity.type === 'user' && jobData.entity.id === context.uid) {
+            // 2. An admin can delete any job belonging to their own company.
+            } else if (context.role === 'admin' && jobData.entity.type === 'company' && jobData.entity.id === context.companyId) {
                 isAuthorized = true;
-            } else if (jobData.entity.type === 'company' && jobData.entity.id === context.companyId) {
+            // 3. A regular user (or an admin acting on their own behalf) can delete their own jobs.
+            } else if (jobData.entity.type === 'user' && jobData.entity.id === context.uid) {
                 isAuthorized = true;
             }
 
@@ -60,9 +64,18 @@ export async function deleteShopifyJobsAction(
         }
     }
     
-    if (authorizedDeletions === 0) {
-        return { success: false, error: 'You do not have permission to delete any of the selected jobs.' };
+    if (authorizedDeletions === 0 && jobIds.length > 0) {
+        return { success: false, error: 'No tienes permiso para borrar ninguno de los trabajos seleccionados.' };
     }
+    
+    if (authorizedDeletions < jobIds.length) {
+         toast({
+            title: "Borrado Parcial",
+            description: `Se eliminaron ${authorizedDeletions} trabajos. No tenías permiso para los ${jobIds.length - authorizedDeletions} restantes.`,
+            variant: "default",
+        });
+    }
+
 
     try {
         await batch.commit();
