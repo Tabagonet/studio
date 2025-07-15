@@ -1,16 +1,26 @@
 
 'use server';
 
-import { adminAuth } from '@/lib/firebase-admin';
+import { adminAuth, adminDb } from '@/lib/firebase-admin';
+import type { ShopifyCreationJob } from '@/lib/types';
 
 export async function deleteShopifyJobsAction(
     jobIds: string[],
     token: string
 ): Promise<{ success: boolean; error?: string; details?: any }> {
+    let context;
     try {
-        if (!adminAuth) throw new Error("Firebase Admin not initialized");
-        await adminAuth.verifyIdToken(token);
-    } catch (error) {
+        if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized");
+        const decodedToken = await adminAuth.verifyIdToken(token);
+        const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
+        if (!userDoc.exists) throw new Error("User record not found in database.");
+        const userData = userDoc.data();
+        context = {
+            uid: decodedToken.uid,
+            role: userData?.role || null,
+            companyId: userData?.companyId || null,
+        };
+    } catch (error: any) {
         console.error('Error verifying token in deleteShopifyJobsAction:', error);
         return { success: false, error: 'Authentication failed. Unable to identify user.' };
     }
@@ -19,46 +29,46 @@ export async function deleteShopifyJobsAction(
         return { success: false, error: 'No job IDs provided for deletion.' };
     }
 
-    const results = {
-        success: 0,
-        failed: 0,
-        errors: [] as { jobId: string, message: string }[],
-    };
+    const batch = adminDb.batch();
+    const jobsCollection = adminDb.collection('shopify_creation_jobs');
+    let authorizedDeletions = 0;
 
     for (const jobId of jobIds) {
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/jobs/${jobId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            const jobRef = jobsCollection.doc(jobId);
+            const doc = await jobRef.get();
 
-            if (!response.ok) {
-                // Try to parse error, but handle cases where body is empty
-                let errorMessage = `Failed with status ${response.status}`;
-                try {
-                    const errorData = await response.json();
-                    errorMessage = errorData.error || errorMessage;
-                } catch (e) {
-                    // Ignore JSON parsing error if body is empty
-                }
-                console.warn(`Failed to delete job ${jobId}:`, errorMessage);
-                results.failed++;
-                results.errors.push({ jobId, message: errorMessage });
-            } else {
-                results.success++;
+            if (!doc.exists) continue; // Skip if already deleted
+
+            const jobData = doc.data() as ShopifyCreationJob;
+            let isAuthorized = false;
+
+            if (context.role === 'super_admin') {
+                isAuthorized = true;
+            } else if (jobData.entity.type === 'user' && jobData.entity.id === context.uid) {
+                isAuthorized = true;
+            } else if (jobData.entity.type === 'company' && jobData.entity.id === context.companyId) {
+                isAuthorized = true;
+            }
+
+            if (isAuthorized) {
+                batch.delete(jobRef);
+                authorizedDeletions++;
             }
         } catch (error: any) {
-             console.error(`Error processing delete for job ${jobId}:`, error);
-             results.failed++;
-             results.errors.push({ jobId, message: error.message || 'Unknown fetch error' });
+             console.error(`Skipping job ${jobId} due to error during permission check:`, error);
         }
     }
     
-    if (results.failed > 0) {
-        return { success: false, error: `Failed to delete ${results.failed} job(s).`, details: results.errors };
+    if (authorizedDeletions === 0) {
+        return { success: false, error: 'You do not have permission to delete any of the selected jobs.' };
     }
 
-    return { success: true };
+    try {
+        await batch.commit();
+        return { success: true };
+    } catch (error: any) {
+        console.error('Error committing batch delete for Shopify jobs:', error);
+        return { success: false, error: 'A server error occurred during batch deletion.' };
+    }
 }
