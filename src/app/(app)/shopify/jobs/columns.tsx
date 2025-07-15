@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { useRouter } from "next/navigation";
 
 
 const StatusBadge = ({ status }: { status: ShopifyCreationJob['status'] }) => {
@@ -56,12 +55,10 @@ export const getColumns = (
   onDelete: (jobId: string) => void,
   onAssign: (job: ShopifyCreationJob) => void,
   onPopulate: (jobId: string) => void,
+  onInitiateAuth: (job: ShopifyCreationJob) => void,
   isDeleting: (jobId: string) => boolean,
   isPopulating: string | null,
 ): ColumnDef<ShopifyCreationJob>[] => {
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const router = useRouter();
 
   return [
     {
@@ -161,7 +158,7 @@ export const getColumns = (
                           </DropdownMenuItem>
                       )}
                       {canAuthorize && (
-                         <DropdownMenuItem onSelect={() => router.push(`/api/shopify/auth/initiate?jobId=${job.id}`)}>
+                         <DropdownMenuItem onSelect={() => onInitiateAuth(job)}>
                                  <Key className="h-4 w-4 mr-2" /> Autorizar Instalación
                          </DropdownMenuItem>
                       )}

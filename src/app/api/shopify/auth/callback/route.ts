@@ -12,12 +12,16 @@ export async function GET(req: NextRequest) {
     const code = searchParams.get('code');
     const shop = searchParams.get('shop');
     const jobId = searchParams.get('state'); // The job ID was passed in the 'state' parameter
+    
+    console.log(`[OAuth Callback] Received callback from Shopify for shop: ${shop}, job: ${jobId}`);
 
     if (!code || !shop || !jobId) {
+        console.error('[OAuth Callback] ERROR: Missing code, shop, or state parameters.');
         return NextResponse.json({ error: 'Parámetros inválidos recibidos de Shopify.' }, { status: 400 });
     }
 
     try {
+        console.log('[OAuth Callback] Step 1: Validating HMAC and getting partner credentials...');
         const partnerCreds = await getPartnerCredentials();
         if (!partnerCreds.clientId || !partnerCreds.clientSecret) {
             throw new Error("El Client ID o Client Secret de la App de Partner no están configurados.");
@@ -25,10 +29,13 @@ export async function GET(req: NextRequest) {
         
         // 1. Validate the HMAC to ensure the request is from Shopify
         if (!validateHmac(searchParams, partnerCreds.clientSecret)) {
+            console.error('[OAuth Callback] ERROR: HMAC validation failed.');
             return NextResponse.json({ error: 'HMAC validation failed. La petición podría no ser de Shopify.' }, { status: 403 });
         }
+        console.log('[OAuth Callback] HMAC validation successful.');
 
         // 2. Exchange the authorization code for an access token
+        console.log('[OAuth Callback] Step 2: Exchanging authorization code for an access token...');
         const tokenUrl = `https://${shop}/admin/oauth/access_token`;
         const tokenPayload = {
             client_id: partnerCreds.clientId,
@@ -41,8 +48,10 @@ export async function GET(req: NextRequest) {
         if (!accessToken) {
             throw new Error('No se pudo obtener el token de acceso de Shopify.');
         }
+        console.log('[OAuth Callback] Access token obtained successfully.');
 
         // 3. Update the job document in Firestore with the token and new status
+        console.log(`[OAuth Callback] Step 3: Updating Firestore for job ${jobId}...`);
         if (!adminDb) { throw new Error("Firestore no está disponible."); }
         const jobRef = adminDb.collection('shopify_creation_jobs').doc(jobId);
         
@@ -55,8 +64,10 @@ export async function GET(req: NextRequest) {
                 message: 'Token de acceso permanente obtenido. Autorización completada.',
             }),
         });
+        console.log(`[OAuth Callback] Firestore updated for job ${jobId}. Status: authorized.`);
 
         // 4. Enqueue the next task to populate the store with content
+        console.log(`[OAuth Callback] Step 4: Enqueueing next task for job ${jobId}...`);
         if (process.env.NODE_ENV === 'development') {
             console.log(`[OAuth Callback] DEV MODE: Calling population task directly for Job ID: ${jobId}`);
             const { populateShopifyStore } = require('@/lib/tasks/populate-shopify-store');
@@ -79,8 +90,10 @@ export async function GET(req: NextRequest) {
             };
             await tasksClient.createTask({ parent, task });
         }
+        console.log(`[OAuth Callback] Task enqueued for job ${jobId}.`);
 
         // 5. Redirect user to a success page (e.g., the jobs list)
+        console.log(`[OAuth Callback] Step 5: Redirecting user to /shopify/jobs...`);
         const redirectUrl = new URL('/shopify/jobs', req.nextUrl.origin);
         redirectUrl.searchParams.set('auth_success', 'true');
         redirectUrl.searchParams.set('jobId', jobId);
@@ -88,7 +101,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.redirect(redirectUrl.toString());
 
     } catch (error: any) {
-        console.error(`[OAuth Callback] Error processing callback for job ${jobId}:`, error.response?.data || error.message);
+        console.error(`[OAuth Callback] ERROR processing callback for job ${jobId}:`, error.response?.data || error.message);
         // Update the job with an error status if possible
         if (adminDb && jobId) {
             await adminDb.collection('shopify_creation_jobs').doc(jobId).update({
@@ -99,6 +112,9 @@ export async function GET(req: NextRequest) {
                 }),
             }).catch(dbError => console.error("Failed to update job with error status:", dbError));
         }
-        return NextResponse.json({ error: 'Fallo al procesar el callback de Shopify', details: error.message }, { status: 500 });
+        const errorPageUrl = new URL('/shopify/jobs', req.nextUrl.origin);
+        errorPageUrl.searchParams.set('auth_error', 'true');
+        errorPageUrl.searchParams.set('error_message', error.message || 'Unknown error');
+        return NextResponse.redirect(errorPageUrl.toString());
     }
 }
