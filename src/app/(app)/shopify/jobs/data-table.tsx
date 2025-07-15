@@ -101,7 +101,7 @@ export function JobsDataTable() {
       const result = await deleteShopifyJobsAction(jobIds, token);
       
       if (result.success) {
-          toast({ title: "Trabajo(s) eliminado(s)", description: `${jobIds.length} trabajo(s) han sido eliminados.`});
+          toast({ title: "Trabajo(s) eliminado(s)", description: result.error ? result.error : `${jobIds.length} trabajo(s) han sido eliminados.`});
           fetchData();
           if (jobIds.length > 1) {
               setRowSelection({});
@@ -135,7 +135,12 @@ export function JobsDataTable() {
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     onRowSelectionChange: setRowSelection,
+    getRowId: (row) => row.id, // Use the actual document ID for the row
   });
+
+  const getSelectedJobIds = () => {
+    return table.getSelectedRowModel().rows.map(row => row.original.id);
+  }
 
   return (
     <div className="w-full space-y-4">
@@ -173,7 +178,7 @@ export function JobsDataTable() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => handleDelete(Object.keys(rowSelection))} className={buttonVariants({ variant: 'destructive' })}>
+                    <AlertDialogAction onClick={() => handleDelete(getSelectedJobIds())} className={buttonVariants({ variant: 'destructive' })}>
                         Sí, eliminar
                     </AlertDialogAction>
                 </AlertDialogFooter>
