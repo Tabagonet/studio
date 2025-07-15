@@ -1,3 +1,4 @@
+
 // src/app/(app)/shopify/jobs/columns.tsx
 "use client";
 
@@ -159,7 +160,7 @@ export const getColumns = (
                     )}
                     {canAuthorize && (
                        <DropdownMenuItem asChild>
-                           <Link href={`/api/shopify/auth/initiate?jobId=${job.id}`} target="_blank">
+                           <Link href={`/api/shopify/auth/initiate?jobId=${job.id}`}>
                                 <Key className="h-4 w-4 mr-2" /> Autorizar Instalación
                            </Link>
                        </DropdownMenuItem>
