@@ -54,11 +54,13 @@ export async function populateShopifyStore(jobId: string) {
         if (!jobData.storeAccessToken || !jobData.storeDomain) {
             throw new Error("El token de acceso de Admin API o el dominio de la tienda no están presentes en el trabajo.");
         }
-
+        
+        console.log(`[Task Populate - Job ${jobId}] Creating Shopify API client for ${jobData.storeDomain}`);
         shopifyApi = createShopifyApi({ url: jobData.storeDomain, accessToken: jobData.storeAccessToken });
         if (!shopifyApi) throw new Error("No se pudo crear el cliente de la API de Shopify.");
 
         // --- 1. Generate Content with AI ---
+        console.log(`[Task Populate - Job ${jobId}] Step 1: Generating content with AI.`);
         const aiInput: GenerationInput = {
             storeName: jobData.storeName,
             brandDescription: jobData.brandDescription,
@@ -73,23 +75,26 @@ export async function populateShopifyStore(jobId: string) {
             },
         };
         const generatedContent = await generateShopifyStoreContent(aiInput, jobData.entity.id);
-        
+        console.log(`[Task Populate - Job ${jobId}] AI content generated successfully.`);
         await updateJobStatus(jobId, 'populating', 'Contenido generado. Creando páginas...');
         
         const createdPages: { [key: string]: any } = {};
 
         // --- 2. Create Pages ---
+        console.log(`[Task Populate - Job ${jobId}] Step 2: Creating pages...`);
         if (generatedContent.aboutPage && jobData.creationOptions.createAboutPage) {
+            console.log(`[Task Populate - Job ${jobId}] Creating 'About Us' page.`);
             const { data } = await shopifyApi.post('/pages.json', { page: { title: generatedContent.aboutPage.title, body_html: generatedContent.aboutPage.htmlContent } });
             createdPages['about'] = data.page;
         }
         if (generatedContent.contactPage && jobData.creationOptions.createContactPage) {
+            console.log(`[Task Populate - Job ${jobId}] Creating 'Contact Us' page.`);
             const { data } = await shopifyApi.post('/pages.json', { page: { title: generatedContent.contactPage.title, body_html: generatedContent.contactPage.htmlContent } });
             createdPages['contact'] = data.page;
         }
         if (generatedContent.legalPages && jobData.creationOptions.createLegalPages) {
             for (const page of generatedContent.legalPages) {
-                // Replace placeholders in legal text
+                console.log(`[Task Populate - Job ${jobId}] Creating legal page: '${page.title}'.`);
                 const legalBusinessName = jobData.legalInfo?.legalBusinessName || jobData.storeName;
                 const businessAddress = jobData.legalInfo?.businessAddress || 'Dirección no proporcionada';
                 const contactEmail = jobData.businessEmail || 'Email no proporcionado';
@@ -104,43 +109,54 @@ export async function populateShopifyStore(jobId: string) {
         
         // --- 3. Create Products ---
         if (generatedContent.exampleProducts && jobData.creationOptions.createExampleProducts) {
+             console.log(`[Task Populate - Job ${jobId}] Step 3: Creating ${generatedContent.exampleProducts.length} products.`);
              await updateJobStatus(jobId, 'populating', 'Páginas creadas. Creando productos...');
              for (const product of generatedContent.exampleProducts) {
+                 console.log(`[Task Populate - Job ${jobId}] Creating product: '${product.title}'.`);
                  await shopifyApi.post('/products.json', { product: { title: product.title, body_html: product.descriptionHtml, tags: product.tags.join(',') } });
              }
         }
         
         // --- 4. Create Blog Posts ---
         if (generatedContent.blogPosts && jobData.creationOptions.createBlogWithPosts) {
+            console.log(`[Task Populate - Job ${jobId}] Step 4: Creating ${generatedContent.blogPosts.length} blog posts.`);
             await updateJobStatus(jobId, 'populating', 'Productos creados. Creando entradas de blog...');
             const { data: blogs } = await shopifyApi.get('/blogs.json');
             let blogId = blogs.blogs[0]?.id;
             if (!blogId) {
+                console.log(`[Task Populate - Job ${jobId}] No default blog found, creating one.`);
                 const { data: newBlog } = await shopifyApi.post('/blogs.json', { blog: { title: 'Noticias' } });
                 blogId = newBlog.blog.id;
             }
             for (const post of generatedContent.blogPosts) {
+                console.log(`[Task Populate - Job ${jobId}] Creating blog post: '${post.title}'.`);
                 await shopifyApi.post(`/blogs/${blogId}/articles.json`, { article: { title: post.title, body_html: post.contentHtml, tags: post.tags.join(',') } });
             }
         }
         
         // --- 5. Setup Navigation ---
         if (jobData.creationOptions.setupBasicNav) {
+            console.log(`[Task Populate - Job ${jobId}] Step 5: Setting up navigation.`);
             await updateJobStatus(jobId, 'populating', 'Contenido creado. Configurando menú de navegación...');
             const { data: navs } = await shopifyApi.get('/navigation.json');
             const mainMenu = navs.navigation.find((n: any) => n.handle === 'main-menu');
             if (mainMenu) {
+                console.log(`[Task Populate - Job ${jobId}] Found main menu. Updating links.`);
                 const links = [];
                 if(createdPages['about']) links.push({ title: createdPages['about'].title, url: `/pages/${createdPages['about'].handle}`});
                 if(createdPages['contact']) links.push({ title: createdPages['contact'].title, url: `/pages/${createdPages['contact'].handle}`});
                 await shopifyApi.put(`/navigation/${mainMenu.id}.json`, { navigation: { ...mainMenu, links }});
+            } else {
+                 console.warn(`[Task Populate - Job ${jobId}] Main menu not found, skipping navigation setup.`);
             }
         }
 
+        console.log(`[Task Populate - Job ${jobId}] Process completed successfully.`);
         await updateJobStatus(jobId, 'completed', '¡Tienda poblada con éxito!', {});
 
         // --- 6. Send Final Webhook ---
         if (jobData.webhookUrl) {
+             console.log(`[Task Populate - Job ${jobId}] Step 6: Sending final completion webhook.`);
              const webhookPayload = {
                 jobId: jobId,
                 status: 'completed',
@@ -153,11 +169,11 @@ export async function populateShopifyStore(jobId: string) {
         }
 
     } catch (error: any) {
-        console.error(`[Job ${jobId}] Failed to populate Shopify store:`, error.response?.data || error.message);
-        const errorMessage = error.response?.data?.error_description || error.message || "Un error desconocido ocurrió durante el poblado de la tienda.";
-        await updateJobStatus(jobId, 'error', `Error en poblado de contenido: ${errorMessage}`);
+        const errorMessage = error.response?.data?.error_description || error.response?.data?.errors || error.message || "Un error desconocido ocurrió durante el poblado de la tienda.";
+        console.error(`[Job ${jobId}] Failed to populate Shopify store:`, JSON.stringify(errorMessage, null, 2));
+        await updateJobStatus(jobId, 'error', `Error en poblado de contenido: ${JSON.stringify(errorMessage)}`);
          if (jobData! && jobData.webhookUrl) {
-             const webhookPayload = { jobId: jobId, status: 'error', message: `Error en poblado de contenido: ${errorMessage}`, storeName: jobData.storeName };
+             const webhookPayload = { jobId: jobId, status: 'error', message: `Error en poblado de contenido: ${JSON.stringify(errorMessage)}`, storeName: jobData.storeName };
              await axios.post(jobData.webhookUrl, webhookPayload, { timeout: 10000 }).catch(e => console.warn(`[Job ${jobId}] Failed to send POPULATE ERROR webhook to ${jobData.webhookUrl}: ${e.message}`));
         }
     }
