@@ -46,21 +46,23 @@ function autopress_ai_options_page() {
             resultDiv.style.borderColor = '#cccccc';
             button.disabled = true;
 
-            fetch('<?php echo esc_url_raw(get_rest_url(null, 'custom/v1/status')); ?>', {
+            var restUrl = '<?php echo esc_url_raw(get_rest_url(null, 'custom/v1/status')); ?>';
+            var nonce = '<?php echo esc_js(wp_create_nonce('wp_rest')); ?>';
+            var urlWithNonce = restUrl + '?_wpnonce=' + nonce;
+
+            fetch(urlWithNonce, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-WP-Nonce': '<?php echo esc_js(wp_create_nonce('wp_rest')); ?>'
                 }
             })
             .then(response => {
-                if (!response.ok) {
-                    return response.json().then(err => {
-                        // Use the 'message' field from WordPress's standard error response
-                        throw new Error(err.message || 'Error de comunicación.');
-                    });
-                }
-                return response.json();
+                return response.json().then(data => {
+                    if (!response.ok) {
+                        throw new Error(data.message || 'Error de comunicación.');
+                    }
+                    return data;
+                });
             })
             .then(data => {
                 if (data.verified) {
@@ -99,11 +101,15 @@ function custom_api_register_yoast_meta_fields() {
 // Security Check function to be used as permission_callback
 function autopress_ai_permission_check( WP_REST_Request $request ) {
     
-    // Allow if the user is logged in and making the request from the admin panel (Nonce check)
-    if ( is_user_logged_in() && check_admin_referer('wp_rest') ) {
-        return current_user_can('edit_posts');
+    // Nonce check for requests from WordPress admin panel
+    $nonce = $request->get_header('X-WP-Nonce') ?: $request->get_param('_wpnonce');
+    if ($nonce) {
+        $result = wp_verify_nonce($nonce, 'wp_rest');
+        if ($result && is_user_logged_in() && current_user_can('edit_posts')) {
+            return true;
+        }
     }
-    
+
     // Fallback to Application Password (Basic Auth) check for AutoPress AI app calls
     $auth_header = $request->get_header('authorization');
     if (!$auth_header) return false;
@@ -119,8 +125,9 @@ function autopress_ai_permission_check( WP_REST_Request $request ) {
 
     if (!$user) return false;
 
-    // Check application password
     require_once ABSPATH . 'wp-admin/includes/class-wp-application-passwords.php';
+    if (!class_exists('WP_Application_Passwords')) return false;
+
     $app_passwords_list = WP_Application_Passwords::get_user_application_passwords($user->ID);
     $is_valid_password = false;
     foreach ($app_passwords_list as $password_data) {
@@ -132,8 +139,11 @@ function autopress_ai_permission_check( WP_REST_Request $request ) {
     if (!$is_valid_password) return false;
     
     // Now, verify against AutoPress AI server
-    $api_key = get_user_meta($user->ID, 'autopress_api_key', true);
-    if (!$api_key) return false; // User must have an API key associated
+    $api_key_meta = get_user_meta($user->ID, 'autopress_api_key', true);
+    $api_key_option = get_option('autopress_api_key');
+    $api_key = $api_key_meta ?: $api_key_option;
+
+    if (!$api_key) return false;
     
     $response = wp_remote_get( "https://autopress.intelvisual.es/api/license/verify-plugin?apiKey=" . $api_key . "&siteUrl=" . urlencode(home_url()) );
 
