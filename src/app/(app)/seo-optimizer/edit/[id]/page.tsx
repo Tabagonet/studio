@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
@@ -129,7 +130,8 @@ function EditPageContent() {
       const postData = await postResponse.json();
       
       const loadedPost: PostEditState = {
-        title: postData.title.rendered || '', content: postData.content.rendered,
+        title: postData.title?.rendered || postData.title, // Handle both object and string for title
+        content: postData.content?.rendered || '',
         short_description: postData.short_description,
         meta: {
             _yoast_wpseo_title: (typeof postData.meta?._yoast_wpseo_title === 'string') ? postData.meta._yoast_wpseo_title : '',
@@ -212,18 +214,10 @@ function EditPageContent() {
         }
         
         let apiPath: string;
-        switch (postType) {
-          case 'Post':
-            apiPath = `/api/wordpress/posts/${postId}`;
-            break;
-          case 'Page':
-            apiPath = `/api/wordpress/pages/${postId}`;
-            break;
-          case 'Producto':
+        if (postType === 'Producto') {
             apiPath = `/api/wordpress/products/${postId}`;
-            break;
-          default:
-            throw new Error(`Unsupported content type: ${postType}`);
+        } else {
+            apiPath = `/api/wordpress/${postType.toLowerCase()}s/${postId}`;
         }
 
         const response = await fetch(apiPath, {
@@ -262,7 +256,7 @@ function EditPageContent() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                         <Button variant="outline" onClick={() => router.back()}>
-                            <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Informe
+                            <ArrowLeft className="mr-2 h-4 w-4" /> Volver
                         </Button>
                          <Button onClick={handleSaveChanges} disabled={isSaving}>
                             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" /> } Guardar Cambios SEO
@@ -283,6 +277,7 @@ function EditPageContent() {
                 setContentImages={setContentImages}
                 applyAiMetaToFeatured={applyAiMetaToFeatured}
                 setApplyAiMetaToFeatured={setApplyAiMetaToFeatured}
+                postId={postId}
             />
             
             {isElementorContent ? (

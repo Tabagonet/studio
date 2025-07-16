@@ -110,8 +110,7 @@ export function ContentClonerTable() {
 
 
   const { toast } = useToast();
-  const [languageFilter, setLanguageFilter] = React.useState('all');
-
+  
   const availableTargetLanguages = React.useMemo(() => {
     const langSet = new Set<string>();
     data.forEach(item => {
@@ -197,14 +196,9 @@ export function ContentClonerTable() {
             }
         }
     });
-    
-    let filteredRoots = roots;
-    if (languageFilter !== 'all') {
-      filteredRoots = roots.filter(item => item.lang === languageFilter);
-    }
 
-    return filteredRoots.sort((a,b) => a.title.localeCompare(b.title));
-  }, [data, languageFilter]);
+    return roots.sort((a,b) => a.title.localeCompare(b.title));
+  }, [data]);
 
 
   React.useEffect(() => {

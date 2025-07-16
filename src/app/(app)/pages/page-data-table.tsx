@@ -29,7 +29,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getColumns } from "./columns"; 
 import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
-import { Loader2, ChevronDown, Trash2, Link2, Sparkles } from "lucide-react";
+import { Loader2, ChevronDown, Trash2, Link2, Sparkles, Edit } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
@@ -55,7 +55,6 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
   const tableData = React.useMemo((): HierarchicalContentItem[] => {
     if (!data) return [];
     
-    // Enrich data with scores
     const enrichedData = data.map(item => ({ ...item, score: scores[item.id] }));
     
     const itemsById = new Map<number, HierarchicalContentItem>(enrichedData.map((p) => [p.id, { ...p, subRows: [] }]));
@@ -343,8 +342,12 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
                 <TableRow 
                   key={row.id} 
                   data-state={row.getIsSelected() && "selected"}
+                  onClick={(e) => {
+                      if (!(e.target instanceof HTMLButtonElement || e.target instanceof HTMLAnchorElement || e.target.closest('button, a'))) {
+                        handleRowClick(row);
+                      }
+                    }}
                   className="cursor-pointer"
-                  onClick={() => router.push(`/seo-optimizer?id=${row.original.id}&type=${row.original.type}`)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id} onClick={(e) => {

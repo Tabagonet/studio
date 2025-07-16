@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/api-helpers';
@@ -6,17 +7,20 @@ import { z } from 'zod';
 
 const slugify = (text: string) => {
     if (!text) return '';
-    return text.toString().toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-').replace(/^-+$/, '');
+    return text.toString().toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w-]+/g, '')
+        .replace(/--+/g, '-')
+        .replace(/^-+/, '')
+        .replace(/-+$/, '');
 };
 
+
+// Schema for updating a product
 const productUpdateSchema = z.object({
-    title: z.string().optional(),
-    content: z.string().optional(),
-    meta: z.object({
-        _yoast_wpseo_title: z.string().optional(),
-        _yoast_wpseo_metadesc: z.string().optional(),
-        _yoast_wpseo_focuskw: z.string().optional(),
-    }).optional(),
+    name: z.string().min(1, 'Name cannot be empty.').optional(),
+    description: z.string().optional(),
+    meta: z.record(z.any()).optional(), // Keep it flexible for Yoast and other meta
     featured_image_metadata: z.object({
         title: z.string(),
         alt_text: z.string(),
@@ -31,17 +35,22 @@ const productUpdateSchema = z.object({
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
-    if (!token) throw new Error('No auth token provided.');
+    if (!token) {
+        return NextResponse.json({ error: 'No auth token provided.' }, { status: 401 });
+    }
     if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
-    const uid = (await adminAuth.verifyIdToken(token)).uid;
+    const decodedToken = await adminAuth.verifyIdToken(token);
+    const uid = decodedToken.uid;
     
     const { wooApi } = await getApiClientsForUser(uid);
     if (!wooApi) {
-        throw new Error('WooCommerce API is not configured for the active connection.');
+      throw new Error('WooCommerce API is not configured for the active connection.');
     }
-
+    
     const productId = params.id;
-    if (!productId) return NextResponse.json({ error: 'Product ID is required.' }, { status: 400 });
+    if (!productId) {
+      return NextResponse.json({ error: 'Product ID is required.' }, { status: 400 });
+    }
 
     const response = await wooApi.get(`products/${productId}`);
     const productData = response.data;
@@ -81,7 +90,11 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     console.error(`Error fetching product ${params.id}:`, error.response?.data || error.message);
     const errorMessage = error.response?.data?.message || 'Failed to fetch product details.';
     const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
-    return NextResponse.json({ error: errorMessage }, { status });
+    
+    return NextResponse.json(
+      { error: errorMessage, details: error.response?.data },
+      { status }
+    );
   }
 }
 
@@ -101,36 +114,32 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (!productId) return NextResponse.json({ error: 'Product ID is required.' }, { status: 400 });
 
     const body = await req.json();
-    const validation = productUpdateSchema.safeParse(body);
-    if (!validation.success) return NextResponse.json({ error: 'Invalid data.', details: validation.error.flatten() }, { status: 400 });
     
-    const { title, content, meta, featured_image_metadata, image_alt_updates } = validation.data;
-    
-    const wooPayload: any = {};
+    const { title, content, ...restOfData } = body;
+    const wooPayload: any = { ...restOfData };
     if (title) wooPayload.name = title;
-    // Map the 'content' field from the editor back to WooCommerce's 'description' field
     if (content !== undefined) wooPayload.description = content;
     
-    if (meta) {
-        wooPayload.meta_data = Object.entries(meta).map(([key, value]) => ({ key, value }));
+    if (body.meta) {
+        wooPayload.meta_data = Object.entries(body.meta).map(([key, value]) => ({ key, value }));
     }
 
     const response = await wooApi.put(`products/${productId}`, wooPayload);
     
     // The logic for updating image metadata still needs the WordPress API, as media items are managed by WordPress core.
-    if (featured_image_metadata && response.data.featured_media) {
+    if (body.featured_image_metadata && response.data.featured_media) {
         try {
             await wpApi.post(`/media/${response.data.featured_media}`, {
-                title: featured_image_metadata.title,
-                alt_text: featured_image_metadata.alt_text,
+                title: body.featured_image_metadata.title,
+                alt_text: body.featured_image_metadata.alt_text,
             });
         } catch (mediaError: any) {
             console.warn(`Product updated, but failed to update featured image metadata for media ID ${response.data.featured_media}:`, mediaError.response?.data?.message || mediaError.message);
         }
     }
 
-    if (image_alt_updates && image_alt_updates.length > 0) {
-        for (const update of image_alt_updates) {
+    if (body.image_alt_updates && body.image_alt_updates.length > 0) {
+        for (const update of body.image_alt_updates) {
             try {
                 await wpApi.post(`/media/${update.id}`, {
                     alt_text: update.alt
@@ -147,5 +156,44 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const errorMessage = error.response?.data?.message || 'Failed to update product.';
     const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     return NextResponse.json({ error: errorMessage }, { status });
+  }
+}
+
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const token = req.headers.get('Authorization')?.split('Bearer ')[1];
+    if (!token) {
+        return NextResponse.json({ error: 'No auth token provided.' }, { status: 401 });
+    }
+    if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
+    const decodedToken = await adminAuth.verifyIdToken(token);
+    const uid = decodedToken.uid;
+    
+    const { wooApi } = await getApiClientsForUser(uid);
+    if (!wooApi) {
+        throw new Error('WooCommerce API is not configured for the active connection.');
+    }
+
+    const productId = params.id;
+    if (!productId) {
+      return NextResponse.json({ error: 'Product ID is required.' }, { status: 400 });
+    }
+
+    // `force: true` permanently deletes the product.
+    // `force: false` would move it to trash.
+    const response = await wooApi.delete(`products/${productId}`, { force: true });
+
+    return NextResponse.json({ success: true, data: response.data });
+
+  } catch (error: any) {
+    console.error(`Error deleting product ${params.id}:`, error.response?.data || error.message);
+    const errorMessage = error.response?.data?.message || 'Failed to delete product.';
+    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
+    
+    return NextResponse.json(
+      { error: errorMessage, details: error.response?.data },
+      { status }
+    );
   }
 }

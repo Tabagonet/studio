@@ -1,5 +1,7 @@
 
 
+"use client";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Copy } from "lucide-react";
 import { ContentClonerTable } from "./content-cloner-table";
@@ -14,8 +16,8 @@ export default function ContentClonerPage() {
             <div className="flex items-center space-x-3">
                 <Copy className="h-8 w-8 text-primary" />
                 <div>
-                    <CardTitle>Clonador y Traductor de Contenido</CardTitle>
-                    <CardDescription>Selecciona contenido existente para clonarlo y traducirlo a otros idiomas.</CardDescription>
+                    <CardTitle>Gestor de Contenido y Clonador</CardTitle>
+                    <CardDescription>Visualiza todo tu contenido y selecciona elementos para clonarlos y traducirlos a otros idiomas.</CardDescription>
                 </div>
             </div>
         </CardHeader>
@@ -24,7 +26,7 @@ export default function ContentClonerPage() {
        <Alert>
         <AlertTitle>¿Cómo funciona?</AlertTitle>
         <AlertDescription>
-          Esta herramienta te permite duplicar cualquier página, entrada o producto y, a continuación, traducirlo a los idiomas que elijas. El sistema enlazará automáticamente el contenido original con sus nuevas traducciones. Usa la tabla de abajo para empezar.
+          Esta herramienta te permite ver todas tus páginas, entradas y productos en un solo lugar. Selecciona el contenido que desees duplicar y elige un idioma de destino para que la IA lo traduzca automáticamente. El sistema enlazará la nueva traducción con la original.
         </AlertDescription>
       </Alert>
 

@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/api-helpers';
@@ -55,12 +56,11 @@ export async function POST(req: NextRequest) {
         const result = await model.generateContent(prompt);
         const aiContent = JSON.parse(result.response.text());
 
-        // Create a temporary URL from the file to pass to the uploader
-        const tempBlob = new Blob([newImageFile], { type: newImageFile.type });
-        const tempObjectUrl = URL.createObjectURL(tempBlob);
+        const tempArrayBuffer = await newImageFile.arrayBuffer();
+        const tempBuffer = Buffer.from(tempArrayBuffer);
 
         const newImageId = await uploadImageToWordPress(
-            tempObjectUrl,
+            `data:${newImageFile.type};base64,${tempBuffer.toString('base64')}`,
             `${slugify(post.title.rendered || 'image')}-${Date.now()}.jpg`,
             {
                 title: aiContent.imageTitle || post.title.rendered,
@@ -71,8 +71,6 @@ export async function POST(req: NextRequest) {
             wpApi
         );
         
-        URL.revokeObjectURL(tempObjectUrl); // Clean up the blob URL
-
         const newMediaData = await wpApi.get(`/media/${newImageId}`);
         const newImageUrl = newMediaData.data.source_url;
         
@@ -86,15 +84,14 @@ export async function POST(req: NextRequest) {
           updatePayload.content = newContent;
         }
         
-        const endpoint = postType === 'Producto' ? `products/${postId}` : postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
+        const updateEndpoint = postType === 'Producto' ? `products/${postId}` : postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
         const apiToUse = postType === 'Producto' ? wooApi : wpApi;
 
-        await apiToUse.put(endpoint, updatePayload);
+        await apiToUse.put(updateEndpoint, updatePayload);
 
-        // Fire-and-forget deletion of the old image
-        const oldImageMediaIdMatch = oldImageUrl.match(/wp-image-(\d+)/);
-        if (oldImageMediaIdMatch?.[1]) {
-            const oldImageId = parseInt(oldImageMediaIdMatch[1], 10);
+        const mediaIdMatch = oldImageUrl.match(/wp-image-(\d+)/);
+        if (mediaIdMatch?.[1]) {
+            const oldImageId = parseInt(mediaIdMatch[1], 10);
             if (!isNaN(oldImageId)) {
                 wpApi.delete(`/media/${oldImageId}`, { params: { force: true } }).catch(e => console.error(`Failed to delete old image ${oldImageId}:`, e.message));
             }
@@ -104,7 +101,7 @@ export async function POST(req: NextRequest) {
             aiUsageCount: admin.firestore.FieldValue.increment(1) 
         }, { merge: true });
 
-        return NextResponse.json({ success: true, newImageUrl, newContent, newImageAlt: aiContent.imageAltText });
+        return NextResponse.json({ success: true, newImageUrl, newImageAlt: aiContent.imageAltText });
 
     } catch (error: any) {
         console.error("Error in replace-image API:", error.response?.data || error.message);

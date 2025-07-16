@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -78,10 +79,11 @@ export default function PagesManagementPage() {
         }
     };
     const unsubscribe = onAuthStateChanged(auth, handleAuth);
-    window.addEventListener('connections-updated', () => auth.currentUser && auth.currentUser.getIdToken().then(fetchData));
+    const handleConnectionsUpdate = () => { if (auth.currentUser) auth.currentUser.getIdToken().then(fetchData); };
+    window.addEventListener('connections-updated', handleConnectionsUpdate);
     return () => {
         unsubscribe();
-        window.removeEventListener('connections-updated', () => auth.currentUser && auth.currentUser.getIdToken().then(fetchData));
+        window.removeEventListener('connections-updated', handleConnectionsUpdate);
     };
   }, [fetchData]);
 
@@ -93,7 +95,7 @@ export default function PagesManagementPage() {
                 <FileText className="h-8 w-8 text-primary" />
                 <div>
                     <CardTitle>Gestión de Páginas</CardTitle>
-                    <CardDescription>Visualiza, filtra y gestiona todas las páginas de tu sitio WordPress. Haz clic en una fila para analizarla o ver su informe.</CardDescription>
+                    <CardDescription>Visualiza, filtra y gestiona todas las páginas de tu sitio WordPress. Haz clic en una fila para analizarla o editarla.</CardDescription>
                 </div>
             </div>
         </CardHeader>
