@@ -8,6 +8,17 @@ import type { AxiosInstance } from 'axios';
 
 export const dynamic = 'force-dynamic';
 
+async function verifyBaseWpConnection(wpApi: AxiosInstance | null): Promise<boolean> {
+    if (!wpApi) return false;
+    try {
+        await wpApi.get('/users?context=view&per_page=1');
+        return true;
+    } catch (error) {
+        console.warn("Base WP connection check failed.", error);
+        return false;
+    }
+}
+
 async function verifyPluginStatus(wpApi: AxiosInstance | null): Promise<{ isActive: boolean; error?: string }> {
   if (!wpApi) {
     return { isActive: false, error: 'WordPress API not configured.' };
@@ -21,8 +32,7 @@ async function verifyPluginStatus(wpApi: AxiosInstance | null): Promise<{ isActi
     const statusEndpoint = `${siteUrl}/wp-json/custom/v1/status`;
     console.log(`[Plugin Check] Attempting to verify plugin via status endpoint: ${statusEndpoint}`);
     
-    // This custom endpoint should exist if the plugin is active.
-    const response = await wpApi.get(statusEndpoint);
+    const response = await wpApi.get(statusEndpoint, { timeout: 15000 });
 
     if (response.data?.verified === true) {
         console.log(`[Plugin Check] SUCCESS for ${siteUrl}. Plugin is active and verified.`);
@@ -36,26 +46,13 @@ async function verifyPluginStatus(wpApi: AxiosInstance | null): Promise<{ isActi
     const status = error.response?.status;
     let reason = 'Error de comunicación con el sitio WordPress.';
     if (status === 404) {
-        reason = 'No se encontró el endpoint /custom/v1/status. Asegúrate de que el plugin "AutoPress AI Helper" está instalado y activo en tu WordPress.';
+        reason = 'No se encontró el endpoint /custom/v1/status. Asegúrate de que el plugin "AutoPress AI Helper" está instalado, activo y actualizado a la v1.29 o superior.';
     } else if (status) {
         reason = `El sitio respondió con un error ${status}. Revisa la URL y la configuración de seguridad.`;
     }
     console.error(`[Plugin Check] FAILED for ${wpApi.defaults.baseURL}. Status: ${status}. Raw Error:`, error.message);
     return { isActive: false, error: reason };
   }
-}
-
-async function verifyBaseWpConnection(wpApi: AxiosInstance | null): Promise<boolean> {
-    if (!wpApi) return false;
-    try {
-        // A simple GET request to the base of the API is enough to check credentials and reachability.
-        // We use /users endpoint as it's a standard one.
-        await wpApi.get('/users?context=view&per_page=1');
-        return true;
-    } catch (error) {
-        console.warn("Base WP connection check failed.", error);
-        return false;
-    }
 }
 
 
@@ -122,8 +119,8 @@ export async function GET(req: NextRequest) {
     if (activeKey && allConnections[activeKey]) {
         const activeConnection = allConnections[activeKey];
         
-        userConfig.wooCommerceConfigured = !!(activeConnection.wooCommerceStoreUrl && activeConnection.wooCommerceApiKey && activeConnection.wooCommerceApiSecret);
         userConfig.wordPressConfigured = await verifyBaseWpConnection(wpApi); 
+        userConfig.wooCommerceConfigured = !!(activeConnection.wooCommerceStoreUrl && activeConnection.wooCommerceApiKey && activeConnection.wooCommerceApiSecret && userConfig.wordPressConfigured);
         userConfig.shopifyConfigured = !!(activeConnection.shopifyStoreUrl && activeConnection.shopifyApiPassword);
         
         const wooUrl = activeConnection.wooCommerceStoreUrl || activeConnection.wordpressApiUrl;
@@ -131,11 +128,10 @@ export async function GET(req: NextRequest) {
 
         if (userConfig.shopifyConfigured) {
           activePlatform = 'shopify';
-        } else if (userConfig.wooCommerceConfigured || userConfig.wordPressConfigured) {
+        } else if (userConfig.wordPressConfigured) {
           activePlatform = 'woocommerce';
         }
 
-        // Only check for the plugin if the base WP connection is successful.
         if (userConfig.wordPressConfigured) {
            const pluginCheck = await verifyPluginStatus(wpApi);
            userConfig.pluginActive = pluginCheck.isActive;
@@ -147,9 +143,14 @@ export async function GET(req: NextRequest) {
       console.log(`Config check failed for user ${uid}, likely due to no active connection. Error: ${error.message}`);
   }
   
-  const partnerCreds = await getPartnerCredentials().catch(() => null);
-  userConfig.shopifyPartnerConfigured = !!(partnerCreds && partnerCreds.partnerApiToken && partnerCreds.organizationId);
-  userConfig.shopifyCustomAppConfigured = !!(partnerCreds && partnerCreds.clientId && partnerCreds.clientSecret);
+  try {
+    const partnerCreds = await getPartnerCredentials();
+    userConfig.shopifyPartnerConfigured = !!(partnerCreds && partnerCreds.partnerApiToken && partnerCreds.organizationId);
+    userConfig.shopifyCustomAppConfigured = !!(partnerCreds && partnerCreds.clientId && partnerCreds.clientSecret);
+  } catch(e) {
+    userConfig.shopifyPartnerConfigured = false;
+    userConfig.shopifyCustomAppConfigured = false;
+  }
   
   const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
   userConfig.aiUsageCount = userSettingsDoc.data()?.aiUsageCount || 0;

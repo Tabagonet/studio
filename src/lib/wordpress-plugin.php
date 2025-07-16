@@ -2,7 +2,7 @@
 /*
 Plugin Name: AutoPress AI Helper
 Description: Añade endpoints a la REST API para gestionar traducciones, stock y otras funciones personalizadas para AutoPress AI.
-Version: 1.28
+Version: 1.29
 Author: intelvisual@intelvisual.es
 */
 
@@ -11,11 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 // === Admin Menu and Settings Page ===
 add_action('admin_menu', 'autopress_ai_add_admin_menu');
 add_action('wp_ajax_autopress_ai_verify_key', 'autopress_ai_ajax_verify_key');
-// This new AJAX action is a more reliable way for external services to check plugin status
-add_action('wp_ajax_nopriv_autopress_ai_verify_status', 'autopress_ai_ajax_verify_status'); // For unauthenticated requests
-add_action('wp_ajax_autopress_ai_verify_status', 'autopress_ai_ajax_verify_status'); // For authenticated requests
 add_action('wp_ajax_autopress_ai_disconnect', 'autopress_ai_ajax_disconnect');
-
 
 function autopress_ai_get_plugin_version() {
     if (!function_exists('get_plugin_data')) {
@@ -207,15 +203,6 @@ function autopress_ai_ajax_verify_key() {
     }
 }
 
-// New AJAX action for external status verification. This is more robust against security plugins.
-function autopress_ai_ajax_verify_status() {
-    wp_send_json_success([
-        'verified' => true,
-        'message' => 'AutoPress AI Helper está activo.',
-        'version' => autopress_ai_get_plugin_version()
-    ]);
-}
-
 
 // === REST API Endpoints ===
 add_action('init', 'custom_api_register_yoast_meta_fields');
@@ -256,15 +243,20 @@ function autopress_ai_register_rest_endpoints() {
         register_rest_route( 'custom/v1', '/batch-trash-posts', ['methods' => 'POST', 'callback' => 'custom_api_batch_trash_posts', 'permission_callback' => function () { return current_user_can( 'edit_posts' ); }]);
         register_rest_route( 'custom/v1', '/batch-clone-posts', ['methods'  => 'POST', 'callback' => 'custom_api_batch_clone_posts', 'permission_callback' => function () { return current_user_can( 'edit_posts' ); }]);
         register_rest_route( 'custom/v1', '/content-list', ['methods'  => 'GET', 'callback' => 'custom_api_get_content_list', 'permission_callback' => function () { return current_user_can( 'edit_posts' ); }]);
-        // This endpoint remains for backwards compatibility and for the settings page check
-        register_rest_route( 'custom/v1', '/status', ['methods' => 'GET', 'callback' => 'custom_api_status_check_legacy', 'permission_callback' => '__return_true']);
+        // This endpoint is the primary method for status verification.
+        register_rest_route( 'custom/v1', '/status', ['methods' => 'GET', 'callback' => 'custom_api_status_check', 'permission_callback' => '__return_true']);
     });
     
-    function custom_api_status_check_legacy() {
+    function custom_api_status_check() {
+        // Now this endpoint verifies both plugin status and API key validity from the WordPress side.
+        $is_active = get_option('autopress_ai_is_active') === 'true';
+        $api_key = get_option('autopress_ai_api_key');
+        
         return new WP_REST_Response([
-            'status' => 'ok',
+            'status' => $is_active ? 'ok' : 'inactive',
             'plugin_version' => autopress_ai_get_plugin_version(),
-            'verified' => get_option('autopress_ai_is_active') === 'true',
+            'verified' => $is_active,
+            'message' => $is_active ? 'Plugin activo y verificado.' : 'Plugin inactivo. Por favor, introduce una API Key válida en los ajustes del plugin.',
             'woocommerce_active' => class_exists('WooCommerce'),
             'polylang_active' => function_exists('pll_get_post_language'),
         ], 200);
