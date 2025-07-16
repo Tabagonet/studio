@@ -95,10 +95,10 @@ export const ConnectionStatusIndicator = ({ status, isLoading, onRefresh, platfo
     );
   }
 
-  if (showWooCommerce && status.activePlatform === 'woocommerce' && !isPluginVerifiedAndActive) {
+  if (showWooCommerce && status.activePlatform === 'woocommerce' && !isPluginVerifiedAndActive && !wooActive) {
       return (
         <div className="flex items-center gap-2">
-            <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-destructive hover:text-destructive/80 transition-colors" title="La conexión con WordPress no está verificada. Haz clic para ir a Ajustes.">
+            <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-destructive hover:text-destructive/80 transition-colors" title="La conexión con WordPress/WooCommerce no está verificada. Haz clic para ir a Ajustes.">
                 <AlertCircle className="h-4 w-4" />
                 <span className="hidden md:inline">Conexión no verificada</span>
             </Link>
