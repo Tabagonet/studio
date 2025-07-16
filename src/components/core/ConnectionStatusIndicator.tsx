@@ -98,40 +98,41 @@ export const ConnectionStatusIndicator = ({ status, isLoading, onRefresh, platfo
     );
   }
   
-  const hasIncompleteConnection = showWooCommerce && status.activePlatform === 'woocommerce' && (!wpActive || !wooActive || !isPluginVerifiedAndActive);
+  // A connection is considered incomplete only if WP is configured but the plugin is not detected.
+  const hasIncompleteWpConnection = showWooCommerce && status.activePlatform === 'woocommerce' && wpActive && !isPluginVerifiedAndActive;
 
-  if (hasIncompleteConnection) {
+  if (hasIncompleteWpConnection) {
       return (
         <div className="flex items-center gap-2">
-            <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-destructive hover:text-destructive/80 transition-colors" title="Al menos una de las conexiones de WordPress/WooCommerce no está verificada. Haz clic para ir a Ajustes.">
+            <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-destructive hover:text-destructive/80 transition-colors" title="El plugin de AutoPress AI no se detecta. Haz clic para ir a Ajustes.">
                 <AlertCircle className="h-4 w-4" />
                 <span className="hidden md:inline">Conexión Incompleta</span>
             </Link>
              <div className="flex items-center gap-2 flex-shrink-0">
-                <Tooltip>
+                <TooltipProvider><Tooltip>
                     <TooltipTrigger>
-                    <Store className={cn("h-4 w-4", wooActive ? "text-green-500" : "text-destructive")} />
+                    <Store className={cn("h-4 w-4", wooActive ? "text-green-500" : "text-muted-foreground")} />
                     </TooltipTrigger>
                     <TooltipContent>
                         <p>WooCommerce: {wooActive ? "Configurado" : "No Configurado"}</p>
                     </TooltipContent>
-                </Tooltip>
-                <Tooltip>
+                </Tooltip></TooltipProvider>
+                <TooltipProvider><Tooltip>
                     <TooltipTrigger>
                     <Globe className={cn("h-4 w-4", wpActive ? "text-green-500" : "text-destructive")} />
                     </TooltipTrigger>
                     <TooltipContent>
                         <p>WordPress: {wpActive ? "Configurado" : "No Configurado"}</p>
                     </TooltipContent>
-                </Tooltip>
-                <Tooltip>
+                </Tooltip></TooltipProvider>
+                <TooltipProvider><Tooltip>
                     <TooltipTrigger>
                     <PlugZap className={cn("h-4 w-4", isPluginVerifiedAndActive ? "text-green-500" : "text-destructive")} />
                     </TooltipTrigger>
                     <TooltipContent>
                         <p>{status.pluginError || (isPluginVerifiedAndActive ? "Plugin AutoPress AI: Activo y Verificado" : "Plugin AutoPress AI: No Detectado")}</p>
                     </TooltipContent>
-                </Tooltip>
+                </Tooltip></TooltipProvider>
              </div>
             <TooltipProvider><Tooltip><TooltipTrigger asChild>
                 <Button variant="ghost" size="icon-sm" onClick={onRefresh} disabled={isLoading}><RefreshCw className={cn("h-4 w-4 text-muted-foreground", isLoading && "animate-spin")} /></Button>
@@ -151,7 +152,7 @@ export const ConnectionStatusIndicator = ({ status, isLoading, onRefresh, platfo
                         <div className="flex items-center gap-2">
                             <Tooltip>
                                 <TooltipTrigger>
-                                <Store className={cn("h-4 w-4", wooActive ? "text-green-500" : "text-destructive")} />
+                                <Store className={cn("h-4 w-4", wooActive ? "text-green-500" : "text-muted-foreground")} />
                                 </TooltipTrigger>
                                 <TooltipContent>
                                     <p>WooCommerce: {wooActive ? "Configurado" : "No Configurado"}</p>
@@ -179,7 +180,7 @@ export const ConnectionStatusIndicator = ({ status, isLoading, onRefresh, platfo
                         <div className="flex items-center gap-2">
                             <Tooltip>
                                 <TooltipTrigger>
-                                <ShopifyIcon className={cn("h-4 w-4", status.shopifyConfigured ? "text-green-500" : "text-destructive")} />
+                                <ShopifyIcon className={cn("h-4 w-4", status.shopifyConfigured ? "text-green-500" : "text-muted-foreground")} />
                                 </TooltipTrigger>
                                 <TooltipContent>
                                     <p>Shopify (App Privada): {status.shopifyConfigured ? "Configurado" : "No Configurado"}</p>

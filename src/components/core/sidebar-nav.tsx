@@ -166,14 +166,16 @@ export function SidebarNav() {
             if (group.requiredPlatform === 'woocommerce') {
                 const isWpVerified = configStatus?.wordPressConfigured && configStatus.pluginActive;
                 const isWooConfigured = configStatus?.wooCommerceConfigured;
+                
+                // Tools that absolutely require WooCommerce
                 const requiresStore = item.href.includes('/wizard') || item.href.includes('/batch');
                 
-                if (requiresStore && (!isWpVerified || !isWooConfigured)) {
-                    isDisabled = true;
-                    tooltipText = "Requiere una conexión a WordPress (verificada) y a WooCommerce.";
-                } else if (!requiresStore && !isWpVerified) {
-                    isDisabled = true;
-                    tooltipText = "Requiere una conexión a WordPress configurada y verificada.";
+                if (!isWpVerified) {
+                  isDisabled = true;
+                  tooltipText = "Requiere una conexión a WordPress configurada y verificada.";
+                } else if (requiresStore && !isWooConfigured) {
+                   isDisabled = true;
+                   tooltipText = "Esta función requiere que WooCommerce esté configurado en la conexión activa.";
                 }
             }
 
