@@ -136,6 +136,8 @@ export async function GET(req: NextRequest) {
               const siteUrl = new URL(fullUrl).origin;
               const polylangCheckEndpoint = `${siteUrl}/wp-json/polylang/v1/languages`;
 
+              console.log(`[Plugin Check] Attempting to verify plugin via Polylang endpoint: ${polylangCheckEndpoint}`);
+              
               const token = Buffer.from(`${username}:${applicationPassword}`, 'utf8').toString('base64');
               const response = await axios.get(polylangCheckEndpoint, {
                 headers: { 'Authorization': `Basic ${token}` },
@@ -143,21 +145,28 @@ export async function GET(req: NextRequest) {
               });
               
               if (response.status === 200 && Array.isArray(response.data)) {
+                console.log(`[Plugin Check] SUCCESS for ${url}. Status: ${response.status}. Plugin is active.`);
                 userConfig.pluginActive = true;
               } else {
                 userConfig.pluginActive = false;
                 userConfig.pluginError = 'Respuesta inesperada del endpoint de Polylang. Asegúrate de que Polylang esté activo.';
+                 console.warn(`[Plugin Check] UNEXPECTED RESPONSE for ${url}. Status: ${response.status}. Body:`, response.data);
               }
             } catch (pluginError: any) {
-              console.warn(`Plugin status check failed for ${url} via Polylang endpoint:`, pluginError.message);
               userConfig.pluginActive = false;
+              let errorMessageForLog = `[Plugin Check] FAILED for ${url}.`;
+              
               if (pluginError.response && (pluginError.response.status === 401 || pluginError.response.status === 403)) {
                   userConfig.pluginError = 'Las credenciales de WordPress API son incorrectas o no tienen suficientes permisos.';
+                  errorMessageForLog += ` Status: ${pluginError.response.status}. Reason: ${userConfig.pluginError}`;
               } else if (pluginError.response && pluginError.response.status === 404) {
                   userConfig.pluginError = 'No se encontró el plugin de Polylang. Asegúrate de que esté instalado y activo en tu WordPress.';
+                  errorMessageForLog += ` Status: 404. Reason: ${userConfig.pluginError}`;
               } else {
                   userConfig.pluginError = 'No se pudo conectar con la API de WordPress. Revisa la URL y la conectividad.';
+                   errorMessageForLog += ` Reason: ${userConfig.pluginError} - ${pluginError.message}`;
               }
+              console.error(errorMessageForLog);
             }
           }
         }
