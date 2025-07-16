@@ -188,6 +188,75 @@ export function replaceElementorTexts(elementorData: any, translatedTexts: strin
   return replaceElementorTextsRecursive(elementorData, translatedTexts);
 }
 
+// Recursive helper to find an image URL in Elementor data
+function findImageUrlInElementorRecursive(elements: any[], oldUrl: string): boolean {
+    for (const element of elements) {
+        if (!element || typeof element !== 'object') continue;
+        
+        // Check direct settings and specific widget structures
+        const settings = element.settings;
+        if (settings) {
+            // Simple image widget or background
+            if (settings.image?.url === oldUrl || settings.background_image?.url === oldUrl) {
+                return true;
+            }
+            // Slider/Carousel widgets
+            if (settings.slides && Array.isArray(settings.slides)) {
+                if (settings.slides.some((slide: any) => slide.background_image?.url === oldUrl || slide.image?.url === oldUrl)) {
+                    return true;
+                }
+            }
+        }
+        
+        // Recurse into nested elements
+        if (element.elements && element.elements.length > 0) {
+            if (findImageUrlInElementorRecursive(element.elements, oldUrl)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+
+// New helper function to find all image URLs within Elementor JSON
+export function findImageUrlsInElementor(data: any): { url: string; id: number | null }[] {
+    const images: { url: string; id: number | null }[] = [];
+    if (!data) return images;
+
+    if (Array.isArray(data)) {
+        data.forEach(item => images.push(...findImageUrlsInElementor(item)));
+        return images;
+    }
+
+    if (typeof data === 'object') {
+        for (const key in data) {
+            // Standard image widgets, background images, etc.
+            if (key === 'background_image' || key === 'image') {
+                const value = data[key];
+                 if (typeof value === 'object' && value !== null && typeof value.url === 'string' && value.url) {
+                    images.push({ url: value.url, id: value.id || null });
+                 }
+            }
+            // Sliders, galleries, and other repeater widgets
+            else if (key === 'slides' && Array.isArray(data[key])) {
+                data[key].forEach((slide: any) => {
+                     if (slide.background_image?.url) {
+                         images.push({ url: slide.background_image.url, id: slide.background_image.id || null });
+                     }
+                      if (slide.image?.url) {
+                         images.push({ url: slide.image.url, id: slide.image.id || null });
+                     }
+                });
+            }
+            else if (typeof data[key] === 'object' && data[key] !== null) {
+                images.push(...findImageUrlsInElementor(data[key]));
+            }
+        }
+    }
+    return images;
+}
+
 
 /**
  * Uploads an image to the WordPress media library. It can handle a URL string or a File object.
