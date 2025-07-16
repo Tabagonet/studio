@@ -2,8 +2,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/wordpress-image-helpers';
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { z } from 'zod';
+import * as cheerio from 'cheerio';
+import FormData from "form-data";
+
 
 const slugify = (text: string) => {
     if (!text) return '';
@@ -19,37 +23,38 @@ function replaceImageUrlInElementor(elements: any[], oldUrl: string, newUrl: str
     function traverse(items: any[]) {
         for (const item of items) {
             if (!item || typeof item !== 'object') continue;
-
+            
+            // Handle complex widgets like sliders where images are in an array
+            // e.g., slides: [ { background_image: { url: '...' } }, ... ]
+            const arrayKeys = ['slides', 'gallery', 'image_carousel', 'icon_list_items']; 
+            for (const arrayKey of arrayKeys) {
+                if (item.settings && Array.isArray(item.settings[arrayKey])) {
+                    for (const slide of item.settings[arrayKey]) {
+                         if (slide.background_image?.url === oldUrl) {
+                             console.log(`[Elementor Replace] URL encontrada en background_image de repeater. Reemplazando.`);
+                             slide.background_image.url = newUrl;
+                             replaced = true;
+                         }
+                          if (slide.image?.url === oldUrl) {
+                             console.log(`[Elementor Replace] URL encontrada en imagen de repeater. Reemplazando.`);
+                             slide.image.url = newUrl;
+                             replaced = true;
+                         }
+                    }
+                }
+            }
+            
             // Check direct settings of the element
             if (item.settings) {
                 for (const key in item.settings) {
                     if (Object.prototype.hasOwnProperty.call(item.settings, key)) {
                         const setting = item.settings[key];
                         // Handles simple image widgets: { image: { url: '...' } }
+                        // Also handles background images for sections/columns
                         if (typeof setting === 'object' && setting !== null && setting.url === oldUrl) {
-                            console.log(`[Elementor Replace] URL encontrada en widget ${item.widgetType}, setting ${key}. Reemplazando.`);
+                            console.log(`[Elementor Replace] URL encontrada en widget ${item.widgetType || 'unknown'}, setting ${key}. Reemplazando.`);
                             setting.url = newUrl;
                             replaced = true;
-                        }
-                    }
-                }
-            }
-            
-            // Handle complex widgets like sliders where images are in an array
-            // e.g., slides: [ { background_image: { url: '...' } }, ... ]
-            const arrayKeys = ['slides', 'icon_boxes_items', 'gallery']; // Add other possible keys for widgets with image lists
-            for (const arrayKey of arrayKeys) {
-                if (item.settings && Array.isArray(item.settings[arrayKey])) {
-                    for (const slide of item.settings[arrayKey]) {
-                        if (slide.background_image?.url === oldUrl) {
-                             console.log(`[Elementor Replace] URL encontrada en un slider/repeater. Reemplazando.`);
-                             slide.background_image.url = newUrl;
-                             replaced = true;
-                        }
-                         if (slide.image?.url === oldUrl) {
-                             console.log(`[Elementor Replace] URL encontrada en una imagen de repeater. Reemplazando.`);
-                             slide.image.url = newUrl;
-                             replaced = true;
                         }
                     }
                 }
@@ -127,12 +132,23 @@ export async function POST(req: NextRequest) {
         console.log('[API replace-image] Metadatos de IA generados:', aiContent);
 
         console.log('[API replace-image] Subiendo nueva imagen a WordPress...');
+        
+        // **FIX:** Create a new FormData object to pass to the upload-image endpoint
+        const tempUploadFormData = new FormData();
+        tempUploadFormData.append('imagen', newImageFile as Blob, newImageFile.name);
+        
         const tempUploadResponse = await fetch(`${req.nextUrl.origin}/api/upload-image`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${authToken}` },
-            body: formData,
+            body: tempUploadFormData,
         });
-        if (!tempUploadResponse.ok) throw new Error('Failed to upload image to temporary server.');
+
+        if (!tempUploadResponse.ok) {
+            const errorText = await tempUploadResponse.text();
+            console.error(`[API replace-image] Error en la subida temporal: ${errorText}`);
+            throw new Error('Failed to upload image to temporary server.');
+        }
+        
         const { url: tempUrl } = await tempUploadResponse.json();
 
         const newImageId = await uploadImageToWordPress(
