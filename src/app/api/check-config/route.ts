@@ -11,6 +11,8 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   let uid: string;
   let userRole: string | null = null;
+  let userCompanyId: string | null = null;
+
   try {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) {
@@ -21,7 +23,9 @@ export async function GET(req: NextRequest) {
     uid = decodedToken.uid;
     const userDoc = await adminDb.collection('users').doc(uid).get();
     if (userDoc.exists) {
-        userRole = userDoc.data()?.role || null;
+        const userData = userDoc.data();
+        userRole = userData?.role || null;
+        userCompanyId = userData?.companyId || null;
     }
   } catch (error) {
     console.error("Auth error in /api/check-config:", error);
@@ -57,30 +61,27 @@ export async function GET(req: NextRequest) {
     const targetUserId = searchParams.get('userId');
     const targetCompanyId = searchParams.get('companyId');
 
-    let entityId = uid;
-    let entityType: 'user' | 'company' = 'user';
+    let settingsSource: admin.firestore.DocumentData | undefined;
 
-    if (userRole === 'super_admin') {
-      if (targetCompanyId) {
-        entityId = targetCompanyId;
-        entityType = 'company';
-      } else if (targetUserId) {
-        entityId = targetUserId;
-        entityType = 'user';
-      }
+    // Determine the source of settings based on the request context
+    if (userRole === 'super_admin' && (targetUserId || targetCompanyId)) {
+      // Super admin is explicitly checking a specific entity
+      const entityId = targetCompanyId || targetUserId;
+      const collection = targetCompanyId ? 'companies' : 'user_settings';
+      const doc = await adminDb.collection(collection).doc(entityId!).get();
+      settingsSource = doc.exists ? doc.data() : undefined;
     } else {
-        const userDoc = await adminDb.collection('users').doc(uid).get();
-        const userData = userDoc.data();
-        if (userData?.companyId) {
-            entityId = userData.companyId;
-            entityType = 'company';
-        }
+      // Regular user or admin: Use their assigned company or personal settings
+      if (userCompanyId) {
+        const companyDoc = await adminDb.collection('companies').doc(userCompanyId).get();
+        settingsSource = companyDoc.exists ? companyDoc.data() : undefined;
+      }
+      // Fallback to personal settings if no company or company doc not found
+      if (!settingsSource) {
+          const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+          settingsSource = userSettingsDoc.exists ? userSettingsDoc.data() : undefined;
+      }
     }
-    
-    // Fetch settings for the specific user or company
-    const settingsCollection = entityType === 'company' ? 'companies' : 'user_settings';
-    const settingsDoc = await adminDb.collection(settingsCollection).doc(entityId).get();
-    const settingsSource = settingsDoc.exists ? settingsDoc.data() : undefined;
     
     // Fetch global partner settings separately
     const globalSettingsDoc = await adminDb.collection('companies').doc('global_settings').get();
@@ -103,11 +104,11 @@ export async function GET(req: NextRequest) {
 
     // Process user/company specific connections
     if (settingsSource) {
-      if (entityType === 'company') {
-          assignedPlatform = settingsSource.platform || null;
+      if (settingsSource.platform) {
+        assignedPlatform = settingsSource.platform;
       } else {
-          const userDoc = await adminDb.collection('users').doc(entityId).get();
-          if (userDoc.exists) assignedPlatform = userDoc.data()?.platform || null;
+        const userSettings = (await adminDb.collection('user_settings').doc(uid).get()).data();
+        assignedPlatform = userSettings?.platform || null;
       }
 
       const allConnections = settingsSource.connections || {};
@@ -140,9 +141,15 @@ export async function GET(req: NextRequest) {
             if (response.status === 200 && response.data?.verified === true) {
               userConfig.pluginActive = true;
             }
-          } catch (pluginError) {
-            console.warn(`Plugin status check failed for ${url}:`, (pluginError as any).message);
+          } catch (pluginError: any) {
+            console.warn(`Plugin status check failed for ${url}:`, pluginError.message);
             userConfig.pluginActive = false;
+            // Provide a more specific error message to the frontend
+            if (pluginError.response && pluginError.response.status === 404) {
+                 userConfig.pluginError = 'No se encontró el endpoint del plugin. Asegúrate de que el plugin "AutoPress AI Helper" está instalado y activado.';
+            } else {
+                 userConfig.pluginError = 'No se pudo verificar el plugin. Revisa las credenciales y la conectividad.';
+            }
           }
         }
       }
