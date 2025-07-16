@@ -2,7 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/api-helpers';
-import { z } from 'zod';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const slugify = (text: string) => {
@@ -22,7 +21,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        const { wpApi } = await getApiClientsForUser(uid);
+        const { wpApi, wooApi } = await getApiClientsForUser(uid);
         if (!wpApi) {
             throw new Error('WordPress API is not configured.');
         }
@@ -37,11 +36,17 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Faltan datos en la petición.' }, { status: 400 });
         }
 
-        const endpoint = postType === 'Producto' ? `/products/${postId}` : postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
-        const { data: post } = await wpApi.get(endpoint, { params: { context: 'edit' } });
+        let post: any;
+        if (postType === 'Producto') {
+            if (!wooApi) throw new Error('WooCommerce API is not configured.');
+            const { data } = await wooApi.get(`products/${postId}`);
+            post = { ...data, title: { rendered: data.name }, content: { rendered: data.description } };
+        } else {
+            const endpoint = postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
+            const { data } = await wpApi.get(endpoint, { params: { context: 'edit' } });
+            post = data;
+        }
         
-        const tempUploadUrl = `https://quefoto.es/upload-temp.php`; // A temp URL to get the image buffer for processing
-
         const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
 
@@ -50,8 +55,12 @@ export async function POST(req: NextRequest) {
         const result = await model.generateContent(prompt);
         const aiContent = JSON.parse(result.response.text());
 
+        // Create a temporary URL from the file to pass to the uploader
+        const tempBlob = new Blob([newImageFile], { type: newImageFile.type });
+        const tempObjectUrl = URL.createObjectURL(tempBlob);
+
         const newImageId = await uploadImageToWordPress(
-            URL.createObjectURL(newImageFile),
+            tempObjectUrl,
             `${slugify(post.title.rendered || 'image')}-${Date.now()}.jpg`,
             {
                 title: aiContent.imageTitle || post.title.rendered,
@@ -61,6 +70,8 @@ export async function POST(req: NextRequest) {
             },
             wpApi
         );
+        
+        URL.revokeObjectURL(tempObjectUrl); // Clean up the blob URL
 
         const newMediaData = await wpApi.get(`/media/${newImageId}`);
         const newImageUrl = newMediaData.data.source_url;
@@ -68,7 +79,17 @@ export async function POST(req: NextRequest) {
         let currentContent = post.content?.rendered || '';
         const newContent = currentContent.replace(new RegExp(oldImageUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), newImageUrl);
         
-        await wpApi.post(endpoint, { content: newContent });
+        const updatePayload: { [key: string]: any } = {};
+        if (postType === 'Producto') {
+          updatePayload.description = newContent;
+        } else {
+          updatePayload.content = newContent;
+        }
+        
+        const endpoint = postType === 'Producto' ? `products/${postId}` : postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
+        const apiToUse = postType === 'Producto' ? wooApi : wpApi;
+
+        await apiToUse.put(endpoint, updatePayload);
 
         // Fire-and-forget deletion of the old image
         const oldImageMediaIdMatch = oldImageUrl.match(/wp-image-(\d+)/);

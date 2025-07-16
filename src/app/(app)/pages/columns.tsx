@@ -5,10 +5,14 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowUpDown, ChevronRight } from "lucide-react";
+import { ArrowUpDown, ChevronRight, Edit, ExternalLink, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import type { HierarchicalContentItem, ContentItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { AlertDialog, AlertDialogTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import Link from "next/link";
+
 
 const getStatusText = (status: ContentItem['status']) => {
     const statusMap: { [key: string]: string } = {
@@ -30,7 +34,10 @@ const ScoreBadge = ({ score }: { score: number | undefined }) => {
     return <Badge className={cn("text-white", scoreColor)}>{score}</Badge>;
 };
 
-export const getColumns = (): ColumnDef<HierarchicalContentItem>[] => [
+export const getColumns = (
+    onEdit: (item: ContentItem) => void,
+    onDelete: (item: ContentItem) => void,
+): ColumnDef<HierarchicalContentItem>[] => [
     {
         id: "select",
         header: ({ table }) => (
@@ -60,7 +67,7 @@ export const getColumns = (): ColumnDef<HierarchicalContentItem>[] => [
         cell: ({ row, getValue }) => (
             <div style={{ paddingLeft: `${row.depth * 1.5}rem` }} className="flex items-center gap-1">
                 {row.getCanExpand() && (
-                    <button onClick={row.getToggleExpandedHandler()} className="cursor-pointer p-1 -ml-1">
+                    <button onClick={row.getToggleExpandedHandler()} className="cursor-pointer p-1 -ml-1" aria-label={row.getIsExpanded() ? 'Contraer fila' : 'Expandir fila'}>
                         <ChevronRight className={cn("h-4 w-4 transition-transform", row.getIsExpanded() && 'rotate-90')} />
                     </button>
                 )}
@@ -87,12 +94,37 @@ export const getColumns = (): ColumnDef<HierarchicalContentItem>[] => [
         id: 'score',
         accessorKey: "score",
         header: () => <div className="text-right">Score SEO</div>,
+        cell: ({ row }) => (
+            <div className="text-right">
+                <ScoreBadge score={row.original.score} />
+            </div>
+        )
+    },
+    {
+        id: "actions",
         cell: ({ row }) => {
-            const score = row.original.score;
+            const item = row.original;
             return (
-                <div className="text-right">
-                    <ScoreBadge score={score} />
-                </div>
+                 <div className="text-right">
+                    <AlertDialog>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><span className="sr-only">Abrir menú</span><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                <DropdownMenuItem onClick={() => onEdit(item)}><Pencil className="mr-2 h-4 w-4" /> Editar / Optimizar</DropdownMenuItem>
+                                <DropdownMenuItem asChild><Link href={item.link} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-2 h-4 w-4" /> Ver en la web</Link></DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Mover a la papelera</DropdownMenuItem>
+                                </AlertDialogTrigger>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                         <AlertDialogContent>
+                            <AlertDialogHeader><AlertDialogTitle>¿Mover a la papelera?</AlertDialogTitle><AlertDialogDescription>La página "{item.title}" se moverá a la papelera.</AlertDialogDescription></AlertDialogHeader>
+                            <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={() => onDelete(item)}>Sí, mover</AlertDialogAction></AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                 </div>
             )
         },
     },

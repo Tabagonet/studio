@@ -12,6 +12,7 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
+  type ColumnDef,
   type ColumnFiltersState,
   type ExpandedState,
   type RowSelectionState,
@@ -83,7 +84,29 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
     return roots;
   }, [data, scores]);
 
-  const columns = React.useMemo(() => getColumns(), []);
+  const handleEditContent = (item: ContentItem) => {
+    router.push(`/seo-optimizer/edit/${item.id}?type=Page`);
+  };
+
+  const handleDeleteContent = async (item: ContentItem) => {
+    const user = auth.currentUser;
+    if (!user) {
+      toast({ title: 'No autenticado', variant: 'destructive' });
+      return;
+    }
+    const token = await user.getIdToken();
+    try {
+      const response = await fetch(`/api/wordpress/posts/${item.id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || result.message);
+      toast({ title: "Página movida a la papelera" });
+      onDataChange(token);
+    } catch (e: any) {
+      toast({ title: "Error al mover a papelera", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const columns = React.useMemo(() => getColumns(handleEditContent, handleDeleteContent), [scores]);
 
   const table = useReactTable({
     data: tableData,
@@ -169,7 +192,7 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
         onDataChange(token);
         table.resetRowSelection();
     } catch(e: any) {
-        toast({ title: "Error al enlazar", description: e.message, variant: 'destructive' });
+        toast({ title: "Error al enlazar", description: e.message, variant: "destructive" });
     } finally {
         setIsActionLoading(false);
     }
@@ -320,12 +343,12 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
                 <TableRow 
                   key={row.id} 
                   data-state={row.getIsSelected() && "selected"}
-                  onClick={() => handleRowClick(row)}
                   className="cursor-pointer"
+                  onClick={() => router.push(`/seo-optimizer?id=${row.original.id}&type=${row.original.type}`)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id} onClick={(e) => {
-                      if (cell.column.id === 'select') {
+                      if (cell.column.id === 'select' || cell.column.id === 'actions') {
                         e.stopPropagation();
                       }
                     }}>
