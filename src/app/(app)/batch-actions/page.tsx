@@ -5,11 +5,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Wand2, Loader2, Sparkles, AlertCircle, Info, CheckCircle } from "lucide-react";
+import { Wand2, Loader2, Sparkles, AlertCircle, Info, CheckCircle, ChevronDown } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { BatchActionsTable } from './actions-table';
 import type { ContentItem } from '@/lib/types';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 interface BatchActionStatus {
     id: number;
@@ -100,7 +101,10 @@ export default function BatchActionsPage() {
         
         toast({ title: "Proceso completado", description: "La generación de metadatos SEO ha finalizado." });
         setIsActionRunning(false);
+        setRowSelection({});
     };
+
+    const selectedRowCount = Object.keys(rowSelection).length;
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -128,10 +132,26 @@ export default function BatchActionsPage() {
         <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <CardTitle>1. Selecciona el Contenido</CardTitle>
-                    <CardDescription>Elige las entradas y páginas que quieres procesar.</CardDescription>
+                    <CardTitle>Tabla de Contenidos</CardTitle>
+                    <CardDescription>Selecciona los elementos que quieres procesar.</CardDescription>
                 </div>
-                {isLoading && <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
+                 <div className="flex items-center gap-2">
+                    {isLoading && <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                         <Button variant="outline" disabled={isActionRunning || selectedRowCount === 0}>
+                           {isActionRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronDown className="mr-2 h-4 w-4" />}
+                           Acciones ({selectedRowCount})
+                         </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem onClick={handleBatchSeoMeta}>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Generar Título y Descripción SEO
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
             </div>
         </CardHeader>
         <CardContent>
@@ -139,21 +159,9 @@ export default function BatchActionsPage() {
         </CardContent>
       </Card>
       
-       <Card>
-        <CardHeader>
-          <CardTitle>2. Aplica la Acción de IA</CardTitle>
-        </CardHeader>
-        <CardContent>
-            <Button onClick={handleBatchSeoMeta} disabled={isActionRunning || Object.keys(rowSelection).length === 0}>
-                {isActionRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                Generar Título y Descripción SEO para ({Object.keys(rowSelection).length}) elementos
-            </Button>
-        </CardContent>
-      </Card>
-
       {actionStatus.length > 0 && (
          <Card>
-            <CardHeader><CardTitle>3. Resultados del Proceso</CardTitle></CardHeader>
+            <CardHeader><CardTitle>Resultados del Proceso</CardTitle></CardHeader>
             <CardContent>
                 <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
                     {actionStatus.map(item => (

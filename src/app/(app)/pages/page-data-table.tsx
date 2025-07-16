@@ -2,6 +2,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from 'next/navigation';
 import {
   flexRender,
   getCoreRowModel,
@@ -37,13 +38,11 @@ interface PageDataTableProps {
   data: ContentItem[];
   scores: Record<number, number>;
   isLoading: boolean;
-  onAnalyzePage: (item: ContentItem) => void;
-  onEditPage: (item: ContentItem) => void;
-  isAnalyzingId: number | null;
   onDataChange: (token: string) => void;
 }
 
-export function PageDataTable({ data, scores, isLoading, onAnalyzePage, onEditPage, isAnalyzingId, onDataChange }: PageDataTableProps) {
+export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDataTableProps) {
+  const router = useRouter();
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [sorting, setSorting] = React.useState<React.ComponentProps<typeof useReactTable>['state']['sorting']>([]);
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
@@ -54,10 +53,13 @@ export function PageDataTable({ data, scores, isLoading, onAnalyzePage, onEditPa
   const tableData = React.useMemo((): HierarchicalContentItem[] => {
     if (!data) return [];
     
-    const itemsById = new Map<number, HierarchicalContentItem>(data.map((p) => [p.id, { ...p, subRows: [] }]));
+    // Enrich data with scores
+    const enrichedData = data.map(item => ({ ...item, score: scores[item.id] }));
+    
+    const itemsById = new Map<number, HierarchicalContentItem>(enrichedData.map((p) => [p.id, { ...p, subRows: [] }]));
     const roots: HierarchicalContentItem[] = [];
     
-    data.forEach((item) => {
+    enrichedData.forEach((item) => {
         const currentItem = itemsById.get(item.id);
         if (!currentItem) return;
 
@@ -65,7 +67,6 @@ export function PageDataTable({ data, scores, isLoading, onAnalyzePage, onEditPa
             const parent = itemsById.get(item.parent);
             parent?.subRows?.push(currentItem);
         } else {
-            // Handle translations: if it's a translation, find its source and add as sub-row
             const translationSourceId = item.translations ? Object.values(item.translations).find(id => id !== item.id && itemsById.has(id)) : undefined;
             if (translationSourceId) {
                 const sourceItem = itemsById.get(translationSourceId);
@@ -79,9 +80,9 @@ export function PageDataTable({ data, scores, isLoading, onAnalyzePage, onEditPa
     });
 
     return roots;
-  }, [data]);
+  }, [data, scores]);
 
-  const columns = React.useMemo(() => getColumns(onAnalyzePage, onEditPage, isAnalyzingId), [onAnalyzePage, onEditPage, isAnalyzingId]);
+  const columns = React.useMemo(() => getColumns(), []);
 
   const table = useReactTable({
     data: tableData,
@@ -169,6 +170,10 @@ export function PageDataTable({ data, scores, isLoading, onAnalyzePage, onEditPa
   };
   
   const selectedRowCount = Object.keys(rowSelection).length;
+  
+  const handleRowClick = (row: any) => {
+    router.push(`/seo-optimizer?id=${row.original.id}&type=${row.original.type}`);
+  };
 
   return (
     <div className="w-full space-y-4">
@@ -267,9 +272,20 @@ export function PageDataTable({ data, scores, isLoading, onAnalyzePage, onEditPa
               </TableRow>
             ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                <TableRow 
+                  key={row.id} 
+                  data-state={row.getIsSelected() && "selected"}
+                  onClick={() => handleRowClick(row)}
+                  className="cursor-pointer"
+                >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                    <TableCell key={cell.id} onClick={(e) => {
+                      if (cell.column.id === 'select') {
+                        e.stopPropagation();
+                      }
+                    }}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
                   ))}
                 </TableRow>
               ))

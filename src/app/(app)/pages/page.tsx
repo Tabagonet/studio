@@ -17,7 +17,6 @@ export default function PagesManagementPage() {
   const [scores, setScores] = useState<Record<number, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isAnalyzingId, setIsAnalyzingId] = useState<number | null>(null);
 
   const router = useRouter();
   const { toast } = useToast();
@@ -85,35 +84,6 @@ export default function PagesManagementPage() {
         window.removeEventListener('connections-updated', () => auth.currentUser && auth.currentUser.getIdToken().then(fetchData));
     };
   }, [fetchData]);
-  
-  const handleAnalyze = async (item: ContentItem) => {
-    setIsAnalyzingId(item.id);
-    const user = auth.currentUser;
-    if (!user) {
-        toast({ title: "No autenticado", variant: "destructive" });
-        setIsAnalyzingId(null);
-        return;
-    }
-    try {
-        const token = await user.getIdToken();
-        const response = await fetch('/api/seo/analyze-url', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ url: item.link, postId: item.id, postType: item.type }),
-        });
-        if (!response.ok) throw new Error((await response.json()).error || 'Fallo al iniciar el análisis');
-        toast({ title: "Análisis en progreso", description: "Redirigiendo a la página del informe..." });
-        router.push(`/seo-optimizer?id=${item.id}&type=${item.type}`);
-    } catch (err: any) {
-        toast({ title: 'Error al analizar', description: err.message, variant: 'destructive' });
-    } finally {
-         setIsAnalyzingId(null);
-    }
-  };
-
-  const handleEdit = (item: ContentItem) => {
-      router.push(`/seo-optimizer/edit/${item.id}?type=${item.type}`);
-  };
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -123,7 +93,7 @@ export default function PagesManagementPage() {
                 <FileText className="h-8 w-8 text-primary" />
                 <div>
                     <CardTitle>Gestión de Páginas</CardTitle>
-                    <CardDescription>Visualiza, filtra y gestiona todas las páginas de tu sitio WordPress.</CardDescription>
+                    <CardDescription>Visualiza, filtra y gestiona todas las páginas de tu sitio WordPress. Haz clic en una fila para analizarla o ver su informe.</CardDescription>
                 </div>
             </div>
         </CardHeader>
@@ -147,9 +117,6 @@ export default function PagesManagementPage() {
              data={data} 
              scores={scores}
              isLoading={isLoading} 
-             onAnalyzePage={handleAnalyze} 
-             onEditPage={handleEdit} 
-             isAnalyzingId={isAnalyzingId}
              onDataChange={fetchData}
            />
       )}
