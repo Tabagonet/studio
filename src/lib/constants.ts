@@ -1,6 +1,6 @@
 
 
-import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList, SearchCheck, Copy, Building, Megaphone, Briefcase, Store, ListChecks, Lightbulb } from 'lucide-react';
+import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList, SearchCheck, Copy, Building, Megaphone, Briefcase, Store, ListChecks, Lightbulb, FileText } from 'lucide-react';
 import type { NavItem, ProductType, ProductData, BlogPostData, NavGroup } from '@/lib/types';
 import { ShopifyIcon } from '@/components/core/icons';
 
@@ -32,11 +32,12 @@ export const NAV_GROUPS: NavGroup[] = [
     ]
   },
   {
-    title: 'Blog',
+    title: 'Blog y Páginas',
     requiredPlatform: 'woocommerce',
     items: [
        { title: 'Creador de Entradas', href: '/blog-creator', icon: Newspaper, requiredRoles: ['admin', 'super_admin', 'content_manager'] },
        { title: 'Gestión de Entradas', href: '/blog', icon: ClipboardList, requiredRoles: ['admin', 'super_admin', 'content_manager'] },
+       { title: 'Gestión de Páginas', href: '/pages', icon: FileText, requiredRoles: ['admin', 'super_admin', 'content_manager'] },
     ]
   },
   {
@@ -47,6 +48,7 @@ export const NAV_GROUPS: NavGroup[] = [
        { title: 'Planificador de Publicidad', href: '/ad-planner', icon: Megaphone, requiredRoles: ['super_admin'] },
        { title: 'Optimizador SEO', href: '/seo-optimizer', icon: SearchCheck, requiredRoles: ['admin', 'super_admin', 'content_manager', 'product_manager', 'seo_analyst'] },
        { title: 'Clonador de Contenido', href: '/content-cloner', icon: Copy, requiredRoles: ['admin', 'super_admin', 'content_manager', 'product_manager'] },
+       { title: 'Acciones por Lotes (IA)', href: '/batch-actions', icon: Wand2, requiredRoles: ['admin', 'super_admin', 'content_manager', 'product_manager'] },
     ]
   },
    {

@@ -1,3 +1,4 @@
+
 <?php
 /*
 Plugin Name: AutoPress AI Helper
@@ -10,8 +11,8 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 // === Admin Menu and Settings Page ===
 add_action('admin_menu', 'autopress_ai_add_admin_menu');
-add_action('wp_ajax_autopress_ai_verify_key', 'autopress_ai_ajax_verify_key');
-add_action('wp_ajax_autopress_ai_disconnect', 'autopress_ai_ajax_disconnect');
+add_action('wp_ajax_nopriv_autopress_ai_verify_connection', 'autopress_ai_ajax_verify_connection');
+add_action('wp_ajax_autopress_ai_verify_connection', 'autopress_ai_ajax_verify_connection');
 
 function autopress_ai_get_plugin_version() {
     if (!function_exists('get_plugin_data')) {
@@ -28,179 +29,15 @@ function autopress_ai_add_admin_menu() {
 }
 
 function autopress_ai_options_page() {
-    ?>
+    // This function is intentionally left empty as the settings are now managed from the main app.
+    // The menu page remains to show the user that the plugin is installed.
+     ?>
     <div class="wrap">
         <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
-        <div id="autopress-notice" class="notice" style="display:none; margin-top: 1rem;"></div>
-        <form id="autopress-ai-form">
-            <?php wp_nonce_field('autopress_ai_verify_nonce', 'autopress_ai_nonce'); ?>
-            <table class="form-table">
-                <tbody>
-                    <tr>
-                        <th scope="row">
-                            <label for="autopress_ai_api_key_field"><?php _e('API Key', 'autopress-ai'); ?></label>
-                        </th>
-                        <td>
-                            <input type="password" name="autopress_ai_api_key" id="autopress_ai_api_key_field" value="<?php echo esc_attr(get_option('autopress_ai_api_key')); ?>" class="regular-text">
-                            <p class="description"><?php _e('Copia y pega la API Key desde la página de Ajustes de tu cuenta en AutoPress AI.', 'autopress-ai'); ?></p>
-                        </td>
-                    </tr>
-                     <tr>
-                        <th scope="row"><?php _e('Estado de la Conexión', 'autopress-ai'); ?></th>
-                        <td>
-                            <?php 
-                            $is_active = get_option('autopress_ai_is_active') === 'true';
-                            if ($is_active) {
-                                echo '<span style="color: #22c55e; font-weight: bold;">✔ Activo</span>';
-                            } else {
-                                echo '<span style="color: #ef4444; font-weight: bold;">✖ Inactivo</span><p class="description">Guarda una API Key válida para activar el plugin.</p>';
-                            }
-                            ?>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-            <?php submit_button('Guardar y Verificar Clave'); ?>
-        </form>
-         <?php if ($is_active): ?>
-            <form id="autopress-disconnect-form" style="margin-top: 1rem;">
-                <?php wp_nonce_field('autopress_ai_disconnect_nonce', 'autopress_ai_disconnect_nonce_field'); ?>
-                <button type="submit" class="button button-secondary"><?php _e('Desconectar y Borrar Clave', 'autopress-ai'); ?></button>
-            </form>
-        <?php endif; ?>
+        <p>La configuración de la conexión para AutoPress AI ahora se gestiona directamente desde la aplicación principal en <a href="https://autopress.intelvisual.es/settings/connections" target="_blank">Ajustes > Conexiones</a>.</p>
+        <p>Este plugin añade las funcionalidades necesarias a la API de WordPress para que la aplicación pueda comunicarse con tu sitio de forma segura.</p>
     </div>
-    <script type="text/javascript">
-        jQuery(document).ready(function($) {
-            $('#autopress-ai-form').on('submit', function(e) {
-                e.preventDefault();
-                var apiKey = $('#autopress_ai_api_key_field').val();
-                var nonce = $('#autopress_ai_nonce').val();
-                var noticeEl = $('#autopress-notice');
-                var submitButton = $(this).find('input[type="submit"]');
-                var originalButtonText = submitButton.val();
-
-                submitButton.val('Verificando...').prop('disabled', true);
-                noticeEl.hide();
-
-                $.post(ajaxurl, {
-                    action: 'autopress_ai_verify_key',
-                    api_key: apiKey,
-                    nonce: nonce
-                }, function(response) {
-                    if (response.success) {
-                        noticeEl.removeClass('notice-error').addClass('notice-success is-dismissible').html('<p>' + response.data.message + '</p>').show();
-                        setTimeout(function(){ location.reload(); }, 1500);
-                    } else {
-                        noticeEl.removeClass('notice-success').addClass('notice-error is-dismissible').html('<p>' + response.data.message + '</p>').show();
-                    }
-                }).fail(function(jqXHR) {
-                    var errorMessage = 'Error de comunicación con el servidor. Revisa la consola del navegador.';
-                    if (jqXHR.responseJSON && jqXHR.responseJSON.data && jqXHR.responseJSON.data.message) {
-                        errorMessage = jqXHR.responseJSON.data.message;
-                    }
-                     noticeEl.removeClass('notice-success').addClass('notice-error is-dismissible').html('<p>' + errorMessage + '</p>').show();
-                }).always(function() {
-                    submitButton.val(originalButtonText).prop('disabled', false);
-                });
-            });
-
-            $('#autopress-disconnect-form').on('submit', function(e) {
-                e.preventDefault();
-                if (!confirm('¿Estás seguro de que quieres desconectar y borrar la API Key?')) return;
-
-                var nonce = $('#autopress_ai_disconnect_nonce_field').val();
-                var noticeEl = $('#autopress-notice');
-                var button = $(this).find('button');
-                button.text('Desconectando...').prop('disabled', true);
-                noticeEl.hide();
-
-                $.post(ajaxurl, {
-                    action: 'autopress_ai_disconnect',
-                    nonce: nonce
-                }, function(response) {
-                    if (response.success) {
-                        noticeEl.removeClass('notice-error').addClass('notice-success is-dismissible').html('<p>' + response.data.message + '</p>').show();
-                        setTimeout(function(){ location.reload(); }, 1000);
-                    } else {
-                        noticeEl.removeClass('notice-success').addClass('notice-error is-dismissible').html('<p>' + response.data.message + '</p>').show();
-                        button.text('Desconectar y Borrar Clave').prop('disabled', false);
-                    }
-                }).fail(function() {
-                    noticeEl.removeClass('notice-success').addClass('notice-error is-dismissible').html('<p>Error de comunicación al desconectar.</p>').show();
-                    button.text('Desconectar y Borrar Clave').prop('disabled', false);
-                });
-            });
-        });
-    </script>
     <?php
-}
-
-function autopress_ai_ajax_disconnect() {
-    if (!check_ajax_referer('autopress_ai_disconnect_nonce', 'nonce', false)) {
-        wp_send_json_error(['message' => 'Fallo de seguridad.'], 403);
-        return;
-    }
-    if (!current_user_can('edit_posts')) {
-        wp_send_json_error(['message' => 'No tienes permisos.'], 403);
-        return;
-    }
-    delete_option('autopress_ai_api_key');
-    delete_option('autopress_ai_is_active');
-    wp_send_json_success(['message' => 'Desconectado correctamente. La clave ha sido eliminada.']);
-}
-
-
-function autopress_ai_ajax_verify_key() {
-    if (!check_ajax_referer('autopress_ai_verify_nonce', 'nonce', false)) {
-        wp_send_json_error(['message' => 'Fallo de seguridad.'], 403);
-        return;
-    }
-    if (!current_user_can('edit_posts')) {
-        wp_send_json_error(['message' => 'No tienes permisos.'], 403);
-        return;
-    }
-    
-    $api_key = isset($_POST['api_key']) ? sanitize_text_field($_POST['api_key']) : '';
-
-    if (empty($api_key)) {
-        update_option('autopress_ai_api_key', '');
-        update_option('autopress_ai_is_active', 'false');
-        wp_send_json_error(['message' => 'La API Key no puede estar vacía.'], 400);
-        return;
-    }
-    
-    $verify_url_base = 'https://autopress.intelvisual.es/api/license/verify-plugin';
-    $args = array(
-        'apiKey'  => $api_key,
-        'siteUrl' => get_site_url(),
-    );
-    $verify_url = add_query_arg($args, $verify_url_base);
-
-    $response = wp_remote_get($verify_url, [ 'timeout'   => 20, ]);
-
-    if (is_wp_error($response)) {
-        wp_send_json_error(['message' => 'Error de red al conectar con el servidor de AutoPress AI: ' . $response->get_error_message()], 500);
-        return;
-    }
-
-    $response_code = wp_remote_retrieve_response_code($response);
-    $body = wp_remote_retrieve_body($response);
-    $data = json_decode($body, true);
-
-    if ($data === null) {
-        wp_send_json_error(['message' => 'Respuesta inesperada del servidor de AutoPress AI. No es un JSON válido. Código: ' . $response_code . ' Cuerpo: ' . esc_html($body)], 500);
-        return;
-    }
-    
-    if (isset($data['status']) && $data['status'] === 'active') {
-        update_option('autopress_ai_api_key', $api_key);
-        update_option('autopress_ai_is_active', 'true');
-        wp_send_json_success(['message' => '¡Verificación exitosa! El plugin está activo.']);
-    } else {
-        update_option('autopress_ai_is_active', 'false');
-        $error_message = isset($data['message']) ? $data['message'] : 'La API Key no es válida o la cuenta no tiene permisos para este sitio.';
-        wp_send_json_error(['message' => 'Verificación fallida: ' . $error_message], 400);
-    }
 }
 
 
@@ -248,15 +85,11 @@ function autopress_ai_register_rest_endpoints() {
     });
     
     function custom_api_status_check() {
-        // Now this endpoint verifies both plugin status and API key validity from the WordPress side.
-        $is_active = get_option('autopress_ai_is_active') === 'true';
-        $api_key = get_option('autopress_ai_api_key');
-        
         return new WP_REST_Response([
-            'status' => $is_active ? 'ok' : 'inactive',
+            'status' => 'ok',
             'plugin_version' => autopress_ai_get_plugin_version(),
-            'verified' => $is_active,
-            'message' => $is_active ? 'Plugin activo y verificado.' : 'Plugin inactivo. Por favor, introduce una API Key válida en los ajustes del plugin.',
+            'verified' => true,
+            'message' => 'Plugin activo y verificado.',
             'woocommerce_active' => class_exists('WooCommerce'),
             'polylang_active' => function_exists('pll_get_post_language'),
         ], 200);
