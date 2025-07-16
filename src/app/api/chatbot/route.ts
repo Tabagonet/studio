@@ -3,7 +3,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getChatbotResponse, extractAnalysisData } from '@/ai/flows/chatbot-flow';
 import { adminDb } from '@/lib/firebase-admin';
-import axios from 'axios';
 import { z } from 'zod';
 
 interface Message {
@@ -54,77 +53,39 @@ async function verifyRecaptcha(token: string | undefined) {
 }
 
 async function handleAnalysisCompletion(messages: Message[]) {
-    // This function is kept for the strategic analysis flow, but is not used for store creation.
-    return '¡Genial! Hemos recibido toda la información. Uno de nuestros expertos la revisará y se pondrá en contacto contigo muy pronto. ¡Gracias!';
-}
-
-
-/**
- * Handles the logic for initiating a Shopify store creation process.
- * It now calls the dedicated /api/shopify/create-store endpoint.
- */
-async function triggerStoreCreationWithExampleData() {
     if (!adminDb) {
-      throw new Error("Firestore is not configured.");
-    }
-    
-    const internalApiKey = process.env.SHOPIFY_AUTOMATION_API_KEY;
-    if (!internalApiKey) {
-        throw new Error("La clave SHOPIFY_AUTOMATION_API_KEY no está configurada en el servidor.");
+      console.error("Firestore not configured. Cannot save prospect.");
+      return 'Error: La base de datos no está disponible.';
     }
 
-    const timestamp = Date.now();
-    const storeData = {
-        storeName: `Tienda de Prueba ${timestamp}`,
-        businessEmail: `test-${timestamp}@example.com`,
-    };
-    
-    const companyQuery = await adminDb.collection('companies').where('name', '==', 'Grupo 4 alas S.L.').limit(1).get();
-    if (companyQuery.empty) {
-      throw new Error("La empresa propietaria 'Grupo 4 alas S.L.' no se encuentra en la base de datos.");
+    try {
+        const data = await extractAnalysisData(messages);
+        
+        // Save the prospect to Firestore
+        await adminDb.collection('prospects').add({
+            name: data.name,
+            email: data.email,
+            companyUrl: data.companyUrl,
+            inquiryData: {
+                objective: data.objective,
+                businessDescription: data.businessDescription,
+                valueProposition: data.valueProposition,
+                targetAudience: data.targetAudience,
+                competitors: data.competitors,
+                brandPersonality: data.brandPersonality,
+                monthlyBudget: data.monthlyBudget,
+            },
+            status: 'new',
+            source: 'chatbot_v2',
+            createdAt: new Date(),
+        });
+
+        return '¡Genial! Hemos recibido toda la información. Uno de nuestros expertos la revisará y se pondrá en contacto contigo muy pronto. ¡Gracias!';
+    } catch(e) {
+        console.error("Error saving prospect data:", e);
+        return 'He guardado tus respuestas, pero ha habido un problema al registrar tus datos de contacto. No te preocupes, un asesor lo revisará igualmente.';
     }
-    const ownerCompanyId = companyQuery.docs[0].id;
-    
-    const jobPayload = {
-      webhookUrl: "https://webhook.site/#!/view/1b8a9b3f-8c3b-4c1e-9d2a-9e1b5f6a7d1c", 
-      storeName: storeData.storeName,
-      businessEmail: storeData.businessEmail,
-      brandDescription: "Una tienda de prueba generada automáticamente para verificar el flujo de creación de AutoPress AI.",
-      targetAudience: "Desarrolladores y equipo de producto.",
-      brandPersonality: "Funcional, robusta y eficiente.",
-      productTypeDescription: 'Productos de ejemplo para tienda nueva',
-      creationOptions: {
-        createExampleProducts: true,
-        numberOfProducts: 3,
-        createAboutPage: true,
-        createContactPage: true,
-        createLegalPages: true,
-        createBlogWithPosts: true,
-        numberOfBlogPosts: 2,
-        setupBasicNav: true,
-        theme: "dawn",
-      },
-      legalInfo: {
-        legalBusinessName: "AutoPress Testing SL",
-        businessAddress: "Calle Ficticia 123, 08001, Barcelona, España",
-      },
-      entity: {
-        type: 'company' as 'user' | 'company',
-        id: ownerCompanyId,
-      }
-    };
-    
-    // Call our own API to create the job.
-    await axios.post(`${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/create-store`, jobPayload, {
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${internalApiKey}`,
-        }
-    });
-    
-    return `¡Perfecto! Usando datos de ejemplo, hemos creado una solicitud de trabajo para: "${storeData.storeName}". Ve al panel de "Trabajos" para asignarle una tienda de desarrollo y continuar el proceso.`;
 }
-
 
 export async function POST(req: NextRequest) {
     try {
@@ -147,11 +108,6 @@ export async function POST(req: NextRequest) {
 
         if (trimmedResponse === 'FIN-ANALISIS') {
             const responseMessage = await handleAnalysisCompletion(messages);
-            return NextResponse.json({ response: responseMessage, isComplete: true });
-        }
-
-        if (trimmedResponse === 'FIN-TIENDA') {
-            const responseMessage = await triggerStoreCreationWithExampleData();
             return NextResponse.json({ response: responseMessage, isComplete: true });
         }
         

@@ -6,34 +6,28 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import Handlebars from 'handlebars';
 import { scrapeUrl } from '@/services/scraper';
 import { adminDb } from '@/lib/firebase-admin';
-import axios from 'axios';
 
-const CHATBOT_PROMPT_TEMPLATE = `Eres un asistente de estrategia digital amigable, experto y muy conciso llamado 'AutoPress AI Assistant'. Tu objetivo es guiar a un cliente potencial a través de un cuestionario para entender su negocio.
+const CHATBOT_PROMPT_TEMPLATE = `Eres un asistente de estrategia digital amigable, experto y muy conciso llamado 'AutoPress AI Assistant'. Tu objetivo es guiar a un cliente potencial a través de un cuestionario para realizar un análisis estratégico de su negocio.
 
 **REGLAS ESTRICTAS:**
-1.  **Mantente Enfocado:** Solo puedes hablar sobre el cuestionario. Si el usuario pregunta algo no relacionado, responde amablemente que no puedes ayudar con eso y vuelve a la pregunta actual.
+1.  **Mantente Enfocado:** Solo puedes hablar sobre el cuestionario de análisis. Si el usuario pregunta algo no relacionado, responde amablemente que no puedes ayudar con eso y vuelve a la pregunta actual.
 2.  **Explica Conceptos:** Si el usuario no entiende un término, DEBES darle una explicación simple y concisa.
 3.  **Una Pregunta a la Vez:** Haz solo una pregunta principal en cada turno.
 4.  **Sé Breve:** Tus respuestas y preguntas deben ser cortas y fáciles de entender.
 
-**Flujo de la Conversación:**
+**Flujo de la Conversación (Análisis Estratégico):**
 
-1.  **Saludo y Aclaración de Intención:** Preséntate y pregunta al usuario qué quiere hacer.
-    *PREGUNTA INICIAL:* "¡Hola! Soy el asistente de AutoPress AI. ¿Cómo te puedo ayudar hoy?\\n1. Crear una tienda de desarrollo en Shopify.\\n2. Realizar un análisis estratégico de mi negocio actual."
+1.  **Saludo y Petición de URL:** Preséntate y pide la URL del negocio del usuario para empezar el análisis.
+    *PREGUNTA INICIAL:* "¡Hola! Soy el asistente de AutoPress AI. Para poder realizar un análisis estratégico de tu negocio, ¿podrías facilitarme la URL de tu página web?"
 
-2.  **Adaptación al Flujo Elegido:**
-    *   **Si el usuario elige "Crear una tienda de Shopify" (Opción 1):**
-        *   Tu PRIMERA y ÚNICA respuesta debe ser: "¡Perfecto! Para agilizar la prueba, usaré datos de ejemplo para crear tu tienda. ¿Confirmas que quieres iniciar el proceso?".
-        *   Si el usuario responde afirmativamente (con "sí", "ok", "confirmo", etc.), tu ÚLTIMA respuesta DEBE ser únicamente la palabra "FIN-TIENDA". No añadas nada más.
-    *   **Si el usuario elige "Realizar un análisis estratégico" (Opción 2):**
-        *   Pide la URL del negocio.
-        *   Analiza el contenido si se proporciona.
-        *   Guíalo a través de las preguntas del flujo de análisis: descripción del negocio, competidores, objetivo principal, propuesta de valor, público, personalidad y presupuesto.
-        *   Al final, pide el nombre y el email para el contacto.
-        *   Presenta el resumen para confirmación.
-        *   **IMPORTANTE:** Solo cuando el usuario confirme el resumen, tu ÚLTIMA respuesta DEBE ser únicamente la palabra "FIN-ANALISIS".
+2.  **Análisis de Contenido y Cuestionario:**
+    *   Si el usuario proporciona una URL, analízala para obtener contexto.
+    *   Guíalo a través de las preguntas del flujo de análisis: descripción del negocio, competidores, objetivo principal, propuesta de valor, público, personalidad y presupuesto.
+    *   Al final, pide el nombre y el email para el contacto.
+    *   Presenta el resumen para confirmación.
+    *   **IMPORTANTE:** Solo cuando el usuario confirme el resumen, tu ÚLTIMA respuesta DEBE ser únicamente la palabra "FIN-ANALISIS". No añadas nada más.
 
-**Contexto de Conversación Anterior (Solo para análisis):**
+**Contexto de Conversación Anterior:**
 {{#if existingProspectData}}
 ---
 Hemos encontrado estos datos para esta URL:
@@ -54,10 +48,10 @@ Hemos encontrado estos datos para esta URL:
 {{#if history}}
 {{{history}}}
 {{else}}
-(No hay historial. Empieza la conversación con el "Saludo y Aclaración de Intención".)
+(No hay historial. Empieza la conversación con el "Saludo y Petición de URL".)
 {{/if}}
 
-Ahora, basándote en el flujo definido y el historial, continúa la conversación. Formula la siguiente pregunta o finaliza si has completado todos los pasos para la opción elegida.
+Ahora, basándote en el flujo definido y el historial, continúa la conversación. Formula la siguiente pregunta o finaliza si has completado todos los pasos.
 `;
 
 const safetySettings = [
@@ -160,24 +154,5 @@ export async function extractAnalysisData(messages: Message[]) {
         brandPersonality: extractData(conversationText, /- \*\*Personalidad de Marca:\*\*\s*(.*?)\n/g),
         monthlyBudget: extractData(conversationText, /- \*\*Presupuesto Mensual:\*\*\s*(.*?)\n/g),
         companyUrl: findUrlInMessages(messages),
-    };
-}
-
-
-// Helper to extract store creation data from conversation
-export async function extractStoreCreationData(messages: Message[]) {
-    const conversationText = messages.map(m => m.content).join('\n\n');
-
-    // More robust regexes to capture data, ignoring case and looking for simple key-value patterns.
-    return {
-        storeName: extractData(conversationText, /nombre de la tienda.*:\s*"?([^"\n]+)"?/gi),
-        businessEmail: extractData(conversationText, /email del negocio.*:\s*"?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"?/gi),
-        countryCode: extractData(conversationText, /país.*:\s*"?([^"\n,]+)"?/gi),
-        currency: extractData(conversationText, /moneda.*:\s*"?([^"\n,]+)"?/gi),
-        brandDescription: extractData(conversationText, /descripción de la marca.*:\s*"?([^"\n]+)"?/gi),
-        targetAudience: extractData(conversationText, /público objetivo.*:\s*"?([^"\n]+)"?/gi),
-        brandPersonality: extractData(conversationText, /personalidad de marca.*:\s*"?([^"\n]+)"?/gi),
-        legalBusinessName: extractData(conversationText, /nombre fiscal.*:\s*"?([^"\n]+)"?/gi),
-        businessAddress: extractData(conversationText, /dirección fiscal.*:\s*"?([^"\n]+)"?/gi),
     };
 }
