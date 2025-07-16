@@ -12,20 +12,27 @@ const slugify = (text: string) => {
 
 // Recursive function to find and replace image URLs within Elementor's data structure.
 function replaceImageUrlInElementor(elements: any[], oldUrl: string, newUrl: string): { replaced: boolean; data: any[] } {
+    console.log('[Elementor Replace] Iniciando búsqueda recursiva...');
     let replaced = false;
     const newElements = JSON.parse(JSON.stringify(elements)); // Deep copy to avoid mutation issues
 
     function traverse(items: any[]) {
         for (const item of items) {
+            // Check in standard image widget settings
             if (item.settings?.image?.url === oldUrl) {
+                console.log(`[Elementor Replace] URL encontrada en widget de imagen ${item.id}. Reemplazando.`);
                 item.settings.image.url = newUrl;
                 replaced = true;
             }
+            // Check in background image settings (common for sections, columns)
             if (item.settings?.background_image?.url === oldUrl) {
+                console.log(`[Elementor Replace] URL encontrada en fondo de elemento ${item.id}. Reemplazando.`);
                 item.settings.background_image.url = newUrl;
                 replaced = true;
             }
             // Add other potential image keys here if needed, e.g., for galleries, sliders, etc.
+
+            // Recurse into nested elements
             if (item.elements && item.elements.length > 0) {
                 traverse(item.elements);
             }
@@ -33,18 +40,22 @@ function replaceImageUrlInElementor(elements: any[], oldUrl: string, newUrl: str
     }
     
     traverse(newElements);
+    console.log(`[Elementor Replace] Búsqueda finalizada. ¿Se reemplazó? ${replaced}`);
     return { replaced, data: newElements };
 }
 
 
 export async function POST(req: NextRequest) {
+    console.log('[API replace-image] Petición POST recibida.');
     let uid: string;
     try {
         const token = req.headers.get('Authorization')?.split('Bearer ')[1];
         if (!token) throw new Error('Auth token missing');
         if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
         uid = (await adminAuth.verifyIdToken(token)).uid;
+        console.log(`[API replace-image] Usuario autenticado: ${uid}`);
     } catch (e: any) {
+        console.error('[API replace-image] Fallo de autenticación:', e.message);
         return NextResponse.json({ error: 'Auth failed', message: e.message }, { status: 401 });
     }
 
@@ -53,6 +64,7 @@ export async function POST(req: NextRequest) {
         if (!wpApi) {
             throw new Error('WordPress API is not configured.');
         }
+        console.log('[API replace-image] Clientes API de WordPress obtenidos.');
 
         const formData = await req.formData();
         const newImageFile = formData.get('newImageFile') as File | null;
@@ -60,31 +72,39 @@ export async function POST(req: NextRequest) {
         const postType = formData.get('postType') as 'Post' | 'Page' | 'Producto';
         const oldImageUrl = formData.get('oldImageUrl') as string | null;
 
+        console.log(`[API replace-image] Datos recibidos: postId=${postId}, postType=${postType}, oldImageUrl=${oldImageUrl}, newImageFile=${newImageFile?.name}`);
+
         if (!newImageFile || !postId || !postType || !oldImageUrl) {
             return NextResponse.json({ error: 'Faltan datos en la petición.' }, { status: 400 });
         }
 
         let post: any;
-        let isElementor = false;
+        const isElementor = (await wpApi.get(`/pages/${postId}?context=edit`)).data.meta?._elementor_data;
         const apiToUse = postType === 'Producto' ? wooApi : wpApi;
         if (!apiToUse) throw new Error(`API client for ${postType} is not configured.`);
         const endpoint = postType === 'Producto' ? `products/${postId}` : postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
 
+        console.log(`[API replace-image] Obteniendo datos del post desde ${endpoint}`);
         const { data } = await apiToUse.get(endpoint, { params: { context: 'edit' } });
         post = postType === 'Producto' ? { ...data, title: { rendered: data.name }, content: { rendered: data.description } } : data;
-        isElementor = !!post.meta?._elementor_data;
+        
+        console.log(`[API replace-image] Post "${post.title.rendered}" cargado. ¿Es Elementor? ${!!isElementor}`);
 
         const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
 
         const payload = { mode: 'generate_image_meta', language: 'Spanish', existingTitle: post.title.rendered, existingContent: post.content.rendered };
         const prompt = `You are an expert SEO specialist. Generate generic but descriptive SEO metadata for images based on a blog post's content. Respond with a JSON object: {"imageTitle": "title", "imageAltText": "alt text"}.\n\nGenerate generic image metadata in Spanish for a blog post titled "${payload.existingTitle}".`;
+        
+        console.log('[API replace-image] Generando metadatos de imagen con IA...');
         const result = await model.generateContent(prompt);
         const aiContent = JSON.parse(result.response.text());
+        console.log('[API replace-image] Metadatos de IA generados:', aiContent);
 
         const tempArrayBuffer = await newImageFile.arrayBuffer();
         const tempBuffer = Buffer.from(tempArrayBuffer);
 
+        console.log('[API replace-image] Subiendo nueva imagen a WordPress...');
         const newImageId = await uploadImageToWordPress(
             `data:${newImageFile.type};base64,${tempBuffer.toString('base64')}`,
             `${slugify(post.title.rendered || 'image')}-${Date.now()}.jpg`,
@@ -99,45 +119,61 @@ export async function POST(req: NextRequest) {
         
         const newMediaData = await wpApi.get(`/media/${newImageId}`);
         const newImageUrl = newMediaData.data.source_url;
+        console.log(`[API replace-image] Imagen subida con éxito. Nueva URL: ${newImageUrl}`);
         
         const updatePayload: { [key: string]: any } = {};
         let finalContent = '';
 
         if (isElementor) {
+            console.log('[API replace-image] Procesando como página de Elementor.');
             const elementorData = JSON.parse(post.meta._elementor_data);
             const { replaced, data: newElementorData } = replaceImageUrlInElementor(elementorData, oldImageUrl, newImageUrl);
             if (replaced) {
                 updatePayload.meta = { ...post.meta, _elementor_data: JSON.stringify(newElementorData) };
                 finalContent = JSON.stringify(newElementorData); // For response
+                 console.log('[API replace-image] Payload de Elementor preparado para actualizar.');
+            } else {
+                 console.warn('[API replace-image] No se encontró la URL de la imagen antigua en los datos de Elementor. No se realizarán cambios en el contenido.');
             }
         } else {
+            console.log('[API replace-image] Procesando como contenido estándar HTML.');
             let currentContent = post.content?.rendered || '';
             const newContent = currentContent.replace(new RegExp(oldImageUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), newImageUrl);
             
-            if (postType === 'Producto') {
-                updatePayload.description = newContent;
+            if (newContent !== currentContent) {
+                if (postType === 'Producto') {
+                    updatePayload.description = newContent;
+                } else {
+                    updatePayload.content = newContent;
+                }
+                finalContent = newContent;
+                console.log('[API replace-image] Contenido HTML preparado para actualizar.');
             } else {
-                updatePayload.content = newContent;
+                 console.warn('[API replace-image] No se encontró la URL de la imagen antigua en el contenido HTML. No se realizarán cambios en el contenido.');
             }
-            finalContent = newContent;
         }
 
         if (Object.keys(updatePayload).length > 0) {
+            console.log(`[API replace-image] Enviando payload de actualización al endpoint ${endpoint}...`);
             if (postType === 'Producto') {
                  await apiToUse.put(endpoint, updatePayload);
             } else {
                  await apiToUse.post(endpoint, updatePayload);
             }
+             console.log(`[API replace-image] Actualización del post ${postId} completada.`);
+        } else {
+             console.log('[API replace-image] No hay cambios de contenido que guardar. La imagen se ha subido pero no se ha reemplazado en el post.');
         }
         
         await adminDb.collection('user_settings').doc(uid).set({ 
             aiUsageCount: admin.firestore.FieldValue.increment(1) 
         }, { merge: true });
 
+        console.log('[API replace-image] Petición finalizada con éxito.');
         return NextResponse.json({ success: true, newContent: finalContent, newImageUrl, newImageAlt: aiContent.imageAltText });
 
     } catch (error: any) {
-        console.error("Error in replace-image API:", error.response?.data || error.message);
+        console.error("[API replace-image] Error fatal:", error.response?.data || error.message);
         return NextResponse.json({ error: 'Failed to replace image', message: error.message }, { status: 500 });
     }
 }
