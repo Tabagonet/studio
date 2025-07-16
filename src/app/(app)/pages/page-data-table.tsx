@@ -84,7 +84,7 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
   }, [data, scores]);
 
   const handleEditContent = (item: ContentItem) => {
-    router.push(`/seo-optimizer/edit/${item.id}?type=Page`);
+    router.push(`/pages/edit/${item.id}`);
   };
 
   const handleDeleteContent = async (item: ContentItem) => {
