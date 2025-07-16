@@ -131,12 +131,9 @@ export async function GET(req: NextRequest) {
           const { wordpressApiUrl: url, wordpressUsername: username, wordpressApplicationPassword: applicationPassword } = activeConnection;
           const token = Buffer.from(`${username}:${applicationPassword}`, 'utf8').toString('base64');
           
-          // Use the baseURL from the configured axios instance and replace the endpoint.
-          // This is more robust against different server setups (e.g., custom /wp-json/ path).
-          const wpApiBase = `https://${new URL(url).hostname}`;
-          const statusEndpoint = `${wpApiBase}/wp-json/custom/v1/status`;
+          const siteUrl = `https://${new URL(url).hostname}`;
+          const statusEndpoint = `${siteUrl}/wp-json/custom/v1/status`;
 
-          
           try {
             const response = await axios.get(statusEndpoint, {
               headers: { 'Authorization': `Basic ${token}` },
@@ -148,11 +145,25 @@ export async function GET(req: NextRequest) {
           } catch (pluginError: any) {
             console.warn(`Plugin status check failed for ${url}:`, pluginError.message);
             userConfig.pluginActive = false;
-            // Provide a more specific error message to the frontend
+            
+            // Set a specific error message for easier debugging on the frontend
             if (pluginError.response && pluginError.response.status === 404) {
                  userConfig.pluginError = 'No se encontró el endpoint del plugin. Asegúrate de que el plugin "AutoPress AI Helper" está instalado, activado y es la última versión.';
             } else {
                  userConfig.pluginError = 'No se pudo verificar el plugin. Revisa las credenciales y la conectividad.';
+            }
+
+            // Fallback Check: If the primary endpoint fails, check for a known Polylang endpoint.
+            // This suggests the base API is working but our custom endpoint is not.
+            try {
+                const polylangCheckEndpoint = `${siteUrl}/wp-json/polylang/v1/languages`;
+                await axios.get(polylangCheckEndpoint, { headers: { 'Authorization': `Basic ${token}` }, timeout: 5000 });
+                // If this succeeds, it means the API is responsive but our endpoint is missing.
+                userConfig.pluginError = 'El plugin "AutoPress AI Helper" no se ha encontrado o no está actualizado. Por favor, instálalo desde src/lib/wordpress-plugin.php.';
+            } catch (polylangError) {
+                // If this also fails, it's likely a more general connection or credentials issue.
+                // The original, less specific error message is probably fine in this case.
+                 console.warn(`Polylang fallback check also failed for ${url}.`);
             }
           }
         }
