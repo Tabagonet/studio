@@ -9,30 +9,35 @@ import type { AxiosInstance } from 'axios';
 export const dynamic = 'force-dynamic';
 
 async function verifyPluginStatus(wpApi: AxiosInstance | null): Promise<{ isActive: boolean; error?: string }> {
-  if (!wpApi) return { isActive: false, error: 'WordPress API not configured.' };
+  if (!wpApi) {
+    return { isActive: false, error: 'WordPress API not configured.' };
+  }
 
-  const adminAjaxUrl = `${wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '/admin-ajax.php')}`;
-  console.log(`[Plugin Check] Attempting to verify plugin via admin-ajax: ${adminAjaxUrl}`);
-  
   try {
-    const response = await wpApi.post(adminAjaxUrl, new URLSearchParams({
-      action: 'autopress_ai_verify_status'
-    }), {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-    });
+    const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
+    if (!siteUrl) {
+      throw new Error("Could not determine base site URL.");
+    }
+    const statusEndpoint = `${siteUrl}/wp-json/custom/v1/status`;
+    console.log(`[Plugin Check] Attempting to verify plugin via status endpoint: ${statusEndpoint}`);
+    
+    // This custom endpoint should exist if the plugin is active.
+    const response = await wpApi.get(statusEndpoint);
 
-    if (response.data?.success && response.data?.data?.verified) {
-      console.log(`[Plugin Check] SUCCESS for ${wpApi.defaults.baseURL}. Plugin is active and verified.`);
-      return { isActive: true };
+    if (response.data?.verified === true) {
+        console.log(`[Plugin Check] SUCCESS for ${siteUrl}. Plugin is active and verified.`);
+        return { isActive: true };
     } else {
-      const reason = response.data?.data?.message || 'La respuesta del plugin no fue de éxito o no está verificado.';
-      console.log(`[Plugin Check] FAILED for ${wpApi.defaults.baseURL}. Status: ${response.status}. Reason: ${reason}`);
-      return { isActive: false, error: reason };
+        const reason = response.data?.message || 'La respuesta del plugin no fue de éxito.';
+        console.log(`[Plugin Check] FAILED for ${siteUrl}. Reason: ${reason}`);
+        return { isActive: false, error: reason };
     }
   } catch (error: any) {
     const status = error.response?.status;
     let reason = 'Error de comunicación con el sitio WordPress.';
-    if (status) {
+    if (status === 404) {
+        reason = 'No se encontró el endpoint /custom/v1/status. Asegúrate de que el plugin "AutoPress AI Helper" está instalado y activo en tu WordPress.';
+    } else if (status) {
         reason = `El sitio respondió con un error ${status}. Revisa la URL y la configuración de seguridad.`;
     }
     console.error(`[Plugin Check] FAILED for ${wpApi.defaults.baseURL}. Status: ${status}. Raw Error:`, error.message);
@@ -44,9 +49,11 @@ async function verifyBaseWpConnection(wpApi: AxiosInstance | null): Promise<bool
     if (!wpApi) return false;
     try {
         // A simple GET request to the base of the API is enough to check credentials and reachability.
-        await wpApi.get('/');
+        // We use /users endpoint as it's a standard one.
+        await wpApi.get('/users?context=view&per_page=1');
         return true;
     } catch (error) {
+        console.warn("Base WP connection check failed.", error);
         return false;
     }
 }
@@ -116,9 +123,11 @@ export async function GET(req: NextRequest) {
         const activeConnection = allConnections[activeKey];
         
         userConfig.wooCommerceConfigured = !!(activeConnection.wooCommerceStoreUrl && activeConnection.wooCommerceApiKey && activeConnection.wooCommerceApiSecret);
-        userConfig.wordPressConfigured = await verifyBaseWpConnection(wpApi); // Use new base connection check
+        userConfig.wordPressConfigured = await verifyBaseWpConnection(wpApi); 
         userConfig.shopifyConfigured = !!(activeConnection.shopifyStoreUrl && activeConnection.shopifyApiPassword);
-        activeStoreUrl = activeConnection.wooCommerceStoreUrl || activeConnection.wordpressApiUrl || activeConnection.shopifyStoreUrl || null;
+        
+        const wooUrl = activeConnection.wooCommerceStoreUrl || activeConnection.wordpressApiUrl;
+        activeStoreUrl = wooUrl || activeConnection.shopifyStoreUrl || null;
 
         if (userConfig.shopifyConfigured) {
           activePlatform = 'shopify';
@@ -141,6 +150,9 @@ export async function GET(req: NextRequest) {
   const partnerCreds = await getPartnerCredentials().catch(() => null);
   userConfig.shopifyPartnerConfigured = !!(partnerCreds && partnerCreds.partnerApiToken && partnerCreds.organizationId);
   userConfig.shopifyCustomAppConfigured = !!(partnerCreds && partnerCreds.clientId && partnerCreds.clientSecret);
+  
+  const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+  userConfig.aiUsageCount = userSettingsDoc.data()?.aiUsageCount || 0;
 
 
   const finalConfigStatus = {
