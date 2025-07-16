@@ -35,6 +35,28 @@ const pageUpdateSchema = z.object({
 });
 
 
+function findImageUrlsInElementor(data: any): string[] {
+    const urls: string[] = [];
+    if (!data) return urls;
+
+    if (Array.isArray(data)) {
+        data.forEach(item => urls.push(...findImageUrlsInElementor(item)));
+        return urls;
+    }
+
+    if (typeof data === 'object') {
+        for (const key in data) {
+            if (key === 'url' && typeof data[key] === 'string' && (data[key].includes('.jpg') || data[key].includes('.jpeg') || data[key].includes('.png') || data[key].includes('.webp') || data[key].includes('.gif'))) {
+                urls.push(data[key]);
+            } else if (typeof data[key] === 'object' && data[key] !== null) {
+                urls.push(...findImageUrlsInElementor(data[key]));
+            }
+        }
+    }
+    return urls;
+}
+
+
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
@@ -54,56 +76,85 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     
     const pageData = response.data;
     
-    const contentIsJsonArray = (pageData.content?.rendered || '').trim().startsWith('[');
-    const isElementor = !!pageData.meta?._elementor_version || contentIsJsonArray;
+    const isElementor = !!pageData.meta?._elementor_data;
     
     let finalContent;
-    if (isElementor && pageData.meta?._elementor_data) {
+    if (isElementor) {
         finalContent = extractElementorHeadings(pageData.meta._elementor_data);
     } else {
         finalContent = pageData.content?.rendered || '';
     }
     
-    // --- New: Scrape live page for accurate image data ---
-    const pageLink = pageData.link;
     let scrapedImages: any[] = [];
-    if (pageLink && wpApi) {
-        try {
-            const scrapeResponse = await axios.get(pageLink, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36', 'Cache-Control': 'no-cache' } });
-            const html = scrapeResponse.data;
-            const $ = cheerio.load(html);
-            
-            const $contentArea = $('main').length ? $('main') : $('article').length ? $('article') : $('body');
-            $contentArea.find('header, footer, nav').remove();
-
-            const foundImageIds = new Set<number>();
-
-            $contentArea.find('img').each((i, el) => {
-                const classList = $(el).attr('class') || '';
-                const match = classList.match(/wp-image-(\d+)/);
-                const mediaId = match ? parseInt(match[1], 10) : null;
-                if (mediaId) foundImageIds.add(mediaId);
-            });
-            
-            if (foundImageIds.size > 0) {
-                 const mediaResponse = await wpApi.get('/media', {
-                    params: { include: Array.from(foundImageIds).join(','), per_page: 100, _fields: 'id,alt_text,source_url,media_details' }
-                });
-
-                if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
-                     scrapedImages = mediaResponse.data.map((mediaItem: any) => ({
-                        id: mediaItem.source_url, // Use source_url as a unique key
-                        src: mediaItem.source_url,
-                        alt: mediaItem.alt_text || '',
-                        mediaId: mediaItem.id,
-                    }));
+    
+    if (isElementor) {
+        const elementorData = JSON.parse(pageData.meta._elementor_data || '[]');
+        const imageUrls = findImageUrlsInElementor(elementorData);
+        if (imageUrls.length > 0) {
+            const mediaItems = [];
+            // To avoid making the request URL too long, fetch media in chunks of 50
+            for (let i = 0; i < imageUrls.length; i += 50) {
+                const chunk = imageUrls.slice(i, i + 50);
+                try {
+                     const mediaResponse = await wpApi.get('/media', {
+                        params: { per_page: 50, search: chunk.map(url => new URL(url).pathname.split('/').pop()).join(' '), _fields: 'id,alt_text,source_url' }
+                    });
+                     if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
+                        mediaItems.push(...mediaResponse.data);
+                    }
+                } catch (mediaError) {
+                    console.warn(`Could not fetch media details for some Elementor images:`, mediaError);
                 }
             }
-        } catch (scrapeError) {
-            console.warn(`Could not scrape ${pageLink} for live image data:`, scrapeError);
+            
+            scrapedImages = imageUrls.map(url => {
+                 const mediaItem = mediaItems.find((m: any) => m.source_url === url);
+                 return {
+                    id: url,
+                    src: url,
+                    alt: mediaItem?.alt_text || '',
+                    mediaId: mediaItem?.id || null
+                 }
+            })
+        }
+    } else { // Standard HTML scraping for non-Elementor
+        const pageLink = pageData.link;
+        if (pageLink && wpApi) {
+            try {
+                const scrapeResponse = await axios.get(pageLink, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36', 'Cache-Control': 'no-cache' } });
+                const html = scrapeResponse.data;
+                const $ = cheerio.load(html);
+                const $contentArea = $('main').length ? $('main') : $('article').length ? $('article') : $('body');
+                $contentArea.find('header, footer, nav').remove();
+
+                const foundImageIds = new Set<number>();
+
+                $contentArea.find('img').each((i, el) => {
+                    const classList = $(el).attr('class') || '';
+                    const match = classList.match(/wp-image-(\d+)/);
+                    const mediaId = match ? parseInt(match[1], 10) : null;
+                    if (mediaId) foundImageIds.add(mediaId);
+                });
+                
+                if (foundImageIds.size > 0) {
+                     const mediaResponse = await wpApi.get('/media', {
+                        params: { include: Array.from(foundImageIds).join(','), per_page: 100, _fields: 'id,alt_text,source_url' }
+                    });
+
+                    if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
+                         scrapedImages = mediaResponse.data.map((mediaItem: any) => ({
+                            id: mediaItem.source_url, // Use source_url as a unique key
+                            src: mediaItem.source_url,
+                            alt: mediaItem.alt_text || '',
+                            mediaId: mediaItem.id,
+                        }));
+                    }
+                }
+            } catch (scrapeError) {
+                console.warn(`Could not scrape ${pageLink} for live image data:`, scrapeError);
+            }
         }
     }
-    // --- End new logic ---
 
 
     const adminUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '/wp-admin/');
