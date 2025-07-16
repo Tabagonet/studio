@@ -50,6 +50,7 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
   const [isActionLoading, setIsActionLoading] = React.useState(false);
+  const [languageFilter, setLanguageFilter] = React.useState('all');
   const { toast } = useToast();
 
   const tableData = React.useMemo((): HierarchicalContentItem[] => {
@@ -88,10 +89,15 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
         }
     });
 
+    const filteredRoots = roots.filter(item => {
+        const langMatch = languageFilter === 'all' || item.lang === languageFilter;
+        return langMatch;
+    });
+
     // Filter out items that have been moved to be sub-rows of others
-    const rootIds = new Set(roots.map(r => r.id));
-    return roots.filter(item => rootIds.has(item.id));
-  }, [data, scores]);
+    const rootIds = new Set(filteredRoots.map(r => r.id));
+    return filteredRoots.filter(item => rootIds.has(item.id));
+  }, [data, scores, languageFilter]);
 
   const handleEditContent = (item: ContentItem) => {
     router.push(`/pages/edit/${item.id}`);
@@ -260,10 +266,26 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
               className="max-w-sm"
             />
             <Select
+              value={(table.getColumn('type')?.getFilterValue() as string) ?? 'all'}
+              onValueChange={(value) => table.getColumn('type')?.setFilterValue(value === 'all' ? undefined : value)}
+            >
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Filtrar por tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los Tipos</SelectItem>
+                <SelectItem value="Post">Entradas (Posts)</SelectItem>
+                <SelectItem value="Page">Páginas</SelectItem>
+                <SelectItem value="Producto">Productos</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
               value={(table.getColumn('status')?.getFilterValue() as string) ?? 'all'}
               onValueChange={(value) => table.getColumn('status')?.setFilterValue(value === 'all' ? null : value)}
             >
-              <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Filtrar por estado" /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Filtrar por estado" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los Estados</SelectItem>
                 <SelectItem value="publish">Publicado</SelectItem>
@@ -277,7 +299,9 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
               onValueChange={setLanguageFilter}
               disabled={languages.length === 0}
             >
-              <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Filtrar por idioma" /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Filtrar por idioma" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los Idiomas</SelectItem>
                  {languages.map(lang => (
