@@ -1,4 +1,5 @@
 
+
 import type { LucideIcon } from 'lucide-react';
 import type { SeoInterpretationOutput, SuggestLinksInput, SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
 
@@ -258,6 +259,7 @@ export interface ContentItem {
   lang?: string;
   translations?: Record<string, number>;
   modified: string;
+  score?: number;
 }
 
 export type HierarchicalContentItem = ContentItem & {

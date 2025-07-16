@@ -1,4 +1,5 @@
 
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Copy } from "lucide-react";
 import { ContentClonerTable } from "./content-cloner-table";
@@ -21,9 +22,9 @@ export default function ContentClonerPage() {
       </Card>
       
        <Alert>
-        <AlertTitle>Cómo Funciona</AlertTitle>
+        <AlertTitle>¿Cómo funciona?</AlertTitle>
         <AlertDescription>
-          Esta herramienta te permite duplicar cualquier página o entrada y, a continuación, traducirla a los idiomas que elijas. El sistema enlazará automáticamente el contenido original con sus nuevas traducciones. Usa la tabla de abajo para empezar.
+          Esta herramienta te permite duplicar cualquier página, entrada o producto y, a continuación, traducirlo a los idiomas que elijas. El sistema enlazará automáticamente el contenido original con sus nuevas traducciones. Usa la tabla de abajo para empezar.
         </AlertDescription>
       </Alert>
 

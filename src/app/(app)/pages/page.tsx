@@ -13,7 +13,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Link from 'next/link';
 
 export default function PagesManagementPage() {
-  const [data, setData] = useState<HierarchicalContentItem[]>([]);
+  const [data, setData] = useState<ContentItem[]>([]);
+  const [scores, setScores] = useState<Record<number, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAnalyzingId, setIsAnalyzingId] = useState<number | null>(null);
@@ -21,38 +22,44 @@ export default function PagesManagementPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const fetchContentData = useCallback(async () => {
+  const fetchData = useCallback(async (token: string) => {
     setIsLoading(true);
     setError(null);
-    const user = auth.currentUser;
-    if (!user) {
-        setError("Debes iniciar sesión para usar esta función.");
-        setIsLoading(false);
-        return;
-    }
     try {
-        const token = await user.getIdToken();
-        const response = await fetch(`/api/wordpress/content-list`, { headers: { 'Authorization': `Bearer ${token}` } });
-        if (!response.ok) {
-            const errorData = await response.json();
+        const [contentResponse, scoresResponse] = await Promise.all([
+            fetch(`/api/wordpress/content-list`, { headers: { 'Authorization': `Bearer ${token}` } }),
+            fetch('/api/seo/latest-scores', { headers: { 'Authorization': `Bearer ${token}` } })
+        ]);
+
+        if (!contentResponse.ok) {
+            const errorData = await contentResponse.json();
             throw new Error(errorData.error || 'No se pudo cargar el contenido del sitio.');
         }
-        const apiData: { content: ContentItem[] } = await response.json();
-        const pagesOnly = apiData.content.filter(item => item.type === 'Page');
-        
-        const itemsById = new Map<number, HierarchicalContentItem>(pagesOnly.map((p) => [p.id, { ...p, subRows: [] }]));
-        const roots: HierarchicalContentItem[] = [];
-        
-        pagesOnly.forEach(item => {
-            if (item.parent && itemsById.has(item.parent)) {
-                const parent = itemsById.get(item.parent);
-                parent?.subRows?.push(itemsById.get(item.id)!);
-            } else {
-                roots.push(itemsById.get(item.id)!);
-            }
-        });
+        const contentData = await contentResponse.json();
+        setData(contentData.content.filter((item: ContentItem) => item.type === 'Page'));
 
-        setData(roots);
+        if (scoresResponse.ok) {
+            const scoresData = await scoresResponse.json();
+            const scoresByUrl: Record<string, number> = scoresData.scores || {};
+            const scoresById: Record<number, number> = {};
+            const normalizeUrl = (url: string) => {
+                try {
+                    const parsed = new URL(url);
+                    return `${parsed.protocol}//${parsed.hostname}${parsed.pathname.replace(/\/$/, '')}`;
+                } catch { return url; }
+            };
+            const normalizedScoresMap = new Map<string, number>();
+            for (const [url, score] of Object.entries(scoresByUrl)) {
+                normalizedScoresMap.set(normalizeUrl(url), score);
+            }
+            contentData.content.forEach((item: ContentItem) => {
+                const normalizedItemLink = normalizeUrl(item.link);
+                if (normalizedScoresMap.has(normalizedItemLink)) {
+                    scoresById[item.id] = normalizedScoresMap.get(normalizedItemLink)!;
+                }
+            });
+            setScores(scoresById);
+        }
 
     } catch (err: any) {
         setError(err.message);
@@ -63,15 +70,21 @@ export default function PagesManagementPage() {
   }, []);
   
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-        if (user) fetchContentData();
-    });
-    window.addEventListener('connections-updated', fetchContentData);
+    const handleAuth = (user: import('firebase/auth').User | null) => {
+        if (user) {
+            user.getIdToken().then(fetchData);
+        } else {
+            setIsLoading(false);
+            setError("Debes iniciar sesión para usar esta función.");
+        }
+    };
+    const unsubscribe = onAuthStateChanged(auth, handleAuth);
+    window.addEventListener('connections-updated', () => auth.currentUser && auth.currentUser.getIdToken().then(fetchData));
     return () => {
         unsubscribe();
-        window.removeEventListener('connections-updated', fetchContentData);
+        window.removeEventListener('connections-updated', () => auth.currentUser && auth.currentUser.getIdToken().then(fetchData));
     };
-  }, [fetchContentData]);
+  }, [fetchData]);
   
   const handleAnalyze = async (item: ContentItem) => {
     setIsAnalyzingId(item.id);
@@ -83,11 +96,12 @@ export default function PagesManagementPage() {
     }
     try {
         const token = await user.getIdToken();
-        await fetch('/api/seo/analyze-url', {
+        const response = await fetch('/api/seo/analyze-url', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ url: item.link, postId: item.id, postType: item.type }),
         });
+        if (!response.ok) throw new Error((await response.json()).error || 'Fallo al iniciar el análisis');
         toast({ title: "Análisis en progreso", description: "Redirigiendo a la página del informe..." });
         router.push(`/seo-optimizer?id=${item.id}&type=${item.type}`);
     } catch (err: any) {
@@ -129,7 +143,15 @@ export default function PagesManagementPage() {
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
       ) : !error && (
-           <PageDataTable data={data} isLoading={isLoading} onAnalyzePage={handleAnalyze} onEditPage={handleEdit} isAnalyzingId={isAnalyzingId} />
+           <PageDataTable 
+             data={data} 
+             scores={scores}
+             isLoading={isLoading} 
+             onAnalyzePage={handleAnalyze} 
+             onEditPage={handleEdit} 
+             isAnalyzingId={isAnalyzingId}
+             onDataChange={fetchData}
+           />
       )}
     </div>
   );
