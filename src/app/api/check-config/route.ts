@@ -1,4 +1,3 @@
-
 // src/app/api/check-config/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -134,23 +133,24 @@ export async function GET(req: NextRequest) {
             try {
               const fullUrl = url.startsWith('http') ? url : `https://${url}`;
               const siteUrl = new URL(fullUrl).origin;
-              const polylangCheckEndpoint = `${siteUrl}/wp-json/polylang/v1/languages`;
-
-              console.log(`[Plugin Check] Attempting to verify plugin via Polylang endpoint: ${polylangCheckEndpoint}`);
+              // Use the new, reliable status check endpoint
+              const statusCheckEndpoint = `${siteUrl}/wp-json/custom/v1/status`;
+              
+              console.log(`[Plugin Check] Attempting to verify plugin via status endpoint: ${statusCheckEndpoint}`);
               
               const token = Buffer.from(`${username}:${applicationPassword}`, 'utf8').toString('base64');
-              const response = await axios.get(polylangCheckEndpoint, {
+              const response = await axios.get(statusCheckEndpoint, {
                 headers: { 'Authorization': `Basic ${token}` },
                 timeout: 10000,
               });
               
-              if (response.status === 200 && Array.isArray(response.data)) {
-                console.log(`[Plugin Check] SUCCESS for ${url}. Status: ${response.status}. Plugin is active.`);
+              if (response.status === 200 && response.data?.status === 'ok' && response.data?.verified === true) {
+                console.log(`[Plugin Check] SUCCESS for ${url}. Status: ${response.status}. Plugin is active and verified.`);
                 userConfig.pluginActive = true;
               } else {
                 userConfig.pluginActive = false;
-                userConfig.pluginError = 'Respuesta inesperada del endpoint de Polylang. Asegúrate de que Polylang esté activo.';
-                 console.warn(`[Plugin Check] UNEXPECTED RESPONSE for ${url}. Status: ${response.status}. Body:`, response.data);
+                userConfig.pluginError = response.data?.verified === false ? 'La API Key no es válida. Por favor, verifica y guarda la clave en los ajustes del plugin.' : 'Respuesta inesperada del endpoint de estado del plugin. Asegúrate de que el plugin esté actualizado.';
+                console.warn(`[Plugin Check] UNEXPECTED RESPONSE for ${url}. Status: ${response.status}. Body:`, response.data);
               }
             } catch (pluginError: any) {
               userConfig.pluginActive = false;
@@ -160,7 +160,7 @@ export async function GET(req: NextRequest) {
                   userConfig.pluginError = 'Las credenciales de WordPress API son incorrectas o no tienen suficientes permisos.';
                   errorMessageForLog += ` Status: ${pluginError.response.status}. Reason: ${userConfig.pluginError}`;
               } else if (pluginError.response && pluginError.response.status === 404) {
-                  userConfig.pluginError = 'No se encontró el plugin de Polylang. Asegúrate de que esté instalado y activo en tu WordPress.';
+                  userConfig.pluginError = 'No se encontró el endpoint /custom/v1/status. Asegúrate de que el plugin "AutoPress AI Helper" está instalado y activo en tu WordPress.';
                   errorMessageForLog += ` Status: 404. Reason: ${userConfig.pluginError}`;
               } else {
                   userConfig.pluginError = 'No se pudo conectar con la API de WordPress. Revisa la URL y la conectividad.';
