@@ -33,7 +33,7 @@ import { Input } from "@/components/ui/input"
 import { getColumns } from "./columns" 
 import type { ProductSearchResult, WooCommerceCategory, ProductStats, HierarchicalProduct } from "@/lib/types"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { BrainCircuit, ChevronDown, Loader2, Box, FileCheck2, FileText, BarChart3, Eye, EyeOff, Image as ImageIcon, Trash2, BadgeDollarSign, Languages, Package } from "lucide-react"
+import { BrainCircuit, ChevronDown, Loader2, Box, FileCheck2, FileText, BarChart3, Eye, EyeOff, Image as ImageIcon, Trash2, BadgeDollarSign, Languages, Package, Link2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -600,6 +600,67 @@ export function ProductDataTable() {
             setActionText('');
         }
     };
+
+    const handleBatchLinkTranslations = async () => {
+        setIsActionRunning(true);
+        setActionText('Enlazando...');
+        const selectedRows = table.getSelectedRowModel().rows;
+        
+        if (selectedRows.length < 2) {
+            toast({ title: "Selección insuficiente", description: "Debes seleccionar al menos dos productos para enlazarlos.", variant: "destructive" });
+            setIsActionRunning(false);
+            return;
+        }
+
+        const languages = selectedRows.map((row: Row<HierarchicalProduct>) => row.original.lang);
+        if (new Set(languages).size !== languages.length) {
+            toast({ title: "Idiomas duplicados", description: "No puedes enlazar dos productos del mismo idioma.", variant: "destructive" });
+            setIsActionRunning(false);
+            return;
+        }
+        
+        const translations: Record<string, number> = {};
+        selectedRows.forEach((row: Row<HierarchicalProduct>) => {
+            if(row.original.lang) {
+                translations[row.original.lang] = row.original.id;
+            }
+        });
+
+        const user = auth.currentUser;
+        if (!user) {
+            setIsActionRunning(false);
+            return;
+        }
+
+        toast({ title: `Enlazando ${selectedRows.length} producto(s)...` });
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/wordpress/posts/link-translations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ translations })
+            });
+
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.error || result.message || 'Fallo el enlace de traducciones.');
+            }
+
+            toast({ title: "¡Traducciones enlazadas!", description: result.message });
+            table.resetRowSelection();
+            fetchData();
+            fetchStats();
+        } catch (error: any) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            toast({ title: "Error al enlazar", description: errorMessage, variant: "destructive" });
+        } finally {
+            setIsActionRunning(false);
+            setActionText('');
+        }
+    };
     
     const handleApplyPriceChange = () => {
         const value = parseFloat(priceModification.value);
@@ -887,6 +948,9 @@ export function ProductDataTable() {
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                      <DropdownMenuLabel>Gestión de Datos</DropdownMenuLabel>
+                    <DropdownMenuItem onSelect={handleBatchLinkTranslations} disabled={selectedRowCount < 2}>
+                        <Link2 className="mr-2 h-4 w-4" /> Enlazar Traducciones
+                    </DropdownMenuItem>
                      <DropdownMenuItem onSelect={() => setIsQuickUpdateModalOpen(true)}>
                         <Package className="mr-2 h-4 w-4" /> Actualización Rápida
                     </DropdownMenuItem>
