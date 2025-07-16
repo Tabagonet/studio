@@ -119,49 +119,49 @@ export async function GET(req: NextRequest) {
           activePlatform = 'woocommerce';
         }
 
-        if (userConfig.wordPressConfigured) {
-          const { wordpressApiUrl: url, wordpressUsername: username, wordpressApplicationPassword: applicationPassword } = activeConnection;
-          
-          if (url) {
+        if (activeConnection.wordpressApiUrl && activeConnection.wordpressUsername && activeConnection.wordpressApplicationPassword) {
+            userConfig.wordPressConfigured = true; // Mark WP as configured if credentials exist
+            const { wordpressApiUrl: url, wordpressUsername: username, wordpressApplicationPassword: applicationPassword } = activeConnection;
+            
             try {
-              const fullUrl = url.startsWith('http') ? url : `https://${url}`;
-              const siteUrl = new URL(fullUrl).origin;
-              const statusCheckEndpoint = `${siteUrl}/wp-json/custom/v1/status`;
-              
-              console.log(`[Plugin Check] Attempting to verify plugin via status endpoint: ${statusCheckEndpoint}`);
-              
-              const token = Buffer.from(`${username}:${applicationPassword}`, 'utf8').toString('base64');
-              const response = await axios.get(statusCheckEndpoint, {
-                headers: { 'Authorization': `Basic ${token}` },
-                timeout: 10000,
-              });
-              
-              if (response.status === 200 && response.data?.status === 'ok' && response.data?.verified === true) {
-                console.log(`[Plugin Check] SUCCESS for ${url}. Status: ${response.status}. Plugin is active and verified.`);
-                userConfig.pluginActive = true;
-              } else {
-                userConfig.pluginActive = false;
-                userConfig.pluginError = response.data?.verified === false ? 'La API Key no es válida. Por favor, verifica y guarda la clave en los ajustes del plugin.' : 'Respuesta inesperada del endpoint de estado del plugin. Asegúrate de que el plugin esté actualizado.';
-                console.warn(`[Plugin Check] UNEXPECTED RESPONSE for ${url}. Status: ${response.status}. Body:`, response.data);
-              }
+                if (!url) throw new Error("WordPress URL is not defined.");
+                const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+                const siteUrl = new URL(fullUrl).origin;
+                const statusCheckEndpoint = `${siteUrl}/wp-json/custom/v1/status`;
+                
+                console.log(`[Plugin Check] Attempting to verify plugin via status endpoint: ${statusCheckEndpoint}`);
+                
+                const token = Buffer.from(`${username}:${applicationPassword}`, 'utf8').toString('base64');
+                const response = await axios.get(statusCheckEndpoint, {
+                    headers: { 'Authorization': `Basic ${token}` },
+                    timeout: 10000,
+                });
+                
+                if (response.status === 200 && response.data?.status === 'ok' && response.data?.verified === true) {
+                    console.log(`[Plugin Check] SUCCESS for ${url}. Status: ${response.status}. Plugin is active and verified.`);
+                    userConfig.pluginActive = true;
+                } else {
+                    userConfig.pluginActive = false;
+                    userConfig.pluginError = response.data?.verified === false ? 'La API Key no es válida. Por favor, verifica y guarda la clave en los ajustes del plugin.' : 'Respuesta inesperada del endpoint de estado del plugin. Asegúrate de que el plugin esté actualizado.';
+                    console.warn(`[Plugin Check] UNEXPECTED RESPONSE for ${url}. Status: ${response.status}. Body:`, response.data);
+                }
             } catch (pluginError: any) {
-              userConfig.pluginActive = false;
-              let errorMessageForLog = `[Plugin Check] FAILED for ${url}.`;
-              
-              if (pluginError.response && (pluginError.response.status === 401 || pluginError.response.status === 403)) {
-                  userConfig.pluginError = 'Las credenciales de WordPress API son incorrectas o no tienen suficientes permisos.';
-                  errorMessageForLog += ` Status: ${pluginError.response.status}. Reason: ${userConfig.pluginError}`;
-              } else if (pluginError.response && pluginError.response.status === 404) {
-                  userConfig.pluginError = 'No se encontró el endpoint /custom/v1/status. Asegúrate de que el plugin "AutoPress AI Helper" está instalado y activo en tu WordPress.';
-                  errorMessageForLog += ` Status: 404. Reason: ${userConfig.pluginError}`;
-              } else {
-                  userConfig.pluginError = 'No se pudo conectar con la API de WordPress. Revisa la URL y la conectividad.';
-                   errorMessageForLog += ` Reason: ${userConfig.pluginError} - ${pluginError.message}`;
-              }
-              console.error(errorMessageForLog);
+                userConfig.pluginActive = false;
+                let errorMessageForLog = `[Plugin Check] FAILED for ${url}.`;
+                
+                if (pluginError.response && pluginError.response.status === 404) {
+                    userConfig.pluginError = 'No se encontró el endpoint /custom/v1/status. Asegúrate de que el plugin "AutoPress AI Helper" está instalado y activo en tu WordPress.';
+                    errorMessageForLog += ` Status: 404. Reason: ${userConfig.pluginError}`;
+                } else if (pluginError.response && (pluginError.response.status === 401 || pluginError.response.status === 403)) {
+                    userConfig.pluginError = 'Las credenciales de WordPress API son incorrectas o no tienen suficientes permisos.';
+                    errorMessageForLog += ` Status: ${pluginError.response.status}. Reason: ${userConfig.pluginError}`;
+                } else {
+                    userConfig.pluginError = 'No se pudo conectar con la API de WordPress. Revisa la URL y la conectividad.';
+                    errorMessageForLog += ` Reason: ${userConfig.pluginError} - ${pluginError.message}`;
+                }
+                console.error(errorMessageForLog);
             }
           }
-        }
       }
     }
 
