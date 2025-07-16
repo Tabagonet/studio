@@ -98,61 +98,12 @@ function custom_api_register_yoast_meta_fields() {
     }
 }
 
-// Security Check function to be used as permission_callback
-function autopress_ai_permission_check( WP_REST_Request $request ) {
-    error_log('[AutoPress AI] Iniciando comprobación de permisos.');
-
-    // --- Method 1: Application Password (for external app) ---
-    if (isset($_SERVER['PHP_AUTH_USER']) && isset($_SERVER['PHP_AUTH_PW'])) {
-        error_log('[AutoPress AI] Detectada autenticación básica (Contraseña de Aplicación).');
-        $username = $_SERVER['PHP_AUTH_USER'];
-        $app_password = $_SERVER['PHP_AUTH_PW'];
-        $user = get_user_by('login', $username);
-
-        if (!$user) {
-            error_log('[AutoPress AI] Fallo: Usuario de Contraseña de Aplicación no encontrado: ' . $username);
-            return false;
-        }
-
-        require_once ABSPATH . 'wp-admin/includes/class-wp-application-passwords.php';
-        if (!class_exists('WP_Application_Passwords')) {
-            error_log('[AutoPress AI] Fallo: La clase WP_Application_Passwords no existe.');
-            return false;
-        }
-
-        $app_passwords_list = WP_Application_Passwords::get_user_application_passwords($user->ID);
-        $is_valid_password = false;
-        foreach ($app_passwords_list as $password_data) {
-            if (wp_check_password($app_password, $password_data['password'], $user->ID)) {
-                $is_valid_password = true;
-                break;
-            }
-        }
-        
-        if ($is_valid_password) {
-            error_log('[AutoPress AI] Éxito: Contraseña de Aplicación válida para el usuario ' . $username);
-            return true;
-        } else {
-            error_log('[AutoPress AI] Fallo: Contraseña de Aplicación inválida para el usuario ' . $username);
-            return false;
-        }
-    }
-
-    // --- Method 2: Nonce (for internal WP-Admin check) ---
-    $nonce = $request->get_header('X-WP-Nonce');
-    if ($nonce) {
-        error_log('[AutoPress AI] Detectado Nonce. Verificando...');
-        if (wp_verify_nonce($nonce, 'wp_rest') && is_user_logged_in() && current_user_can('edit_posts')) {
-            error_log('[AutoPress AI] Éxito: Nonce verificado para usuario con sesión iniciada.');
-            return true;
-        } else {
-            error_log('[AutoPress AI] Fallo: Verificación de Nonce fallida o el usuario no tiene permisos.');
-            return false;
-        }
-    }
-    
-    error_log('[AutoPress AI] Fallo: No se proporcionó ningún método de autenticación válido.');
-    return false;
+// Rewritten security check function. This is the standard, secure way to check permissions in WordPress REST API.
+function autopress_ai_permission_check() {
+    // This single check correctly handles both cookie-based authentication (for the admin panel)
+    // and application password authentication (for the external app).
+    // The 'edit_posts' capability is a good general-purpose check to ensure the user is at least an Editor.
+    return current_user_can('edit_posts');
 }
 
 
