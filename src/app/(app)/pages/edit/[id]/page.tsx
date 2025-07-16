@@ -5,7 +5,7 @@ import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Save, ExternalLink } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, ExternalLink, Replace, Image as ImageIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -13,6 +13,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { SeoAnalyzer } from '@/components/features/seo/seo-analyzer';
 import { ContentImage, ExtractedWidget } from '@/lib/types';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import NextImage from 'next/image';
 
 
 interface PageEditState {
@@ -25,25 +29,28 @@ interface PageEditState {
   lang: string;
 }
 
+interface ReplaceImageDialogState {
+    open: boolean;
+    oldImageSrc: string | null;
+    newImageFile: File | null;
+}
+
 function EditPageContent() {
   const params = useParams();
   const router = useRouter();
   const postId = Number(params.id);
-  const postType = 'Page'; // This page is specifically for pages
+  const postType = 'Page'; 
     
   const [post, setPost] = useState<PageEditState | null>(null);
   const [contentImages, setContentImages] = useState<ContentImage[]>([]);
-  const [initialContentImages, setInitialContentImages] = useState<ContentImage[]>([]);
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const handleContentChange = (newContent: string) => {
-    if (!post || typeof post.content !== 'string') return;
-    setPost({ ...post, content: newContent });
-  };
+  const [replaceDialogState, setReplaceDialogState] = useState<ReplaceImageDialogState>({ open: false, oldImageSrc: null, newImageFile: null });
+  const [isReplacing, setIsReplacing] = useState(false);
   
   const fetchInitialData = useCallback(async () => {
     setIsLoading(true); setError(null);
@@ -73,55 +80,52 @@ function EditPageContent() {
       setPost(loadedPost);
       if (postData.scrapedImages && Array.isArray(postData.scrapedImages)) {
           setContentImages(postData.scrapedImages);
-          setInitialContentImages(postData.scrapedImages);
       } else {
           setContentImages([]);
-          setInitialContentImages([]);
       }
 
     } catch (e: any) { setError(e.message);
     } finally { setIsLoading(false); }
-  }, [postId, toast]);
+  }, [postId]);
 
 
   useEffect(() => { fetchInitialData(); }, [fetchInitialData]);
   
-  const handleSaveChanges = async () => {
-    setIsSaving(true);
-    const user = auth.currentUser;
-    if (!user || !post) {
-      toast({ title: 'Error', description: 'No se puede guardar.', variant: 'destructive' });
-      setIsSaving(false); return;
+  const handleReplaceImage = async () => {
+    if (!post || !replaceDialogState.oldImageSrc || !replaceDialogState.newImageFile) {
+      toast({ title: 'Error', description: 'Faltan datos para reemplazar la imagen.', variant: 'destructive' });
+      return;
     }
-
+    setIsReplacing(true);
     try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("No autenticado.");
         const token = await user.getIdToken();
-        const payload: any = { title: post.title };
-
-        if (typeof post.content === 'string') {
-            payload.content = post.content;
-        }
+        const formData = new FormData();
+        formData.append('newImageFile', replaceDialogState.newImageFile);
+        formData.append('postId', postId.toString());
+        formData.append('postType', post.postType);
+        formData.append('oldImageUrl', replaceDialogState.oldImageSrc);
         
-        const altUpdates: { id: number, alt: string }[] = [];
-        contentImages.forEach((currentImage) => {
-            const initialImage = initialContentImages.find(img => img.mediaId === currentImage.mediaId);
-            if (currentImage.mediaId && initialImage && currentImage.alt !== initialImage.alt) {
-                altUpdates.push({ id: currentImage.mediaId, alt: currentImage.alt });
-            }
+        const response = await fetch('/api/wordpress/replace-image', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData,
         });
-        if (altUpdates.length > 0) payload.image_alt_updates = altUpdates;
         
-        const apiPath = `/api/wordpress/pages/${postId}`;
-        const response = await fetch(apiPath, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify(payload)
-        });
-        if (!response.ok) throw new Error((await response.json()).error || 'Fallo al guardar.');
-        toast({ title: '¡Éxito!', description: "Los cambios han sido guardados." });
-    } catch (e: any) {
-        toast({ title: 'Error al Guardar', description: e.message, variant: "destructive" });
-    } finally { setIsSaving(false); }
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Fallo en la API de reemplazo de imagen.');
+        
+        // Update state to reflect changes
+        setPost(p => p ? { ...p, content: result.newContent } : null);
+        setContentImages(prev => prev.map(img => img.src === replaceDialogState.oldImageSrc ? { ...img, src: result.newImageUrl, alt: result.newImageAlt } : img));
+        toast({ title: 'Imagen Reemplazada', description: 'La imagen ha sido actualizada en el contenido y la biblioteca de medios.' });
+        setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null });
+    } catch (error: any) {
+        toast({ title: 'Error al reemplazar', description: error.message, variant: 'destructive' });
+    } finally {
+        setIsReplacing(false);
+    }
   };
 
 
@@ -133,62 +137,82 @@ function EditPageContent() {
      return <div className="container mx-auto py-8"><Alert variant="destructive"><AlertTitle>Error al Cargar</AlertTitle><AlertDescription>{error || `No se pudo cargar la información de la página.`}</AlertDescription></Alert></div>;
   }
 
-  const isElementorContent = Array.isArray(post.content);
-
   return (
-    <div className="container mx-auto py-8 space-y-6">
-        <Card>
-            <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                        <CardTitle>Editor de Contenido de Página</CardTitle>
-                        <CardDescription>Editando: {post.title}</CardDescription>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" onClick={() => router.push('/pages')}>
-                            <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-                        </Button>
-                         <Button onClick={handleSaveChanges} disabled={isSaving}>
-                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" /> } Guardar Cambios
-                        </Button>
-                    </div>
-                </div>
-            </CardHeader>
-        </Card>
-        
-        {isElementorContent ? (
-            <Card>
-                <CardHeader>
-                    <CardTitle>Contenido de Elementor</CardTitle>
-                    <CardDescription>El contenido de esta página está gestionado por Elementor. Para editar el texto y la maquetación, debes usar su propio editor.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {post.elementorEditLink && (
-                       <Button asChild className="mb-4">
-                            <Link href={post.elementorEditLink} target="_blank" rel="noopener noreferrer">
-                                <ExternalLink className="mr-2 h-4 w-4" />
-                                Abrir con Elementor
-                            </Link>
-                        </Button>
-                    )}
-                </CardContent>
-            </Card>
-        ) : (
-         <Card>
-            <CardHeader>
-                <CardTitle>Contenido Principal</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <RichTextEditor
-                  content={post.content as string}
-                  onChange={handleContentChange}
-                  onInsertImage={() => {}} // This feature is not needed on this simple editor
-                  placeholder="El contenido de tu página o entrada..."
-                />
-            </CardContent>
-        </Card>
-      )}
-    </div>
+    <>
+      <div className="container mx-auto py-8 space-y-6">
+          <Card>
+              <CardHeader>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                          <CardTitle>Editor de Imágenes de Página</CardTitle>
+                          <CardDescription>Reemplaza las imágenes de: {post.title}</CardDescription>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                          <Button variant="outline" onClick={() => router.push('/pages')}>
+                              <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+                          </Button>
+                      </div>
+                  </div>
+              </CardHeader>
+          </Card>
+          
+          <Card>
+              <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><ImageIcon className="h-5 w-5 text-primary" />Imágenes en el Contenido</CardTitle>
+                  <CardDescription>Esta es una lista de todas las imágenes encontradas en esta página. Puedes reemplazarlas una por una.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                  {contentImages.length > 0 ? (
+                      <div className="space-y-3">
+                          {contentImages.map((img) => (
+                              <div key={img.id} className="flex items-center gap-4 p-3 border rounded-lg bg-muted/30">
+                                  <div className="relative h-16 w-16 flex-shrink-0">
+                                      <NextImage src={img.src} alt={img.alt || 'Vista previa'} fill className="rounded-md object-cover" sizes="64px" />
+                                  </div>
+                                  <div className="flex-grow min-w-0">
+                                      <p className="text-sm font-medium text-foreground truncate" title={img.src}>...{img.src.slice(-50)}</p>
+                                      <p className="text-xs text-muted-foreground">Alt: <span className="italic">{img.alt || "(vacío)"}</span></p>
+                                  </div>
+                                  <Button 
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setReplaceDialogState({ open: true, oldImageSrc: img.src, newImageFile: null })}
+                                  >
+                                      <Replace className="mr-2 h-4 w-4" />
+                                      Reemplazar
+                                  </Button>
+                              </div>
+                          ))}
+                      </div>
+                  ) : (
+                      <p className="text-center text-muted-foreground py-8">No se encontraron imágenes en el contenido de esta página.</p>
+                  )}
+              </CardContent>
+          </Card>
+      </div>
+
+       <AlertDialog open={replaceDialogState.open} onOpenChange={(open) => !open && setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reemplazar Imagen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sube una nueva imagen para reemplazar la imagen actual. La antigua será eliminada de tu WordPress.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Label htmlFor="new-image-upload">Nueva Imagen</Label>
+            <Input id="new-image-upload" type="file" accept="image/*" onChange={(e) => setReplaceDialogState(s => ({ ...s, newImageFile: e.target.files?.[0] || null }))} />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleReplaceImage} disabled={isReplacing || !replaceDialogState.newImageFile}>
+              {isReplacing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Reemplazar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
