@@ -1,3 +1,4 @@
+
 <?php
 /*
 Plugin Name: AutoPress AI Helper
@@ -48,12 +49,13 @@ function autopress_ai_options_page() {
 
             var restUrl = '<?php echo esc_url_raw(get_rest_url(null, 'custom/v1/status')); ?>';
             var nonce = '<?php echo esc_js(wp_create_nonce('wp_rest')); ?>';
-            var urlWithNonce = restUrl + '?_wpnonce=' + nonce;
-
-            fetch(urlWithNonce, {
+            
+            // Send nonce as a header for better compatibility
+            fetch(restUrl, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-WP-Nonce': nonce
                 }
             })
             .then(response => {
@@ -100,9 +102,8 @@ function custom_api_register_yoast_meta_fields() {
 
 // Security Check function to be used as permission_callback
 function autopress_ai_permission_check( WP_REST_Request $request ) {
-    
     // Nonce check for requests from WordPress admin panel
-    $nonce = $request->get_header('X-WP-Nonce') ?: $request->get_param('_wpnonce');
+    $nonce = $request->get_header('X-WP-Nonce');
     if ($nonce) {
         $result = wp_verify_nonce($nonce, 'wp_rest');
         if ($result && is_user_logged_in() && current_user_can('edit_posts')) {
@@ -138,7 +139,8 @@ function autopress_ai_permission_check( WP_REST_Request $request ) {
     }
     if (!$is_valid_password) return false;
     
-    // Now, verify against AutoPress AI server
+    // If the application password is valid, we still verify with the AutoPress AI server.
+    // We use a user meta field for the API Key, falling back to a global option for older setups.
     $api_key_meta = get_user_meta($user->ID, 'autopress_api_key', true);
     $api_key_option = get_option('autopress_api_key');
     $api_key = $api_key_meta ?: $api_key_option;
