@@ -146,7 +146,7 @@ export async function GET(req: NextRequest) {
             userConfig.pluginActive = false;
             // Provide a more specific error message to the frontend
             if (pluginError.response && pluginError.response.status === 404) {
-                 userConfig.pluginError = 'No se encontró el endpoint del plugin. Asegúrate de que el plugin "AutoPress AI Helper" está instalado y activado.';
+                 userConfig.pluginError = 'No se encontró el endpoint del plugin. Asegúrate de que el plugin "AutoPress AI Helper" está instalado, activado y es la última versión.';
             } else {
                  userConfig.pluginError = 'No se pudo verificar el plugin. Revisa las credenciales y la conectividad.';
             }

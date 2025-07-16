@@ -23,6 +23,10 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
+        hostname: 'www.mundococina.eu',
+      },
+      {
+        protocol: 'https',
         hostname: 'gtrexsolution.com',
       },
       {
