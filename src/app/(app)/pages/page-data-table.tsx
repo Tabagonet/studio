@@ -59,28 +59,38 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
     
     const itemsById = new Map<number, HierarchicalContentItem>(enrichedData.map((p) => [p.id, { ...p, subRows: [] }]));
     const roots: HierarchicalContentItem[] = [];
-    
+    const processedIds = new Set<number>();
+
     enrichedData.forEach((item) => {
         const currentItem = itemsById.get(item.id);
-        if (!currentItem) return;
+        if (!currentItem || processedIds.has(item.id)) return;
 
         if (item.parent && itemsById.has(item.parent)) {
             const parent = itemsById.get(item.parent);
-            parent?.subRows?.push(currentItem);
+            if (parent) {
+                parent.subRows = parent.subRows || [];
+                parent.subRows.push(currentItem);
+                processedIds.add(item.id);
+            }
         } else {
             const translationSourceId = item.translations ? Object.values(item.translations).find(id => id !== item.id && itemsById.has(id)) : undefined;
-            if (translationSourceId) {
+            if (translationSourceId && itemsById.has(translationSourceId)) {
                 const sourceItem = itemsById.get(translationSourceId);
-                if (sourceItem && !sourceItem.subRows?.some(sub => sub.id === item.id)) {
-                    sourceItem.subRows?.push(currentItem);
+                if (sourceItem) {
+                    sourceItem.subRows = sourceItem.subRows || [];
+                    sourceItem.subRows.push(currentItem);
+                    processedIds.add(item.id);
                 }
             } else {
                 roots.push(currentItem);
+                processedIds.add(item.id);
             }
         }
     });
 
-    return roots;
+    // Filter out items that have been moved to be sub-rows of others
+    const rootIds = new Set(roots.map(r => r.id));
+    return roots.filter(item => rootIds.has(item.id));
   }, [data, scores]);
 
   const handleEditContent = (item: ContentItem) => {
@@ -105,7 +115,7 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
     }
   };
 
-  const columns = React.useMemo(() => getColumns(handleEditContent, handleDeleteContent), [scores]);
+  const columns = React.useMemo(() => getColumns(handleEditContent, handleDeleteContent), [scores]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const table = useReactTable({
     data: tableData,
@@ -236,7 +246,7 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
   const selectedRowCount = Object.keys(rowSelection).length;
   
   const handleRowClick = (row: any) => {
-    router.push(`/seo-optimizer?id=${row.original.id}&type=${row.original.type}`);
+    router.push(`/pages/edit/${row.original.id}`);
   };
 
   return (
@@ -263,15 +273,15 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
               </SelectContent>
             </Select>
             <Select
-              value={(table.getColumn('lang')?.getFilterValue() as string) ?? 'all'}
-              onValueChange={(value) => table.getColumn('lang')?.setFilterValue(value === 'all' ? null : value)}
+              value={languageFilter}
+              onValueChange={setLanguageFilter}
               disabled={languages.length === 0}
             >
               <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Filtrar por idioma" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los Idiomas</SelectItem>
-                {languages.map(lang => (
-                  <SelectItem key={lang} value={lang}>{lang.toUpperCase()}</SelectItem>
+                 {languages.map(lang => (
+                    <SelectItem key={lang} value={lang}>{lang.toUpperCase()}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -343,7 +353,7 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
                   key={row.id} 
                   data-state={row.getIsSelected() && "selected"}
                   onClick={(e) => {
-                      if (!(e.target instanceof HTMLButtonElement || e.target instanceof HTMLAnchorElement || e.target.closest('button, a'))) {
+                      if (!(e.target instanceof HTMLButtonElement || e.target instanceof HTMLAnchorElement || e.target.closest('button, a, [role=checkbox]') )) {
                         handleRowClick(row);
                       }
                     }}
