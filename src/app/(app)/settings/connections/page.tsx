@@ -504,7 +504,7 @@ export default function ConnectionsPage() {
                 <CardHeader>
                     <CardTitle>Perfiles de Conexión de Tiendas</CardTitle>
                     <CardDescription>
-                        Gestiona las conexiones a tiendas específicas, ya sean de WooCommerce o Shopify. La conexión activa se usará por defecto en las herramientas.
+                        Gestiona las conexiones a tiendas específicas. La conexión activa se usará por defecto en las herramientas.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
