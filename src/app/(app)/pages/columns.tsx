@@ -5,7 +5,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowUpDown, ChevronRight, Edit, ExternalLink, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { ArrowUpDown, ChevronRight, ExternalLink, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import type { HierarchicalContentItem, ContentItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
