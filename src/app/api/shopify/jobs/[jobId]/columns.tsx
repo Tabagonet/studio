@@ -4,7 +4,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { ShopifyCreationJob } from "@/lib/types";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { ArrowUpDown, ExternalLink, Loader2, CheckCircle, AlertCircle, Circle, MoreHorizontal, Trash2, Key } from "lucide-react";
+import { ArrowUpDown, ExternalLink, Loader2, CheckCircle, AlertCircle, Circle, MoreHorizontal, Trash2, KeyRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -30,7 +30,7 @@ const StatusBadge = ({ status }: { status: ShopifyCreationJob['status'] }) => {
 
     switch(status) {
         case 'assigned':
-            variant = 'secondary'; Icon = Key; label = "Asignado"; break;
+            variant = 'secondary'; Icon = KeyRound; label = "Asignado"; break;
         case 'awaiting_auth':
             variant = 'secondary'; Icon = Loader2; label = "Esperando Autorización"; break;
         case 'authorized':
@@ -147,7 +147,7 @@ export const getColumns = (
                     {canAuthorize && (
                        <DropdownMenuItem asChild>
                            <Link href={job.installUrl!} target="_blank" rel="noopener noreferrer">
-                                <Key className="h-4 w-4 mr-2" /> Autorizar Instalación
+                                <KeyRound className="h-4 w-4 mr-2" /> Autorizar Instalación
                            </Link>
                        </DropdownMenuItem>
                     )}

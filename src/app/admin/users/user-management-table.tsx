@@ -420,7 +420,7 @@ export function UserManagementTable() {
                                                                             </DropdownMenuSubTrigger>
                                                                             <DropdownMenuPortal>
                                                                                 <DropdownMenuSubContent>
-                                                                                    <DropdownMenuItem onSelect={() => handleUpdatePlatform(u.uid, 'woocommerce')}><UserX className="mr-2 h-4 w-4" /> WooCommerce</DropdownMenuItem>
+                                                                                    <DropdownMenuItem onSelect={() => handleUpdatePlatform(u.uid, 'woocommerce')}><Store className="mr-2 h-4 w-4" /> WooCommerce</DropdownMenuItem>
                                                                                     <DropdownMenuItem onSelect={() => handleUpdatePlatform(u.uid, 'shopify')}><ShopifyIcon className="mr-2 h-4 w-4" /> Shopify</DropdownMenuItem>
                                                                                      <DropdownMenuSeparator />
                                                                                     <DropdownMenuItem onSelect={() => handleUpdatePlatform(u.uid, null)}>
