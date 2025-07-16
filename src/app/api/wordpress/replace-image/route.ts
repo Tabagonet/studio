@@ -10,6 +10,33 @@ const slugify = (text: string) => {
     return text.toString().toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-').replace(/^-+$/, '');
 };
 
+// Recursive function to find and replace image URLs within Elementor's data structure.
+function replaceImageUrlInElementor(elements: any[], oldUrl: string, newUrl: string): { replaced: boolean; data: any[] } {
+    let replaced = false;
+    const newElements = JSON.parse(JSON.stringify(elements)); // Deep copy to avoid mutation issues
+
+    function traverse(items: any[]) {
+        for (const item of items) {
+            if (item.settings?.image?.url === oldUrl) {
+                item.settings.image.url = newUrl;
+                replaced = true;
+            }
+            if (item.settings?.background_image?.url === oldUrl) {
+                item.settings.background_image.url = newUrl;
+                replaced = true;
+            }
+            // Add other potential image keys here if needed, e.g., for galleries, sliders, etc.
+            if (item.elements && item.elements.length > 0) {
+                traverse(item.elements);
+            }
+        }
+    }
+    
+    traverse(newElements);
+    return { replaced, data: newElements };
+}
+
+
 export async function POST(req: NextRequest) {
     let uid: string;
     try {
@@ -38,16 +65,15 @@ export async function POST(req: NextRequest) {
         }
 
         let post: any;
-        if (postType === 'Producto') {
-            if (!wooApi) throw new Error('WooCommerce API is not configured.');
-            const { data } = await wooApi.get(`products/${postId}`);
-            post = { ...data, title: { rendered: data.name }, content: { rendered: data.description } };
-        } else {
-            const endpoint = postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
-            const { data } = await wpApi.get(endpoint, { params: { context: 'edit' } });
-            post = data;
-        }
-        
+        let isElementor = false;
+        const apiToUse = postType === 'Producto' ? wooApi : wpApi;
+        if (!apiToUse) throw new Error(`API client for ${postType} is not configured.`);
+        const endpoint = postType === 'Producto' ? `products/${postId}` : postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
+
+        const { data } = await apiToUse.get(endpoint, { params: { context: 'edit' } });
+        post = postType === 'Producto' ? { ...data, title: { rendered: data.name }, content: { rendered: data.description } } : data;
+        isElementor = !!post.meta?._elementor_data;
+
         const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
 
@@ -74,31 +100,38 @@ export async function POST(req: NextRequest) {
         const newMediaData = await wpApi.get(`/media/${newImageId}`);
         const newImageUrl = newMediaData.data.source_url;
         
-        let currentContent = post.content?.rendered || '';
-        const newContent = currentContent.replace(new RegExp(oldImageUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), newImageUrl);
-        
         const updatePayload: { [key: string]: any } = {};
-        if (postType === 'Producto') {
-          updatePayload.description = newContent;
-        } else {
-          updatePayload.content = newContent;
-        }
-        
-        const updateEndpoint = postType === 'Producto' ? `products/${postId}` : postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
-        const apiToUse = postType === 'Producto' ? wooApi : wpApi;
 
-        // Use PUT for products, POST for posts/pages
-        if (postType === 'Producto') {
-             await apiToUse.put(updateEndpoint, updatePayload);
+        if (isElementor) {
+            const elementorData = JSON.parse(post.meta._elementor_data);
+            const { replaced, data: newElementorData } = replaceImageUrlInElementor(elementorData, oldImageUrl, newImageUrl);
+            if (replaced) {
+                updatePayload.meta = { ...post.meta, _elementor_data: JSON.stringify(newElementorData) };
+            }
         } else {
-             await apiToUse.post(updateEndpoint, updatePayload);
+            let currentContent = post.content?.rendered || '';
+            const newContent = currentContent.replace(new RegExp(oldImageUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), newImageUrl);
+            
+            if (postType === 'Producto') {
+                updatePayload.description = newContent;
+            } else {
+                updatePayload.content = newContent;
+            }
+        }
+
+        if (Object.keys(updatePayload).length > 0) {
+            if (postType === 'Producto') {
+                 await apiToUse.put(endpoint, updatePayload);
+            } else {
+                 await apiToUse.post(endpoint, updatePayload);
+            }
         }
         
         await adminDb.collection('user_settings').doc(uid).set({ 
             aiUsageCount: admin.firestore.FieldValue.increment(1) 
         }, { merge: true });
 
-        return NextResponse.json({ success: true, newContent: newContent, newImageUrl, newImageAlt: aiContent.imageAltText });
+        return NextResponse.json({ success: true, newContent: updatePayload.content || updatePayload.description, newImageUrl, newImageAlt: aiContent.imageAltText });
 
     } catch (error: any) {
         console.error("Error in replace-image API:", error.response?.data || error.message);
