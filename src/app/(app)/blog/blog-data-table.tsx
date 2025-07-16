@@ -36,7 +36,7 @@ import type { BlogPostSearchResult, WordPressPostCategory, BlogStats, Hierarchic
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { BookOpen, FileCheck2, FileText, Loader2, Lock, Trash2, ChevronDown, Languages, Link2, Sparkles } from "lucide-react"
+import { BookOpen, FileCheck2, FileText, Loader2, Lock, Trash2, ChevronDown, Languages, Link2, Sparkles, Image as ImageIcon } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 
@@ -59,7 +59,7 @@ export function BlogDataTable() {
 
   const [stats, setStats] = React.useState<BlogStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = React.useState(true);
-  const [isBatchActionLoading, setIsBatchActionLoading] = React.useState(false);
+  const [isActionLoading, setIsActionLoading] = React.useState(false);
   const [isLinking, setIsLinking] = React.useState(false);
   const [availableLanguages, setAvailableLanguages] = React.useState<{code: string; name: string}[]>([]);
 
@@ -358,7 +358,7 @@ export function BlogDataTable() {
   });
 
   const handleBatchDelete = async () => {
-    setIsBatchActionLoading(true);
+    setIsActionLoading(true);
     const selectedRows = table.getSelectedRowModel().rows;
     
     const postIdsWithDuplicates = selectedRows.flatMap((row: Row<HierarchicalBlogPost>) => [
@@ -369,13 +369,13 @@ export function BlogDataTable() {
 
     if (postIds.length === 0) {
         toast({ title: "No hay entradas seleccionadas", variant: "destructive" });
-        setIsBatchActionLoading(false);
+        setIsActionLoading(false);
         return;
     }
 
     const user = auth.currentUser;
     if (!user) {
-        setIsBatchActionLoading(false);
+        setIsActionLoading(false);
         return;
     }
 
@@ -413,7 +413,7 @@ export function BlogDataTable() {
             description: errorMessage,
         });
     } finally {
-        setIsBatchActionLoading(false);
+        setIsActionLoading(false);
     }
   };
 
@@ -482,7 +482,7 @@ export function BlogDataTable() {
       toast({ title: "Nada seleccionado", description: "Por favor, selecciona al menos una entrada.", variant: "destructive" });
       return;
     }
-    setIsBatchActionLoading(true);
+    setIsActionLoading(true);
     const user = auth.currentUser;
     if (!user) return;
     const token = await user.getIdToken();
@@ -508,13 +508,18 @@ export function BlogDataTable() {
     }
     
     toast({ title: "Proceso Completado", description: `${successes} de ${selectedRows.length} entradas han sido actualizadas con metadatos SEO.` });
-    setIsBatchActionLoading(false);
+    setIsActionLoading(false);
     table.resetRowSelection();
+  };
+  
+  const handleEditImages = () => {
+    const selectedIds = table.getSelectedRowModel().rows.map(row => row.original.id);
+    router.push(`/pages/edit-images?ids=${selectedIds.join(',')}&type=Post`);
   };
 
 
   const selectedRowCount = table.getFilteredSelectedRowModel().rows.length;
-  const isActionLoading = isBatchActionLoading || isLinking;
+  const isBatchActionLoading = isActionLoading || isLinking;
 
   return (
     <div className="w-full space-y-4">
@@ -575,13 +580,16 @@ export function BlogDataTable() {
          <AlertDialog>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" disabled={selectedRowCount === 0 || isActionLoading} className="w-full md:w-auto mt-2 md:mt-0">
+              <Button variant="outline" disabled={selectedRowCount === 0 || isBatchActionLoading} className="w-full md:w-auto mt-2 md:mt-0">
                 {isActionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronDown className="mr-2 h-4 w-4" />}
                 Acciones ({selectedRowCount})
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Acciones en Lote</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={handleEditImages}>
+                <ImageIcon className="mr-2 h-4 w-4" /> Editar Imágenes
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={handleBatchSeoMeta}>
                 <Sparkles className="mr-2 h-4 w-4" /> Generar Título y Descripción SEO
               </DropdownMenuItem>
@@ -604,7 +612,7 @@ export function BlogDataTable() {
                   </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                  <AlertDialogCancel onClick={() => setIsBatchActionLoading(false)}>Cancelar</AlertDialogCancel>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
                   <AlertDialogAction onClick={handleBatchDelete} className={buttonVariants({ variant: "destructive" })}>
                       Sí, mover a la papelera
                   </AlertDialogAction>

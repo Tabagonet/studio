@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import * as React from "react"
@@ -686,7 +687,7 @@ export function ProductDataTable() {
       
       payload.manage_stock = quickUpdateData.manage_stock;
       if (quickUpdateData.manage_stock && quickUpdateData.stock_quantity) {
-        payload.stock_quantity = quickUpdateData.stock_quantity;
+        payload.stock_quantity = parseInt(quickUpdateData.stock_quantity, 10);
       }
       
       if (Object.keys(payload).length === 0) {
@@ -695,6 +696,11 @@ export function ProductDataTable() {
       }
       handleBatchUpdate(payload);
     };
+  
+  const handleEditImages = () => {
+    const selectedIds = getProductIdsForAction();
+    router.push(`/pages/edit-images?ids=${selectedIds.join(',')}&type=Producto`);
+  };
 
   const selectedRowCount = Object.keys(rowSelection).length;
 
@@ -948,6 +954,9 @@ export function ProductDataTable() {
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                      <DropdownMenuLabel>Gestión de Datos</DropdownMenuLabel>
+                    <DropdownMenuItem onSelect={handleEditImages}>
+                        <ImageIcon className="mr-2 h-4 w-4" /> Editar Imágenes
+                    </DropdownMenuItem>
                     <DropdownMenuItem onSelect={handleBatchLinkTranslations} disabled={selectedRowCount < 2}>
                         <Link2 className="mr-2 h-4 w-4" /> Enlazar Traducciones
                     </DropdownMenuItem>

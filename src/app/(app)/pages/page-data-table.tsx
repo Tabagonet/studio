@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -12,7 +11,6 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
-  type ColumnDef,
   type ColumnFiltersState,
   type ExpandedState,
   type RowSelectionState,
@@ -29,7 +27,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getColumns } from "./columns"; 
 import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
-import { Loader2, ChevronDown, Trash2, Link2, Sparkles, Edit } from "lucide-react";
+import { Loader2, ChevronDown, Trash2, Sparkles, Edit, Image as ImageIcon } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
@@ -46,7 +44,6 @@ interface PageDataTableProps {
 export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDataTableProps) {
   const router = useRouter();
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
-  const [sorting, setSorting] = React.useState<React.ComponentProps<typeof useReactTable>['state']['sorting']>([]);
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
   const [isActionLoading, setIsActionLoading] = React.useState(false);
@@ -94,7 +91,6 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
         return langMatch;
     });
 
-    // Filter out items that have been moved to be sub-rows of others
     const rootIds = new Set(filteredRoots.map(r => r.id));
     return filteredRoots.filter(item => rootIds.has(item.id));
   }, [data, scores, languageFilter]);
@@ -127,20 +123,17 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
     data: tableData,
     columns,
     state: {
-      sorting,
-      columnFilters,
       expanded,
+      columnFilters,
       rowSelection,
     },
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
     onExpandedChange: setExpanded,
+    onColumnFiltersChange: setColumnFilters,
     onRowSelectionChange: setRowSelection,
     getSubRows: (row) => row.subRows,
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
   });
   
@@ -175,39 +168,6 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
         table.resetRowSelection();
     } catch (e: any) {
         toast({ title: "Error al eliminar", description: e.message, variant: "destructive" });
-    } finally {
-        setIsActionLoading(false);
-    }
-  };
-  
-  const handleLinkTranslations = async () => {
-    setIsActionLoading(true);
-    const selectedRows = table.getSelectedRowModel().rows;
-    const translations = selectedRows.reduce((acc, row) => {
-        if (row.original.lang) acc[row.original.lang] = row.original.id;
-        return acc;
-    }, {} as Record<string, number>);
-
-    const user = auth.currentUser;
-    if (!user) {
-        toast({ title: 'No autenticado', variant: 'destructive' });
-        setIsActionLoading(false);
-        return;
-    }
-    const token = await user.getIdToken();
-    try {
-        const response = await fetch('/api/wordpress/posts/link-translations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ translations })
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || result.message);
-        toast({ title: "Traducciones enlazadas", description: result.message });
-        onDataChange(token);
-        table.resetRowSelection();
-    } catch(e: any) {
-        toast({ title: "Error al enlazar", description: e.message, variant: "destructive" });
     } finally {
         setIsActionLoading(false);
     }
@@ -251,8 +211,14 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
   
   const selectedRowCount = Object.keys(rowSelection).length;
   
+  const handleEditImages = () => {
+    const selectedIds = table.getSelectedRowModel().rows.map(row => row.original.id);
+    const postType = table.getSelectedRowModel().rows[0]?.original.type || 'Page'; // Assume all are same type for now
+    router.push(`/pages/edit-images?ids=${selectedIds.join(',')}&type=${postType}`);
+  };
+
   const handleRowClick = (row: any) => {
-    router.push(`/pages/edit/${row.original.id}`);
+    router.push(`/seo-optimizer/edit/${row.original.id}?type=${row.original.type}`);
   };
 
   return (
@@ -266,33 +232,19 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
               className="max-w-sm"
             />
             <Select
-              value={(table.getColumn('type')?.getFilterValue() as string) ?? 'all'}
-              onValueChange={(value) => table.getColumn('type')?.setFilterValue(value === 'all' ? undefined : value)}
+                value={(table.getColumn('status')?.getFilterValue() as string) ?? 'all'}
+                onValueChange={(value) => table.getColumn('status')?.setFilterValue(value === 'all' ? null : value)}
             >
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filtrar por tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los Tipos</SelectItem>
-                <SelectItem value="Post">Entradas (Posts)</SelectItem>
-                <SelectItem value="Page">Páginas</SelectItem>
-                <SelectItem value="Producto">Productos</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={(table.getColumn('status')?.getFilterValue() as string) ?? 'all'}
-              onValueChange={(value) => table.getColumn('status')?.setFilterValue(value === 'all' ? null : value)}
-            >
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filtrar por estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los Estados</SelectItem>
-                <SelectItem value="publish">Publicado</SelectItem>
-                <SelectItem value="draft">Borrador</SelectItem>
-                <SelectItem value="pending">Pendiente</SelectItem>
-                <SelectItem value="private">Privado</SelectItem>
-              </SelectContent>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue placeholder="Filtrar por estado" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">Todos los Estados</SelectItem>
+                    <SelectItem value="publish">Publicado</SelectItem>
+                    <SelectItem value="draft">Borrador</SelectItem>
+                    <SelectItem value="pending">Pendiente</SelectItem>
+                    <SelectItem value="private">Privado</SelectItem>
+                </SelectContent>
             </Select>
             <Select
               value={languageFilter}
@@ -321,11 +273,11 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Acciones en Lote</DropdownMenuLabel>
+               <DropdownMenuItem onSelect={handleEditImages}>
+                <ImageIcon className="mr-2 h-4 w-4" /> Editar Imágenes
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={handleBatchSeoMeta}>
                 <Sparkles className="mr-2 h-4 w-4" /> Generar Título y Descripción SEO
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={handleLinkTranslations} disabled={selectedRowCount < 2}>
-                  <Link2 className="mr-2 h-4 w-4" /> Enlazar Traducciones
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <AlertDialogTrigger asChild>

@@ -2,7 +2,7 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Layers, Info } from "lucide-react";
+import { Layers, Info, Image as ImageIcon } from "lucide-react";
 import { ProductDataTable } from "./product-data-table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -26,7 +26,7 @@ export default function BatchProcessingPage() {
         <Info className="h-4 w-4" />
         <AlertTitle>Cómo Funciona</AlertTitle>
         <AlertDescription>
-          Usa la tabla de abajo para gestionar tus productos. Puedes buscar por nombre y seleccionar múltiples productos usando las casillas de verificación. Una vez seleccionados, aparecerán las acciones disponibles (como aplicar IA) en el menú de "Acciones".
+          Usa la tabla de abajo para gestionar tus productos. Puedes buscar por nombre y seleccionar múltiples productos usando las casillas de verificación. Una vez seleccionados, aparecerán las acciones disponibles, como aplicar IA, editar imágenes en lote o cambiar precios.
         </AlertDescription>
       </Alert>
 

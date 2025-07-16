@@ -93,12 +93,6 @@ export async function POST(req: NextRequest) {
         } else {
              await apiToUse.post(updateEndpoint, updatePayload);
         }
-
-        // Deleting the old image by ID is more reliable
-        const oldMediaId = contentImages.find(img => img.src === oldImageUrl)?.mediaId;
-        if (oldMediaId) {
-            wpApi.delete(`/media/${oldMediaId}`, { params: { force: true } }).catch(e => console.error(`Failed to delete old image ${oldMediaId}:`, e.message));
-        }
         
         await adminDb.collection('user_settings').doc(uid).set({ 
             aiUsageCount: admin.firestore.FieldValue.increment(1) 
