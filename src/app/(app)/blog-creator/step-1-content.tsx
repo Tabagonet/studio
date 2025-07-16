@@ -11,7 +11,7 @@ import { ImageUploader } from "@/components/features/wizard/image-uploader";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import type { BlogPostData, WordPressPostCategory, ProductPhoto, WordPressUser } from "@/lib/types";
-import { Loader2, Sparkles, Wand2, Languages, Edit, Pilcrow, Heading2, List, ListOrdered, CalendarIcon, Info, Tags, Link as LinkIcon, Image as ImageIcon, Lightbulb, Check, Strikethrough, Heading3, Bold, Italic, Underline, Quote, AlignCenter, AlignJustify, AlignLeft, AlignRight, Link2 } from "lucide-react";
+import { Loader2, Sparkles, Wand2, Languages, Edit, Pilcrow, Heading2, List, ListOrdered, CalendarIcon, Info, Tags, Link as LinkIcon, Image as ImageIcon, Lightbulb, Check, Strikethrough, Heading3, Bold, Italic, Underline, Quote, AlignCenter, AlignJustify, AlignLeft, AlignRight, Link2, AlertCircle } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
@@ -49,6 +49,8 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
 
     const [isSuggestingLinks, setIsSuggestingLinks] = useState(false);
     const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>([]);
+
+    const [isPolylangActive, setIsPolylangActive] = useState(false);
     
     const { toast } = useToast();
 
@@ -66,9 +68,10 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
         const fetchData = async (token: string) => {
             setIsLoading(prev => ({ ...prev, categories: true, authors: true }));
             try {
-                const [catResponse, authorResponse] = await Promise.all([
+                const [catResponse, authorResponse, configResponse] = await Promise.all([
                     fetch('/api/wordpress/post-categories', { headers: { 'Authorization': `Bearer ${token}` } }),
-                    fetch('/api/wordpress/users', { headers: { 'Authorization': `Bearer ${token}` } })
+                    fetch('/api/wordpress/users', { headers: { 'Authorization': `Bearer ${token}` } }),
+                    fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` }})
                 ]);
 
                 if (catResponse.ok) setCategories(await catResponse.json());
@@ -80,6 +83,10 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                     if (matchingAuthor && !postData.author) {
                         updatePostData({ author: matchingAuthor });
                     }
+                }
+                 if(configResponse.ok) {
+                    const configData = await configResponse.json();
+                    setIsPolylangActive(configData.pluginActive);
                 }
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error);
@@ -245,16 +252,13 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
           return;
       }
 
-      // This logic will be handled by the RichTextEditor component itself now
-      // It's kept here just to manage the dialog.
-      // The actual insertion happens within the editor component instance.
-      // A more advanced implementation might use a callback to pass the URL to the editor.
+      const imgTag = `<img src="${finalImageUrl}" />`;
       
       setImageUrl('');
       setImageFile(null);
       setIsImageDialogOpen(false);
       toast({ title: 'Imagen lista', description: 'Copiado al portapapeles. Pégala en el editor.' });
-      navigator.clipboard.writeText(`<img src="${finalImageUrl}" />`);
+      navigator.clipboard.writeText(imgTag);
     };
 
     const handleSuggestLinks = async () => {
@@ -327,7 +331,6 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
     return (
         <>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Main content column */}
                 <div className="lg:col-span-2 space-y-6">
                     <Card>
                         <CardHeader>
@@ -335,13 +338,6 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                              <CardDescription>Usa la IA para generar ideas, crea tu entrada y dale formato.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                             <Alert>
-                                <Languages className="h-4 w-4" />
-                                <AlertTitle>Nueva Integración con Polylang</AlertTitle>
-                                <AlertDescription>
-                                    ¡Ahora nos integramos con Polylang! Al seleccionar idiomas de destino, la aplicación creará las traducciones y las enlazará automáticamente a la entrada original en tu WordPress.
-                                </AlertDescription>
-                            </Alert>
                              <div className="space-y-4 pt-6 border-t">
                                 <h3 className="text-sm font-medium text-muted-foreground">Asistente IA</h3>
                                 <div className="p-4 border rounded-lg space-y-3 bg-card">
@@ -407,7 +403,6 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                     </Card>
                 </div>
                 
-                {/* Sidebar column */}
                 <div className="lg:col-span-1 space-y-6">
                     <Card>
                         <CardHeader><CardTitle>Publicación y Traducción</CardTitle></CardHeader>
@@ -437,33 +432,45 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                                 </Popover>
                                 <p className="text-xs text-muted-foreground mt-1">Si se deja en blanco, se publicará con la fecha actual.</p>
                             </div>
-                            <div className="space-y-3 pt-4 border-t">
-                                <Label>Idioma de la Entrada Original</Label>
-                                <Select name="sourceLanguage" value={postData.sourceLanguage} onValueChange={handleSourceLanguageChange}>
-                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        {ALL_LANGUAGES.map(lang => (<SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-3 pt-4 border-t">
-                                <Label>Crear traducciones en:</Label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {availableTargetLanguages.map(lang => (
-                                        <div key={lang.code} className="flex items-center space-x-2">
-                                            <Checkbox id={`lang-${lang.code}`} checked={postData.targetLanguages.includes(lang.code)} onCheckedChange={() => handleLanguageToggle(lang.code)} />
-                                            <Label htmlFor={`lang-${lang.code}`} className="font-normal">{lang.name}</Label>
+                             
+                             {isPolylangActive ? (
+                                <>
+                                    <div className="space-y-3 pt-4 border-t">
+                                        <Label>Idioma de la Entrada Original</Label>
+                                        <Select name="sourceLanguage" value={postData.sourceLanguage} onValueChange={handleSourceLanguageChange}>
+                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                {ALL_LANGUAGES.map(lang => (<SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-3 pt-4 border-t">
+                                        <Label>Crear traducciones en:</Label>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {availableTargetLanguages.map(lang => (
+                                                <div key={lang.code} className="flex items-center space-x-2">
+                                                    <Checkbox id={`lang-${lang.code}`} checked={postData.targetLanguages.includes(lang.code)} onCheckedChange={() => handleLanguageToggle(lang.code)} />
+                                                    <Label htmlFor={`lang-${lang.code}`} className="font-normal">{lang.name}</Label>
+                                                </div>
+                                            ))}
                                         </div>
-                                    ))}
-                                </div>
-                            </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <Alert variant="default" className="mt-4">
+                                    <AlertCircle className="h-4 w-4" />
+                                    <AlertTitle>Función Multi-idioma Desactivada</AlertTitle>
+                                    <AlertDescription>
+                                        Para crear traducciones, el plugin Polylang debe estar instalado y activo en tu WordPress.
+                                    </AlertDescription>
+                                </Alert>
+                            )}
+
                         </CardContent>
                     </Card>
 
                     <Card>
-                        <CardHeader>
-                            <CardTitle>SEO</CardTitle>
-                        </CardHeader>
+                        <CardHeader><CardTitle>SEO</CardTitle></CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="metaDescription">Meta Descripción</Label>
@@ -537,7 +544,6 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                 </div>
             </div>
 
-            {/* DIALOGS */}
             <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>

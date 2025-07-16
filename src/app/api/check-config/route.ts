@@ -1,3 +1,4 @@
+
 // src/app/api/check-config/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -62,37 +63,30 @@ export async function GET(req: NextRequest) {
 
     let settingsSource: admin.firestore.DocumentData | undefined;
     
-    // Determine the source of settings based on the request context
     if (userRole === 'super_admin' && (targetUserId || targetCompanyId)) {
-        // Super admin is explicitly checking a specific entity
         const entityId = targetCompanyId || targetUserId;
         const collection = targetCompanyId ? 'companies' : 'user_settings';
         const doc = await adminDb.collection(collection).doc(entityId!).get();
         settingsSource = doc.exists ? doc.data() : undefined;
     } else {
-        // Regular user or admin: Use their assigned company or personal settings
         if (userCompanyId) {
             const companyDoc = await adminDb.collection('companies').doc(userCompanyId).get();
             settingsSource = companyDoc.exists ? companyDoc.data() : undefined;
         }
-        // Fallback to personal settings if no company or company doc not found
         if (!settingsSource) {
             const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
             settingsSource = userSettingsDoc.exists ? userSettingsDoc.data() : undefined;
         }
     }
     
-    // Fetch global partner settings separately
     const globalSettingsDoc = await adminDb.collection('companies').doc('global_settings').get();
     const globalSettingsSource = globalSettingsDoc.exists ? globalSettingsDoc.data() : undefined;
     
-    // Process logged-in user AI usage
     const loggedInUserSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
     if (loggedInUserSettingsDoc.exists) {
         userConfig.aiUsageCount = loggedInUserSettingsDoc.data()?.aiUsageCount || 0;
     }
     
-    // Process partner credentials from global settings
     if (globalSettingsSource) {
       const partnerAppData = partnerAppConnectionDataSchema.safeParse(globalSettingsSource.connections?.partner_app || {});
       userConfig.shopifyCustomAppConfigured = !!(partnerAppData.success && partnerAppData.data.clientId && partnerAppData.data.clientSecret);
@@ -101,7 +95,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Process user/company specific connections
     if (settingsSource) {
       if (settingsSource.platform) {
         assignedPlatform = settingsSource.platform;
@@ -133,7 +126,6 @@ export async function GET(req: NextRequest) {
             try {
               const fullUrl = url.startsWith('http') ? url : `https://${url}`;
               const siteUrl = new URL(fullUrl).origin;
-              // Use the new, reliable status check endpoint
               const statusCheckEndpoint = `${siteUrl}/wp-json/custom/v1/status`;
               
               console.log(`[Plugin Check] Attempting to verify plugin via status endpoint: ${statusCheckEndpoint}`);
