@@ -123,7 +123,7 @@ export function SeoAnalyzer({
             mode, 
             language: post.lang || 'es', // Use the post's language
             existingTitle: post.meta._yoast_wpseo_title || post.title,
-            existingContent: typeof post.content === 'string' ? post.content : '',
+            existingContent: typeof post.content === 'string' ? post.content : (post.content as ExtractedWidget[]).map(w => w.text).join('\n'),
             keywords: post.meta._yoast_wpseo_focuskw || '',
             postType: post.postType,
         };
@@ -183,7 +183,7 @@ export function SeoAnalyzer({
             mode: 'generate_image_meta',
             language: post.lang || 'es',
             existingTitle: post.title,
-            existingContent: typeof post.content === 'string' ? post.content : '',
+            existingContent: typeof post.content === 'string' ? post.content : (post.content as ExtractedWidget[]).map(w => w.text).join('\n'),
         };
         const response = await fetch('/api/generate-blog-post', {
             method: 'POST',

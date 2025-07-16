@@ -87,21 +87,24 @@ export async function POST(req: NextRequest) {
         const updateEndpoint = postType === 'Producto' ? `products/${postId}` : postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
         const apiToUse = postType === 'Producto' ? wooApi : wpApi;
 
-        await apiToUse.put(updateEndpoint, updatePayload);
+        // Use PUT for products, POST for posts/pages
+        if (postType === 'Producto') {
+             await apiToUse.put(updateEndpoint, updatePayload);
+        } else {
+             await apiToUse.post(updateEndpoint, updatePayload);
+        }
 
-        const mediaIdMatch = oldImageUrl.match(/wp-image-(\d+)/);
-        if (mediaIdMatch?.[1]) {
-            const oldImageId = parseInt(mediaIdMatch[1], 10);
-            if (!isNaN(oldImageId)) {
-                wpApi.delete(`/media/${oldImageId}`, { params: { force: true } }).catch(e => console.error(`Failed to delete old image ${oldImageId}:`, e.message));
-            }
+        // Deleting the old image by ID is more reliable
+        const oldMediaId = contentImages.find(img => img.src === oldImageUrl)?.mediaId;
+        if (oldMediaId) {
+            wpApi.delete(`/media/${oldMediaId}`, { params: { force: true } }).catch(e => console.error(`Failed to delete old image ${oldMediaId}:`, e.message));
         }
         
         await adminDb.collection('user_settings').doc(uid).set({ 
             aiUsageCount: admin.firestore.FieldValue.increment(1) 
         }, { merge: true });
 
-        return NextResponse.json({ success: true, newImageUrl, newImageAlt: aiContent.imageAltText });
+        return NextResponse.json({ success: true, newContent: newContent, newImageUrl, newImageAlt: aiContent.imageAltText });
 
     } catch (error: any) {
         console.error("Error in replace-image API:", error.response?.data || error.message);
