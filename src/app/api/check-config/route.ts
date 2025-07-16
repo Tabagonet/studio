@@ -62,25 +62,25 @@ export async function GET(req: NextRequest) {
     const targetCompanyId = searchParams.get('companyId');
 
     let settingsSource: admin.firestore.DocumentData | undefined;
-
+    
     // Determine the source of settings based on the request context
     if (userRole === 'super_admin' && (targetUserId || targetCompanyId)) {
-      // Super admin is explicitly checking a specific entity
-      const entityId = targetCompanyId || targetUserId;
-      const collection = targetCompanyId ? 'companies' : 'user_settings';
-      const doc = await adminDb.collection(collection).doc(entityId!).get();
-      settingsSource = doc.exists ? doc.data() : undefined;
+        // Super admin is explicitly checking a specific entity
+        const entityId = targetCompanyId || targetUserId;
+        const collection = targetCompanyId ? 'companies' : 'user_settings';
+        const doc = await adminDb.collection(collection).doc(entityId!).get();
+        settingsSource = doc.exists ? doc.data() : undefined;
     } else {
-      // Regular user or admin: Use their assigned company or personal settings
-      if (userCompanyId) {
-        const companyDoc = await adminDb.collection('companies').doc(userCompanyId).get();
-        settingsSource = companyDoc.exists ? companyDoc.data() : undefined;
-      }
-      // Fallback to personal settings if no company or company doc not found
-      if (!settingsSource) {
-          const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
-          settingsSource = userSettingsDoc.exists ? userSettingsDoc.data() : undefined;
-      }
+        // Regular user or admin: Use their assigned company or personal settings
+        if (userCompanyId) {
+            const companyDoc = await adminDb.collection('companies').doc(userCompanyId).get();
+            settingsSource = companyDoc.exists ? companyDoc.data() : undefined;
+        }
+        // Fallback to personal settings if no company or company doc not found
+        if (!settingsSource) {
+            const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+            settingsSource = userSettingsDoc.exists ? userSettingsDoc.data() : undefined;
+        }
     }
     
     // Fetch global partner settings separately
@@ -130,8 +130,12 @@ export async function GET(req: NextRequest) {
         if (userConfig.wordPressConfigured) {
           const { wordpressApiUrl: url, wordpressUsername: username, wordpressApplicationPassword: applicationPassword } = activeConnection;
           const token = Buffer.from(`${username}:${applicationPassword}`, 'utf8').toString('base64');
-          const siteUrl = url.startsWith('http') ? url : `https://${url}`;
-          const statusEndpoint = `${siteUrl.replace(/\/$/, '')}/wp-json/custom/v1/status`;
+          
+          // Use the baseURL from the configured axios instance and replace the endpoint.
+          // This is more robust against different server setups (e.g., custom /wp-json/ path).
+          const wpApiBase = `https://${new URL(url).hostname}`;
+          const statusEndpoint = `${wpApiBase}/wp-json/custom/v1/status`;
+
           
           try {
             const response = await axios.get(statusEndpoint, {
