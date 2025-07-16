@@ -16,15 +16,10 @@ const nextConfig = {
       'debug',
       'supports-color',
       'sharp',
-      'class-variance-authority',
     ],
   },
   images: {
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'www.mundococina.eu',
-      },
       {
         protocol: 'https',
         hostname: 'gtrexsolution.com',
