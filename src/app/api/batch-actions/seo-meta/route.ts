@@ -4,7 +4,6 @@ import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import { z } from 'zod';
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import * as cheerio from 'cheerio';
 
 const batchSeoMetaSchema = z.object({
   postId: z.number(),
@@ -30,6 +29,7 @@ Generate the SEO metadata now.`;
     if (!adminDb) return defaultPrompt;
     try {
         const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+        // Use the new key 'batchSeoMeta'
         return userSettingsDoc.data()?.prompts?.batchSeoMeta || defaultPrompt;
     } catch (error) {
         console.error("Error fetching 'batchSeoMeta' prompt, using default.", error);
@@ -71,6 +71,8 @@ export async function POST(req: NextRequest) {
             throw new Error(`Content with ID ${postId} not found.`);
         }
 
+        // We import cheerio dynamically ONLY when needed
+        const cheerio = await import('cheerio');
         const contentHtml = post.content?.rendered || '';
         const $ = cheerio.load(contentHtml);
         const contentText = $('body').text().replace(/\s\s+/g, ' ').trim();

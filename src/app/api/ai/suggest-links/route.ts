@@ -81,6 +81,7 @@ The response must be a single, valid JSON object with one key "suggestions", con
     if (!adminDb) return defaultPrompt;
     try {
         const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+        // The key must match the one defined in the prompts page
         return userSettingsDoc.data()?.prompts?.linkSuggestion || defaultPrompt;
     } catch (error) {
         console.error("Error fetching 'linkSuggestion' prompt, using default.", error);

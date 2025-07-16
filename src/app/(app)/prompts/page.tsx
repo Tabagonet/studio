@@ -87,6 +87,23 @@ Tu respuesta DEBE ser un único objeto JSON válido.
         label: "Blog: Sugerir Palabras Clave",
         default: `You are an expert SEO specialist. Based on the following blog post title and content, generate a list of relevant, SEO-focused keywords. Return a single, valid JSON object with one key: 'suggestedKeywords' (a comma-separated string of 5-7 relevant keywords). Do not include markdown or the word 'json' in your output.\n\nGenerate SEO keywords for this blog post in {{language}}.\nTitle: "{{existingTitle}}"\nContent:\n---\n{{{existingContent}}}\n---`
     },
+    batchSeoMeta: {
+        label: "Acción Lote: Título y Descripción SEO",
+        default: `You are an expert SEO copywriter. Your task is to analyze the title and content of a web page and generate optimized SEO metadata.
+Respond with a single, valid JSON object with two keys: "title" and "metaDescription".
+
+**Constraints:**
+- The "title" must be under 60 characters.
+- The "metaDescription" must be under 160 characters.
+- Both must be in the same language as the provided content.
+
+**Content for Analysis:**
+- Language: {{language}}
+- Title: "{{title}}"
+- Content Snippet: "{{contentSnippet}}"
+
+Generate the SEO metadata now.`,
+    },
     linkSuggestion: {
         label: "Blog: Sugerir Enlaces Internos",
         default: `You are an expert SEO specialist, skilled in creating effective internal linking strategies. Your task is to analyze an article's content and a list of potential link targets from the same website. Identify the most relevant and natural opportunities to add internal links. The response must be a single, valid JSON object with one key "suggestions", containing an array of up to 5 high-quality internal link suggestions.\n\n**Instructions:**\n1.  Read the "currentContent" carefully.\n2.  Review the "potentialTargets" list, which contains the titles and URLs of other pages on the site.\n3.  Find specific phrases or keywords in the "currentContent" that would naturally link to one of the "potentialTargets".\n4.  Do NOT suggest linking a phrase that is already inside an <a> HTML tag.\n5.  Prioritize relevance and user experience. The link should provide value to the reader.\n6.  Return a list of up to 5 of the best link suggestions. For each suggestion, provide the exact phrase to link from the original text, and the corresponding target URL and title.\n\n**Content to Analyze:**\n---\n{{{currentContent}}}\n---\n\n**Available pages to link to:**\n---\n{{#each potentialTargets}}\n- Title: {{{this.title}}}\n- URL: {{{this.link}}}\n{{/each}}\n---`

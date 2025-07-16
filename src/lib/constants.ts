@@ -42,13 +42,12 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     title: 'Herramientas',
-    requiredPlatform: 'woocommerce',
     items: [
-       { title: 'Estrategia de Contenidos', href: '/content-strategy', icon: Lightbulb, requiredRoles: ['admin', 'super_admin', 'content_manager', 'seo_analyst'] },
+       { title: 'Estrategia de Contenidos', href: '/content-strategy', icon: Lightbulb, requiredRoles: ['super_admin'] },
        { title: 'Planificador de Publicidad', href: '/ad-planner', icon: Megaphone, requiredRoles: ['super_admin'] },
-       { title: 'Optimizador SEO', href: '/seo-optimizer', icon: SearchCheck, requiredRoles: ['admin', 'super_admin', 'content_manager', 'product_manager', 'seo_analyst'] },
+       { title: 'Optimizador SEO', href: '/seo-optimizer', icon: SearchCheck, requiredRoles: ['super_admin'] },
        { title: 'Clonador de Contenido', href: '/content-cloner', icon: Copy, requiredRoles: ['admin', 'super_admin', 'content_manager', 'product_manager'] },
-       { title: 'Acciones por Lotes (IA)', href: '/batch-actions', icon: Wand2, requiredRoles: ['admin', 'super_admin', 'content_manager', 'product_manager'] },
+       { title: 'Acciones por Lotes (IA)', href: '/batch-actions', icon: Wand2, requiredRoles: ['super_admin'] },
     ]
   },
    {
