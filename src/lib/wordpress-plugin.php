@@ -11,6 +11,8 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 // === Admin Menu and Settings Page ===
 add_action('admin_menu', 'autopress_ai_add_admin_menu');
 add_action('wp_ajax_autopress_ai_verify_key', 'autopress_ai_ajax_verify_key');
+add_action('wp_ajax_nopriv_autopress_ai_verify_status', 'autopress_ai_ajax_verify_status'); // New public endpoint
+add_action('wp_ajax_autopress_ai_verify_status', 'autopress_ai_ajax_verify_status'); // New endpoint for logged in users
 add_action('wp_ajax_autopress_ai_disconnect', 'autopress_ai_ajax_disconnect');
 
 
@@ -204,6 +206,15 @@ function autopress_ai_ajax_verify_key() {
     }
 }
 
+// New AJAX action for external status verification
+function autopress_ai_ajax_verify_status() {
+    wp_send_json_success([
+        'verified' => true,
+        'message' => 'AutoPress AI Helper está activo.',
+        'version' => autopress_ai_get_plugin_version()
+    ]);
+}
+
 
 // === REST API Endpoints ===
 add_action('init', 'custom_api_register_yoast_meta_fields');
@@ -244,10 +255,11 @@ function autopress_ai_register_rest_endpoints() {
         register_rest_route( 'custom/v1', '/batch-trash-posts', ['methods' => 'POST', 'callback' => 'custom_api_batch_trash_posts', 'permission_callback' => function () { return current_user_can( 'edit_posts' ); }]);
         register_rest_route( 'custom/v1', '/batch-clone-posts', ['methods'  => 'POST', 'callback' => 'custom_api_batch_clone_posts', 'permission_callback' => function () { return current_user_can( 'edit_posts' ); }]);
         register_rest_route( 'custom/v1', '/content-list', ['methods'  => 'GET', 'callback' => 'custom_api_get_content_list', 'permission_callback' => function () { return current_user_can( 'edit_posts' ); }]);
-        register_rest_route( 'custom/v1', '/status', ['methods' => 'GET', 'callback' => 'custom_api_status_check', 'permission_callback' => function () { return current_user_can('edit_posts'); }]);
+        // Keep the old endpoint for backwards compatibility, but it will no longer be the primary check
+        register_rest_route( 'custom/v1', '/status', ['methods' => 'GET', 'callback' => 'custom_api_status_check_legacy', 'permission_callback' => '__return_true']);
     });
     
-    function custom_api_status_check() {
+    function custom_api_status_check_legacy() {
         return new WP_REST_Response([
             'status' => 'ok',
             'plugin_version' => autopress_ai_get_plugin_version(),

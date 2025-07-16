@@ -7,6 +7,38 @@ import { getApiClientsForUser } from '@/lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 
+async function verifyPluginStatus(wpApi: any): Promise<{ isActive: boolean; error?: string }> {
+  if (!wpApi) return { isActive: false, error: 'WordPress API not configured.' };
+
+  const adminAjaxUrl = `${wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '/admin-ajax.php')}`;
+  console.log(`[Plugin Check] Attempting to verify plugin via admin-ajax: ${adminAjaxUrl}`);
+  
+  try {
+    const response = await wpApi.post(adminAjaxUrl, new URLSearchParams({
+      action: 'autopress_ai_verify_status'
+    }), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    });
+
+    if (response.data?.success && response.data?.data?.verified) {
+      console.log(`[Plugin Check] SUCCESS for ${wpApi.defaults.baseURL}. Plugin is active and verified.`);
+      return { isActive: true };
+    } else {
+      const reason = response.data?.data?.message || 'La respuesta del plugin no fue de éxito o no está verificado.';
+      console.log(`[Plugin Check] FAILED for ${wpApi.defaults.baseURL}. Status: ${response.status}. Reason: ${reason}`);
+      return { isActive: false, error: reason };
+    }
+  } catch (error: any) {
+    const status = error.response?.status;
+    let reason = 'Error de comunicación con el sitio WordPress.';
+    if (status) {
+        reason = `El sitio respondió con un error ${status}. Revisa la URL y la configuración de seguridad.`;
+    }
+    console.error(`[Plugin Check] FAILED for ${wpApi.defaults.baseURL}. Status: ${status}. Raw Error:`, error.message);
+    return { isActive: false, error: reason };
+  }
+}
+
 export async function GET(req: NextRequest) {
   let uid: string;
   let userRole: string | null = null;
@@ -43,7 +75,7 @@ export async function GET(req: NextRequest) {
     shopifyConfigured: false,
     shopifyPartnerConfigured: false,
     shopifyCustomAppConfigured: false,
-    pluginActive: false, // Default to false, will be updated if WP is configured.
+    pluginActive: false,
     aiUsageCount: 0,
   };
   let activeStoreUrl: string | null = null;
@@ -56,7 +88,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { wpApi, settings } = await getApiClientsForUser(uid);
+    const { wooApi, wpApi, shopifyApi, settings } = await getApiClientsForUser(uid);
     const allConnections = settings?.connections || {};
     const activeKey = settings?.activeConnectionKey;
 
@@ -80,16 +112,21 @@ export async function GET(req: NextRequest) {
           activePlatform = 'woocommerce';
         }
 
-        // New robust check: If WordPress credentials exist, we assume the connection is valid for WP features.
         if (userConfig.wordPressConfigured) {
-           userConfig.pluginActive = true; // Simplified assumption: if WP creds are present, we enable features.
+           const pluginCheck = await verifyPluginStatus(wpApi);
+           userConfig.pluginActive = pluginCheck.isActive;
+           userConfig.pluginError = pluginCheck.error;
         }
     }
 
   } catch (error: any) {
       console.log(`Config check failed for user ${uid}, likely due to no active connection. Error: ${error.message}`);
-      // Don't throw an error, just return the default (unconfigured) state.
   }
+  
+  const partnerCreds = await getPartnerCredentials().catch(() => null);
+  userConfig.shopifyPartnerConfigured = !!(partnerCreds && partnerCreds.partnerApiToken && partnerCreds.organizationId);
+  userConfig.shopifyCustomAppConfigured = !!(partnerCreds && partnerCreds.clientId && partnerCreds.clientSecret);
+
 
   const finalConfigStatus = {
     ...globalConfig,
