@@ -101,12 +101,14 @@ export async function POST(req: NextRequest) {
         const newImageUrl = newMediaData.data.source_url;
         
         const updatePayload: { [key: string]: any } = {};
+        let finalContent = '';
 
         if (isElementor) {
             const elementorData = JSON.parse(post.meta._elementor_data);
             const { replaced, data: newElementorData } = replaceImageUrlInElementor(elementorData, oldImageUrl, newImageUrl);
             if (replaced) {
                 updatePayload.meta = { ...post.meta, _elementor_data: JSON.stringify(newElementorData) };
+                finalContent = JSON.stringify(newElementorData); // For response
             }
         } else {
             let currentContent = post.content?.rendered || '';
@@ -117,6 +119,7 @@ export async function POST(req: NextRequest) {
             } else {
                 updatePayload.content = newContent;
             }
+            finalContent = newContent;
         }
 
         if (Object.keys(updatePayload).length > 0) {
@@ -131,7 +134,7 @@ export async function POST(req: NextRequest) {
             aiUsageCount: admin.firestore.FieldValue.increment(1) 
         }, { merge: true });
 
-        return NextResponse.json({ success: true, newContent: updatePayload.content || updatePayload.description, newImageUrl, newImageAlt: aiContent.imageAltText });
+        return NextResponse.json({ success: true, newContent: finalContent, newImageUrl, newImageAlt: aiContent.imageAltText });
 
     } catch (error: any) {
         console.error("Error in replace-image API:", error.response?.data || error.message);
