@@ -129,34 +129,35 @@ export async function GET(req: NextRequest) {
 
         if (userConfig.wordPressConfigured) {
           const { wordpressApiUrl: url, wordpressUsername: username, wordpressApplicationPassword: applicationPassword } = activeConnection;
-          const token = Buffer.from(`${username}:${applicationPassword}`, 'utf8').toString('base64');
           
-          const siteUrl = `https://${new URL(url).hostname}`;
-          // Use a standard, reliable endpoint from Polylang as a proxy for plugin health, as it's a required dependency.
-          const polylangCheckEndpoint = `${siteUrl}/wp-json/polylang/v1/languages`;
+          if (url) {
+            try {
+              const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+              const siteUrl = new URL(fullUrl).origin;
+              const polylangCheckEndpoint = `${siteUrl}/wp-json/polylang/v1/languages`;
 
-          try {
-            const response = await axios.get(polylangCheckEndpoint, {
-              headers: { 'Authorization': `Basic ${token}` },
-              timeout: 10000,
-            });
-            // If this request succeeds with a 200 OK and returns an array, Polylang is active.
-            if (response.status === 200 && Array.isArray(response.data)) {
-              userConfig.pluginActive = true;
-            } else {
+              const token = Buffer.from(`${username}:${applicationPassword}`, 'utf8').toString('base64');
+              const response = await axios.get(polylangCheckEndpoint, {
+                headers: { 'Authorization': `Basic ${token}` },
+                timeout: 10000,
+              });
+              
+              if (response.status === 200 && Array.isArray(response.data)) {
+                userConfig.pluginActive = true;
+              } else {
+                userConfig.pluginActive = false;
+                userConfig.pluginError = 'Respuesta inesperada del endpoint de Polylang. Asegúrate de que Polylang esté activo.';
+              }
+            } catch (pluginError: any) {
+              console.warn(`Plugin status check failed for ${url} via Polylang endpoint:`, pluginError.message);
               userConfig.pluginActive = false;
-              userConfig.pluginError = 'Respuesta inesperada del endpoint de Polylang. Asegúrate de que Polylang esté activo.';
-            }
-          } catch (pluginError: any) {
-            console.warn(`Plugin status check failed for ${url} via Polylang endpoint:`, pluginError.message);
-            userConfig.pluginActive = false;
-            
-            if (pluginError.response && (pluginError.response.status === 401 || pluginError.response.status === 403)) {
-                userConfig.pluginError = 'Las credenciales de WordPress API son incorrectas o no tienen suficientes permisos.';
-            } else if (pluginError.response && pluginError.response.status === 404) {
-                 userConfig.pluginError = 'No se encontró el plugin de Polylang. Asegúrate de que esté instalado y activo en tu WordPress.';
-            } else {
-                 userConfig.pluginError = 'No se pudo conectar con la API de WordPress. Revisa la URL y la conectividad.';
+              if (pluginError.response && (pluginError.response.status === 401 || pluginError.response.status === 403)) {
+                  userConfig.pluginError = 'Las credenciales de WordPress API son incorrectas o no tienen suficientes permisos.';
+              } else if (pluginError.response && pluginError.response.status === 404) {
+                  userConfig.pluginError = 'No se encontró el plugin de Polylang. Asegúrate de que esté instalado y activo en tu WordPress.';
+              } else {
+                  userConfig.pluginError = 'No se pudo conectar con la API de WordPress. Revisa la URL y la conectividad.';
+              }
             }
           }
         }
