@@ -37,7 +37,7 @@ const productUpdateSchema = z.object({
     imageDescription: z.string().optional(),
     // Inventory and shipping
     manage_stock: z.boolean().optional(),
-    stock_quantity: z.string().optional(),
+    stock_quantity: z.union([z.string(), z.number()]).optional(),
     weight: z.string().optional(),
     dimensions: z.object({
         length: z.string(),
@@ -168,7 +168,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     
     // Handle stock quantity: it should be a number for WooCommerce API
     if (wooPayload.stock_quantity !== undefined && wooPayload.stock_quantity !== null && wooPayload.stock_quantity !== '') {
-        wooPayload.stock_quantity = parseInt(wooPayload.stock_quantity, 10);
+        wooPayload.stock_quantity = parseInt(String(wooPayload.stock_quantity), 10);
     }
     
     const response = await wooApi.put(`products/${productId}`, wooPayload);

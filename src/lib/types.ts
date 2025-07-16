@@ -430,7 +430,7 @@ export interface ShopifyCreationJob {
   };
   
   // Data added after assignment
-  shopId?: string; // Corrected to string
+  shopId?: string; 
   storeDomain?: string;
   installUrl?: string; // The URL to authorize the app
   
