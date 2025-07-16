@@ -205,24 +205,17 @@ export async function uploadImageToWordPress(
   wpApi: AxiosInstance
 ): Promise<number> {
     try {
-        const baseUrl = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:9002');
-        const processImageUrl = `${baseUrl}/api/process-image`;
-        
-        // Use the currently authenticated user's token for the internal API call
-        const token = (await wpApi.defaults.headers.common['Authorization'] as string).split(' ')[1];
-
-        const processResponse = await axios.post(processImageUrl, {
-            imageUrl: imageUrl
-        }, {
+        const imageResponse = await axios.get(imageUrl, {
             responseType: 'arraybuffer',
-            headers: { 'Authorization': `Bearer ${token}` }
         });
 
-        const processedBuffer = Buffer.from(processResponse.data);
-        const webpFilename = seoFilename.replace(/\.[^/.]+$/, "") + ".webp";
-
+        const imageBuffer = Buffer.from(imageResponse.data);
+        
         const formData = new FormData();
-        formData.append('file', processedBuffer, webpFilename);
+        formData.append('file', imageBuffer, {
+            filename: seoFilename,
+            contentType: imageResponse.headers['content-type'] || 'application/octet-stream',
+        });
         formData.append('title', imageMetadata.title);
         formData.append('alt_text', imageMetadata.alt_text);
         formData.append('caption', imageMetadata.caption);
@@ -231,7 +224,7 @@ export async function uploadImageToWordPress(
         const mediaResponse = await wpApi.post('/media', formData, {
             headers: {
                 ...formData.getHeaders(),
-                'Content-Disposition': `attachment; filename=${webpFilename}`,
+                'Content-Disposition': `attachment; filename=${seoFilename}`,
             },
         });
 
