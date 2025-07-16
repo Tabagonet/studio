@@ -1,6 +1,6 @@
 # Guía: Configurar Aplicación Personalizada de Shopify Partner (Flujo OAuth)
 
-Sigue estos pasos para crear una aplicación personalizada en tu panel de Shopify Partner. Esto nos dará los permisos necesarios para crear tiendas de desarrollo en tu nombre de forma segura y automática. Solo necesitas hacerlo una vez.
+Sigue estos pasos para crear una aplicación personalizada en tu panel de Shopify Partner. Esto nos dará los permisos necesarios para configurar tiendas de desarrollo en tu nombre de forma segura y automática. Solo necesitas hacerlo una vez.
 
 ### Paso 1: Crea una nueva aplicación
 
@@ -40,8 +40,6 @@ Después de crear la app, Shopify te llevará a la página de configuración.
 3.  Shopify podría pedirte un **"Dominio de la tienda"** como requisito. No te preocupes, esto no instalará la app en esa tienda. Puedes usar cualquier tienda de desarrollo activa como valor temporal.
 4.  Ahora, ve a la pestaña **"Acceso a la API"** (API access) o busca una opción llamada **"Configurar ámbitos de la API de Administrador"** (Configure Admin API scopes).
 5.  Se desplegará una lista larga de permisos. Busca y marca las casillas para los siguientes permisos:
-    *   ✅ `write_development_stores`
-    *   ✅ `read_development_stores`
     *   ✅ `write_products`
     *   ✅ `read_products`
     *   ✅ `write_themes`
@@ -63,9 +61,9 @@ Después de crear la app, Shopify te llevará a la página de configuración.
 3.  Vuelve a la plataforma AutoPress AI, a **Ajustes > Conexiones**. En la tarjeta "Conexión Global de Shopify", pega el valor en el campo **"Client ID"**.
 4.  Vuelve al panel de Shopify Partner y copia el valor de **`Client Secret`**.
 5.  Pega este valor en el campo **"Client Secret"** de nuestra plataforma.
-6.  Haz clic en **"Guardar Credenciales"**.
+6.  Haz clic en **"Guardar Credenciales Globales"**.
 
 ### Paso 5: Verifica la conexión
 
-*   **Verificación Implícita:** A diferencia de la API de Partner, las credenciales de OAuth no se pueden "verificar" con una simple llamada. La única forma de asegurarse de que funcionan es completar el flujo de creación de una tienda.
-*   **Prueba Real:** La mejor forma de probarlo es seguir nuestra **Guía de Pruebas** para crear una tienda. Si el proceso te redirige a Shopify para autorizar la app y luego finaliza correctamente, ¡tus credenciales de OAuth están bien configuradas!
+*   **Verificación Implícita:** A diferencia de otras APIs, las credenciales de OAuth solo se pueden verificar intentando usarlas.
+*   **Prueba Real:** La mejor forma de probarlo es seguir nuestra **Guía de Pruebas**. Si al hacer clic en "Autorizar Instalación", el sistema te redirige a Shopify para dar tu consentimiento, ¡tus credenciales de OAuth están bien configuradas!

@@ -1,30 +1,25 @@
+// src/app/api/shopify/create-store/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, admin, adminAuth, getServiceAccountCredentials } from '@/lib/firebase-admin';
+import { adminDb, admin, adminAuth } from '@/lib/firebase-admin';
 import { z } from 'zod';
-import { CloudTasksClient } from '@google-cloud/tasks';
-import { getPartnerCredentials } from '@/lib/api-helpers';
 
-
-// This API route handles requests to create new Shopify stores.
-// It validates the input, creates a job record in Firestore, and enqueues a Cloud Task.
+// This API route handles requests to create new Shopify jobs.
+// It validates the input and creates a job record in Firestore.
 
 export const dynamic = 'force-dynamic';
 
-const shopifyStoreCreationSchema = z.object({
+const shopifyJobCreationSchema = z.object({
   webhookUrl: z.string().url({ message: "La URL del webhook no es válida." }),
   storeName: z.string().min(3, "El nombre de la tienda debe tener al menos 3 caracteres."),
   businessEmail: z.string().email("El email del negocio no es válido."),
-  ownerFirstName: z.string().min(1, "El nombre del propietario es obligatorio."),
-  ownerLastName: z.string().min(1, "El apellido del propietario es obligatorio."),
-  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres.").optional(),
-  countryCode: z.string().length(2, "El código de país debe tener 2 caracteres.").optional(),
-  currency: z.string().length(3, "El código de moneda debe tener 3 caracteres.").optional(),
+  
   brandDescription: z.string().min(1, "La descripción de la marca es obligatoria."),
   targetAudience: z.string().min(1, "El público objetivo es obligatorio."),
   brandPersonality: z.string().min(1, "La personalidad de la marca es obligatoria."),
   colorPaletteSuggestion: z.string().optional(),
   productTypeDescription: z.string().min(1, "La descripción del tipo de producto es obligatoria."),
+  
   creationOptions: z.object({
     createExampleProducts: z.boolean(),
     numberOfProducts: z.number().min(0).max(10).optional(),
@@ -36,10 +31,12 @@ const shopifyStoreCreationSchema = z.object({
     setupBasicNav: z.boolean(),
     theme: z.string().optional(),
   }),
+
   legalInfo: z.object({
     legalBusinessName: z.string().min(1, "El nombre legal del negocio es obligatorio."),
     businessAddress: z.string().min(1, "La dirección del negocio es obligatoria."),
   }),
+
   entity: z.object({
     type: z.enum(['user', 'company']),
     id: z.string(),
@@ -52,7 +49,7 @@ const testCreationSchema = z.object({
 
 
 async function handleTestCreation(uid: string) {
-    console.log(`[Shopify Create Store] Test Call: Generating test data...`);
+    console.log(`[Shopify Job] Test Call: Generating test data for user ${uid}...`);
     if (!adminDb) {
       throw new Error("Firestore is not configured.");
     }
@@ -68,17 +65,12 @@ async function handleTestCreation(uid: string) {
       throw new Error("La empresa propietaria 'Grupo 4 alas S.L.' no se encuentra en la base de datos.");
     }
     const ownerCompanyId = companyQuery.docs[0].id;
-    console.log(`[Shopify Create Store] Test Call: Found owner company ID: ${ownerCompanyId}`);
+    console.log(`[Shopify Job] Test Call: Found owner company ID: ${ownerCompanyId}`);
 
     const jobPayload = {
-      webhookUrl: "https://webhook.site/#!/view/1b8a9b3f-8c3b-4c1e-9d2a-9e1b5f6a7d1c", 
+      webhookUrl: "https://webhook.site/#!/view/1b8a9b3f-8c3b-4c1e-9d2a-9e1b5f6a7d1c", // Placeholder
       storeName: storeData.storeName,
       businessEmail: storeData.businessEmail,
-      ownerFirstName: "Test",
-      ownerLastName: "User",
-      password: `Segura${Date.now()}!`,
-      countryCode: "ES",
-      currency: "EUR",
       brandDescription: "Una tienda de prueba generada automáticamente para verificar el flujo de creación de AutoPress AI.",
       targetAudience: "Desarrolladores y equipo de producto.",
       brandPersonality: "Funcional, robusta y eficiente.",
@@ -103,38 +95,34 @@ async function handleTestCreation(uid: string) {
         id: ownerCompanyId,
       }
     };
-    console.log(`[Shopify Create Store] Test Call: Test data generated successfully.`);
+    console.log(`[Shopify Job] Test Call: Test data generated successfully.`);
     return jobPayload;
 }
 
 
 export async function POST(req: NextRequest) {
-    console.log(`[Shopify Create Store] Step 1: POST request received.`);
+    console.log(`[Shopify Job] Step 1: POST request received to create a new job.`);
   try {
     const providedApiKey = req.headers.get('Authorization')?.split('Bearer ')[1];
     let uid: string | null = null;
     let isTestCall = false;
 
-    if (providedApiKey) {
-      try {
+    if (!providedApiKey) {
+        throw new Error('No autorizado: Falta el token de autenticación o la clave de API.');
+    }
+
+    try {
         if (!adminAuth) throw new Error("Firebase Admin Auth no está inicializado.");
         const decodedToken = await adminAuth.verifyIdToken(providedApiKey);
         uid = decodedToken.uid;
-        console.log(`[Shopify Create Store] Step 1.1: Authenticated via Firebase token. UID: ${uid}`);
-      } catch (firebaseError) {
-        console.log(`[Shopify Create Store] Step 1.1: Not a Firebase token. Checking for system API key...`);
-        const partnerCreds = await getPartnerCredentials();
-        const serverApiKey = partnerCreds.automationApiKey;
-        if (!serverApiKey) {
-          throw new Error('Servicio de automatización no configurado en el servidor.');
+        console.log(`[Shopify Job] Authenticated via Firebase token. UID: ${uid}`);
+    } catch (firebaseError) {
+        console.log(`[Shopify Job] Not a Firebase token. Checking for system API key...`);
+        const serverApiKey = process.env.SHOPIFY_AUTOMATION_API_KEY;
+        if (!serverApiKey || providedApiKey !== serverApiKey) {
+            throw new Error('No autorizado: Clave de API no válida.');
         }
-        if (providedApiKey !== serverApiKey) {
-          throw new Error('No autorizado: Clave de API no válida.');
-        }
-         console.log(`[Shopify Create Store] Step 1.1: Authenticated via system API key.`);
-      }
-    } else {
-        throw new Error('No autorizado: Falta el token de autenticación o la clave de API.');
+        console.log(`[Shopify Job] Authenticated via system API key.`);
     }
     
     if (!adminDb) {
@@ -142,27 +130,27 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    console.log(`[Shopify Create Store] Step 2: Request body parsed.`);
+    console.log(`[Shopify Job] Step 2: Request body parsed.`);
     
     const testCheck = testCreationSchema.safeParse(body);
-    if (uid && testCheck.success && testCheck.data.isTest) {
+    if (testCheck.success && testCheck.data.isTest) {
         isTestCall = true;
-        console.log(`[Shopify Create Store] Step 2.1: Detected as a test call.`);
+        console.log(`[Shopify Job] Step 2.1: Detected as a test call.`);
     }
 
-    let jobData: z.infer<typeof shopifyStoreCreationSchema>;
+    let jobData: z.infer<typeof shopifyJobCreationSchema>;
 
     if (isTestCall) {
         if (!uid) throw new Error("La llamada de prueba debe provenir de un usuario autenticado.");
         jobData = await handleTestCreation(uid);
     } else {
-        const validation = shopifyStoreCreationSchema.safeParse(body);
+        const validation = shopifyJobCreationSchema.safeParse(body);
         if (!validation.success) {
-            console.error('[Shopify Create Store] Step 2.1: Schema validation failed.', validation.error.flatten());
+            console.error('[Shopify Job] Step 2.1: Schema validation failed.', validation.error.flatten());
             return NextResponse.json({ error: 'Cuerpo de la petición inválido.', details: validation.error.flatten() }, { status: 400 });
         }
         jobData = validation.data;
-        console.log(`[Shopify Create Store] Step 2.1: Schema validated successfully for a standard call.`);
+        console.log(`[Shopify Job] Step 2.1: Schema validated successfully for job: ${jobData.storeName}`);
     }
     
     const { entity } = jobData;
@@ -171,51 +159,22 @@ export async function POST(req: NextRequest) {
     if (!entityDoc.exists) {
         throw new Error(`La entidad especificada (${entity.type}: ${entity.id}) no existe.`);
     }
-    console.log(`[Shopify Create Store] Step 3: Entity verified: ${entity.type} with ID ${entity.id}.`);
+    console.log(`[Shopify Job] Step 3: Entity verified: ${entity.type} with ID ${entity.id}.`);
 
     const jobRef = adminDb.collection('shopify_creation_jobs').doc();
     await jobRef.set({
       ...jobData,
-      status: 'pending',
+      status: 'pending', // The job starts here, waiting for a store to be assigned.
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      logs: [{ timestamp: new Date(), message: 'Trabajo creado y encolado.' }]
+      logs: [{ timestamp: new Date(), message: 'Trabajo creado y pendiente de asignación de tienda.' }]
     });
-    console.log(`[Shopify Create Store] Step 4: Firestore job document created with ID: ${jobRef.id}`);
+    console.log(`[Shopify Job] Step 4: Firestore job document created with ID: ${jobRef.id}`);
 
-    const jobId = jobRef.id;
-    if (process.env.NODE_ENV === 'development') {
-        console.log(`[Shopify Create Store] Step 5: DEV MODE - Calling task handler directly for Job ID: ${jobId}`);
-        const { handleCreateShopifyStore } = require('@/lib/tasks/create-shopify-store');
-        handleCreateShopifyStore(jobId).catch((e: any) => {
-            console.error(`[DEV Direct Call] Error executing task for job ${jobId}:`, e);
-        });
-    } else {
-        const tasksClient = new CloudTasksClient({
-          credentials: getServiceAccountCredentials(),
-          projectId: process.env.FIREBASE_PROJECT_ID,
-        });
-        
-        const parent = tasksClient.queuePath(process.env.FIREBASE_PROJECT_ID!, 'europe-west1', 'autopress-jobs');
-        const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/create-shopify-store`;
-        const task = {
-            httpRequest: {
-                httpMethod: 'POST' as const,
-                url: targetUri,
-                headers: { 'Content-Type': 'application/json' },
-                body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
-                oidcToken: { serviceAccountEmail: getServiceAccountCredentials().client_email },
-            },
-        };
-        await tasksClient.createTask({ parent, task });
-    }
-    
-    console.log(`[Shopify Create Store] Step 6: Task processing initiated.`);
-
-    return NextResponse.json({ success: true, jobId: jobId }, { status: 202 });
+    return NextResponse.json({ success: true, jobId: jobRef.id }, { status: 202 });
 
   } catch (error: any) {
-    console.error('Error creating Shopify creation job:', { 
+    console.error('Error creating Shopify job:', { 
         message: error.message, 
         stack: error.stack,
         code: error.code,

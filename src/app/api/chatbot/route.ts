@@ -1,3 +1,4 @@
+// src/app/api/chatbot/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getChatbotResponse, extractAnalysisData } from '@/ai/flows/chatbot-flow';
@@ -76,13 +77,6 @@ async function triggerStoreCreationWithExampleData() {
     const storeData = {
         storeName: `Tienda de Prueba ${timestamp}`,
         businessEmail: `test-${timestamp}@example.com`,
-        countryCode: "ES",
-        currency: "EUR",
-        brandDescription: "Una tienda de prueba generada automáticamente para verificar el flujo de creación de AutoPress AI.",
-        targetAudience: "Desarrolladores y equipo de producto.",
-        brandPersonality: "Funcional, robusta y eficiente.",
-        legalBusinessName: "AutoPress Testing SL",
-        businessAddress: "Calle Ficticia 123, 08001, Barcelona, España"
     };
     
     const companyQuery = await adminDb.collection('companies').where('name', '==', 'Grupo 4 alas S.L.').limit(1).get();
@@ -90,21 +84,14 @@ async function triggerStoreCreationWithExampleData() {
       throw new Error("La empresa propietaria 'Grupo 4 alas S.L.' no se encuentra en la base de datos.");
     }
     const ownerCompanyId = companyQuery.docs[0].id;
-
-    // This is a test flow that creates a job with pre-filled data.
-    // The key change is that storeDomain and adminApiAccessToken would need to be provided
-    // for a real-world scenario based on the new workflow. This test implies a pre-configured template store.
+    
     const jobPayload = {
-      storeDomain: process.env.TEST_SHOPIFY_STORE_DOMAIN, // Needs to be configured in .env for this test to work
-      adminApiAccessToken: process.env.TEST_SHOPIFY_ADMIN_TOKEN, // Needs to be configured in .env
       webhookUrl: "https://webhook.site/#!/view/1b8a9b3f-8c3b-4c1e-9d2a-9e1b5f6a7d1c", 
       storeName: storeData.storeName,
       businessEmail: storeData.businessEmail,
-      countryCode: storeData.countryCode,
-      currency: storeData.currency,
-      brandDescription: storeData.brandDescription,
-      targetAudience: storeData.targetAudience,
-      brandPersonality: storeData.brandPersonality,
+      brandDescription: "Una tienda de prueba generada automáticamente para verificar el flujo de creación de AutoPress AI.",
+      targetAudience: "Desarrolladores y equipo de producto.",
+      brandPersonality: "Funcional, robusta y eficiente.",
       productTypeDescription: 'Productos de ejemplo para tienda nueva',
       creationOptions: {
         createExampleProducts: true,
@@ -118,16 +105,16 @@ async function triggerStoreCreationWithExampleData() {
         theme: "dawn",
       },
       legalInfo: {
-        legalBusinessName: storeData.legalBusinessName,
-        businessAddress: storeData.businessAddress,
+        legalBusinessName: "AutoPress Testing SL",
+        businessAddress: "Calle Ficticia 123, 08001, Barcelona, España",
       },
       entity: {
-        type: 'company',
+        type: 'company' as 'user' | 'company',
         id: ownerCompanyId,
       }
     };
     
-    // Call our own API to create the job and enqueue the task
+    // Call our own API to create the job.
     await axios.post(`${process.env.NEXT_PUBLIC_BASE_URL}/api/shopify/create-store`, jobPayload, {
         headers: {
             'Content-Type': 'application/json',
@@ -135,7 +122,7 @@ async function triggerStoreCreationWithExampleData() {
         }
     });
     
-    return `¡Perfecto! Usando datos de ejemplo, estamos iniciando la personalización de tu tienda Shopify: "${storeData.storeName}". Ve al panel de "Trabajos" para ver el progreso.`;
+    return `¡Perfecto! Usando datos de ejemplo, hemos creado una solicitud de trabajo para: "${storeData.storeName}". Ve al panel de "Trabajos" para asignarle una tienda de desarrollo y continuar el proceso.`;
 }
 
 
