@@ -1,9 +1,10 @@
 
+
 // src/app/api/check-config/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import type * as admin from 'firebase-admin';
-import { getApiClientsForUser } from '@/lib/api-helpers';
+import { getApiClientsForUser, getPartnerCredentials } from '@/lib/api-helpers';
 import type { AxiosInstance } from 'axios';
 
 export const dynamic = 'force-dynamic';

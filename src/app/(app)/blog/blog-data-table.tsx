@@ -520,6 +520,7 @@ export function BlogDataTable() {
 
   const selectedRowCount = table.getFilteredSelectedRowModel().rows.length;
   const isBatchActionLoading = isActionLoading || isLinking;
+  const isLanguageFunctionalityEnabled = availableLanguages.length > 0;
 
   return (
     <div className="w-full space-y-4">
@@ -564,7 +565,7 @@ export function BlogDataTable() {
                 <SelectItem value="trash">En Papelera</SelectItem>
               </SelectContent>
             </Select>
-             <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+             <Select value={selectedLanguage} onValueChange={setSelectedLanguage} disabled={!isLanguageFunctionalityEnabled}>
                 <SelectTrigger className="w-full sm:w-auto sm:min-w-[150px] flex-grow">
                     <Languages className="mr-2 h-4 w-4" />
                     <SelectValue placeholder="Idioma..." />
@@ -593,7 +594,7 @@ export function BlogDataTable() {
               <DropdownMenuItem onSelect={handleBatchSeoMeta}>
                 <Sparkles className="mr-2 h-4 w-4" /> Generar Título y Descripción SEO
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={handleBatchLinkTranslations} disabled={selectedRowCount < 2}>
+              <DropdownMenuItem onSelect={handleBatchLinkTranslations} disabled={!isLanguageFunctionalityEnabled || selectedRowCount < 2}>
                   <Link2 className="mr-2 h-4 w-4" /> Enlazar Traducciones
               </DropdownMenuItem>
               <DropdownMenuSeparator />

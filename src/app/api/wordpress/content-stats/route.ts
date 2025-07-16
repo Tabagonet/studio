@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     
     const languageCounts: { [key: string]: number } = {};
     allContent.forEach(item => {
-        const lang = item.lang || 'unknown';
+        const lang = item.lang || 'default';
         languageCounts[lang] = (languageCounts[lang] || 0) + 1;
     });
 
