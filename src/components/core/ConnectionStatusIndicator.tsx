@@ -56,8 +56,7 @@ export const ConnectionStatusIndicator = ({ status, isLoading, onRefresh, platfo
   const wpActive = !!status?.wordPressConfigured;
   const wooActive = !!status?.wooCommerceConfigured;
   
-  // The plugin is now considered "active" if the WordPress connection itself is configured.
-  const isPluginVerifiedAndActive = wpActive;
+  const isPluginVerifiedAndActive = wpActive && !!status?.pluginActive;
 
   const showWooCommerce = platformToShow === 'all' || platformToShow === 'woocommerce';
   const showShopify = platformToShow === 'all' || platformToShow === 'shopify';
@@ -100,30 +99,6 @@ export const ConnectionStatusIndicator = ({ status, isLoading, onRefresh, platfo
     );
   }
   
-  if (!wpActive && status.activePlatform === 'woocommerce') {
-      return (
-        <div className="flex items-center gap-2">
-            <Link href="/settings/connections" className="flex items-center gap-2 text-sm text-destructive hover:text-destructive/80 transition-colors" title="El plugin de AutoPress AI no se detecta. Haz clic para ir a Ajustes.">
-                <AlertCircle className="h-4 w-4" />
-                <span className="hidden md:inline">Conexión Incompleta</span>
-            </Link>
-             <div className="flex items-center gap-2 flex-shrink-0">
-                <TooltipProvider><Tooltip>
-                    <TooltipTrigger>
-                    <Globe className="h-4 w-4 text-destructive" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p>WordPress: No Configurado</p>
-                    </TooltipContent>
-                </Tooltip></TooltipProvider>
-             </div>
-            <TooltipProvider><Tooltip><TooltipTrigger asChild>
-                <Button variant="ghost" size="icon-sm" onClick={onRefresh} disabled={isLoading}><RefreshCw className={cn("h-4 w-4 text-muted-foreground", isLoading && "animate-spin")} /></Button>
-            </TooltipTrigger><TooltipContent><p>Refrescar Estado</p></TooltipContent></Tooltip></TooltipProvider>
-        </div>
-      )
-  }
-
   return (
     <div className="flex items-center gap-2">
         <TooltipProvider delayDuration={100}>
@@ -135,7 +110,7 @@ export const ConnectionStatusIndicator = ({ status, isLoading, onRefresh, platfo
                         <div className="flex items-center gap-2">
                             <Tooltip>
                                 <TooltipTrigger>
-                                <Store className={cn("h-4 w-4", wooActive ? "text-green-500" : "text-muted-foreground")} />
+                                <Store className={cn("h-4 w-4", wooActive ? "text-green-500" : "text-gray-400")} />
                                 </TooltipTrigger>
                                 <TooltipContent>
                                     <p>WooCommerce: {wooActive ? "Configurado" : "No Configurado"}</p>
@@ -146,7 +121,15 @@ export const ConnectionStatusIndicator = ({ status, isLoading, onRefresh, platfo
                                 <Globe className={cn("h-4 w-4", wpActive ? "text-green-500" : "text-destructive")} />
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                    <p>WordPress: {wpActive ? "Configurado" : "No Configurado"}</p>
+                                    <p>WordPress: {wpActive ? "Conectado" : "No Conectado"}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                             <Tooltip>
+                                <TooltipTrigger>
+                                <PlugZap className={cn("h-4 w-4", isPluginVerifiedAndActive ? "text-green-500" : "text-destructive")} />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Plugin: {isPluginVerifiedAndActive ? "Verificado" : (status.pluginError || "No responde")}</p>
                                 </TooltipContent>
                             </Tooltip>
                         </div>

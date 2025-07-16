@@ -4,10 +4,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import type * as admin from 'firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
+import type { AxiosInstance } from 'axios';
 
 export const dynamic = 'force-dynamic';
 
-async function verifyPluginStatus(wpApi: any): Promise<{ isActive: boolean; error?: string }> {
+async function verifyPluginStatus(wpApi: AxiosInstance | null): Promise<{ isActive: boolean; error?: string }> {
   if (!wpApi) return { isActive: false, error: 'WordPress API not configured.' };
 
   const adminAjaxUrl = `${wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '/admin-ajax.php')}`;
@@ -38,6 +39,18 @@ async function verifyPluginStatus(wpApi: any): Promise<{ isActive: boolean; erro
     return { isActive: false, error: reason };
   }
 }
+
+async function verifyBaseWpConnection(wpApi: AxiosInstance | null): Promise<boolean> {
+    if (!wpApi) return false;
+    try {
+        // A simple GET request to the base of the API is enough to check credentials and reachability.
+        await wpApi.get('/');
+        return true;
+    } catch (error) {
+        return false;
+    }
+}
+
 
 export async function GET(req: NextRequest) {
   let uid: string;
@@ -101,8 +114,9 @@ export async function GET(req: NextRequest) {
     
     if (activeKey && allConnections[activeKey]) {
         const activeConnection = allConnections[activeKey];
+        
         userConfig.wooCommerceConfigured = !!(activeConnection.wooCommerceStoreUrl && activeConnection.wooCommerceApiKey && activeConnection.wooCommerceApiSecret);
-        userConfig.wordPressConfigured = !!(activeConnection.wordpressApiUrl && activeConnection.wordpressUsername && activeConnection.wordpressApplicationPassword);
+        userConfig.wordPressConfigured = await verifyBaseWpConnection(wpApi); // Use new base connection check
         userConfig.shopifyConfigured = !!(activeConnection.shopifyStoreUrl && activeConnection.shopifyApiPassword);
         activeStoreUrl = activeConnection.wooCommerceStoreUrl || activeConnection.wordpressApiUrl || activeConnection.shopifyStoreUrl || null;
 
@@ -112,6 +126,7 @@ export async function GET(req: NextRequest) {
           activePlatform = 'woocommerce';
         }
 
+        // Only check for the plugin if the base WP connection is successful.
         if (userConfig.wordPressConfigured) {
            const pluginCheck = await verifyPluginStatus(wpApi);
            userConfig.pluginActive = pluginCheck.isActive;
