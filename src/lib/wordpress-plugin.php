@@ -46,23 +46,37 @@ function autopress_ai_options_page() {
             resultDiv.style.borderColor = '#cccccc';
             button.disabled = true;
 
-            fetch('<?php echo esc_url_raw(get_rest_url(null, 'custom/v1/status')); ?>')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.verified) {
-                        resultDiv.textContent = '¡Éxito! ' + data.message;
-                        resultDiv.style.borderColor = '#46b450';
-                    } else {
-                        resultDiv.textContent = 'Error: ' + data.message;
-                        resultDiv.style.borderColor = '#dc3232';
-                    }
-                    button.disabled = false;
-                })
-                .catch(error => {
-                    resultDiv.textContent = 'Error de comunicación. No se pudo contactar con el endpoint de estado.';
+            fetch('<?php echo esc_url_raw(get_rest_url(null, 'custom/v1/status')); ?>', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': '<?php echo esc_js(wp_create_nonce('wp_rest')); ?>'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => {
+                        // Use the 'message' field from WordPress's standard error response
+                        throw new Error(err.message || 'Error de comunicación.');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.verified) {
+                    resultDiv.textContent = '¡Éxito! ' + data.message;
+                    resultDiv.style.borderColor = '#46b450';
+                } else {
+                    resultDiv.textContent = 'Error: ' + data.message;
                     resultDiv.style.borderColor = '#dc3232';
-                    button.disabled = false;
-                });
+                }
+                button.disabled = false;
+            })
+            .catch(error => {
+                resultDiv.textContent = 'Error: ' + error.message;
+                resultDiv.style.borderColor = '#dc3232';
+                button.disabled = false;
+            });
         });
     </script>
     <?php
@@ -84,6 +98,13 @@ function custom_api_register_yoast_meta_fields() {
 
 // Security Check function to be used as permission_callback
 function autopress_ai_permission_check( WP_REST_Request $request ) {
+    
+    // Allow if the user is logged in and making the request from the admin panel (Nonce check)
+    if ( is_user_logged_in() && check_admin_referer('wp_rest') ) {
+        return current_user_can('edit_posts');
+    }
+    
+    // Fallback to Application Password (Basic Auth) check for AutoPress AI app calls
     $auth_header = $request->get_header('authorization');
     if (!$auth_header) return false;
 
@@ -111,16 +132,6 @@ function autopress_ai_permission_check( WP_REST_Request $request ) {
     if (!$is_valid_password) return false;
     
     // Now, verify against AutoPress AI server
-    $api_key_query = new WP_Query([
-        'post_type' => 'application_password',
-        'post_author' => $user->ID,
-        'posts_per_page' => 1,
-        's' => $app_password, // This is a bit of a hack, but should work
-        'sentence' => true,
-    ]);
-    
-    if (empty($api_key_query->posts)) return false; // This shouldn't happen if password was valid
-    
     $api_key = get_user_meta($user->ID, 'autopress_api_key', true);
     if (!$api_key) return false; // User must have an API key associated
     
