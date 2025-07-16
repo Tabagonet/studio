@@ -81,9 +81,9 @@ function autopress_ai_register_rest_endpoints() {
         register_rest_route( 'custom/v1', '/content-list', ['methods'  => 'GET', 'callback' => 'custom_api_get_content_list', 'permission_callback' => function () { return current_user_can( 'edit_posts' ); }]);
         // This endpoint is the primary method for status verification.
         register_rest_route( 'custom/v1', '/status', ['methods' => 'GET', 'callback' => 'custom_api_status_check', 'permission_callback' => '__return_true']);
-        register_rest_route( 'custom/v1', '/trash-post/{id}', ['methods' => 'POST', 'callback' => 'custom_api_trash_single_post', 'permission_callback' => function ($request) { return current_user_can( 'delete_post', $request['id'] ); }]);
+        register_rest_route( 'custom/v1', '/trash-post/(?P<id>\d+)', ['methods' => 'POST', 'callback' => 'custom_api_trash_single_post', 'permission_callback' => function ($request) { return current_user_can( 'delete_post', $request['id'] ); }]);
         // New endpoint for regenerating Elementor CSS
-        register_rest_route( 'custom/v1', '/regenerate-css/{id}', ['methods' => 'POST', 'callback' => 'custom_api_regenerate_elementor_css', 'permission_callback' => function ($request) { return current_user_can( 'edit_post', $request['id'] ); }]);
+        register_rest_route( 'custom/v1', '/regenerate-css/(?P<id>\d+)', ['methods' => 'POST', 'callback' => 'custom_api_regenerate_elementor_css', 'permission_callback' => function ($request) { return current_user_can( 'edit_post', $request['id'] ); }]);
     });
     
     function custom_api_status_check() {
