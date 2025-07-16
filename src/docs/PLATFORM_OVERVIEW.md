@@ -27,8 +27,6 @@ A continuación se presenta un resumen de las funcionalidades, herramientas y pr
 
 ## Módulos de Automatización de Shopify
 
--   Creación de Tiendas de Desarrollo
--   Asignación de Tiendas
 -   Autorización OAuth
 -   Poblado de Contenido con IA
 -   Gestor de Trabajos de Creación
