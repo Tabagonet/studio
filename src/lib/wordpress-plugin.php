@@ -1,4 +1,3 @@
-
 <?php
 /*
 Plugin Name: AutoPress AI Helper
@@ -50,7 +49,6 @@ function autopress_ai_options_page() {
             var restUrl = '<?php echo esc_url_raw(get_rest_url(null, 'custom/v1/status')); ?>';
             var nonce = '<?php echo esc_js(wp_create_nonce('wp_rest')); ?>';
             
-            // Send nonce as a header for better compatibility
             fetch(restUrl, {
                 method: 'GET',
                 headers: {
@@ -102,51 +100,58 @@ function custom_api_register_yoast_meta_fields() {
 
 // Security Check function to be used as permission_callback
 function autopress_ai_permission_check( WP_REST_Request $request ) {
-    // Priority 1: Check for Basic Auth (Application Password) from AutoPress AI
-    $auth_header = $request->get_header('authorization');
-    if ($auth_header) {
-        list($type, $credentials) = explode(' ', $auth_header, 2);
-        if ('basic' === strtolower($type)) {
-            $decoded = base64_decode($credentials);
-            if (strpos($decoded, ':') === false) return false;
-            
-            list($username, $app_password) = explode(':', $decoded, 2);
-            $user = get_user_by('login', $username);
+    error_log('[AutoPress AI] Iniciando comprobación de permisos.');
 
-            if (!$user) return false;
-            
-            require_once ABSPATH . 'wp-admin/includes/class-wp-application-passwords.php';
-            if (!class_exists('WP_Application_Passwords')) return false;
+    // --- Method 1: Application Password (for external app) ---
+    if (isset($_SERVER['PHP_AUTH_USER']) && isset($_SERVER['PHP_AUTH_PW'])) {
+        error_log('[AutoPress AI] Detectada autenticación básica (Contraseña de Aplicación).');
+        $username = $_SERVER['PHP_AUTH_USER'];
+        $app_password = $_SERVER['PHP_AUTH_PW'];
+        $user = get_user_by('login', $username);
 
-            $app_passwords_list = WP_Application_Passwords::get_user_application_passwords($user->ID);
-            $is_valid_password = false;
-            foreach ($app_passwords_list as $password_data) {
-                if (wp_check_password($app_password, $password_data['password'], $user->ID)) {
-                    $is_valid_password = true;
-                    break;
-                }
+        if (!$user) {
+            error_log('[AutoPress AI] Fallo: Usuario de Contraseña de Aplicación no encontrado: ' . $username);
+            return false;
+        }
+
+        require_once ABSPATH . 'wp-admin/includes/class-wp-application-passwords.php';
+        if (!class_exists('WP_Application_Passwords')) {
+            error_log('[AutoPress AI] Fallo: La clase WP_Application_Passwords no existe.');
+            return false;
+        }
+
+        $app_passwords_list = WP_Application_Passwords::get_user_application_passwords($user->ID);
+        $is_valid_password = false;
+        foreach ($app_passwords_list as $password_data) {
+            if (wp_check_password($app_password, $password_data['password'], $user->ID)) {
+                $is_valid_password = true;
+                break;
             }
-            if (!$is_valid_password) return false;
-
-            // If the password is valid, proceed with the external verification
-            $api_key = get_user_meta($user->ID, 'autopress_api_key', true) ?: get_option('autopress_api_key');
-            if (!$api_key) return false;
-
-            $response = wp_remote_get( "https://autopress.intelvisual.es/api/license/verify-plugin?apiKey=" . $api_key . "&siteUrl=" . urlencode(home_url()) );
-
-            if (is_wp_error($response)) return false;
-            $body = json_decode(wp_remote_retrieve_body($response), true);
-            return isset($body['status']) && $body['status'] === 'active';
+        }
+        
+        if ($is_valid_password) {
+            error_log('[AutoPress AI] Éxito: Contraseña de Aplicación válida para el usuario ' . $username);
+            return true;
+        } else {
+            error_log('[AutoPress AI] Fallo: Contraseña de Aplicación inválida para el usuario ' . $username);
+            return false;
         }
     }
 
-    // Priority 2: Check for Nonce from WordPress Admin panel
+    // --- Method 2: Nonce (for internal WP-Admin check) ---
     $nonce = $request->get_header('X-WP-Nonce');
     if ($nonce) {
-        return wp_verify_nonce($nonce, 'wp_rest') && current_user_can('edit_posts');
+        error_log('[AutoPress AI] Detectado Nonce. Verificando...');
+        if (wp_verify_nonce($nonce, 'wp_rest') && is_user_logged_in() && current_user_can('edit_posts')) {
+            error_log('[AutoPress AI] Éxito: Nonce verificado para usuario con sesión iniciada.');
+            return true;
+        } else {
+            error_log('[AutoPress AI] Fallo: Verificación de Nonce fallida o el usuario no tiene permisos.');
+            return false;
+        }
     }
     
-    // If neither method succeeds, deny permission.
+    error_log('[AutoPress AI] Fallo: No se proporcionó ningún método de autenticación válido.');
     return false;
 }
 
@@ -186,15 +191,7 @@ function autopress_ai_register_rest_endpoints() {
     });
     
     function custom_api_status_check($request) {
-        if (!autopress_ai_permission_check($request)) {
-             return new WP_REST_Response([
-                'status' => 'error',
-                'plugin_version' => autopress_ai_get_plugin_version(),
-                'verified' => false,
-                'message' => 'Fallo en la verificación con el servidor de AutoPress AI.',
-            ], 403);
-        }
-
+        // The permission callback already handled verification. If we got here, it's a success.
         return new WP_REST_Response([
             'status' => 'ok',
             'plugin_version' => autopress_ai_get_plugin_version(),
@@ -276,3 +273,5 @@ function autopress_ai_register_rest_endpoints() {
         }
     }
 }
+
+?>
