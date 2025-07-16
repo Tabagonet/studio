@@ -48,9 +48,9 @@ export async function POST(req: NextRequest) {
 
             const successCount = resultData.success?.length || 0;
             const failedCount = resultData.failed?.length || 0;
-            let message = `Proceso completado. ${successCount} entrada(s) movida(s) a la papelera.`;
+            let message = `Proceso completado. ${successCount} elemento(s) movido(s) a la papelera.`;
             if (failedCount > 0) {
-                message += ` ${failedCount} fallida(s).`;
+                message += ` ${failedCount} fallido(s).`;
             }
 
             return NextResponse.json({ message, results: resultData });
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
         console.error('Error in blog batch action API:', error.response?.data || error.message);
         let errorMessage = error.response?.data?.message || error.message || 'An unexpected error occurred during batch processing.';
         if (error.response?.status === 404) {
-             errorMessage = 'Endpoint de borrado en lote no encontrado. Por favor, actualiza el plugin personalizado en WordPress con la última versión.';
+             errorMessage = 'Endpoint de borrado en lote no encontrado. Por favor, actualiza el plugin personalizado en WordPress a la última versión.';
         }
         const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
         return NextResponse.json({ error: errorMessage }, { status });

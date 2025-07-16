@@ -14,6 +14,7 @@ import {
   type ColumnFiltersState,
   type ExpandedState,
   type RowSelectionState,
+  type SortingState,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -43,11 +44,11 @@ interface PageDataTableProps {
 
 export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDataTableProps) {
   const router = useRouter();
+  const [sorting, setSorting] = React.useState<SortingState>([{ id: 'title', desc: false }]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
   const [isActionLoading, setIsActionLoading] = React.useState(false);
-  const [languageFilter, setLanguageFilter] = React.useState('all');
   const { toast } = useToast();
 
   const tableData = React.useMemo((): HierarchicalContentItem[] => {
@@ -60,43 +61,42 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
     const processedIds = new Set<number>();
 
     enrichedData.forEach((item) => {
-        const currentItem = itemsById.get(item.id);
-        if (!currentItem || processedIds.has(item.id)) return;
+        if (processedIds.has(item.id)) return;
 
-        if (item.parent && itemsById.has(item.parent)) {
-            const parent = itemsById.get(item.parent);
-            if (parent) {
-                parent.subRows = parent.subRows || [];
-                parent.subRows.push(currentItem);
-                processedIds.add(item.id);
+        let mainItem: HierarchicalContentItem | undefined;
+        const translationIds = new Set(Object.values(item.translations || {}));
+        
+        if (translationIds.size > 1) {
+            const groupItems = Array.from(translationIds)
+                .map(id => itemsById.get(id))
+                .filter((p): p is HierarchicalContentItem => !!p);
+            
+            if (groupItems.length > 0) {
+                mainItem = groupItems.find(p => p.lang === 'es') || groupItems[0];
+                
+                if (mainItem) {
+                    mainItem.subRows = groupItems.filter(p => p.id !== mainItem!.id);
+                    groupItems.forEach(groupItem => processedIds.add(groupItem.id));
+                }
             }
         } else {
-            const translationSourceId = item.translations ? Object.values(item.translations).find(id => id !== item.id && itemsById.has(id)) : undefined;
-            if (translationSourceId && itemsById.has(translationSourceId)) {
-                const sourceItem = itemsById.get(translationSourceId);
-                if (sourceItem) {
-                    sourceItem.subRows = sourceItem.subRows || [];
-                    sourceItem.subRows.push(currentItem);
-                    processedIds.add(item.id);
-                }
-            } else {
-                roots.push(currentItem);
-                processedIds.add(item.id);
-            }
+            mainItem = itemsById.get(item.id);
+        }
+        
+        if (mainItem) {
+            roots.push(mainItem);
+            processedIds.add(mainItem.id);
         }
     });
 
-    const filteredRoots = roots.filter(item => {
-        const langMatch = languageFilter === 'all' || item.lang === languageFilter;
-        return langMatch;
-    });
-
-    const rootIds = new Set(filteredRoots.map(r => r.id));
-    return filteredRoots.filter(item => rootIds.has(item.id));
-  }, [data, scores, languageFilter]);
+    return roots.sort((a,b) => a.title.localeCompare(b.title));
+  }, [data, scores]);
 
   const handleEditContent = (item: ContentItem) => {
-    router.push(`/pages/edit/${item.id}`);
+    const editPath = item.type === 'Page' ? `/pages/edit/${item.id}` : 
+                     item.type === 'Post' ? `/blog/edit/${item.id}` :
+                     `/products/edit/${item.id}`;
+    router.push(editPath);
   };
 
   const handleDeleteContent = async (item: ContentItem) => {
@@ -107,10 +107,11 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
     }
     const token = await user.getIdToken();
     try {
-      const response = await fetch(`/api/wordpress/posts/${item.id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      const endpoint = item.type === 'Page' ? `/api/wordpress/pages/${item.id}` : `/api/wordpress/posts/${item.id}`;
+      const response = await fetch(endpoint, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || result.message);
-      toast({ title: "Página movida a la papelera" });
+      toast({ title: "Movido a la papelera", description: "El contenido ha sido enviado a la papelera de WordPress." });
       onDataChange(token);
     } catch (e: any) {
       toast({ title: "Error al mover a papelera", description: e.message, variant: "destructive" });
@@ -123,10 +124,12 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
     data: tableData,
     columns,
     state: {
+      sorting,
       expanded,
       columnFilters,
       rowSelection,
     },
+    onSortingChange: setSorting,
     onExpandedChange: setExpanded,
     onColumnFiltersChange: setColumnFilters,
     onRowSelectionChange: setRowSelection,
@@ -137,11 +140,6 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
     getPaginationRowModel: getPaginationRowModel(),
   });
   
-  const languages = React.useMemo(() => {
-    const langSet = new Set(data.map(item => item.lang).filter(Boolean));
-    return Array.from(langSet) as string[];
-  }, [data]);
-
   const handleBatchDelete = async () => {
     setIsActionLoading(true);
     const selectedRows = table.getSelectedRowModel().rows;
@@ -163,7 +161,7 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
         });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || result.message);
-        toast({ title: "Páginas movidas a la papelera", description: result.message });
+        toast({ title: "Contenido movido a la papelera", description: result.message });
         onDataChange(token);
         table.resetRowSelection();
     } catch (e: any) {
@@ -185,14 +183,14 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
     const token = await user.getIdToken();
     let successes = 0;
     
-    toast({ title: `Procesando ${selectedRows.length} página(s) con IA...`, description: "Esto puede tardar un momento." });
+    toast({ title: `Procesando ${selectedRows.length} elemento(s) con IA...`, description: "Esto puede tardar un momento." });
     
     for (const row of selectedRows) {
       try {
         const response = await fetch('/api/batch-actions/seo-meta', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ postId: row.original.id, postType: 'Page' })
+            body: JSON.stringify({ postId: row.original.id, postType: row.original.type })
         });
         if (response.ok) {
           successes++;
@@ -204,7 +202,7 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
       }
     }
     
-    toast({ title: "Proceso Completado", description: `${successes} de ${selectedRows.length} páginas han sido actualizadas con metadatos SEO.` });
+    toast({ title: "Proceso Completado", description: `${successes} de ${selectedRows.length} elementos han sido actualizados con metadatos SEO.` });
     setIsActionLoading(false);
     table.resetRowSelection();
   };
@@ -232,6 +230,20 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
               className="max-w-sm"
             />
             <Select
+                value={(table.getColumn('type')?.getFilterValue() as string) ?? 'all'}
+                onValueChange={(value) => table.getColumn('type')?.setFilterValue(value === 'all' ? undefined : value)}
+            >
+                <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue placeholder="Filtrar por tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">Todos los Tipos</SelectItem>
+                    <SelectItem value="Post">Entradas</SelectItem>
+                    <SelectItem value="Page">Páginas</SelectItem>
+                    <SelectItem value="Producto">Productos</SelectItem>
+                </SelectContent>
+            </Select>
+            <Select
                 value={(table.getColumn('status')?.getFilterValue() as string) ?? 'all'}
                 onValueChange={(value) => table.getColumn('status')?.setFilterValue(value === 'all' ? null : value)}
             >
@@ -245,21 +257,6 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
                     <SelectItem value="pending">Pendiente</SelectItem>
                     <SelectItem value="private">Privado</SelectItem>
                 </SelectContent>
-            </Select>
-            <Select
-              value={languageFilter}
-              onValueChange={setLanguageFilter}
-              disabled={languages.length === 0}
-            >
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filtrar por idioma" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los Idiomas</SelectItem>
-                 {languages.map(lang => (
-                    <SelectItem key={lang} value={lang}>{lang.toUpperCase()}</SelectItem>
-                ))}
-              </SelectContent>
             </Select>
         </div>
         
@@ -291,7 +288,7 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
               <AlertDialogHeader>
                   <AlertDialogTitle>¿Mover a la papelera?</AlertDialogTitle>
                   <AlertDialogDescription>
-                      Las páginas seleccionadas y todas sus traducciones enlazadas se moverán a la papelera de WordPress.
+                      Los elementos seleccionados y todas sus traducciones enlazadas se moverán a la papelera de WordPress.
                   </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -320,7 +317,7 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
             {isLoading ? (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  <div className="flex justify-center items-center"><Loader2 className="mr-2 h-6 w-6 animate-spin" /> Cargando páginas...</div>
+                  <div className="flex justify-center items-center"><Loader2 className="mr-2 h-6 w-6 animate-spin" /> Cargando contenido...</div>
                 </TableCell>
               </TableRow>
             ) : table.getRowModel().rows?.length ? (
@@ -329,7 +326,7 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
                   key={row.id} 
                   data-state={row.getIsSelected() && "selected"}
                   onClick={(e) => {
-                      if (!(e.target instanceof HTMLButtonElement || e.target instanceof HTMLAnchorElement || e.target.closest('button, a, [role=checkbox]') )) {
+                      if (!(e.target instanceof HTMLButtonElement || e.target instanceof HTMLAnchorElement || e.target.closest('button, a, [role=checkbox], [role=menuitem]') )) {
                         handleRowClick(row);
                       }
                     }}
@@ -347,7 +344,7 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
                 </TableRow>
               ))
             ) : (
-              <TableRow><TableCell colSpan={columns.length} className="h-24 text-center">No se encontraron páginas.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={columns.length} className="h-24 text-center">No se encontraron resultados.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>

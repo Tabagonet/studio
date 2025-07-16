@@ -3,16 +3,13 @@
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Save, ExternalLink, Replace, Image as ImageIcon } from 'lucide-react';
+import { Loader2, ArrowLeft, Replace, ImageIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { SeoAnalyzer } from '@/components/features/seo/seo-analyzer';
 import { ContentImage, ExtractedWidget } from '@/lib/types';
-import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -148,7 +145,7 @@ function EditPageContent() {
                           <CardDescription>Reemplaza las imágenes de: {post.title}</CardDescription>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                          <Button variant="outline" onClick={() => router.push('/pages')}>
+                          <Button variant="outline" onClick={() => router.back()}>
                               <ArrowLeft className="mr-2 h-4 w-4" /> Volver
                           </Button>
                       </div>

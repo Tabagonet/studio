@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     const response = await wpApi.get(customEndpointUrl);
 
     // The custom endpoint already returns the data in the desired format
-    return NextResponse.json({ content: response.data.content });
+    return NextResponse.json({ content: response.data.content || [] });
 
   } catch (error: any) {
     let errorMessage = 'Failed to fetch content list.';

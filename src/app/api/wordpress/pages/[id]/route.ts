@@ -82,9 +82,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
                 const classList = $(el).attr('class') || '';
                 const match = classList.match(/wp-image-(\d+)/);
                 const mediaId = match ? parseInt(match[1], 10) : null;
-                if (mediaId && !foundImageIds.has(mediaId)) {
-                    foundImageIds.add(mediaId);
-                }
+                if (mediaId) foundImageIds.add(mediaId);
             });
             
             if (foundImageIds.size > 0) {
@@ -211,7 +209,6 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const postId = params.id;
     if (!postId) return NextResponse.json({ error: 'Post ID is required.' }, { status: 400 });
 
-    // Use the custom endpoint to trash the post, which handles translations
     const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
     if (!siteUrl) {
       throw new Error("Could not determine base site URL from WordPress API configuration.");

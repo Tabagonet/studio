@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import axios from 'axios';
@@ -77,7 +78,7 @@ The values for "actionPlan", "positives", and "improvements" MUST be arrays of s
 - H1 Heading: "{{h1}}"
 - SEO Score: {{score}}/100
 - Technical SEO Checks (true = passed, false = failed):
-{{{checksSummary}}}`,
+{{{checksSummary}}}`
 };
 
 async function getPrompt(uid: string, promptKey: string): Promise<string> {
@@ -212,50 +213,41 @@ export async function POST(req: NextRequest) {
     let pageData;
 
     if (postId && postType) {
+        let post: any;
+        let api: AxiosInstance | null = null;
+        let endpoint = '';
+        
         if (postType === 'Producto') {
-            if (!wooApi) { throw new Error('La API de WooCommerce no está configurada.'); }
-            const response = await wooApi.get(`products/${postId}`);
-            const product = response.data;
-            const getMetaValue = (key: string) => {
-                const meta = product.meta_data.find((m: any) => m.key === key);
-                return meta ? meta.value : '';
-            };
-            const yoastTitle = getMetaValue('_yoast_wpseo_title');
-            const $ = cheerio.load(product.description || '');
-
-            pageData = {
-                title: yoastTitle || product.name || '',
-                metaDescription: getMetaValue('_yoast_wpseo_metadesc') || product.short_description || '',
-                focusKeyword: getMetaValue('_yoast_wpseo_focuskw') || '',
-                canonicalUrl: product.permalink || '',
-                h1: product.name || '', // A product's H1 is its name.
-                headings: $('h1, h2, h3, h4, h5, h6').map((i, el) => ({ tag: (el as cheerio.TagElement).name, text: $(el).text() })).get(),
-                images: (product.images || []).map((img: any) => ({ src: img.src, alt: img.alt || '' })),
-                textContent: $('body').text().replace(/\s\s+/g, ' ').trim(),
-            };
+            api = wooApi;
+            endpoint = `products/${postId}`;
         } else if (postType === 'Post' || postType === 'Page') {
-            if (!wpApi) { throw new Error('La API de WordPress no está configurada.'); }
-            const endpoint = postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
-            const response = await wpApi.get(endpoint, { params: { context: 'edit', '_': new Date().getTime() } });
-            const post = response.data;
-            const $ = cheerio.load(post.content?.rendered || '');
-
-            const yoastTitle = post.meta?._yoast_wpseo_title;
-            const finalTitle = (typeof yoastTitle === 'string' && yoastTitle.trim() !== '') ? yoastTitle.trim() : post.title?.rendered || '';
-
-            pageData = {
-                title: finalTitle,
-                metaDescription: post.meta?._yoast_wpseo_metadesc || '',
-                focusKeyword: post.meta?._yoast_wpseo_focuskw || '',
-                canonicalUrl: post.link || '',
-                h1: $('h1').first().text(),
-                headings: $('h1, h2, h3, h4, h5, h6').map((i, el) => ({ tag: (el as cheerio.TagElement).name, text: $(el).text() })).get(),
-                images: $('img').map((i, el) => ({ src: $(el).attr('src') || '', alt: $(el).attr('alt') || '' })).get(),
-                textContent: $('body').text().replace(/\s\s+/g, ' ').trim(),
-            };
-        } else {
-            throw new Error(`Unsupported post type for analysis: ${postType}`);
+            api = wpApi;
+            endpoint = postType === 'Post' ? `posts/${postId}` : `pages/${postId}`;
         }
+
+        if (!api) throw new Error(`API client for ${postType} is not configured.`);
+        
+        const response = await api.get(endpoint, { params: { context: 'edit', '_': new Date().getTime() } });
+        post = response.data;
+
+        const getMetaValue = (key: string) => {
+            const meta = post.meta_data?.find((m: any) => m.key === key);
+            return meta ? meta.value : (post.meta?.[key] || '');
+        };
+        const yoastTitle = getMetaValue('_yoast_wpseo_title');
+        const $ = cheerio.load(post.description?.rendered || post.content?.rendered || '');
+
+        pageData = {
+            title: yoastTitle || post.name || post.title.rendered || '',
+            metaDescription: getMetaValue('_yoast_wpseo_metadesc') || post.short_description || '',
+            focusKeyword: getMetaValue('_yoast_wpseo_focuskw') || '',
+            canonicalUrl: post.permalink || post.link || '',
+            h1: post.name || $('h1').first().text() || post.title.rendered || '',
+            headings: $('h1, h2, h3, h4, h5, h6').map((i, el) => ({ tag: (el as cheerio.TagElement).name, text: $(el).text() })).get(),
+            images: (post.images || []).map((img: any) => ({ src: img.src, alt: img.alt || '' })),
+            textContent: $('body').text().replace(/\s\s+/g, ' ').trim(),
+        };
+
     } else {
         const finalUrl = url.trim().startsWith('http') ? url : `https://${url}`;
         const urlWithCacheBust = new URL(finalUrl);

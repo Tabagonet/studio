@@ -1,11 +1,10 @@
 
-
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowUpDown, ChevronRight, ExternalLink, MoreHorizontal, Edit, Trash2 } from "lucide-react";
+import { ArrowUpDown, ChevronRight, ExternalLink, MoreHorizontal, Edit, Trash2, FileText } from "lucide-react";
 import type { HierarchicalContentItem, ContentItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -81,6 +80,18 @@ export const getColumns = (
         cell: ({ row }) => <Badge variant={row.original.status === 'publish' ? 'default' : 'secondary'}>{getStatusText(row.original.status)}</Badge>
     },
     {
+        accessorKey: 'type',
+        header: 'Tipo',
+        cell: ({ getValue }) => {
+          const type = getValue<string>();
+          let variant: "secondary" | "outline" | "default" = "secondary";
+          if (type === 'Page') variant = 'outline';
+          if (type === 'Producto') variant = 'default';
+
+          return <Badge variant={variant}>{type}</Badge>
+        }
+    },
+    {
         accessorKey: "lang",
         header: "Idioma",
         cell: ({ row }) => <Badge variant="outline" className="uppercase">{row.original.lang || 'N/A'}</Badge>
@@ -111,7 +122,7 @@ export const getColumns = (
                             <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><span className="sr-only">Abrir menú</span><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => onEdit(item)}><Edit className="mr-2 h-4 w-4" /> Editar Contenido</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => onEdit(item)}><FileText className="mr-2 h-4 w-4" /> Editar / Optimizar</DropdownMenuItem>
                                 <DropdownMenuItem asChild><Link href={item.link} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-2 h-4 w-4" /> Ver en la web</Link></DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <AlertDialogTrigger asChild>
@@ -120,7 +131,7 @@ export const getColumns = (
                             </DropdownMenuContent>
                         </DropdownMenu>
                          <AlertDialogContent>
-                            <AlertDialogHeader><AlertDialogTitle>¿Mover a la papelera?</AlertDialogTitle><AlertDialogDescription>La página "{item.title}" se moverá a la papelera.</AlertDialogDescription></AlertDialogHeader>
+                            <AlertDialogHeader><AlertDialogTitle>¿Mover a la papelera?</AlertDialogTitle><AlertDialogDescription>El contenido "{item.title}" se moverá a la papelera de WordPress.</AlertDialogDescription></AlertDialogHeader>
                             <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={() => onDelete(item)}>Sí, mover</AlertDialogAction></AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
