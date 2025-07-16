@@ -189,6 +189,23 @@ export async function POST(req: NextRequest) {
                  await apiToUse.post(endpoint, updatePayload);
             }
              console.log(`[API replace-image] Actualización del post ${postId} completada.`);
+
+             // --- NEW STEP: Regenerate Elementor CSS ---
+             if (isElementor) {
+                console.log(`[API replace-image] Regenerando CSS de Elementor para el post ${postId}...`);
+                try {
+                    const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
+                    if (siteUrl) {
+                        const regenerateEndpoint = `${siteUrl}/wp-json/custom/v1/regenerate-css/${postId}`;
+                        await wpApi.post(regenerateEndpoint);
+                        console.log(`[API replace-image] Regeneración de CSS solicitada con éxito.`);
+                    }
+                } catch (regenError: any) {
+                    // Log the error but don't fail the entire request, as the main update succeeded.
+                    console.warn(`[API replace-image] No se pudo regenerar el CSS de Elementor:`, regenError.response?.data || regenError.message);
+                }
+             }
+
         } else {
              console.log('[API replace-image] No hay cambios de contenido que guardar. La imagen se ha subido pero no se ha reemplazado en el post.');
         }

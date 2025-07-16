@@ -2,7 +2,7 @@
 /*
 Plugin Name: AutoPress AI Helper
 Description: Añade endpoints a la REST API para gestionar traducciones, stock y otras funciones personalizadas para AutoPress AI.
-Version: 1.29
+Version: 1.30
 Author: intelvisual@intelvisual.es
 */
 
@@ -82,6 +82,8 @@ function autopress_ai_register_rest_endpoints() {
         // This endpoint is the primary method for status verification.
         register_rest_route( 'custom/v1', '/status', ['methods' => 'GET', 'callback' => 'custom_api_status_check', 'permission_callback' => '__return_true']);
         register_rest_route( 'custom/v1', '/trash-post/{id}', ['methods' => 'POST', 'callback' => 'custom_api_trash_single_post', 'permission_callback' => function ($request) { return current_user_can( 'delete_post', $request['id'] ); }]);
+        // New endpoint for regenerating Elementor CSS
+        register_rest_route( 'custom/v1', '/regenerate-css/{id}', ['methods' => 'POST', 'callback' => 'custom_api_regenerate_elementor_css', 'permission_callback' => function ($request) { return current_user_can( 'edit_post', $request['id'] ); }]);
     });
     
     function custom_api_status_check() {
@@ -149,5 +151,20 @@ function autopress_ai_register_rest_endpoints() {
             } 
         } 
         return new WP_REST_Response(['content' => $content_list], 200); 
+    }
+    function custom_api_regenerate_elementor_css( $request ) {
+        $post_id = $request->get_param('id');
+        $id = absint($post_id);
+
+        if ( !$id || !class_exists( 'Elementor\\Plugin' ) ) {
+            return new WP_Error( 'invalid_request', 'ID de post inválido o Elementor no está activo.', ['status' => 400] );
+        }
+
+        try {
+            \Elementor\Plugin::$instance->files_manager->clear_cache();
+            return new WP_REST_Response( ['success' => true, 'message' => "Caché de CSS de Elementor limpiada para el post {$id}."], 200 );
+        } catch ( Exception $e ) {
+            return new WP_Error( 'regeneration_failed', 'Fallo al regenerar el CSS: ' . $e->getMessage(), ['status' => 500] );
+        }
     }
 }
