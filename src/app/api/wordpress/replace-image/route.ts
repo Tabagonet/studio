@@ -6,7 +6,7 @@ import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/api-helpers'
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { z } from 'zod';
 import * as cheerio from 'cheerio';
-import FormData from "form-data";
+import { replaceElementorTextsRecursive, findImageUrlsInElementor } from '@/lib/api-helpers';
 
 
 const slugify = (text: string) => {
@@ -133,26 +133,8 @@ export async function POST(req: NextRequest) {
 
         console.log('[API replace-image] Subiendo nueva imagen a WordPress...');
         
-        // **FIX:** Create a new FormData object to pass to the upload-image endpoint
-        const tempUploadFormData = new FormData();
-        tempUploadFormData.append('imagen', newImageFile as Blob, newImageFile.name);
-        
-        const tempUploadResponse = await fetch(`${req.nextUrl.origin}/api/upload-image`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${authToken}` },
-            body: tempUploadFormData,
-        });
-
-        if (!tempUploadResponse.ok) {
-            const errorText = await tempUploadResponse.text();
-            console.error(`[API replace-image] Error en la subida temporal: ${errorText}`);
-            throw new Error('Failed to upload image to temporary server.');
-        }
-        
-        const { url: tempUrl } = await tempUploadResponse.json();
-
         const newImageId = await uploadImageToWordPress(
-            tempUrl,
+            newImageFile,
             `${slugify(post.title.rendered || 'image')}-${Date.now()}.jpg`,
             {
                 title: aiContent.imageTitle || post.title.rendered,
@@ -175,9 +157,8 @@ export async function POST(req: NextRequest) {
             const elementorData = JSON.parse(post.meta._elementor_data);
             const { replaced, data: newElementorData } = replaceImageUrlInElementor(elementorData, oldImageUrl, newImageUrl);
             if (replaced) {
-                // For Elementor, the whole data structure needs to be saved in the meta field.
                 updatePayload.meta = { ...post.meta, _elementor_data: JSON.stringify(newElementorData) };
-                finalContent = JSON.stringify(newElementorData); // For response
+                finalContent = JSON.stringify(newElementorData); 
                  console.log('[API replace-image] Payload de Elementor preparado para actualizar.');
             } else {
                  console.warn('[API replace-image] No se encontró la URL de la imagen antigua en los datos de Elementor. No se realizarán cambios en el contenido.');

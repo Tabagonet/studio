@@ -190,31 +190,38 @@ export function replaceElementorTexts(elementorData: any, translatedTexts: strin
 
 
 /**
- * Downloads, processes (resizes, converts to WebP), and uploads an image to the WordPress media library.
- * This function now calls a dedicated internal API endpoint to handle Sharp processing.
- * @param imageUrl The temporary URL of the image to process (from /api/upload-image).
+ * Uploads an image to the WordPress media library. It can handle a URL string or a File object.
+ * @param source The URL string of the image or a File object.
  * @param seoFilename A desired filename for SEO purposes.
  * @param imageMetadata Metadata for the image (title, alt, etc.).
  * @param wpApi Initialized Axios instance for WordPress API.
  * @returns The ID of the newly uploaded media item.
  */
 export async function uploadImageToWordPress(
-  imageUrl: string,
+  source: File | string,
   seoFilename: string,
   imageMetadata: { title: string; alt_text: string; caption: string; description: string; },
   wpApi: AxiosInstance
 ): Promise<number> {
     try {
-        const imageResponse = await axios.get(imageUrl, {
-            responseType: 'arraybuffer',
-        });
+        let imageBuffer: Buffer;
+        let contentType: string;
 
-        const imageBuffer = Buffer.from(imageResponse.data);
+        if (typeof source === 'string') {
+            const imageResponse = await axios.get(source, {
+                responseType: 'arraybuffer',
+            });
+            imageBuffer = Buffer.from(imageResponse.data);
+            contentType = imageResponse.headers['content-type'] || 'application/octet-stream';
+        } else {
+            imageBuffer = Buffer.from(await source.arrayBuffer());
+            contentType = source.type;
+        }
         
         const formData = new FormData();
         formData.append('file', imageBuffer, {
             filename: seoFilename,
-            contentType: imageResponse.headers['content-type'] || 'application/octet-stream',
+            contentType: contentType,
         });
         formData.append('title', imageMetadata.title);
         formData.append('alt_text', imageMetadata.alt_text);
@@ -231,7 +238,7 @@ export async function uploadImageToWordPress(
         return mediaResponse.data.id;
 
     } catch (uploadError: any) {
-        let errorMsg = `Error al procesar la imagen desde la URL '${imageUrl}'.`;
+        let errorMsg = `Error al procesar la imagen.`;
         if (uploadError.response?.data?.message) {
             errorMsg += ` Razón: ${uploadError.response.data.message}`;
             if (uploadError.response.status === 401 || uploadError.response.status === 403) {
