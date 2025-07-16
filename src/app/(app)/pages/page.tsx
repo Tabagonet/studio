@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -9,7 +8,7 @@ import { FileText, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { PageDataTable } from "./page-data-table";
-import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
+import type { ContentItem } from '@/lib/types';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Link from 'next/link';
 
@@ -36,7 +35,7 @@ export default function PagesManagementPage() {
             throw new Error(errorData.error || 'No se pudo cargar el contenido del sitio.');
         }
         const contentData = await contentResponse.json();
-        setData(contentData.content.filter((item: ContentItem) => item.type === 'Page'));
+        setData(contentData.content);
 
         if (scoresResponse.ok) {
             const scoresData = await scoresResponse.json();
@@ -94,8 +93,8 @@ export default function PagesManagementPage() {
             <div className="flex items-center space-x-3">
                 <FileText className="h-8 w-8 text-primary" />
                 <div>
-                    <CardTitle>Gestión de Páginas</CardTitle>
-                    <CardDescription>Visualiza, filtra y gestiona todas las páginas de tu sitio WordPress. Haz clic en una fila para analizarla o editarla.</CardDescription>
+                    <CardTitle>Gestión de Contenido</CardTitle>
+                    <CardDescription>Visualiza, filtra y gestiona tus páginas, entradas y productos. Haz clic en una fila para optimizar su SEO.</CardDescription>
                 </div>
             </div>
         </CardHeader>
@@ -103,7 +102,7 @@ export default function PagesManagementPage() {
       
       {error && !isLoading && (
           <Alert variant="destructive">
-            <AlertTitle>No se pudo cargar la lista de páginas</AlertTitle>
+            <AlertTitle>No se pudo cargar el contenido</AlertTitle>
             <AlertDescription>
                 {error} Revisa que la API de WordPress esté configurada en <Link href="/settings/connections" className="underline font-semibold">Ajustes</Link>.
             </AlertDescription>

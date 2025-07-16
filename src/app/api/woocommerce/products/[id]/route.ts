@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/api-helpers';
 import { z } from 'zod';
@@ -207,9 +208,8 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       return NextResponse.json({ error: 'Product ID is required.' }, { status: 400 });
     }
 
-    // `force: true` permanently deletes the product.
-    // `force: false` would move it to trash.
-    const response = await wooApi.delete(`products/${productId}`, { force: true });
+    // `force: false` moves to trash, `force: true` permanently deletes.
+    const response = await wooApi.delete(`products/${productId}`, { force: false });
 
     return NextResponse.json({ success: true, data: response.data });
 

@@ -195,3 +195,39 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: errorMessage }, { status });
   }
 }
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const token = req.headers.get('Authorization')?.split('Bearer ')[1];
+    if (!token) throw new Error('No auth token provided.');
+    if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
+    const uid = (await adminAuth.verifyIdToken(token)).uid;
+    
+    const { wpApi } = await getApiClientsForUser(uid);
+    if (!wpApi) {
+        throw new Error('WordPress API is not configured for the active connection.');
+    }
+
+    const postId = params.id;
+    if (!postId) return NextResponse.json({ error: 'Post ID is required.' }, { status: 400 });
+
+    // Use the custom endpoint to trash the post, which handles translations
+    const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
+    if (!siteUrl) {
+      throw new Error("Could not determine base site URL from WordPress API configuration.");
+    }
+    
+    const customEndpointUrl = `${siteUrl}/wp-json/custom/v1/trash-post/${postId}`;
+    const response = await wpApi.post(customEndpointUrl);
+    
+    return NextResponse.json({ success: true, data: response.data });
+  } catch (error: any) {
+    console.error(`Error deleting post ${params.id}:`, error.response?.data || error.message);
+    let errorMessage = error.response?.data?.message || 'Failed to move post to trash.';
+    if (error.response?.status === 404) {
+      errorMessage = 'Endpoint de borrado no encontrado. Asegúrate de que el plugin personalizado está activo y actualizado en WordPress.';
+    }
+    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
+    return NextResponse.json({ error: errorMessage }, { status });
+  }
+}
