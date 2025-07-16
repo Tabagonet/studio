@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import { CheckCircle, XCircle, Sparkles, ExternalLink, Image as ImageIcon } from 'lucide-react';
+import { CheckCircle, XCircle, Sparkles, ExternalLink, Image as ImageIcon, Replace } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,8 @@ import { auth } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { ContentImage, ExtractedWidget } from '@/lib/types';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+
 
 interface SeoAnalyzerPost {
   title: string;
@@ -41,6 +43,13 @@ interface SeoAnalyzerProps {
   setContentImages: React.Dispatch<React.SetStateAction<ContentImage[]>>;
   applyAiMetaToFeatured: boolean;
   setApplyAiMetaToFeatured: React.Dispatch<React.SetStateAction<boolean>>;
+  postId: number;
+}
+
+interface ReplaceImageDialogState {
+    open: boolean;
+    oldImageSrc: string | null;
+    newImageFile: File | null;
 }
 
 interface SeoCheck {
@@ -81,10 +90,13 @@ export function SeoAnalyzer({
     contentImages,
     setContentImages,
     applyAiMetaToFeatured,
-    setApplyAiMetaToFeatured
+    setApplyAiMetaToFeatured,
+    postId
 }: SeoAnalyzerProps) {
   const { toast } = useToast();
   const hasTriggeredAutoKeyword = React.useRef(false);
+  const [replaceDialogState, setReplaceDialogState] = useState<ReplaceImageDialogState>({ open: false, oldImageSrc: null, newImageFile: null });
+  const [isReplacing, setIsReplacing] = useState(false);
 
   const handleImageAltChange = useCallback((mediaId: number | null, newAlt: string) => {
     if (!mediaId) return;
@@ -196,6 +208,42 @@ export function SeoAnalyzer({
     }
   }, [post, toast, setIsLoading, setContentImages, contentImages]);
 
+  const handleReplaceImage = async () => {
+    if (!post || !replaceDialogState.oldImageSrc || !replaceDialogState.newImageFile) {
+      toast({ title: 'Error', description: 'Faltan datos para reemplazar la imagen.', variant: 'destructive' });
+      return;
+    }
+    setIsReplacing(true);
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("No autenticado.");
+        const token = await user.getIdToken();
+        const formData = new FormData();
+        formData.append('newImageFile', replaceDialogState.newImageFile);
+        formData.append('postId', postId.toString());
+        formData.append('postType', post.postType);
+        formData.append('oldImageUrl', replaceDialogState.oldImageSrc);
+        
+        const response = await fetch('/api/wordpress/replace-image', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData,
+        });
+        
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Fallo en la API de reemplazo de imagen.');
+        
+        setPost(p => p ? { ...p, content: result.newContent } : null);
+        setContentImages(prev => prev.map(img => img.src === replaceDialogState.oldImageSrc ? { ...img, src: result.newImageUrl, alt: result.newImageAlt } : img));
+        toast({ title: 'Imagen Reemplazada', description: 'La imagen ha sido actualizada en el contenido y la biblioteca de medios.' });
+        setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null });
+    } catch (error: any) {
+        toast({ title: 'Error al reemplazar', description: error.message, variant: 'destructive' });
+    } finally {
+        setIsReplacing(false);
+    }
+  };
+
 
   const checks = useMemo<SeoCheck[]>(() => {
     if (!post || !post.meta) return [];
@@ -203,7 +251,6 @@ export function SeoAnalyzer({
     const keyword = (post.meta._yoast_wpseo_focuskw || '').trim().toLowerCase();
     if (!keyword) return [];
     
-    // The API now provides the fallback directly in the meta field.
     const effectiveSeoTitle = (post.meta._yoast_wpseo_title || '').trim();
     const effectiveMetaDescription = (post.meta._yoast_wpseo_metadesc || '').trim();
 
@@ -263,71 +310,98 @@ export function SeoAnalyzer({
   const keyword = post.meta?._yoast_wpseo_focuskw || '';
 
   return (
-    <div className="space-y-6">
-        <Card>
-            <CardHeader>
-                <CardTitle>Checklist SEO Accionable</CardTitle>
-                <CardDescription>Completa estas tareas para mejorar el SEO on-page de tu contenido.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                {!keyword ? (
-                  <p className="text-sm text-muted-foreground p-4 text-center border-dashed border rounded-md">
-                    Introduce una Palabra Clave Principal en la tarjeta "Edición SEO" para empezar el análisis.
-                  </p>
-                ) : (
-                  <ul className="space-y-3">
-                      {checks.map(check => (
-                          <CheckItem key={check.id} check={check} onFix={handleFixWithAI} isAiLoading={isLoading}/>
+    <>
+      <div className="space-y-6">
+          <Card>
+              <CardHeader>
+                  <CardTitle>Checklist SEO Accionable</CardTitle>
+                  <CardDescription>Completa estas tareas para mejorar el SEO on-page de tu contenido.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                  {!keyword ? (
+                    <p className="text-sm text-muted-foreground p-4 text-center border-dashed border rounded-md">
+                      Introduce una Palabra Clave Principal en la tarjeta "Edición SEO" para empezar el análisis.
+                    </p>
+                  ) : (
+                    <ul className="space-y-3">
+                        {checks.map(check => (
+                            <CheckItem key={check.id} check={check} onFix={handleFixWithAI} isAiLoading={isLoading}/>
+                        ))}
+                    </ul>
+                  )}
+              </CardContent>
+          </Card>
+
+          <Card>
+              <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><ImageIcon className="h-5 w-5 text-primary" /> Optimización de Imágenes</CardTitle>
+                  <CardDescription>Revisa, edita o reemplaza las imágenes de tu contenido para mejorar el SEO y la accesibilidad.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                  <Button onClick={handleGenerateImageAlts} disabled={isLoading}>
+                      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                      Generar 'alt text' con IA
+                  </Button>
+                  
+                   {post.featuredImageUrl && (
+                      <div className="flex items-center space-x-2 pt-4 border-t">
+                          <Checkbox id="apply-featured" checked={applyAiMetaToFeatured} onCheckedChange={(checked) => setApplyAiMetaToFeatured(!!checked)} />
+                          <Label htmlFor="apply-featured" className="text-sm font-normal">
+                             Aplicar también el 'alt text' de la palabra clave a la imagen destacada.
+                          </Label>
+                      </div>
+                   )}
+
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-2">
+                      {contentImages.map((img) => (
+                          <div key={img.id} className="flex items-center gap-3 p-2 border rounded-md">
+                              <div className="relative h-10 w-10 flex-shrink-0">
+                                  <img src={img.src} alt="Vista previa" className="rounded-md object-cover h-full w-full" />
+                              </div>
+                              <div className="flex-1 text-sm text-muted-foreground truncate" title={img.src}>
+                                  {img.src.split('/').pop()}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                 <div className="h-2 w-2 rounded-full" style={{ backgroundColor: img.alt ? 'hsl(var(--primary))' : 'hsl(var(--destructive))' }} />
+                                 <Input 
+                                   value={img.alt}
+                                   onChange={(e) => handleImageAltChange(img.mediaId, e.target.value)}
+                                   placeholder="Añade el 'alt text'..."
+                                   className="text-xs h-8"
+                                 />
+                                  <Button size="icon-sm" variant="outline" onClick={() => setReplaceDialogState({ open: true, oldImageSrc: img.src, newImageFile: null })} title="Reemplazar Imagen">
+                                    <Replace className="h-4 w-4" />
+                                  </Button>
+                              </div>
+                          </div>
                       ))}
-                  </ul>
-                )}
-            </CardContent>
-        </Card>
+                      {contentImages.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No se encontraron imágenes en el contenido.</p>}
+                  </div>
+              </CardContent>
+          </Card>
+      </div>
 
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2"><ImageIcon className="h-5 w-5 text-primary" /> Optimización de Imágenes</CardTitle>
-                <CardDescription>Revisa y añade texto alternativo a las imágenes de tu contenido para mejorar el SEO y la accesibilidad.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <Button onClick={handleGenerateImageAlts} disabled={isLoading}>
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                    Generar y Aplicar 'alt text' con IA
-                </Button>
-                
-                 {post.featuredImageUrl && (
-                    <div className="flex items-center space-x-2 pt-4 border-t">
-                        <Checkbox id="apply-featured" checked={applyAiMetaToFeatured} onCheckedChange={(checked) => setApplyAiMetaToFeatured(!!checked)} />
-                        <Label htmlFor="apply-featured" className="text-sm font-normal">
-                           Aplicar también el 'alt text' de la palabra clave a la imagen destacada.
-                        </Label>
-                    </div>
-                 )}
-
-                <div className="space-y-2 max-h-72 overflow-y-auto pr-2">
-                    {contentImages.map((img) => (
-                        <div key={img.id} className="flex items-center gap-3 p-2 border rounded-md">
-                            <div className="relative h-10 w-10 flex-shrink-0">
-                                <img src={img.src} alt="Vista previa" className="rounded-md object-cover h-full w-full" />
-                            </div>
-                            <div className="flex-1 text-sm text-muted-foreground truncate" title={img.src}>
-                                {img.src.split('/').pop()}
-                            </div>
-                            <div className="flex items-center gap-2">
-                               <div className="h-2 w-2 rounded-full" style={{ backgroundColor: img.alt ? 'hsl(var(--primary))' : 'hsl(var(--destructive))' }} />
-                               <Input 
-                                 value={img.alt}
-                                 onChange={(e) => handleImageAltChange(img.mediaId, e.target.value)}
-                                 placeholder="Añade el 'alt text'..."
-                                 className="text-xs h-8"
-                               />
-                            </div>
-                        </div>
-                    ))}
-                    {contentImages.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No se encontraron imágenes en el contenido.</p>}
-                </div>
-            </CardContent>
-        </Card>
-    </div>
+       <AlertDialog open={replaceDialogState.open} onOpenChange={(open) => !open && setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reemplazar Imagen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sube una nueva imagen para reemplazar la imagen actual. La antigua será eliminada de tu WordPress.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Label htmlFor="new-image-upload">Nueva Imagen</Label>
+            <Input id="new-image-upload" type="file" accept="image/*" onChange={(e) => setReplaceDialogState(s => ({ ...s, newImageFile: e.target.files?.[0] || null }))} />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleReplaceImage} disabled={isReplacing || !replaceDialogState.newImageFile}>
+              {isReplacing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Reemplazar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
