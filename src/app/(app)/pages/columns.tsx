@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
@@ -16,6 +17,7 @@ const getStatusText = (status: ContentItem['status']) => {
         pending: 'Pendiente',
         private: 'Privado',
         future: 'Programado',
+        trash: 'En Papelera',
     };
     return statusMap[status] || status;
 };

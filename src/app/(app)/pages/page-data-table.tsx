@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -23,11 +24,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getColumns } from "./columns"; 
 import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
-import { Loader2, ChevronDown, Trash2, Link2 } from "lucide-react";
+import { Loader2, ChevronDown, Trash2, Link2, Sparkles } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
@@ -87,7 +88,12 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
   const table = useReactTable({
     data: tableData,
     columns,
-    state: { sorting, columnFilters, expanded, rowSelection },
+    state: {
+      sorting,
+      columnFilters,
+      expanded,
+      rowSelection,
+    },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onExpandedChange: setExpanded,
@@ -169,6 +175,42 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
     }
   };
   
+  const handleBatchSeoMeta = async () => {
+    const selectedRows = table.getSelectedRowModel().rows;
+    if (selectedRows.length === 0) {
+      toast({ title: "Nada seleccionado", description: "Por favor, selecciona al menos una página.", variant: "destructive" });
+      return;
+    }
+    setIsActionLoading(true);
+    const user = auth.currentUser;
+    if (!user) return;
+    const token = await user.getIdToken();
+    let successes = 0;
+    
+    toast({ title: `Procesando ${selectedRows.length} página(s) con IA...`, description: "Esto puede tardar un momento." });
+    
+    for (const row of selectedRows) {
+      try {
+        const response = await fetch('/api/batch-actions/seo-meta', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ postId: row.original.id, postType: 'Page' })
+        });
+        if (response.ok) {
+          successes++;
+        } else {
+            console.error(`Fallo para ${row.original.title}:`, await response.json());
+        }
+      } catch (error) {
+        console.error(`Fallo para ${row.original.title}:`, error);
+      }
+    }
+    
+    toast({ title: "Proceso Completado", description: `${successes} de ${selectedRows.length} páginas han sido actualizadas con metadatos SEO.` });
+    setIsActionLoading(false);
+    table.resetRowSelection();
+  };
+  
   const selectedRowCount = Object.keys(rowSelection).length;
   
   const handleRowClick = (row: any) => {
@@ -223,6 +265,9 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Acciones en Lote</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={handleBatchSeoMeta}>
+                <Sparkles className="mr-2 h-4 w-4" /> Generar Título y Descripción SEO
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={handleLinkTranslations} disabled={selectedRowCount < 2}>
                   <Link2 className="mr-2 h-4 w-4" /> Enlazar Traducciones
               </DropdownMenuItem>
@@ -243,7 +288,7 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
               </AlertDialogHeader>
               <AlertDialogFooter>
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleBatchDelete}>Sí, mover a la papelera</AlertDialogAction>
+                  <AlertDialogAction onClick={handleBatchDelete} className={buttonVariants({variant: "destructive"})}>Sí, mover a la papelera</AlertDialogAction>
               </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

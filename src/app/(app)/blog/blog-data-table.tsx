@@ -2,7 +2,7 @@
 
 "use client";
 
-import * as React from "react"
+import * as React from "react";
 import { useRouter } from "next/navigation"
 import {
   ColumnFiltersState,
@@ -36,7 +36,7 @@ import type { BlogPostSearchResult, WordPressPostCategory, BlogStats, Hierarchic
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { BookOpen, FileCheck2, FileText, Loader2, Lock, Trash2, ChevronDown, Languages, Link2 } from "lucide-react"
+import { BookOpen, FileCheck2, FileText, Loader2, Lock, Trash2, ChevronDown, Languages, Link2, Sparkles } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 
@@ -476,6 +476,42 @@ export function BlogDataTable() {
     }
   };
 
+  const handleBatchSeoMeta = async () => {
+    const selectedRows = table.getSelectedRowModel().rows;
+    if (selectedRows.length === 0) {
+      toast({ title: "Nada seleccionado", description: "Por favor, selecciona al menos una entrada.", variant: "destructive" });
+      return;
+    }
+    setIsBatchActionLoading(true);
+    const user = auth.currentUser;
+    if (!user) return;
+    const token = await user.getIdToken();
+    let successes = 0;
+    
+    toast({ title: `Procesando ${selectedRows.length} entrada(s) con IA...`, description: "Esto puede tardar un momento." });
+    
+    for (const row of selectedRows) {
+      try {
+        const response = await fetch('/api/batch-actions/seo-meta', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ postId: row.original.id, postType: 'Post' })
+        });
+        if (response.ok) {
+          successes++;
+        } else {
+            console.error(`Fallo para ${row.original.title}:`, await response.json());
+        }
+      } catch (error) {
+        console.error(`Fallo para ${row.original.title}:`, error);
+      }
+    }
+    
+    toast({ title: "Proceso Completado", description: `${successes} de ${selectedRows.length} entradas han sido actualizadas con metadatos SEO.` });
+    setIsBatchActionLoading(false);
+    table.resetRowSelection();
+  };
+
 
   const selectedRowCount = table.getFilteredSelectedRowModel().rows.length;
   const isActionLoading = isBatchActionLoading || isLinking;
@@ -546,6 +582,9 @@ export function BlogDataTable() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Acciones en Lote</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={handleBatchSeoMeta}>
+                <Sparkles className="mr-2 h-4 w-4" /> Generar Título y Descripción SEO
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={handleBatchLinkTranslations} disabled={selectedRowCount < 2}>
                   <Link2 className="mr-2 h-4 w-4" /> Enlazar Traducciones
               </DropdownMenuItem>
