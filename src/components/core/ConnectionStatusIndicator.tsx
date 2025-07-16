@@ -62,16 +62,17 @@ export const ConnectionStatusIndicator = ({ status, isLoading, onRefresh, platfo
   // Specific state for the Shopify Partner card
   if (platformToShow === 'shopify_partner') {
      const isPartnerConnected = !!status?.shopifyPartnerConfigured;
+     const partnerError = status?.shopifyPartnerError;
       return (
           <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 text-sm" title={isPartnerConnected ? "La conexión con la API de Partner está activa." : "No se pudo verificar la conexión con la API de Partner."}>
+              <div className="flex items-center gap-2 text-sm" title={partnerError ? `Error: ${partnerError}` : (isPartnerConnected ? "La conexión con la API de Partner está activa." : "No se pudo verificar la conexión con la API de Partner.")}>
                   {isPartnerConnected ? (
                        <CheckCircle className="h-4 w-4 text-green-500" />
                   ) : (
                        <AlertCircle className="h-4 w-4 text-destructive" />
                   )}
                   <span className={cn(isPartnerConnected ? "text-green-600 font-semibold" : "text-destructive font-semibold")}>
-                    {isPartnerConnected ? "Conectado" : "No Conectado"}
+                    {isPartnerConnected ? "Conectado" : (partnerError ? "Error" : "No Conectado")}
                   </span>
               </div>
               <TooltipProvider><Tooltip><TooltipTrigger asChild>
