@@ -10,8 +10,6 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 // === Admin Menu and Settings Page ===
 add_action('admin_menu', 'autopress_ai_add_admin_menu');
-add_action('wp_ajax_nopriv_autopress_ai_verify_connection', 'autopress_ai_ajax_verify_connection');
-add_action('wp_ajax_autopress_ai_verify_connection', 'autopress_ai_ajax_verify_connection');
 
 function autopress_ai_get_plugin_version() {
     if (!function_exists('get_plugin_data')) {
@@ -24,21 +22,51 @@ function autopress_ai_get_plugin_version() {
 function autopress_ai_add_admin_menu() {
     $plugin_version = autopress_ai_get_plugin_version();
     $page_title = 'AutoPress AI Helper - v' . esc_html($plugin_version);
-    add_options_page($page_title, 'AutoPress AI', 'edit_posts', 'autopress-ai', 'autopress_ai_options_page');
+    add_options_page($page_title, 'AutoPress AI', 'manage_options', 'autopress-ai', 'autopress_ai_options_page');
 }
 
 function autopress_ai_options_page() {
-    // This function is intentionally left empty as the settings are now managed from the main app.
-    // The menu page remains to show the user that the plugin is installed.
-     ?>
+    ?>
     <div class="wrap">
         <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
-        <p>La configuración de la conexión para AutoPress AI ahora se gestiona directamente desde la aplicación principal en <a href="https://autopress.intelvisual.es/settings/connections" target="_blank">Ajustes > Conexiones</a>.</p>
-        <p>Este plugin añade las funcionalidades necesarias a la API de WordPress para que la aplicación pueda comunicarse con tu sitio de forma segura.</p>
+        <p>Este plugin añade las funcionalidades necesarias a la API de WordPress para que la aplicación principal de AutoPress AI pueda comunicarse con tu sitio de forma segura.</p>
+        <p>Toda la configuración de las claves API se gestiona directamente desde la aplicación AutoPress AI en <a href="https://autopress.intelvisual.es/settings/connections" target="_blank">Ajustes > Conexiones</a>.</p>
+        
+        <h2>Verificar Conexión con AutoPress AI</h2>
+        <p>Haz clic en el botón de abajo para comprobar si el plugin puede comunicarse correctamente con la plataforma de AutoPress AI. Esto verificará que tu sitio está correctamente configurado en la aplicación.</p>
+        <button id="autopress-verify-connection" class="button button-primary">Verificar Conexión</button>
+        <div id="autopress-verify-result" style="margin-top: 15px; padding: 10px; border-left-width: 4px; border-left-style: solid; display: none;"></div>
     </div>
+    <script>
+        document.getElementById('autopress-verify-connection').addEventListener('click', function() {
+            var button = this;
+            var resultDiv = document.getElementById('autopress-verify-result');
+            resultDiv.style.display = 'block';
+            resultDiv.textContent = 'Verificando...';
+            resultDiv.style.borderColor = '#cccccc';
+            button.disabled = true;
+
+            fetch('<?php echo esc_url_raw(get_rest_url(null, 'custom/v1/status')); ?>')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.verified) {
+                        resultDiv.textContent = '¡Éxito! ' + data.message;
+                        resultDiv.style.borderColor = '#46b450';
+                    } else {
+                        resultDiv.textContent = 'Error: ' + data.message;
+                        resultDiv.style.borderColor = '#dc3232';
+                    }
+                    button.disabled = false;
+                })
+                .catch(error => {
+                    resultDiv.textContent = 'Error de comunicación. No se pudo contactar con el endpoint de estado.';
+                    resultDiv.style.borderColor = '#dc3232';
+                    button.disabled = false;
+                });
+        });
+    </script>
     <?php
 }
-
 
 // === REST API Endpoints ===
 add_action('init', 'custom_api_register_yoast_meta_fields');
@@ -54,12 +82,63 @@ function custom_api_register_yoast_meta_fields() {
     }
 }
 
+// Security Check function to be used as permission_callback
+function autopress_ai_permission_check( WP_REST_Request $request ) {
+    $auth_header = $request->get_header('authorization');
+    if (!$auth_header) return false;
+
+    list($type, $credentials) = explode(' ', $auth_header, 2);
+    if ('basic' !== strtolower($type)) return false;
+
+    $decoded = base64_decode($credentials);
+    if (strpos($decoded, ':') === false) return false;
+    
+    list($username, $app_password) = explode(':', $decoded, 2);
+    $user = get_user_by('login', $username);
+
+    if (!$user) return false;
+
+    // Check application password
+    require_once ABSPATH . 'wp-admin/includes/class-wp-application-passwords.php';
+    $app_passwords_list = WP_Application_Passwords::get_user_application_passwords($user->ID);
+    $is_valid_password = false;
+    foreach ($app_passwords_list as $password_data) {
+        if (wp_check_password($app_password, $password_data['password'], $user->ID)) {
+            $is_valid_password = true;
+            break;
+        }
+    }
+    if (!$is_valid_password) return false;
+    
+    // Now, verify against AutoPress AI server
+    $api_key_query = new WP_Query([
+        'post_type' => 'application_password',
+        'post_author' => $user->ID,
+        'posts_per_page' => 1,
+        's' => $app_password, // This is a bit of a hack, but should work
+        'sentence' => true,
+    ]);
+    
+    if (empty($api_key_query->posts)) return false; // This shouldn't happen if password was valid
+    
+    $api_key = get_user_meta($user->ID, 'autopress_api_key', true);
+    if (!$api_key) return false; // User must have an API key associated
+    
+    $response = wp_remote_get( "https://autopress.intelvisual.es/api/license/verify-plugin?apiKey=" . $api_key . "&siteUrl=" . urlencode(home_url()) );
+
+    if ( is_wp_error( $response ) ) {
+        return false;
+    }
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+    return isset( $body['status'] ) && $body['status'] === 'active';
+}
+
+
 function autopress_ai_register_rest_endpoints() {
     
     add_filter( 'rest_post_query', 'pll_rest_filter_by_language', 10, 2 );
     add_filter( 'rest_page_query', 'pll_rest_filter_by_language', 10, 2 );
     add_filter( 'rest_product_query', 'pll_rest_filter_by_language', 10, 2);
-
 
     function pll_rest_filter_by_language( $args, $request ) { $lang = $request->get_param( 'lang' ); if ( $lang && function_exists( 'pll_get_language' ) ) { $lang_obj = pll_get_language( $lang ); if ( $lang_obj ) { $args['lang'] = $lang; } } return $args; }
 
@@ -74,19 +153,31 @@ function autopress_ai_register_rest_endpoints() {
             }
         }
         if (function_exists('pll_save_post_translations')) {
-            register_rest_route( 'custom/v1', '/link-translations', ['methods' => 'POST', 'callback' => 'custom_api_link_translations', 'permission_callback' => function () { return current_user_can( 'edit_posts' ); }]);
+            register_rest_route( 'custom/v1', '/link-translations', ['methods' => 'POST', 'callback' => 'custom_api_link_translations', 'permission_callback' => 'autopress_ai_permission_check']);
         }
-        register_rest_route( 'custom/v1', '/batch-trash-posts', ['methods' => 'POST', 'callback' => 'custom_api_batch_trash_posts', 'permission_callback' => function () { return current_user_can( 'edit_posts' ); }]);
-        register_rest_route( 'custom/v1', '/batch-clone-posts', ['methods'  => 'POST', 'callback' => 'custom_api_batch_clone_posts', 'permission_callback' => function () { return current_user_can( 'edit_posts' ); }]);
-        register_rest_route( 'custom/v1', '/content-list', ['methods'  => 'GET', 'callback' => 'custom_api_get_content_list', 'permission_callback' => function () { return current_user_can( 'edit_posts' ); }]);
+        register_rest_route( 'custom/v1', '/batch-trash-posts', ['methods' => 'POST', 'callback' => 'custom_api_batch_trash_posts', 'permission_callback' => 'autopress_ai_permission_check']);
+        register_rest_route( 'custom/v1', '/batch-clone-posts', ['methods'  => 'POST', 'callback' => 'custom_api_batch_clone_posts', 'permission_callback' => 'autopress_ai_permission_check']);
+        register_rest_route( 'custom/v1', '/content-list', ['methods'  => 'GET', 'callback' => 'custom_api_get_content_list', 'permission_callback' => 'autopress_ai_permission_check']);
+        
         // This endpoint is the primary method for status verification.
-        register_rest_route( 'custom/v1', '/status', ['methods' => 'GET', 'callback' => 'custom_api_status_check', 'permission_callback' => '__return_true']);
-        register_rest_route( 'custom/v1', '/trash-post/(?P<id>\d+)', ['methods' => 'POST', 'callback' => 'custom_api_trash_single_post', 'permission_callback' => function ($request) { return current_user_can( 'delete_post', $request['id'] ); }]);
+        register_rest_route( 'custom/v1', '/status', ['methods' => 'GET', 'callback' => 'custom_api_status_check', 'permission_callback' => 'autopress_ai_permission_check']);
+        
+        register_rest_route( 'custom/v1', '/trash-post/(?P<id>\d+)', ['methods' => 'POST', 'callback' => 'custom_api_trash_single_post', 'permission_callback' => 'autopress_ai_permission_check']);
+        
         // New endpoint for regenerating Elementor CSS
-        register_rest_route( 'custom/v1', '/regenerate-css/(?P<id>\d+)', ['methods' => 'POST', 'callback' => 'custom_api_regenerate_elementor_css', 'permission_callback' => function ($request) { return current_user_can( 'edit_post', $request['id'] ); }]);
+        register_rest_route( 'custom/v1', '/regenerate-css/(?P<id>\d+)', ['methods' => 'POST', 'callback' => 'custom_api_regenerate_elementor_css', 'permission_callback' => 'autopress_ai_permission_check']);
     });
     
-    function custom_api_status_check() {
+    function custom_api_status_check($request) {
+        if (!autopress_ai_permission_check($request)) {
+             return new WP_REST_Response([
+                'status' => 'error',
+                'plugin_version' => autopress_ai_get_plugin_version(),
+                'verified' => false,
+                'message' => 'Fallo en la verificación con el servidor de AutoPress AI.',
+            ], 403);
+        }
+
         return new WP_REST_Response([
             'status' => 'ok',
             'plugin_version' => autopress_ai_get_plugin_version(),
@@ -168,3 +259,5 @@ function autopress_ai_register_rest_endpoints() {
         }
     }
 }
+
+    

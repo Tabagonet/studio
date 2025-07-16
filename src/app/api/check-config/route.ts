@@ -1,5 +1,3 @@
-
-
 // src/app/api/check-config/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -46,8 +44,10 @@ async function verifyPluginStatus(wpApi: AxiosInstance | null): Promise<{ isActi
   } catch (error: any) {
     const status = error.response?.status;
     let reason = 'Error de comunicación con el sitio WordPress.';
-    if (status === 404) {
-        reason = 'No se encontró el endpoint /custom/v1/status. Asegúrate de que el plugin "AutoPress AI Helper" está instalado, activo y actualizado a la v1.29 o superior.';
+    if (status === 401 || status === 403) {
+        reason = `Error ${status}. La contraseña de aplicación no tiene permisos para acceder al endpoint de estado.`;
+    } else if (status === 404) {
+        reason = 'No se encontró el endpoint /custom/v1/status. Asegúrate de que el plugin "AutoPress AI Helper" está instalado, activo y actualizado a la v1.30 o superior.';
     } else if (status) {
         reason = `El sitio respondió con un error ${status}. Revisa la URL y la configuración de seguridad.`;
     }
@@ -167,3 +167,5 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json(finalConfigStatus);
 }
+
+    

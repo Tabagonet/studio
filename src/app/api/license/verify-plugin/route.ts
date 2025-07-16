@@ -111,3 +111,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ status: 'error', message: 'Error interno del servidor.' }, { status: 500 });
   }
 }
+
+    
