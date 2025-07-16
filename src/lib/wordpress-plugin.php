@@ -102,58 +102,52 @@ function custom_api_register_yoast_meta_fields() {
 
 // Security Check function to be used as permission_callback
 function autopress_ai_permission_check( WP_REST_Request $request ) {
-    // Nonce check for requests from WordPress admin panel
+    // Priority 1: Check for Basic Auth (Application Password) from AutoPress AI
+    $auth_header = $request->get_header('authorization');
+    if ($auth_header) {
+        list($type, $credentials) = explode(' ', $auth_header, 2);
+        if ('basic' === strtolower($type)) {
+            $decoded = base64_decode($credentials);
+            if (strpos($decoded, ':') === false) return false;
+            
+            list($username, $app_password) = explode(':', $decoded, 2);
+            $user = get_user_by('login', $username);
+
+            if (!$user) return false;
+            
+            require_once ABSPATH . 'wp-admin/includes/class-wp-application-passwords.php';
+            if (!class_exists('WP_Application_Passwords')) return false;
+
+            $app_passwords_list = WP_Application_Passwords::get_user_application_passwords($user->ID);
+            $is_valid_password = false;
+            foreach ($app_passwords_list as $password_data) {
+                if (wp_check_password($app_password, $password_data['password'], $user->ID)) {
+                    $is_valid_password = true;
+                    break;
+                }
+            }
+            if (!$is_valid_password) return false;
+
+            // If the password is valid, proceed with the external verification
+            $api_key = get_user_meta($user->ID, 'autopress_api_key', true) ?: get_option('autopress_api_key');
+            if (!$api_key) return false;
+
+            $response = wp_remote_get( "https://autopress.intelvisual.es/api/license/verify-plugin?apiKey=" . $api_key . "&siteUrl=" . urlencode(home_url()) );
+
+            if (is_wp_error($response)) return false;
+            $body = json_decode(wp_remote_retrieve_body($response), true);
+            return isset($body['status']) && $body['status'] === 'active';
+        }
+    }
+
+    // Priority 2: Check for Nonce from WordPress Admin panel
     $nonce = $request->get_header('X-WP-Nonce');
     if ($nonce) {
-        $result = wp_verify_nonce($nonce, 'wp_rest');
-        if ($result && is_user_logged_in() && current_user_can('edit_posts')) {
-            return true;
-        }
+        return wp_verify_nonce($nonce, 'wp_rest') && current_user_can('edit_posts');
     }
-
-    // Fallback to Application Password (Basic Auth) check for AutoPress AI app calls
-    $auth_header = $request->get_header('authorization');
-    if (!$auth_header) return false;
-
-    list($type, $credentials) = explode(' ', $auth_header, 2);
-    if ('basic' !== strtolower($type)) return false;
     
-    $decoded = base64_decode($credentials);
-    if (strpos($decoded, ':') === false) return false;
-    
-    list($username, $app_password) = explode(':', $decoded, 2);
-    $user = get_user_by('login', $username);
-
-    if (!$user) return false;
-
-    require_once ABSPATH . 'wp-admin/includes/class-wp-application-passwords.php';
-    if (!class_exists('WP_Application_Passwords')) return false;
-
-    $app_passwords_list = WP_Application_Passwords::get_user_application_passwords($user->ID);
-    $is_valid_password = false;
-    foreach ($app_passwords_list as $password_data) {
-        if (wp_check_password($app_password, $password_data['password'], $user->ID)) {
-            $is_valid_password = true;
-            break;
-        }
-    }
-    if (!$is_valid_password) return false;
-    
-    // If the application password is valid, we still verify with the AutoPress AI server.
-    // We use a user meta field for the API Key, falling back to a global option for older setups.
-    $api_key_meta = get_user_meta($user->ID, 'autopress_api_key', true);
-    $api_key_option = get_option('autopress_api_key');
-    $api_key = $api_key_meta ?: $api_key_option;
-
-    if (!$api_key) return false;
-    
-    $response = wp_remote_get( "https://autopress.intelvisual.es/api/license/verify-plugin?apiKey=" . $api_key . "&siteUrl=" . urlencode(home_url()) );
-
-    if ( is_wp_error( $response ) ) {
-        return false;
-    }
-    $body = json_decode( wp_remote_retrieve_body( $response ), true );
-    return isset( $body['status'] ) && $body['status'] === 'active';
+    // If neither method succeeds, deny permission.
+    return false;
 }
 
 
