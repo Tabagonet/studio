@@ -1,4 +1,5 @@
 
+
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -208,7 +209,7 @@ export async function uploadImageToWordPress(
         const processImageUrl = `${baseUrl}/api/process-image`;
         
         // Use the currently authenticated user's token for the internal API call
-        const token = await admin.auth().createCustomToken(wpApi.defaults.auth?.username || 'unknown-user');
+        const token = (await wpApi.defaults.headers.common['Authorization'] as string).split(' ')[1];
 
         const processResponse = await axios.post(processImageUrl, {
             imageUrl: imageUrl

@@ -1,4 +1,5 @@
 
+
 // This is a new file for fetching batch content data.
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
@@ -10,25 +11,41 @@ import type { ExtractedWidget } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
-function findImageUrlsInElementor(data: any): string[] {
-    const urls: string[] = [];
-    if (!data) return urls;
+function findImageUrlsInElementor(data: any): { url: string; id: number | null }[] {
+    const images: { url: string; id: number | null }[] = [];
+    if (!data) return images;
 
     if (Array.isArray(data)) {
-        data.forEach(item => urls.push(...findImageUrlsInElementor(item)));
-        return urls;
+        data.forEach(item => images.push(...findImageUrlsInElementor(item)));
+        return images;
     }
 
     if (typeof data === 'object') {
         for (const key in data) {
-            if (key === 'url' && typeof data[key] === 'string' && (data[key].includes('.jpg') || data[key].includes('.jpeg') || data[key].includes('.png') || data[key].includes('.webp') || data[key].includes('.gif'))) {
-                urls.push(data[key]);
-            } else if (typeof data[key] === 'object' && data[key] !== null) {
-                urls.push(...findImageUrlsInElementor(data[key]));
+            // Standard image widgets, background images, etc.
+            if (key === 'background_image' || key === 'image') {
+                const value = data[key];
+                 if (typeof value === 'object' && value !== null && typeof value.url === 'string' && value.url) {
+                    images.push({ url: value.url, id: value.id || null });
+                 }
+            }
+            // Sliders, galleries, and other repeater widgets
+            else if (key === 'slides' && Array.isArray(data[key])) {
+                data[key].forEach((slide: any) => {
+                     if (slide.background_image?.url) {
+                         images.push({ url: slide.background_image.url, id: slide.background_image.id || null });
+                     }
+                      if (slide.image?.url) {
+                         images.push({ url: slide.image.url, id: slide.image.id || null });
+                     }
+                });
+            }
+            else if (typeof data[key] === 'object' && data[key] !== null) {
+                images.push(...findImageUrlsInElementor(data[key]));
             }
         }
     }
-    return urls;
+    return images;
 }
 
 
@@ -46,39 +63,43 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
     post = data;
 
     let scrapedImages: any[] = [];
-    const isElementor = !!post.meta?._elementor_data;
+    const metaToCheck = post.meta_data ? post.meta_data.reduce((obj: any, item: any) => ({...obj, [item.key]: item.value}), {}) : post.meta;
+    const isElementor = !!metaToCheck?._elementor_data;
 
     if (isElementor) {
-        const elementorData = JSON.parse(post.meta._elementor_data || '[]');
-        const imageUrls = findImageUrlsInElementor(elementorData);
-        if (imageUrls.length > 0) {
-            const mediaItems = [];
-            // To avoid making the request URL too long, fetch media in chunks of 50
-            for (let i = 0; i < imageUrls.length; i += 50) {
-                const chunk = imageUrls.slice(i, i + 50);
+        const elementorData = JSON.parse(metaToCheck._elementor_data || '[]');
+        const imageUrlsData = findImageUrlsInElementor(elementorData);
+        
+        if (imageUrlsData.length > 0) {
+            scrapedImages = imageUrlsData.map(imgData => ({
+                id: imgData.url, // Use url as unique key for frontend
+                src: imgData.url,
+                alt: '', // Will be fetched if media id is available
+                mediaId: imgData.id
+            }));
+
+            const mediaIdsToFetch = imageUrlsData.map(img => img.id).filter((id): id is number => id !== null);
+            if (mediaIdsToFetch.length > 0) {
                 try {
-                     const mediaResponse = await wpApi.get('/media', {
-                        params: { per_page: 50, search: chunk.map(url => new URL(url).pathname.split('/').pop()).join(' '), _fields: 'id,alt_text,source_url' }
+                    const mediaResponse = await wpApi.get('/media', {
+                        params: { include: [...new Set(mediaIdsToFetch)].join(','), per_page: 100, _fields: 'id,alt_text,source_url' }
                     });
-                     if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
-                        mediaItems.push(...mediaResponse.data);
+                    if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
+                        const mediaDataMap = new Map<number, string>();
+                        mediaResponse.data.forEach((mediaItem: any) => {
+                            mediaDataMap.set(mediaItem.id, mediaItem.alt_text);
+                        });
+                        scrapedImages.forEach(img => {
+                            if (img.mediaId && mediaDataMap.has(img.mediaId)) {
+                                img.alt = mediaDataMap.get(img.mediaId) || '';
+                            }
+                        });
                     }
                 } catch (mediaError) {
                     console.warn(`Could not fetch media details for some Elementor images:`, mediaError);
                 }
             }
-            
-            scrapedImages = imageUrls.map(url => {
-                 const mediaItem = mediaItems.find((m: any) => m.source_url === url);
-                 return {
-                    id: url,
-                    src: url,
-                    alt: mediaItem?.alt_text || '',
-                    mediaId: mediaItem?.id || null
-                 }
-            })
         }
-
     } else { // Standard content scraping
         const pageLink = post.permalink || post.link;
         if (pageLink && wpApi) {
@@ -112,7 +133,6 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
             }
         }
     }
-
 
     return {
         id: post.id,

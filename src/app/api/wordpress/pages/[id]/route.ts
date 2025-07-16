@@ -23,6 +23,7 @@ const pageUpdateSchema = z.object({
         _yoast_wpseo_title: z.string().optional(),
         _yoast_wpseo_metadesc: z.string().optional(),
         _yoast_wpseo_focuskw: z.string().optional(),
+        _elementor_data: z.string().optional(), // Allow passing full elementor data
     }).optional(),
     featured_image_metadata: z.object({
         title: z.string(),
@@ -34,26 +35,28 @@ const pageUpdateSchema = z.object({
     })).optional(),
 });
 
-
-function findImageUrlsInElementor(data: any): string[] {
-    const urls: string[] = [];
-    if (!data) return urls;
+function findImageUrlsInElementor(data: any): { url: string; id: number | null }[] {
+    const images: { url: string; id: number | null }[] = [];
+    if (!data) return images;
 
     if (Array.isArray(data)) {
-        data.forEach(item => urls.push(...findImageUrlsInElementor(item)));
-        return urls;
+        data.forEach(item => images.push(...findImageUrlsInElementor(item)));
+        return images;
     }
 
     if (typeof data === 'object') {
         for (const key in data) {
-            if (key === 'url' && typeof data[key] === 'string' && (data[key].includes('.jpg') || data[key].includes('.jpeg') || data[key].includes('.png') || data[key].includes('.webp') || data[key].includes('.gif'))) {
-                urls.push(data[key]);
+            if (key === 'background_image' || key === 'image') {
+                const value = data[key];
+                 if (typeof value === 'object' && value !== null && typeof value.url === 'string' && value.url) {
+                    images.push({ url: value.url, id: value.id || null });
+                 }
             } else if (typeof data[key] === 'object' && data[key] !== null) {
-                urls.push(...findImageUrlsInElementor(data[key]));
+                images.push(...findImageUrlsInElementor(data[key]));
             }
         }
     }
-    return urls;
+    return images;
 }
 
 
@@ -89,33 +92,36 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     
     if (isElementor) {
         const elementorData = JSON.parse(pageData.meta._elementor_data || '[]');
-        const imageUrls = findImageUrlsInElementor(elementorData);
-        if (imageUrls.length > 0) {
-            const mediaItems = [];
-            // To avoid making the request URL too long, fetch media in chunks of 50
-            for (let i = 0; i < imageUrls.length; i += 50) {
-                const chunk = imageUrls.slice(i, i + 50);
+        const imageUrlsData = findImageUrlsInElementor(elementorData);
+        if (imageUrlsData.length > 0) {
+            scrapedImages = imageUrlsData.map(imgData => ({
+                id: imgData.url, // Use url as unique key for frontend
+                src: imgData.url,
+                alt: '', // Will be fetched if media id is available
+                mediaId: imgData.id
+            }));
+
+            const mediaIdsToFetch = imageUrlsData.map(img => img.id).filter((id): id is number => id !== null);
+            if (mediaIdsToFetch.length > 0) {
                 try {
-                     const mediaResponse = await wpApi.get('/media', {
-                        params: { per_page: 50, search: chunk.map(url => new URL(url).pathname.split('/').pop()).join(' '), _fields: 'id,alt_text,source_url' }
+                    const mediaResponse = await wpApi.get('/media', {
+                        params: { include: [...new Set(mediaIdsToFetch)].join(','), per_page: 100, _fields: 'id,alt_text,source_url' }
                     });
-                     if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
-                        mediaItems.push(...mediaResponse.data);
+                    if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
+                        const mediaDataMap = new Map<number, string>();
+                        mediaResponse.data.forEach((mediaItem: any) => {
+                            mediaDataMap.set(mediaItem.id, mediaItem.alt_text);
+                        });
+                        scrapedImages.forEach(img => {
+                            if (img.mediaId && mediaDataMap.has(img.mediaId)) {
+                                img.alt = mediaDataMap.get(img.mediaId) || '';
+                            }
+                        });
                     }
                 } catch (mediaError) {
                     console.warn(`Could not fetch media details for some Elementor images:`, mediaError);
                 }
             }
-            
-            scrapedImages = imageUrls.map(url => {
-                 const mediaItem = mediaItems.find((m: any) => m.source_url === url);
-                 return {
-                    id: url,
-                    src: url,
-                    alt: mediaItem?.alt_text || '',
-                    mediaId: mediaItem?.id || null
-                 }
-            })
         }
     } else { // Standard HTML scraping for non-Elementor
         const pageLink = pageData.link;
@@ -133,7 +139,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
                     const classList = $(el).attr('class') || '';
                     const match = classList.match(/wp-image-(\d+)/);
                     const mediaId = match ? parseInt(match[1], 10) : null;
-                    if (mediaId) foundImageIds.add(mediaId);
+                    if (mediaId) {
+                        foundImageIds.add(mediaId);
+                    }
                 });
                 
                 if (foundImageIds.size > 0) {

@@ -12,25 +12,49 @@ const slugify = (text: string) => {
 
 // Recursive function to find and replace image URLs within Elementor's data structure.
 function replaceImageUrlInElementor(elements: any[], oldUrl: string, newUrl: string): { replaced: boolean; data: any[] } {
-    console.log('[Elementor Replace] Iniciando búsqueda recursiva...');
+    console.log(`[Elementor Replace] Iniciando búsqueda recursiva para reemplazar ${oldUrl}`);
     let replaced = false;
     const newElements = JSON.parse(JSON.stringify(elements)); // Deep copy to avoid mutation issues
 
     function traverse(items: any[]) {
         for (const item of items) {
-            // Check in standard image widget settings
-            if (item.settings?.image?.url === oldUrl) {
-                console.log(`[Elementor Replace] URL encontrada en widget de imagen ${item.id}. Reemplazando.`);
-                item.settings.image.url = newUrl;
-                replaced = true;
+            if (!item || typeof item !== 'object') continue;
+
+            // Check direct settings of the element
+            if (item.settings) {
+                for (const key in item.settings) {
+                    if (Object.prototype.hasOwnProperty.call(item.settings, key)) {
+                        const setting = item.settings[key];
+                        // Handles simple image widgets: { image: { url: '...' } }
+                        if (typeof setting === 'object' && setting !== null && setting.url === oldUrl) {
+                            console.log(`[Elementor Replace] URL encontrada en widget ${item.widgetType}, setting ${key}. Reemplazando.`);
+                            setting.url = newUrl;
+                            replaced = true;
+                        }
+                    }
+                }
             }
-            // Check in background image settings (common for sections, columns)
-            if (item.settings?.background_image?.url === oldUrl) {
-                console.log(`[Elementor Replace] URL encontrada en fondo de elemento ${item.id}. Reemplazando.`);
-                item.settings.background_image.url = newUrl;
-                replaced = true;
+            
+            // Handle complex widgets like sliders where images are in an array
+            // e.g., slides: [ { background_image: { url: '...' } }, ... ]
+            const arrayKeys = ['slides', 'icon_boxes_items', 'gallery']; // Add other possible keys for widgets with image lists
+            for (const arrayKey of arrayKeys) {
+                if (item.settings && Array.isArray(item.settings[arrayKey])) {
+                    for (const slide of item.settings[arrayKey]) {
+                        if (slide.background_image?.url === oldUrl) {
+                             console.log(`[Elementor Replace] URL encontrada en un slider/repeater. Reemplazando.`);
+                             slide.background_image.url = newUrl;
+                             replaced = true;
+                        }
+                         if (slide.image?.url === oldUrl) {
+                             console.log(`[Elementor Replace] URL encontrada en una imagen de repeater. Reemplazando.`);
+                             slide.image.url = newUrl;
+                             replaced = true;
+                        }
+                    }
+                }
             }
-            // Add other potential image keys here if needed, e.g., for galleries, sliders, etc.
+
 
             // Recurse into nested elements
             if (item.elements && item.elements.length > 0) {
@@ -80,15 +104,15 @@ export async function POST(req: NextRequest) {
         }
 
         let post: any;
-        const isElementor = (await wpApi.get(`/pages/${postId}?context=edit`)).data.meta?._elementor_data;
         const apiToUse = postType === 'Producto' ? wooApi : wpApi;
         if (!apiToUse) throw new Error(`API client for ${postType} is not configured.`);
         const endpoint = postType === 'Producto' ? `products/${postId}` : postType === 'Post' ? `/posts/${postId}` : `/pages/${postId}`;
 
         console.log(`[API replace-image] Obteniendo datos del post desde ${endpoint}`);
         const { data } = await apiToUse.get(endpoint, { params: { context: 'edit' } });
-        post = postType === 'Producto' ? { ...data, title: { rendered: data.name }, content: { rendered: data.description } } : data;
+        post = postType === 'Producto' ? { ...data, title: { rendered: data.name }, content: { rendered: data.description }, meta: data.meta_data.reduce((obj: any, item: any) => ({...obj, [item.key]: item.value}), {}) } : data;
         
+        const isElementor = !!post.meta?._elementor_data;
         console.log(`[API replace-image] Post "${post.title.rendered}" cargado. ¿Es Elementor? ${!!isElementor}`);
 
         const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
@@ -135,6 +159,7 @@ export async function POST(req: NextRequest) {
             const elementorData = JSON.parse(post.meta._elementor_data);
             const { replaced, data: newElementorData } = replaceImageUrlInElementor(elementorData, oldImageUrl, newImageUrl);
             if (replaced) {
+                // For Elementor, the whole data structure needs to be saved in the meta field.
                 updatePayload.meta = { ...post.meta, _elementor_data: JSON.stringify(newElementorData) };
                 finalContent = JSON.stringify(newElementorData); // For response
                  console.log('[API replace-image] Payload de Elementor preparado para actualizar.');
