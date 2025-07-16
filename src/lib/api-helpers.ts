@@ -190,9 +190,9 @@ export function replaceElementorTexts(elementorData: any, translatedTexts: strin
 
 /**
  * Downloads, processes (resizes, converts to WebP), and uploads an image to the WordPress media library.
- * This function now loads 'sharp' dynamically to avoid bundling it in routes that don't need it.
- * @param imageUrl The URL of the image to process.
- * @param seoFilename A desired filename for SEO purposes. The extension will be replaced with .webp.
+ * This function now calls a dedicated internal API endpoint to handle Sharp processing.
+ * @param imageUrl The temporary URL of the image to process (from /api/upload-image).
+ * @param seoFilename A desired filename for SEO purposes.
  * @param imageMetadata Metadata for the image (title, alt, etc.).
  * @param wpApi Initialized Axios instance for WordPress API.
  * @returns The ID of the newly uploaded media item.
@@ -204,20 +204,22 @@ export async function uploadImageToWordPress(
   wpApi: AxiosInstance
 ): Promise<number> {
     try {
-        const sharp = (await import('sharp')).default;
+        const baseUrl = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:9002');
+        const processImageUrl = `${baseUrl}/api/process-image`;
+        
+        // Use the currently authenticated user's token for the internal API call
+        const token = await admin.auth().createCustomToken(wpApi.defaults.auth?.username || 'unknown-user');
 
-        const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-        const originalBuffer = Buffer.from(imageResponse.data, 'binary');
+        const processResponse = await axios.post(processImageUrl, {
+            imageUrl: imageUrl
+        }, {
+            responseType: 'arraybuffer',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
 
-        const processedBuffer = await sharp(originalBuffer)
-            .resize(1200, 1200, {
-                fit: 'inside',
-                withoutEnlargement: true,
-            })
-            .webp({ quality: 80 })
-            .toBuffer();
-            
+        const processedBuffer = Buffer.from(processResponse.data);
         const webpFilename = seoFilename.replace(/\.[^/.]+$/, "") + ".webp";
+
         const formData = new FormData();
         formData.append('file', processedBuffer, webpFilename);
         formData.append('title', imageMetadata.title);

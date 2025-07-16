@@ -15,7 +15,7 @@ const nextConfig = {
       'handlebars',
       'debug',
       'supports-color',
-      'sharp',
+      'sharp'
     ],
   },
   images: {

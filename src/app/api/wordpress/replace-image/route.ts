@@ -48,11 +48,12 @@ function replaceImageUrlInElementor(elements: any[], oldUrl: string, newUrl: str
 export async function POST(req: NextRequest) {
     console.log('[API replace-image] Petición POST recibida.');
     let uid: string;
+    let authToken: string | undefined;
     try {
-        const token = req.headers.get('Authorization')?.split('Bearer ')[1];
-        if (!token) throw new Error('Auth token missing');
+        authToken = req.headers.get('Authorization')?.split('Bearer ')[1];
+        if (!authToken) throw new Error('Auth token missing');
         if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
-        uid = (await adminAuth.verifyIdToken(token)).uid;
+        uid = (await adminAuth.verifyIdToken(authToken)).uid;
         console.log(`[API replace-image] Usuario autenticado: ${uid}`);
     } catch (e: any) {
         console.error('[API replace-image] Fallo de autenticación:', e.message);
@@ -101,12 +102,17 @@ export async function POST(req: NextRequest) {
         const aiContent = JSON.parse(result.response.text());
         console.log('[API replace-image] Metadatos de IA generados:', aiContent);
 
-        const tempArrayBuffer = await newImageFile.arrayBuffer();
-        const tempBuffer = Buffer.from(tempArrayBuffer);
-
         console.log('[API replace-image] Subiendo nueva imagen a WordPress...');
+        const tempUploadResponse = await fetch(`${req.nextUrl.origin}/api/upload-image`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` },
+            body: formData,
+        });
+        if (!tempUploadResponse.ok) throw new Error('Failed to upload image to temporary server.');
+        const { url: tempUrl } = await tempUploadResponse.json();
+
         const newImageId = await uploadImageToWordPress(
-            `data:${newImageFile.type};base64,${tempBuffer.toString('base64')}`,
+            tempUrl,
             `${slugify(post.title.rendered || 'image')}-${Date.now()}.jpg`,
             {
                 title: aiContent.imageTitle || post.title.rendered,
