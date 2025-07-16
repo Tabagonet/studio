@@ -310,11 +310,11 @@ export function BlogDataTable() {
       const token = await user.getIdToken();
       const response = await fetch(`/api/wordpress/posts/${postId}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Error al mover a la papelera.');
-      toast({ title: "¡Entrada movida a la papelera!", description: "Podrás restaurarla o eliminarla desde WordPress." });
+      toast({ title: "¡Entrada movida a la papelera!", description: "Podrás restaurarla o eliminarla permanentemente desde WordPress." });
       fetchData();
       fetchStats();
     } catch (error) {

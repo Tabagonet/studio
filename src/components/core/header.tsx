@@ -120,25 +120,27 @@ export function Header() {
 
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const handleAuthChange = (user: FirebaseUser | null) => {
       setCurrentUser(user);
       setIsLoadingAuth(false);
       fetchConnectionStatus(user);
       fetchNotifications(user);
-    });
+    };
 
     const handleConnectionsUpdate = () => {
       if (auth.currentUser) {
         fetchConnectionStatus(auth.currentUser);
       }
     };
+
+    const unsubscribe = onAuthStateChanged(auth, handleAuthChange);
     window.addEventListener('connections-updated', handleConnectionsUpdate);
 
     return () => {
-        unsubscribe();
-        window.removeEventListener('connections-updated', handleConnectionsUpdate);
+      unsubscribe();
+      window.removeEventListener('connections-updated', handleConnectionsUpdate);
     };
-  }, [fetchConnectionStatus, fetchNotifications, refreshKey]);
+  }, [fetchConnectionStatus, fetchNotifications]);
 
   const handleMarkAsRead = async () => {
     if (unreadCount === 0) return;
@@ -191,7 +193,11 @@ export function Header() {
           <ConnectionStatusIndicator 
             status={configStatus} 
             isLoading={isLoadingAuth || isLoadingStatus} 
-            onRefresh={() => setRefreshKey(prev => prev + 1)}
+            onRefresh={() => {
+              if (auth.currentUser) {
+                fetchConnectionStatus(auth.currentUser);
+              }
+            }}
           />
 
           <nav className="flex items-center space-x-1">

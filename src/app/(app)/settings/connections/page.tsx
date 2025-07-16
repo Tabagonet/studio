@@ -45,6 +45,7 @@ interface SelectedEntityStatus {
     shopifyPartnerError?: string; 
     shopifyCustomAppConfigured?: boolean; 
     pluginActive: boolean;
+    pluginError?: string;
     activePlatform: 'woocommerce' | 'shopify' | null;
     assignedPlatform: 'woocommerce' | 'shopify' | null;
 }
@@ -378,6 +379,9 @@ export default function ConnectionsPage() {
                 setSelectedKey(keyToSave);
             }
             
+            // Dispatch event to notify other components
+            window.dispatchEvent(new Event('connections-updated'));
+            
         } catch (error: any) {
             toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
         } finally {
@@ -411,8 +415,10 @@ export default function ConnectionsPage() {
             
             toast({ title: "Conexión Eliminada", description: `El perfil para '${keyToDelete}' ha sido eliminado.` });
             
-            // This now waits for the server to confirm before refetching data
             await fetchAllDataForTarget(user, editingTarget.type, editingTarget.id);
+
+            // Dispatch event to notify other components
+            window.dispatchEvent(new Event('connections-updated'));
             
         } catch (error: any) {
             toast({ title: "Error al Eliminar", description: error.message, variant: "destructive" });
