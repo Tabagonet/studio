@@ -19,15 +19,8 @@ import { ShopifyIcon } from '@/components/core/icons';
 
 type ServerConfigStatus = {
   googleAiApiKey: boolean;
-  wooCommerceConfigured: boolean;
-  wordPressConfigured: boolean;
-  shopifyConfigured: boolean;
-  shopifyPartnerConfigured: boolean;
-  shopifyCustomAppConfigured: boolean;
   firebaseAdminSdk: boolean;
   recaptchaConfigured: boolean;
-  apiKey: string | null;
-  assignedPlatform: 'woocommerce' | 'shopify' | null;
 };
 
 const StatusBadge = ({ status, loading, configuredText = "Configurada", missingText = "Falta" }: { status?: boolean, loading: boolean, configuredText?: string, missingText?: string }) => {
@@ -58,6 +51,8 @@ const StatusBadge = ({ status, loading, configuredText = "Configurada", missingT
 export default function SettingsPage() {
   const [serverConfig, setServerConfig] = useState<ServerConfigStatus | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState<string | null>(null);
+
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -94,7 +89,8 @@ export default function SettingsPage() {
             const userData: any = await roleResponse.json();
             
             setUserRole(userData.role);
-            setServerConfig({ ...configData, apiKey: userData.apiKey });
+            setServerConfig(configData);
+            setApiKey(userData.apiKey);
             setIsLoadingConfig(false);
 
             if (userData.role === 'super_admin') {
@@ -319,14 +315,8 @@ export default function SettingsPage() {
     });
   };
 
-
-  const firebaseAdminHint = "Esta clave (FIREBASE_SERVICE_ACCOUNT_JSON) es para toda la aplicación y se configura en el archivo .env del servidor.";
-  const googleAiApiKeyHint = "Esta clave (GOOGLE_API_KEY) es para toda la aplicación y se configura en el archivo .env del servidor. Obtén una clave gratis desde Google AI Studio.";
-  const recaptchaHint = "Las claves de reCAPTCHA (RECAPTCHA_SECRET_KEY y NEXT_PUBLIC_RECAPTCHA_SITE_KEY) son globales y se configuran en el .env del servidor.";
-  
   const isSuperAdmin = userRole === 'super_admin';
-  const effectivePlatform = serverConfig?.assignedPlatform;
-
+  
   return (
     <div className="container mx-auto py-8 space-y-8">
       <input type="file" ref={fileInputRef} onChange={handleFileSelected} className="hidden" accept=".json" />
@@ -342,13 +332,12 @@ export default function SettingsPage() {
                 <CardTitle>Conexiones API</CardTitle>
             </div>
             <CardDescription>
-                Gestiona aquí las credenciales para conectar tu cuenta con servicios externos como WooCommerce y WordPress.
-                Estas claves son específicas para tu usuario.
+                Gestiona aquí las credenciales para conectar tu cuenta con servicios externos como WooCommerce, WordPress y Shopify.
             </CardDescription>
         </CardHeader>
         <CardContent>
             <p className="text-sm text-muted-foreground mb-4">
-                Haz clic en el botón para configurar o actualizar tus claves de API de WooCommerce y las contraseñas de aplicación de WordPress.
+                Haz clic en el botón para configurar tus claves de API.
             </p>
             <Button asChild>
                 <Link href="/settings/connections">
@@ -363,27 +352,27 @@ export default function SettingsPage() {
         <CardHeader>
           <div className="flex items-center space-x-2">
             <KeyRound className="h-6 w-6 text-primary" />
-            <CardTitle>Clave de API del Plugin</CardTitle>
+            <CardTitle>Clave de API Personal</CardTitle>
           </div>
           <CardDescription>
-            Usa esta clave en los ajustes del plugin de WordPress para activar la conexión segura con la plataforma.
+            Esta clave se usa internamente para verificar la conexión del plugin de WordPress y para futuras integraciones de API.
           </CardDescription>
         </CardHeader>
         <CardContent>
             {isLoadingConfig ? (
                  <Skeleton className="h-10 w-full" />
-            ) : serverConfig?.apiKey ? (
+            ) : apiKey ? (
                 <div className="flex items-center gap-2">
                     <Input
                         readOnly
-                        value={isApiKeyVisible ? serverConfig.apiKey : '•'.repeat(36)}
+                        value={isApiKeyVisible ? apiKey : '•'.repeat(36)}
                         className={cn("font-code", !isApiKeyVisible && "tracking-widest")}
                     />
                      <Button variant="outline" size="icon" onClick={() => setIsApiKeyVisible(!isApiKeyVisible)}>
                         {isApiKeyVisible ? <EyeOff /> : <Eye />}
                     </Button>
                     <Button onClick={() => {
-                        navigator.clipboard.writeText(serverConfig.apiKey!);
+                        navigator.clipboard.writeText(apiKey!);
                         toast({ title: "Copiado", description: "La clave de API ha sido copiada." });
                     }}>Copiar</Button>
                 </div>
@@ -398,92 +387,33 @@ export default function SettingsPage() {
         <CardHeader>
           <div className="flex items-center space-x-2">
             <Info className="h-6 w-6 text-primary" />
-            <CardTitle>Estado de Configuración</CardTitle>
+            <CardTitle>Estado de Configuración Global</CardTitle>
           </div>
           <CardDescription>
-            Estado de las configuraciones. Las globales se gestionan en el servidor, las de usuario en la sección de Conexiones.
+            Estado de las configuraciones que afectan a toda la aplicación. Se gestionan en el servidor.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-           {/* GLOBAL SETTINGS */}
-           <div title={firebaseAdminHint} className="flex items-center justify-between p-3 border rounded-md bg-muted/30 cursor-help">
+           <div className="flex items-center justify-between p-3 border rounded-md bg-muted/30 cursor-help">
             <Label className="flex items-center cursor-help">
               <Server className="h-4 w-4 mr-2 text-orange-500" />
               Firebase Admin SDK (Global)
             </Label>
             <StatusBadge status={serverConfig?.firebaseAdminSdk} loading={isLoadingConfig} />
           </div>
-          <div title={googleAiApiKeyHint} className="flex items-center justify-between p-3 border rounded-md bg-muted/30 cursor-help">
+          <div className="flex items-center justify-between p-3 border rounded-md bg-muted/30 cursor-help">
             <Label className="flex items-center cursor-help">
               <BrainCircuit className="h-4 w-4 mr-2 text-blue-500" />
               Clave API de Google AI (Global)
             </Label>
              <StatusBadge status={serverConfig?.googleAiApiKey} loading={isLoadingConfig} />
           </div>
-          <div title={recaptchaHint} className="flex items-center justify-between p-3 border rounded-md bg-muted/30 cursor-help">
+          <div className="flex items-center justify-between p-3 border rounded-md bg-muted/30 cursor-help">
             <Label className="flex items-center cursor-help">
               <ShieldCheck className="h-4 w-4 mr-2 text-green-600" />
               Configuración reCAPTCHA (Global)
             </Label>
             <StatusBadge status={serverConfig?.recaptchaConfigured} loading={isLoadingConfig} />
-          </div>
-          
-          {/* PER-USER/COMPANY SETTINGS */}
-          {(isSuperAdmin || effectivePlatform === 'woocommerce') && (
-            <>
-              <div className="flex items-center justify-between p-3 border rounded-md">
-                <Label className="flex items-center">
-                    <Store className="h-4 w-4 mr-2 text-purple-500" />
-                    Conexión WooCommerce
-                </Label>
-                <StatusBadge status={serverConfig?.wooCommerceConfigured} loading={isLoadingConfig} />
-              </div>
-              <div className="flex items-center justify-between p-3 border rounded-md">
-                <Label className="flex items-center">
-                    <Globe className="h-4 w-4 mr-2 text-blue-600" />
-                    Conexión WordPress
-                </Label>
-                <StatusBadge status={serverConfig?.wordPressConfigured} loading={isLoadingConfig} />
-              </div>
-            </>
-          )}
-
-          {(isSuperAdmin || effectivePlatform === 'shopify') && (
-            <>
-                <div className="flex items-center justify-between p-3 border rounded-md">
-                    <Label className="flex items-center">
-                        <ShopifyIcon className="h-4 w-4 mr-2 text-green-600" />
-                        Conexión a Tienda Shopify
-                    </Label>
-                    <StatusBadge status={serverConfig?.shopifyConfigured} loading={isLoadingConfig} />
-                </div>
-                <div className="flex items-center justify-between p-3 border rounded-md">
-                    <Label className="flex items-center">
-                        <ShopifyIcon className="h-4 w-4 mr-2 text-[#7ab55c]" />
-                        Conexión Shopify Partner
-                    </Label>
-                    <StatusBadge status={serverConfig?.shopifyPartnerConfigured} loading={isLoadingConfig} />
-                </div>
-                <div className="flex items-center justify-between p-3 border rounded-md">
-                    <Label className="flex items-center">
-                        <ShieldCheck className="h-4 w-4 mr-2 text-blue-500" />
-                        App Personalizada (OAuth)
-                    </Label>
-                    <StatusBadge status={serverConfig?.shopifyCustomAppConfigured} loading={isLoadingConfig} />
-                </div>
-            </>
-          )}
-          
-           <div className="mt-2 p-3 bg-accent/50 rounded-md flex items-start space-x-2">
-            <Info className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm text-muted-foreground">
-                Las configuraciones marcadas como <span className="font-semibold">"(Global)"</span> se establecen en el archivo <code className="font-code bg-muted px-1 py-0.5 rounded-sm">.env</code> del servidor y afectan a toda la aplicación.
-              </p>
-               <p className="text-sm text-muted-foreground mt-2">
-                 Las configuraciones de conexión son personales (o de empresa) y se gestionan en la página de <Link href="/settings/connections" className="underline font-medium">Conexiones API</Link>. Su visibilidad en este panel depende de la plataforma asignada a tu usuario o empresa.
-              </p>
-            </div>
           </div>
         </CardContent>
       </Card>
