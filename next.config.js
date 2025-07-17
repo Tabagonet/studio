@@ -56,6 +56,11 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'treezom.com',
       },
+      {
+        protocol: 'https',
+        hostname: 'esdron.com',
+      },
+      
     ],
   },
 };
