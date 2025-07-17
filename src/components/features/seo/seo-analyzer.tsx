@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
@@ -14,29 +15,12 @@ import { Loader2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { ContentImage, ExtractedWidget } from '@/lib/types';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import type { PostEditState } from '@/app/(app)/seo-optimizer/edit/[id]/page';
 
-
-interface SeoAnalyzerPost {
-  title: string;
-  content: string | ExtractedWidget[];
-  short_description?: string;
-  meta: {
-      _yoast_wpseo_title: string;
-      _yoast_wpseo_metadesc: string;
-      _yoast_wpseo_focuskw: string;
-  };
-  isElementor: boolean;
-  elementorEditLink: string | null;
-  adminEditLink?: string | null;
-  featuredImageUrl?: string | null;
-  link?: string;
-  postType: 'Post' | 'Page' | 'Producto';
-  lang: string;
-}
 
 interface SeoAnalyzerProps {
-  post: SeoAnalyzerPost | null;
-  setPost: React.Dispatch<React.SetStateAction<SeoAnalyzerPost | null>>;
+  post: PostEditState | null;
+  setPost: React.Dispatch<React.SetStateAction<PostEditState | null>>;
   isLoading: boolean;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
   contentImages: ContentImage[];
@@ -343,7 +327,7 @@ export function SeoAnalyzer({
                       Generar 'alt text' con IA
                   </Button>
                   
-                   {post.featuredImageUrl && (
+                   {post.featuredImage && (
                       <div className="flex items-center space-x-2 pt-4 border-t">
                           <Checkbox id="apply-featured" checked={applyAiMetaToFeatured} onCheckedChange={(checked) => setApplyAiMetaToFeatured(!!checked)} />
                           <Label htmlFor="apply-featured" className="text-sm font-normal">

@@ -15,7 +15,8 @@ const nextConfig = {
       'handlebars',
       'debug',
       'supports-color',
-      'sharp'
+      'sharp',
+      'node-gyp-build'
     ],
   },
   images: {

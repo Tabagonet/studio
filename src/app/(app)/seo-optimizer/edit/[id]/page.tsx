@@ -4,27 +4,20 @@
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Wand2, Tags, ArrowLeft, ExternalLink, Image as ImageIcon, Link as LinkIcon, Trash2 } from 'lucide-react';
+import { Loader2, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { WordPressPostCategory, WordPressUser, ProductPhoto, ExtractedWidget, ContentImage } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ImageUploader } from '@/components/features/wizard/image-uploader';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Checkbox } from '@/components/ui/checkbox';
-import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
-import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
-import type { SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
+import { ContentImage, ExtractedWidget } from '@/lib/types';
 import { SeoAnalyzer } from '@/components/features/seo/seo-analyzer';
 import { GoogleSnippetPreview } from '@/components/features/blog/google-snippet-preview';
 
 
-interface PostEditState {
+export interface PostEditState {
   title: string;
   content: string | ExtractedWidget[]; 
   short_description?: string;
@@ -37,7 +30,7 @@ interface PostEditState {
   author: number | null;
   categories: number[];
   tags: string;
-  featuredImage: ProductPhoto | null;
+  featuredImage: ContentImage | null;
   featuredImageId: number | null; // Keep track of the original featured media ID
   isElementor: boolean;
   elementorEditLink: string | null;
@@ -116,8 +109,8 @@ function EditPageContent() {
         tags: postData.tags?.map((t: any) => t.name).join(', ') || '',
         featuredImageId: postData.featured_media || null,
         featuredImage: postData.featured_image_url ? {
-            id: postData.featured_media, previewUrl: postData.featured_image_url, name: 'Imagen destacada',
-            status: 'completed', progress: 100,
+            id: postData.featured_media, src: postData.featured_image_url, alt: postData.alt_text || '', mediaId: postData.featured_media,
+            width: postData.media_details?.width || null, height: postData.media_details?.height || null
         } : null,
         isElementor: postData.isElementor || false, 
         elementorEditLink: postData.elementorEditLink || null,
@@ -171,7 +164,9 @@ function EditPageContent() {
             payload.image_alt_updates = imageUpdates.filter(u => u.id !== null);
         }
         
-        const endpoint = post.postType === 'Post' ? `/api/wordpress/posts/${postId}` : `/api/wordpress/pages/${postId}`;
+        const endpoint = post.postType === 'Producto' ? `/api/wordpress/products/${postId}` :
+                         post.postType === 'Post' ? `/api/wordpress/posts/${postId}` : `/api/wordpress/pages/${postId}`;
+
 
         const response = await fetch(endpoint, {
             method: 'PUT',
@@ -279,4 +274,5 @@ export default function EditPage() {
         </Suspense>
     )
 }
+
 
