@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { getApiClientsForUser, uploadImageToWordPress, replaceImageUrlInElementor, findElementorImageContext } from '@/lib/api-helpers';
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { z } from 'zod';
 import * as cheerio from 'cheerio';
 
 
@@ -12,9 +11,6 @@ const slugify = (text: string) => {
     if (!text) return '';
     return text.toString().toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-').replace(/^-+$/, '');
 };
-
-// Recursive function to find and replace image URLs and IDs within Elementor's data structure.
-// This is now located in api-helpers.ts
 
 
 export async function POST(req: NextRequest) {
@@ -44,8 +40,11 @@ export async function POST(req: NextRequest) {
         const postId = Number(formData.get('postId'));
         const postType = formData.get('postType') as 'Post' | 'Page' | 'Producto';
         const oldImageUrl = formData.get('oldImageUrl') as string | null;
+        const width = formData.get('width') ? Number(formData.get('width')) : null;
+        const height = formData.get('height') ? Number(formData.get('height')) : null;
 
-        console.log(`[API replace-image] Datos recibidos: postId=${postId}, postType=${postType}, oldImageUrl=${oldImageUrl}, newImageFile=${newImageFile?.name}`);
+        console.log(`[API replace-image] Datos recibidos: postId=${postId}, postType=${postType}, oldImageUrl=${oldImageUrl}, newImageFile=${newImageFile?.name}, dimensions=${width}x${height}`);
+
 
         if (!newImageFile || !postId || !postType || !oldImageUrl) {
             return NextResponse.json({ error: 'Faltan datos en la petición.' }, { status: 400 });
@@ -104,7 +103,9 @@ Generate the metadata now. The alt text should be a descriptive sentence.`;
                 caption: '',
                 description: '',
             },
-            wpApi
+            wpApi,
+            width, // Pass width
+            height // Pass height
         );
         
         const newMediaData = await wpApi.get(`/media/${newImageId}`);

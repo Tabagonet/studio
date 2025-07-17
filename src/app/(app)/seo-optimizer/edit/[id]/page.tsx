@@ -42,6 +42,14 @@ interface PostEditState {
   lang: string; // Added language field
 }
 
+interface ReplaceImageDialogState {
+    open: boolean;
+    oldImageSrc: string | null;
+    newImageFile: File | null;
+    originalWidth: number | null;
+    originalHeight: number | null;
+}
+
 
 function EditPageContent() {
   const params = useParams();
@@ -56,7 +64,7 @@ function EditPageContent() {
   const [initialContentImages, setInitialContentImages] = useState<ContentImage[]>([]);
   const [applyAiMetaToFeatured, setApplyAiMetaToFeatured] = useState(false);
   
-  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isAiLoading, setIsLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -67,6 +75,9 @@ function EditPageContent() {
   const [imageUrl, setImageUrl] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  
+  const [replaceDialogState, setReplaceDialogState] = useState<ReplaceImageDialogState>({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: null, originalHeight: null });
+  const [isReplacing, setIsReplacing] = useState(false);
 
   const handleContentChange = (newContent: string) => {
     if (!post || typeof post.content !== 'string') return;
@@ -138,7 +149,8 @@ function EditPageContent() {
             _yoast_wpseo_metadesc: postData.meta?._yoast_wpseo_metadesc || '',
             _yoast_wpseo_focuskw: postData.meta?._yoast_wpseo_focuskw || '',
         },
-        isElementor: postData.isElementor || false, elementorEditLink: postData.elementorEditLink || null,
+        isElementor: postData.isElementor || false, 
+        elementorEditLink: postData.elementorEditLink || null,
         adminEditLink: postData.adminEditLink || null, featuredImageUrl: postData.featured_image_url || null,
         featuredMediaId: postData.featured_media || null, link: postData.link,
         postType: postType,
@@ -231,6 +243,45 @@ function EditPageContent() {
         toast({ title: 'Error al Guardar', description: e.message, variant: "destructive" });
     } finally { setIsSaving(false); }
   };
+  
+  const handleReplaceImage = async () => {
+    if (!post || !replaceDialogState.oldImageSrc || !replaceDialogState.newImageFile) {
+      toast({ title: 'Error', description: 'Faltan datos para reemplazar la imagen.', variant: 'destructive' });
+      return;
+    }
+    setIsReplacing(true);
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("No autenticado.");
+        const token = await user.getIdToken();
+        const formData = new FormData();
+        formData.append('newImageFile', replaceDialogState.newImageFile);
+        formData.append('postId', postId.toString());
+        formData.append('postType', post.postType);
+        formData.append('oldImageUrl', replaceDialogState.oldImageSrc);
+        if (replaceDialogState.originalWidth) formData.append('width', replaceDialogState.originalWidth.toString());
+        if (replaceDialogState.originalHeight) formData.append('height', replaceDialogState.originalHeight.toString());
+        
+        const response = await fetch('/api/wordpress/replace-image', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData,
+        });
+        
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Fallo en la API de reemplazo de imagen.');
+        
+        // Update state to reflect changes
+        setPost(p => p ? { ...p, content: result.newContent } : null);
+        setContentImages(prev => prev.map(img => img.src === replaceDialogState.oldImageSrc ? { ...img, src: result.newImageUrl, alt: result.newImageAlt } : img));
+        toast({ title: 'Imagen Reemplazada', description: 'La imagen ha sido actualizada en el contenido y la biblioteca de medios.' });
+        setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: null, originalHeight: null });
+    } catch (error: any) {
+        toast({ title: 'Error al reemplazar', description: error.message, variant: 'destructive' });
+    } finally {
+        setIsReplacing(false);
+    }
+  };
 
 
   if (isLoading) {
@@ -238,7 +289,7 @@ function EditPageContent() {
   }
   
   if (error || !post) {
-     return <div className="container mx-auto py-8"><Alert variant="destructive"><AlertTitle>Error al Cargar</AlertTitle><AlertDescription>{error || `No se pudo cargar la información del ${postType || 'contenido'}.`}</AlertDescription></Alert></div>;
+     return <div className="container mx-auto py-8"><Alert variant="destructive"><AlertTitle>Error al Cargar</AlertTitle><AlertDescription>{error || `No se pudo cargar la información de la página.`}</AlertDescription></Alert></div>;
   }
 
   const isElementorContent = Array.isArray(post.content);
@@ -246,118 +297,143 @@ function EditPageContent() {
   const metaDescription = post.meta?._yoast_wpseo_metadesc || '';
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
-        <Card>
-            <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                        <CardTitle>Centro de Acción SEO</CardTitle>
-                        <CardDescription>Editando: {post.title}</CardDescription>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" onClick={() => router.back()}>
-                            <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-                        </Button>
+    <>
+      <div className="container mx-auto py-8 space-y-6">
+          <Card>
+              <CardHeader>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                          <CardTitle>Centro de Acción SEO</CardTitle>
+                          <CardDescription>Editando: {post.title}</CardDescription>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                          <Button variant="outline" onClick={() => router.back()}>
+                              <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+                          </Button>
                          <Button onClick={handleSaveChanges} disabled={isSaving}>
                             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" /> } Guardar Cambios SEO
                         </Button>
-                    </div>
-                </div>
-            </CardHeader>
-        </Card>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-          <div className="lg:col-span-2 space-y-6">
-            <SeoAnalyzer
-                post={post}
-                setPost={setPost}
-                isLoading={isAiLoading}
-                setIsLoading={setIsAiLoading}
-                contentImages={contentImages}
-                setContentImages={setContentImages}
-                applyAiMetaToFeatured={applyAiMetaToFeatured}
-                setApplyAiMetaToFeatured={setApplyAiMetaToFeatured}
-                postId={postId}
-            />
-            
-            {isElementorContent ? (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Contenido de Elementor (Vista de Análisis)</CardTitle>
-                        <CardDescription>A continuación se muestra un desglose de los encabezados de tu página. Para editar el texto, debes usar el editor de Elementor.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {post.elementorEditLink && (
-                           <Button asChild className="mb-4">
-                                <Link href={post.elementorEditLink} target="_blank" rel="noopener noreferrer">
-                                    <ExternalLink className="mr-2 h-4 w-4" />
-                                    Abrir con Elementor
-                                </Link>
-                            </Button>
-                        )}
-                        <div className="space-y-3 rounded-md border p-4 max-h-96 overflow-y-auto">
-                            {(post.content as ExtractedWidget[]).length > 0 ? 
-                                (post.content as ExtractedWidget[]).map(widget => (
-                                    <div key={widget.id} className="flex items-start gap-3">
-                                        <Badge variant="secondary" className="font-bold mt-1">{widget.tag?.toUpperCase()}</Badge>
-                                        <p className="text-muted-foreground">{widget.text}</p>
-                                    </div>
-                                ))
-                                : <p className="text-sm text-muted-foreground text-center">No se encontraron encabezados en el contenido de Elementor.</p>
-                            }
-                        </div>
-                    </CardContent>
-                </Card>
-            ) : (
-             <Card>
-                <CardHeader>
-                    <CardTitle>Contenido Principal</CardTitle>
-                    <CardDescription>Edita el contenido de la página para añadir palabras clave, mejorar la estructura y aplicar otras sugerencias de SEO.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Label htmlFor="content">Editor de Contenido</Label>
-                    <RichTextEditor
-                      content={post.content as string}
-                      onChange={handleContentChange}
-                      onInsertImage={() => setIsImageDialogOpen(true)}
-                      placeholder="El contenido de tu página o entrada..."
-                    />
-                </CardContent>
-            </Card>
-          )}
-          </div>
+                      </div>
+                  </div>
+              </CardHeader>
+          </Card>
           
-          <div className="sticky top-20 space-y-6">
-             <Card>
-                <CardHeader>
-                  <CardTitle>Edición SEO (Yoast)</CardTitle>
-                  <CardDescription>Modifica los campos que Yoast utiliza para los resultados de búsqueda.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="space-y-1">
-                        <Label htmlFor="yoastFocusKw">Palabra Clave Principal</Label>
-                        <Input id="yoastFocusKw" name="_yoast_wpseo_focuskw" value={post.meta._yoast_wpseo_focuskw || ''} onChange={handleMetaChange} />
-                    </div>
-                    <div className="space-y-1">
-                        <Label htmlFor="yoastTitle">Título SEO</Label>
-                        <Input id="yoastTitle" name="_yoast_wpseo_title" value={seoTitle} onChange={handleMetaChange} />
-                    </div>
-                    <div className="space-y-1">
-                        <Label htmlFor="metaDescription">Meta Descripción</Label>
-                        <Textarea id="metaDescription" name="_yoast_wpseo_metadesc" value={metaDescription} onChange={handleMetaChange} maxLength={165} rows={3}/>
-                    </div>
-                </CardContent>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            <div className="lg:col-span-2 space-y-6">
+              <SeoAnalyzer
+                  post={post}
+                  setPost={setPost}
+                  isLoading={isAiLoading}
+                  setIsLoading={setIsLoading}
+                  contentImages={contentImages}
+                  setContentImages={setContentImages}
+                  applyAiMetaToFeatured={applyAiMetaToFeatured}
+                  setApplyAiMetaToFeatured={setApplyAiMetaToFeatured}
+                  postId={postId}
+                  onReplaceImage={(img) => setReplaceDialogState({ open: true, oldImageSrc: img.src, newImageFile: null, originalWidth: img.width, originalHeight: img.height })}
+              />
+              
+              {isElementorContent ? (
+                  <Card>
+                      <CardHeader>
+                          <CardTitle>Contenido de Elementor (Vista de Análisis)</CardTitle>
+                          <CardDescription>A continuación se muestra un desglose de los encabezados de tu página. Para editar el texto, debes usar el editor de Elementor.</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                          {post.elementorEditLink && (
+                             <Button asChild className="mb-4">
+                                  <Link href={post.elementorEditLink} target="_blank" rel="noopener noreferrer">
+                                      <ExternalLink className="mr-2 h-4 w-4" />
+                                      Abrir con Elementor
+                                  </Link>
+                              </Button>
+                          )}
+                          <div className="space-y-3 rounded-md border p-4 max-h-96 overflow-y-auto">
+                              {(post.content as ExtractedWidget[]).length > 0 ? 
+                                  (post.content as ExtractedWidget[]).map(widget => (
+                                      <div key={widget.id} className="flex items-start gap-3">
+                                          <Badge variant="secondary" className="font-bold mt-1">{widget.tag?.toUpperCase()}</Badge>
+                                          <p className="text-muted-foreground">{widget.text}</p>
+                                      </div>
+                                  ))
+                                  : <p className="text-sm text-muted-foreground text-center">No se encontraron encabezados en el contenido de Elementor.</p>
+                              }
+                          </div>
+                      </CardContent>
+                  </Card>
+              ) : (
+               <Card>
+                  <CardHeader>
+                      <CardTitle>Contenido Principal</CardTitle>
+                      <CardDescription>Edita el contenido de la página para añadir palabras clave, mejorar la estructura y aplicar otras sugerencias de SEO.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                      <Label htmlFor="content">Editor de Contenido</Label>
+                      <RichTextEditor
+                        content={post.content as string}
+                        onChange={handleContentChange}
+                        onInsertImage={() => setIsImageDialogOpen(true)}
+                        placeholder="El contenido de tu página o entrada..."
+                      />
+                  </CardContent>
               </Card>
-              <GoogleSnippetPreview title={seoTitle} description={metaDescription} url={post.link || null} />
+            )}
+            </div>
+            
+            <div className="sticky top-20 space-y-6">
+               <Card>
+                  <CardHeader>
+                    <CardTitle>Edición SEO (Yoast)</CardTitle>
+                    <CardDescription>Modifica los campos que Yoast utiliza para los resultados de búsqueda.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                      <div className="space-y-1">
+                          <Label htmlFor="yoastFocusKw">Palabra Clave Principal</Label>
+                          <Input id="yoastFocusKw" name="_yoast_wpseo_focuskw" value={post.meta._yoast_wpseo_focuskw || ''} onChange={handleMetaChange} />
+                      </div>
+                      <div className="space-y-1">
+                          <Label htmlFor="yoastTitle">Título SEO</Label>
+                          <Input id="yoastTitle" name="_yoast_wpseo_title" value={seoTitle} onChange={handleMetaChange} />
+                      </div>
+                      <div className="space-y-1">
+                          <Label htmlFor="metaDescription">Meta Descripción</Label>
+                          <Textarea id="metaDescription" name="_yoast_wpseo_metadesc" value={metaDescription} onChange={handleMetaChange} maxLength={165} rows={3}/>
+                      </div>
+                  </CardContent>
+                </Card>
+                <GoogleSnippetPreview title={seoTitle} description={metaDescription} url={post.link || null} />
+            </div>
           </div>
-        </div>
 
-        <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Insertar Imagen</AlertDialogTitle><AlertDialogDescription>Sube una imagen o introduce una URL para insertarla en el contenido.</AlertDialogDescription></AlertDialogHeader><div className="space-y-4"><div><Label htmlFor="image-upload">Subir archivo</Label><Input id="image-upload" type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} /></div><div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">O</span></div></div><div><Label htmlFor="image-url">Insertar desde URL</Label><Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" /></div></div><AlertDialogFooter><AlertDialogCancel onClick={() => { setImageUrl(''); setImageFile(null); }}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleInsertImage} disabled={isUploadingImage}>{isUploadingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Insertar Imagen</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
-    </div>
+          <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Insertar Imagen</AlertDialogTitle><AlertDialogDescription>Sube una imagen o introduce una URL para insertarla en el contenido.</AlertDialogDescription></AlertDialogHeader><div className="space-y-4"><div><Label htmlFor="image-upload">Subir archivo</Label><Input id="image-upload" type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} /></div><div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">O</span></div></div><div><Label htmlFor="image-url">Insertar desde URL</Label><Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" /></div></div><AlertDialogFooter><AlertDialogCancel onClick={() => { setImageUrl(''); setImageFile(null); }}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleInsertImage} disabled={isUploadingImage}>{isUploadingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Insertar Imagen</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+           <AlertDialog open={replaceDialogState.open} onOpenChange={(open) => !open && setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: null, originalHeight: null })}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reemplazar Imagen</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Sube una nueva imagen para reemplazar la imagen actual. La antigua será eliminada de tu WordPress.
+                  La nueva imagen se recortará a {replaceDialogState.originalWidth}x{replaceDialogState.originalHeight} píxeles para coincidir con la original.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="py-4">
+                <Label htmlFor="new-image-upload">Nueva Imagen</Label>
+                <Input id="new-image-upload" type="file" accept="image/*" onChange={(e) => setReplaceDialogState(s => ({ ...s, newImageFile: e.target.files?.[0] || null }))} />
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleReplaceImage} disabled={isReplacing || !replaceDialogState.newImageFile}>
+                  {isReplacing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Reemplazar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+      </div>
+    </>
   );
 }
 
-export default function SeoEditPage() {
+export default function EditPage() {
     return (
         <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
             <EditPageContent />

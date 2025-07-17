@@ -1,4 +1,5 @@
 
+
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -12,6 +13,7 @@ import FormData from 'form-data';
 import type { ExtractedWidget } from './types';
 import { z } from 'zod';
 import crypto from 'crypto';
+import sharp from 'sharp';
 
 export const partnerAppConnectionDataSchema = z.object({
   partnerApiToken: z.string().optional(),
@@ -199,18 +201,18 @@ export function findElementorImageContext(elements: any[], imageUrl: string): st
 
             const settings = item.settings;
             if (settings) {
-                // Check if the current item is an image-box and contains the image
+                // Check 'the7_image_box_widget'
                 if (item.widgetType === 'the7_image_box_widget' && settings.image?.url === imageUrl) {
                     context = settings.description_text?.replace(/<[^>]+>/g, ' ').trim() || '';
                     if (context) return;
                 }
-                // Check if it's a standard image widget
+                // Check standard image widget
                 if (item.widgetType === 'image' && settings.image?.url === imageUrl) {
                     context = settings.caption || settings.title_text || '';
                     if (context) return;
                 }
             }
-
+            // Recurse into nested elements
             if (item.elements && item.elements.length > 0) {
                 traverse(item.elements);
             }
@@ -222,18 +224,23 @@ export function findElementorImageContext(elements: any[], imageUrl: string): st
 }
 
 /**
- * Uploads an image to the WordPress media library. It can handle a URL string or a File object.
+ * Uploads an image to the WordPress media library, with optional resizing and cropping.
+ * It can handle a URL string or a File object.
  * @param source The URL string of the image or a File object.
  * @param seoFilename A desired filename for SEO purposes.
  * @param imageMetadata Metadata for the image (title, alt, etc.).
  * @param wpApi Initialized Axios instance for WordPress API.
+ * @param width Optional. The target width for the image.
+ * @param height Optional. The target height for the image. If both are provided, the image will be cropped.
  * @returns The ID of the newly uploaded media item.
  */
 export async function uploadImageToWordPress(
   source: File | string,
   seoFilename: string,
   imageMetadata: { title: string; alt_text: string; caption: string; description: string; },
-  wpApi: AxiosInstance
+  wpApi: AxiosInstance,
+  width?: number | null,
+  height?: number | null,
 ): Promise<number> {
     try {
         let imageBuffer: Buffer;
@@ -250,10 +257,31 @@ export async function uploadImageToWordPress(
             contentType = source.type;
         }
         
+        // --- Sharp processing ---
+        let processedBuffer = sharp(imageBuffer);
+
+        if (width && height) {
+            // If both width and height are provided, resize and crop to fill the exact dimensions.
+            processedBuffer = processedBuffer.resize(width, height, { fit: 'cover' });
+        } else {
+            // Default behavior: resize to fit within 1200x1200 without cropping.
+            processedBuffer = processedBuffer.resize(1200, 1200, {
+                fit: 'inside',
+                withoutEnlargement: true,
+            });
+        }
+        
+        // Convert to WebP for optimization
+        const finalBuffer = await processedBuffer.webp({ quality: 80 }).toBuffer();
+        const finalContentType = 'image/webp';
+        // Ensure the filename has the correct extension
+        const finalFilename = seoFilename.replace(/\.[^/.]+$/, "") + ".webp";
+
+
         const formData = new FormData();
-        formData.append('file', imageBuffer, {
-            filename: seoFilename,
-            contentType: contentType,
+        formData.append('file', finalBuffer, {
+            filename: finalFilename,
+            contentType: finalContentType,
         });
         formData.append('title', imageMetadata.title);
         formData.append('alt_text', imageMetadata.alt_text);
@@ -263,7 +291,7 @@ export async function uploadImageToWordPress(
         const mediaResponse = await wpApi.post('/media', formData, {
             headers: {
                 ...formData.getHeaders(),
-                'Content-Disposition': `attachment; filename=${seoFilename}`,
+                'Content-Disposition': `attachment; filename=${finalFilename}`,
             },
         });
 
