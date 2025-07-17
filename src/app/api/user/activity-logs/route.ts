@@ -37,10 +37,8 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        let logsQuery: FirebaseFirestore.Query<FirebaseFirestore.DocumentData>;
-
-        // By default, query for the current user.
-        let query = adminDb.collection('activity_logs').where('userId', '==', context.uid);
+        // Corrected and simplified query logic
+        const query = adminDb.collection('activity_logs').where('userId', '==', context.uid);
 
         const snapshot = await query.orderBy('timestamp', 'desc').limit(200).get();
         
