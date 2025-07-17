@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress, replaceImageUrlInElementor, findElementorImageContext } from '@/lib/api-helpers';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { z } from 'zod';
 import * as cheerio from 'cheerio';
@@ -14,66 +14,7 @@ const slugify = (text: string) => {
 };
 
 // Recursive function to find and replace image URLs and IDs within Elementor's data structure.
-function replaceImageUrlInElementor(elements: any[], oldUrl: string, newUrl: string, newId: number): { replaced: boolean; data: any[] } {
-    console.log(`[Elementor Replace] Iniciando búsqueda recursiva para reemplazar ${oldUrl} con el nuevo ID ${newId}`);
-    let replaced = false;
-    const newElements = JSON.parse(JSON.stringify(elements)); // Deep copy to avoid mutation issues
-
-    function traverse(items: any[]) {
-        for (const item of items) {
-            if (!item || typeof item !== 'object') continue;
-            
-            // Handle complex widgets like sliders where images are in an array
-            // e.g., slides: [ { background_image: { url: '...' } }, ... ]
-            const arrayKeys = ['slides', 'gallery', 'image_carousel', 'icon_list_items']; 
-            for (const arrayKey of arrayKeys) {
-                if (item.settings && Array.isArray(item.settings[arrayKey])) {
-                    for (const slide of item.settings[arrayKey]) {
-                         if (slide.background_image?.url === oldUrl) {
-                             console.log(`[Elementor Replace] URL encontrada en background_image de repeater. Reemplazando URL e ID.`);
-                             slide.background_image.url = newUrl;
-                             slide.background_image.id = newId;
-                             replaced = true;
-                         }
-                          if (slide.image?.url === oldUrl) {
-                             console.log(`[Elementor Replace] URL encontrada en imagen de repeater. Reemplazando URL e ID.`);
-                             slide.image.url = newUrl;
-                             slide.image.id = newId;
-                             replaced = true;
-                         }
-                    }
-                }
-            }
-            
-            // Check direct settings of the element
-            if (item.settings) {
-                for (const key in item.settings) {
-                    if (Object.prototype.hasOwnProperty.call(item.settings, key)) {
-                        const setting = item.settings[key];
-                        // Handles simple image widgets: { image: { url: '...' } }
-                        // Also handles background images for sections/columns
-                        if (typeof setting === 'object' && setting !== null && setting.url === oldUrl) {
-                            console.log(`[Elementor Replace] URL encontrada en widget ${item.widgetType || 'unknown'}, setting ${key}. Reemplazando URL e ID.`);
-                            setting.url = newUrl;
-                            setting.id = newId; // Update the ID as well
-                            replaced = true;
-                        }
-                    }
-                }
-            }
-
-
-            // Recurse into nested elements
-            if (item.elements && item.elements.length > 0) {
-                traverse(item.elements);
-            }
-        }
-    }
-    
-    traverse(newElements);
-    console.log(`[Elementor Replace] Búsqueda finalizada. ¿Se reemplazó? ${replaced}`);
-    return { replaced, data: newElements };
-}
+// This is now located in api-helpers.ts
 
 
 export async function POST(req: NextRequest) {
@@ -125,8 +66,27 @@ export async function POST(req: NextRequest) {
         const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
 
-        const payload = { mode: 'generate_image_meta', language: 'Spanish', existingTitle: post.title.rendered, existingContent: post.content.rendered };
-        const prompt = `You are an expert SEO specialist. Generate generic but descriptive SEO metadata for images based on a blog post's content. Respond with a JSON object: {"imageTitle": "title", "imageAltText": "alt text"}.\n\nGenerate generic image metadata in Spanish for a blog post titled "${payload.existingTitle}".`;
+        let imageBoxContext = '';
+        if (isElementor) {
+            const elementorData = JSON.parse(post.meta._elementor_data);
+            imageBoxContext = findElementorImageContext(elementorData, oldImageUrl);
+             if (imageBoxContext) {
+                console.log('[API replace-image] Contexto de Image Box encontrado:', imageBoxContext);
+            }
+        }
+        
+        const promptContext = imageBoxContext 
+            ? `Utiliza la siguiente descripción del 'image box' como contexto principal: "${imageBoxContext}"`
+            : `Utiliza el contenido general de la página para el contexto: "${(post.content.rendered || '').substring(0, 500)}..."`;
+
+
+        const prompt = `You are an expert SEO specialist. Generate descriptive SEO metadata for an image. The response must be a JSON object with "imageTitle" and "imageAltText".
+
+- **Image Filename (for inspiration):** ${newImageFile.name}
+- **Page Title:** ${post.title.rendered}
+- **Context:** ${promptContext}
+
+Generate the metadata now. The alt text should be a descriptive sentence.`;
         
         console.log('[API replace-image] Generando metadatos de imagen con IA...');
         const result = await model.generateContent(prompt);

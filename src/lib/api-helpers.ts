@@ -257,6 +257,41 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
     return images;
 }
 
+/**
+ * Recursively searches through Elementor data to find the context of a specific image.
+ * Specifically looks for "image box" type widgets.
+ * @param elements The Elementor data array.
+ * @param imageUrl The URL of the image to find.
+ * @returns The description text of the widget containing the image, or an empty string.
+ */
+export function findElementorImageContext(elements: any[], imageUrl: string): string {
+    let context = '';
+    if (!elements || !Array.isArray(elements)) return context;
+
+    function traverse(items: any[]) {
+        for (const item of items) {
+            if (context) return; // Stop searching if context is found
+            if (!item || typeof item !== 'object') continue;
+
+            // Check if this widget is the one containing the image
+            if (item.widgetType === 'the7_image_box_widget' && item.settings?.image?.url === imageUrl) {
+                 if (item.settings?.description_text) {
+                    // We found it. Strip HTML for cleaner context.
+                    context = item.settings.description_text.replace(/<[^>]+>/g, ' ').trim();
+                    return;
+                }
+            }
+            
+            // Recurse into nested elements
+            if (item.elements && item.elements.length > 0) {
+                traverse(item.elements);
+            }
+        }
+    }
+
+    traverse(elements);
+    return context;
+}
 
 /**
  * Uploads an image to the WordPress media library. It can handle a URL string or a File object.

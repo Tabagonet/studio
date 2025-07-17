@@ -3,7 +3,7 @@
 // This is a new file for fetching batch content data.
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser, extractElementorHeadings } from '@/lib/api-helpers';
+import { getApiClientsForUser, findElementorImageContext } from '@/lib/api-helpers';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import type { ExtractedWidget } from '@/lib/types';
@@ -143,11 +143,12 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
 
 
 export async function GET(req: NextRequest) {
+    let uid: string;
     try {
         const token = req.headers.get('Authorization')?.split('Bearer ')[1];
         if (!token) throw new Error('Auth token missing');
         if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
-        const uid = (await adminAuth.verifyIdToken(token)).uid;
+        uid = (await adminAuth.verifyIdToken(token)).uid;
         
         const { wpApi, wooApi } = await getApiClientsForUser(uid);
         if (!wpApi || !wooApi) throw new Error('API clients not configured');
