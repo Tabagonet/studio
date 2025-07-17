@@ -12,6 +12,7 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
+  type ColumnDef,
   type ColumnFiltersState,
   type ExpandedState,
   type RowSelectionState,
@@ -328,7 +329,8 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
                   key={row.id} 
                   data-state={row.getIsSelected() && "selected"}
                   onClick={(e) => {
-                      if (!(e.target instanceof HTMLButtonElement || e.target instanceof HTMLAnchorElement || (e.target as HTMLElement).closest('button, a, [role=checkbox], [role=menuitem]') )) {
+                      const target = e.target as HTMLElement;
+                      if (!(target instanceof HTMLButtonElement || target instanceof HTMLAnchorElement || target.closest('button, a, [role=checkbox], [role=menuitem]') )) {
                         handleRowClick(row);
                       }
                     }}
