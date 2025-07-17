@@ -13,7 +13,7 @@ import FormData from 'form-data';
 import type { ExtractedWidget } from './types';
 import { z } from 'zod';
 import crypto from 'crypto';
-import sharp from 'sharp';
+import sharp, { Position } from 'sharp';
 
 export const partnerAppConnectionDataSchema = z.object({
   partnerApiToken: z.string().optional(),
@@ -245,6 +245,7 @@ export async function uploadImageToWordPress(
   wpApi: AxiosInstance,
   width?: number | null,
   height?: number | null,
+  position?: Position | 'center',
 ): Promise<number> {
     try {
         let imageBuffer: Buffer;
@@ -266,7 +267,7 @@ export async function uploadImageToWordPress(
 
         if (width && height) {
             // If both width and height are provided, resize and crop to fill the exact dimensions.
-            processedBuffer = processedBuffer.resize(width, height, { fit: 'cover' });
+            processedBuffer = processedBuffer.resize(width, height, { fit: 'cover', position: position || 'center' });
         } else {
             // Default behavior: resize to fit within 1200x1200 without cropping.
             processedBuffer = processedBuffer.resize(1200, 1200, {

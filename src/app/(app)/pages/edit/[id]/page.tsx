@@ -4,8 +4,8 @@
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Replace, ImageIcon } from 'lucide-react';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Loader2, ArrowLeft, Replace, ImageIcon, Crop } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -15,6 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import NextImage from 'next/image';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 
 interface PageEditState {
@@ -34,6 +35,7 @@ interface ReplaceImageDialogState {
     originalWidth: number | string;
     originalHeight: number | string;
     mediaIdToDelete: number | null;
+    cropPosition: "center" | "top" | "bottom" | "left" | "right";
 }
 
 function EditPageContent() {
@@ -49,7 +51,7 @@ function EditPageContent() {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const [replaceDialogState, setReplaceDialogState] = useState<ReplaceImageDialogState>({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: '', originalHeight: '', mediaIdToDelete: null });
+  const [replaceDialogState, setReplaceDialogState] = useState<ReplaceImageDialogState>({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: '', originalHeight: '', mediaIdToDelete: null, cropPosition: 'center' });
   const [isReplacing, setIsReplacing] = useState(false);
   
   const fetchInitialData = useCallback(async () => {
@@ -92,7 +94,7 @@ function EditPageContent() {
   useEffect(() => { fetchInitialData(); }, [fetchInitialData]);
   
   const handleReplaceImage = async () => {
-    const { oldImageSrc, newImageFile, originalWidth, originalHeight, mediaIdToDelete } = replaceDialogState;
+    const { oldImageSrc, newImageFile, originalWidth, originalHeight, mediaIdToDelete, cropPosition } = replaceDialogState;
     if (!post || !oldImageSrc || !newImageFile) {
       toast({ title: 'Error', description: 'Faltan datos para reemplazar la imagen.', variant: 'destructive' });
       return;
@@ -110,6 +112,7 @@ function EditPageContent() {
         if (originalWidth) formData.append('width', String(originalWidth));
         if (originalHeight) formData.append('height', String(originalHeight));
         if (mediaIdToDelete) formData.append('mediaIdToDelete', String(mediaIdToDelete));
+        if (cropPosition) formData.append('cropPosition', cropPosition);
         
         const response = await fetch('/api/wordpress/replace-image', {
             method: 'POST',
@@ -123,7 +126,7 @@ function EditPageContent() {
         setPost(p => p ? { ...p, content: result.newContent } : null);
         setContentImages(prev => prev.map(img => img.src === oldImageSrc ? { ...img, src: result.newImageUrl, alt: result.newImageAlt } : img));
         toast({ title: 'Imagen Reemplazada', description: 'La imagen ha sido actualizada y la antigua ha sido eliminada.' });
-        setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: '', originalHeight: '', mediaIdToDelete: null });
+        setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: '', originalHeight: '', mediaIdToDelete: null, cropPosition: 'center' });
     } catch (error: any) {
         toast({ title: 'Error al reemplazar', description: error.message, variant: 'destructive' });
     } finally {
@@ -182,7 +185,7 @@ function EditPageContent() {
                                   <Button 
                                       size="sm"
                                       variant="outline"
-                                      onClick={() => setReplaceDialogState({ open: true, oldImageSrc: img.src, newImageFile: null, originalWidth: img.width || '', originalHeight: img.height || '', mediaIdToDelete: img.mediaId })}
+                                      onClick={() => setReplaceDialogState({ open: true, oldImageSrc: img.src, newImageFile: null, originalWidth: img.width || '', originalHeight: img.height || '', mediaIdToDelete: img.mediaId, cropPosition: 'center' })}
                                   >
                                       <Replace className="mr-2 h-4 w-4" />
                                       Reemplazar
@@ -197,8 +200,8 @@ function EditPageContent() {
           </Card>
       </div>
 
-       <AlertDialog open={replaceDialogState.open} onOpenChange={(open) => !isReplacing && setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: '', originalHeight: '', mediaIdToDelete: null })}>
-        <AlertDialogContent className="sm:max-w-md">
+       <AlertDialog open={replaceDialogState.open} onOpenChange={(open) => !isReplacing && setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: '', originalHeight: '', mediaIdToDelete: null, cropPosition: 'center' })}>
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Reemplazar Imagen</AlertDialogTitle>
             <AlertDialogDescription>
@@ -210,20 +213,34 @@ function EditPageContent() {
               <Label htmlFor="new-image-upload">Nueva Imagen</Label>
               <Input id="new-image-upload" type="file" accept="image/*" onChange={(e) => setReplaceDialogState(s => ({ ...s, newImageFile: e.target.files?.[0] || null }))} disabled={isReplacing} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="img-width">Ancho (px)</Label>
-                <Input id="img-width" type="number" value={replaceDialogState.originalWidth} onChange={(e) => setReplaceDialogState(s => ({ ...s, originalWidth: e.target.value }))} placeholder="Auto" disabled={isReplacing}/>
-              </div>
-              <div>
-                <Label htmlFor="img-height">Alto (px)</Label>
-                <Input id="img-height" type="number" value={replaceDialogState.originalHeight} onChange={(e) => setReplaceDialogState(s => ({ ...s, originalHeight: e.target.value }))} placeholder="Auto" disabled={isReplacing}/>
-              </div>
+            
+            <div className="space-y-3 pt-4 border-t">
+                <Label className="flex items-center gap-2 font-semibold"><Crop className="h-4 w-4"/>Opciones de Recorte</Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="img-width">Ancho (px)</Label>
+                    <Input id="img-width" type="number" value={replaceDialogState.originalWidth} onChange={(e) => setReplaceDialogState(s => ({ ...s, originalWidth: e.target.value }))} placeholder="Auto" disabled={isReplacing}/>
+                  </div>
+                  <div>
+                    <Label htmlFor="img-height">Alto (px)</Label>
+                    <Input id="img-height" type="number" value={replaceDialogState.originalHeight} onChange={(e) => setReplaceDialogState(s => ({ ...s, originalHeight: e.target.value }))} placeholder="Auto" disabled={isReplacing}/>
+                  </div>
+                </div>
+                 <p className="text-xs text-muted-foreground">La nueva imagen se recortará a estas dimensiones. Déjalos en blanco para un redimensionamiento automático.</p>
             </div>
-             <p className="text-xs text-muted-foreground">La nueva imagen se recortará a estas dimensiones. Déjalos en blanco para un redimensionamiento automático.</p>
+             <div className="space-y-2">
+                <Label>Enfoque del Recorte</Label>
+                 <RadioGroup defaultValue="center" value={replaceDialogState.cropPosition} onValueChange={(value) => setReplaceDialogState(s => ({ ...s, cropPosition: value as any }))} className="flex flex-wrap gap-x-4 gap-y-2">
+                    <div className="flex items-center space-x-2"><RadioGroupItem value="center" id="crop-center" /><Label htmlFor="crop-center" className="font-normal">Centro</Label></div>
+                    <div className="flex items-center space-x-2"><RadioGroupItem value="top" id="crop-top" /><Label htmlFor="crop-top" className="font-normal">Arriba</Label></div>
+                    <div className="flex items-center space-x-2"><RadioGroupItem value="bottom" id="crop-bottom" /><Label htmlFor="crop-bottom" className="font-normal">Abajo</Label></div>
+                    <div className="flex items-center space-x-2"><RadioGroupItem value="left" id="crop-left" /><Label htmlFor="crop-left" className="font-normal">Izquierda</Label></div>
+                    <div className="flex items-center space-x-2"><RadioGroupItem value="right" id="crop-right" /><Label htmlFor="crop-right" className="font-normal">Derecha</Label></div>
+                </RadioGroup>
+            </div>
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isReplacing}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => { if (!isReplacing) setReplaceDialogState({ ...replaceDialogState, open: false }) }} disabled={isReplacing}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleReplaceImage} disabled={isReplacing || !replaceDialogState.newImageFile}>
               {isReplacing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isReplacing ? 'Procesando...' : 'Reemplazar'}

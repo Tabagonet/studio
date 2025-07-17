@@ -42,8 +42,9 @@ export async function POST(req: NextRequest) {
         const width = formData.get('width') ? Number(formData.get('width')) : null;
         const height = formData.get('height') ? Number(formData.get('height')) : null;
         const mediaIdToDelete = formData.get('mediaIdToDelete') ? Number(formData.get('mediaIdToDelete')) : null;
+        const cropPosition = formData.get('cropPosition') as "center" | "top" | "bottom" | "left" | "right" || "center";
 
-        console.log(`[API replace-image] Datos recibidos: postId=${postId}, postType=${postType}, oldImageUrl=${oldImageUrl}, newImageFile=${newImageFile?.name}, dimensions=${width}x${height}, mediaIdToDelete=${mediaIdToDelete}`);
+        console.log(`[API replace-image] Datos recibidos: postId=${postId}, postType=${postType}, oldImageUrl=${oldImageUrl}, newImageFile=${newImageFile?.name}, dimensions=${width}x${height}, mediaIdToDelete=${mediaIdToDelete}, cropPosition=${cropPosition}`);
 
 
         if (!newImageFile || !postId || !postType || !oldImageUrl) {
@@ -106,7 +107,8 @@ Generate the metadata now. The "seoFilename" should be a URL-friendly slug witho
             },
             wpApi,
             width,
-            height
+            height,
+            cropPosition,
         );
         
         const newMediaData = await wpApi.get(`/media/${newImageId}`);
@@ -128,7 +130,7 @@ Generate the metadata now. The "seoFilename" should be a URL-friendly slug witho
                  console.warn('[API replace-image] No se encontró la URL de la imagen antigua en los datos de Elementor. No se realizarán cambios en el contenido.');
             }
         } else {
-            console.log('[API replace-image] No se implementó el reemplazo de contenido no-Elementor aún.');
+             console.warn('[API replace-image] El reemplazo de contenido para no-Elementor aún no está completamente implementado, el contenido no será actualizado.');
         }
 
         if (Object.keys(updatePayload).length > 0) {
