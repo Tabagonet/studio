@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
@@ -30,8 +31,9 @@ interface ReplaceImageDialogState {
     open: boolean;
     oldImageSrc: string | null;
     newImageFile: File | null;
-    originalWidth: number | null;
-    originalHeight: number | null;
+    originalWidth: number | string;
+    originalHeight: number | string;
+    mediaIdToDelete: number | null;
 }
 
 function EditPageContent() {
@@ -48,7 +50,7 @@ function EditPageContent() {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const [replaceDialogState, setReplaceDialogState] = useState<ReplaceImageDialogState>({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: null, originalHeight: null });
+  const [replaceDialogState, setReplaceDialogState] = useState<ReplaceImageDialogState>({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: '', originalHeight: '', mediaIdToDelete: null });
   const [isReplacing, setIsReplacing] = useState(false);
   
   const fetchInitialData = useCallback(async () => {
@@ -91,7 +93,8 @@ function EditPageContent() {
   useEffect(() => { fetchInitialData(); }, [fetchInitialData]);
   
   const handleReplaceImage = async () => {
-    if (!post || !replaceDialogState.oldImageSrc || !replaceDialogState.newImageFile) {
+    const { oldImageSrc, newImageFile, originalWidth, originalHeight, mediaIdToDelete } = replaceDialogState;
+    if (!post || !oldImageSrc || !newImageFile) {
       toast({ title: 'Error', description: 'Faltan datos para reemplazar la imagen.', variant: 'destructive' });
       return;
     }
@@ -101,12 +104,13 @@ function EditPageContent() {
         if (!user) throw new Error("No autenticado.");
         const token = await user.getIdToken();
         const formData = new FormData();
-        formData.append('newImageFile', replaceDialogState.newImageFile);
+        formData.append('newImageFile', newImageFile);
         formData.append('postId', postId.toString());
         formData.append('postType', post.postType);
-        formData.append('oldImageUrl', replaceDialogState.oldImageSrc);
-        if (replaceDialogState.originalWidth) formData.append('width', replaceDialogState.originalWidth.toString());
-        if (replaceDialogState.originalHeight) formData.append('height', replaceDialogState.originalHeight.toString());
+        formData.append('oldImageUrl', oldImageSrc);
+        if (originalWidth) formData.append('width', String(originalWidth));
+        if (originalHeight) formData.append('height', String(originalHeight));
+        if (mediaIdToDelete) formData.append('mediaIdToDelete', String(mediaIdToDelete));
         
         const response = await fetch('/api/wordpress/replace-image', {
             method: 'POST',
@@ -117,11 +121,10 @@ function EditPageContent() {
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Fallo en la API de reemplazo de imagen.');
         
-        // Update state to reflect changes
         setPost(p => p ? { ...p, content: result.newContent } : null);
-        setContentImages(prev => prev.map(img => img.src === replaceDialogState.oldImageSrc ? { ...img, src: result.newImageUrl, alt: result.newImageAlt } : img));
-        toast({ title: 'Imagen Reemplazada', description: 'La imagen ha sido actualizada en el contenido y la biblioteca de medios.' });
-        setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: null, originalHeight: null });
+        setContentImages(prev => prev.map(img => img.src === oldImageSrc ? { ...img, src: result.newImageUrl, alt: result.newImageAlt } : img));
+        toast({ title: 'Imagen Reemplazada', description: 'La imagen ha sido actualizada y la antigua ha sido eliminada.' });
+        setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: '', originalHeight: '', mediaIdToDelete: null });
     } catch (error: any) {
         toast({ title: 'Error al reemplazar', description: error.message, variant: 'destructive' });
     } finally {
@@ -180,7 +183,7 @@ function EditPageContent() {
                                   <Button 
                                       size="sm"
                                       variant="outline"
-                                      onClick={() => setReplaceDialogState({ open: true, oldImageSrc: img.src, newImageFile: null, originalWidth: img.width, originalHeight: img.height })}
+                                      onClick={() => setReplaceDialogState({ open: true, oldImageSrc: img.src, newImageFile: null, originalWidth: img.width || '', originalHeight: img.height || '', mediaIdToDelete: img.mediaId })}
                                   >
                                       <Replace className="mr-2 h-4 w-4" />
                                       Reemplazar
@@ -195,25 +198,36 @@ function EditPageContent() {
           </Card>
       </div>
 
-       <AlertDialog open={replaceDialogState.open} onOpenChange={(open) => !open && setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: null, originalHeight: null })}>
-        <AlertDialogContent>
+       <AlertDialog open={replaceDialogState.open} onOpenChange={(open) => !open && setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: '', originalHeight: '', mediaIdToDelete: null })}>
+        <AlertDialogContent className="sm:max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle>Reemplazar Imagen</AlertDialogTitle>
             <AlertDialogDescription>
-                {replaceDialogState.originalWidth && replaceDialogState.originalHeight 
-                ? `Sube una nueva imagen para reemplazar la actual. La nueva imagen se recortará a ${replaceDialogState.originalWidth}x${replaceDialogState.originalHeight} píxeles para coincidir con la original.`
-                : `Sube una nueva imagen para reemplazar la imagen actual.`}
+                Sube una nueva imagen para reemplazar la actual. La antigua será eliminada de la biblioteca de medios.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="py-4">
-            <Label htmlFor="new-image-upload">Nueva Imagen</Label>
-            <Input id="new-image-upload" type="file" accept="image/*" onChange={(e) => setReplaceDialogState(s => ({ ...s, newImageFile: e.target.files?.[0] || null }))} />
+          <div className="py-4 space-y-4">
+            <div>
+              <Label htmlFor="new-image-upload">Nueva Imagen</Label>
+              <Input id="new-image-upload" type="file" accept="image/*" onChange={(e) => setReplaceDialogState(s => ({ ...s, newImageFile: e.target.files?.[0] || null }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="img-width">Ancho (px)</Label>
+                <Input id="img-width" type="number" value={replaceDialogState.originalWidth} onChange={(e) => setReplaceDialogState(s => ({ ...s, originalWidth: e.target.value }))} placeholder="Auto" />
+              </div>
+              <div>
+                <Label htmlFor="img-height">Alto (px)</Label>
+                <Input id="img-height" type="number" value={replaceDialogState.originalHeight} onChange={(e) => setReplaceDialogState(s => ({ ...s, originalHeight: e.target.value }))} placeholder="Auto" />
+              </div>
+            </div>
+             <p className="text-xs text-muted-foreground">La nueva imagen se recortará a estas dimensiones. Déjalos en blanco para un redimensionamiento automático.</p>
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleReplaceImage} disabled={isReplacing || !replaceDialogState.newImageFile}>
               {isReplacing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isReplacing ? 'Reemplazando...' : 'Reemplazar'}
+              {isReplacing ? 'Procesando...' : 'Reemplazar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

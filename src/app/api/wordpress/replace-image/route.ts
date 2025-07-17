@@ -42,8 +42,9 @@ export async function POST(req: NextRequest) {
         const oldImageUrl = formData.get('oldImageUrl') as string | null;
         const width = formData.get('width') ? Number(formData.get('width')) : null;
         const height = formData.get('height') ? Number(formData.get('height')) : null;
+        const mediaIdToDelete = formData.get('mediaIdToDelete') ? Number(formData.get('mediaIdToDelete')) : null;
 
-        console.log(`[API replace-image] Datos recibidos: postId=${postId}, postType=${postType}, oldImageUrl=${oldImageUrl}, newImageFile=${newImageFile?.name}, dimensions=${width}x${height}`);
+        console.log(`[API replace-image] Datos recibidos: postId=${postId}, postType=${postType}, oldImageUrl=${oldImageUrl}, newImageFile=${newImageFile?.name}, dimensions=${width}x${height}, mediaIdToDelete=${mediaIdToDelete}`);
 
 
         if (!newImageFile || !postId || !postType || !oldImageUrl) {
@@ -104,8 +105,8 @@ Generate the metadata now. The alt text should be a descriptive sentence.`;
                 description: '',
             },
             wpApi,
-            width, // Pass width
-            height // Pass height
+            width,
+            height
         );
         
         const newMediaData = await wpApi.get(`/media/${newImageId}`);
@@ -153,7 +154,6 @@ Generate the metadata now. The alt text should be a descriptive sentence.`;
             }
              console.log(`[API replace-image] Actualización del post ${postId} completada.`);
 
-             // --- NEW STEP: Regenerate Elementor CSS ---
              if (isElementor) {
                 console.log(`[API replace-image] Regenerando CSS de Elementor para el post ${postId}...`);
                 try {
@@ -164,13 +164,21 @@ Generate the metadata now. The alt text should be a descriptive sentence.`;
                         console.log(`[API replace-image] Regeneración de CSS solicitada con éxito.`);
                     }
                 } catch (regenError: any) {
-                    // Log the error but don't fail the entire request, as the main update succeeded.
                     console.warn(`[API replace-image] No se pudo regenerar el CSS de Elementor:`, regenError.response?.data || regenError.message);
                 }
              }
-
         } else {
              console.log('[API replace-image] No hay cambios de contenido que guardar. La imagen se ha subido pero no se ha reemplazado en el post.');
+        }
+
+        if (mediaIdToDelete) {
+            console.log(`[API replace-image] Intentando eliminar la imagen antigua con ID de medio: ${mediaIdToDelete}`);
+            try {
+                await wpApi.delete(`/media/${mediaIdToDelete}`, { params: { force: true } });
+                console.log(`[API replace-image] Imagen antigua (ID: ${mediaIdToDelete}) eliminada con éxito.`);
+            } catch (deleteError: any) {
+                console.warn(`[API replace-image] No se pudo eliminar la imagen antigua (ID: ${mediaIdToDelete}). Puede que ya no exista. Error:`, deleteError.response?.data?.message || deleteError.message);
+            }
         }
         
         if (adminDb) {
