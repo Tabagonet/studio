@@ -272,6 +272,8 @@ export interface ContentImage {
     src: string; // The display-ready, absolute URL
     alt: string;
     mediaId: number | null; // The WordPress Media Library ID
+    width: number | null;
+    height: number | null;
 }
 
 export interface ExtractedWidget {

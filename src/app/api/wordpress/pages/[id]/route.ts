@@ -35,8 +35,8 @@ const pageUpdateSchema = z.object({
     })).optional(),
 });
 
-function findImageUrlsInElementor(data: any): { url: string; id: number | null }[] {
-    const images: { url: string; id: number | null }[] = [];
+function findImageUrlsInElementor(data: any): { url: string; id: number | null, width: number | null, height: number | null }[] {
+    const images: { url: string; id: number | null, width: number | null, height: number | null }[] = [];
     if (!data) return images;
 
     if (Array.isArray(data)) {
@@ -49,7 +49,7 @@ function findImageUrlsInElementor(data: any): { url: string; id: number | null }
             if (key === 'background_image' || key === 'image') {
                 const value = data[key];
                  if (typeof value === 'object' && value !== null && typeof value.url === 'string' && value.url) {
-                    images.push({ url: value.url, id: value.id || null });
+                    images.push({ url: value.url, id: value.id || null, width: value.width || null, height: value.height || null });
                  }
             } else if (typeof data[key] === 'object' && data[key] !== null) {
                 images.push(...findImageUrlsInElementor(data[key]));
@@ -95,26 +95,31 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         const imageUrlsData = findImageUrlsInElementor(elementorData);
         if (imageUrlsData.length > 0) {
             scrapedImages = imageUrlsData.map(imgData => ({
-                id: imgData.url, // Use url as unique key for frontend
+                id: imgData.url,
                 src: imgData.url,
-                alt: '', // Will be fetched if media id is available
-                mediaId: imgData.id
+                alt: '', 
+                mediaId: imgData.id,
+                width: imgData.width,
+                height: imgData.height,
             }));
 
             const mediaIdsToFetch = imageUrlsData.map(img => img.id).filter((id): id is number => id !== null);
             if (mediaIdsToFetch.length > 0) {
                 try {
                     const mediaResponse = await wpApi.get('/media', {
-                        params: { include: [...new Set(mediaIdsToFetch)].join(','), per_page: 100, _fields: 'id,alt_text,source_url' }
+                        params: { include: [...new Set(mediaIdsToFetch)].join(','), per_page: 100, _fields: 'id,alt_text,source_url,media_details' }
                     });
                     if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
-                        const mediaDataMap = new Map<number, string>();
+                        const mediaDataMap = new Map<number, any>();
                         mediaResponse.data.forEach((mediaItem: any) => {
-                            mediaDataMap.set(mediaItem.id, mediaItem.alt_text);
+                            mediaDataMap.set(mediaItem.id, mediaItem);
                         });
                         scrapedImages.forEach(img => {
                             if (img.mediaId && mediaDataMap.has(img.mediaId)) {
-                                img.alt = mediaDataMap.get(img.mediaId) || '';
+                                const mediaItem = mediaDataMap.get(img.mediaId);
+                                img.alt = mediaItem.alt_text || '';
+                                img.width = img.width || mediaItem.media_details?.width || null;
+                                img.height = img.height || mediaItem.media_details?.height || null;
                             }
                         });
                     }
@@ -123,7 +128,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
                 }
             }
         }
-    } else { // Standard HTML scraping for non-Elementor
+    } else { 
         const pageLink = pageData.link;
         if (pageLink && wpApi) {
             try {
@@ -146,15 +151,17 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
                 
                 if (foundImageIds.size > 0) {
                      const mediaResponse = await wpApi.get('/media', {
-                        params: { include: Array.from(foundImageIds).join(','), per_page: 100, _fields: 'id,alt_text,source_url' }
+                        params: { include: Array.from(foundImageIds).join(','), per_page: 100, _fields: 'id,alt_text,source_url,media_details' }
                     });
 
                     if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
                          scrapedImages = mediaResponse.data.map((mediaItem: any) => ({
-                            id: mediaItem.source_url, // Use source_url as a unique key
+                            id: mediaItem.source_url, 
                             src: mediaItem.source_url,
                             alt: mediaItem.alt_text || '',
                             mediaId: mediaItem.id,
+                            width: mediaItem.media_details?.width || null,
+                            height: mediaItem.media_details?.height || null,
                         }));
                     }
                 }
@@ -211,12 +218,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     
     if (featured_image_src) {
         const seoFilename = `${slugify(pagePayload.title || 'page')}-${pageId}.jpg`;
-        (pagePayload as any).featured_media = await uploadImageToWordPress(featured_image_src, seoFilename, {
-            title: pagePayload.title || 'Page Image',
-            alt_text: pagePayload.title || '',
-            caption: '',
-            description: pagePayload.content?.substring(0, 100) || '',
-        }, wpApi);
+        (pagePayload as any).featured_media = await uploadImageToWordPress(
+            featured_image_src,
+            seoFilename,
+            {
+                title: pagePayload.title || 'Page Image',
+                alt_text: pagePayload.title || '',
+                caption: '',
+                description: pagePayload.content?.substring(0, 100) || '',
+            },
+            wpApi
+        );
     }
     
     const response = await wpApi.post(`/pages/${pageId}`, pagePayload);
