@@ -1,4 +1,5 @@
 
+
 // src/app/api/admin/users/[userId]/update-status/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -8,11 +9,11 @@ async function isAdmin(req: NextRequest): Promise<boolean> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) return false;
     try {
-        if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized");
+        if (!adminAuth) throw new Error("Firebase Admin Auth not initialized.");
         const decodedToken = await adminAuth.verifyIdToken(token);
         const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
-        const role = userDoc.data()?.role;
-        return userDoc.exists && ['admin', 'super_admin'].includes(role);
+        // Allow both admin and super_admin to perform this action
+        return userDoc.exists && ['admin', 'super_admin'].includes(userDoc.data()?.role);
     } catch { return false; }
 }
 
@@ -25,8 +26,8 @@ export async function POST(req: NextRequest, { params }: { params: { userId: str
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    if (!adminDb) {
-        return NextResponse.json({ error: 'Firestore not configured' }, { status: 503 });
+    if (!adminDb || !adminAuth) {
+        return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 503 });
     }
 
     const { userId } = params;

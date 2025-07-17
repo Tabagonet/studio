@@ -6,7 +6,7 @@ import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/api-helpers'
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { z } from 'zod';
 import * as cheerio from 'cheerio';
-import { replaceElementorTextsRecursive, findImageUrlsInElementor } from '@/lib/api-helpers';
+import { replaceElementorTexts, findImageUrlsInElementor } from '@/lib/api-helpers';
 
 
 const slugify = (text: string) => {

@@ -1,3 +1,4 @@
+
 // src/app/api/user/activity-logs/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -8,7 +9,8 @@ async function getUserContext(req: NextRequest): Promise<{ uid: string | null; r
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) return { uid: null, role: null, companyId: null };
     try {
-        if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized");
+        if (!adminAuth) throw new Error("Firebase Admin not initialized.");
+        if (!adminDb) throw new Error("Firestore not initialized.");
         const decodedToken = await adminAuth.verifyIdToken(token);
         const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
         if (!userDoc.exists) {
@@ -35,34 +37,14 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        let logsQuery = adminDb.collection('activity_logs');
-        let query: FirebaseFirestore.Query<FirebaseFirestore.DocumentData>;
+        let logsQuery: FirebaseFirestore.Query<FirebaseFirestore.DocumentData>;
 
-        if (context.role === 'super_admin') {
-            // Super admin gets all logs, ordered by timestamp
-            query = logsQuery.orderBy('timestamp', 'desc').limit(200);
-        } else if (context.role === 'admin' && context.companyId) {
-            // Admin gets logs for all users in their company
-            const usersSnapshot = await adminDb.collection('users').where('companyId', '==', context.companyId).get();
-            const userIds = usersSnapshot.docs.map(doc => doc.id);
+        // By default, query for the current user.
+        let query = adminDb.collection('activity_logs').where('userId', '==', context.uid);
 
-            if (userIds.length === 0) {
-                 return NextResponse.json({ logs: [] });
-            }
-            if (userIds.length > 30) {
-                 console.warn(`Company ${context.companyId} has more than 30 users. Activity log query will be truncated.`);
-            }
-            // Query without orderBy to prevent needing a composite index
-            query = logsQuery.where('userId', 'in', userIds.slice(0, 30)).limit(200);
-        } else {
-            // Regular user or admin without company gets only their own logs
-            // Query without orderBy to prevent needing a composite index
-            query = logsQuery.where('userId', '==', context.uid).limit(200);
-        }
+        const snapshot = await query.orderBy('timestamp', 'desc').limit(200).get();
         
-        const logsSnapshot = await query.get();
-        
-        const logs = logsSnapshot.docs.map(doc => {
+        const logs = snapshot.docs.map(doc => {
             const logData = doc.data();
             return {
                 id: doc.id,
@@ -71,11 +53,6 @@ export async function GET(req: NextRequest) {
             };
         });
         
-        // Sort in memory as a fallback for queries without server-side ordering
-        if (context.role !== 'super_admin') {
-             logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        }
-
         return NextResponse.json({ logs });
 
     } catch (error) {

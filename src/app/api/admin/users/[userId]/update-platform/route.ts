@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
@@ -6,7 +7,8 @@ async function isSuperAdmin(req: NextRequest): Promise<boolean> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) return false;
     try {
-        if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized");
+        if (!adminAuth) throw new Error("Firebase Admin Auth not initialized.");
+        if (!adminDb) throw new Error("Firestore is not initialized.");
         const decodedToken = await adminAuth.verifyIdToken(token);
         const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
         return userDoc.exists && userDoc.data()?.role === 'super_admin';
