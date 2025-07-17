@@ -26,15 +26,7 @@ Este documento recoge las ideas y posibles futuras herramientas para expandir la
     -   Identificar y listar imágenes que no están siendo utilizadas en ninguna página, entrada o producto.
     -   Acción en lote para borrar imágenes huérfanas y liberar espacio.
     -   Acción en lote para generar "alt text" con IA para todas las imágenes que no lo tengan.
-
--   [ ] **Gestor de Taxonomías (Categorías y Etiquetas):**
-    -   Panel para visualizar todas las categorías y etiquetas (de productos y posts).
-    -   Ver el número de elementos asociados a cada una.
-    -   Funcionalidad para fusionar etiquetas/categorías duplicadas y eliminar las que no se usan.
-
--   [ ] **Panel de Salud del Sitio (Básico):**
-    -   Dashboard simple que muestre la versión actual de WordPress y WooCommerce.
-    -   Alerta si hay plugins que necesiten actualización o si el certificado de seguridad (SSL) está próximo a expirar.
+    -   **Editor de Recorte de Imágenes Interactivo:** Permitir al usuario seleccionar visualmente el área de recorte al reemplazar una imagen.
 
 ## 3. Comercio Electrónico (WooCommerce)
 

@@ -201,17 +201,21 @@ export function findElementorImageContext(elements: any[], imageUrl: string): st
 
             const settings = item.settings;
             if (settings) {
-                // Check 'the7_image_box_widget'
+                // Handle different widget types that contain images
                 if (item.widgetType === 'the7_image_box_widget' && settings.image?.url === imageUrl) {
                     context = settings.description_text?.replace(/<[^>]+>/g, ' ').trim() || '';
-                    if (context) return;
+                } else if (item.widgetType === 'image' && settings.image?.url === imageUrl) {
+                    context = settings.caption?.replace(/<[^>]+>/g, ' ').trim() || settings.title_text || '';
+                } else if (item.widgetType === 'slides' && settings.slides) {
+                    const slide = settings.slides.find((s: any) => s.background_image?.url === imageUrl);
+                    if (slide) {
+                        context = slide.description?.replace(/<[^>]+>/g, ' ').trim() || slide.heading || '';
+                    }
                 }
-                // Check standard image widget
-                if (item.widgetType === 'image' && settings.image?.url === imageUrl) {
-                    context = settings.caption || settings.title_text || '';
-                    if (context) return;
-                }
+                
+                if (context) return;
             }
+            
             // Recurse into nested elements
             if (item.elements && item.elements.length > 0) {
                 traverse(item.elements);
@@ -275,7 +279,7 @@ export async function uploadImageToWordPress(
         const finalBuffer = await processedBuffer.webp({ quality: 80 }).toBuffer();
         const finalContentType = 'image/webp';
         // Ensure the filename has the correct extension
-        const finalFilename = seoFilename.replace(/\.[^/.]+$/, "") + ".webp";
+        const finalFilename = seoFilename.endsWith('.webp') ? seoFilename : seoFilename.replace(/\.[^/.]+$/, "") + ".webp";
 
 
         const formData = new FormData();
@@ -529,7 +533,7 @@ export function replaceImageUrlInElementor(data: any, oldUrl: string, newUrl: st
             }
 
             if (isImageObject) {
-                 console.log(`[Elementor Replace] URL encontrada en objeto de imagen. Reemplazando ID y URL.`);
+                 console.log(`[Elementor Replace] URL encontrada en objeto de imagen. Reemplazando ID (${obj.id} -> ${newId}) y URL.`);
                  newObj.url = newUrl;
                  newObj.id = newId;
                  replaced = true;

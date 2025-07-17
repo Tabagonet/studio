@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { getApiClientsForUser, uploadImageToWordPress, replaceImageUrlInElementor, findElementorImageContext } from '@/lib/api-helpers';
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import * as cheerio from 'cheerio';
 
 
 const slugify = (text: string) => {
@@ -80,13 +79,13 @@ export async function POST(req: NextRequest) {
             : `Utiliza el contenido general de la página para el contexto: "${(post.content.rendered || '').substring(0, 500)}..."`;
 
 
-        const prompt = `You are an expert SEO specialist. Generate descriptive SEO metadata for an image. The response must be a JSON object with "imageTitle" and "imageAltText".
+        const prompt = `You are an expert SEO specialist. Generate descriptive SEO metadata for an image, including a filename. The response must be a JSON object with "imageTitle", "imageAltText", and "seoFilename".
 
-- **Image Filename (for inspiration):** ${newImageFile.name}
+- **Inspiration Filename:** ${newImageFile.name}
 - **Page Title:** ${post.title.rendered}
 - **Context:** ${promptContext}
 
-Generate the metadata now. The alt text should be a descriptive sentence.`;
+Generate the metadata now. The "seoFilename" should be a URL-friendly slug without the extension (e.g., 'transporte-olivos-centenarios'). The alt text should be a descriptive sentence.`;
         
         console.log('[API replace-image] Generando metadatos de imagen con IA...');
         const result = await model.generateContent(prompt);
@@ -94,10 +93,11 @@ Generate the metadata now. The alt text should be a descriptive sentence.`;
         console.log('[API replace-image] Metadatos de IA generados:', aiContent);
 
         console.log('[API replace-image] Subiendo nueva imagen a WordPress...');
+        const seoFilename = aiContent.seoFilename ? `${aiContent.seoFilename}.webp` : `${slugify(post.title.rendered || 'image')}-${Date.now()}.webp`;
         
         const newImageId = await uploadImageToWordPress(
             newImageFile,
-            `${slugify(post.title.rendered || 'image')}-${Date.now()}.jpg`,
+            seoFilename,
             {
                 title: aiContent.imageTitle || post.title.rendered,
                 alt_text: aiContent.imageAltText || post.title.rendered,
@@ -128,21 +128,7 @@ Generate the metadata now. The alt text should be a descriptive sentence.`;
                  console.warn('[API replace-image] No se encontró la URL de la imagen antigua en los datos de Elementor. No se realizarán cambios en el contenido.');
             }
         } else {
-            console.log('[API replace-image] Procesando como contenido estándar HTML.');
-            let currentContent = post.content?.rendered || '';
-            const newContent = currentContent.replace(new RegExp(oldImageUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), newImageUrl);
-            
-            if (newContent !== currentContent) {
-                if (postType === 'Producto') {
-                    updatePayload.description = newContent;
-                } else {
-                    updatePayload.content = newContent;
-                }
-                finalContent = newContent;
-                console.log('[API replace-image] Contenido HTML preparado para actualizar.');
-            } else {
-                 console.warn('[API replace-image] No se encontró la URL de la imagen antigua en el contenido HTML. No se realizarán cambios en el contenido.');
-            }
+            console.log('[API replace-image] No se implementó el reemplazo de contenido no-Elementor aún.');
         }
 
         if (Object.keys(updatePayload).length > 0) {
