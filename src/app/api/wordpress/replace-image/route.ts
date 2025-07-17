@@ -2,11 +2,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress, replaceElementorTexts } from '@/lib/api-helpers';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { z } from 'zod';
 import * as cheerio from 'cheerio';
-import { replaceElementorTexts, findImageUrlsInElementor } from '@/lib/api-helpers';
 
 
 const slugify = (text: string) => {
@@ -210,9 +209,11 @@ export async function POST(req: NextRequest) {
              console.log('[API replace-image] No hay cambios de contenido que guardar. La imagen se ha subido pero no se ha reemplazado en el post.');
         }
         
-        await adminDb.collection('user_settings').doc(uid).set({ 
-            aiUsageCount: admin.firestore.FieldValue.increment(1) 
-        }, { merge: true });
+        if (adminDb) {
+            await adminDb.collection('user_settings').doc(uid).set({ 
+                aiUsageCount: admin.firestore.FieldValue.increment(1) 
+            }, { merge: true });
+        }
 
         console.log('[API replace-image] Petición finalizada con éxito.');
         return NextResponse.json({ success: true, newContent: finalContent, newImageUrl, newImageAlt: aiContent.imageAltText });
