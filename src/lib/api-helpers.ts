@@ -259,10 +259,9 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
 
 /**
  * Recursively searches through Elementor data to find the context of a specific image.
- * Specifically looks for "image box" type widgets.
  * @param elements The Elementor data array.
  * @param imageUrl The URL of the image to find.
- * @returns The description text of the widget containing the image, or an empty string.
+ * @returns The description/title/caption text of the widget containing the image, or an empty string.
  */
 export function findElementorImageContext(elements: any[], imageUrl: string): string {
     let context = '';
@@ -273,11 +272,19 @@ export function findElementorImageContext(elements: any[], imageUrl: string): st
             if (context) return; // Stop searching if context is found
             if (!item || typeof item !== 'object') continue;
 
-            // Check if this widget is the one containing the image
-            if (item.widgetType === 'the7_image_box_widget' && item.settings?.image?.url === imageUrl) {
-                 if (item.settings?.description_text) {
-                    // We found it. Strip HTML for cleaner context.
-                    context = item.settings.description_text.replace(/<[^>]+>/g, ' ').trim();
+            const settings = item.settings;
+            if (settings && settings.image?.url === imageUrl) {
+                // Priority: Image Box > Standard Image Caption > Standard Image Title
+                if (item.widgetType === 'the7_image_box_widget' && settings.description_text) {
+                    context = settings.description_text.replace(/<[^>]+>/g, ' ').trim();
+                    return;
+                }
+                if (item.widgetType === 'image' && settings.caption) {
+                    context = settings.caption;
+                    return;
+                }
+                if (item.widgetType === 'image' && settings.title) {
+                    context = settings.title;
                     return;
                 }
             }
@@ -549,4 +556,43 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   });
 
   return { wooApi, wpApi, shopifyApi, activeConnectionKey, settings: settingsSource };
+}
+
+// Function to replace an image URL within Elementor data, also updating the ID.
+export function replaceImageUrlInElementor(data: any, oldUrl: string, newUrl: string, newId: number): { replaced: boolean, data: any } {
+    let replaced = false;
+
+    function traverse(obj: any): any {
+        if (!obj) return obj;
+
+        if (Array.isArray(obj)) {
+            return obj.map(item => traverse(item));
+        }
+
+        if (typeof obj === 'object') {
+            const newObj: { [key: string]: any } = {};
+            for (const key in obj) {
+                if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                    if (key === 'image' && obj[key]?.url === oldUrl) {
+                        console.log(`[Elementor Replace] URL encontrada en widget ${obj.widgetType || 'desconocido'}, setting image. Reemplazando.`);
+                        newObj[key] = { ...obj[key], url: newUrl, id: newId };
+                        replaced = true;
+                    } else if (key === 'background_image' && obj[key]?.url === oldUrl) {
+                        console.log(`[Elementor Replace] URL encontrada en background_image. Reemplazando.`);
+                        newObj[key] = { ...obj[key], url: newUrl, id: newId };
+                        replaced = true;
+                    } else {
+                        newObj[key] = traverse(obj[key]);
+                    }
+                }
+            }
+            return newObj;
+        }
+        return obj;
+    }
+
+    console.log(`[Elementor Replace] Iniciando búsqueda recursiva para reemplazar ${oldUrl}`);
+    const newData = traverse(data);
+    console.log(`[Elementor Replace] Búsqueda finalizada. ¿Se reemplazó? ${replaced}`);
+    return { replaced, data: newData };
 }

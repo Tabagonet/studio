@@ -66,17 +66,17 @@ export async function POST(req: NextRequest) {
         const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
 
-        let imageBoxContext = '';
+        let imageContext = '';
         if (isElementor) {
             const elementorData = JSON.parse(post.meta._elementor_data);
-            imageBoxContext = findElementorImageContext(elementorData, oldImageUrl);
-             if (imageBoxContext) {
-                console.log('[API replace-image] Contexto de Image Box encontrado:', imageBoxContext);
+            imageContext = findElementorImageContext(elementorData, oldImageUrl);
+             if (imageContext) {
+                console.log('[API replace-image] Contexto específico de widget encontrado:', imageContext);
             }
         }
         
-        const promptContext = imageBoxContext 
-            ? `Utiliza la siguiente descripción del 'image box' como contexto principal: "${imageBoxContext}"`
+        const promptContext = imageContext 
+            ? `Utiliza la siguiente descripción del widget de la imagen como contexto principal: "${imageContext}"`
             : `Utiliza el contenido general de la página para el contexto: "${(post.content.rendered || '').substring(0, 500)}..."`;
 
 
