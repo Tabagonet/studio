@@ -13,9 +13,9 @@ const slugify = (text: string) => {
     return text.toString().toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-').replace(/^-+$/, '');
 };
 
-// Recursive function to find and replace image URLs within Elementor's data structure.
-function replaceImageUrlInElementor(elements: any[], oldUrl: string, newUrl: string): { replaced: boolean; data: any[] } {
-    console.log(`[Elementor Replace] Iniciando búsqueda recursiva para reemplazar ${oldUrl}`);
+// Recursive function to find and replace image URLs and IDs within Elementor's data structure.
+function replaceImageUrlInElementor(elements: any[], oldUrl: string, newUrl: string, newId: number): { replaced: boolean; data: any[] } {
+    console.log(`[Elementor Replace] Iniciando búsqueda recursiva para reemplazar ${oldUrl} con el nuevo ID ${newId}`);
     let replaced = false;
     const newElements = JSON.parse(JSON.stringify(elements)); // Deep copy to avoid mutation issues
 
@@ -30,13 +30,15 @@ function replaceImageUrlInElementor(elements: any[], oldUrl: string, newUrl: str
                 if (item.settings && Array.isArray(item.settings[arrayKey])) {
                     for (const slide of item.settings[arrayKey]) {
                          if (slide.background_image?.url === oldUrl) {
-                             console.log(`[Elementor Replace] URL encontrada en background_image de repeater. Reemplazando.`);
+                             console.log(`[Elementor Replace] URL encontrada en background_image de repeater. Reemplazando URL e ID.`);
                              slide.background_image.url = newUrl;
+                             slide.background_image.id = newId;
                              replaced = true;
                          }
                           if (slide.image?.url === oldUrl) {
-                             console.log(`[Elementor Replace] URL encontrada en imagen de repeater. Reemplazando.`);
+                             console.log(`[Elementor Replace] URL encontrada en imagen de repeater. Reemplazando URL e ID.`);
                              slide.image.url = newUrl;
+                             slide.image.id = newId;
                              replaced = true;
                          }
                     }
@@ -51,8 +53,9 @@ function replaceImageUrlInElementor(elements: any[], oldUrl: string, newUrl: str
                         // Handles simple image widgets: { image: { url: '...' } }
                         // Also handles background images for sections/columns
                         if (typeof setting === 'object' && setting !== null && setting.url === oldUrl) {
-                            console.log(`[Elementor Replace] URL encontrada en widget ${item.widgetType || 'unknown'}, setting ${key}. Reemplazando.`);
+                            console.log(`[Elementor Replace] URL encontrada en widget ${item.widgetType || 'unknown'}, setting ${key}. Reemplazando URL e ID.`);
                             setting.url = newUrl;
+                            setting.id = newId; // Update the ID as well
                             replaced = true;
                         }
                     }
@@ -146,7 +149,7 @@ export async function POST(req: NextRequest) {
         
         const newMediaData = await wpApi.get(`/media/${newImageId}`);
         const newImageUrl = newMediaData.data.source_url;
-        console.log(`[API replace-image] Imagen subida con éxito. Nueva URL: ${newImageUrl}`);
+        console.log(`[API replace-image] Imagen subida con éxito. Nuevo ID: ${newImageId}, Nueva URL: ${newImageUrl}`);
         
         const updatePayload: { [key: string]: any } = {};
         let finalContent = '';
@@ -154,7 +157,7 @@ export async function POST(req: NextRequest) {
         if (isElementor) {
             console.log('[API replace-image] Procesando como página de Elementor.');
             const elementorData = JSON.parse(post.meta._elementor_data);
-            const { replaced, data: newElementorData } = replaceImageUrlInElementor(elementorData, oldImageUrl, newImageUrl);
+            const { replaced, data: newElementorData } = replaceImageUrlInElementor(elementorData, oldImageUrl, newImageUrl, newImageId);
             if (replaced) {
                 updatePayload.meta = { ...post.meta, _elementor_data: JSON.stringify(newElementorData) };
                 finalContent = JSON.stringify(newElementorData); 
