@@ -146,6 +146,7 @@ export async function GET(req: NextRequest) {
     try {
         const token = req.headers.get('Authorization')?.split('Bearer ')[1];
         if (!token) throw new Error('Auth token missing');
+        if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
         const uid = (await adminAuth.verifyIdToken(token)).uid;
         
         const { wpApi, wooApi } = await getApiClientsForUser(uid);
