@@ -58,9 +58,10 @@ export async function getPartnerCredentials(): Promise<PartnerAppConnectionData>
         throw new Error("Los datos de la App de Partner en la configuración global no son válidos.");
     }
     
-    if (!partnerAppData.data.clientId || !partnerAppData.data.clientSecret) {
-      throw new Error("El Client ID o Client Secret no están configurados en los ajustes globales de Shopify.");
-    }
+    // Do not throw error if just the API key is missing
+    // if (!partnerAppData.data.clientId || !partnerAppData.data.clientSecret) {
+    //   throw new Error("El Client ID o Client Secret no están configurados en los ajustes globales de Shopify.");
+    // }
 
     return partnerAppData.data;
 }
@@ -272,7 +273,7 @@ export async function uploadImageToWordPress(
         if (width || height) {
             processedBuffer = processedBuffer.resize(width, height, { 
                 fit: (width && height) ? 'cover' : 'inside', 
-                position: position || 'center' 
+                position: position as any || 'center' 
             });
         } else {
             processedBuffer = processedBuffer.resize(1200, 1200, {

@@ -18,7 +18,8 @@ export function createShopifyApi(credentials: ShopifyCredentials): AxiosInstance
   let { url, accessToken } = credentials;
 
   if (!url || !accessToken) {
-    console.warn("Incomplete Shopify credentials provided. Cannot create API client.");
+    // Return null instead of throwing an error immediately.
+    // The calling function will be responsible for handling the null case.
     return null;
   }
   

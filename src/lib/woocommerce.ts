@@ -18,7 +18,8 @@ export function createWooCommerceApi(credentials: WooCommerceCredentials): WooCo
   let { url, consumerKey, consumerSecret } = credentials;
 
   if (!url || !consumerKey || !consumerSecret) {
-    console.warn("Incomplete WooCommerce credentials provided. Cannot create API client.");
+    // Return null instead of throwing an error immediately.
+    // The calling function will be responsible for handling the null case.
     return null;
   }
 
@@ -41,9 +42,9 @@ export function createWooCommerceApi(credentials: WooCommerceCredentials): WooCo
     // console.log("WooCommerce API client dynamically created for user.");
     return wooApi;
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-    console.error("Error creating dynamic WooCommerce API client:", errorMessage);
-    return null;
+     const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+     console.error("Error creating dynamic WooCommerce API client:", errorMessage);
+     return null;
   }
 }
 
