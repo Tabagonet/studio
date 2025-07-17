@@ -4,54 +4,84 @@
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Replace, ImageIcon } from 'lucide-react';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Loader2, Wand2, Tags, ArrowLeft, ExternalLink, Image as ImageIcon, Link as LinkIcon, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { WordPressPostCategory, WordPressUser, ProductPhoto, ExtractedWidget, ContentImage } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ContentImage, ExtractedWidget } from '@/lib/types';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import NextImage from 'next/image';
+import { ImageUploader } from '@/components/features/wizard/image-uploader';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
+import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
+import type { SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
+import { SeoAnalyzer } from '@/components/features/seo/seo-analyzer';
+import { GoogleSnippetPreview } from '@/components/features/blog/google-snippet-preview';
 
 
-interface PageEditState {
+interface PostEditState {
   title: string;
-  content: string | ExtractedWidget[]; 
+  content: string | ExtractedWidget[];
+  short_description?: string;
+  meta: {
+      _yoast_wpseo_title: string;
+      _yoast_wpseo_metadesc: string;
+      _yoast_wpseo_focuskw: string;
+  };
+  status: 'publish' | 'draft' | 'pending' | 'future' | 'private';
+  author: number | null;
+  categories: number[];
+  tags: string;
+  featuredImage: ProductPhoto | null;
+  featuredImageId: number | null; // Keep track of the original featured media ID
   isElementor: boolean;
   elementorEditLink: string | null;
-  link?: string;
+  adminEditLink?: string | null;
+  link: string;
   postType: 'Post' | 'Page' | 'Producto';
   lang: string;
-}
-
-interface ReplaceImageDialogState {
-    open: boolean;
-    oldImageSrc: string | null;
-    newImageFile: File | null;
-    originalWidth: number | null;
-    originalHeight: number | null;
+  translations?: Record<string, number>;
 }
 
 function EditPageContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const postId = Number(params.id);
-  const postType = 'Page'; 
+  const postType = searchParams.get('type') || 'Page';
     
-  const [post, setPost] = useState<PageEditState | null>(null);
+  const [post, setPost] = useState<PostEditState | null>(null);
   const [contentImages, setContentImages] = useState<ContentImage[]>([]);
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isAiLoading, setIsAiLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const [applyAiMetaToFeatured, setApplyAiMetaToFeatured] = useState(true);
+  
   const { toast } = useToast();
 
-  const [replaceDialogState, setReplaceDialogState] = useState<ReplaceImageDialogState>({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: null, originalHeight: null });
-  const [isReplacing, setIsReplacing] = useState(false);
-  
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (!post) return;
+    const { name, value } = e.target;
+    if (name in post.meta) {
+      setPost({ ...post, meta: { ...post.meta, [name]: value } });
+    } else {
+      setPost({ ...post, [name]: value });
+    }
+  };
+
+  const handleContentChange = (newContent: string) => {
+    if (!post) return;
+    setPost({ ...post, content: newContent });
+  };
+
   const fetchInitialData = useCallback(async () => {
     setIsLoading(true); setError(null);
     const user = auth.currentUser;
@@ -60,166 +90,185 @@ function EditPageContent() {
 
     try {
       const token = await user.getIdToken();
-      const apiPath = `/api/wordpress/pages/${postId}`;
+      let apiPath = '';
+      if (postType === 'Post') apiPath = `/api/wordpress/posts/${postId}`;
+      else if (postType === 'Page') apiPath = `/api/wordpress/pages/${postId}`;
+      else if (postType === 'Producto') apiPath = `/api/wordpress/products/${postId}`;
+      else throw new Error(`Unsupported post type: ${postType}`);
       
       const postResponse = await fetch(`${apiPath}?context=edit&bust=${new Date().getTime()}`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
-      if (!postResponse.ok) throw new Error((await postResponse.json()).error || `Failed to fetch Page data.`);
+      if (!postResponse.ok) throw new Error((await postResponse.json()).error || `Failed to fetch ${postType} data.`);
       
       const postData = await postResponse.json();
       
-      const loadedPost: PageEditState = {
+      const loadedPost: PostEditState = {
         title: postData.title?.rendered,
         content: postData.content?.rendered || '',
+        short_description: postData.short_description,
+        meta: {
+          _yoast_wpseo_title: postData.meta?._yoast_wpseo_title || postData.title?.rendered || '',
+          _yoast_wpseo_metadesc: postData.meta?._yoast_wpseo_metadesc || postData.excerpt?.rendered.replace(/<[^>]+>/g, '') || '',
+          _yoast_wpseo_focuskw: postData.meta?._yoast_wpseo_focuskw || '',
+        },
+        status: postData.status || 'draft',
+        author: postData.author || null,
+        categories: postData.categories?.map((c: any) => typeof c === 'object' ? c.id : c) || [],
+        tags: postData.tags?.map((t: any) => t.name).join(', ') || '',
+        featuredImageId: postData.featured_media || null,
+        featuredImage: postData.featured_image_url ? {
+            id: postData.featured_media, previewUrl: postData.featured_image_url, name: 'Imagen destacada',
+            status: 'completed', progress: 100,
+        } : null,
         isElementor: postData.isElementor || false, 
         elementorEditLink: postData.elementorEditLink || null,
+        adminEditLink: postData.adminEditLink || null,
         link: postData.link,
-        postType: 'Page',
+        postType: postType as any,
         lang: postData.lang || 'es',
+        translations: postData.translations || {},
       };
       
       setPost(loadedPost);
-      if (postData.scrapedImages && Array.isArray(postData.scrapedImages)) {
+       if (postData.scrapedImages && Array.isArray(postData.scrapedImages)) {
           setContentImages(postData.scrapedImages);
       } else {
           setContentImages([]);
       }
-
     } catch (e: any) { setError(e.message);
     } finally { setIsLoading(false); }
-  }, [postId]);
+  }, [postId, postType]);
 
 
   useEffect(() => { fetchInitialData(); }, [fetchInitialData]);
   
-  const handleReplaceImage = async () => {
-    if (!post || !replaceDialogState.oldImageSrc || !replaceDialogState.newImageFile) {
-      toast({ title: 'Error', description: 'Faltan datos para reemplazar la imagen.', variant: 'destructive' });
+  const handleSaveChanges = async () => {
+    setIsSaving(true);
+    const user = auth.currentUser;
+    if (!user || !post) {
+      toast({ title: 'Error', description: 'No se puede guardar.', variant: 'destructive' });
+      setIsSaving(false);
       return;
     }
-    setIsReplacing(true);
+
     try {
-        const user = auth.currentUser;
-        if (!user) throw new Error("No autenticado.");
         const token = await user.getIdToken();
-        const formData = new FormData();
-        formData.append('newImageFile', replaceDialogState.newImageFile);
-        formData.append('postId', postId.toString());
-        formData.append('postType', post.postType);
-        formData.append('oldImageUrl', replaceDialogState.oldImageSrc);
-        if (replaceDialogState.originalWidth) formData.append('width', replaceDialogState.originalWidth.toString());
-        if (replaceDialogState.originalHeight) formData.append('height', replaceDialogState.originalHeight.toString());
+        const payload: any = {
+            meta: post.meta,
+        };
+
+        if (applyAiMetaToFeatured && post.featuredImageUrl && post.meta._yoast_wpseo_focuskw) {
+             payload.featured_image_metadata = {
+                 title: post.meta._yoast_wpseo_title || post.title,
+                 alt_text: post.meta._yoast_wpseo_focuskw,
+             }
+        }
         
-        const response = await fetch('/api/wordpress/replace-image', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` },
-            body: formData,
+        const imageUpdates = contentImages
+            .filter(img => img.alt !== (post?.content.toString().match(new RegExp(`alt="([^"]*)"\\s*src="${img.id}"`))?.[1] || ''))
+            .map(img => ({ id: img.mediaId, alt: img.alt }));
+        
+        if (imageUpdates.length > 0) {
+            payload.image_alt_updates = imageUpdates.filter(u => u.id !== null);
+        }
+        
+        const endpoint = post.postType === 'Post' ? `/api/wordpress/posts/${postId}` : `/api/wordpress/pages/${postId}`;
+
+        const response = await fetch(endpoint, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(payload)
         });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Fallo al guardar los cambios');
+        }
         
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'Fallo en la API de reemplazo de imagen.');
+        toast({ title: '¡Éxito!', description: `Los metadatos SEO han sido actualizados.` });
         
-        // Update state to reflect changes
-        setPost(p => p ? { ...p, content: result.newContent } : null);
-        setContentImages(prev => prev.map(img => img.src === replaceDialogState.oldImageSrc ? { ...img, src: result.newImageUrl, alt: result.newImageAlt } : img));
-        toast({ title: 'Imagen Reemplazada', description: 'La imagen ha sido actualizada en el contenido y la biblioteca de medios.' });
-        setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: null, originalHeight: null });
-    } catch (error: any) {
-        toast({ title: 'Error al reemplazar', description: error.message, variant: 'destructive' });
+    } catch (e: any) {
+        toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
     } finally {
-        setIsReplacing(false);
+        setIsSaving(false);
     }
   };
-
+  
 
   if (isLoading) {
     return <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
   }
   
   if (error || !post) {
-     return <div className="container mx-auto py-8"><Alert variant="destructive"><AlertTitle>Error al Cargar</AlertTitle><AlertDescription>{error || `No se pudo cargar la información de la página.`}</AlertDescription></Alert></div>;
+     return <div className="container mx-auto py-8"><Alert variant="destructive"><AlertTitle>Error al Cargar</AlertTitle><AlertDescription>{error || `No se pudo cargar la información.`}</AlertDescription></Alert></div>;
   }
 
   return (
-    <>
-      <div className="container mx-auto py-8 space-y-6">
-          <Card>
-              <CardHeader>
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                      <div>
-                          <CardTitle>Editor de Imágenes de Página</CardTitle>
-                          <CardDescription>Reemplaza las imágenes de: {post.title}</CardDescription>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                          <Button variant="outline" onClick={() => router.back()}>
-                              <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-                          </Button>
-                      </div>
-                  </div>
-              </CardHeader>
-          </Card>
-          
-          <Card>
-              <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><ImageIcon className="h-5 w-5 text-primary" />Imágenes en el Contenido</CardTitle>
-                  <CardDescription>Esta es una lista de todas las imágenes encontradas en esta página. Puedes reemplazarlas una por una.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                  {contentImages.length > 0 ? (
-                      <div className="space-y-3">
-                          {contentImages.map((img) => (
-                              <div key={img.id} className="flex items-center gap-4 p-3 border rounded-lg bg-muted/30">
-                                  <div className="relative h-16 w-16 flex-shrink-0">
-                                      <NextImage src={img.src} alt={img.alt || 'Vista previa'} fill className="rounded-md object-cover" sizes="64px" />
-                                  </div>
-                                  <div className="flex-grow min-w-0">
-                                      <p className="text-sm font-medium text-foreground truncate" title={img.src}>...{img.src.slice(-50)}</p>
-                                      <p className="text-xs text-muted-foreground">Alt: <span className="italic">{img.alt || "(vacío)"}</span></p>
-                                      {img.width && img.height && (
-                                        <p className="text-xs text-muted-foreground">Tamaño: <span className="font-semibold">{img.width} x {img.height}px</span></p>
-                                      )}
-                                  </div>
-                                  <Button 
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => setReplaceDialogState({ open: true, oldImageSrc: img.src, newImageFile: null, originalWidth: img.width, originalHeight: img.height })}
-                                  >
-                                      <Replace className="mr-2 h-4 w-4" />
-                                      Reemplazar
-                                  </Button>
-                              </div>
-                          ))}
-                      </div>
-                  ) : (
-                      <p className="text-center text-muted-foreground py-8">No se encontraron imágenes en el contenido de esta página.</p>
-                  )}
-              </CardContent>
-          </Card>
-      </div>
+    <div className="container mx-auto py-8 space-y-6">
+        <Card>
+            <CardHeader>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <CardTitle>Optimizador SEO</CardTitle>
+                        <CardDescription>Editando: {post.title}</CardDescription>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" onClick={() => router.push('/pages')}>
+                            <ArrowLeft className="mr-2 h-4 w-4" />
+                            Volver a la lista
+                        </Button>
+                        <Button onClick={handleSaveChanges} disabled={isSaving || isAiLoading}>
+                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Guardar Cambios SEO
+                        </Button>
+                    </div>
+                </div>
+            </CardHeader>
+        </Card>
 
-       <AlertDialog open={replaceDialogState.open} onOpenChange={(open) => !open && setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: null, originalHeight: null })}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Reemplazar Imagen</AlertDialogTitle>
-            <AlertDialogDescription>
-                {replaceDialogState.originalWidth && replaceDialogState.originalHeight 
-                ? `Sube una nueva imagen para reemplazar la actual. La nueva imagen se recortará a ${replaceDialogState.originalWidth}x${replaceDialogState.originalHeight} píxeles para coincidir con la original.`
-                : `Sube una nueva imagen para reemplazar la imagen actual.`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="py-4">
-            <Label htmlFor="new-image-upload">Nueva Imagen</Label>
-            <Input id="new-image-upload" type="file" accept="image/*" onChange={(e) => setReplaceDialogState(s => ({ ...s, newImageFile: e.target.files?.[0] || null }))} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          <div className="lg:col-span-2 space-y-6">
+             <SeoAnalyzer 
+                post={post}
+                setPost={setPost}
+                isLoading={isAiLoading}
+                setIsLoading={setIsAiLoading}
+                contentImages={contentImages}
+                setContentImages={setContentImages}
+                applyAiMetaToFeatured={applyAiMetaToFeatured}
+                setApplyAiMetaToFeatured={setApplyAiMetaToFeatured}
+                postId={postId}
+             />
           </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleReplaceImage} disabled={isReplacing || !replaceDialogState.newImageFile}>
-              {isReplacing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isReplacing ? 'Reemplazando...' : 'Reemplazar'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+          
+          <div className="space-y-6">
+             <Card>
+                <CardHeader>
+                  <CardTitle>Edición SEO</CardTitle>
+                  <CardDescription>Modifica los campos clave para el posicionamiento en buscadores.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                   <div>
+                      <Label htmlFor="_yoast_wpseo_focuskw">Palabra Clave Principal</Label>
+                      <Input id="_yoast_wpseo_focuskw" name="_yoast_wpseo_focuskw" value={post.meta._yoast_wpseo_focuskw} onChange={handleInputChange} />
+                   </div>
+                   <div>
+                      <Label htmlFor="_yoast_wpseo_title">Título SEO</Label>
+                      <Input id="_yoast_wpseo_title" name="_yoast_wpseo_title" value={post.meta._yoast_wpseo_title} onChange={handleInputChange} />
+                   </div>
+                   <div>
+                       <Label htmlFor="_yoast_wpseo_metadesc">Meta Descripción</Label>
+                       <Input id="_yoast_wpseo_metadesc" name="_yoast_wpseo_metadesc" value={post.meta._yoast_wpseo_metadesc} onChange={handleInputChange} />
+                   </div>
+                </CardContent>
+            </Card>
+             <GoogleSnippetPreview 
+                title={post.meta._yoast_wpseo_title || post.title}
+                description={post.meta._yoast_wpseo_metadesc || ''}
+                url={post.link || null}
+             />
+          </div>
+        </div>
+    </div>
   );
 }
 

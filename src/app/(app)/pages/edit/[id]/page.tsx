@@ -30,6 +30,8 @@ interface ReplaceImageDialogState {
     open: boolean;
     oldImageSrc: string | null;
     newImageFile: File | null;
+    originalWidth: number | null;
+    originalHeight: number | null;
 }
 
 function EditPageContent() {
@@ -46,7 +48,7 @@ function EditPageContent() {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const [replaceDialogState, setReplaceDialogState] = useState<ReplaceImageDialogState>({ open: false, oldImageSrc: null, newImageFile: null });
+  const [replaceDialogState, setReplaceDialogState] = useState<ReplaceImageDialogState>({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: null, originalHeight: null });
   const [isReplacing, setIsReplacing] = useState(false);
   
   const fetchInitialData = useCallback(async () => {
@@ -103,6 +105,8 @@ function EditPageContent() {
         formData.append('postId', postId.toString());
         formData.append('postType', post.postType);
         formData.append('oldImageUrl', replaceDialogState.oldImageSrc);
+        if (replaceDialogState.originalWidth) formData.append('width', replaceDialogState.originalWidth.toString());
+        if (replaceDialogState.originalHeight) formData.append('height', replaceDialogState.originalHeight.toString());
         
         const response = await fetch('/api/wordpress/replace-image', {
             method: 'POST',
@@ -117,7 +121,7 @@ function EditPageContent() {
         setPost(p => p ? { ...p, content: result.newContent } : null);
         setContentImages(prev => prev.map(img => img.src === replaceDialogState.oldImageSrc ? { ...img, src: result.newImageUrl, alt: result.newImageAlt } : img));
         toast({ title: 'Imagen Reemplazada', description: 'La imagen ha sido actualizada en el contenido y la biblioteca de medios.' });
-        setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null });
+        setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: null, originalHeight: null });
     } catch (error: any) {
         toast({ title: 'Error al reemplazar', description: error.message, variant: 'destructive' });
     } finally {
@@ -169,11 +173,14 @@ function EditPageContent() {
                                   <div className="flex-grow min-w-0">
                                       <p className="text-sm font-medium text-foreground truncate" title={img.src}>...{img.src.slice(-50)}</p>
                                       <p className="text-xs text-muted-foreground">Alt: <span className="italic">{img.alt || "(vacío)"}</span></p>
+                                      {img.width && img.height && (
+                                        <p className="text-xs text-muted-foreground">Tamaño: <span className="font-semibold">{img.width} x {img.height}px</span></p>
+                                      )}
                                   </div>
                                   <Button 
                                       size="sm"
                                       variant="outline"
-                                      onClick={() => setReplaceDialogState({ open: true, oldImageSrc: img.src, newImageFile: null })}
+                                      onClick={() => setReplaceDialogState({ open: true, oldImageSrc: img.src, newImageFile: null, originalWidth: img.width, originalHeight: img.height })}
                                   >
                                       <Replace className="mr-2 h-4 w-4" />
                                       Reemplazar
@@ -188,12 +195,14 @@ function EditPageContent() {
           </Card>
       </div>
 
-       <AlertDialog open={replaceDialogState.open} onOpenChange={(open) => !open && setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null })}>
+       <AlertDialog open={replaceDialogState.open} onOpenChange={(open) => !open && setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: null, originalHeight: null })}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Reemplazar Imagen</AlertDialogTitle>
             <AlertDialogDescription>
-              Sube una nueva imagen para reemplazar la imagen actual. La antigua será eliminada de tu WordPress.
+                {replaceDialogState.originalWidth && replaceDialogState.originalHeight 
+                ? `Sube una nueva imagen para reemplazar la actual. La nueva imagen se recortará a ${replaceDialogState.originalWidth}x${replaceDialogState.originalHeight} píxeles para coincidir con la original.`
+                : `Sube una nueva imagen para reemplazar la imagen actual.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="py-4">
@@ -204,7 +213,7 @@ function EditPageContent() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleReplaceImage} disabled={isReplacing || !replaceDialogState.newImageFile}>
               {isReplacing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Reemplazar
+              {isReplacing ? 'Reemplazando...' : 'Reemplazar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
