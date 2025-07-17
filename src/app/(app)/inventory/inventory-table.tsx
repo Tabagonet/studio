@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -108,11 +109,16 @@ export function InventoryTable() {
         
         try {
             const token = await user.getIdToken();
-            const payload = { ...row.pendingChanges };
+            const payload: any = { ...row.pendingChanges };
             
             // Ensure stock quantity is a number if it exists
-            if (payload.stock_quantity !== undefined && payload.stock_quantity !== null && payload.stock_quantity !== '') {
-                payload.stock_quantity = parseInt(payload.stock_quantity as string, 10);
+            if (payload.stock_quantity !== undefined && payload.stock_quantity !== null) {
+                const stockValue = String(payload.stock_quantity).trim();
+                if (stockValue !== '') {
+                    payload.stock_quantity = parseInt(stockValue, 10);
+                } else {
+                    delete payload.stock_quantity;
+                }
             }
 
             const response = await fetch(`/api/woocommerce/products/${row.id}`, {
