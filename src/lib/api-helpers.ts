@@ -240,6 +240,7 @@ export function findElementorImageContext(elements: any[], imageUrl: string): st
  * @param wpApi Initialized Axios instance for WordPress API.
  * @param width Optional. The target width for the image.
  * @param height Optional. The target height for the image. If both are provided, the image will be cropped.
+ * @param position Optional. The crop position (e.g., 'center', 'top').
  * @returns The ID of the newly uploaded media item.
  */
 export async function uploadImageToWordPress(
@@ -266,24 +267,22 @@ export async function uploadImageToWordPress(
             contentType = source.type;
         }
         
-        // --- Sharp processing ---
         let processedBuffer = sharp(imageBuffer);
 
-        if (width && height) {
-            // If both width and height are provided, resize and crop to fill the exact dimensions.
-            processedBuffer = processedBuffer.resize(width, height, { fit: 'cover', position: position || 'center' });
+        if (width || height) {
+            processedBuffer = processedBuffer.resize(width, height, { 
+                fit: (width && height) ? 'cover' : 'inside', 
+                position: position || 'center' 
+            });
         } else {
-            // Default behavior: resize to fit within 1200x1200 without cropping.
             processedBuffer = processedBuffer.resize(1200, 1200, {
                 fit: 'inside',
                 withoutEnlargement: true,
             });
         }
         
-        // Convert to WebP for optimization
         const finalBuffer = await processedBuffer.webp({ quality: 80 }).toBuffer();
         const finalContentType = 'image/webp';
-        // Ensure the filename has the correct extension
         const finalFilename = seoFilename.endsWith('.webp') ? seoFilename : seoFilename.replace(/\.[^/.]+$/, "") + ".webp";
 
 

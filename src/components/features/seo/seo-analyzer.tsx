@@ -192,43 +192,6 @@ export function SeoAnalyzer({
     }
   }, [post, toast, setIsLoading, setContentImages, contentImages]);
 
-  const handleReplaceImage = async () => {
-    if (!post || !replaceDialogState.oldImageSrc || !replaceDialogState.newImageFile) {
-      toast({ title: 'Error', description: 'Faltan datos para reemplazar la imagen.', variant: 'destructive' });
-      return;
-    }
-    setIsReplacing(true);
-    try {
-        const user = auth.currentUser;
-        if (!user) throw new Error("No autenticado.");
-        const token = await user.getIdToken();
-        const formData = new FormData();
-        formData.append('newImageFile', replaceDialogState.newImageFile);
-        formData.append('postId', postId.toString());
-        formData.append('postType', post.postType);
-        formData.append('oldImageUrl', replaceDialogState.oldImageSrc);
-        
-        const response = await fetch('/api/wordpress/replace-image', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` },
-            body: formData,
-        });
-        
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'Fallo en la API de reemplazo de imagen.');
-        
-        setPost(p => p ? { ...p, content: result.newContent } : null);
-        setContentImages(prev => prev.map(img => img.src === replaceDialogState.oldImageSrc ? { ...img, src: result.newImageUrl, alt: result.newImageAlt } : img));
-        toast({ title: 'Imagen Reemplazada', description: 'La imagen ha sido actualizada en el contenido y la biblioteca de medios.' });
-        setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null });
-    } catch (error: any) {
-        toast({ title: 'Error al reemplazar', description: error.message, variant: 'destructive' });
-    } finally {
-        setIsReplacing(false);
-    }
-  };
-
-
   const checks = useMemo<SeoCheck[]>(() => {
     if (!post || !post.meta) return [];
     
@@ -319,7 +282,7 @@ export function SeoAnalyzer({
           <Card>
               <CardHeader>
                   <CardTitle className="flex items-center gap-2"><ImageIcon className="h-5 w-5 text-primary" /> Optimización de Imágenes</CardTitle>
-                  <CardDescription>Revisa, edita o reemplaza las imágenes de tu contenido para mejorar el SEO y la accesibilidad.</CardDescription>
+                  <CardDescription>Revisa y añade texto alternativo a las imágenes de tu contenido para mejorar el SEO y la accesibilidad.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                   <Button onClick={handleGenerateImageAlts} disabled={isLoading}>
@@ -353,9 +316,6 @@ export function SeoAnalyzer({
                                    placeholder="Añade el 'alt text'..."
                                    className="text-xs h-8"
                                  />
-                                  <Button size="icon-sm" variant="outline" onClick={() => setReplaceDialogState({ open: true, oldImageSrc: img.src, newImageFile: null })} title="Reemplazar Imagen">
-                                    <Replace className="h-4 w-4" />
-                                  </Button>
                               </div>
                           </div>
                       ))}
@@ -364,28 +324,6 @@ export function SeoAnalyzer({
               </CardContent>
           </Card>
       </div>
-
-       <AlertDialog open={replaceDialogState.open} onOpenChange={(open) => !open && setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null })}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Reemplazar Imagen</AlertDialogTitle>
-            <AlertDialogDescription>
-              Sube una nueva imagen para reemplazar la imagen actual. La antigua será eliminada de tu WordPress.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="py-4">
-            <Label htmlFor="new-image-upload">Nueva Imagen</Label>
-            <Input id="new-image-upload" type="file" accept="image/*" onChange={(e) => setReplaceDialogState(s => ({ ...s, newImageFile: e.target.files?.[0] || null }))} />
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleReplaceImage} disabled={isReplacing || !replaceDialogState.newImageFile}>
-              {isReplacing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Reemplazar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }

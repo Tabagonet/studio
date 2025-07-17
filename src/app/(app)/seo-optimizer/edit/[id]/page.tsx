@@ -70,11 +70,6 @@ function EditPageContent() {
     }
   };
 
-  const handleContentChange = (newContent: string) => {
-    if (!post) return;
-    setPost({ ...post, content: newContent });
-  };
-
   const fetchInitialData = useCallback(async () => {
     setIsLoading(true); setError(null);
     const user = auth.currentUser;
@@ -207,7 +202,7 @@ function EditPageContent() {
                         <CardDescription>Editando: {post.title}</CardDescription>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" onClick={() => router.push('/pages')}>
+                        <Button variant="outline" onClick={() => router.push('/seo-optimizer')}>
                             <ArrowLeft className="mr-2 h-4 w-4" />
                             Volver a la lista
                         </Button>
