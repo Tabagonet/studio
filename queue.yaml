@@ -5,6 +5,8 @@
 
 # The name of the queue. This is the value you'll use in your code to enqueue tasks.
 queue: autopress-jobs1
+# The region where the queue is located.
+location: europe-west1
 
 # The maximum rate at which tasks are dispatched from this queue.
 rate: 5/s
