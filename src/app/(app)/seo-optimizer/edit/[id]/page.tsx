@@ -26,7 +26,7 @@ import { GoogleSnippetPreview } from '@/components/features/blog/google-snippet-
 
 interface PostEditState {
   title: string;
-  content: string | ExtractedWidget[];
+  content: string | ExtractedWidget[]; 
   short_description?: string;
   meta: {
       _yoast_wpseo_title: string;
@@ -50,8 +50,8 @@ interface PostEditState {
 
 function EditPageContent() {
   const params = useParams();
-  const searchParams = useSearchParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const postId = Number(params.id);
   const postType = searchParams.get('type') || 'Page';
     
@@ -156,7 +156,7 @@ function EditPageContent() {
             meta: post.meta,
         };
 
-        if (applyAiMetaToFeatured && post.featuredImageUrl && post.meta._yoast_wpseo_focuskw) {
+        if (applyAiMetaToFeatured && post.featuredImage && post.meta._yoast_wpseo_focuskw) {
              payload.featured_image_metadata = {
                  title: post.meta._yoast_wpseo_title || post.title,
                  alt_text: post.meta._yoast_wpseo_focuskw,
@@ -279,3 +279,4 @@ export default function EditPage() {
         </Suspense>
     )
 }
+
