@@ -193,13 +193,12 @@ export default function SeoOptimizerPage() {
     
     const unsubscribe = onAuthStateChanged(auth, handleAuth);
     
-    // Add the event listener
-    window.addEventListener('connections-updated', fetchContentData);
+    const handleConnectionsUpdate = () => { if (auth.currentUser) fetchContentData() };
+    window.addEventListener('connections-updated', handleConnectionsUpdate);
     
-    // Clean up both the auth listener and the event listener
     return () => {
         unsubscribe();
-        window.removeEventListener('connections-updated', fetchContentData);
+        window.removeEventListener('connections-updated', handleConnectionsUpdate);
     };
   }, [fetchContentData]);
   
@@ -409,7 +408,7 @@ export default function SeoOptimizerPage() {
     return null; // Fallback
   }
 
-  const latestAnalysisId = analysisHistory.length > 0 ? analysisHistory[0].id : null;
+  const latestAnalysisId = analysisHistory[0]?.id;
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -452,3 +451,4 @@ export default function SeoOptimizerPage() {
     </div>
   );
 }
+

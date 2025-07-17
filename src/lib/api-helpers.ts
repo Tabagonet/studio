@@ -58,11 +58,6 @@ export async function getPartnerCredentials(): Promise<PartnerAppConnectionData>
         throw new Error("Los datos de la App de Partner en la configuración global no son válidos.");
     }
     
-    // Do not throw error if just the API key is missing
-    // if (!partnerAppData.data.clientId || !partnerAppData.data.clientSecret) {
-    //   throw new Error("El Client ID o Client Secret no están configurados en los ajustes globales de Shopify.");
-    // }
-
     return partnerAppData.data;
 }
 
@@ -519,7 +514,6 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
 // Function to replace an image URL within Elementor data, also updating the ID.
 export function replaceImageUrlInElementor(data: any, oldUrl: string, newUrl: string, newId: number): { replaced: boolean, data: any } {
     let replaced = false;
-    console.log(`[Elementor Replace] Iniciando búsqueda recursiva para reemplazar ${oldUrl}`);
 
     function traverse(obj: any): any {
         if (!obj) return obj;
@@ -532,24 +526,20 @@ export function replaceImageUrlInElementor(data: any, oldUrl: string, newUrl: st
             const newObj: { [key: string]: any } = {};
             let isImageObject = false;
 
-            // Check if this object directly represents an image
             if (typeof obj.url === 'string' && obj.url === oldUrl) {
                 isImageObject = true;
             }
 
             if (isImageObject) {
-                 console.log(`[Elementor Replace] URL encontrada en objeto de imagen. Reemplazando ID (${obj.id} -> ${newId}) y URL.`);
                  newObj.url = newUrl;
                  newObj.id = newId;
                  replaced = true;
-                 // Copy other properties from the original image object
                  for (const key in obj) {
                      if (key !== 'url' && key !== 'id') {
                          newObj[key] = obj[key];
                      }
                  }
             } else {
-                 // If not an image object itself, traverse its properties
                 for (const key in obj) {
                     if (Object.prototype.hasOwnProperty.call(obj, key)) {
                          newObj[key] = traverse(obj[key]);
@@ -562,6 +552,5 @@ export function replaceImageUrlInElementor(data: any, oldUrl: string, newUrl: st
     }
 
     const newData = traverse(data);
-    console.log(`[Elementor Replace] Búsqueda finalizada. ¿Se reemplazó? ${replaced}`);
     return { replaced, data: newData };
 }

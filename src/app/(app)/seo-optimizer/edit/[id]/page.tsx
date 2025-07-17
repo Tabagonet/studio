@@ -4,17 +4,19 @@
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Loader2, ArrowLeft, Replace, ImageIcon, Crop } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ContentImage, ExtractedWidget } from '@/lib/types';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import NextImage from 'next/image';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { SeoAnalyzer } from '@/components/features/seo/seo-analyzer';
-import { GoogleSnippetPreview } from '@/components/features/blog/google-snippet-preview';
 
 
 export interface PostEditState {
@@ -202,9 +204,9 @@ function EditPageContent() {
                         <CardDescription>Editando: {post.title}</CardDescription>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" onClick={() => router.push('/seo-optimizer')}>
+                        <Button variant="outline" onClick={() => router.push(`/seo-optimizer?id=${postId}&type=${postType}`)}>
                             <ArrowLeft className="mr-2 h-4 w-4" />
-                            Volver a la lista
+                            Volver al Análisis
                         </Button>
                         <Button onClick={handleSaveChanges} disabled={isSaving || isAiLoading}>
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -251,11 +253,6 @@ function EditPageContent() {
                    </div>
                 </CardContent>
             </Card>
-             <GoogleSnippetPreview 
-                title={post.meta._yoast_wpseo_title || post.title}
-                description={post.meta._yoast_wpseo_metadesc || ''}
-                url={post.link || null}
-             />
           </div>
         </div>
     </div>
@@ -269,5 +266,6 @@ export default function EditPage() {
         </Suspense>
     )
 }
+
 
 
