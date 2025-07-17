@@ -13,7 +13,7 @@ import FormData from 'form-data';
 import type { ExtractedWidget } from './types';
 import { z } from 'zod';
 import crypto from 'crypto';
-import sharp, { Position } from 'sharp';
+import sharp from 'sharp';
 
 export const partnerAppConnectionDataSchema = z.object({
   partnerApiToken: z.string().optional(),
@@ -201,12 +201,16 @@ export function findElementorImageContext(elements: any[], imageUrl: string): st
 
             const settings = item.settings;
             if (settings) {
-                // Handle different widget types that contain images
-                if (item.widgetType === 'the7_image_box_widget' && settings.image?.url === imageUrl) {
-                    context = settings.description_text?.replace(/<[^>]+>/g, ' ').trim() || '';
-                } else if (item.widgetType === 'image' && settings.image?.url === imageUrl) {
+                // Handle image box widgets like 'the7_image_box_widget'
+                if (item.widgetType?.includes('image_box') && settings.image?.url === imageUrl) {
+                    context = settings.description_text?.replace(/<[^>]+>/g, ' ').trim() || settings.title_text || '';
+                } 
+                // Handle standard image widgets
+                else if (item.widgetType === 'image' && settings.image?.url === imageUrl) {
                     context = settings.caption?.replace(/<[^>]+>/g, ' ').trim() || settings.title_text || '';
-                } else if (item.widgetType === 'slides' && settings.slides) {
+                }
+                // Handle slider widgets
+                else if (item.widgetType === 'slides' && settings.slides) {
                     const slide = settings.slides.find((s: any) => s.background_image?.url === imageUrl);
                     if (slide) {
                         context = slide.description?.replace(/<[^>]+>/g, ' ').trim() || slide.heading || '';
@@ -245,7 +249,7 @@ export async function uploadImageToWordPress(
   wpApi: AxiosInstance,
   width?: number | null,
   height?: number | null,
-  position?: Position | 'center',
+  position?: string,
 ): Promise<number> {
     try {
         let imageBuffer: Buffer;
