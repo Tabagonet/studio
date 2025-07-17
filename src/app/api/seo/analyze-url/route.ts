@@ -214,35 +214,36 @@ export async function POST(req: NextRequest) {
 
     if (postId && postType) {
         let post: any;
-        let api: AxiosInstance | null = null;
-        let endpoint = '';
         
         if (postType === 'Producto') {
-            api = wooApi;
-            endpoint = `products/${postId}`;
-        } else if (postType === 'Post' || postType === 'Page') {
-            api = wpApi;
-            endpoint = postType === 'Post' ? `posts/${postId}` : `pages/${postId}`;
+            if (!wooApi) throw new Error(`API client for ${postType} is not configured.`);
+            const response = await wooApi.get(`products/${postId}`, { _l: new Date().getTime() });
+            post = response.data;
+        } else {
+            if (!wpApi) throw new Error(`API client for ${postType} is not configured.`);
+            const endpoint = postType === 'Post' ? `posts/${postId}` : `pages/${postId}`;
+            const response = await wpApi.get(endpoint, { params: { context: 'edit', '_': new Date().getTime() } });
+            post = response.data;
         }
 
-        if (!api) throw new Error(`API client for ${postType} is not configured.`);
-        
-        const response = await api.get(endpoint, { params: { context: 'edit', '_': new Date().getTime() } });
-        post = response.data;
-
         const getMetaValue = (key: string) => {
-            const meta = post.meta_data?.find((m: any) => m.key === key);
-            return meta ? meta.value : (post.meta?.[key] || '');
+            if (post.meta_data) {
+                const meta = post.meta_data.find((m: any) => m.key === key);
+                return meta ? meta.value : '';
+            }
+            return post.meta?.[key] || '';
         };
+
         const yoastTitle = getMetaValue('_yoast_wpseo_title');
-        const $ = cheerio.load(post.description?.rendered || post.content?.rendered || '');
+        const contentHtml = postType === 'Producto' ? post.description : post.content?.rendered || '';
+        const $ = cheerio.load(contentHtml);
 
         pageData = {
-            title: yoastTitle || post.name || post.title.rendered || '',
+            title: yoastTitle || post.name || post.title?.rendered || '',
             metaDescription: getMetaValue('_yoast_wpseo_metadesc') || post.short_description || '',
             focusKeyword: getMetaValue('_yoast_wpseo_focuskw') || '',
             canonicalUrl: post.permalink || post.link || '',
-            h1: post.name || $('h1').first().text() || post.title.rendered || '',
+            h1: post.name || $('h1').first().text() || post.title?.rendered || '',
             headings: $('h1, h2, h3, h4, h5, h6').map((i, el) => ({ tag: (el as cheerio.TagElement).name, text: $(el).text() })).get(),
             images: (post.images || []).map((img: any) => ({ src: img.src, alt: img.alt || '' })),
             textContent: $('body').text().replace(/\s\s+/g, ' ').trim(),
