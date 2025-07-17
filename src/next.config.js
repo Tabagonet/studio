@@ -23,6 +23,10 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
+        hostname: 'esdron.com',
+      },
+      {
+        protocol: 'https',
         hostname: 'gtrexsolution.com',
       },
       {
@@ -62,3 +66,4 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
+
