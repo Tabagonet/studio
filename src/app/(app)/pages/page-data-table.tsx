@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -75,8 +76,8 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
                 mainItem = groupItems.find(p => p.lang === 'es') || groupItems[0];
                 
                 if (mainItem) {
-                    mainItem.subRows = groupItems.filter(p => p.id !== mainItem!.id);
-                    groupItems.forEach(groupItem => processedIds.add(groupItem.id));
+                  mainItem.subRows = groupItems.filter(p => p.id !== mainItem!.id);
+                  groupItems.forEach(groupItem => processedIds.add(groupItem.id));
                 }
             }
         } else {
@@ -138,6 +139,7 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
     getExpandedRowModel: getExpandedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
   });
   
   const handleBatchDelete = async () => {
@@ -326,7 +328,7 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
                   key={row.id} 
                   data-state={row.getIsSelected() && "selected"}
                   onClick={(e) => {
-                      if (!(e.target instanceof HTMLButtonElement || e.target instanceof HTMLAnchorElement || e.target.closest('button, a, [role=checkbox], [role=menuitem]') )) {
+                      if (!(e.target instanceof HTMLButtonElement || e.target instanceof HTMLAnchorElement || (e.target as HTMLElement).closest('button, a, [role=checkbox], [role=menuitem]') )) {
                         handleRowClick(row);
                       }
                     }}
