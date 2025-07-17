@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
+import { getPartnerCredentials } from '@/lib/api-helpers';
 
 // Helper to check for admin/super_admin role
 async function isAuthorized(req: NextRequest): Promise<boolean> {
@@ -41,6 +42,9 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
     }
 
     try {
+        // Pre-flight check: ensure global partner credentials are set before proceeding.
+        await getPartnerCredentials();
+
         const body = await req.json();
         const validation = assignStoreSchema.safeParse(body);
 

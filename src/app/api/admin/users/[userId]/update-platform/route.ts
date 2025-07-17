@@ -7,8 +7,7 @@ async function isSuperAdmin(req: NextRequest): Promise<boolean> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) return false;
     try {
-        if (!adminAuth) throw new Error("Firebase Admin Auth not initialized.");
-        if (!adminDb) throw new Error("Firestore is not initialized.");
+        if (!adminAuth || !adminDb) throw new Error("Firebase Admin Auth not initialized.");
         const decodedToken = await adminAuth.verifyIdToken(token);
         const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
         return userDoc.exists && userDoc.data()?.role === 'super_admin';

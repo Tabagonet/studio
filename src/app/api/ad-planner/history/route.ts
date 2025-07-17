@@ -46,6 +46,7 @@ export async function GET(req: NextRequest) {
     }
 
     try {
+        if (!adminDb) throw new Error("Firestore not configured on server."); // Added check
         const snapshot = await adminDb.collection('ad_plans')
             .where('userId', '==', uid)
             .limit(50) 

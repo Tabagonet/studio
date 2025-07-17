@@ -76,7 +76,6 @@ export async function GET(req: NextRequest) {
         } else {
             const tasksClient = new CloudTasksClient({
                 credentials: getServiceAccountCredentials(),
-                projectId: process.env.FIREBASE_PROJECT_ID,
             });
             const parent = tasksClient.queuePath(process.env.FIREBASE_PROJECT_ID!, 'europe-west1', 'autopress-jobs');
             const targetUri = `${process.env.NEXT_PUBLIC_BASE_URL}/api/tasks/populate-shopify-store`;

@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 
@@ -23,6 +24,7 @@ export async function GET(req: NextRequest) {
     }
 
     try {
+        if (!adminDb) throw new Error("Firestore not configured on server."); // Added check
         const snapshot = await adminDb.collection('competitor_analyses')
             .where('userId', '==', uid)
             .where('url', '==', url)

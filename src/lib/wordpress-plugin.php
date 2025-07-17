@@ -1,3 +1,4 @@
+
 <?php
 /*
 Plugin Name: AutoPress AI Helper
@@ -98,11 +99,11 @@ function custom_api_register_yoast_meta_fields() {
     }
 }
 
-// Rewritten security check function. This is the standard, secure way to check permissions in WordPress REST API.
-function autopress_ai_permission_check() {
-    // This single check correctly handles both cookie-based authentication (for the admin panel)
-    // and application password authentication (for the external app).
-    // The 'edit_posts' capability is a good general-purpose check to ensure the user is at least an Editor.
+// The correct permission callback. It handles Application Passwords (for AutoPress AI)
+// and cookie-based sessions (for the plugin's admin page) automatically.
+function autopress_ai_permission_check(WP_REST_Request $request) {
+    // This is the standard, secure way to check for authentication in the REST API.
+    // It verifies that the request comes from a user who has, at a minimum, editor-level capabilities.
     return current_user_can('edit_posts');
 }
 

@@ -1,5 +1,4 @@
 
-
 // src/app/api/admin/users/[userId]/update-role/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -9,7 +8,7 @@ async function isAdmin(req: NextRequest): Promise<boolean> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) return false;
     try {
-        if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized");
+        if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized.");
         const decodedToken = await adminAuth.verifyIdToken(token);
         const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
         // Allow both admin and super_admin to perform this action
