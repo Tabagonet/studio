@@ -1,35 +1,24 @@
-
 // src/app/api/user/activity-logs/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 
 export const dynamic = 'force-dynamic';
 
-async function getUserContext(req: NextRequest): Promise<{ uid: string | null; role: string | null; companyId: string | null; }> {
+async function getUserIdFromRequest(req: NextRequest): Promise<string | null> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
-    if (!token) return { uid: null, role: null, companyId: null };
+    if (!token) return null;
     try {
         if (!adminAuth) throw new Error("Firebase Admin not initialized.");
-        if (!adminDb) throw new Error("Firestore not initialized.");
         const decodedToken = await adminAuth.verifyIdToken(token);
-        const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
-        if (!userDoc.exists) {
-            return { uid: decodedToken.uid, role: null, companyId: null };
-        }
-        const data = userDoc.data()!;
-        return {
-            uid: decodedToken.uid,
-            role: data.role || null,
-            companyId: data.companyId || null,
-        };
+        return decodedToken.uid;
     } catch {
-        return { uid: null, role: null, companyId: null };
+        return null;
     }
 }
 
 export async function GET(req: NextRequest) {
-    const context = await getUserContext(req);
-    if (!context.uid) {
+    const uid = await getUserIdFromRequest(req);
+    if (!uid) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     if (!adminDb) {
@@ -38,7 +27,7 @@ export async function GET(req: NextRequest) {
 
     try {
         // Corrected and simplified query logic
-        const query = adminDb.collection('activity_logs').where('userId', '==', context.uid);
+        const query = adminDb.collection('activity_logs').where('userId', '==', uid);
 
         const snapshot = await query.orderBy('timestamp', 'desc').limit(200).get();
         
