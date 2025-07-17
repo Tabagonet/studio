@@ -215,16 +215,15 @@ export async function POST(req: NextRequest) {
     if (postId && postType) {
         let post: any;
         
-        if (postType === 'Producto') {
-            if (!wooApi) throw new Error(`API client for ${postType} is not configured.`);
-            const response = await wooApi.get(`products/${postId}`, { _l: new Date().getTime() });
-            post = response.data;
-        } else {
-            if (!wpApi) throw new Error(`API client for ${postType} is not configured.`);
-            const endpoint = postType === 'Post' ? `posts/${postId}` : `pages/${postId}`;
-            const response = await wpApi.get(endpoint, { params: { context: 'edit', '_': new Date().getTime() } });
-            post = response.data;
-        }
+        const apiToUse = postType === 'Producto' ? wooApi : wpApi;
+        if (!apiToUse) throw new Error(`API client for ${postType} is not configured.`);
+        
+        const endpoint = postType === 'Producto' ? `products/${postId}` : (postType === 'Post' ? `posts/${postId}` : `pages/${postId}`);
+        const response = await apiToUse.get(endpoint, { params: { context: 'edit', '_': new Date().getTime() } });
+        post = response.data;
+
+        // Scrape the live page to get the most accurate image data
+        const livePageData = await getPageContentFromScraping(post.link, wpApi);
 
         const getMetaValue = (key: string) => {
             if (post.meta_data) {
@@ -235,18 +234,17 @@ export async function POST(req: NextRequest) {
         };
 
         const yoastTitle = getMetaValue('_yoast_wpseo_title');
-        const contentHtml = postType === 'Producto' ? post.description : post.content?.rendered || '';
-        const $ = cheerio.load(contentHtml);
+        const $ = cheerio.load(post.content?.rendered || '');
 
         pageData = {
             title: yoastTitle || post.name || post.title?.rendered || '',
             metaDescription: getMetaValue('_yoast_wpseo_metadesc') || post.short_description || '',
             focusKeyword: getMetaValue('_yoast_wpseo_focuskw') || '',
             canonicalUrl: post.permalink || post.link || '',
-            h1: post.name || $('h1').first().text() || post.title?.rendered || '',
-            headings: $('h1, h2, h3, h4, h5, h6').map((i, el) => ({ tag: (el as cheerio.TagElement).name, text: $(el).text() })).get(),
-            images: (post.images || []).map((img: any) => ({ src: img.src, alt: img.alt || '' })),
-            textContent: $('body').text().replace(/\s\s+/g, ' ').trim(),
+            h1: livePageData.h1,
+            headings: livePageData.headings,
+            images: livePageData.images,
+            textContent: livePageData.textContent,
         };
 
     } else {

@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
         
         const promptContext = imageContext 
             ? `Utiliza la siguiente descripción del widget de la imagen como contexto principal: "${imageContext}"`
-            : `Utiliza el contenido general de la página para el contexto: "${(post.content.rendered || '').substring(0, 500)}..."`;
+            : `Utiliza el contenido general de la página para el contexto: "${(post.content?.rendered || '').substring(0, 500)}..."`;
 
 
         const prompt = `You are an expert SEO specialist. Generate descriptive SEO metadata for an image, including a filename. The response must be a JSON object with "imageTitle", "imageAltText", and "seoFilename".
@@ -130,7 +130,15 @@ Generate the metadata now. The "seoFilename" should be a URL-friendly slug witho
                  console.warn('[API replace-image] No se encontró la URL de la imagen antigua en los datos de Elementor. No se realizarán cambios en el contenido.');
             }
         } else {
-             console.warn('[API replace-image] El reemplazo de contenido para no-Elementor aún no está completamente implementado, el contenido no será actualizado.');
+            console.log('[API replace-image] Procesando como contenido HTML estándar.');
+            const currentContent = postType === 'Producto' ? post.content.rendered : post.content.rendered;
+            if (currentContent && currentContent.includes(oldImageUrl)) {
+                updatePayload.content = currentContent.replace(new RegExp(oldImageUrl, 'g'), newImageUrl);
+                finalContent = updatePayload.content;
+                console.log('[API replace-image] Payload de contenido HTML preparado para actualizar.');
+            } else {
+                console.warn('[API replace-image] No se encontró la URL de la imagen antigua en el contenido HTML. No se realizarán cambios.');
+            }
         }
 
         if (Object.keys(updatePayload).length > 0) {
