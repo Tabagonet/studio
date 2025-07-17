@@ -1,5 +1,4 @@
 
-
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -188,108 +187,30 @@ export function replaceElementorTexts(elementorData: any, translatedTexts: strin
   return replaceElementorTextsRecursive(elementorData, translatedTexts);
 }
 
-// Recursive helper to find an image URL in Elementor data
-function findImageUrlInElementorRecursive(elements: any[], oldUrl: string): boolean {
-    for (const element of elements) {
-        if (!element || typeof element !== 'object') continue;
-        
-        // Check direct settings and specific widget structures
-        const settings = element.settings;
-        if (settings) {
-            // Simple image widget or background
-            if (settings.image?.url === oldUrl || settings.background_image?.url === oldUrl) {
-                return true;
-            }
-            // Slider/Carousel widgets
-            if (settings.slides && Array.isArray(settings.slides)) {
-                if (settings.slides.some((slide: any) => slide.background_image?.url === oldUrl || slide.image?.url === oldUrl)) {
-                    return true;
-                }
-            }
-        }
-        
-        // Recurse into nested elements
-        if (element.elements && element.elements.length > 0) {
-            if (findImageUrlInElementorRecursive(element.elements, oldUrl)) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
 
-
-// New helper function to find all image URLs within Elementor JSON
-export function findImageUrlsInElementor(data: any): { url: string; id: number | null }[] {
-    const images: { url: string; id: number | null }[] = [];
-    if (!data) return images;
-
-    if (Array.isArray(data)) {
-        data.forEach(item => images.push(...findImageUrlsInElementor(item)));
-        return images;
-    }
-
-    if (typeof data === 'object') {
-        for (const key in data) {
-            // Standard image widgets, background images, etc.
-            if (key === 'background_image' || key === 'image') {
-                const value = data[key];
-                 if (typeof value === 'object' && value !== null && typeof value.url === 'string' && value.url) {
-                    images.push({ url: value.url, id: value.id || null });
-                 }
-            }
-            // Sliders, galleries, and other repeater widgets
-            else if (key === 'slides' && Array.isArray(data[key])) {
-                data[key].forEach((slide: any) => {
-                     if (slide.background_image?.url) {
-                         images.push({ url: slide.background_image.url, id: slide.background_image.id || null });
-                     }
-                      if (slide.image?.url) {
-                         images.push({ url: slide.image.url, id: slide.image.id || null });
-                     }
-                });
-            }
-            else if (typeof data[key] === 'object' && data[key] !== null) {
-                images.push(...findImageUrlsInElementor(data[key]));
-            }
-        }
-    }
-    return images;
-}
-
-/**
- * Recursively searches through Elementor data to find the context of a specific image.
- * @param elements The Elementor data array.
- * @param imageUrl The URL of the image to find.
- * @returns The description/title/caption text of the widget containing the image, or an empty string.
- */
 export function findElementorImageContext(elements: any[], imageUrl: string): string {
     let context = '';
     if (!elements || !Array.isArray(elements)) return context;
 
     function traverse(items: any[]) {
         for (const item of items) {
-            if (context) return; // Stop searching if context is found
+            if (context) return;
             if (!item || typeof item !== 'object') continue;
 
             const settings = item.settings;
-            if (settings && settings.image?.url === imageUrl) {
-                // Priority: Image Box > Standard Image Caption > Standard Image Title
-                if (item.widgetType === 'the7_image_box_widget' && settings.description_text) {
-                    context = settings.description_text.replace(/<[^>]+>/g, ' ').trim();
-                    return;
+            if (settings) {
+                // Check if the current item is an image-box and contains the image
+                if (item.widgetType === 'the7_image_box_widget' && settings.image?.url === imageUrl) {
+                    context = settings.description_text?.replace(/<[^>]+>/g, ' ').trim() || '';
+                    if (context) return;
                 }
-                if (item.widgetType === 'image' && settings.caption) {
-                    context = settings.caption;
-                    return;
-                }
-                if (item.widgetType === 'image' && settings.title) {
-                    context = settings.title;
-                    return;
+                // Check if it's a standard image widget
+                if (item.widgetType === 'image' && settings.image?.url === imageUrl) {
+                    context = settings.caption || settings.title_text || '';
+                    if (context) return;
                 }
             }
-            
-            // Recurse into nested elements
+
             if (item.elements && item.elements.length > 0) {
                 traverse(item.elements);
             }
@@ -561,6 +482,7 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
 // Function to replace an image URL within Elementor data, also updating the ID.
 export function replaceImageUrlInElementor(data: any, oldUrl: string, newUrl: string, newId: number): { replaced: boolean, data: any } {
     let replaced = false;
+    console.log(`[Elementor Replace] Iniciando búsqueda recursiva para reemplazar ${oldUrl}`);
 
     function traverse(obj: any): any {
         if (!obj) return obj;
@@ -571,18 +493,29 @@ export function replaceImageUrlInElementor(data: any, oldUrl: string, newUrl: st
 
         if (typeof obj === 'object') {
             const newObj: { [key: string]: any } = {};
-            for (const key in obj) {
-                if (Object.prototype.hasOwnProperty.call(obj, key)) {
-                    if (key === 'image' && obj[key]?.url === oldUrl) {
-                        console.log(`[Elementor Replace] URL encontrada en widget ${obj.widgetType || 'desconocido'}, setting image. Reemplazando.`);
-                        newObj[key] = { ...obj[key], url: newUrl, id: newId };
-                        replaced = true;
-                    } else if (key === 'background_image' && obj[key]?.url === oldUrl) {
-                        console.log(`[Elementor Replace] URL encontrada en background_image. Reemplazando.`);
-                        newObj[key] = { ...obj[key], url: newUrl, id: newId };
-                        replaced = true;
-                    } else {
-                        newObj[key] = traverse(obj[key]);
+            let isImageObject = false;
+
+            // Check if this object directly represents an image
+            if (typeof obj.url === 'string' && obj.url === oldUrl) {
+                isImageObject = true;
+            }
+
+            if (isImageObject) {
+                 console.log(`[Elementor Replace] URL encontrada en objeto de imagen. Reemplazando ID y URL.`);
+                 newObj.url = newUrl;
+                 newObj.id = newId;
+                 replaced = true;
+                 // Copy other properties from the original image object
+                 for (const key in obj) {
+                     if (key !== 'url' && key !== 'id') {
+                         newObj[key] = obj[key];
+                     }
+                 }
+            } else {
+                 // If not an image object itself, traverse its properties
+                for (const key in obj) {
+                    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                         newObj[key] = traverse(obj[key]);
                     }
                 }
             }
@@ -591,7 +524,6 @@ export function replaceImageUrlInElementor(data: any, oldUrl: string, newUrl: st
         return obj;
     }
 
-    console.log(`[Elementor Replace] Iniciando búsqueda recursiva para reemplazar ${oldUrl}`);
     const newData = traverse(data);
     console.log(`[Elementor Replace] Búsqueda finalizada. ¿Se reemplazó? ${replaced}`);
     return { replaced, data: newData };
