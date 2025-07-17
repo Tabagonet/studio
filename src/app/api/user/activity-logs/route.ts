@@ -8,7 +8,7 @@ async function getUserIdFromRequest(req: NextRequest): Promise<string | null> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) return null;
     try {
-        if (!adminAuth) throw new Error("Firebase Admin not initialized.");
+        if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
         const decodedToken = await adminAuth.verifyIdToken(token);
         return decodedToken.uid;
     } catch {
@@ -26,10 +26,9 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        // Corrected and simplified query logic
+        // Corrected query: Filter only by userId to avoid needing a composite index.
         const query = adminDb.collection('activity_logs').where('userId', '==', uid);
-
-        const snapshot = await query.orderBy('timestamp', 'desc').limit(200).get();
+        const snapshot = await query.get();
         
         const logs = snapshot.docs.map(doc => {
             const logData = doc.data();
@@ -40,7 +39,13 @@ export async function GET(req: NextRequest) {
             };
         });
         
-        return NextResponse.json({ logs });
+        // Sort in-memory on the server
+        logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+        // Limit the results after sorting
+        const limitedLogs = logs.slice(0, 200);
+        
+        return NextResponse.json({ logs: limitedLogs });
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";

@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress, replaceElementorTexts } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/api-helpers';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { z } from 'zod';
 import * as cheerio from 'cheerio';
