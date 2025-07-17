@@ -11,7 +11,7 @@ import { VariableProductManager } from '@/components/features/wizard/variable-pr
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
 import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory } from '@/lib/types';
 import { PRODUCT_TYPES, ALL_LANGUAGES } from '@/lib/constants';
-import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle, Image as ImageIcon, Link as LinkIcon } from "lucide-react";
+import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
@@ -398,8 +398,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   };
 
   const handleSuggestLinks = async () => {
-    if (!productData.longDescription.trim()) {
-        toast({ title: "Contenido vacío", description: "Escribe algo en la descripción larga antes de pedir sugerencias.", variant: "destructive" });
+    if (!productData.longDescription.trim() && !productData.shortDescription.trim()) {
+        toast({ title: "Contenido vacío", description: "Escribe algo en las descripciones antes de pedir sugerencias.", variant: "destructive" });
         return;
     }
     setIsSuggestingLinks(true);
@@ -410,7 +410,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const response = await fetch('/api/ai/suggest-links', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ content: productData.longDescription })
+            body: JSON.stringify({ content: `${productData.shortDescription}\n${productData.longDescription}` })
         });
         if (!response.ok) throw new Error((await response.json()).message || "La IA falló al sugerir enlaces.");
         
@@ -435,9 +435,20 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   };
 
   const handleApplySuggestion = (suggestion: LinkSuggestion) => {
-    const newContent = applyLink(productData.longDescription, suggestion);
-    if (newContent !== productData.longDescription) {
-        updateProductData({ longDescription: newContent });
+    const newShortDesc = applyLink(productData.shortDescription, suggestion);
+    const newLongDesc = applyLink(productData.longDescription, suggestion);
+    
+    let applied = false;
+    if (newShortDesc !== productData.shortDescription) {
+        updateProductData({ shortDescription: newShortDesc });
+        applied = true;
+    }
+    if (newLongDesc !== productData.longDescription) {
+        updateProductData({ longDescription: newLongDesc });
+        applied = true;
+    }
+
+    if (applied) {
         toast({ title: "Enlace aplicado", description: `Se ha enlazado la frase "${suggestion.phraseToLink}".` });
         setLinkSuggestions(prev => prev.filter(s => s.phraseToLink !== suggestion.phraseToLink || s.targetUrl !== suggestion.targetUrl));
     } else {
@@ -446,17 +457,23 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   };
 
   const handleApplyAllSuggestions = () => {
-     let updatedContent = productData.longDescription;
+     let updatedShortDesc = productData.shortDescription;
+     let updatedLongDesc = productData.longDescription;
      let appliedCount = 0;
      for (const suggestion of linkSuggestions) {
-         const newContent = applyLink(updatedContent, suggestion);
-         if (newContent !== updatedContent) {
-             updatedContent = newContent;
+         const newShort = applyLink(updatedShortDesc, suggestion);
+         if (newShort !== updatedShortDesc) {
+             updatedShortDesc = newShort;
+             appliedCount++;
+         }
+         const newLong = applyLink(updatedLongDesc, suggestion);
+         if (newLong !== updatedLongDesc) {
+             updatedLongDesc = newLong;
              appliedCount++;
          }
      }
      if (appliedCount > 0) {
-        updateProductData({ longDescription: updatedContent });
+        updateProductData({ shortDescription: updatedShortDesc, longDescription: updatedLongDesc });
         toast({ title: "Enlaces aplicados", description: `Se han aplicado ${appliedCount} sugerencias de enlaces.` });
         setLinkSuggestions([]);
      } else {

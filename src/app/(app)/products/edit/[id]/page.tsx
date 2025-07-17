@@ -438,6 +438,7 @@ function EditProductPageContent() {
                                   content={product.short_description}
                                   onChange={handleShortDescriptionChange}
                                   onInsertImage={() => setIsImageDialogOpen(true)}
+                                  onSuggestLinks={handleSuggestLinks}
                                   placeholder="Escribe la descripción corta aquí..."
                                   size="small"
                               />
