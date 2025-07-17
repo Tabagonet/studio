@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
-// import { addRemotePattern } from '@/lib/next-config-manager';
+import { addRemotePattern } from '@/lib/next-config-manager';
 import { partnerAppConnectionDataSchema } from '@/lib/api-helpers';
 import { revalidatePath } from 'next/cache';
 
@@ -187,31 +187,33 @@ export async function POST(req: NextRequest) {
             }
         }
         
-        // This functionality causes dev server restart loops.
-        // It's better to instruct the user to add hostnames manually if needed.
-        // if (!isPartner) {
-        //     const data = finalConnectionData as ConnectionData;
-        //     const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = data;
-        //     const hostnamesToAdd = new Set<string>();
+        // Only attempt to modify next.config.js in a non-development environment
+        if (process.env.NODE_ENV !== 'development') {
+            if (!isPartner) {
+                const data = finalConnectionData as ConnectionData;
+                const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = data;
+                const hostnamesToAdd = new Set<string>();
 
-        //     const addHostname = (url: string | undefined) => {
-        //         if (url) {
-        //             try { 
-        //                 const fullUrl = url.startsWith('http') ? url : `https://${url}`;
-        //                 hostnamesToAdd.add(new URL(fullUrl).hostname); 
-        //             }
-        //             catch { console.warn(`Invalid URL provided, skipping remote pattern: ${url}`); }
-        //         }
-        //     };
-        //     addHostname(wooCommerceStoreUrl);
-        //     addHostname(wordpressApiUrl);
-        //     addHostname(shopifyStoreUrl);
-            
-        //     if (hostnamesToAdd.size > 0) {
-        //         const promises = Array.from(hostnamesToAdd).map(hostname => addRemotePattern(hostname).catch(err => console.error(`Failed to add remote pattern for ${hostname}:`, err)));
-        //         await Promise.all(promises);
-        //     }
-        // }
+                const addHostname = (url: string | undefined) => {
+                    if (url) {
+                        try { 
+                            const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+                            hostnamesToAdd.add(new URL(fullUrl).hostname); 
+                        }
+                        catch { console.warn(`Invalid URL provided, skipping remote pattern: ${url}`); }
+                    }
+                };
+                addHostname(wooCommerceStoreUrl);
+                addHostname(wordpressApiUrl);
+                addHostname(shopifyStoreUrl);
+                
+                if (hostnamesToAdd.size > 0) {
+                    const promises = Array.from(hostnamesToAdd).map(hostname => addRemotePattern(hostname).catch(err => console.error(`Failed to add remote pattern for ${hostname}:`, err)));
+                    await Promise.all(promises);
+                }
+            }
+        }
+
 
         return NextResponse.json({ success: true, message: 'Connection saved successfully.' });
 
