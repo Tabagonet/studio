@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState } from 'react';
@@ -69,5 +68,5 @@ export default function AdPlannerLayout({
     );
   }
 
-  return <>{children}</>;
+  return <div className="h-full">{children}</div>;
 }

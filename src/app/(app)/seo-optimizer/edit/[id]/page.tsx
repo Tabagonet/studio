@@ -1,46 +1,37 @@
 
-
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Replace, ImageIcon, Crop } from 'lucide-react';
+import { Loader2, ArrowLeft, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ContentImage, ExtractedWidget } from '@/lib/types';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import NextImage from 'next/image';
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { SeoAnalyzer } from '@/components/features/seo/seo-analyzer';
-
+import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
+import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
+import type { LinkSuggestion, SuggestLinksOutput } from '@/ai/schemas';
 
 export interface PostEditState {
   title: string;
-  content: string | ExtractedWidget[]; 
-  short_description?: string;
+  content: string; 
+  isElementor: boolean;
+  elementorEditLink: string | null;
+  adminEditLink?: string | null;
+  link?: string;
+  postType: 'Post' | 'Page' | 'Producto';
+  lang: string;
   meta: {
       _yoast_wpseo_title: string;
       _yoast_wpseo_metadesc: string;
       _yoast_wpseo_focuskw: string;
   };
-  status: 'publish' | 'draft' | 'pending' | 'future' | 'private';
-  author: number | null;
-  categories: number[];
-  tags: string;
-  featuredImage: ContentImage | null;
-  featuredImageId: number | null; // Keep track of the original featured media ID
-  isElementor: boolean;
-  elementorEditLink: string | null;
-  adminEditLink?: string | null;
-  link: string;
-  postType: 'Post' | 'Page' | 'Producto';
-  lang: string;
-  translations?: Record<string, number>;
+  featuredImageUrl?: string | null; // Added this property
 }
 
 function EditPageContent() {
@@ -59,6 +50,8 @@ function EditPageContent() {
   const [error, setError] = useState<string | null>(null);
   
   const [applyAiMetaToFeatured, setApplyAiMetaToFeatured] = useState(true);
+  const [isSuggestingLinks, setIsSuggestingLinks] = useState(false);
+  const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>([]);
   
   const { toast } = useToast();
 
@@ -72,6 +65,12 @@ function EditPageContent() {
     }
   };
 
+  const handleContentChange = (newContent: string) => {
+    if (!post) return;
+    setPost({ ...post, content: newContent });
+  };
+  
+
   const fetchInitialData = useCallback(async () => {
     setIsLoading(true); setError(null);
     const user = auth.currentUser;
@@ -80,11 +79,7 @@ function EditPageContent() {
 
     try {
       const token = await user.getIdToken();
-      let apiPath = '';
-      if (postType === 'Post') apiPath = `/api/wordpress/posts/${postId}`;
-      else if (postType === 'Page') apiPath = `/api/wordpress/pages/${postId}`;
-      else if (postType === 'Producto') apiPath = `/api/wordpress/products/${postId}`;
-      else throw new Error(`Unsupported post type: ${postType}`);
+      const apiPath = postType === 'Producto' ? `/api/wordpress/products/${postId}` : postType === 'Post' ? `/api/wordpress/posts/${postId}` : `/api/wordpress/pages/${postId}`;
       
       const postResponse = await fetch(`${apiPath}?context=edit&bust=${new Date().getTime()}`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
       if (!postResponse.ok) throw new Error((await postResponse.json()).error || `Failed to fetch ${postType} data.`);
@@ -92,38 +87,29 @@ function EditPageContent() {
       const postData = await postResponse.json();
       
       const loadedPost: PostEditState = {
-        title: postData.title?.rendered,
+        title: postData.title?.rendered || postData.name || '',
         content: postData.content?.rendered || '',
-        short_description: postData.short_description,
-        meta: {
-          _yoast_wpseo_title: postData.meta?._yoast_wpseo_title || postData.title?.rendered || '',
-          _yoast_wpseo_metadesc: postData.meta?._yoast_wpseo_metadesc || postData.excerpt?.rendered.replace(/<[^>]+>/g, '') || '',
-          _yoast_wpseo_focuskw: postData.meta?._yoast_wpseo_focuskw || '',
-        },
-        status: postData.status || 'draft',
-        author: postData.author || null,
-        categories: postData.categories?.map((c: any) => typeof c === 'object' ? c.id : c) || [],
-        tags: postData.tags?.map((t: any) => t.name).join(', ') || '',
-        featuredImageId: postData.featured_media || null,
-        featuredImage: postData.featured_image_url ? {
-            id: postData.featured_media, src: postData.featured_image_url, alt: postData.alt_text || '', mediaId: postData.featured_media,
-            width: postData.media_details?.width || null, height: postData.media_details?.height || null
-        } : null,
         isElementor: postData.isElementor || false, 
         elementorEditLink: postData.elementorEditLink || null,
         adminEditLink: postData.adminEditLink || null,
         link: postData.link,
         postType: postType as any,
         lang: postData.lang || 'es',
-        translations: postData.translations || {},
+        meta: {
+          _yoast_wpseo_title: postData.meta?._yoast_wpseo_title || postData.title?.rendered || postData.name || '',
+          _yoast_wpseo_metadesc: postData.meta?._yoast_wpseo_metadesc || postData.excerpt?.rendered.replace(/<[^>]+>/g, '') || '',
+          _yoast_wpseo_focuskw: postData.meta?._yoast_wpseo_focuskw || '',
+        },
+        featuredImageUrl: postData.featured_image_url || null,
       };
       
       setPost(loadedPost);
-       if (postData.scrapedImages && Array.isArray(postData.scrapedImages)) {
+      if (postData.scrapedImages && Array.isArray(postData.scrapedImages)) {
           setContentImages(postData.scrapedImages);
       } else {
           setContentImages([]);
       }
+
     } catch (e: any) { setError(e.message);
     } finally { setIsLoading(false); }
   }, [postId, postType]);
@@ -143,22 +129,31 @@ function EditPageContent() {
     try {
         const token = await user.getIdToken();
         const payload: any = {
+            title: post.title,
+            content: post.content,
             meta: post.meta,
         };
 
-        if (applyAiMetaToFeatured && post.featuredImage && post.meta._yoast_wpseo_focuskw) {
-             payload.featured_image_metadata = {
-                 title: post.meta._yoast_wpseo_title || post.title,
-                 alt_text: post.meta._yoast_wpseo_focuskw,
+        if (applyAiMetaToFeatured && post.meta._yoast_wpseo_focuskw) {
+             const featuredImageId = post.isElementor 
+                ? (post.content as ExtractedWidget[]).find(w => w.type === 'image' || w.type === 'featured_image')?.id
+                : (post.content.match(/wp-image-(\d+)/) || [])[1];
+
+             if (featuredImageId) {
+                payload.featured_image_metadata = {
+                    media_id: parseInt(featuredImageId, 10),
+                    title: post.meta._yoast_wpseo_title || post.title,
+                    alt_text: post.meta._yoast_wpseo_focuskw,
+                }
              }
         }
         
         const imageUpdates = contentImages
-            .filter(img => img.alt !== (post?.content.toString().match(new RegExp(`alt="([^"]*)"\\s*src="${img.id}"`))?.[1] || ''))
-            .map(img => ({ id: img.mediaId, alt: img.alt }));
-        
+          .map(img => ({ id: img.mediaId, alt: img.alt }))
+          .filter(img => img.id !== null);
+
         if (imageUpdates.length > 0) {
-            payload.image_alt_updates = imageUpdates.filter(u => u.id !== null);
+            payload.image_alt_updates = imageUpdates;
         }
         
         const endpoint = post.postType === 'Producto' ? `/api/wordpress/products/${postId}` :
@@ -184,6 +179,71 @@ function EditPageContent() {
         setIsSaving(false);
     }
   };
+
+  const handleSuggestLinks = async () => {
+    if (!post || typeof post.content !== 'string') return;
+    setIsSuggestingLinks(true);
+    try {
+        const user = auth.currentUser; if (!user) throw new Error("No autenticado.");
+        const token = await user.getIdToken();
+        const response = await fetch('/api/ai/suggest-links', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ content: post.content })
+        });
+        if (!response.ok) throw new Error((await response.json()).message || "La IA falló al sugerir enlaces.");
+        
+        const data: SuggestLinksOutput = await response.json();
+        setLinkSuggestions(data.suggestions || []);
+
+    } catch(e: any) {
+        toast({ title: "Error al sugerir enlaces", description: e.message, variant: "destructive" });
+        setLinkSuggestions([]);
+    } finally {
+        setIsSuggestingLinks(false);
+    }
+  };
+
+  const applyLink = (content: string, suggestion: LinkSuggestion): string => {
+    const phrase = suggestion.phraseToLink.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(?<!<a[^>]*>)${phrase}(?!<\\/a>)`, '');
+    if (content.match(regex)) {
+        return content.replace(regex, `<a href="${suggestion.targetUrl}" target="_blank">${suggestion.phraseToLink}</a>`);
+    }
+    return content;
+  };
+
+  const handleApplySuggestion = (suggestion: LinkSuggestion) => {
+    if (!post || typeof post.content !== 'string') return;
+    const newContent = applyLink(post.content, suggestion);
+    if (newContent !== post.content) {
+        setPost(p => p ? { ...p, content: newContent } : null);
+        toast({ title: "Enlace aplicado", description: `Se ha enlazado la frase "${suggestion.phraseToLink}".` });
+        setLinkSuggestions(prev => prev.filter(s => s.phraseToLink !== suggestion.phraseToLink || s.targetUrl !== suggestion.targetUrl));
+    } else {
+        toast({ title: "No se pudo aplicar", description: "No se encontró la frase exacta o ya estaba enlazada.", variant: "destructive" });
+    }
+  };
+
+  const handleApplyAllSuggestions = () => {
+     if (!post || typeof post.content !== 'string') return;
+     let updatedContent = post.content;
+     let appliedCount = 0;
+     for (const suggestion of linkSuggestions) {
+         const newContent = applyLink(updatedContent, suggestion);
+         if (newContent !== updatedContent) {
+             updatedContent = newContent;
+             appliedCount++;
+         }
+     }
+     if (appliedCount > 0) {
+        setPost(p => p ? { ...p, content: updatedContent } : null);
+        toast({ title: "Enlaces aplicados", description: `Se han aplicado ${appliedCount} sugerencias de enlaces.` });
+        setLinkSuggestions([]);
+     } else {
+        toast({ title: "No se aplicó nada", description: "No se encontraron frases o ya estaban enlazadas.", variant: "destructive" });
+     }
+  };
   
 
   if (isLoading) {
@@ -195,6 +255,7 @@ function EditPageContent() {
   }
 
   return (
+    <>
     <div className="container mx-auto py-8 space-y-6">
         <Card>
             <CardHeader>
@@ -210,6 +271,7 @@ function EditPageContent() {
                         </Button>
                         <Button onClick={handleSaveChanges} disabled={isSaving || isAiLoading}>
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            <Save className="mr-2 h-4 w-4" />
                             Guardar Cambios SEO
                         </Button>
                     </div>
@@ -230,6 +292,23 @@ function EditPageContent() {
                 setApplyAiMetaToFeatured={setApplyAiMetaToFeatured}
                 postId={postId}
              />
+             {!post.isElementor && (
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Editor de Contenido</CardTitle>
+                        <CardDescription>Modifica el contenido principal de la página. Puedes usar los botones de formato y la IA para mejorar tu texto.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                         <RichTextEditor
+                            content={post.content}
+                            onChange={handleContentChange}
+                            onInsertImage={() => {}}
+                            onSuggestLinks={handleSuggestLinks}
+                            placeholder="Cargando contenido..."
+                         />
+                    </CardContent>
+                 </Card>
+             )}
           </div>
           
           <div className="space-y-6">
@@ -256,6 +335,14 @@ function EditPageContent() {
           </div>
         </div>
     </div>
+    <LinkSuggestionsDialog
+      open={linkSuggestions.length > 0 && !isSuggestingLinks}
+      onOpenChange={(open) => { if (!open) setLinkSuggestions([]); }}
+      suggestions={linkSuggestions}
+      onApplySuggestion={handleApplySuggestion}
+      onApplyAll={handleApplyAllSuggestions}
+    />
+    </>
   );
 }
 
@@ -266,6 +353,3 @@ export default function EditPage() {
         </Suspense>
     )
 }
-
-
-

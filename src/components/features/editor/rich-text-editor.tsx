@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect } from 'react';
@@ -54,7 +55,7 @@ export function RichTextEditor({ content, onChange, onInsertImage, onSuggestLink
       attributes: {
         class: cn(
             'prose prose-sm sm:prose-base dark:prose-invert max-w-none focus:outline-none px-3 py-2 overflow-y-auto',
-            size === 'default' && 'min-h-[300px] max-h-[400px]',
+            size === 'default' && 'min-h-[300px] max-h-[500px]',
             size === 'small' && 'min-h-[120px] max-h-[200px]',
         ),
       },

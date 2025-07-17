@@ -82,12 +82,50 @@ export function SeoAnalyzer({
   const [replaceDialogState, setReplaceDialogState] = useState<ReplaceImageDialogState>({ open: false, oldImageSrc: null, newImageFile: null });
   const [isReplacing, setIsReplacing] = useState(false);
 
+
   const handleImageAltChange = useCallback((mediaId: number | null, newAlt: string) => {
     if (!mediaId) return;
     setContentImages(prevImages => 
         prevImages.map((img) => img.mediaId === mediaId ? { ...img, alt: newAlt } : img)
     );
   }, [setContentImages]);
+  
+  const handleReplaceImage = async () => {
+    const { oldImageSrc, newImageFile } = replaceDialogState;
+    if (!post || !oldImageSrc || !newImageFile) {
+      toast({ title: 'Error', description: 'Faltan datos para reemplazar la imagen.', variant: 'destructive' });
+      return;
+    }
+    setIsReplacing(true);
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("No autenticado.");
+        const token = await user.getIdToken();
+        const formData = new FormData();
+        formData.append('newImageFile', newImageFile);
+        formData.append('postId', postId.toString());
+        formData.append('postType', post.postType);
+        formData.append('oldImageUrl', oldImageSrc);
+        
+        const response = await fetch('/api/wordpress/replace-image', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData,
+        });
+        
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Fallo en la API de reemplazo de imagen.');
+        
+        setPost(p => p ? { ...p, content: result.newContent } : null);
+        setContentImages(prev => prev.map(img => img.src === oldImageSrc ? { ...img, src: result.newImageUrl, alt: result.newImageAlt } : img));
+        toast({ title: 'Imagen Reemplazada', description: 'La imagen ha sido actualizada.' });
+        setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null });
+    } catch (error: any) {
+        toast({ title: 'Error al reemplazar', description: error.message, variant: 'destructive' });
+    } finally {
+        setIsReplacing(false);
+    }
+  };
 
 
   const handleFixWithAI = useCallback(async (mode: SeoCheck['aiMode'], editLink?: string | null) => {
@@ -134,7 +172,7 @@ export function SeoAnalyzer({
   }, [post, setPost, toast, setIsLoading]);
 
   const autoGenerateKeyword = useCallback(async () => {
-    if (post && !post.meta._yoast_wpseo_focuskw && post.content && !hasTriggeredAutoKeyword.current) {
+    if (post && !post.meta._yoast_wpseo_focuskw && typeof post.content === 'string' && post.content && !hasTriggeredAutoKeyword.current) {
         hasTriggeredAutoKeyword.current = true;
         setIsLoading(true);
         try {
@@ -178,11 +216,9 @@ export function SeoAnalyzer({
         
         const aiContent = await response.json();
         
-        const newImages = contentImages.map(img => 
+        setContentImages(prevImages => prevImages.map(img => 
             !img.alt ? { ...img, alt: aiContent.imageAltText } : img
-        );
-        
-        setContentImages(newImages);
+        ));
 
         toast({ title: 'Textos alternativos generados', description: "Se ha añadido 'alt text' a las imágenes que no lo tenían." });
     } catch (e: any) {
@@ -190,7 +226,8 @@ export function SeoAnalyzer({
     } finally {
         setIsLoading(false);
     }
-  }, [post, toast, setIsLoading, setContentImages, contentImages]);
+  }, [post, toast, setIsLoading, setContentImages]);
+
 
   const checks = useMemo<SeoCheck[]>(() => {
     if (!post || !post.meta) return [];
@@ -290,7 +327,7 @@ export function SeoAnalyzer({
                       Generar 'alt text' con IA
                   </Button>
                   
-                   {post.featuredImage && (
+                   {post.featuredImageUrl && (
                       <div className="flex items-center space-x-2 pt-4 border-t">
                           <Checkbox id="apply-featured" checked={applyAiMetaToFeatured} onCheckedChange={(checked) => setApplyAiMetaToFeatured(!!checked)} />
                           <Label htmlFor="apply-featured" className="text-sm font-normal">
@@ -317,6 +354,13 @@ export function SeoAnalyzer({
                                    className="text-xs h-8"
                                  />
                               </div>
+                              <Button 
+                                  size="icon-sm"
+                                  variant="outline"
+                                  onClick={() => setReplaceDialogState({ open: true, oldImageSrc: img.src, newImageFile: null })}
+                              >
+                                  <Replace className="h-4 w-4" />
+                              </Button>
                           </div>
                       ))}
                       {contentImages.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No se encontraron imágenes en el contenido.</p>}
@@ -324,6 +368,30 @@ export function SeoAnalyzer({
               </CardContent>
           </Card>
       </div>
+
+       <AlertDialog open={replaceDialogState.open} onOpenChange={(open) => !isReplacing && setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reemplazar Imagen</AlertDialogTitle>
+            <AlertDialogDescription>
+                Sube una nueva imagen para reemplazar la actual. La antigua será eliminada de la biblioteca de medios.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4 space-y-4">
+            <div>
+              <Label htmlFor="new-image-upload">Nueva Imagen</Label>
+              <Input id="new-image-upload" type="file" accept="image/*" onChange={(e) => setReplaceDialogState(s => ({ ...s, newImageFile: e.target.files?.[0] || null }))} disabled={isReplacing} />
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { if (!isReplacing) setReplaceDialogState({ ...replaceDialogState, open: false }) }} disabled={isReplacing}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleReplaceImage} disabled={isReplacing || !replaceDialogState.newImageFile}>
+              {isReplacing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isReplacing ? 'Procesando...' : 'Reemplazar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
