@@ -77,17 +77,22 @@ export async function POST(req: NextRequest) {
                         
                         let textsToTranslate: { [key: string]: string } = { title: originalPost.name || originalPost.title.rendered };
                         let elementorData = null;
-                        const meta = originalPost.meta_data ? originalPost.meta_data.reduce((obj: any, item: any) => ({...obj, [item.key]: item.value}), {}) : originalPost.meta;
+                        
+                        const meta = originalPost.meta_data 
+                            ? originalPost.meta_data.reduce((obj: any, item: any) => ({...obj, [item.key]: item.value}), {}) 
+                            : originalPost.meta;
+                        
                         const isElementor = post_type === 'page' && meta?._elementor_data;
 
                         if (isElementor) {
                             elementorData = JSON.parse(meta._elementor_data);
-                            textsToTranslate['content'] = collectElementorTexts(elementorData).join('|||');
+                            const collectedTexts = collectElementorTexts(elementorData);
+                            textsToTranslate['content'] = collectedTexts.join('|||');
                         } else if (isProduct) {
                             textsToTranslate['short_description'] = originalPost.short_description || '';
                             textsToTranslate['description'] = originalPost.description || '';
                         } else {
-                            textsToTranslate['content'] = originalPost.content.rendered;
+                            textsToTranslate['content'] = originalPost.content?.rendered || '';
                         }
 
                         write({ id: original_id, status: 'translating', message: 'Traduciendo contenido...', progress: 50 });
@@ -96,7 +101,7 @@ export async function POST(req: NextRequest) {
                         const translateResponse = await fetch(`${baseUrl}/api/translate`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                            body: JSON.stringify({ contentToTranslate: textsToTranslate, targetLanguage: target_lang_name }),
+                            body: JSON.stringify({ contentToTranslate, targetLanguage: target_lang_name }),
                         });
                         if (!translateResponse.ok) throw new Error(`AI translation failed for clone of ${original_id}`);
                         const translated = await translateResponse.json();
@@ -117,9 +122,10 @@ export async function POST(req: NextRequest) {
                             }
                         } else {
                              updatePayload.title = translatedTitle;
-                             if (isElementor) {
+                             if (isElementor && elementorData) {
                                 const translatedTexts = translatedContent.content.split('|||');
-                                updatePayload.meta = { _elementor_data: JSON.stringify(replaceElementorTexts(JSON.parse(JSON.stringify(elementorData)), translatedTexts)) };
+                                const newElementorData = replaceElementorTexts(JSON.parse(JSON.stringify(elementorData)), translatedTexts);
+                                updatePayload.meta = { _elementor_data: JSON.stringify(newElementorData) };
                             } else {
                                 updatePayload.content = translatedContent.content;
                             }
