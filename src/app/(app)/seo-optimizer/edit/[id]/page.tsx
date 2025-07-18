@@ -19,7 +19,7 @@ import type { LinkSuggestion, SuggestLinksOutput } from '@/ai/schemas';
 
 export interface PostEditState {
   title: string;
-  content: string; 
+  content: string | ExtractedWidget[]; 
   isElementor: boolean;
   elementorEditLink: string | null;
   adminEditLink?: string | null;
@@ -135,9 +135,12 @@ function EditPageContent() {
         };
 
         if (applyAiMetaToFeatured && post.meta._yoast_wpseo_focuskw) {
-             const featuredImageId = post.isElementor 
-                ? (post.content as ExtractedWidget[]).find(w => w.type === 'image' || w.type === 'featured_image')?.id
-                : (post.content.match(/wp-image-(\d+)/) || [])[1];
+             const featuredImageId =
+               post.isElementor && Array.isArray(post.content)
+                 ? post.content.find(w => w.type === 'image' || w.type === 'featured_image')?.id
+                 : typeof post.content === 'string'
+                 ? (post.content.match(/wp-image-(\d+)/) || [])[1]
+                 : null;
 
              if (featuredImageId) {
                 payload.featured_image_metadata = {
@@ -300,7 +303,7 @@ function EditPageContent() {
                     </CardHeader>
                     <CardContent>
                          <RichTextEditor
-                            content={post.content}
+                            content={typeof post.content === 'string' ? post.content : ''}
                             onChange={handleContentChange}
                             onInsertImage={() => {}}
                             onSuggestLinks={handleSuggestLinks}
