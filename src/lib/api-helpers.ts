@@ -116,6 +116,15 @@ function collectElementorTextsRecursive(data: any, texts: string[]): void {
     }
 
     if (typeof data === 'object') {
+        // Handle flip-box content
+        if(data.widgetType === 'flip-box' && data.settings) {
+            if(data.settings.title_text_a) texts.push(data.settings.title_text_a);
+            if(data.settings.description_text_a) texts.push(data.settings.description_text_a);
+            if(data.settings.title_text_b) texts.push(data.settings.title_text_b);
+            if(data.settings.description_text_b) texts.push(data.settings.description_text_b);
+            if(data.settings.button_text) texts.push(data.settings.button_text);
+        }
+
         const keysToTranslate = [
             'title', 'editor', 'text', 'button_text', 'header_title', 'header_subtitle',
             'description', 'cta_text', 'label', 'placeholder', 'heading', 'sub_heading',
@@ -568,11 +577,6 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
     if (Array.isArray(data)) {
         data.forEach(item => images.push(...findImageUrlsInElementor(item)));
     } else if (typeof data === 'object' && data !== null) {
-        // Direct check for an image object structure
-        if (typeof data.url === 'string' && data.url) {
-            images.push({ url: data.url, id: data.id || null, width: data.width || null, height: data.height || null });
-        }
-
         // Iterate through object keys to find nested images or arrays
         for (const key in data) {
             if (Object.prototype.hasOwnProperty.call(data, key)) {
@@ -597,7 +601,17 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
             }
         }
     }
+    else if (typeof data.url === 'string' && data.url) {
+        // Direct check for a root-level image object structure (e.g. inside `background_image`)
+        if (data.url.includes('placeholder.png')) {
+            // Do not add placeholder images.
+        } else {
+             images.push({ url: data.url, id: data.id || null, width: data.width || null, height: data.height || null });
+        }
+    }
     
     // Return a unique set of images based on URL
     return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
+
+    
