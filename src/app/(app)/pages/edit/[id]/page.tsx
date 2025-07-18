@@ -132,7 +132,7 @@ function EditPageContent() {
             content: typeof post.content === 'string' ? post.content : undefined,
             meta: post.meta,
         };
-
+        
         const response = await fetch(`/api/wordpress/pages/${postId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -297,57 +297,53 @@ function EditPageContent() {
               </CardHeader>
           </Card>
           
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-             <div className="lg:col-span-2 space-y-6">
-                <Card>
-                <CardHeader><CardTitle>Contenido de la Página</CardTitle></CardHeader>
-                <CardContent className="space-y-4">
-                    <div>
-                        <Label htmlFor="title">Título</Label>
-                        <Input id="title" name="title" value={post.title} onChange={(e) => setPost(p => p ? {...p, title: e.target.value} : null)} />
-                    </div>
-                    {post.isElementor ? (
-                        <Alert>
-                            <AlertTriangle className="h-4 w-4" />
-                            <AlertTitle>Página de Elementor Detectada</AlertTitle>
-                            <AlertDescription>
-                                Para editar el contenido visual de esta página, debes usar el editor de Elementor. Editar el contenido HTML aquí podría romper el diseño.
-                                <Button asChild className="mt-3 block w-fit" size="sm">
-                                    <Link href={post.elementorEditLink!} target="_blank" rel="noopener noreferrer">
-                                        <Edit className="mr-2 h-4 w-4" />
-                                        Abrir con Elementor
-                                    </Link>
-                                </Button>
-                            </AlertDescription>
-                        </Alert>
-                    ) : typeof post.content === 'string' ? (
-                    <div>
-                        <Label htmlFor="content">Contenido</Label>
-                        <RichTextEditor
-                            content={post.content}
-                            onChange={(newContent) => setPost(p => p ? { ...p, content: newContent } : null)}
-                            onInsertImage={() => {}}
-                            onSuggestLinks={handleSuggestLinks}
-                            placeholder="Escribe el contenido de tu página..."
-                        />
-                    </div>
-                    ) : null}
-                </CardContent>
-                </Card>
-             </div>
-             <div className="lg:col-span-1 space-y-6">
-                <SeoAnalyzer 
-                    post={post}
-                    setPost={setPost}
-                    isLoading={isAiLoading}
-                    setIsLoading={setIsAiLoading}
-                    contentImages={contentImages}
-                    setContentImages={setContentImages}
-                    applyAiMetaToFeatured={applyAiMetaToFeatured}
-                    setApplyAiMetaToFeatured={setApplyAiMetaToFeatured}
-                    postId={postId}
-                />
-             </div>
+          <div className="space-y-6">
+            <Card>
+            <CardHeader><CardTitle>Contenido de la Página</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+                <div>
+                    <Label htmlFor="title">Título</Label>
+                    <Input id="title" name="title" value={post.title} onChange={(e) => setPost(p => p ? {...p, title: e.target.value} : null)} />
+                </div>
+                {post.isElementor ? (
+                    <Alert>
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertTitle>Página de Elementor Detectada</AlertTitle>
+                        <AlertDescription>
+                            Para editar el contenido visual de esta página, debes usar el editor de Elementor. Editar el contenido HTML aquí podría romper el diseño.
+                            <Button asChild className="mt-3 block w-fit" size="sm">
+                                <Link href={post.elementorEditLink!} target="_blank" rel="noopener noreferrer">
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    Abrir con Elementor
+                                </Link>
+                            </Button>
+                        </AlertDescription>
+                    </Alert>
+                ) : typeof post.content === 'string' ? (
+                <div>
+                    <Label htmlFor="content">Contenido</Label>
+                    <RichTextEditor
+                        content={post.content}
+                        onChange={(newContent) => setPost(p => p ? { ...p, content: newContent } : null)}
+                        onInsertImage={() => {}}
+                        onSuggestLinks={handleSuggestLinks}
+                        placeholder="Escribe el contenido de tu página..."
+                    />
+                </div>
+                ) : null}
+            </CardContent>
+            </Card>
+            <SeoAnalyzer 
+                post={post}
+                setPost={setPost}
+                isLoading={isAiLoading}
+                setIsLoading={setIsAiLoading}
+                contentImages={contentImages}
+                setContentImages={setContentImages}
+                applyAiMetaToFeatured={applyAiMetaToFeatured}
+                setApplyAiMetaToFeatured={setApplyAiMetaToFeatured}
+                postId={postId}
+            />
           </div>
       </div>
 
@@ -368,7 +364,7 @@ function EditPageContent() {
             <div className="space-y-3 pt-4 border-t">
                 <div className="flex items-center space-x-2">
                     <Checkbox id="enable-crop" checked={replaceDialogState.isCropEnabled} onCheckedChange={(checked) => setReplaceDialogState(s => ({ ...s, isCropEnabled: !!checked }))} disabled={isReplacing}/>
-                    <Label htmlFor="enable-crop" className="flex items-center gap-2 font-semibold cursor-pointer"><Crop className="h-4 w-4"/>Recortar imagen</Label>
+                    <Label htmlFor="enable-crop" className="flex items-center gap-2 font-semibold cursor-pointer"><Crop className="h-4 w-4"/>Recortar imagen a las dimensiones originales</Label>
                 </div>
                  <p className="text-xs text-muted-foreground mt-1 pl-6">Si se desactiva, la imagen se subirá con sus dimensiones originales, solo se aplicará compresión.</p>
 
@@ -422,3 +418,4 @@ export default function EditPage() {
         </Suspense>
     )
 }
+
