@@ -39,12 +39,16 @@ export async function POST(req: NextRequest) {
         const postId = Number(formData.get('postId'));
         const postType = formData.get('postType') as 'Post' | 'Page' | 'Producto';
         const oldImageUrl = formData.get('oldImageUrl') as string | null;
-        const width = formData.get('width') ? Number(formData.get('width')) : null;
-        const height = formData.get('height') ? Number(formData.get('height')) : null;
+        const width = formData.has('width') ? Number(formData.get('width')) : null;
+        const height = formData.has('height') ? Number(formData.get('height')) : null;
         const mediaIdToDelete = formData.get('mediaIdToDelete') ? Number(formData.get('mediaIdToDelete')) : null;
         const cropPosition = formData.get('cropPosition') as "center" | "top" | "bottom" | "left" | "right" || "center";
+        
+        // This is the new flag from the checkbox
+        const isCropEnabled = (width !== null && width > 0) || (height !== null && height > 0);
 
-        console.log(`[API replace-image] Datos recibidos: postId=${postId}, postType=${postType}, oldImageUrl=${oldImageUrl}, newImageFile=${newImageFile?.name}, dimensions=${width}x${height}, mediaIdToDelete=${mediaIdToDelete}, cropPosition=${cropPosition}`);
+
+        console.log(`[API replace-image] Datos recibidos: postId=${postId}, postType=${postType}, oldImageUrl=${oldImageUrl}, newImageFile=${newImageFile?.name}, cropEnabled=${isCropEnabled}, dimensions=${width}x${height}, mediaIdToDelete=${mediaIdToDelete}, cropPosition=${cropPosition}`);
 
 
         if (!newImageFile || !postId || !postType || !oldImageUrl) {
@@ -106,9 +110,9 @@ Generate the metadata now. The "seoFilename" should be a URL-friendly slug witho
                 description: '',
             },
             wpApi,
-            width,
-            height,
-            cropPosition,
+            isCropEnabled ? width : null,
+            isCropEnabled ? height : null,
+            isCropEnabled ? cropPosition : undefined,
         );
         
         const newMediaData = await wpApi.get(`/media/${newImageId}`);

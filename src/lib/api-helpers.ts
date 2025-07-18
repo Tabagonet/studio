@@ -234,8 +234,8 @@ export function findElementorImageContext(elements: any[], imageUrl: string): st
  * @param seoFilename A desired filename for SEO purposes.
  * @param imageMetadata Metadata for the image (title, alt, etc.).
  * @param wpApi Initialized Axios instance for WordPress API.
- * @param width Optional. The target width for the image.
- * @param height Optional. The target height for the image. If both are provided, the image will be cropped.
+ * @param width Optional. The target width for the image. If null, resizing is skipped for this dimension.
+ * @param height Optional. The target height for the image. If null, resizing is skipped for this dimension.
  * @param position Optional. The crop position (e.g., 'center', 'top').
  * @returns The ID of the newly uploaded media item.
  */
@@ -271,6 +271,7 @@ export async function uploadImageToWordPress(
                 position: position as any || 'center' 
             });
         } else {
+            // Default optimization if no crop/resize is specified
             processedBuffer = processedBuffer.resize(1200, 1200, {
                 fit: 'inside',
                 withoutEnlargement: true,
@@ -486,7 +487,8 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   const activeConnectionKey = settingsSource.activeConnectionKey;
 
   if (!activeConnectionKey || !allConnections || !allConnections[activeConnectionKey]) {
-    throw new Error('No active API connection is configured. Please select or create one in Settings.');
+    // Return nulls if no active connection, allowing checks to fail gracefully
+    return { wooApi: null, wpApi: null, shopifyApi: null, activeConnectionKey: null, settings: settingsSource };
   }
 
   const activeConnection = allConnections[activeConnectionKey];
@@ -554,4 +556,3 @@ export function replaceImageUrlInElementor(data: any, oldUrl: string, newUrl: st
     const newData = traverse(data);
     return { replaced, data: newData };
 }
-
