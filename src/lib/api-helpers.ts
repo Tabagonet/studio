@@ -115,7 +115,6 @@ function collectElementorTextsRecursive(data: any, texts: string[]): void {
     }
 
     if (typeof data === 'object') {
-        // Keys for standard widgets and specific theme widgets like 'flip-box'
         const keysToTranslate = [
             'title', 'editor', 'text', 'button_text', 'header_title', 'header_subtitle',
             'description', 'cta_text', 'label', 'placeholder', 'heading', 'sub_heading',
@@ -565,37 +564,38 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
 
     if (Array.isArray(data)) {
         data.forEach(item => images.push(...findImageUrlsInElementor(item)));
-    } else if (typeof data === 'object') {
-        for (const key in data) {
-            if (Object.prototype.hasOwnProperty.call(data, key)) {
-                const value = data[key];
-
-                if (typeof value === 'object' && value !== null) {
-                    if (typeof value.url === 'string' && value.url) {
-                        // This pattern covers `image`, `background_image`, `background_a_image`, `background_b_image`
-                        if (key.includes('image')) {
-                            const width = value.width || value.size?.width || null;
-                            const height = value.height || value.size?.height || null;
-                            images.push({ url: value.url, id: value.id || null, width, height });
-                        }
-                    }
-
-                    // Handle repeater widgets like 'slides'
-                    if (key === 'slides' && Array.isArray(value)) {
-                        value.forEach((slide: any) => {
-                            const slideImage = slide.image || slide.background_image;
-                            if (slideImage?.url) {
-                                const width = slideImage.width || slideImage.size?.width || null;
-                                const height = slideImage.height || slideImage.size?.height || null;
-                                images.push({ url: slideImage.url, id: slideImage.id || null, width, height });
-                            }
-                        });
-                    } else {
-                        // Recurse into other nested objects
-                        images.push(...findImageUrlsInElementor(value));
-                    }
+    } else if (typeof data === 'object' && data !== null) {
+        // Direct image properties in settings (for image, image-box, etc.)
+        if (data.settings?.image?.url) {
+            const img = data.settings.image;
+            images.push({ url: img.url, id: img.id || null, width: img.width || null, height: img.height || null });
+        }
+        // Background images for sections/columns
+        if (data.settings?.background_image?.url) {
+            const img = data.settings.background_image;
+            images.push({ url: img.url, id: img.id || null, width: img.width || null, height: img.height || null });
+        }
+        // Specific for flip-box (side B)
+        if (data.settings?.background_b_image?.url) {
+            const img = data.settings.background_b_image;
+            images.push({ url: img.url, id: img.id || null, width: img.width || null, height: img.height || null });
+        }
+        
+        // Recurse into nested elements
+        if (data.elements && Array.isArray(data.elements)) {
+            images.push(...findImageUrlsInElementor(data.elements));
+        }
+        
+        // Recurse into repeater items like slides
+        if (data.settings?.slides && Array.isArray(data.settings.slides)) {
+             data.settings.slides.forEach((slide: any) => {
+                const slideImage = slide.image || slide.background_image;
+                if (slideImage?.url) {
+                    const width = slideImage.width || slideImage.size?.width || null;
+                    const height = slideImage.height || slideImage.size?.height || null;
+                    images.push({ url: slideImage.url, id: slideImage.id || null, width, height });
                 }
-            }
+            });
         }
     }
     
