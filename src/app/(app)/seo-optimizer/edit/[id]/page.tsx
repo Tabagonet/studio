@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
@@ -130,21 +131,17 @@ function EditPageContent() {
         const token = await user.getIdToken();
         const payload: any = {
             title: post.title,
-            content: post.content,
+            content: typeof post.content === 'string' ? post.content : undefined, // Only send content if it's a string
             meta: post.meta,
         };
 
         if (applyAiMetaToFeatured && post.meta._yoast_wpseo_focuskw) {
-             const featuredImageId =
-               post.isElementor && Array.isArray(post.content)
-                 ? post.content.find(w => w.type === 'image' || w.type === 'featured_image')?.id
-                 : typeof post.content === 'string'
-                 ? (post.content.match(/wp-image-(\d+)/) || [])[1]
-                 : null;
+             const featuredImage = contentImages.find(img => img.mediaId);
+             const featuredImageId = featuredImage ? featuredImage.mediaId : null;
 
              if (featuredImageId) {
                 payload.featured_image_metadata = {
-                    media_id: parseInt(featuredImageId, 10),
+                    media_id: featuredImageId,
                     title: post.meta._yoast_wpseo_title || post.title,
                     alt_text: post.meta._yoast_wpseo_focuskw,
                 }
@@ -230,7 +227,7 @@ function EditPageContent() {
 
   const handleApplyAllSuggestions = () => {
      if (!post || typeof post.content !== 'string') return;
-     let updatedContent = post.content;
+     let updatedContent = post.content as string;
      let appliedCount = 0;
      for (const suggestion of linkSuggestions) {
          const newContent = applyLink(updatedContent, suggestion);
@@ -295,7 +292,7 @@ function EditPageContent() {
                 setApplyAiMetaToFeatured={setApplyAiMetaToFeatured}
                 postId={postId}
              />
-             {!post.isElementor && (
+             {!post.isElementor && typeof post.content === 'string' && (
                  <Card>
                     <CardHeader>
                         <CardTitle>Editor de Contenido</CardTitle>
@@ -303,7 +300,7 @@ function EditPageContent() {
                     </CardHeader>
                     <CardContent>
                          <RichTextEditor
-                            content={typeof post.content === 'string' ? post.content : ''}
+                            content={post.content}
                             onChange={handleContentChange}
                             onInsertImage={() => {}}
                             onSuggestLinks={handleSuggestLinks}
