@@ -1,3 +1,4 @@
+
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -146,7 +147,7 @@ export function collectElementorTexts(elements: any[]): string[] {
  * Recursively traverses a deep copy of Elementor's data structure and replaces text content
  * with items from a mutable object of translated strings.
  * @param data A deep copy of the original 'elements' array or nested object/array.
- * @param translatedTexts A mutable object of translated strings.
+ * @param widgetUpdates A mutable object mapping widget IDs to their new text content.
  * @returns The Elementor data structure with translated text.
  */
 export function replaceElementorTexts(data: any, widgetUpdates: { [widgetId: string]: string }): any {
@@ -179,6 +180,7 @@ export function replaceElementorTexts(data: any, widgetUpdates: { [widgetId: str
 
     return traverse(data);
 }
+
 
 
 export function findElementorImageContext(elements: any[], imageUrl: string): string {
@@ -555,6 +557,7 @@ export function replaceImageUrlInElementor(data: any, oldUrl: string, newUrl: st
 
 /**
  * Recursively finds image URLs and their context in Elementor JSON data.
+ * This is a more robust version that checks multiple common keys for images.
  * @param {any} data The Elementor data (elements array, section, column, etc.).
  * @returns {Array} An array of objects, each containing the image URL, ID, width, and height.
  */
@@ -565,37 +568,33 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
     if (Array.isArray(data)) {
         data.forEach(item => images.push(...findImageUrlsInElementor(item)));
     } else if (typeof data === 'object' && data !== null) {
-        // Direct image properties in settings (for image, image-box, etc.)
-        if (data.settings?.image?.url) {
-            const img = data.settings.image;
-            images.push({ url: img.url, id: img.id || null, width: img.width || null, height: img.height || null });
+        // Direct check for an image object structure
+        if (typeof data.url === 'string' && data.url) {
+            images.push({ url: data.url, id: data.id || null, width: data.width || null, height: data.height || null });
         }
-        // Background images for sections/columns
-        if (data.settings?.background_image?.url) {
-            const img = data.settings.background_image;
-            images.push({ url: img.url, id: img.id || null, width: img.width || null, height: img.height || null });
-        }
-        // Specific for flip-box (side B)
-        if (data.settings?.background_b_image?.url) {
-            const img = data.settings.background_b_image;
-            images.push({ url: img.url, id: img.id || null, width: img.width || null, height: img.height || null });
-        }
-        
-        // Recurse into nested elements
-        if (data.elements && Array.isArray(data.elements)) {
-            images.push(...findImageUrlsInElementor(data.elements));
-        }
-        
-        // Recurse into repeater items like slides
-        if (data.settings?.slides && Array.isArray(data.settings.slides)) {
-             data.settings.slides.forEach((slide: any) => {
-                const slideImage = slide.image || slide.background_image;
-                if (slideImage?.url) {
-                    const width = slideImage.width || slideImage.size?.width || null;
-                    const height = slideImage.height || slideImage.size?.height || null;
-                    images.push({ url: slideImage.url, id: slideImage.id || null, width, height });
+
+        // Iterate through object keys to find nested images or arrays
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                // Skip keys we've already processed to avoid duplicates
+                if (key === 'url' && typeof data[key] === 'string') continue;
+                
+                // Common keys for image objects
+                const imageKeys = ['image', 'background_image', 'background_a_image', 'background_b_image'];
+                if (imageKeys.includes(key)) {
+                    images.push(...findImageUrlsInElementor(data[key]));
+                } 
+                // Common keys for repeater items (like sliders, galleries)
+                else if (key === 'slides' && Array.isArray(data[key])) {
+                     data[key].forEach((slide: any) => {
+                         images.push(...findImageUrlsInElementor(slide));
+                    });
                 }
-            });
+                // General recursion for any other nested objects/arrays
+                else if (typeof data[key] === 'object' && data[key] !== null) {
+                    images.push(...findImageUrlsInElementor(data[key]));
+                }
+            }
         }
     }
     
