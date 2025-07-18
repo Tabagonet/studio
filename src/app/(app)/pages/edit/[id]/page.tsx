@@ -4,7 +4,10 @@
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Loader2, ArrowLeft, Save, Edit, Replace, ImageIcon, Crop, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
@@ -12,14 +15,14 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ContentImage, ExtractedWidget } from '@/lib/types';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import NextImage from 'next/image';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from '@/components/ui/checkbox';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
 import type { LinkSuggestion, SuggestLinksOutput } from '@/ai/schemas';
+import { SeoAnalyzer } from '@/components/features/seo/seo-analyzer';
+
 
 interface PageEditState {
   title: string;
@@ -29,6 +32,12 @@ interface PageEditState {
   link?: string;
   postType: 'Post' | 'Page' | 'Producto';
   lang: string;
+  meta: {
+      _yoast_wpseo_title: string;
+      _yoast_wpseo_metadesc: string;
+      _yoast_wpseo_focuskw: string;
+  };
+  featuredImageUrl?: string | null;
 }
 
 interface ReplaceImageDialogState {
@@ -52,6 +61,7 @@ function EditPageContent() {
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isAiLoading, setIsAiLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -59,6 +69,7 @@ function EditPageContent() {
   const [isReplacing, setIsReplacing] = useState(false);
   const [isSuggestingLinks, setIsSuggestingLinks] = useState(false);
   const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>([]);
+  const [applyAiMetaToFeatured, setApplyAiMetaToFeatured] = useState(true);
   
   const fetchInitialData = useCallback(async () => {
     setIsLoading(true); setError(null);
@@ -83,6 +94,12 @@ function EditPageContent() {
         link: postData.link,
         postType: 'Page',
         lang: postData.lang || 'es',
+        meta: {
+            _yoast_wpseo_title: postData.meta?._yoast_wpseo_title || postData.title?.rendered || '',
+            _yoast_wpseo_metadesc: postData.meta?._yoast_wpseo_metadesc || postData.excerpt?.rendered.replace(/<[^>]+>/g, '') || '',
+            _yoast_wpseo_focuskw: postData.meta?._yoast_wpseo_focuskw || '',
+        },
+        featuredImageUrl: postData.featured_image_url || null,
       };
       
       setPost(loadedPost);
@@ -113,6 +130,7 @@ function EditPageContent() {
         const payload: any = {
             title: post.title,
             content: typeof post.content === 'string' ? post.content : undefined,
+            meta: post.meta,
         };
 
         const response = await fetch(`/api/wordpress/pages/${postId}`, {
@@ -279,42 +297,57 @@ function EditPageContent() {
               </CardHeader>
           </Card>
           
-          <div className="lg:col-span-2 space-y-6">
-            <Card>
-              <CardHeader><CardTitle>Contenido de la Página</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                    <Label htmlFor="title">Título</Label>
-                    <Input id="title" name="title" value={post.title} onChange={(e) => setPost(p => p ? {...p, title: e.target.value} : null)} />
-                </div>
-                {post.isElementor ? (
-                    <Alert>
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertTitle>Página de Elementor Detectada</AlertTitle>
-                        <AlertDescription>
-                            Para editar el contenido visual de esta página, debes usar el editor de Elementor. Editar el contenido HTML aquí podría romper el diseño.
-                            <Button asChild className="mt-3 block w-fit" size="sm">
-                                <Link href={post.elementorEditLink!} target="_blank" rel="noopener noreferrer">
-                                    <Edit className="mr-2 h-4 w-4" />
-                                    Abrir con Elementor
-                                </Link>
-                            </Button>
-                        </AlertDescription>
-                    </Alert>
-                ) : (
-                  <div>
-                      <Label htmlFor="content">Contenido</Label>
-                      <RichTextEditor
-                        content={typeof post.content === 'string' ? post.content : ''}
-                        onChange={(newContent) => setPost(p => p ? { ...p, content: newContent } : null)}
-                        onInsertImage={() => {}}
-                        onSuggestLinks={handleSuggestLinks}
-                        placeholder="Escribe el contenido de tu página..."
-                      />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+             <div className="lg:col-span-2 space-y-6">
+                <Card>
+                <CardHeader><CardTitle>Contenido de la Página</CardTitle></CardHeader>
+                <CardContent className="space-y-4">
+                    <div>
+                        <Label htmlFor="title">Título</Label>
+                        <Input id="title" name="title" value={post.title} onChange={(e) => setPost(p => p ? {...p, title: e.target.value} : null)} />
+                    </div>
+                    {post.isElementor ? (
+                        <Alert>
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTitle>Página de Elementor Detectada</AlertTitle>
+                            <AlertDescription>
+                                Para editar el contenido visual de esta página, debes usar el editor de Elementor. Editar el contenido HTML aquí podría romper el diseño.
+                                <Button asChild className="mt-3 block w-fit" size="sm">
+                                    <Link href={post.elementorEditLink!} target="_blank" rel="noopener noreferrer">
+                                        <Edit className="mr-2 h-4 w-4" />
+                                        Abrir con Elementor
+                                    </Link>
+                                </Button>
+                            </AlertDescription>
+                        </Alert>
+                    ) : typeof post.content === 'string' ? (
+                    <div>
+                        <Label htmlFor="content">Contenido</Label>
+                        <RichTextEditor
+                            content={post.content}
+                            onChange={(newContent) => setPost(p => p ? { ...p, content: newContent } : null)}
+                            onInsertImage={() => {}}
+                            onSuggestLinks={handleSuggestLinks}
+                            placeholder="Escribe el contenido de tu página..."
+                        />
+                    </div>
+                    ) : null}
+                </CardContent>
+                </Card>
+             </div>
+             <div className="lg:col-span-1 space-y-6">
+                <SeoAnalyzer 
+                    post={post}
+                    setPost={setPost}
+                    isLoading={isAiLoading}
+                    setIsLoading={setIsAiLoading}
+                    contentImages={contentImages}
+                    setContentImages={setContentImages}
+                    applyAiMetaToFeatured={applyAiMetaToFeatured}
+                    setApplyAiMetaToFeatured={setApplyAiMetaToFeatured}
+                    postId={postId}
+                />
+             </div>
           </div>
       </div>
 
@@ -335,8 +368,9 @@ function EditPageContent() {
             <div className="space-y-3 pt-4 border-t">
                 <div className="flex items-center space-x-2">
                     <Checkbox id="enable-crop" checked={replaceDialogState.isCropEnabled} onCheckedChange={(checked) => setReplaceDialogState(s => ({ ...s, isCropEnabled: !!checked }))} disabled={isReplacing}/>
-                    <Label htmlFor="enable-crop" className="flex items-center gap-2 font-semibold cursor-pointer"><Crop className="h-4 w-4"/>Recortar imagen a las dimensiones originales</Label>
+                    <Label htmlFor="enable-crop" className="flex items-center gap-2 font-semibold cursor-pointer"><Crop className="h-4 w-4"/>Recortar imagen</Label>
                 </div>
+                 <p className="text-xs text-muted-foreground mt-1 pl-6">Si se desactiva, la imagen se subirá con sus dimensiones originales, solo se aplicará compresión.</p>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -348,7 +382,7 @@ function EditPageContent() {
                     <Input id="img-height" type="number" value={replaceDialogState.originalHeight} onChange={(e) => setReplaceDialogState(s => ({ ...s, originalHeight: e.target.value }))} placeholder="Auto" disabled={isReplacing || !replaceDialogState.isCropEnabled}/>
                   </div>
                 </div>
-                 <p className="text-xs text-muted-foreground">La nueva imagen se recortará a estas dimensiones. Déjalos en blanco para usar las dimensiones originales de la imagen antigua.</p>
+                 <p className="text-xs text-muted-foreground mt-1">La nueva imagen se recortará a estas dimensiones. Déjalos en blanco para usar las dimensiones de la imagen antigua.</p>
             </div>
              <div className="space-y-2">
                 <Label>Enfoque del Recorte</Label>
