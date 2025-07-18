@@ -47,40 +47,41 @@ function BatchImageEditor() {
     const ids = searchParams.get('ids');
     const type = searchParams.get('type');
 
-    useEffect(() => {
-        const fetchBatchData = async () => {
-            if (!ids || !type) {
-                setError("Faltan los IDs o el tipo de contenido en la URL.");
-                setIsLoading(false);
-                return;
-            }
-            setIsLoading(true);
-            setError(null);
-            const user = auth.currentUser;
-            if (!user) {
-                setError("Autenticación requerida.");
-                setIsLoading(false);
-                return;
-            }
+    const fetchBatchData = useCallback(async () => {
+        if (!ids || !type) {
+            setError("Faltan los IDs o el tipo de contenido en la URL.");
+            setIsLoading(false);
+            return;
+        }
+        setIsLoading(true);
+        setError(null);
+        const user = auth.currentUser;
+        if (!user) {
+            setError("Autenticación requerida.");
+            setIsLoading(false);
+            return;
+        }
 
-            try {
-                const token = await user.getIdToken();
-                const response = await fetch(`/api/wordpress/content-batch?ids=${ids}&type=${type}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (!response.ok) {
-                    throw new Error((await response.json()).error || 'Fallo al cargar el contenido.');
-                }
-                const data = await response.json();
-                setGroupedContent(data.content);
-            } catch (err: any) {
-                setError(err.message);
-            } finally {
-                setIsLoading(false);
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch(`/api/wordpress/content-batch?ids=${ids}&type=${type}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!response.ok) {
+                throw new Error((await response.json()).error || 'Fallo al cargar el contenido.');
             }
-        };
-        fetchBatchData();
+            const data = await response.json();
+            setGroupedContent(data.content);
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setIsLoading(false);
+        }
     }, [ids, type]);
+
+    useEffect(() => {
+        fetchBatchData();
+    }, [fetchBatchData]);
     
     const handleReplaceImage = async () => {
         const { oldImageSrc, newImageFile, postId, postType } = replaceDialogState;
@@ -177,7 +178,7 @@ function BatchImageEditor() {
                     ))}
                 </div>
             </ScrollArea>
-             <AlertDialog open={replaceDialogState.open} onOpenChange={(open) => !open && setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, postId: null, postType: null })}>
+             <AlertDialog open={replaceDialogState.open} onOpenChange={(open) => !isReplacing && setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, postId: null, postType: null })}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Reemplazar Imagen</AlertDialogTitle>

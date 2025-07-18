@@ -1,5 +1,4 @@
 
-
 // This is a new file for fetching batch content data.
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
@@ -151,15 +150,21 @@ export async function GET(req: NextRequest) {
         uid = (await adminAuth.verifyIdToken(token)).uid;
         
         const { wpApi, wooApi } = await getApiClientsForUser(uid);
-        if (!wpApi || !wooApi) throw new Error('API clients not configured');
+        if (!wpApi) throw new Error('WordPress API client not configured');
 
         const { searchParams } = new URL(req.url);
-        const ids = searchParams.get('ids')?.split(',').map(Number).filter(Boolean);
+        const idsString = searchParams.get('ids');
         const type = searchParams.get('type');
 
-        if (!ids || ids.length === 0 || !type) {
+        if (!idsString || !type) {
             return NextResponse.json({ error: 'IDs and type are required' }, { status: 400 });
         }
+        
+        const ids = idsString.split(',').map(Number).filter(Boolean);
+        if (ids.length === 0) {
+             return NextResponse.json({ error: 'No valid IDs provided' }, { status: 400 });
+        }
+
 
         const promises = ids.map(id => fetchPostData(id, type, wpApi, wooApi));
         const content = await Promise.all(promises);
