@@ -131,10 +131,15 @@ Generate the metadata now. The "seoFilename" should be a URL-friendly slug witho
             }
         } else {
             console.log('[API replace-image] Procesando como contenido HTML estándar.');
-            const currentContent = postType === 'Producto' ? post.content.rendered : post.content.rendered;
+            const currentContent = postType === 'Producto' ? (post.description || '') : (post.content.rendered || '');
             if (currentContent && currentContent.includes(oldImageUrl)) {
-                updatePayload.content = currentContent.replace(new RegExp(oldImageUrl, 'g'), newImageUrl);
-                finalContent = updatePayload.content;
+                const updatedContent = currentContent.replace(new RegExp(oldImageUrl, 'g'), newImageUrl);
+                if (postType === 'Producto') {
+                    updatePayload.description = updatedContent;
+                } else {
+                    updatePayload.content = updatedContent;
+                }
+                finalContent = updatedContent;
                 console.log('[API replace-image] Payload de contenido HTML preparado para actualizar.');
             } else {
                 console.warn('[API replace-image] No se encontró la URL de la imagen antigua en el contenido HTML. No se realizarán cambios.');
