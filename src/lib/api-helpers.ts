@@ -1,5 +1,3 @@
-
-
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -121,8 +119,9 @@ function collectElementorTextsRecursive(data: any, texts: string[]): void {
             'title', 'editor', 'text', 'button_text', 'header_title', 'header_subtitle',
             'description', 'cta_text', 'label', 'placeholder', 'heading', 'sub_heading',
             'alert_title', 'alert_description',
-            // Added based on user's JSON from theme "The7"
-            'title_text', 'description_text', 'list_title'
+            // Added based on user's JSON from theme "The7" and "flip-box" widget
+            'title_text', 'description_text', 'list_title',
+            'title_text_a', 'description_text_a', 'title_text_b', 'description_text_b'
         ];
 
         for (const key in data) {
@@ -554,3 +553,4 @@ export function replaceImageUrlInElementor(data: any, oldUrl: string, newUrl: st
     const newData = traverse(data);
     return { replaced, data: newData };
 }
+```
