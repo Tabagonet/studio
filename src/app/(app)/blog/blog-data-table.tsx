@@ -211,7 +211,7 @@ export function BlogDataTable() {
     }
   }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedLanguage, sorting, toast]); 
 
-  const fetchCategories = useCallback(async (token: string) => {
+  const fetchCategories = React.useCallback(async (token: string) => {
     setIsLoadingCategories(true);
     try {
       const response = await fetch('/api/wordpress/post-categories', {
@@ -363,7 +363,7 @@ export function BlogDataTable() {
   };
 
 
-  const columns = React.useMemo(() => getColumns(handleStatusUpdate, handleEditPost, handleDeletePost, handleCategoryUpdate), [handleStatusUpdate, handleEditPost, handleDeletePost, handleCategoryUpdate]);
+  const columns = React.useMemo(() => getColumns(handleStatusUpdate, handleEditPost, handleDeletePost, handleCategoryUpdate, categoryTree.map(item => item.category)), [handleStatusUpdate, handleEditPost, handleDeletePost, handleCategoryUpdate, categoryTree]);
 
   const table = useReactTable({
     data,
