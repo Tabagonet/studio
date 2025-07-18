@@ -5,7 +5,7 @@
 import { ColumnDef } from "@tanstack/react-table"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowUpDown, MoreHorizontal, Eye, EyeOff, Pencil, ExternalLink, Trash2, ChevronRight, Tags } from "lucide-react"
+import { ArrowUpDown, MoreHorizontal, Eye, EyeOff, Pencil, ExternalLink, Trash2, ChevronRight, Tags, Image as ImageIcon } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -38,6 +38,7 @@ export const getColumns = (
   handleEdit: (postId: number) => void,
   handleDelete: (postId: number) => void,
   handleCategoryUpdate: (postIds: number[], categoryId: number) => void,
+  handleEditImages: (postId: number) => void,
   categories: WordPressPostCategory[] = [], // Pass categories as a prop
 ): ColumnDef<HierarchicalBlogPost>[] => [
   {
@@ -190,6 +191,7 @@ export const getColumns = (
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Acciones Rápidas</DropdownMenuLabel>
               <DropdownMenuItem onClick={() => handleEdit(post.id)}><Pencil className="mr-2 h-4 w-4" /> Editar entrada</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleEditImages(post.id)}><ImageIcon className="mr-2 h-4 w-4" /> Editar imágenes</DropdownMenuItem>
               {post.status === 'publish' ? (
                 <DropdownMenuItem onClick={() => handleStatusUpdate(post.id, 'draft')}><EyeOff className="mr-2 h-4 w-4" /> Ocultar (Borrador)</DropdownMenuItem>
               ) : (

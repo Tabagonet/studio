@@ -1,16 +1,18 @@
 
+
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowUpDown, ChevronRight, ExternalLink, MoreHorizontal, Edit, Trash2, FileText } from "lucide-react";
+import { ArrowUpDown, ChevronRight, ExternalLink, MoreHorizontal, Edit, Trash2, FileText, ImageIcon } from "lucide-react";
 import type { HierarchicalContentItem, ContentItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import Link from "next/link";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 
 const getStatusText = (status: ContentItem['status']) => {
@@ -36,6 +38,7 @@ const ScoreBadge = ({ score }: { score: number | undefined }) => {
 export const getColumns = (
     onEdit: (item: ContentItem) => void,
     onDelete: (item: ContentItem) => void,
+    onEditImages: (item: ContentItem) => void,
 ): ColumnDef<HierarchicalContentItem>[] => [
     {
         id: "select",
@@ -94,7 +97,30 @@ export const getColumns = (
     {
         accessorKey: "lang",
         header: "Idioma",
-        cell: ({ row }) => <Badge variant="outline" className="uppercase">{row.original.lang || 'N/A'}</Badge>
+        cell: ({ row }) => {
+            const lang = row.original.lang;
+            const translationCount = Object.keys(row.original.translations || {}).length - 1;
+            const badge = <Badge variant="outline" className="uppercase">{lang || 'N/A'}</Badge>;
+
+            if (translationCount > 0) {
+                return (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <div className="flex items-center gap-1.5 cursor-help">
+                                    {badge}
+                                    <span className="text-muted-foreground text-xs font-bold">+{translationCount}</span>
+                                </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Enlazado con {translationCount} otra(s) traducción(es).</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                );
+            }
+            return badge;
+        }
     },
     {
         accessorKey: "modified",
@@ -122,7 +148,10 @@ export const getColumns = (
                             <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><span className="sr-only">Abrir menú</span><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => onEdit(item)}><FileText className="mr-2 h-4 w-4" /> Editar / Optimizar</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => onEdit(item)}><Edit className="mr-2 h-4 w-4" /> Editar Página</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => onEditImages(item)}><ImageIcon className="mr-2 h-4 w-4" /> Editar Imágenes</DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem asChild><Link href={`/seo-optimizer?id=${item.id}&type=${item.type}`}><FileText className="mr-2 h-4 w-4" /> Optimizar SEO</Link></DropdownMenuItem>
                                 <DropdownMenuItem asChild><Link href={item.link} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-2 h-4 w-4" /> Ver en la web</Link></DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <AlertDialogTrigger asChild>

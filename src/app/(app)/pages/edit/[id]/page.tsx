@@ -4,8 +4,8 @@
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Button, buttonVariants } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Replace, ImageIcon, Crop } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Loader2, ArrowLeft, Save, Edit, Replace, ImageIcon, Crop, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -17,7 +17,9 @@ import { Input } from '@/components/ui/input';
 import NextImage from 'next/image';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from '@/components/ui/checkbox';
-
+import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
+import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
+import type { LinkSuggestion, SuggestLinksOutput } from '@/ai/schemas';
 
 interface PageEditState {
   title: string;
@@ -44,17 +46,19 @@ function EditPageContent() {
   const params = useParams();
   const router = useRouter();
   const postId = Number(params.id);
-  const postType = 'Page'; 
     
   const [post, setPost] = useState<PageEditState | null>(null);
   const [contentImages, setContentImages] = useState<ContentImage[]>([]);
   
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const [replaceDialogState, setReplaceDialogState] = useState<ReplaceImageDialogState>({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: '', originalHeight: '', mediaIdToDelete: null, cropPosition: 'center', isCropEnabled: true });
   const [isReplacing, setIsReplacing] = useState(false);
+  const [isSuggestingLinks, setIsSuggestingLinks] = useState(false);
+  const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>([]);
   
   const fetchInitialData = useCallback(async () => {
     setIsLoading(true); setError(null);
@@ -94,6 +98,42 @@ function EditPageContent() {
 
 
   useEffect(() => { fetchInitialData(); }, [fetchInitialData]);
+  
+  const handleSaveChanges = async () => {
+    setIsSaving(true);
+    const user = auth.currentUser;
+    if (!user || !post) {
+      toast({ title: 'Error', description: 'No se puede guardar.', variant: 'destructive' });
+      setIsSaving(false);
+      return;
+    }
+
+    try {
+        const token = await user.getIdToken();
+        const payload: any = {
+            title: post.title,
+            content: typeof post.content === 'string' ? post.content : undefined,
+        };
+
+        const response = await fetch(`/api/wordpress/pages/${postId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Fallo al guardar los cambios');
+        }
+        
+        toast({ title: '¡Página guardada!', description: 'El contenido de la página ha sido actualizado.' });
+        
+    } catch (e: any) {
+        toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
+    } finally {
+        setIsSaving(false);
+    }
+  };
   
   const handleReplaceImage = async () => {
     const { oldImageSrc, newImageFile, originalWidth, originalHeight, mediaIdToDelete, cropPosition, isCropEnabled } = replaceDialogState;
@@ -137,6 +177,75 @@ function EditPageContent() {
     }
   };
 
+  const handleSuggestLinks = async () => {
+    if (!post || typeof post.content !== 'string' || !post.content.trim()) {
+        toast({ title: "Contenido vacío", description: "Escribe algo antes de pedir sugerencias de enlaces.", variant: "destructive" });
+        return;
+    }
+    setIsSuggestingLinks(true);
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("No autenticado.");
+        const token = await user.getIdToken();
+        const response = await fetch('/api/ai/suggest-links', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ content: post.content })
+        });
+        if (!response.ok) throw new Error((await response.json()).message || "La IA falló al sugerir enlaces.");
+        
+        const data: SuggestLinksOutput = await response.json();
+        setLinkSuggestions(data.suggestions || []);
+
+    } catch(e: any) {
+        toast({ title: "Error al sugerir enlaces", description: e.message, variant: "destructive" });
+        setLinkSuggestions([]);
+    } finally {
+        setIsSuggestingLinks(false);
+    }
+  };
+
+  const applyLink = (content: string, suggestion: LinkSuggestion): string => {
+    const phrase = suggestion.phraseToLink.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(?<!<a[^>]*>)${phrase}(?!<\\/a>)`, '');
+    if (content.match(regex)) {
+        return content.replace(regex, `<a href="${suggestion.targetUrl}" target="_blank">${suggestion.phraseToLink}</a>`);
+    }
+    return content;
+  };
+
+  const handleApplySuggestion = (suggestion: LinkSuggestion) => {
+    if (!post || typeof post.content !== 'string') return;
+    const newContent = applyLink(post.content, suggestion);
+    if (newContent !== post.content) {
+        setPost(p => p ? { ...p, content: newContent } : null);
+        toast({ title: "Enlace aplicado", description: `Se ha enlazado la frase "${suggestion.phraseToLink}".` });
+        setLinkSuggestions(prev => prev.filter(s => s.phraseToLink !== suggestion.phraseToLink || s.targetUrl !== suggestion.targetUrl));
+    } else {
+        toast({ title: "No se pudo aplicar", description: "No se encontró la frase exacta o ya estaba enlazada.", variant: "destructive" });
+    }
+  };
+
+  const handleApplyAllSuggestions = () => {
+     if (!post || typeof post.content !== 'string') return;
+     let updatedContent = post.content as string;
+     let appliedCount = 0;
+     for (const suggestion of linkSuggestions) {
+         const newContent = applyLink(updatedContent, suggestion);
+         if (newContent !== updatedContent) {
+             updatedContent = newContent;
+             appliedCount++;
+         }
+     }
+     if (appliedCount > 0) {
+        setPost(p => p ? { ...p, content: updatedContent } : null);
+        toast({ title: "Enlaces aplicados", description: `Se han aplicado ${appliedCount} sugerencias de enlaces.` });
+        setLinkSuggestions([]);
+     } else {
+        toast({ title: "No se aplicó nada", description: "No se encontraron frases o ya estaban enlazadas.", variant: "destructive" });
+     }
+  };
+
 
   if (isLoading) {
     return <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
@@ -153,54 +262,60 @@ function EditPageContent() {
               <CardHeader>
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                       <div>
-                          <CardTitle>Editor de Imágenes de Página</CardTitle>
-                          <CardDescription>Reemplaza las imágenes de: {post.title}</CardDescription>
+                          <CardTitle>Editor de Página</CardTitle>
+                          <CardDescription>Editando: {post.title}</CardDescription>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                          <Button variant="outline" onClick={() => router.back()}>
-                              <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+                          <Button variant="outline" onClick={() => router.push('/pages')}>
+                              <ArrowLeft className="mr-2 h-4 w-4" /> Volver a la lista
+                          </Button>
+                          <Button onClick={handleSaveChanges} disabled={isSaving || isSuggestingLinks}>
+                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                             <Save className="mr-2 h-4 w-4" />
+                            Guardar Cambios
                           </Button>
                       </div>
                   </div>
               </CardHeader>
           </Card>
           
-          <Card>
-              <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><ImageIcon className="h-5 w-5 text-primary" />Imágenes en el Contenido</CardTitle>
-                  <CardDescription>Esta es una lista de todas las imágenes encontradas en esta página. Puedes reemplazarlas una por una.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                  {contentImages.length > 0 ? (
-                      <div className="space-y-3">
-                          {contentImages.map((img) => (
-                              <div key={img.id} className="flex items-center gap-4 p-3 border rounded-lg bg-muted/30">
-                                  <div className="relative h-16 w-16 flex-shrink-0">
-                                      <NextImage src={img.src} alt={img.alt || 'Vista previa'} fill className="rounded-md object-cover" sizes="64px" />
-                                  </div>
-                                  <div className="flex-grow min-w-0">
-                                      <p className="text-sm font-medium text-foreground truncate" title={img.src}>...{img.src.slice(-50)}</p>
-                                      <p className="text-xs text-muted-foreground">Alt: <span className="italic">{img.alt || "(vacío)"}</span></p>
-                                      {img.width && img.height && (
-                                        <p className="text-xs text-muted-foreground">Tamaño: <span className="font-semibold">{img.width} x {img.height}px</span></p>
-                                      )}
-                                  </div>
-                                  <Button 
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => setReplaceDialogState({ open: true, oldImageSrc: img.src, newImageFile: null, originalWidth: img.width || '', originalHeight: img.height || '', mediaIdToDelete: img.mediaId, cropPosition: 'center', isCropEnabled: true })}
-                                  >
-                                      <Replace className="mr-2 h-4 w-4" />
-                                      Reemplazar
-                                  </Button>
-                              </div>
-                          ))}
-                      </div>
-                  ) : (
-                      <p className="text-center text-muted-foreground py-8">No se encontraron imágenes en el contenido de esta página.</p>
-                  )}
+          <div className="lg:col-span-2 space-y-6">
+            <Card>
+              <CardHeader><CardTitle>Contenido de la Página</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                    <Label htmlFor="title">Título</Label>
+                    <Input id="title" name="title" value={post.title} onChange={(e) => setPost(p => p ? {...p, title: e.target.value} : null)} />
+                </div>
+                {post.isElementor ? (
+                    <Alert>
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertTitle>Página de Elementor Detectada</AlertTitle>
+                        <AlertDescription>
+                            Para editar el contenido visual de esta página, debes usar el editor de Elementor. Editar el contenido HTML aquí podría romper el diseño.
+                            <Button asChild className="mt-3 block w-fit" size="sm">
+                                <Link href={post.elementorEditLink!} target="_blank" rel="noopener noreferrer">
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    Abrir con Elementor
+                                </Link>
+                            </Button>
+                        </AlertDescription>
+                    </Alert>
+                ) : (
+                  <div>
+                      <Label htmlFor="content">Contenido</Label>
+                      <RichTextEditor
+                        content={typeof post.content === 'string' ? post.content : ''}
+                        onChange={(newContent) => setPost(p => p ? { ...p, content: newContent } : null)}
+                        onInsertImage={() => {}}
+                        onSuggestLinks={handleSuggestLinks}
+                        placeholder="Escribe el contenido de tu página..."
+                      />
+                  </div>
+                )}
               </CardContent>
-          </Card>
+            </Card>
+          </div>
       </div>
 
        <AlertDialog open={replaceDialogState.open} onOpenChange={(open) => !isReplacing && setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, originalWidth: '', originalHeight: '', mediaIdToDelete: null, cropPosition: 'center', isCropEnabled: true })}>
@@ -255,6 +370,13 @@ function EditPageContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <LinkSuggestionsDialog
+          open={linkSuggestions.length > 0 && !isSuggestingLinks}
+          onOpenChange={(open) => { if (!open) setLinkSuggestions([]); }}
+          suggestions={linkSuggestions}
+          onApplySuggestion={handleApplySuggestion}
+          onApplyAll={handleApplyAllSuggestions}
+        />
     </>
   );
 }
