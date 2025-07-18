@@ -147,7 +147,7 @@ export function collectElementorTexts(elements: any[]): string[] {
  * Recursively traverses a deep copy of Elementor's data structure and replaces text content
  * with items from a mutable object of translated strings.
  * @param data A deep copy of the original 'elements' array or nested object/array.
- * @param translatedTexts A mutable array of translated strings.
+ * @param translatedTexts A mutable object of translated strings.
  * @returns The Elementor data structure with translated text.
  */
 export function replaceElementorTexts(data: any, widgetUpdates: { [widgetId: string]: string }): any {
@@ -565,49 +565,40 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
 
     if (Array.isArray(data)) {
         data.forEach(item => images.push(...findImageUrlsInElementor(item)));
-        return images;
-    }
-
-    if (typeof data === 'object') {
-        // Iterate over keys to find image objects
+    } else if (typeof data === 'object') {
         for (const key in data) {
-            // Check for standard image keys and also background images in sections/columns/etc.
-            if (key === 'image' || key.includes('background_image')) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
                 const value = data[key];
-                 if (typeof value === 'object' && value !== null && typeof value.url === 'string' && value.url) {
-                    const width = value.width || value.size?.width || null;
-                    const height = value.height || value.size?.height || null;
-                    images.push({ url: value.url, id: value.id || null, width, height });
-                 }
-            }
-             // Check for specific widgets that hold images in non-standard keys, like 'flip-box'
-            else if (data.widgetType === 'flip-box' && (key === 'background_a_image' || key === 'background_b_image')) {
-                const value = data[key];
-                if (typeof value === 'object' && value !== null && typeof value.url === 'string' && value.url) {
-                    images.push({ url: value.url, id: value.id || null, width: value.width || null, height: value.height || null });
+
+                if (typeof value === 'object' && value !== null) {
+                    if (typeof value.url === 'string' && value.url) {
+                        // This pattern covers `image`, `background_image`, `background_a_image`, `background_b_image`
+                        if (key.includes('image')) {
+                            const width = value.width || value.size?.width || null;
+                            const height = value.height || value.size?.height || null;
+                            images.push({ url: value.url, id: value.id || null, width, height });
+                        }
+                    }
+
+                    // Handle repeater widgets like 'slides'
+                    if (key === 'slides' && Array.isArray(value)) {
+                        value.forEach((slide: any) => {
+                            const slideImage = slide.image || slide.background_image;
+                            if (slideImage?.url) {
+                                const width = slideImage.width || slideImage.size?.width || null;
+                                const height = slideImage.height || slideImage.size?.height || null;
+                                images.push({ url: slideImage.url, id: slideImage.id || null, width, height });
+                            }
+                        });
+                    } else {
+                        // Recurse into other nested objects
+                        images.push(...findImageUrlsInElementor(value));
+                    }
                 }
-            }
-            // Check for repeater widgets like sliders or galleries
-            else if (key === 'slides' && Array.isArray(data[key])) {
-                data[key].forEach((slide: any) => {
-                     if (slide.background_image?.url) {
-                         const width = slide.background_image.width || slide.background_image.size?.width || null;
-                         const height = slide.background_image.height || slide.background_image.size?.height || null;
-                         images.push({ url: slide.background_image.url, id: slide.background_image.id || null, width, height });
-                     }
-                      if (slide.image?.url) {
-                         const width = slide.image.width || slide.image.size?.width || null;
-                         const height = slide.image.height || slide.image.size?.height || null;
-                         images.push({ url: slide.image.url, id: slide.image.id || null, width, height });
-                     }
-                });
-            }
-            // Recurse into other nested objects
-            else if (typeof data[key] === 'object' && data[key] !== null) {
-                images.push(...findImageUrlsInElementor(data[key]));
             }
         }
     }
+    
     // Return a unique set of images based on URL
     return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
