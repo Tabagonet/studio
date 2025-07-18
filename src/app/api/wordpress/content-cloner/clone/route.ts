@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
                         const translateResponse = await fetch(`${baseUrl}/api/translate`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                            body: JSON.stringify({ contentToTranslate, targetLanguage: target_lang_name }),
+                            body: JSON.stringify({ contentToTranslate: textsToTranslate, targetLanguage: target_lang_name }),
                         });
                         if (!translateResponse.ok) throw new Error(`AI translation failed for clone of ${original_id}`);
                         const translated = await translateResponse.json();
