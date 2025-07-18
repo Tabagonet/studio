@@ -95,10 +95,11 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
   }, [data, scores]);
 
   const handleEditContent = (item: ContentItem) => {
-    const editPath = item.type === 'Page' ? `/pages/edit/${item.id}` : 
-                     item.type === 'Post' ? `/blog/edit/${item.id}` :
-                     `/products/edit/${item.id}`;
-    router.push(editPath);
+    router.push(`/pages/edit/${item.id}?type=${item.type}`);
+  };
+  
+  const handleEditImages = (item: ContentItem) => {
+    router.push(`/pages/edit-images?ids=${item.id}&type=${item.type}`);
   };
 
   const handleDeleteContent = async (item: ContentItem) => {
@@ -120,7 +121,7 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
     }
   };
 
-  const columns = React.useMemo(() => getColumns(handleEditContent, handleDeleteContent), [scores]); // eslint-disable-line react-hooks/exhaustive-deps
+  const columns = React.useMemo(() => getColumns(handleEditContent, handleDeleteContent, handleEditImages), [scores]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const table = useReactTable({
     data: tableData,
@@ -212,7 +213,7 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
   
   const selectedRowCount = Object.keys(rowSelection).length;
   
-  const handleEditImages = () => {
+  const handleBatchEditImages = () => {
     const selectedIds = table.getSelectedRowModel().rows.map(row => row.original.id);
     const postType = table.getSelectedRowModel().rows[0]?.original.type || 'Page'; // Assume all are same type for now
     router.push(`/pages/edit-images?ids=${selectedIds.join(',')}&type=${postType}`);
@@ -273,7 +274,7 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Acciones en Lote</DropdownMenuLabel>
-               <DropdownMenuItem onSelect={handleEditImages}>
+               <DropdownMenuItem onSelect={handleBatchEditImages}>
                 <ImageIcon className="mr-2 h-4 w-4" /> Editar Imágenes
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={handleBatchSeoMeta}>
