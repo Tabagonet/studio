@@ -115,12 +115,11 @@ function collectElementorTextsRecursive(data: any, texts: string[]): void {
     }
 
     if (typeof data === 'object') {
+        // Keys for standard widgets and specific theme widgets like 'flip-box'
         const keysToTranslate = [
             'title', 'editor', 'text', 'button_text', 'header_title', 'header_subtitle',
             'description', 'cta_text', 'label', 'placeholder', 'heading', 'sub_heading',
-            'alert_title', 'alert_description',
-            // Added based on user's JSON from theme "The7" and "flip-box" widget
-            'title_text', 'description_text', 'list_title',
+            'alert_title', 'alert_description', 'title_text', 'description_text',
             'title_text_a', 'description_text_a', 'title_text_b', 'description_text_b'
         ];
 
@@ -552,4 +551,63 @@ export function replaceImageUrlInElementor(data: any, oldUrl: string, newUrl: st
 
     const newData = traverse(data);
     return { replaced, data: newData };
+}
+
+
+/**
+ * Recursively finds image URLs and their context in Elementor JSON data.
+ * @param {any} data The Elementor data (elements array, section, column, etc.).
+ * @returns {Array} An array of objects, each containing the image URL, ID, width, and height.
+ */
+export function findImageUrlsInElementor(data: any): { url: string; id: number | null, width: number | null, height: number | null }[] {
+    const images: { url: string; id: number | null, width: number | null, height: number | null }[] = [];
+    if (!data) return images;
+
+    if (Array.isArray(data)) {
+        data.forEach(item => images.push(...findImageUrlsInElementor(item)));
+        return images;
+    }
+
+    if (typeof data === 'object') {
+        // Iterate over keys to find image objects
+        for (const key in data) {
+            // Check for standard image keys and also background images in sections/columns/etc.
+            if (key === 'image' || key.includes('background_image')) {
+                const value = data[key];
+                 if (typeof value === 'object' && value !== null && typeof value.url === 'string' && value.url) {
+                    const width = value.width || value.size?.width || null;
+                    const height = value.height || value.size?.height || null;
+                    images.push({ url: value.url, id: value.id || null, width, height });
+                 }
+            }
+             // Check for specific widgets that hold images in non-standard keys, like 'flip-box'
+            else if (data.widgetType === 'flip-box' && (key === 'background_a_image' || key === 'background_b_image')) {
+                const value = data[key];
+                if (typeof value === 'object' && value !== null && typeof value.url === 'string' && value.url) {
+                    images.push({ url: value.url, id: value.id || null, width: value.width || null, height: value.height || null });
+                }
+            }
+            // Check for repeater widgets like sliders or galleries
+            else if (key === 'slides' && Array.isArray(data[key])) {
+                data[key].forEach((slide: any) => {
+                     if (slide.background_image?.url) {
+                         const width = slide.background_image.width || slide.background_image.size?.width || null;
+                         const height = slide.background_image.height || slide.background_image.size?.height || null;
+                         images.push({ url: slide.background_image.url, id: slide.background_image.id || null, width, height });
+                     }
+                      if (slide.image?.url) {
+                         const width = slide.image.width || slide.image.size?.width || null;
+                         const height = slide.image.height || slide.image.size?.height || null;
+                         images.push({ url: slide.image.url, id: slide.image.id || null, width, height });
+                     }
+                });
+            }
+            // Recurse into other nested objects
+            else if (typeof data[key] === 'object' && data[key] !== null) {
+                images.push(...findImageUrlsInElementor(data[key]));
+            }
+        }
+    }
+    // Return a unique set of images based on URL
+    return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
