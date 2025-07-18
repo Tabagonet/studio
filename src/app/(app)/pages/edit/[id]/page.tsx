@@ -4,7 +4,7 @@
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, ArrowLeft, Save, Edit } from 'lucide-react';
@@ -17,6 +17,7 @@ import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { SeoAnalyzer } from '@/components/features/seo/seo-analyzer';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export interface PostEditState {
   title: string;
@@ -33,6 +34,7 @@ export interface PostEditState {
       _yoast_wpseo_focuskw: string;
   };
   featuredImageUrl?: string | null;
+  translations?: Record<string, number>;
 }
 
 
@@ -56,6 +58,10 @@ function EditPageContent() {
   const [editingWidget, setEditingWidget] = useState<ExtractedWidget | null>(null);
   const [widgetEditorContent, setWidgetEditorContent] = useState('');
   
+  // State for content sync
+  const [syncFullContent, setSyncFullContent] = useState(false);
+
+
   const fetchInitialData = useCallback(async () => {
     setIsLoading(true); setError(null);
     const user = auth.currentUser;
@@ -64,7 +70,6 @@ function EditPageContent() {
 
     try {
       const token = await user.getIdToken();
-      // This is a simplified fetch, you might need a more robust one
       const apiPath = `/api/wordpress/pages/${postId}`; 
       
       const postResponse = await fetch(`${apiPath}?context=edit&bust=${new Date().getTime()}`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
@@ -87,6 +92,7 @@ function EditPageContent() {
             _yoast_wpseo_focuskw: postData.meta?._yoast_wpseo_focuskw || '',
         },
         featuredImageUrl: postData.featured_image_url || null,
+        translations: postData.translations || {},
       };
       
       if (postData.isElementor && Array.isArray(postData.content.rendered)) {
@@ -137,6 +143,31 @@ function EditPageContent() {
         }
         
         toast({ title: '¡Página guardada!', description: 'El contenido de la página ha sido actualizado.' });
+
+        if (syncFullContent && post.translations && Object.keys(post.translations).length > 1 && typeof post.content === 'string') {
+            toast({ title: "Sincronizando contenido...", description: "Traduciendo y actualizando el contenido en las otras versiones. Esto puede tardar." });
+            
+            const syncPayload = {
+                sourcePostId: postId,
+                postType: 'Page',
+                translations: post.translations,
+                title: post.title,
+                content: post.content,
+            };
+            
+            fetch('/api/blog/sync-full-content', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(syncPayload)
+            }).then(async (syncResponse) => {
+                const syncResult = await syncResponse.json();
+                if (syncResponse.ok) {
+                    toast({ title: "Sincronización de contenido completada", description: syncResult.message });
+                } else {
+                     toast({ title: "Error en la sincronización de contenido", description: syncResult.message || "No se pudo actualizar todas las traducciones.", variant: "destructive" });
+                }
+            });
+        }
         
     } catch (e: any) {
         toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
@@ -208,7 +239,7 @@ function EditPageContent() {
                     <Alert>
                         <AlertTitle>Página de Elementor Detectada</AlertTitle>
                         <AlertDescription className="space-y-2">
-                            Para editar el contenido visual de esta página, debes usar el editor de Elementor. Editar el contenido HTML aquí podría romper el diseño.
+                            Para editar el contenido visual de esta página, debes usar el editor de Elementor. Puedes editar los textos de forma individual desde la lista de abajo.
                             <Button asChild className="mt-3 block w-fit" size="sm">
                                 <Link href={post.elementorEditLink!} target="_blank" rel="noopener noreferrer">
                                     <Edit className="mr-2 h-4 w-4" />
@@ -241,6 +272,20 @@ function EditPageContent() {
                     />
                 </div>
                 ) : null}
+
+                 {post.translations && Object.keys(post.translations).length > 1 && typeof post.content === 'string' && (
+                  <div className="flex items-start space-x-2 pt-4 border-t">
+                      <Checkbox id="sync-full-content" checked={syncFullContent} onCheckedChange={(checked) => setSyncFullContent(!!checked)} />
+                      <div className="grid gap-1.5 leading-none">
+                          <Label htmlFor="sync-full-content" className="font-normal text-sm cursor-pointer">
+                              Sincronizar y sobrescribir contenido en todas las traducciones
+                          </Label>
+                          <p className="text-xs text-destructive">
+                              ¡Atención! Esto reemplazará el título y el contenido de todas las traducciones con una nueva versión traducida de esta página. Esta opción no está disponible para páginas de Elementor.
+                          </p>
+                      </div>
+                  </div>
+                )}
             </CardContent>
             </Card>
             <SeoAnalyzer 
@@ -290,4 +335,3 @@ export default function EditPage() {
         </Suspense>
     )
 }
-

@@ -50,8 +50,7 @@ export async function POST(req: NextRequest) {
             success: [] as string[],
             failed: [] as { lang: string; reason: string }[],
         };
-
-        // Get the base URL for internal fetch calls
+        
         const baseUrl = req.nextUrl.origin;
 
         for (const [lang, postId] of Object.entries(translations)) {
