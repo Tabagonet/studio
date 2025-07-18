@@ -1,3 +1,4 @@
+
 // This is a new file for the batch image editor.
 "use client";
 
@@ -8,13 +9,15 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowLeft, Image as ImageIcon, Replace } from 'lucide-react';
+import { Loader2, ArrowLeft, Image as ImageIcon, Replace, Crop } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import NextImage from 'next/image';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import type { ContentImage } from '@/lib/types';
+import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 interface GroupedContent {
   id: number;
@@ -28,6 +31,11 @@ interface ReplaceImageDialogState {
     newImageFile: File | null;
     postId: number | null;
     postType: string | null;
+    originalWidth: number | string;
+    originalHeight: number | string;
+    mediaIdToDelete: number | null;
+    cropPosition: "center" | "top" | "bottom" | "left" | "right";
+    isCropEnabled: boolean;
 }
 
 function BatchImageEditor() {
@@ -41,7 +49,8 @@ function BatchImageEditor() {
     const [isReplacing, setIsReplacing] = useState(false);
     
     const [replaceDialogState, setReplaceDialogState] = useState<ReplaceImageDialogState>({
-        open: false, oldImageSrc: null, newImageFile: null, postId: null, postType: null
+        open: false, oldImageSrc: null, newImageFile: null, postId: null, postType: null,
+        originalWidth: '', originalHeight: '', mediaIdToDelete: null, cropPosition: 'center', isCropEnabled: true
     });
 
     const ids = searchParams.get('ids');
@@ -84,7 +93,7 @@ function BatchImageEditor() {
     }, [fetchBatchData]);
     
     const handleReplaceImage = async () => {
-        const { oldImageSrc, newImageFile, postId, postType } = replaceDialogState;
+        const { oldImageSrc, newImageFile, postId, postType, originalWidth, originalHeight, mediaIdToDelete, cropPosition, isCropEnabled } = replaceDialogState;
         if (!oldImageSrc || !newImageFile || !postId || !postType) {
             toast({ title: 'Error', description: 'Faltan datos para reemplazar la imagen.', variant: 'destructive' });
             return;
@@ -99,6 +108,15 @@ function BatchImageEditor() {
             formData.append('postId', postId.toString());
             formData.append('postType', postType);
             formData.append('oldImageUrl', oldImageSrc);
+            
+            // Append crop data ONLY if the checkbox is enabled
+            if (isCropEnabled) {
+              if (originalWidth) formData.append('width', String(originalWidth));
+              if (originalHeight) formData.append('height', String(originalHeight));
+              formData.append('cropPosition', cropPosition);
+            }
+            
+            if (mediaIdToDelete) formData.append('mediaIdToDelete', String(mediaIdToDelete));
             
             const response = await fetch('/api/wordpress/replace-image', {
                 method: 'POST',
@@ -120,7 +138,7 @@ function BatchImageEditor() {
             }));
             
             toast({ title: 'Imagen Reemplazada', description: 'La imagen ha sido actualizada.' });
-            setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, postId: null, postType: null });
+            setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, postId: null, postType: null, originalWidth: '', originalHeight: '', mediaIdToDelete: null, cropPosition: 'center', isCropEnabled: true });
         } catch (error: any) {
             toast({ title: 'Error al reemplazar', description: error.message, variant: 'destructive' });
         } finally {
@@ -157,12 +175,13 @@ function BatchImageEditor() {
                                                 </div>
                                                 <div className="flex-grow min-w-0">
                                                     <p className="text-sm font-medium text-foreground truncate" title={img.src}>...{img.src.slice(-50)}</p>
-                                                    <p className="text-xs text-muted-foreground">Alt: <span className="italic">{img.alt || "(vacío)"}</span></p>
+                                                     <p className="text-xs text-muted-foreground">Alt: <span className="italic">{img.alt || "(vacío)"}</span></p>
+                                                     <p className="text-xs text-muted-foreground">Tamaño: <span className="font-mono">{img.width && img.height ? `${img.width}x${img.height}px` : 'N/A'}</span></p>
                                                 </div>
                                                 <Button 
                                                     size="sm"
                                                     variant="outline"
-                                                    onClick={() => setReplaceDialogState({ open: true, oldImageSrc: img.src, newImageFile: null, postId: group.id, postType: type })}
+                                                    onClick={() => setReplaceDialogState({ open: true, oldImageSrc: img.src, newImageFile: null, postId: group.id, postType: type, originalWidth: img.width || '', originalHeight: img.height || '', mediaIdToDelete: img.mediaId, cropPosition: 'center', isCropEnabled: true })}
                                                 >
                                                     <Replace className="mr-2 h-4 w-4" />
                                                     Reemplazar
@@ -178,23 +197,55 @@ function BatchImageEditor() {
                     ))}
                 </div>
             </ScrollArea>
-             <AlertDialog open={replaceDialogState.open} onOpenChange={(open) => !isReplacing && setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, postId: null, postType: null })}>
+             <AlertDialog open={replaceDialogState.open} onOpenChange={(open) => !isReplacing && setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null, postId: null, postType: null, originalWidth: '', originalHeight: '', mediaIdToDelete: null, cropPosition: 'center', isCropEnabled: true })}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Reemplazar Imagen</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Sube una nueva imagen para reemplazar la imagen actual.
+                            Sube una nueva imagen para reemplazar la actual. La antigua será eliminada de la biblioteca de medios.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <div className="py-4">
+                     <div className="py-4 space-y-4">
+                        <div>
                         <Label htmlFor="new-image-upload">Nueva Imagen</Label>
-                        <Input id="new-image-upload" type="file" accept="image/*" onChange={(e) => setReplaceDialogState(s => ({ ...s, newImageFile: e.target.files?.[0] || null }))} />
+                        <Input id="new-image-upload" type="file" accept="image/*" onChange={(e) => setReplaceDialogState(s => ({ ...s, newImageFile: e.target.files?.[0] || null }))} disabled={isReplacing} />
+                        </div>
+                        
+                        <div className="space-y-3 pt-4 border-t">
+                            <div className="flex items-center space-x-2">
+                                <Checkbox id="enable-crop" checked={replaceDialogState.isCropEnabled} onCheckedChange={(checked) => setReplaceDialogState(s => ({ ...s, isCropEnabled: !!checked }))} disabled={isReplacing}/>
+                                <Label htmlFor="enable-crop" className="flex items-center gap-2 font-semibold cursor-pointer"><Crop className="h-4 w-4"/>Recortar imagen</Label>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1 pl-6">Si se desactiva, la imagen se subirá con sus dimensiones originales, solo se aplicará compresión.</p>
+
+                            <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <Label htmlFor="img-width">Ancho (px)</Label>
+                                <Input id="img-width" type="number" value={replaceDialogState.originalWidth} onChange={(e) => setReplaceDialogState(s => ({ ...s, originalWidth: e.target.value }))} placeholder="Auto" disabled={isReplacing || !replaceDialogState.isCropEnabled}/>
+                            </div>
+                            <div>
+                                <Label htmlFor="img-height">Alto (px)</Label>
+                                <Input id="img-height" type="number" value={replaceDialogState.originalHeight} onChange={(e) => setReplaceDialogState(s => ({ ...s, originalHeight: e.target.value }))} placeholder="Auto" disabled={isReplacing || !replaceDialogState.isCropEnabled}/>
+                            </div>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">La nueva imagen se recortará a estas dimensiones. Déjalos en blanco para usar las dimensiones de la imagen antigua.</p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Enfoque del Recorte</Label>
+                            <RadioGroup defaultValue="center" value={replaceDialogState.cropPosition} onValueChange={(value) => setReplaceDialogState(s => ({ ...s, cropPosition: value as any }))} className="flex flex-wrap gap-x-4 gap-y-2" disabled={isReplacing || !replaceDialogState.isCropEnabled}>
+                                <div className="flex items-center space-x-2"><RadioGroupItem value="center" id="crop-center" /><Label htmlFor="crop-center" className="font-normal">Centro</Label></div>
+                                <div className="flex items-center space-x-2"><RadioGroupItem value="top" id="crop-top" /><Label htmlFor="crop-top" className="font-normal">Arriba</Label></div>
+                                <div className="flex items-center space-x-2"><RadioGroupItem value="bottom" id="crop-bottom" /><Label htmlFor="crop-bottom" className="font-normal">Abajo</Label></div>
+                                <div className="flex items-center space-x-2"><RadioGroupItem value="left" id="crop-left" /><Label htmlFor="crop-left" className="font-normal">Izquierda</Label></div>
+                                <div className="flex items-center space-x-2"><RadioGroupItem value="right" id="crop-right" /><Label htmlFor="crop-right" className="font-normal">Derecha</Label></div>
+                            </RadioGroup>
+                        </div>
                     </div>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogCancel onClick={() => { if (!isReplacing) setReplaceDialogState({ ...replaceDialogState, open: false }) }} disabled={isReplacing}>Cancelar</AlertDialogCancel>
                         <AlertDialogAction onClick={handleReplaceImage} disabled={isReplacing || !replaceDialogState.newImageFile}>
                         {isReplacing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Reemplazar
+                        {isReplacing ? 'Procesando...' : 'Reemplazar'}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

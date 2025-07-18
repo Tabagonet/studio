@@ -44,7 +44,6 @@ export async function POST(req: NextRequest) {
         const mediaIdToDelete = formData.get('mediaIdToDelete') ? Number(formData.get('mediaIdToDelete')) : null;
         const cropPosition = formData.get('cropPosition') as "center" | "top" | "bottom" | "left" | "right" || "center";
         
-        // This is the new flag from the checkbox
         const isCropEnabled = (width !== null && width > 0) || (height !== null && height > 0);
 
 

@@ -10,8 +10,8 @@ import type { ExtractedWidget } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
-function findImageUrlsInElementor(data: any): { url: string; id: number | null }[] {
-    const images: { url: string; id: number | null }[] = [];
+function findImageUrlsInElementor(data: any): { url: string; id: number | null, width: number | null, height: number | null }[] {
+    const images: { url: string; id: number | null, width: number | null, height: number | null }[] = [];
     if (!data) return images;
 
     if (Array.isArray(data)) {
@@ -25,17 +25,23 @@ function findImageUrlsInElementor(data: any): { url: string; id: number | null }
             if (key === 'background_image' || key === 'image') {
                 const value = data[key];
                  if (typeof value === 'object' && value !== null && typeof value.url === 'string' && value.url) {
-                    images.push({ url: value.url, id: value.id || null });
+                    const width = value.width || value.size?.width || null;
+                    const height = value.height || value.size?.height || null;
+                    images.push({ url: value.url, id: value.id || null, width, height });
                  }
             }
             // Sliders, galleries, and other repeater widgets
             else if (key === 'slides' && Array.isArray(data[key])) {
                 data[key].forEach((slide: any) => {
                      if (slide.background_image?.url) {
-                         images.push({ url: slide.background_image.url, id: slide.background_image.id || null });
+                         const width = slide.background_image.width || slide.background_image.size?.width || null;
+                         const height = slide.background_image.height || slide.background_image.size?.height || null;
+                         images.push({ url: slide.background_image.url, id: slide.background_image.id || null, width, height });
                      }
                       if (slide.image?.url) {
-                         images.push({ url: slide.image.url, id: slide.image.id || null });
+                         const width = slide.image.width || slide.image.size?.width || null;
+                         const height = slide.image.height || slide.image.size?.height || null;
+                         images.push({ url: slide.image.url, id: slide.image.id || null, width, height });
                      }
                 });
             }
@@ -74,23 +80,28 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
                 id: imgData.url, // Use url as unique key for frontend
                 src: imgData.url,
                 alt: '', // Will be fetched if media id is available
-                mediaId: imgData.id
+                mediaId: imgData.id,
+                width: imgData.width,
+                height: imgData.height,
             }));
 
             const mediaIdsToFetch = imageUrlsData.map(img => img.id).filter((id): id is number => id !== null);
             if (mediaIdsToFetch.length > 0) {
                 try {
                     const mediaResponse = await wpApi.get('/media', {
-                        params: { include: [...new Set(mediaIdsToFetch)].join(','), per_page: 100, _fields: 'id,alt_text,source_url' }
+                        params: { include: [...new Set(mediaIdsToFetch)].join(','), per_page: 100, _fields: 'id,alt_text,source_url,media_details' }
                     });
                     if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
-                        const mediaDataMap = new Map<number, string>();
+                        const mediaDataMap = new Map<number, any>();
                         mediaResponse.data.forEach((mediaItem: any) => {
-                            mediaDataMap.set(mediaItem.id, mediaItem.alt_text);
+                            mediaDataMap.set(mediaItem.id, mediaItem);
                         });
                         scrapedImages.forEach(img => {
                             if (img.mediaId && mediaDataMap.has(img.mediaId)) {
-                                img.alt = mediaDataMap.get(img.mediaId) || '';
+                                const mediaItem = mediaDataMap.get(img.mediaId);
+                                img.alt = mediaItem.alt_text || '';
+                                img.width = img.width || mediaItem.media_details?.width || null;
+                                img.height = img.height || mediaItem.media_details?.height || null;
                             }
                         });
                     }
@@ -119,11 +130,13 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
 
                 if (foundImageIds.size > 0) {
                      const mediaResponse = await wpApi.get('/media', {
-                        params: { include: Array.from(foundImageIds).join(','), per_page: 100, _fields: 'id,alt_text,source_url' }
+                        params: { include: Array.from(foundImageIds).join(','), per_page: 100, _fields: 'id,alt_text,source_url,media_details' }
                     });
                     if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
                          scrapedImages = mediaResponse.data.map((item: any) => ({
                             id: item.source_url, src: item.source_url, alt: item.alt_text || '', mediaId: item.id,
+                            width: item.media_details?.width || null,
+                            height: item.media_details?.height || null,
                         }));
                     }
                 }
