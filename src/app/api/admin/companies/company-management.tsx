@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -183,7 +184,7 @@ export function CompanyManagement() {
                                 </TableCell>
                                 <TableCell className="text-right">
                                     <div className="flex items-center justify-end gap-2">
-                                        <Link href={`/settings/connections?companyId=${company.id}`} className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }))}>
+                                        <Link href={`/settings/company?companyId=${company.id}`} className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }))}>
                                            <Edit className="h-4 w-4" />
                                         </Link>
                                         <AlertDialog>

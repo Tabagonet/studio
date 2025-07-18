@@ -362,8 +362,12 @@ export function BlogDataTable() {
     }
   };
 
+  const handleEditImages = (postId: number) => {
+    router.push(`/pages/edit-images?ids=${postId}&type=Post`);
+  };
 
-  const columns = React.useMemo(() => getColumns(handleStatusUpdate, handleEditPost, handleDeletePost, handleCategoryUpdate, categoryTree.map(item => item.category)), [handleStatusUpdate, handleEditPost, handleDeletePost, handleCategoryUpdate, categoryTree]);
+
+  const columns = React.useMemo(() => getColumns(handleStatusUpdate, handleEditPost, handleDeletePost, handleCategoryUpdate, handleEditImages, categoryTree.map(item => item.category)), [handleStatusUpdate, handleEditPost, handleDeletePost, handleCategoryUpdate, handleEditImages, categoryTree]);
 
   const table = useReactTable({
     data,
@@ -547,7 +551,7 @@ export function BlogDataTable() {
     table.resetRowSelection();
   };
   
-  const handleEditImages = () => {
+  const handleBatchEditImages = () => {
     const selectedIds = table.getSelectedRowModel().rows.map(row => row.original.id);
     router.push(`/pages/edit-images?ids=${selectedIds.join(',')}&type=Post`);
   };
@@ -626,7 +630,7 @@ export function BlogDataTable() {
               <DropdownMenuItem onSelect={() => setIsCategoryDialogOpen(true)}>
                   <Tags className="mr-2 h-4 w-4" /> Cambiar Categoría
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={handleEditImages}>
+              <DropdownMenuItem onSelect={handleBatchEditImages}>
                 <ImageIcon className="mr-2 h-4 w-4" /> Editar Imágenes
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={handleBatchSeoMeta}>
