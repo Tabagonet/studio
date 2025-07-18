@@ -66,13 +66,21 @@ function extractHeadingsRecursive(elements: any[], widgets: ExtractedWidget[]): 
     if (!elements || !Array.isArray(elements)) return;
 
     for (const element of elements) {
-        if (element.elType === 'widget' && element.widgetType === 'heading' && element.settings?.title) {
-            widgets.push({
-                id: element.id,
-                tag: element.settings.header_size || 'h2',
-                text: element.settings.title,
-                type: 'heading', // Added for clarity on the frontend
-            });
+        if (element.elType === 'widget') {
+             if (element.widgetType === 'heading' && element.settings?.title) {
+                widgets.push({
+                    id: element.id,
+                    tag: element.settings.header_size || 'h2',
+                    text: element.settings.title,
+                    type: 'heading',
+                });
+            } else if (element.widgetType === 'text-editor' && element.settings?.editor) {
+                 widgets.push({
+                    id: element.id,
+                    text: element.settings.editor,
+                    type: 'text-editor',
+                });
+            }
         }
         
         if (element.elements && element.elements.length > 0) {
@@ -139,50 +147,40 @@ export function collectElementorTexts(elements: any[]): string[] {
 
 /**
  * Recursively traverses a deep copy of Elementor's data structure and replaces text content
- * with items from an array of translated strings.
+ * with items from a mutable object of translated strings.
  * @param data A deep copy of the original 'elements' array or nested object/array.
  * @param translatedTexts A mutable array of translated strings.
  * @returns The Elementor data structure with translated text.
  */
-function replaceElementorTextsRecursive(data: any, translatedTexts: string[]): any {
+export function replaceElementorTexts(data: any, widgetUpdates: { [widgetId: string]: string }): any {
     if (!data) return data;
 
-    if (Array.isArray(data)) {
-        return data.map(item => replaceElementorTextsRecursive(item, translatedTexts));
-    }
+    function traverse(elements: any[]): any[] {
+        return elements.map(element => {
+            if (!element || typeof element !== 'object') return element;
 
-    if (typeof data === 'object') {
-        const newData = { ...data };
-        const keysToTranslate = [
-            'title', 'editor', 'text', 'button_text', 'header_title', 'header_subtitle',
-            'description', 'cta_text', 'label', 'placeholder', 'heading', 'sub_heading',
-            'alert_title', 'alert_description',
-            // Added based on user's JSON from theme "The7"
-            'title_text', 'description_text', 'list_title'
-        ];
+            const newElement = { ...element };
 
-        for (const key in newData) {
-            if (Object.prototype.hasOwnProperty.call(newData, key)) {
-                const value = newData[key];
-
-                if (keysToTranslate.includes(key) && typeof value === 'string' && value.trim() !== '') {
-                    if (translatedTexts.length > 0) {
-                        newData[key] = translatedTexts.shift();
-                    }
-                } else if (typeof value === 'object' && value !== null) {
-                    newData[key] = replaceElementorTextsRecursive(value, translatedTexts);
+            // If this element is a widget we need to update, replace its text
+            if (newElement.elType === 'widget' && widgetUpdates[newElement.id]) {
+                const newText = widgetUpdates[newElement.id];
+                if (newElement.widgetType === 'heading' && newElement.settings) {
+                    newElement.settings = { ...newElement.settings, title: newText };
+                } else if (newElement.widgetType === 'text-editor' && newElement.settings) {
+                    newElement.settings = { ...newElement.settings, editor: newText };
                 }
             }
-        }
-        return newData;
+
+            // Recurse into nested elements
+            if (newElement.elements && Array.isArray(newElement.elements)) {
+                newElement.elements = traverse(newElement.elements);
+            }
+
+            return newElement;
+        });
     }
 
-    return data;
-}
-
-export function replaceElementorTexts(elementorData: any, translatedTexts: string[]): any {
-  if (!elementorData || !Array.isArray(elementorData)) return elementorData;
-  return replaceElementorTextsRecursive(elementorData, translatedTexts);
+    return traverse(data);
 }
 
 

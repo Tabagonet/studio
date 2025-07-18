@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress, extractElementorHeadings } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress, extractElementorHeadings, replaceElementorTexts } from '@/lib/api-helpers';
 import { z } from 'zod';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
@@ -15,6 +15,10 @@ const slugify = (text: string) => {
 const pageUpdateSchema = z.object({
     title: z.string().optional(),
     content: z.string().optional(),
+    elementorWidgets: z.array(z.object({
+        id: z.string(),
+        text: z.string(),
+    })).optional(),
     status: z.enum(['publish', 'draft', 'pending', 'private', 'future']).optional(),
     author: z.number().optional().nullable(),
     featured_media: z.number().optional().nullable(),
@@ -135,6 +139,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
                 const scrapeResponse = await axios.get(pageLink, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36', 'Cache-Control': 'no-cache' } });
                 const html = scrapeResponse.data;
                 const $ = cheerio.load(html);
+                
                 const $contentArea = $('main').length ? $('main') : $('article').length ? $('article') : $('body');
                 $contentArea.find('header, footer, nav').remove();
 
@@ -214,7 +219,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const validation = pageUpdateSchema.safeParse(body);
     if (!validation.success) return NextResponse.json({ error: 'Invalid data.', details: validation.error.flatten() }, { status: 400 });
     
-    const { featured_image_src, featured_image_metadata, image_alt_updates, ...pagePayload } = validation.data;
+    const { featured_image_src, featured_image_metadata, image_alt_updates, elementorWidgets, ...pagePayload } = validation.data;
     
     if (featured_image_src) {
         const seoFilename = `${slugify(pagePayload.title || 'page')}-${pageId}.jpg`;
@@ -229,6 +234,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             },
             wpApi
         );
+    }
+    
+    if (elementorWidgets) {
+        const { data: currentPageData } = await wpApi.get(`/pages/${pageId}`, { params: { context: 'edit' } });
+        const currentElementorData = JSON.parse(currentPageData.meta?._elementor_data || '[]');
+        
+        let newElementorData = JSON.parse(JSON.stringify(currentElementorData));
+        for (const widgetUpdate of elementorWidgets) {
+            newElementorData = replaceElementorTexts(newElementorData, { [widgetUpdate.id]: widgetUpdate.text });
+        }
+        (pagePayload as any).meta = { ...(pagePayload.meta || {}), _elementor_data: JSON.stringify(newElementorData) };
     }
     
     const response = await wpApi.post(`/pages/${pageId}`, pagePayload);

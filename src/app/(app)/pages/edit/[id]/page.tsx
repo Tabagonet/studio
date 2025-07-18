@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
@@ -70,6 +69,10 @@ function EditPageContent() {
   const [isSuggestingLinks, setIsSuggestingLinks] = useState(false);
   const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>([]);
   const [applyAiMetaToFeatured, setApplyAiMetaToFeatured] = useState(true);
+
+  // State for Elementor inline text editing
+  const [editingWidget, setEditingWidget] = useState<ExtractedWidget | null>(null);
+  const [widgetEditorContent, setWidgetEditorContent] = useState('');
   
   const fetchInitialData = useCallback(async () => {
     setIsLoading(true); setError(null);
@@ -130,6 +133,7 @@ function EditPageContent() {
         const payload: any = {
             title: post.title,
             content: typeof post.content === 'string' ? post.content : undefined,
+            elementorWidgets: Array.isArray(post.content) ? post.content : undefined,
             meta: post.meta,
         };
         
@@ -263,6 +267,22 @@ function EditPageContent() {
         toast({ title: "No se aplicó nada", description: "No se encontraron frases o ya estaban enlazadas.", variant: "destructive" });
      }
   };
+  
+  const handleOpenWidgetEditor = (widget: ExtractedWidget) => {
+      setEditingWidget(widget);
+      setWidgetEditorContent(widget.text);
+  };
+  
+  const handleSaveWidgetContent = () => {
+    if (!post || !editingWidget || !Array.isArray(post.content)) return;
+    const newContent = post.content.map(w => 
+        w.id === editingWidget.id ? { ...w, text: widgetEditorContent } : w
+    );
+    setPost({ ...post, content: newContent });
+    setEditingWidget(null);
+    setWidgetEditorContent('');
+    toast({ title: 'Texto actualizado', description: 'El fragmento ha sido actualizado. Recuerda guardar los cambios generales.' });
+  };
 
 
   if (isLoading) {
@@ -306,19 +326,33 @@ function EditPageContent() {
                     <Input id="title" name="title" value={post.title} onChange={(e) => setPost(p => p ? {...p, title: e.target.value} : null)} />
                 </div>
                 {post.isElementor ? (
+                  <div>
                     <Alert>
                         <AlertTriangle className="h-4 w-4" />
                         <AlertTitle>Página de Elementor Detectada</AlertTitle>
                         <AlertDescription>
-                            Para editar el contenido visual de esta página, debes usar el editor de Elementor. Editar el contenido HTML aquí podría romper el diseño.
-                            <Button asChild className="mt-3 block w-fit" size="sm">
+                            Para editar el diseño visual, debes usar Elementor. Puedes editar los textos de los widgets de forma individual desde la lista de abajo, o
+                            <Button asChild className="ml-1 p-0 h-auto" variant="link">
                                 <Link href={post.elementorEditLink!} target="_blank" rel="noopener noreferrer">
-                                    <Edit className="mr-2 h-4 w-4" />
-                                    Abrir con Elementor
+                                    abrir el editor de Elementor
                                 </Link>
                             </Button>
+                             para cambios de diseño.
                         </AlertDescription>
                     </Alert>
+                     <div className="mt-4 space-y-2">
+                        <Label>Widgets de Texto Encontrados</Label>
+                        {(post.content as ExtractedWidget[]).map((widget) => (
+                          <div key={widget.id} className="flex items-center gap-2 p-2 border rounded-md bg-muted/50">
+                            <Badge variant="outline" className="capitalize">{widget.tag}</Badge>
+                            <p className="flex-1 text-sm text-muted-foreground truncate" dangerouslySetInnerHTML={{ __html: widget.text }} />
+                            <Button size="sm" variant="ghost" onClick={() => handleOpenWidgetEditor(widget)}>
+                               <Edit className="h-4 w-4 mr-2"/> Editar
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                  </div>
                 ) : typeof post.content === 'string' ? (
                 <div>
                     <Label htmlFor="content">Contenido</Label>
@@ -407,6 +441,28 @@ function EditPageContent() {
           onApplySuggestion={handleApplySuggestion}
           onApplyAll={handleApplyAllSuggestions}
         />
+        {/* Dialog for editing Elementor widget text */}
+        <Dialog open={!!editingWidget} onOpenChange={(open) => !open && setEditingWidget(null)}>
+            <DialogContent className="max-w-4xl">
+                <DialogHeader>
+                    <DialogTitle>Editar Texto del Widget</DialogTitle>
+                    <DialogDescription>
+                        Estás editando un fragmento de texto de un widget de Elementor. Puedes usar el editor para aplicar formato.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                    <RichTextEditor
+                        content={widgetEditorContent}
+                        onChange={setWidgetEditorContent}
+                        onInsertImage={() => {}}
+                    />
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setEditingWidget(null)}>Cancelar</Button>
+                    <Button onClick={handleSaveWidgetContent}>Guardar Fragmento</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </>
   );
 }
