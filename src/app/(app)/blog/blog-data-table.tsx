@@ -36,9 +36,9 @@ import type { BlogPostSearchResult, WordPressPostCategory, BlogStats, Hierarchic
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { BookOpen, FileCheck2, FileText, Loader2, Lock, Trash2, ChevronDown, Languages, Link2, Sparkles, Image as ImageIcon } from "lucide-react"
+import { BookOpen, FileCheck2, FileText, Loader2, Lock, Trash2, ChevronDown, Languages, Link2, Sparkles, Image as ImageIcon, Tags, Edit } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 
 const LANGUAGE_MAP: { [key: string]: string } = {
     es: 'Español',
@@ -60,7 +60,6 @@ export function BlogDataTable() {
   const [stats, setStats] = React.useState<BlogStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = React.useState(true);
   const [isActionLoading, setIsActionLoading] = React.useState(false);
-  const [isLinking, setIsLinking] = React.useState(false);
   const [availableLanguages, setAvailableLanguages] = React.useState<{code: string; name: string}[]>([]);
 
   // Filter states
@@ -68,6 +67,7 @@ export function BlogDataTable() {
   const [selectedStatus, setSelectedStatus] = React.useState('all');
   const [selectedLanguage, setSelectedLanguage] = React.useState('all');
 
+  // Table states
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: 'date_created', desc: true }
   ]);
@@ -75,6 +75,10 @@ export function BlogDataTable() {
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
   
+  // Dialog states
+  const [isCategoryDialogOpen, setIsCategoryDialogOpen] = React.useState(false);
+  const [targetCategoryId, setTargetCategoryId] = React.useState('');
+
   const [pagination, setPagination] = React.useState({
     pageIndex: 0, 
     pageSize: 10, 
@@ -207,30 +211,30 @@ export function BlogDataTable() {
     }
   }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedLanguage, sorting, toast]); 
 
+  const fetchCategories = useCallback(async (token: string) => {
+    setIsLoadingCategories(true);
+    try {
+      const response = await fetch('/api/wordpress/post-categories', {
+          headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to load categories');
+      setCategories(await response.json());
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(error);
+      toast({ title: "Error al Cargar Categorías", description: errorMessage, variant: "destructive" });
+    } finally {
+      setIsLoadingCategories(false);
+    }
+  }, [toast]);
+
   React.useEffect(() => {
-    const fetchCats = async (token: string) => {
-      setIsLoadingCategories(true);
-      try {
-        const response = await fetch('/api/wordpress/post-categories', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) throw new Error('Failed to load categories');
-        setCategories(await response.json());
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error(error);
-        toast({ title: "Error al Cargar Categorías", description: errorMessage, variant: "destructive" });
-      } finally {
-        setIsLoadingCategories(false);
-      }
-    };
-    
     const handleConnectionsUpdate = () => {
         if (auth.currentUser) {
             auth.currentUser.getIdToken().then(token => {
                 fetchData();
                 fetchStats();
-                fetchCats(token);
+                fetchCategories(token);
             });
         }
     };
@@ -240,7 +244,7 @@ export function BlogDataTable() {
              user.getIdToken().then(token => {
                 fetchData();
                 fetchStats();
-                fetchCats(token);
+                fetchCategories(token);
             });
         } else {
             setIsLoading(false);
@@ -254,7 +258,7 @@ export function BlogDataTable() {
         unsubscribe();
         window.removeEventListener('connections-updated', handleConnectionsUpdate);
     };
-  }, [fetchData, fetchStats, toast]);
+  }, [fetchData, fetchStats, fetchCategories, toast]);
 
   React.useEffect(() => {
     if (categories.length === 0) return;
@@ -328,7 +332,38 @@ export function BlogDataTable() {
     router.push(`/blog/edit/${postId}`);
   };
 
-  const columns = React.useMemo(() => getColumns(handleStatusUpdate, handleEditPost, handleDeletePost), [handleStatusUpdate, handleEditPost, handleDeletePost]);
+  const handleCategoryUpdate = async (postIds: number[], categoryId: number) => {
+    setIsActionLoading(true);
+    const user = auth.currentUser;
+    if (!user) {
+      toast({ title: 'No autenticado', variant: 'destructive' });
+      setIsActionLoading(false);
+      return;
+    }
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/wordpress/posts/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ postIds, action: 'update', updates: { categories: [categoryId] } }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Fallo la actualización de categoría.');
+      
+      toast({ title: "Categorías actualizadas", description: result.message });
+      fetchData();
+      table.resetRowSelection();
+    } catch (error: any) {
+      toast({ title: "Error al actualizar", description: error.message, variant: "destructive" });
+    } finally {
+      setIsActionLoading(false);
+      setIsCategoryDialogOpen(false);
+      setTargetCategoryId('');
+    }
+  };
+
+
+  const columns = React.useMemo(() => getColumns(handleStatusUpdate, handleEditPost, handleDeletePost, handleCategoryUpdate), [handleStatusUpdate, handleEditPost, handleDeletePost, handleCategoryUpdate]);
 
   const table = useReactTable({
     data,
@@ -418,19 +453,19 @@ export function BlogDataTable() {
   };
 
   const handleBatchLinkTranslations = async () => {
-    setIsLinking(true);
+    setIsActionLoading(true);
     const selectedRows = table.getSelectedRowModel().rows;
     
     if (selectedRows.length < 2) {
         toast({ title: "Selección insuficiente", description: "Debes seleccionar al menos dos entradas para enlazarlas.", variant: "destructive" });
-        setIsLinking(false);
+        setIsActionLoading(false);
         return;
     }
 
     const languages = selectedRows.map((row: Row<HierarchicalBlogPost>) => row.original.lang);
     if (new Set(languages).size !== languages.length) {
         toast({ title: "Idiomas duplicados", description: "No puedes enlazar dos entradas del mismo idioma.", variant: "destructive" });
-        setIsLinking(false);
+        setIsActionLoading(false);
         return;
     }
     
@@ -443,7 +478,7 @@ export function BlogDataTable() {
 
     const user = auth.currentUser;
     if (!user) {
-        setIsLinking(false);
+        setIsActionLoading(false);
         return;
     }
 
@@ -472,7 +507,7 @@ export function BlogDataTable() {
         const errorMessage = error instanceof Error ? error.message : String(error);
          toast({ title: "Error al enlazar", description: errorMessage, variant: "destructive" });
     } finally {
-        setIsLinking(false);
+        setIsActionLoading(false);
     }
   };
 
@@ -519,7 +554,7 @@ export function BlogDataTable() {
 
 
   const selectedRowCount = table.getFilteredSelectedRowModel().rows.length;
-  const isBatchActionLoading = isActionLoading || isLinking;
+  const isBatchActionLoading = isActionLoading;
   const isLanguageFunctionalityEnabled = availableLanguages.length > 0;
 
   return (
@@ -588,6 +623,9 @@ export function BlogDataTable() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Acciones en Lote</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => setIsCategoryDialogOpen(true)}>
+                  <Tags className="mr-2 h-4 w-4" /> Cambiar Categoría
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={handleEditImages}>
                 <ImageIcon className="mr-2 h-4 w-4" /> Editar Imágenes
               </DropdownMenuItem>
@@ -621,6 +659,39 @@ export function BlogDataTable() {
           </AlertDialogContent>
         </AlertDialog>
       </div>
+
+       <AlertDialog open={isCategoryDialogOpen} onOpenChange={setIsCategoryDialogOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Cambiar Categoría en Lote</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Selecciona la nueva categoría para las {selectedRowCount} entradas seleccionadas. Esto reemplazará las categorías existentes en esas entradas.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="py-4">
+                    <Select value={targetCategoryId} onValueChange={setTargetCategoryId}>
+                        <SelectTrigger><SelectValue placeholder="Selecciona una categoría..." /></SelectTrigger>
+                        <SelectContent>
+                            {categoryTree.map(({ category, depth }) => (
+                                <SelectItem key={category.id} value={category.id.toString()}>
+                                    <span style={{ paddingLeft: `${depth * 1.25}rem` }}>{depth > 0 && '— '}{category.name}</span>
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={() => handleCategoryUpdate(table.getSelectedRowModel().rows.map(r => r.original.id), Number(targetCategoryId))}
+                      disabled={!targetCategoryId}
+                    >
+                      Aplicar Cambio
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
       <div className="rounded-md border">
         <Table>
           <TableHeader>{table.getHeaderGroups().map((headerGroup) => (<TableRow key={headerGroup.id}>{headerGroup.headers.map((header) => (<TableHead key={header.id}>{header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}</TableHead>))}</TableRow>))}</TableHeader>

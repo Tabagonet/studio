@@ -5,7 +5,7 @@
 import { ColumnDef } from "@tanstack/react-table"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowUpDown, MoreHorizontal, Eye, EyeOff, Pencil, ExternalLink, Trash2, ChevronRight } from "lucide-react"
+import { ArrowUpDown, MoreHorizontal, Eye, EyeOff, Pencil, ExternalLink, Trash2, ChevronRight, Tags } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -16,9 +16,13 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuPortal,
+  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
-import type { HierarchicalBlogPost } from "@/lib/types"
+import type { HierarchicalBlogPost, WordPressPostCategory } from "@/lib/types"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import {
   Tooltip,
@@ -33,6 +37,8 @@ export const getColumns = (
   handleStatusUpdate: (postId: number, newStatus: 'publish' | 'draft') => void,
   handleEdit: (postId: number) => void,
   handleDelete: (postId: number) => void,
+  handleCategoryUpdate: (postIds: number[], categoryId: number) => void,
+  categories: WordPressPostCategory[] = [], // Pass categories as a prop
 ): ColumnDef<HierarchicalBlogPost>[] => [
   {
     id: "select",
@@ -190,6 +196,24 @@ export const getColumns = (
                 <DropdownMenuItem onClick={() => handleStatusUpdate(post.id, 'publish')}><Eye className="mr-2 h-4 w-4" /> Publicar</DropdownMenuItem>
               )}
               <DropdownMenuItem asChild disabled={!post.link}><Link href={post.link || ''} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-2 h-4 w-4" /> Ver en la web</Link></DropdownMenuItem>
+              
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                    <Tags className="mr-2 h-4 w-4" />
+                    Cambiar Categoría
+                </DropdownMenuSubTrigger>
+                <DropdownMenuPortal>
+                    <DropdownMenuSubContent>
+                         {categories.map((cat) => (
+                            <DropdownMenuItem key={cat.id} onSelect={() => handleCategoryUpdate([post.id], cat.id)}>
+                                {cat.name}
+                            </DropdownMenuItem>
+                         ))}
+                         {categories.length === 0 && <DropdownMenuItem disabled>No hay categorías</DropdownMenuItem>}
+                    </DropdownMenuSubContent>
+                </DropdownMenuPortal>
+              </DropdownMenuSub>
+
               <DropdownMenuSeparator />
               <AlertDialogTrigger asChild>
                 <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Mover a la papelera</DropdownMenuItem>
