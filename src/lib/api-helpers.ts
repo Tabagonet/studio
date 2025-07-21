@@ -191,7 +191,6 @@ export function replaceElementorTexts(data: any, widgetUpdates: { [widgetId: str
 }
 
 
-
 export function findElementorImageContext(elements: any[], imageUrl: string): string {
     let context = '';
     if (!elements || !Array.isArray(elements)) return context;
@@ -232,6 +231,44 @@ export function findElementorImageContext(elements: any[], imageUrl: string): st
     traverse(elements);
     return context;
 }
+
+export function findBeaverBuilderImages(data: any[]): { url: string; }[] {
+    const images: { url: string; }[] = [];
+    if (!data || !Array.isArray(data)) return images;
+
+    const shortcodeRegex = /\[image src="([^"]+)"/g;
+
+    function traverse(items: any[]) {
+        if (!items || !Array.isArray(items)) return;
+        for (const item of items) {
+            if (typeof item === 'object' && item !== null) {
+                for (const key in item) {
+                    if (Object.prototype.hasOwnProperty.call(item, key)) {
+                        const value = item[key];
+                        if (typeof value === 'string') {
+                            // Direct URL checks
+                            const imageKeys = ['image', 'content_image', 'bg_image'];
+                            if (imageKeys.includes(key) && (value.includes('.jpg') || value.includes('.png') || value.includes('.webp'))) {
+                                images.push({ url: value });
+                            }
+                            // Shortcode check
+                            let match;
+                            while ((match = shortcodeRegex.exec(value)) !== null) {
+                                images.push({ url: match[1] });
+                            }
+                        } else if (typeof value === 'object') {
+                            traverse([value]); // Recurse into nested objects
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    traverse(data);
+    return Array.from(new Map(images.map(img => [img.url, img])).values()); // Return unique images
+}
+
 
 /**
  * Uploads an image to the WordPress media library, with optional resizing and cropping.
@@ -577,41 +614,26 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
     if (Array.isArray(data)) {
         data.forEach(item => images.push(...findImageUrlsInElementor(item)));
     } else if (typeof data === 'object' && data !== null) {
-        // Iterate through object keys to find nested images or arrays
+        
+        const imageKeys = ['image', 'background_image', 'background_overlay_image', 'background_a_image', 'background_b_image', 'hover_image'];
+        const repeaterKeys = ['slides', 'gallery', 'carousel'];
+
         for (const key in data) {
             if (Object.prototype.hasOwnProperty.call(data, key)) {
-                // Skip keys we've already processed to avoid duplicates
-                if (key === 'url' && typeof data[key] === 'string') continue;
-                
-                // Common keys for image objects
-                const imageKeys = ['image', 'background_image', 'background_a_image', 'background_b_image'];
-                if (imageKeys.includes(key)) {
-                    images.push(...findImageUrlsInElementor(data[key]));
-                } 
-                // Common keys for repeater items (like sliders, galleries)
-                else if (key === 'slides' && Array.isArray(data[key])) {
-                     data[key].forEach((slide: any) => {
-                         images.push(...findImageUrlsInElementor(slide));
-                    });
-                }
-                // General recursion for any other nested objects/arrays
-                else if (typeof data[key] === 'object' && data[key] !== null) {
-                    images.push(...findImageUrlsInElementor(data[key]));
+                const value = data[key];
+                if (imageKeys.includes(key) && typeof value === 'object' && value !== null && typeof value.url === 'string' && value.url) {
+                    if (!value.url.includes('placeholder.png')) {
+                        images.push({ url: value.url, id: value.id || null, width: value.width || null, height: value.height || null });
+                    }
+                } else if (repeaterKeys.includes(key) && Array.isArray(value)) {
+                    value.forEach(item => images.push(...findImageUrlsInElementor(item)));
+                } else if (typeof value === 'object' && value !== null) {
+                    images.push(...findImageUrlsInElementor(value));
                 }
             }
-        }
-    }
-    else if (typeof data.url === 'string' && data.url) {
-        // Direct check for a root-level image object structure (e.g. inside `background_image`)
-        if (data.url.includes('placeholder.png')) {
-            // Do not add placeholder images.
-        } else {
-             images.push({ url: data.url, id: data.id || null, width: data.width || null, height: data.height || null });
         }
     }
     
     // Return a unique set of images based on URL
     return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
-
-    
