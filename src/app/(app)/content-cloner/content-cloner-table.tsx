@@ -30,7 +30,7 @@ import { Label } from "@/components/ui/label";
 import { getColumns } from "./columns"; 
 import type { ContentItem } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ChevronDown, Copy, Languages } from "lucide-react";
+import { Loader2, ChevronDown, Copy, Languages, List } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -44,6 +44,11 @@ const LANG_CODE_MAP: { [key: string]: string } = {
     'es': 'Español', 'en': 'Inglés', 'fr': 'Francés',
     'de': 'Alemán', 'pt': 'Portugués', 'it': 'Italiano',
 };
+
+interface Menu {
+  id: number;
+  name: string;
+}
 
 const CloningProgressDialog = ({ open, progressData, onDone }: { open: boolean, progressData: CloningProgress, onDone: () => void }) => {
     const isDone = React.useMemo(() => 
@@ -116,6 +121,10 @@ export function ContentClonerTable() {
   const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: 10 });
   const [totalPages, setTotalPages] = React.useState(1);
 
+  const [menus, setMenus] = React.useState<Menu[]>([]);
+  const [isLoadingMenus, setIsLoadingMenus] = React.useState(true);
+  const [selectedMenu, setSelectedMenu] = React.useState('all');
+
   const [isCloneDialogOpen, setIsCloneDialogOpen] = React.useState(false);
   const [targetLang, setTargetLang] = React.useState<string>("");
   const [isCloning, setIsCloning] = React.useState(false);
@@ -132,7 +141,7 @@ export function ContentClonerTable() {
     return Array.from(langSet).map(code => ({ code, name: LANG_CODE_MAP[code] || code.toUpperCase() }));
   }, [data]);
 
-  const fetchData = React.useCallback(async (pageIndex: number, pageSize: number) => {
+  const fetchData = React.useCallback(async (pageIndex: number, pageSize: number, menuId: string) => {
     setIsLoading(true);
     setError(null);
     const user = auth.currentUser;
@@ -143,8 +152,15 @@ export function ContentClonerTable() {
     }
     try {
       const token = await user.getIdToken();
+      const params = new URLSearchParams({
+          page: (pageIndex + 1).toString(),
+          per_page: pageSize.toString(),
+      });
+      if (menuId !== 'all') {
+        params.append('menu_id', menuId);
+      }
       
-      const response = await fetch(`/api/wordpress/content-list?page=${pageIndex + 1}&per_page=${pageSize}`, { 
+      const response = await fetch(`/api/wordpress/content-list?${params.toString()}`, { 
           headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) {
@@ -163,18 +179,45 @@ export function ContentClonerTable() {
     }
   }, []);
 
+  const fetchMenus = React.useCallback(async (token: string) => {
+    setIsLoadingMenus(true);
+    try {
+      const response = await fetch('/api/wordpress/menu', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error("No se pudieron cargar los menús");
+      setMenus(await response.json());
+    } catch (e) {
+      setMenus([]); // Set to empty array on error
+      console.error("Error fetching menus:", e);
+    } finally {
+      setIsLoadingMenus(false);
+    }
+  }, []);
+
   React.useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        fetchData(pagination.pageIndex, pagination.pageSize);
+        fetchData(pagination.pageIndex, pagination.pageSize, selectedMenu);
+        user.getIdToken().then(fetchMenus);
       }
     });
-     window.addEventListener('connections-updated', () => { if (auth.currentUser) fetchData(pagination.pageIndex, pagination.pageSize) });
+     window.addEventListener('connections-updated', () => { 
+        if (auth.currentUser) {
+            fetchData(pagination.pageIndex, pagination.pageSize, selectedMenu);
+            auth.currentUser.getIdToken().then(fetchMenus);
+        }
+     });
     return () => {
       unsubscribe();
-      window.removeEventListener('connections-updated', () => { if (auth.currentUser) fetchData(pagination.pageIndex, pagination.pageSize) });
+      window.removeEventListener('connections-updated', () => { 
+          if (auth.currentUser) {
+              fetchData(pagination.pageIndex, pagination.pageSize, selectedMenu);
+              auth.currentUser.getIdToken().then(fetchMenus);
+          }
+      });
     };
-  }, [fetchData, pagination]);
+  }, [fetchData, fetchMenus, pagination, selectedMenu]);
 
   const handleBatchClone = async () => {
     setIsCloning(true);
@@ -244,7 +287,7 @@ export function ContentClonerTable() {
         }
         
         toast({ title: "Proceso finalizado", description: "La clonación en lote ha terminado. Revisa los resultados en el diálogo." });
-        fetchData(pagination.pageIndex, pagination.pageSize); // Refresh data
+        fetchData(pagination.pageIndex, pagination.pageSize, selectedMenu); // Refresh data
         table.resetRowSelection();
 
     } catch (error: any) {
@@ -330,6 +373,20 @@ export function ContentClonerTable() {
                   onChange={(event) => table.getColumn('title')?.setFilterValue(event.target.value)}
                   className="w-full sm:w-auto sm:min-w-[200px] flex-grow"
                 />
+                <Select value={selectedMenu} onValueChange={setSelectedMenu} disabled={isLoadingMenus}>
+                    <SelectTrigger className="w-full sm:w-auto sm:min-w-[180px] flex-grow">
+                        <List className="mr-2 h-4 w-4" />
+                        <SelectValue placeholder="Filtrar por menú..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {isLoadingMenus ? <SelectItem value="loading" disabled>Cargando menús...</SelectItem> :
+                        <>
+                            <SelectItem value="all">Todo el Contenido</SelectItem>
+                            {menus.map(menu => <SelectItem key={menu.id} value={menu.id.toString()}>{menu.name}</SelectItem>)}
+                        </>
+                        }
+                    </SelectContent>
+                </Select>
                  <Select
                     value={(table.getColumn('type')?.getFilterValue() as string) ?? 'all'}
                     onValueChange={(value) => table.getColumn('type')?.setFilterValue(value === 'all' ? undefined : value)}

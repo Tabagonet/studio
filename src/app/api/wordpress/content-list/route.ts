@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
     const perPage = parseInt(searchParams.get('per_page') || '10', 10);
+    const menuId = searchParams.get('menu_id');
 
     const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
     if (!siteUrl) {
@@ -33,6 +34,10 @@ export async function GET(req: NextRequest) {
     const customEndpointUrl = new URL(`${siteUrl}/wp-json/custom/v1/content-list`);
     customEndpointUrl.searchParams.set('page', page.toString());
     customEndpointUrl.searchParams.set('per_page', perPage.toString());
+
+    if (menuId && menuId !== 'all') {
+      customEndpointUrl.searchParams.set('menu_id', menuId);
+    }
 
     const response = await wpApi.get(customEndpointUrl.toString());
 

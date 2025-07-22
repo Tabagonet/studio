@@ -149,8 +149,28 @@ function autopress_ai_register_rest_endpoints() {
         $post_types_to_query = ['post', 'page', 'product'];
         $page = $request->get_param('page') ? absint($request->get_param('page')) : 1;
         $per_page = $request->get_param('per_page') ? absint($request->get_param('per_page')) : 100;
+        $menu_id = $request->get_param('menu_id') ? absint($request->get_param('menu_id')) : 0;
         
-        $args = [ 'post_type' => $post_types_to_query, 'posts_per_page' => $per_page, 'paged' => $page, 'post_status' => ['publish', 'draft', 'pending', 'private', 'future', 'trash'], 'fields' => 'ids', 'lang' => '', ]; 
+        $args = [
+            'post_type' => $post_types_to_query,
+            'posts_per_page' => $per_page,
+            'paged' => $page,
+            'post_status' => ['publish', 'draft', 'pending', 'private', 'future', 'trash'],
+            'fields' => 'ids',
+            'lang' => '', // Fetch all languages
+        ];
+
+        if ($menu_id > 0) {
+            $menu_items = wp_get_nav_menu_items($menu_id);
+            if (!empty($menu_items)) {
+                $object_ids = wp_list_pluck($menu_items, 'object_id');
+                $args['post__in'] = $object_ids;
+                $args['posts_per_page'] = -1; // Get all items from the menu
+            } else {
+                 $args['post__in'] = [0]; // Return no posts if menu is empty
+            }
+        }
+        
         $query = new WP_Query($args); 
         $post_ids = $query->posts; 
         $content_list = []; 
