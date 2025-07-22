@@ -30,7 +30,7 @@ import { Label } from "@/components/ui/label";
 import { getColumns } from "./columns"; 
 import type { ContentItem } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ChevronDown, Copy } from "lucide-react";
+import { Loader2, ChevronDown, Copy, Languages } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -344,20 +344,19 @@ export function ContentClonerTable() {
                         <SelectItem value="Producto">Productos</SelectItem>
                     </SelectContent>
                 </Select>
-                <Select
-                    value={(table.getColumn('status')?.getFilterValue() as string) ?? 'all'}
-                    onValueChange={(value) => table.getColumn('status')?.setFilterValue(value === 'all' ? undefined : value)}
+                 <Select
+                    value={(table.getColumn('lang')?.getFilterValue() as string) ?? 'all'}
+                    onValueChange={(value) => table.getColumn('lang')?.setFilterValue(value === 'all' ? undefined : value)}
                 >
                     <SelectTrigger className="w-full sm:w-auto sm:min-w-[180px] flex-grow">
-                        <SelectValue placeholder="Filtrar por estado..." />
+                         <Languages className="mr-2 h-4 w-4" />
+                        <SelectValue placeholder="Filtrar por idioma..." />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="all">Todos los Estados</SelectItem>
-                        <SelectItem value="publish">Publicado</SelectItem>
-                        <SelectItem value="draft">Borrador</SelectItem>
-                        <SelectItem value="pending">Pendiente</SelectItem>
-                        <SelectItem value="private">Privado</SelectItem>
-                        <SelectItem value="trash">En Papelera</SelectItem>
+                        <SelectItem value="all">Todos los Idiomas</SelectItem>
+                         {availableTargetLanguages.map(lang => (
+                            <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>
+                        ))}
                     </SelectContent>
                 </Select>
             </div>
