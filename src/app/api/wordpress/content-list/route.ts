@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const perPage = parseInt(searchParams.get('per_page') || '100', 10);
+    const perPage = parseInt(searchParams.get('per_page') || '10', 10);
 
     const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
     if (!siteUrl) {
