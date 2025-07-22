@@ -47,6 +47,7 @@ export const NAV_GROUPS: NavGroup[] = [
        { title: 'Planificador de Publicidad', href: '/ad-planner', icon: Megaphone, requiredRoles: ['super_admin'] },
        { title: 'Optimizador SEO', href: '/seo-optimizer', icon: SearchCheck, requiredRoles: ['super_admin'] },
        { title: 'Clonador de Contenido', href: '/content-cloner', icon: Copy, requiredRoles: ['admin', 'super_admin', 'content_manager', 'product_manager'] },
+       { title: 'Clonador de Menús', href: '/menu-cloner', icon: Copy, requiredRoles: ['admin', 'super_admin', 'content_manager'] },
     ]
   },
    {
