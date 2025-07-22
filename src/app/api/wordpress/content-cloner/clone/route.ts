@@ -4,19 +4,29 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser, collectElementorTexts, replaceElementorTexts } from '@/lib/api-helpers';
 import { z } from 'zod';
+import type { ContentItem } from '@/lib/types';
+
+const contentItemSchema = z.object({
+  id: z.number(),
+  title: z.string(),
+  type: z.enum(['Post', 'Page', 'Producto']),
+  link: z.string().url(),
+  status: z.string(),
+  parent: z.number(),
+  lang: z.string().optional().nullable(),
+  translations: z.record(z.number()).optional().nullable(),
+  modified: z.string(),
+  score: z.number().optional().nullable(),
+});
 
 const batchCloneSchema = z.object({
-  post_ids: z.array(z.number()),
+  items: z.array(contentItemSchema),
   target_lang: z.string(),
 });
 
 const LANG_CODE_MAP: { [key: string]: string } = {
-    'es': 'Spanish',
-    'en': 'English',
-    'fr': 'French',
-    'de': 'German',
-    'pt': 'Portuguese',
-    'it': 'Italian',
+    'es': 'Spanish', 'en': 'Inglés', 'fr': 'Francés',
+    'de': 'Alemán', 'pt': 'Portugués', 'it': 'Italiano',
 };
 
 export async function POST(req: NextRequest) {
@@ -39,9 +49,9 @@ export async function POST(req: NextRequest) {
                 const validation = batchCloneSchema.safeParse(body);
                 if (!validation.success) { throw new Error('Invalid input: ' + validation.error.message); }
                 
-                const { post_ids, target_lang } = validation.data;
+                const { items, target_lang } = validation.data;
                 const target_lang_name = LANG_CODE_MAP[target_lang] || target_lang;
-                console.log(`[Cloner] Received request to clone ${post_ids.length} posts to language '${target_lang_name}'`);
+                console.log(`[Cloner] Received request to clone ${items.length} items to language '${target_lang_name}'`);
                 
                 const { wpApi, wooApi } = await getApiClientsForUser(uid);
                 
@@ -50,30 +60,34 @@ export async function POST(req: NextRequest) {
                 console.log(`[Cloner] Site URL determined: ${siteUrl}`);
 
                 const cloneEndpoint = `${siteUrl}/wp-json/custom/v1/batch-clone-posts`;
-                const cloneResponse = await wpApi?.post(cloneEndpoint, { post_ids, target_lang });
                 
-                if (cloneResponse?.status !== 200 || !cloneResponse.data) { throw new Error('Batch cloning via custom endpoint failed.'); }
-                console.log('[Cloner] Initial cloning via plugin successful.');
+                for (const item of items) {
+                     try {
+                        // Check if a translation already exists
+                        if (item.translations && item.translations[target_lang]) {
+                             write({ id: item.id, status: 'skipped', message: `Ya existe una traducción en ${target_lang}.`, progress: 100 });
+                             console.log(`[Cloner] Skipping item ${item.id}, translation to ${target_lang} already exists.`);
+                             continue;
+                        }
 
-                const successfullyClonedPairs = cloneResponse.data.success || [];
-                const baseUrl = req.nextUrl.origin;
-
-                for (const pair of successfullyClonedPairs) {
-                    const { original_id, clone_id, post_type } = pair;
-                    console.log(`[Cloner] Processing pair: original=${original_id}, clone=${clone_id}, type=${post_type}`);
-                    try {
-                        write({ id: original_id, status: 'cloning', message: 'Clonado, iniciando traducción...', progress: 25 });
+                        write({ id: item.id, status: 'cloning', message: 'Clonando estructura...', progress: 25 });
+                        const cloneResponse = await wpApi?.post(cloneEndpoint, { post_ids: [item.id], target_lang });
+                        if (cloneResponse?.status !== 200 || !cloneResponse.data || !cloneResponse.data.success?.[0]) {
+                            throw new Error(cloneResponse?.data?.failed?.[0]?.reason || 'Initial cloning failed via plugin.');
+                        }
                         
-                        if (!post_type) throw new Error('Plugin did not return a post_type.');
+                        const { clone_id, post_type } = cloneResponse.data.success[0];
+                        console.log(`[Cloner] Item ${item.id} cloned to new ID ${clone_id} with type ${post_type}.`);
 
+                        // --- Content Translation ---
+                        write({ id: item.id, status: 'translating', message: 'Traduciendo contenido...', progress: 50 });
+                        
                         const isProduct = post_type === 'product';
                         const apiToUse = isProduct ? wooApi : wpApi;
                         if (!apiToUse) throw new Error(`API client for post type '${post_type}' is not configured.`);
                         
-                        const postTypeEndpoint = isProduct ? `products/${original_id}` : (post_type === 'page' ? `pages/${original_id}` : `posts/${original_id}`);
-
+                        const postTypeEndpoint = isProduct ? `products/${item.id}` : (post_type === 'page' ? `pages/${item.id}` : `posts/${item.id}`);
                         const { data: originalPost } = await apiToUse.get(postTypeEndpoint, { params: { context: 'edit' } });
-                        console.log(`[Cloner] Fetched original post data for ID ${original_id}.`);
                         
                         let textsToTranslate: { [key: string]: string } = { title: originalPost.name || originalPost.title.rendered };
                         let elementorData = null;
@@ -94,21 +108,18 @@ export async function POST(req: NextRequest) {
                         } else {
                             textsToTranslate['content'] = originalPost.content?.rendered || '';
                         }
-
-                        write({ id: original_id, status: 'translating', message: 'Traduciendo contenido...', progress: 50 });
-                        console.log(`[Cloner] Translating content for post ${original_id}...`);
                         
-                        const translateResponse = await fetch(`${baseUrl}/api/translate`, {
+                        const translateResponse = await fetch(`${req.nextUrl.origin}/api/translate`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
                             body: JSON.stringify({ contentToTranslate: textsToTranslate, targetLanguage: target_lang_name }),
                         });
-                        if (!translateResponse.ok) throw new Error(`AI translation failed for clone of ${original_id}`);
+                        if (!translateResponse.ok) throw new Error(`AI translation failed for clone of ${item.id}`);
                         const translated = await translateResponse.json();
                         
-                        write({ id: original_id, status: 'updating', message: 'Traducción completa, actualizando...', progress: 75 });
-                        console.log(`[Cloner] Translation complete for post ${original_id}. Updating clone...`);
-
+                        // --- Update Cloned Post ---
+                        write({ id: item.id, status: 'updating', message: 'Traducción completa, actualizando...', progress: 75 });
+                        
                         const { title: translatedTitle, ...translatedContent } = translated;
                         const updatePayload: any = { status: 'draft' };
                         const updateEndpoint = isProduct ? `products/${clone_id}` : (post_type === 'page' ? `pages/${clone_id}` : `posts/${clone_id}`);
@@ -117,9 +128,7 @@ export async function POST(req: NextRequest) {
                             updatePayload.name = translatedTitle;
                             updatePayload.short_description = translatedContent.short_description;
                             updatePayload.description = translatedContent.description;
-                            if (originalPost.sku) {
-                                updatePayload.sku = `${originalPost.sku}-${target_lang.toUpperCase()}`;
-                            }
+                            if (originalPost.sku) updatePayload.sku = `${originalPost.sku}-${target_lang.toUpperCase()}`;
                         } else {
                              updatePayload.title = translatedTitle;
                              if (isElementor && elementorData) {
@@ -131,24 +140,17 @@ export async function POST(req: NextRequest) {
                             }
                         }
                         
-                        if (isProduct) {
-                            await wooApi?.put(updateEndpoint, updatePayload);
-                        } else {
-                            await wpApi?.post(updateEndpoint, updatePayload);
-                        }
+                        if (isProduct) await wooApi?.put(updateEndpoint, updatePayload);
+                        else await wpApi?.post(updateEndpoint, updatePayload);
 
-                        write({ id: original_id, status: 'success', message: '¡Completado!', progress: 100 });
+                        write({ id: item.id, status: 'success', message: '¡Completado!', progress: 100 });
                         console.log(`[Cloner] Clone ${clone_id} successfully updated.`);
-                    } catch (error: any) {
+                     } catch (error: any) {
                         const reason = error.response?.data?.message || error.message || 'Unknown error during translation/update.';
-                        write({ id: original_id, status: 'failed', message: `Error: ${reason}`, progress: 0 });
-                        console.error(`[Cloner] Failed processing pair for original ${original_id}:`, reason);
+                        write({ id: item.id, status: 'failed', message: `Error: ${reason}`, progress: 0 });
+                        console.error(`[Cloner] Failed processing item ${item.id}:`, reason);
                     }
                 }
-                 cloneResponse.data.failed?.forEach((failure: any) => {
-                    write({ id: failure.id, status: 'failed', message: `Error en clonación inicial: ${failure.reason}`, progress: 0 });
-                    console.error(`[Cloner] Initial clone failed for ID ${failure.id}:`, failure.reason);
-                 });
             } catch (error: any) {
                  const finalError = { status: 'error', message: `Error fatal: ${error.message}` };
                  write(finalError);

@@ -8,10 +8,8 @@ import {
   getCoreRowModel,
   getFilteredRowModel,
   useReactTable,
-  getExpandedRowModel,
   getSortedRowModel,
   getPaginationRowModel,
-  type ExpandedState,
   type RowSelectionState,
   type SortingState,
 } from "@tanstack/react-table";
@@ -30,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getColumns } from "./columns"; 
-import type { HierarchicalContentItem } from "@/lib/types";
+import type { ContentItem } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, ChevronDown, Copy } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -39,22 +37,39 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogDescription, D
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-
-type CloningStatus = 'pending' | 'cloning' | 'translating' | 'updating' | 'success' | 'failed';
+type CloningStatus = 'pending' | 'cloning' | 'translating' | 'updating' | 'success' | 'failed' | 'skipped';
 type CloningProgress = Record<string, { title: string; status: CloningStatus; message: string; progress: number }>;
+
+const LANG_CODE_MAP: { [key: string]: string } = {
+    'es': 'Español', 'en': 'Inglés', 'fr': 'Francés',
+    'de': 'Alemán', 'pt': 'Portugués', 'it': 'Italiano',
+};
 
 const CloningProgressDialog = ({ open, progressData, onDone }: { open: boolean, progressData: CloningProgress, onDone: () => void }) => {
     const isDone = React.useMemo(() => 
-        Object.values(progressData).every(p => p.status === 'success' || p.status === 'failed'),
+        Object.values(progressData).every(p => ['success', 'failed', 'skipped'].includes(p.status)),
     [progressData]);
     
     const getStatusColor = (status: CloningStatus) => {
         switch(status) {
             case 'success': return 'text-green-500';
             case 'failed': return 'text-destructive';
+            case 'skipped': return 'text-blue-500';
             default: return 'text-muted-foreground';
         }
     }
+    const getStatusLabel = (status: CloningStatus) => {
+        const labels: Record<CloningStatus, string> = {
+            pending: 'En cola',
+            cloning: 'Clonando',
+            translating: 'Traduciendo',
+            updating: 'Actualizando',
+            success: 'Completado',
+            failed: 'Fallido',
+            skipped: 'Omitido',
+        };
+        return labels[status];
+    };
 
     return (
         <Dialog open={open}>
@@ -72,7 +87,7 @@ const CloningProgressDialog = ({ open, progressData, onDone }: { open: boolean, 
                                 <div className="flex justify-between items-center mb-1">
                                     <p className="text-sm font-medium truncate pr-4">{item.title}</p>
                                     <p className={`text-sm font-semibold capitalize ${getStatusColor(item.status)}`}>
-                                        {item.status === 'pending' ? 'En cola' : item.status}
+                                        {getStatusLabel(item.status)}
                                     </p>
                                 </div>
                                 <Progress value={item.progress} />
@@ -91,16 +106,15 @@ const CloningProgressDialog = ({ open, progressData, onDone }: { open: boolean, 
 
 
 export function ContentClonerTable() {
-  const [data, setData] = React.useState<HierarchicalContentItem[]>([]);
+  const [data, setData] = React.useState<ContentItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
   const [sorting, setSorting] = React.useState<SortingState>([{ id: 'title', desc: false }]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
-  const [expanded, setExpanded] = React.useState<ExpandedState>({});
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
-  const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: 10 });
-
+  const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: 15 });
+  const [totalPages, setTotalPages] = React.useState(1);
 
   const [isCloneDialogOpen, setIsCloneDialogOpen] = React.useState(false);
   const [targetLang, setTargetLang] = React.useState<string>("");
@@ -108,31 +122,17 @@ export function ContentClonerTable() {
   const [isProgressDialogOpen, setIsProgressDialogOpen] = React.useState(false);
   const [cloningProgress, setCloningProgress] = React.useState<CloningProgress>({});
 
-
   const { toast } = useToast();
   
   const availableTargetLanguages = React.useMemo(() => {
     const langSet = new Set<string>();
     data.forEach(item => {
         if (item.lang && item.lang !== 'default') langSet.add(item.lang);
-        item.subRows?.forEach(sub => {
-            if (sub.lang && sub.lang !== 'default') langSet.add(sub.lang);
-        })
     });
-
-    const langMap: { [key: string]: string } = {
-        es: 'Español',
-        en: 'Inglés',
-        fr: 'Francés',
-        de: 'Alemán',
-        pt: 'Portugués',
-        it: 'Italiano',
-    };
-
-    return Array.from(langSet).map(code => ({ code, name: langMap[code] || code.toUpperCase() }));
+    return Array.from(langSet).map(code => ({ code, name: LANG_CODE_MAP[code] || code.toUpperCase() }));
   }, [data]);
 
-  const fetchData = React.useCallback(async () => {
+  const fetchData = React.useCallback(async (pageIndex: number, pageSize: number) => {
     setIsLoading(true);
     setError(null);
     const user = auth.currentUser;
@@ -143,14 +143,17 @@ export function ContentClonerTable() {
     }
     try {
       const token = await user.getIdToken();
-      const response = await fetch(`/api/wordpress/content-list`, { headers: { 'Authorization': `Bearer ${token}` } });
+      
+      const response = await fetch(`/api/wordpress/content-list?page=${pageIndex + 1}&per_page=${pageSize}`, { 
+          headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'No se pudo cargar el contenido del sitio.');
       }
-      const { content }: { content: HierarchicalContentItem[] } = await response.json();
-
+      const { content, total, totalPages: pages } = await response.json();
       setData(content);
+      setTotalPages(pages || 1);
 
     } catch (err: any) {
       setError(err.message);
@@ -160,66 +163,27 @@ export function ContentClonerTable() {
     }
   }, []);
 
-  const tableData = React.useMemo((): HierarchicalContentItem[] => {
-    if (!data) return [];
-
-    const itemsById = new Map<number, HierarchicalContentItem>(data.map((p) => [p.id, { ...p, subRows: [] }]));
-    const roots: HierarchicalContentItem[] = [];
-    const processedIds = new Set<number>();
-
-    data.forEach((item) => {
-        if (processedIds.has(item.id)) return;
-
-        let mainItem: HierarchicalContentItem | undefined;
-        const translationIds = new Set(Object.values(item.translations || {}));
-        
-        if (translationIds.size > 1) {
-            const groupItems = Array.from(translationIds)
-                .map(id => itemsById.get(id))
-                .filter((p): p is HierarchicalContentItem => !!p);
-            
-            if (groupItems.length > 0) {
-                mainItem = groupItems.find(p => p.lang === 'es') || groupItems[0];
-                
-                if (mainItem) {
-                    const definedMainItem = mainItem;
-                    definedMainItem.subRows = groupItems.filter(p => p.id !== definedMainItem.id);
-                    roots.push(definedMainItem);
-                    groupItems.forEach(groupItem => processedIds.add(groupItem.id));
-                }
-            }
-        } else {
-            mainItem = itemsById.get(item.id);
-            if(mainItem) {
-                roots.push({ ...mainItem, subRows: [] });
-                processedIds.add(mainItem.id);
-            }
-        }
-    });
-
-    return roots.sort((a,b) => a.title.localeCompare(b.title));
-  }, [data]);
-
-
   React.useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) fetchData();
+      if (user) {
+        fetchData(pagination.pageIndex, pagination.pageSize);
+      }
     });
-     window.addEventListener('connections-updated', fetchData);
+     window.addEventListener('connections-updated', () => { if (auth.currentUser) fetchData(pagination.pageIndex, pagination.pageSize) });
     return () => {
       unsubscribe();
-      window.removeEventListener('connections-updated', fetchData);
+      window.removeEventListener('connections-updated', () => { if (auth.currentUser) fetchData(pagination.pageIndex, pagination.pageSize) });
     };
-  }, [fetchData]);
+  }, [fetchData, pagination]);
 
   const handleBatchClone = async () => {
     setIsCloning(true);
     setIsCloneDialogOpen(false);
     
     const selectedRows = table.getSelectedRowModel().rows;
-    const post_ids = selectedRows.map(row => row.original.id);
+    const itemsToClone = selectedRows.map(row => row.original);
     
-    if (post_ids.length === 0 || !targetLang) {
+    if (itemsToClone.length === 0 || !targetLang) {
       toast({ title: "Datos incompletos", description: "Selecciona contenido y un idioma de destino.", variant: "destructive" });
       setIsCloning(false);
       return;
@@ -233,8 +197,8 @@ export function ContentClonerTable() {
     }
 
     const initialProgress: CloningProgress = {};
-    selectedRows.forEach(row => {
-        initialProgress[row.original.id] = { title: row.original.title, status: 'pending', message: 'En cola...', progress: 0 };
+    itemsToClone.forEach(item => {
+        initialProgress[item.id] = { title: item.title, status: 'pending', message: 'En cola...', progress: 0 };
     });
     setCloningProgress(initialProgress);
     setIsProgressDialogOpen(true);
@@ -244,7 +208,7 @@ export function ContentClonerTable() {
         const response = await fetch('/api/wordpress/content-cloner/clone', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ post_ids, target_lang: targetLang })
+            body: JSON.stringify({ items: itemsToClone, target_lang: targetLang })
         });
         
         if (!response.body) {
@@ -280,7 +244,7 @@ export function ContentClonerTable() {
         }
         
         toast({ title: "Proceso finalizado", description: "La clonación en lote ha terminado. Revisa los resultados en el diálogo." });
-        fetchData();
+        fetchData(pagination.pageIndex, pagination.pageSize); // Refresh data
         table.resetRowSelection();
 
     } catch (error: any) {
@@ -294,26 +258,24 @@ export function ContentClonerTable() {
   const columns = React.useMemo(() => getColumns(), []);
 
   const table = useReactTable({
-    data: tableData,
+    data,
     columns,
     state: {
       sorting,
-      expanded,
       columnFilters,
       rowSelection,
       pagination,
     },
     onSortingChange: setSorting,
-    onExpandedChange: setExpanded,
     onColumnFiltersChange: setColumnFilters,
     onRowSelectionChange: setRowSelection,
     onPaginationChange: setPagination,
-    getSubRows: (row) => row.subRows,
     getCoreRowModel: getCoreRowModel(),
-    getExpandedRowModel: getExpandedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    pageCount: totalPages,
+    manualPagination: true,
   });
 
   const selectedRowCount = table.getFilteredSelectedRowModel().rows.length;
@@ -325,7 +287,7 @@ export function ContentClonerTable() {
                 <AlertDialogHeader>
                     <AlertDialogTitle>Clonar y Traducir Contenido</AlertDialogTitle>
                     <AlertDialogDescription>
-                        Has seleccionado {selectedRowCount} elemento(s). Por favor, elige el idioma al que deseas clonar y traducir este contenido.
+                        Has seleccionado {selectedRowCount} elemento(s). Por favor, elige el idioma al que deseas clonar y traducir este contenido. La herramienta omitirá automáticamente los elementos que ya tengan una traducción a ese idioma.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <div className="py-4">

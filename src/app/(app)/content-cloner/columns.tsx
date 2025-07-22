@@ -4,9 +4,8 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowUpDown, ChevronRight } from "lucide-react";
-import type { HierarchicalContentItem, ContentItem } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { ArrowUpDown, Languages } from "lucide-react";
+import type { ContentItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 
 const getStatusText = (status: ContentItem['status']) => {
@@ -21,7 +20,7 @@ const getStatusText = (status: ContentItem['status']) => {
     return statusMap[status] || status;
 };
 
-export const getColumns = (): ColumnDef<HierarchicalContentItem>[] => [
+export const getColumns = (): ColumnDef<ContentItem>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -57,25 +56,15 @@ export const getColumns = (): ColumnDef<HierarchicalContentItem>[] => [
         </Button>
       )
     },
-    cell: ({ row, getValue }) => (
-      <div
-        style={{ paddingLeft: `${row.depth * 1.5}rem` }}
-        className="flex items-center gap-1"
-      >
-        {row.getCanExpand() ? (
-          <button
-            onClick={row.getToggleExpandedHandler()}
-            className="cursor-pointer p-1 -ml-1"
-            aria-label={row.getIsExpanded() ? 'Contraer fila' : 'Expandir fila'}
-          >
-            <ChevronRight className={cn("h-4 w-4 transition-transform", row.getIsExpanded() && 'rotate-90')} />
-          </button>
-        ) : (
-          row.depth > 0 && <span className="w-4 h-4 text-muted-foreground ml-1">↳</span>
-        )}
-        <span className="font-medium">{getValue<string>()}</span>
-      </div>
-    ),
+    cell: ({ row, getValue }) => {
+        const hasTranslations = Object.keys(row.original.translations || {}).length > 1;
+        return (
+             <div className="flex items-center gap-2">
+                {hasTranslations && <Languages className="h-4 w-4 text-muted-foreground" title="Tiene traducciones enlazadas"/>}
+                <span className="font-medium">{getValue<string>()}</span>
+             </div>
+        )
+    },
   },
   {
     accessorKey: 'type',

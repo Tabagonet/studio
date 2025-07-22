@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
@@ -20,18 +21,29 @@ export async function GET(req: NextRequest) {
     if (!wpApi) {
       throw new Error('WordPress API is not configured for the active connection.');
     }
+    
+    const { searchParams } = new URL(req.url);
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const perPage = parseInt(searchParams.get('per_page') || '100', 10);
 
-    // New logic: Call the custom endpoint which is more efficient
     const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
     if (!siteUrl) {
       throw new Error("Could not determine base site URL from WordPress API configuration.");
     }
-    const customEndpointUrl = `${siteUrl}/wp-json/custom/v1/content-list`;
+    const customEndpointUrl = new URL(`${siteUrl}/wp-json/custom/v1/content-list`);
+    customEndpointUrl.searchParams.set('page', page.toString());
+    customEndpointUrl.searchParams.set('per_page', perPage.toString());
 
-    const response = await wpApi.get(customEndpointUrl);
+    const response = await wpApi.get(customEndpointUrl.toString());
 
-    // The custom endpoint already returns the data in the desired format
-    return NextResponse.json({ content: response.data.content || [] });
+    const total = response.headers['x-wp-total'];
+    const totalPages = response.headers['x-wp-totalpages'];
+
+    return NextResponse.json({ 
+        content: response.data.content || [],
+        total: total ? parseInt(total, 10) : 0,
+        totalPages: totalPages ? parseInt(totalPages, 10) : 1,
+    });
 
   } catch (error: any) {
     let errorMessage = 'Failed to fetch content list.';
