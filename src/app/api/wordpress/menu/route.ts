@@ -4,11 +4,6 @@ import { getApiClientsForUser } from '@/lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 
-// This custom endpoint is not part of the standard WordPress REST API.
-// It requires a custom function to be added to the theme's functions.php file.
-// If it's not present, this endpoint will gracefully fail, and the UI will fall back
-// to another method of determining page hierarchy.
-
 export async function GET(req: NextRequest) {
   try {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
@@ -24,9 +19,6 @@ export async function GET(req: NextRequest) {
     if (!wpApi) {
       throw new Error('WordPress API is not configured for the active connection.');
     }
-
-    // We assume the main menu has the slug 'primary'. This might need to be configurable later.
-    const menuSlug = 'primary';
     
     // The custom endpoint is at the root of the site, not under /wp-json/wp/v2
     const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
@@ -35,7 +27,7 @@ export async function GET(req: NextRequest) {
         throw new Error("Could not determine the base site URL from the WordPress API configuration.");
     }
     
-    const menuResponse = await wpApi.get(`${siteUrl}/wp-json/custom/v1/menu/${menuSlug}`);
+    const menuResponse = await wpApi.get(`${siteUrl}/wp-json/custom/v1/menus`);
     
     return NextResponse.json(menuResponse.data);
 
