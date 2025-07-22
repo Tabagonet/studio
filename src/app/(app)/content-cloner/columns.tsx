@@ -7,6 +7,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowUpDown, Languages } from "lucide-react";
 import type { ContentItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const getStatusText = (status: ContentItem['status']) => {
     const statusMap: { [key: string]: string } = {
@@ -60,7 +66,18 @@ export const getColumns = (): ColumnDef<ContentItem>[] => [
         const hasTranslations = Object.keys(row.original.translations || {}).length > 1;
         return (
              <div className="flex items-center gap-2">
-                {hasTranslations && <Languages className="h-4 w-4 text-muted-foreground" title="Tiene traducciones enlazadas"/>}
+                {hasTranslations && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Languages className="h-4 w-4 text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Tiene traducciones enlazadas</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
                 <span className="font-medium">{getValue<string>()}</span>
              </div>
         )
