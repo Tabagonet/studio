@@ -1,10 +1,10 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { CreateAdPlanOutput, Strategy } from './schema';
+import type { CreateAdPlanOutput, Strategy, GenerateAdCreativesOutput } from './schema';
 import { Calendar, Zap, Users, Target, Megaphone, Lightbulb, BarChart3, Loader2, Save, Info, Swords, Wrench, Star, DollarSign, Palette } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { saveAdPlanAction } from './actions';
@@ -98,6 +98,17 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyInfo }: AdPlanV
             setIsSavingPlan(false);
         }
     };
+
+    const handleSaveCreativesToPlan = useCallback((strategyPlatform: string, creatives: GenerateAdCreativesOutput) => {
+        if (!plan) return;
+        const updatedPlan = {
+            ...plan,
+            strategies: plan.strategies.map(s => 
+                s.platform === strategyPlatform ? { ...s, creatives: creatives } : s
+            )
+        };
+        onPlanUpdate(updatedPlan);
+    }, [plan, onPlanUpdate]);
     
     if (!plan) {
         return <Loader2 className="h-8 w-8 animate-spin" />;
@@ -122,7 +133,7 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyInfo }: AdPlanV
                 plan={plan}
                 strategy={selectedStrategyForCreatives}
                 onOpenChange={(open) => !open && setSelectedStrategyForCreatives(null)}
-                onPlanUpdate={onPlanUpdate}
+                onSaveCreatives={handleSaveCreativesToPlan}
             />
             
              <div className="flex flex-wrap gap-2 justify-end">

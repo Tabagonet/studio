@@ -15,7 +15,7 @@ interface CreativeStudioDialogProps {
   plan: CreateAdPlanOutput | null;
   strategy: Strategy | null;
   onOpenChange: (open: boolean) => void;
-  onPlanUpdate: (updatedPlan: CreateAdPlanOutput) => void;
+  onSaveCreatives: (strategyPlatform: string, creatives: GenerateAdCreativesOutput) => void;
 }
 
 const CreativeItem = ({ title, content }: { title: string, content: string | string[] }) => {
@@ -46,7 +46,7 @@ const CreativeItem = ({ title, content }: { title: string, content: string | str
 };
 
 
-export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdate }: CreativeStudioDialogProps) {
+export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreatives }: CreativeStudioDialogProps) {
   const [creatives, setCreatives] = useState<GenerateAdCreativesOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -78,7 +78,7 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdat
           platform: currentStrategy.platform,
           campaign_type: currentStrategy.campaign_type,
           funnel_stage: currentStrategy.funnel_stage,
-          target_audience: currentPlan.buyer_persona, // Use buyer_persona
+          target_audience: currentPlan.buyer_persona,
         }, token);
 
         if (result.error || !result.data) {
@@ -86,15 +86,7 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdat
         }
         
         setCreatives(result.data);
-        
-        // Update the parent plan state with the newly generated creatives
-        const updatedPlan = {
-          ...currentPlan,
-          strategies: currentPlan.strategies.map(s => 
-            s.platform === currentStrategy.platform ? { ...s, creatives: result.data } : s
-          )
-        };
-        onPlanUpdate(updatedPlan);
+        onSaveCreatives(currentStrategy.platform, result.data);
 
         if (forceRegenerate) {
              toast({ title: 'Creativos Regenerados', description: 'Se ha generado una nueva tanda de creativos.' });
@@ -102,24 +94,26 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdat
 
       } catch (error: any) {
         toast({ title: 'Error al Generar Creativos', description: error.message, variant: 'destructive' });
+        setCreatives(null); // Ensure we don't show stale data on error
       } finally {
         setIsLoading(false);
       }
-    }, [toast, onPlanUpdate]);
+    }, [toast, onSaveCreatives]);
 
   useEffect(() => {
     if (strategy && plan) {
-      // If creatives already exist in the plan for this strategy, display them
       if (strategy.creatives && Object.keys(strategy.creatives).length > 0) {
         setCreatives(strategy.creatives);
         setIsLoading(false);
       } else {
-        // Otherwise, fetch them
-        setIsLoading(true);
         fetchCreatives(plan, strategy);
       }
     }
   }, [strategy, plan, fetchCreatives]);
+
+  const handleCloseDialog = () => {
+    onOpenChange(false);
+  };
 
   if (!strategy || !plan) return null;
 
@@ -162,9 +156,7 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdat
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Volver a Generar con IA
             </Button>
-            <DialogClose asChild>
-                <Button type="button" variant="secondary">Cerrar</Button>
-            </DialogClose>
+            <Button type="button" variant="secondary" onClick={handleCloseDialog}>Cerrar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
