@@ -28,8 +28,22 @@ interface StrategyDetailDialogProps {
 
 const isTaskExecutable = (taskName: string): boolean => {
     const lowerCaseName = taskName.toLowerCase();
-    const executableKeywords = ['palabras clave', 'keyword', 'anuncios', 'creativos', 'copy', 'configuración de campaña', 'campaign setup'];
-    return executableKeywords.some(keyword => lowerCaseName.includes(keyword));
+    const simpleKeywords = ['keyword', 'anuncios', 'creativos', 'copy', 'campaign setup'];
+    
+    if (simpleKeywords.some(keyword => lowerCaseName.includes(keyword))) {
+        return true;
+    }
+    
+    // Check for multi-word phrases like "configuración de campaña"
+    if (lowerCaseName.includes('configuraci') && lowerCaseName.includes('campa')) {
+        return true;
+    }
+
+    if (lowerCaseName.includes('palabras') && lowerCaseName.includes('clave')) {
+        return true;
+    }
+
+    return false;
 };
 
 export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange, onPlanUpdate }: StrategyDetailDialogProps) {
