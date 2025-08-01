@@ -1,5 +1,4 @@
 
-
 'use server';
 import { createAdPlan } from "@/ai/flows/create-ad-plan-flow";
 import { 
@@ -328,7 +327,7 @@ export async function executeTaskAction(
       const creativeInput: GenerateAdCreativesInput = {
         url: input.url,
         objectives: [], // These are not available at the task level, can be omitted
-        platform: 'General', // Not available at task level, use a general placeholder
+        platform: input.strategyPlatform || 'General',
         campaign_type: 'General',
         funnel_stage: 'Consideration',
         target_audience: input.buyerPersona,

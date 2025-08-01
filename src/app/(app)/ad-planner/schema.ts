@@ -66,6 +66,7 @@ export const ExecuteTaskInputSchema = z.object({
   url: z.string().url(),
   buyerPersona: z.string(),
   valueProposition: z.string(),
+  strategyPlatform: z.string().optional(), // Pass context of the strategy platform
 });
 export type ExecuteTaskInput = z.infer<typeof ExecuteTaskInputSchema>;
 

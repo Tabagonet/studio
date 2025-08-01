@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState } from 'react';
@@ -15,7 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
-import type { Task, CreateAdPlanOutput, KeywordResearchResult, GenerateAdCreativesOutput } from './schema';
+import type { Task, CreateAdPlanOutput, KeywordResearchResult, GenerateAdCreativesOutput, Strategy } from './schema';
 import { Loader2, Sparkles, Clipboard, Table as TableIcon } from 'lucide-react';
 import { executeTaskAction } from './actions';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -26,16 +25,17 @@ interface TaskExecutionDialogProps {
   onOpenChange: (open: boolean) => void;
   task: Task | null;
   plan: CreateAdPlanOutput | null;
+  strategy: Strategy | null;
   onTaskUpdate: (taskId: string, result: any) => void;
 }
 
-export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, onTaskUpdate }: TaskExecutionDialogProps) {
+export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, strategy, onTaskUpdate }: TaskExecutionDialogProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<KeywordResearchResult | GenerateAdCreativesOutput | null>(null);
 
   const handleExecute = async () => {
-    if (!task || !plan) return;
+    if (!task || !plan || !strategy) return;
 
     setIsLoading(true);
     setResult(null);
@@ -55,6 +55,7 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, onTaskUp
           url: plan.url,
           buyerPersona: plan.buyer_persona,
           valueProposition: plan.value_proposition,
+          strategyPlatform: strategy.platform, // Pass strategy context
         },
         token
       );

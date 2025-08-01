@@ -121,11 +121,19 @@ export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange
   };
 
   const handleTaskUpdate = (taskId: string, result: any) => {
-    setTasks(prevTasks =>
-      prevTasks.map(task =>
+    const updatedTasks = tasks.map(task =>
         task.id === taskId ? { ...task, result } : task
-      )
-    );
+      );
+    setTasks(updatedTasks);
+    
+    // Also update the main plan state
+    if (plan && strategy) {
+        const updatedStrategies = plan.strategies.map(s =>
+            s.platform === strategy.platform ? { ...s, tasks: updatedTasks } : s
+        );
+        onPlanUpdate({ ...plan, strategies: updatedStrategies });
+    }
+    
     setTaskToExecute(null); // Close the execution dialog
   };
   
@@ -188,6 +196,7 @@ export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange
         onOpenChange={() => setTaskToExecute(null)}
         task={taskToExecute}
         plan={plan}
+        strategy={strategy}
         onTaskUpdate={handleTaskUpdate}
       />
       <Dialog open={!!strategy} onOpenChange={(open) => {
