@@ -58,6 +58,7 @@ export function CreativeStudioDialog({
 }: CreativeStudioDialogProps) {
   const [creatives, setCreatives] = useState<GenerateAdCreativesOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasGenerated, setHasGenerated] = useState(false); // New state to control generation
   const { toast } = useToast();
 
   const generateCreatives = useCallback(async (currentStrategy: Strategy) => {
@@ -92,6 +93,7 @@ export function CreativeStudioDialog({
 
       setCreatives(result.data);
       onSaveCreatives(currentStrategy.platform, result.data);
+      setHasGenerated(true); // Mark as generated
       toast({ title: 'Creativos Generados', description: 'Se ha generado una nueva tanda de creativos.' });
 
     } catch (error: any) {
@@ -101,20 +103,27 @@ export function CreativeStudioDialog({
       setIsLoading(false);
     }
   }, [url, objectives, buyerPersona, onSaveCreatives, toast]);
-
+  
   useEffect(() => {
     if (strategy) {
+      // If creatives already exist, show them.
       if (strategy.creatives && Object.keys(strategy.creatives).length > 0) {
         setCreatives(strategy.creatives);
-      } else {
+        setHasGenerated(true);
+      } 
+      // Only generate if they don't exist AND we haven't generated them in this session yet.
+      else if (!hasGenerated) {
         generateCreatives(strategy);
       }
     } else {
+      // Reset everything when the dialog is closed (strategy becomes null)
       setCreatives(null);
       setIsLoading(false);
+      setHasGenerated(false);
     }
-  }, [strategy, generateCreatives]);
-  
+  }, [strategy, generateCreatives, hasGenerated]);
+
+
   const handleRegenerate = useCallback(() => {
     if (strategy) {
       generateCreatives(strategy);
