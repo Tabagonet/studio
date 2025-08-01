@@ -12,7 +12,6 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
-  type ColumnDef,
   type ColumnFiltersState,
   type ExpandedState,
   type RowSelectionState,
@@ -26,25 +25,37 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getColumns } from "./columns"; 
 import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
-import { Loader2, ChevronDown, Trash2, Sparkles, Edit, Image as ImageIcon } from "lucide-react";
+import { Loader2, ChevronDown, Trash2, Sparkles, Edit, Image as ImageIcon, Languages } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { buttonVariants } from "@/components/ui/button";
 
 interface PageDataTableProps {
   data: ContentItem[];
   scores: Record<number, number>;
   isLoading: boolean;
   onDataChange: (token: string) => void;
+  pageCount: number;
+  pagination: { pageIndex: number; pageSize: number };
+  setPagination: React.Dispatch<React.SetStateAction<{ pageIndex: number; pageSize: number }>>;
 }
 
-export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDataTableProps) {
+export function PageDataTable({
+  data,
+  scores,
+  isLoading,
+  onDataChange,
+  pageCount,
+  pagination,
+  setPagination,
+}: PageDataTableProps) {
   const router = useRouter();
   const [sorting, setSorting] = React.useState<SortingState>([{ id: 'title', desc: false }]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -110,7 +121,7 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
     }
     const token = await user.getIdToken();
     try {
-      const endpoint = item.type === 'Page' ? `/api/wordpress/pages/${item.id}` : `/api/wordpress/posts/${item.id}`;
+      const endpoint = `/api/wordpress/pages/${item.id}`;
       const response = await fetch(endpoint, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || result.message);
@@ -131,7 +142,11 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
       expanded,
       columnFilters,
       rowSelection,
+      pagination
     },
+    pageCount: pageCount,
+    manualPagination: true,
+    onPaginationChange: setPagination,
     onSortingChange: setSorting,
     onExpandedChange: setExpanded,
     onColumnFiltersChange: setColumnFilters,
@@ -222,6 +237,11 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
   const handleRowClick = (row: any) => {
     router.push(`/seo-optimizer/edit/${row.original.id}?type=${row.original.type}`);
   };
+  
+  const languages = React.useMemo(() => {
+    const langSet = new Set(data.map(item => item.lang).filter(lang => lang && lang !== 'default'));
+    return Array.from(langSet) as string[];
+  }, [data]);
 
   return (
     <div className="w-full space-y-4">
@@ -260,6 +280,22 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
                     <SelectItem value="draft">Borrador</SelectItem>
                     <SelectItem value="pending">Pendiente</SelectItem>
                     <SelectItem value="private">Privado</SelectItem>
+                </SelectContent>
+            </Select>
+             <Select
+                value={(table.getColumn('lang')?.getFilterValue() as string) ?? 'all'}
+                onValueChange={(value) => table.getColumn('lang')?.setFilterValue(value === 'all' ? null : value)}
+                disabled={languages.length === 0}
+            >
+                <SelectTrigger className="w-full sm:w-[180px]">
+                    <Languages className="mr-2 h-4 w-4" />
+                    <SelectValue placeholder="Idioma" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">Todos los Idiomas</SelectItem>
+                    {languages.map(lang => (
+                        <SelectItem key={lang} value={lang}>{lang.toUpperCase()}</SelectItem>
+                    ))}
                 </SelectContent>
             </Select>
         </div>
@@ -355,9 +391,19 @@ export function PageDataTable({ data, scores, isLoading, onDataChange }: PageDat
         </Table>
       </div>
 
-      <div className="flex items-center justify-end space-x-2 py-4">
-        <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>Anterior</Button>
-        <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>Siguiente</Button>
+       <div className="flex items-center justify-between space-x-2 py-4">
+        <div className="flex-1 text-sm text-muted-foreground">
+          {table.getFilteredSelectedRowModel().rows.length} de{" "}
+          {table.getFilteredRowModel().rows.length} fila(s) seleccionadas.
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
+            Anterior
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
+            Siguiente
+          </Button>
+        </div>
       </div>
     </div>
   );

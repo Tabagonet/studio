@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -17,6 +18,8 @@ export default function PagesManagementPage() {
   const [scores, setScores] = useState<Record<number, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 });
+  const [pageCount, setPageCount] = useState(0);
 
   const router = useRouter();
   const { toast } = useToast();
@@ -25,8 +28,13 @@ export default function PagesManagementPage() {
     setIsLoading(true);
     setError(null);
     try {
+        const params = new URLSearchParams({
+            page: (pagination.pageIndex + 1).toString(),
+            per_page: pagination.pageSize.toString(),
+        });
+        
         const [contentResponse, scoresResponse] = await Promise.all([
-            fetch(`/api/wordpress/content-list`, { headers: { 'Authorization': `Bearer ${token}` } }),
+            fetch(`/api/wordpress/content-list?${params.toString()}`, { headers: { 'Authorization': `Bearer ${token}` } }),
             fetch('/api/seo/latest-scores', { headers: { 'Authorization': `Bearer ${token}` } })
         ]);
 
@@ -36,6 +44,7 @@ export default function PagesManagementPage() {
         }
         const contentData = await contentResponse.json();
         setData(contentData.content);
+        setPageCount(contentData.totalPages);
 
         if (scoresResponse.ok) {
             const scoresData = await scoresResponse.json();
@@ -66,7 +75,7 @@ export default function PagesManagementPage() {
     } finally {
         setIsLoading(false);
     }
-  }, []);
+  }, [pagination]);
   
   useEffect(() => {
     const handleAuth = (user: import('firebase/auth').User | null) => {
@@ -109,7 +118,7 @@ export default function PagesManagementPage() {
           </Alert>
       )}
 
-      {isLoading ? (
+      {isLoading && data.length === 0 ? (
           <div className="flex justify-center items-center h-64 border rounded-md">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
@@ -119,6 +128,9 @@ export default function PagesManagementPage() {
              scores={scores}
              isLoading={isLoading} 
              onDataChange={fetchData}
+             pageCount={pageCount}
+             pagination={pagination}
+             setPagination={setPagination}
            />
       )}
     </div>
