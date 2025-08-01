@@ -13,12 +13,14 @@ import {
     ExecuteTaskInputSchema,
     KeywordResearchResultSchema,
     GenerateAdCreativesOutputSchema,
+    CampaignSetupResultSchema,
 } from "./schema";
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { generateStrategyTasks } from '@/ai/flows/generate-strategy-tasks-flow';
 import { generateAdCreatives } from '@/ai/flows/generate-ad-creatives-flow';
 import { competitorAnalysis } from "@/ai/flows/competitor-analysis-flow";
 import { executeKeywordResearchTask } from "@/ai/flows/execute-keyword-research-task-flow";
+import { executeCampaignSetupTask } from "@/ai/flows/execute-campaign-setup-task-flow"; // Import new flow
 import { z } from "zod";
 
 
@@ -326,7 +328,7 @@ export async function executeTaskAction(
     if (taskNameLower.includes('anuncios') || taskNameLower.includes('creativos') || taskNameLower.includes('copy')) {
       const creativeInput: GenerateAdCreativesInput = {
         url: input.url,
-        objectives: [], // These are not available at the task level, can be omitted
+        objectives: [], 
         platform: input.strategyPlatform || 'General',
         campaign_type: 'General',
         funnel_stage: 'Consideration',
@@ -335,6 +337,12 @@ export async function executeTaskAction(
       const result = await generateAdCreatives(creativeInput);
       return { data: result };
     }
+    
+    if (taskNameLower.includes('configuración de campaña') || taskNameLower.includes('campaign setup')) {
+      const result = await executeCampaignSetupTask(input);
+      return { data: result };
+    }
+
 
     // Default fallback for unimplemented tasks
     return { error: 'La ejecución para este tipo de tarea aún no está implementada.' };

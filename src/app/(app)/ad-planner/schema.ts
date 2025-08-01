@@ -51,12 +51,20 @@ export const KeywordResearchResultSchema = z.object({
 });
 export type KeywordResearchResult = z.infer<typeof KeywordResearchResultSchema>;
 
+export const CampaignSetupResultSchema = z.object({
+    setupSteps: z.array(z.object({
+        step: z.string(),
+        details: z.string(),
+    })),
+});
+export type CampaignSetupResult = z.infer<typeof CampaignSetupResultSchema>;
+
 // Task schema for client-side state with added result field
 export const TaskSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
   hours: z.number(),
-  result: z.union([KeywordResearchResultSchema, GenerateAdCreativesOutputSchema]).nullable().optional(),
+  result: z.union([KeywordResearchResultSchema, GenerateAdCreativesOutputSchema, CampaignSetupResultSchema]).nullable().optional(),
 });
 export type Task = z.infer<typeof TaskSchema>;
 

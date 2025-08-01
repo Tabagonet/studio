@@ -26,6 +26,12 @@ interface StrategyDetailDialogProps {
   onPlanUpdate: (updatedPlan: CreateAdPlanOutput) => void;
 }
 
+const isTaskExecutable = (taskName: string): boolean => {
+    const lowerCaseName = taskName.toLowerCase();
+    const executableKeywords = ['palabras clave', 'keyword', 'anuncios', 'creativos', 'copy', 'configuración de campaña', 'campaign setup'];
+    return executableKeywords.some(keyword => lowerCaseName.includes(keyword));
+};
+
 export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange, onPlanUpdate }: StrategyDetailDialogProps) {
   const [hourlyRate, setHourlyRate] = useState(60);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -233,9 +239,11 @@ export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange
                                       />
                                   </div>
                                   <div className="flex gap-1">
-                                      <Button variant="outline" size="icon-sm" onClick={() => setTaskToExecute(task)}>
-                                          <PlayCircle className="h-4 w-4" />
-                                      </Button>
+                                      {isTaskExecutable(task.name) && (
+                                          <Button variant="outline" size="icon-sm" onClick={() => setTaskToExecute(task)}>
+                                              <PlayCircle className="h-4 w-4 text-primary" />
+                                          </Button>
+                                      )}
                                       <Button variant="ghost" size="icon-sm" onClick={() => removeTask(task.id)} className="text-destructive">
                                           <Trash2 className="h-4 w-4" />
                                       </Button>

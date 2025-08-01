@@ -14,7 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
-import type { Task, CreateAdPlanOutput, KeywordResearchResult, GenerateAdCreativesOutput, Strategy } from './schema';
+import type { Task, CreateAdPlanOutput, KeywordResearchResult, GenerateAdCreativesOutput, Strategy, CampaignSetupResult } from './schema';
 import { Loader2, Sparkles, Clipboard, Table as TableIcon } from 'lucide-react';
 import { executeTaskAction } from './actions';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -96,6 +96,12 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, strategy
         const creativeResult = currentResult as GenerateAdCreativesOutput;
         text += '** Titulares **\n' + creativeResult.headlines.join('\n') + '\n\n';
         text += '** Descripciones **\n' + creativeResult.descriptions.join('\n');
+    } else if ('setupSteps' in currentResult) {
+        const setupResult = currentResult as CampaignSetupResult;
+        text += `** Pasos de Configuración para ${strategy?.campaign_type} **\n\n`;
+        setupResult.setupSteps.forEach(step => {
+            text += `- ${step.step}: ${step.details}\n`;
+        });
     }
     navigator.clipboard.writeText(text);
     toast({ title: 'Copiado', description: 'Resultados copiados al portapapeles.' });
@@ -104,7 +110,6 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, strategy
   const renderResult = () => {
     if (!currentResult) return null;
 
-    // Check for keyword research result structure
     if (currentResult.keywords && Array.isArray(currentResult.keywords)) {
       const keywordResult = currentResult as KeywordResearchResult;
       return (
@@ -135,7 +140,6 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, strategy
       );
     }
     
-    // Check for ad creatives result structure
     if (currentResult.headlines && Array.isArray(currentResult.headlines)) {
         const creativeResult = currentResult as GenerateAdCreativesOutput;
         return (
@@ -157,6 +161,26 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, strategy
                     </ul>
                  </div>
              </div>
+        )
+    }
+    
+    if (currentResult.setupSteps && Array.isArray(currentResult.setupSteps)) {
+        const setupResult = currentResult as CampaignSetupResult;
+        return (
+             <div className="mt-4 space-y-2">
+                <div className="flex justify-between items-center">
+                    <h4 className="font-semibold">Guía de Configuración de Campaña</h4>
+                    <Button variant="outline" size="sm" onClick={copyToClipboard}><Clipboard className="mr-2 h-4 w-4" /> Copiar</Button>
+                </div>
+                 <ul className="list-decimal list-inside text-sm space-y-3">
+                    {setupResult.setupSteps.map((s, i) => (
+                        <li key={i}>
+                            <strong className="font-semibold">{s.step}:</strong>
+                            <p className="pl-4 text-muted-foreground">{s.details}</p>
+                        </li>
+                    ))}
+                </ul>
+            </div>
         )
     }
 
