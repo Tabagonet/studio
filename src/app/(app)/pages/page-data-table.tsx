@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -16,6 +15,7 @@ import {
   type ExpandedState,
   type RowSelectionState,
   type SortingState,
+  type Row,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -29,7 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getColumns } from "./columns"; 
 import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
-import { Loader2, ChevronDown, Trash2, Sparkles, Edit, Image as ImageIcon, Languages } from "lucide-react";
+import { Loader2, ChevronDown, Trash2, Sparkles, Edit, Image as ImageIcon, Languages, Link2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
@@ -190,6 +190,60 @@ export function PageDataTable({
     }
   };
   
+  const handleBatchLinkTranslations = async () => {
+    setIsActionLoading(true);
+    const selectedRows = table.getSelectedRowModel().rows;
+    
+    if (selectedRows.length < 2) {
+        toast({ title: "Selección insuficiente", description: "Debes seleccionar al menos dos elementos para enlazarlos.", variant: "destructive" });
+        setIsActionLoading(false);
+        return;
+    }
+
+    const languages = selectedRows.map((row: Row<HierarchicalContentItem>) => row.original.lang);
+    if (new Set(languages).size !== languages.length) {
+        toast({ title: "Idiomas duplicados", description: "No puedes enlazar dos elementos del mismo idioma.", variant: "destructive" });
+        setIsActionLoading(false);
+        return;
+    }
+    
+    const translations: Record<string, number> = {};
+    selectedRows.forEach((row: Row<HierarchicalContentItem>) => {
+        if(row.original.lang) {
+            translations[row.original.lang] = row.original.id;
+        }
+    });
+
+    const user = auth.currentUser;
+    if (!user) {
+        setIsActionLoading(false);
+        return;
+    }
+
+    toast({ title: `Enlazando ${selectedRows.length} elemento(s)...` });
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/wordpress/posts/link-translations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ translations })
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || result.message || 'Fallo el enlace de traducciones.');
+        }
+
+        toast({ title: "¡Traducciones enlazadas!", description: result.message });
+        table.resetRowSelection();
+        onDataChange(token);
+    } catch (error: any) {
+         toast({ title: "Error al enlazar", description: error.message, variant: "destructive" });
+    } finally {
+        setIsActionLoading(false);
+    }
+  };
+
   const handleBatchSeoMeta = async () => {
     const selectedRows = table.getSelectedRowModel().rows;
     if (selectedRows.length === 0) {
@@ -316,6 +370,9 @@ export function PageDataTable({
               <DropdownMenuItem onSelect={handleBatchSeoMeta}>
                 <Sparkles className="mr-2 h-4 w-4" /> Generar Título y Descripción SEO
               </DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleBatchLinkTranslations} disabled={selectedRowCount < 2}>
+                <Link2 className="mr-2 h-4 w-4" /> Enlazar Traducciones
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <AlertDialogTrigger asChild>
                 <DropdownMenuItem className="text-destructive focus:text-destructive">
@@ -432,3 +489,5 @@ export function PageDataTable({
     </div>
   );
 }
+
+    
