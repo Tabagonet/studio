@@ -320,7 +320,7 @@ export async function executeTaskAction(
   try {
     const taskNameLower = input.taskName.toLowerCase();
     
-    if (taskNameLower.includes('palabras clave') || taskNameLower.includes('keyword')) {
+    if (taskNameLower.includes('keyword') || taskNameLower.includes('palabras clave')) {
         const result = await executeKeywordResearchTask(input);
         return { data: result };
     }
@@ -338,13 +338,12 @@ export async function executeTaskAction(
       return { data: result };
     }
     
-    if (taskNameLower.includes('configuración de campaña') || taskNameLower.includes('campaign setup')) {
+    // Updated logic to be more flexible
+    if (taskNameLower.includes('configuraci') && taskNameLower.includes('campa')) {
       const result = await executeCampaignSetupTask(input);
       return { data: result };
     }
 
-
-    // Default fallback for unimplemented tasks
     return { error: 'La ejecución para este tipo de tarea aún no está implementada.' };
 
   } catch (error: any) {
