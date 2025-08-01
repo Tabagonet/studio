@@ -5,7 +5,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowUpDown, ChevronRight, ExternalLink, MoreHorizontal, Edit, Trash2, FileText, ImageIcon } from "lucide-react";
+import { ArrowUpDown, ChevronRight, ExternalLink, MoreHorizontal, Edit, Trash2, FileText, ImageIcon, Home } from "lucide-react";
 import type { HierarchicalContentItem, ContentItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -72,6 +72,18 @@ export const getColumns = (
                     <button onClick={row.getToggleExpandedHandler()} className="cursor-pointer p-1 -ml-1" aria-label={row.getIsExpanded() ? 'Contraer fila' : 'Expandir fila'}>
                         <ChevronRight className={cn("h-4 w-4 transition-transform", row.getIsExpanded() && 'rotate-90')} />
                     </button>
+                )}
+                 {row.original.is_front_page && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                           <Home className="h-4 w-4 text-primary flex-shrink-0" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Esta es la página de inicio de tu web.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                 )}
                 <span className="font-medium">{getValue<string>()}</span>
             </div>

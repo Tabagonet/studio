@@ -2,7 +2,7 @@
 /*
 Plugin Name: AutoPress AI Helper
 Description: Añade endpoints a la REST API para gestionar traducciones, stock y otras funciones personalizadas para AutoPress AI.
-Version: 1.41
+Version: 1.42
 Author: intelvisual@intelvisual.es
 */
 
@@ -173,7 +173,9 @@ function autopress_ai_register_rest_endpoints() {
         
         $query = new WP_Query($args); 
         $post_ids = $query->posts; 
-        $content_list = []; 
+        $content_list = [];
+        $front_page_id = get_option('page_on_front');
+
         if (!empty($post_ids)) { 
             foreach ($post_ids as $post_id) { 
                 $post_obj = get_post($post_id); 
@@ -182,6 +184,9 @@ function autopress_ai_register_rest_endpoints() {
                 $type_label = 'Post'; 
                 if ($type_slug === 'page') { $type_label = 'Page'; } 
                 elseif ($type_slug === 'product') { $type_label = 'Producto'; } 
+                
+                $is_front = ($front_page_id && $post_obj->ID == $front_page_id);
+
                 $content_list[] = [ 
                     'id' => $post_obj->ID, 
                     'title' => $post_obj->post_title, 
@@ -190,6 +195,7 @@ function autopress_ai_register_rest_endpoints() {
                     'lang' => function_exists('pll_get_post_language') ? pll_get_post_language($post_obj->ID, 'slug') : null, 
                     'translations' => function_exists('pll_get_post_translations') ? pll_get_post_translations($post_obj->ID) : [], 
                     'modified' => $post_obj->post_modified, 
+                    'is_front_page' => $is_front,
                 ]; 
             } 
         } 
