@@ -5,15 +5,17 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2, Copy, Wand2, RefreshCw, Download } from 'lucide-react';
-import type { CreateAdPlanOutput, Strategy, GenerateAdCreativesOutput } from './schema';
+import type { GenerateAdCreativesOutput, Strategy } from './schema';
 import { useToast } from '@/hooks/use-toast';
 import { generateAdCreativesAction } from './actions';
 import { auth } from '@/lib/firebase';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface CreativeStudioDialogProps {
-  plan: CreateAdPlanOutput | null;
   strategy: Strategy | null;
+  url: string;
+  objectives: string[];
+  buyerPersona: string;
   onOpenChange: (open: boolean) => void;
   onSaveCreatives: (strategyPlatform: string, creatives: GenerateAdCreativesOutput) => void;
 }
@@ -46,12 +48,19 @@ const CreativeItem = ({ title, content }: { title: string, content: string | str
 };
 
 
-export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreatives }: CreativeStudioDialogProps) {
+export function CreativeStudioDialog({
+  strategy,
+  url,
+  objectives,
+  buyerPersona,
+  onOpenChange,
+  onSaveCreatives
+}: CreativeStudioDialogProps) {
   const [creatives, setCreatives] = useState<GenerateAdCreativesOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const generateCreatives = useCallback(async (currentPlan: CreateAdPlanOutput, currentStrategy: Strategy) => {
+  const generateCreatives = useCallback(async (currentStrategy: Strategy) => {
     setIsLoading(true);
     setCreatives(null);
     const user = auth.currentUser;
@@ -60,7 +69,7 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreat
       setIsLoading(false);
       return;
     }
-    if (!currentPlan.buyer_persona) {
+    if (!buyerPersona) {
       toast({ title: 'Faltan datos', description: 'El "Buyer Persona" es necesario para generar creativos.', variant: 'destructive' });
       setIsLoading(false);
       return;
@@ -69,12 +78,12 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreat
     try {
       const token = await user.getIdToken();
       const result = await generateAdCreativesAction({
-        url: currentPlan.url,
-        objectives: currentPlan.objectives,
+        url: url,
+        objectives: objectives,
         platform: currentStrategy.platform,
         campaign_type: currentStrategy.campaign_type,
         funnel_stage: currentStrategy.funnel_stage,
-        target_audience: currentPlan.buyer_persona,
+        target_audience: buyerPersona,
       }, token);
 
       if (result.error || !result.data) {
@@ -91,26 +100,26 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreat
     } finally {
       setIsLoading(false);
     }
-  }, [onSaveCreatives, toast]);
+  }, [url, objectives, buyerPersona, onSaveCreatives, toast]);
 
   useEffect(() => {
-    if (strategy && plan) {
+    if (strategy) {
       if (strategy.creatives && Object.keys(strategy.creatives).length > 0) {
         setCreatives(strategy.creatives);
       } else {
-        generateCreatives(plan, strategy);
+        generateCreatives(strategy);
       }
     } else {
       setCreatives(null);
       setIsLoading(false);
     }
-  }, [strategy, plan, generateCreatives]);
+  }, [strategy, generateCreatives]);
   
   const handleRegenerate = useCallback(() => {
-    if (plan && strategy) {
-      generateCreatives(plan, strategy);
+    if (strategy) {
+      generateCreatives(strategy);
     }
-  }, [plan, strategy, generateCreatives]);
+  }, [strategy, generateCreatives]);
 
 
   const handleExport = () => {
@@ -153,7 +162,7 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreat
     onOpenChange(false);
   };
 
-  if (!strategy || !plan) return null;
+  if (!strategy) return null;
 
   return (
     <Dialog open={!!strategy} onOpenChange={onOpenChange}>

@@ -130,8 +130,10 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyInfo }: AdPlanV
                 onPlanUpdate={onPlanUpdate}
             />
              <CreativeStudioDialog
-                plan={plan}
                 strategy={selectedStrategyForCreatives}
+                url={plan.url}
+                objectives={plan.objectives}
+                buyerPersona={plan.buyer_persona}
                 onOpenChange={(open) => !open && setSelectedStrategyForCreatives(null)}
                 onSaveCreatives={handleSaveCreativesToPlan}
             />
