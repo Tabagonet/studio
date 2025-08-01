@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -32,13 +32,24 @@ interface TaskExecutionDialogProps {
 export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, strategy, onTaskUpdate }: TaskExecutionDialogProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [result, setResult] = useState<KeywordResearchResult | GenerateAdCreativesOutput | null>(null);
+  const [currentResult, setCurrentResult] = useState<any | null>(null);
+  
+  useEffect(() => {
+    // When the dialog opens with a task, set its existing result (if any)
+    // to the local state.
+    if (task) {
+      setCurrentResult(task.result || null);
+    } else {
+      setCurrentResult(null);
+    }
+  }, [task]);
+
 
   const handleExecute = async () => {
     if (!task || !plan || !strategy) return;
 
     setIsLoading(true);
-    setResult(null);
+    setCurrentResult(null); // Clear previous results before new execution
 
     const user = auth.currentUser;
     if (!user) {
@@ -65,7 +76,7 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, strategy
       }
       
       const taskResult = response.data;
-      setResult(taskResult);
+      setCurrentResult(taskResult); // Update local state for immediate view
       onTaskUpdate(task.id, taskResult); // Pass the result back up to the parent
       toast({ title: 'Tarea Ejecutada', description: 'La IA ha completado la tarea.' });
     } catch (err: any) {
@@ -76,24 +87,26 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, strategy
   };
 
   const copyToClipboard = () => {
-    if (!result) return;
+    if (!currentResult) return;
     let text = '';
-    if ('keywords' in result) {
-      text = result.keywords.map(kw => `${kw.keyword}\t${kw.intent}\t${kw.cpc_suggestion}`).join('\n');
-    } else if ('headlines' in result) {
-        text += '** Titulares **\n' + result.headlines.join('\n') + '\n\n';
-        text += '** Descripciones **\n' + result.descriptions.join('\n');
+    if ('keywords' in currentResult) {
+      text = 'Palabra Clave\tIntención\tCPC Sugerido\n';
+      text += (currentResult as KeywordResearchResult).keywords.map(kw => `${kw.keyword}\t${kw.intent}\t${kw.cpc_suggestion}`).join('\n');
+    } else if ('headlines' in currentResult) {
+        const creativeResult = currentResult as GenerateAdCreativesOutput;
+        text += '** Titulares **\n' + creativeResult.headlines.join('\n') + '\n\n';
+        text += '** Descripciones **\n' + creativeResult.descriptions.join('\n');
     }
     navigator.clipboard.writeText(text);
     toast({ title: 'Copiado', description: 'Resultados copiados al portapapeles.' });
   };
 
   const renderResult = () => {
-    const displayResult = result || (task?.result as any | null);
-    if (!displayResult) return null;
+    if (!currentResult) return null;
 
-    if (displayResult.keywords) {
-      const keywordResult = displayResult as KeywordResearchResult;
+    // Check for keyword research result structure
+    if (currentResult.keywords && Array.isArray(currentResult.keywords)) {
+      const keywordResult = currentResult as KeywordResearchResult;
       return (
         <div className="mt-4 space-y-2">
             <div className="flex justify-between items-center">
@@ -122,8 +135,9 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, strategy
       );
     }
     
-    if (displayResult.headlines) {
-        const creativeResult = displayResult as GenerateAdCreativesOutput;
+    // Check for ad creatives result structure
+    if (currentResult.headlines && Array.isArray(currentResult.headlines)) {
+        const creativeResult = currentResult as GenerateAdCreativesOutput;
         return (
              <div className="mt-4 space-y-4">
                 <div className="flex justify-between items-center">
@@ -146,7 +160,7 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, strategy
         )
     }
 
-    return <p>La tarea no ha devuelto un resultado esperado.</p>;
+    return <p className="text-center text-muted-foreground p-4">La tarea no ha devuelto un resultado con un formato reconocible.</p>;
   };
 
   return (
@@ -164,7 +178,7 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, strategy
               <Loader2 className="h-8 w-8 animate-spin" />
               <p className="mt-2 text-muted-foreground">La IA está trabajando en tu tarea...</p>
             </div>
-          ) : (task?.result || result) ? (
+          ) : currentResult ? (
              <ScrollArea className="max-h-[50vh]">
                 {renderResult()}
             </ScrollArea>
@@ -182,7 +196,7 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, strategy
           </DialogClose>
           <Button onClick={handleExecute} disabled={isLoading}>
             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-            {task?.result || result ? 'Volver a Generar' : 'Generar'}
+            {currentResult ? 'Volver a Generar' : 'Generar'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -66,23 +66,15 @@ export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange
         throw new Error(result.error || 'La IA no pudo generar tareas.');
       }
 
-      const newTasksWithIds = result.data.tasks.map(t => ({ ...t, id: uuidv4() }));
+      const newTasksWithIds = result.data.tasks.map(t => ({ ...t, id: uuidv4(), result: null }));
       setTasks(newTasksWithIds);
-
-      const updatedPlan: CreateAdPlanOutput = {
-        ...currentPlan,
-        strategies: currentPlan.strategies.map(s =>
-          s.platform === currentStrategy.platform ? { ...s, tasks: newTasksWithIds } : s
-        )
-      };
-      onPlanUpdate(updatedPlan);
 
     } catch (error: any) {
       toast({ title: 'Error al generar tareas', description: error.message, variant: 'destructive' });
     } finally {
       setIsLoadingTasks(false);
     }
-  }, [onPlanUpdate, toast]);
+  }, [toast]);
   
   useEffect(() => {
     if (strategy && plan) {
@@ -125,15 +117,6 @@ export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange
         task.id === taskId ? { ...task, result } : task
       );
     setTasks(updatedTasks);
-    
-    // Also update the main plan state
-    if (plan && strategy) {
-        const updatedStrategies = plan.strategies.map(s =>
-            s.platform === strategy.platform ? { ...s, tasks: updatedTasks } : s
-        );
-        onPlanUpdate({ ...plan, strategies: updatedStrategies });
-    }
-    
     setTaskToExecute(null); // Close the execution dialog
   };
   
