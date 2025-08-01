@@ -123,7 +123,6 @@ export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange
         task.id === taskId ? { ...task, result } : task
       );
     setTasks(updatedTasks);
-    setTaskToExecute(null); // Close the execution dialog
   };
   
   const { totalHours, totalCost } = useMemo(() => {
