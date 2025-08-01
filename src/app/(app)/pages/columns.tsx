@@ -100,8 +100,8 @@ export const getColumns = (
         cell: ({ getValue }) => {
           const type = getValue<string>();
           let variant: "secondary" | "outline" | "default" = "secondary";
-          if (type === 'Page') variant = 'outline';
-          if (type === 'Producto') variant = 'default';
+          if (type.includes('Page') || type.includes('Página')) variant = 'outline';
+          if (type.includes('Product') || type.includes('Producto')) variant = 'default';
 
           return <Badge variant={variant}>{type}</Badge>
         }

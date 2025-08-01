@@ -252,7 +252,7 @@ export interface UserNotification {
 export interface ContentItem {
   id: number;
   title: string;
-  type: 'Post' | 'Page' | 'Producto';
+  type: 'Post' | 'Page' | 'Producto' | 'Categoría de Entradas' | 'Categoría de Productos';
   link: string;
   status: 'publish' | 'draft' | 'pending' | 'private' | 'future' | 'trash';
   parent: number;

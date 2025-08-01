@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -351,6 +352,8 @@ export function PageDataTable({
                     <SelectItem value="Post">Entradas</SelectItem>
                     <SelectItem value="Page">Páginas</SelectItem>
                     <SelectItem value="Producto">Productos</SelectItem>
+                    <SelectItem value="Categoría de Entradas">Cat. Entradas</SelectItem>
+                    <SelectItem value="Categoría de Productos">Cat. Productos</SelectItem>
                 </SelectContent>
             </Select>
             <Select
@@ -462,7 +465,7 @@ export function PageDataTable({
                   data-state={row.getIsSelected() && "selected"}
                   onClick={(e) => {
                       const target = e.target as HTMLElement;
-                      if (!(target instanceof HTMLButtonElement || target instanceof HTMLAnchorElement || target.closest('button, a, [role=checkbox], [role=menuitem]') )) {
+                      if (!(target instanceof HTMLButtonElement || target.tagName === 'A' || target.closest('button, a, [role=checkbox], [role=menuitem]') )) {
                         handleRowClick(row);
                       }
                     }}

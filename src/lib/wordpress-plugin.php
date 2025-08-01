@@ -150,11 +150,33 @@ function autopress_ai_register_rest_endpoints() {
         $page = $request->get_param('page') ? absint($request->get_param('page')) : 1;
         $per_page = $request->get_param('per_page') ? absint($request->get_param('per_page')) : 100;
         $menu_id = $request->get_param('menu_id') ? absint($request->get_param('menu_id')) : 0;
-        
+        $content_list = [];
+
+        // Fetch Taxonomies (Categories)
+        $taxonomies_to_query = ['category', 'product_cat'];
+        foreach ($taxonomies_to_query as $tax) {
+            $terms = get_terms(['taxonomy' => $tax, 'hide_empty' => false]);
+            if (!is_wp_error($terms)) {
+                foreach ($terms as $term) {
+                    $content_list[] = [
+                        'id' => $term->term_id,
+                        'title' => $term->name,
+                        'type' => ($tax === 'category') ? 'Categoría de Entradas' : 'Categoría de Productos',
+                        'link' => get_term_link($term),
+                        'status' => 'publish',
+                        'parent' => $term->parent,
+                        'lang' => function_exists('pll_get_term_language') ? pll_get_term_language($term->term_id, 'slug') : null,
+                        'translations' => function_exists('pll_get_term_translations') ? pll_get_term_translations($term->term_id) : [],
+                        'modified' => current_time('mysql'),
+                        'is_front_page' => false,
+                    ];
+                }
+            }
+        }
+
         $args = [
             'post_type' => $post_types_to_query,
-            'posts_per_page' => $per_page,
-            'paged' => $page,
+            'posts_per_page' => -1, // Fetch all to manually paginate after combining with terms
             'post_status' => ['publish', 'draft', 'pending', 'private', 'future', 'trash'],
             'fields' => 'ids',
             'lang' => '', // Fetch all languages
@@ -165,7 +187,6 @@ function autopress_ai_register_rest_endpoints() {
             if (!empty($menu_items)) {
                 $object_ids = wp_list_pluck($menu_items, 'object_id');
                 $args['post__in'] = $object_ids;
-                $args['posts_per_page'] = -1; // Get all items from the menu
             } else {
                  $args['post__in'] = [0]; // Return no posts if menu is empty
             }
@@ -173,8 +194,7 @@ function autopress_ai_register_rest_endpoints() {
         
         $query = new WP_Query($args); 
         $post_ids = $query->posts; 
-        $content_list = [];
-
+        
         $all_front_page_ids = [];
         $front_page_id = get_option('page_on_front');
         if ($front_page_id) {
@@ -212,9 +232,15 @@ function autopress_ai_register_rest_endpoints() {
             } 
         } 
         
-        $response = new WP_REST_Response(['content' => $content_list], 200);
-        $response->header('X-WP-Total', $query->found_posts);
-        $response->header('X-WP-TotalPages', $query->max_num_pages);
+        // Manual pagination
+        $total_items = count($content_list);
+        $total_pages = ceil($total_items / $per_page);
+        $offset = ($page - 1) * $per_page;
+        $paginated_content = array_slice($content_list, $offset, $per_page);
+
+        $response = new WP_REST_Response(['content' => $paginated_content], 200);
+        $response->header('X-WP-Total', $total_items);
+        $response->header('X-WP-TotalPages', $total_pages);
         
         return $response;
     }
