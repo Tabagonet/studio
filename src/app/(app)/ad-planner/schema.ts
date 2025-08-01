@@ -1,4 +1,5 @@
 
+
 import { z } from 'zod';
 
 // === Schemas for Generate Ad Creatives Flow ===
@@ -48,6 +49,24 @@ export const TaskSchema = z.object({
   hours: z.number(),
 });
 export type Task = z.infer<typeof TaskSchema>;
+
+// === Schemas for Task Execution Flow ===
+export const ExecuteTaskInputSchema = z.object({
+  taskName: z.string(),
+  url: z.string().url(),
+  buyerPersona: z.string(),
+  valueProposition: z.string(),
+});
+export type ExecuteTaskInput = z.infer<typeof ExecuteTaskInputSchema>;
+
+export const KeywordResearchResultSchema = z.object({
+  keywords: z.array(z.object({
+    keyword: z.string(),
+    intent: z.string(),
+    cpc_suggestion: z.string(),
+  })),
+});
+export type KeywordResearchResult = z.infer<typeof KeywordResearchResultSchema>;
 
 // === NEW, COMPREHENSIVE AD PLAN SCHEMAS ===
 

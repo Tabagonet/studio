@@ -1,4 +1,5 @@
 
+
 'use server';
 import { createAdPlan } from "@/ai/flows/create-ad-plan-flow";
 import { 
@@ -10,11 +11,14 @@ import {
     type GenerateAdCreativesOutput,
     type CompetitorAnalysisInput,
     type CompetitorAnalysisOutput,
+    ExecuteTaskInputSchema,
+    KeywordResearchResultSchema,
 } from "./schema";
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { generateStrategyTasks } from '@/ai/flows/generate-strategy-tasks-flow';
 import { generateAdCreatives } from '@/ai/flows/generate-ad-creatives-flow';
 import { competitorAnalysis } from "@/ai/flows/competitor-analysis-flow";
+import { executeKeywordResearchTask } from "@/ai/flows/execute-keyword-research-task-flow";
 
 
 export async function generateAdPlanAction(
@@ -295,4 +299,35 @@ export async function deleteAdPlansAction(
         console.error(`Error deleting plans:`, error);
         return { success: false, error: 'An unknown error occurred while deleting the plans.' };
     }
+}
+
+export async function executeTaskAction(
+  input: z.infer<typeof ExecuteTaskInputSchema>,
+  token: string
+): Promise<{ data?: any; error?: string }> {
+  let uid: string;
+  try {
+    if (!adminAuth) throw new Error('Firebase Admin not initialized');
+    const decodedToken = await adminAuth.verifyIdToken(token);
+    uid = decodedToken.uid;
+  } catch (error: any) {
+    return { error: 'Authentication failed: ' + error.message };
+  }
+
+  try {
+    // For now, we only have one type of task.
+    // In the future, we can add a switch/case based on `input.taskName`
+    // to call different AI flows.
+    if (input.taskName.toLowerCase().includes('palabras clave') || input.taskName.toLowerCase().includes('keyword')) {
+        const result = await executeKeywordResearchTask(input);
+        return { data: result };
+    }
+
+    // Default fallback for unimplemented tasks
+    return { error: 'La ejecución para este tipo de tarea aún no está implementada.' };
+
+  } catch (error: any) {
+    console.error('Error in executeTaskAction:', error);
+    return { error: error.message || 'An unknown error occurred while executing the task.' };
+  }
 }
