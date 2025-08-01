@@ -133,7 +133,7 @@ export default function SeoOptimizerPage() {
         const configPromise = fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` } });
         const scoresPromise = fetch('/api/seo/latest-scores', { headers: { 'Authorization': `Bearer ${token}` } });
         
-        const [listResponse, statsResponse, configResponse, scoresResponse] = await Promise.all([listPromise, statsPromise, configPromise, scoresPromise]);
+        const [listResponse, statsResponse, configResponse, scoresResponse] = await Promise.all([listPromise, statsPromise, configPromise, scoresResponse]);
 
         let localContentList: ContentItem[] = [];
         if (listResponse.ok) {
