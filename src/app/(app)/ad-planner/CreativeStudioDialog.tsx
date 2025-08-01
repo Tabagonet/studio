@@ -49,10 +49,12 @@ const CreativeItem = ({ title, content }: { title: string, content: string | str
 export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreatives }: CreativeStudioDialogProps) {
   const [creatives, setCreatives] = useState<GenerateAdCreativesOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasFetched, setHasFetched] = useState(false);
   const { toast } = useToast();
 
   const fetchCreatives = useCallback(async (currentPlan: CreateAdPlanOutput, currentStrategy: Strategy) => {
       setIsLoading(true);
+      setHasFetched(true);
       
       const user = auth.currentUser;
       if (!user) {
@@ -83,8 +85,8 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreat
         }
         
         setCreatives(result.data);
-        onSaveCreatives(currentStrategy.platform, result.data); // Save to parent state
-        toast({ title: 'Creativos Regenerados', description: 'Se ha generado una nueva tanda de creativos.' });
+        onSaveCreatives(currentStrategy.platform, result.data);
+        toast({ title: 'Creativos Generados', description: 'Se ha generado una nueva tanda de creativos.' });
 
       } catch (error: any) {
         toast({ title: 'Error al Generar Creativos', description: error.message, variant: 'destructive' });
@@ -95,23 +97,24 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreat
     }, [toast, onSaveCreatives]);
 
   useEffect(() => {
+    // Reset fetch status when strategy changes
+    if (strategy) {
+        setHasFetched(false);
+        setCreatives(null);
+    }
+  }, [strategy]);
+
+  useEffect(() => {
     if (strategy && plan) {
-      // If creatives already exist in the strategy object, display them.
-      // The Object.keys check ensures that an empty {} object doesn't prevent generation.
       if (strategy.creatives && Object.keys(strategy.creatives).length > 0) {
         setCreatives(strategy.creatives);
         setIsLoading(false);
-      } else {
-        // Otherwise, fetch them.
+        setHasFetched(true);
+      } else if (!isLoading && !hasFetched) {
         fetchCreatives(plan, strategy);
       }
-    } else {
-      // Reset state if the dialog is closed or there's no strategy
-      setCreatives(null);
-      setIsLoading(false);
     }
-  }, [strategy, plan, fetchCreatives]);
-
+  }, [strategy, plan, isLoading, hasFetched, fetchCreatives]);
 
   const handleCloseDialog = () => {
     onOpenChange(false);
