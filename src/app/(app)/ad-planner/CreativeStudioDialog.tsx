@@ -48,12 +48,12 @@ const CreativeItem = ({ title, content }: { title: string, content: string | str
 
 export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdate }: CreativeStudioDialogProps) {
   const [creatives, setCreatives] = useState<GenerateAdCreativesOutput | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   const fetchCreatives = useCallback(async (currentPlan: CreateAdPlanOutput, currentStrategy: Strategy, forceRegenerate = false) => {
       setIsLoading(true);
-      if(forceRegenerate) {
+      if (forceRegenerate) {
         setCreatives(null);
       }
 
@@ -88,7 +88,7 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdat
           )
         };
         onPlanUpdate(updatedPlan);
-        if(forceRegenerate) {
+        if (forceRegenerate) {
              toast({ title: 'Creativos Regenerados', description: 'Se ha generado una nueva tanda de creativos.' });
         }
 
@@ -105,6 +105,7 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdat
         setCreatives(strategy.creatives);
         setIsLoading(false);
       } else {
+        setIsLoading(true);
         fetchCreatives(plan, strategy);
       }
     }
