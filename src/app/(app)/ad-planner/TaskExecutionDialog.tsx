@@ -14,9 +14,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
-import type { Task, CreateAdPlanOutput } from './schema';
+import type { Task, CreateAdPlanOutput, KeywordResearchResult } from './schema';
 import { Loader2, Sparkles, Clipboard, Table as TableIcon } from 'lucide-react';
-import { executeTaskAction, type KeywordResearchResult } from './actions';
+import { executeTaskAction } from './actions';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
@@ -25,9 +25,10 @@ interface TaskExecutionDialogProps {
   onOpenChange: (open: boolean) => void;
   task: Task | null;
   plan: CreateAdPlanOutput | null;
+  onTaskUpdate: (taskId: string, result: any) => void;
 }
 
-export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan }: TaskExecutionDialogProps) {
+export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, onTaskUpdate }: TaskExecutionDialogProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<KeywordResearchResult | null>(null);
@@ -60,8 +61,10 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan }: TaskEx
       if (response.error || !response.data) {
         throw new Error(response.error || 'La IA no pudo ejecutar la tarea.');
       }
-
-      setResult(response.data as KeywordResearchResult);
+      
+      const taskResult = response.data as KeywordResearchResult;
+      setResult(taskResult);
+      onTaskUpdate(task.id, taskResult); // Pass the result back up to the parent
       toast({ title: 'Tarea Ejecutada', description: 'La IA ha completado la investigación de palabras clave.' });
     } catch (err: any) {
       toast({ title: 'Error en la Ejecución', description: err.message, variant: 'destructive' });
@@ -78,9 +81,12 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan }: TaskEx
   };
 
   const renderResult = () => {
-    if (!result) return null;
+    // Check if a result is already saved in the task object when the dialog opens
+    const displayResult = result || (task?.result as KeywordResearchResult | null);
 
-    if (result.keywords) {
+    if (!displayResult) return null;
+
+    if (displayResult.keywords) {
       return (
         <div className="mt-4 space-y-2">
             <div className="flex justify-between items-center">
@@ -96,7 +102,7 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan }: TaskEx
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {result.keywords.map((kw, index) => (
+                    {displayResult.keywords.map((kw, index) => (
                     <TableRow key={index}>
                         <TableCell>{kw.keyword}</TableCell>
                         <TableCell>{kw.intent}</TableCell>
@@ -127,14 +133,14 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan }: TaskEx
               <Loader2 className="h-8 w-8 animate-spin" />
               <p className="mt-2 text-muted-foreground">La IA está trabajando en tu tarea...</p>
             </div>
-          ) : result ? (
+          ) : (task?.result || result) ? (
              <ScrollArea className="max-h-[50vh]">
                 {renderResult()}
             </ScrollArea>
           ) : (
             <div className="text-center p-6 border border-dashed rounded-md">
                 <p className="text-muted-foreground">
-                    Haz clic en "Generar" para que la IA realice la investigación de palabras clave.
+                    Haz clic en "Generar" para que la IA realice la investigación de palabras clave. Los resultados se guardarán.
                 </p>
             </div>
           )}
@@ -145,7 +151,7 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan }: TaskEx
           </DialogClose>
           <Button onClick={handleExecute} disabled={isLoading}>
             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-            {result ? 'Volver a Generar' : 'Generar'}
+            {task?.result || result ? 'Volver a Generar' : 'Generar'}
           </Button>
         </DialogFooter>
       </DialogContent>

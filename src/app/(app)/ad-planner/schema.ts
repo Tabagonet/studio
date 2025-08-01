@@ -1,5 +1,4 @@
 
-
 import { z } from 'zod';
 
 // === Schemas for Generate Ad Creatives Flow ===
@@ -42,11 +41,21 @@ export const GenerateStrategyTasksOutputSchema = z.object({
 });
 export type GenerateStrategyTasksOutput = z.infer<typeof GenerateStrategyTasksOutputSchema>;
 
-// Task schema for client-side state
+export const KeywordResearchResultSchema = z.object({
+  keywords: z.array(z.object({
+    keyword: z.string(),
+    intent: z.string(),
+    cpc_suggestion: z.string(),
+  })),
+});
+export type KeywordResearchResult = z.infer<typeof KeywordResearchResultSchema>;
+
+// Task schema for client-side state with added result field
 export const TaskSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
   hours: z.number(),
+  result: z.any().optional(), // Can hold keyword research results, etc.
 });
 export type Task = z.infer<typeof TaskSchema>;
 
@@ -59,14 +68,6 @@ export const ExecuteTaskInputSchema = z.object({
 });
 export type ExecuteTaskInput = z.infer<typeof ExecuteTaskInputSchema>;
 
-export const KeywordResearchResultSchema = z.object({
-  keywords: z.array(z.object({
-    keyword: z.string(),
-    intent: z.string(),
-    cpc_suggestion: z.string(),
-  })),
-});
-export type KeywordResearchResult = z.infer<typeof KeywordResearchResultSchema>;
 
 // === NEW, COMPREHENSIVE AD PLAN SCHEMAS ===
 

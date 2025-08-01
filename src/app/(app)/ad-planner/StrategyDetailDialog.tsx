@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -100,7 +99,7 @@ export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange
 
 
   const addTask = () => {
-    setTasks([...tasks, { id: uuidv4(), name: 'Nueva Tarea', hours: 1 }]);
+    setTasks([...tasks, { id: uuidv4(), name: 'Nueva Tarea', hours: 1, result: null }]);
   };
 
   const updateTask = (id: string, field: 'name' | 'hours', value: string) => {
@@ -119,6 +118,15 @@ export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange
 
   const removeTask = (id: string) => {
     setTasks(tasks.filter(task => task.id !== id));
+  };
+
+  const handleTaskUpdate = (taskId: string, result: any) => {
+    setTasks(prevTasks =>
+      prevTasks.map(task =>
+        task.id === taskId ? { ...task, result } : task
+      )
+    );
+    setTaskToExecute(null); // Close the execution dialog
   };
   
   const { totalHours, totalCost } = useMemo(() => {
@@ -180,6 +188,7 @@ export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange
         onOpenChange={() => setTaskToExecute(null)}
         task={taskToExecute}
         plan={plan}
+        onTaskUpdate={handleTaskUpdate}
       />
       <Dialog open={!!strategy} onOpenChange={(open) => {
         if (!open) {
