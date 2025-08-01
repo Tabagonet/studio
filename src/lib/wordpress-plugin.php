@@ -174,7 +174,19 @@ function autopress_ai_register_rest_endpoints() {
         $query = new WP_Query($args); 
         $post_ids = $query->posts; 
         $content_list = [];
+
+        $all_front_page_ids = [];
         $front_page_id = get_option('page_on_front');
+        if ($front_page_id) {
+            $all_front_page_ids[] = (int)$front_page_id;
+            if (function_exists('pll_get_post_translations')) {
+                $translations = pll_get_post_translations($front_page_id);
+                if (is_array($translations)) {
+                    $all_front_page_ids = array_merge($all_front_page_ids, array_values($translations));
+                }
+            }
+            $all_front_page_ids = array_unique(array_map('intval', $all_front_page_ids));
+        }
 
         if (!empty($post_ids)) { 
             foreach ($post_ids as $post_id) { 
@@ -185,7 +197,7 @@ function autopress_ai_register_rest_endpoints() {
                 if ($type_slug === 'page') { $type_label = 'Page'; } 
                 elseif ($type_slug === 'product') { $type_label = 'Producto'; } 
                 
-                $is_front = ($front_page_id && $post_obj->ID == $front_page_id);
+                $is_front = in_array($post_obj->ID, $all_front_page_ids);
 
                 $content_list[] = [ 
                     'id' => $post_obj->ID, 
