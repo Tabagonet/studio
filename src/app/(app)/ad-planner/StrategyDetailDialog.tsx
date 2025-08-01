@@ -181,7 +181,11 @@ export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange
     <>
       <TaskExecutionDialog
         isOpen={!!taskToExecute}
-        onOpenChange={() => setTaskToExecute(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setTaskToExecute(null);
+          }
+        }}
         task={taskToExecute}
         plan={plan}
         strategy={strategy}

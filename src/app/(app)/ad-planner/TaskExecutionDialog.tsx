@@ -35,8 +35,6 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, strategy
   const [currentResult, setCurrentResult] = useState<any | null>(null);
   
   useEffect(() => {
-    // When the dialog opens with a task, set its existing result (if any)
-    // to the local state.
     if (task) {
       setCurrentResult(task.result || null);
     } else {
@@ -49,7 +47,7 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, strategy
     if (!task || !plan || !strategy) return;
 
     setIsLoading(true);
-    setCurrentResult(null); // Clear previous results before new execution
+    setCurrentResult(null); 
 
     const user = auth.currentUser;
     if (!user) {
@@ -66,7 +64,7 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, strategy
           url: plan.url,
           buyerPersona: plan.buyer_persona,
           valueProposition: plan.value_proposition,
-          strategyPlatform: strategy.platform, // Pass strategy context
+          strategyPlatform: strategy.platform, 
         },
         token
       );
@@ -76,8 +74,8 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, strategy
       }
       
       const taskResult = response.data;
-      setCurrentResult(taskResult); // Update local state for immediate view
-      onTaskUpdate(task.id, taskResult); // Pass the result back up to the parent
+      setCurrentResult(taskResult); 
+      onTaskUpdate(task.id, taskResult); 
       toast({ title: 'Tarea Ejecutada', description: 'La IA ha completado la tarea.' });
     } catch (err: any) {
       toast({ title: 'Error en la Ejecución', description: err.message, variant: 'destructive' });
