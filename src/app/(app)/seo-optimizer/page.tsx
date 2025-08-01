@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SearchCheck, Loader2, BrainCircuit, ArrowLeft, Package, Newspaper, FileText, FileCheck2, Edit, AlertTriangle, Printer, RefreshCw } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { SeoPageListTable } from '@/components/features/seo/page-list-table';
 import { AnalysisView } from '@/components/features/seo/analysis-view';
@@ -41,6 +41,9 @@ export default function SeoOptimizerPage() {
 
   const [scores, setScores] = useState<Record<number, number>>({});
   
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 });
+  const [pageCount, setPageCount] = useState(0);
+
   const viewingId = searchParams.get('id');
   const viewingType = searchParams.get('type') || 'Page';
 
@@ -120,8 +123,12 @@ export default function SeoOptimizerPage() {
     };
     try {
         const token = await user.getIdToken();
+        const params = new URLSearchParams({
+            page: (pagination.pageIndex + 1).toString(),
+            per_page: pagination.pageSize.toString(),
+        });
         
-        const listPromise = fetch(`/api/wordpress/content-list`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const listPromise = fetch(`/api/wordpress/content-list?${params.toString()}`, { headers: { 'Authorization': `Bearer ${token}` } });
         const statsPromise = fetch('/api/wordpress/content-stats', { headers: { 'Authorization': `Bearer ${token}` } });
         const configPromise = fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` } });
         const scoresPromise = fetch('/api/seo/latest-scores', { headers: { 'Authorization': `Bearer ${token}` } });
@@ -133,6 +140,7 @@ export default function SeoOptimizerPage() {
             const listData = await listResponse.json();
             localContentList = listData.content;
             setContentList(localContentList);
+            setPageCount(listData.totalPages);
         } else {
             const errorData = await listResponse.json();
             setError(errorData.error || 'No se pudo cargar el contenido del sitio.');
@@ -179,8 +187,8 @@ export default function SeoOptimizerPage() {
         setIsLoading(false);
         setIsLoadingStats(false);
     }
-  }, []);
-
+  }, [pagination]);
+  
   useEffect(() => {
     const handleAuth = (user: import('firebase/auth').User | null) => {
         if (user) {
@@ -351,9 +359,12 @@ export default function SeoOptimizerPage() {
                     {!error && (
                       <SeoPageListTable 
                         data={contentList}
+                        scores={scores}
                         onAnalyzePage={handleAnalyzePage} 
                         onViewReport={handleViewReport}
-                        scores={scores}
+                        pageCount={pageCount}
+                        pagination={pagination}
+                        setPagination={setPagination}
                       />
                     )}
                 </CardContent>
