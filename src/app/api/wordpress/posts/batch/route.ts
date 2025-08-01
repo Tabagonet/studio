@@ -10,6 +10,7 @@ const batchActionSchema = z.object({
   action: z.enum(['delete', 'update']),
   updates: z.object({
       categories: z.array(z.number()).optional(),
+      status: z.enum(['publish', 'draft']).optional(),
   }).optional(),
 });
 
@@ -60,9 +61,10 @@ export async function POST(req: NextRequest) {
                 return NextResponse.json({ error: 'Updates object is required for update action.' }, { status: 400 });
             }
             
-            const batchPayload: { id: number; categories?: number[] }[] = postIds.map(id => ({
+            const batchPayload: { id: number; categories?: number[]; status?: 'publish' | 'draft' }[] = postIds.map(id => ({
                 id,
                 ...(updates.categories && { categories: updates.categories }),
+                ...(updates.status && { status: updates.status }),
             }));
 
             const response = await wpApi.post('/posts/batch', { update: batchPayload });

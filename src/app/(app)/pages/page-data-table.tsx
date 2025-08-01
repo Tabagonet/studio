@@ -29,7 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getColumns } from "./columns"; 
 import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
-import { Loader2, ChevronDown, Trash2, Sparkles, Edit, Image as ImageIcon, Languages, Link2 } from "lucide-react";
+import { Loader2, ChevronDown, Trash2, Sparkles, Edit, Image as ImageIcon, Languages, Link2, Eye, EyeOff } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
@@ -159,6 +159,38 @@ export function PageDataTable({
     getSortedRowModel: getSortedRowModel(),
   });
   
+  const handleBatchStatusUpdate = async (status: 'publish' | 'draft') => {
+    setIsActionLoading(true);
+    const selectedRows = table.getSelectedRowModel().rows;
+    const postIds = selectedRows.flatMap(row => [row.original.id, ...(row.original.subRows?.map(sub => sub.id) || [])]);
+    const uniqueIds = [...new Set(postIds)];
+
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: 'No autenticado', variant: 'destructive' });
+        setIsActionLoading(false);
+        return;
+    }
+    const token = await user.getIdToken();
+    try {
+        const response = await fetch('/api/wordpress/posts/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ postIds: uniqueIds, action: 'update', updates: { status } })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || result.message);
+        toast({ title: `Estado actualizado a "${status}"`, description: result.message });
+        onDataChange(token);
+        table.resetRowSelection();
+    } catch (e: any) {
+        toast({ title: "Error al actualizar estado", description: e.message, variant: "destructive" });
+    } finally {
+        setIsActionLoading(false);
+    }
+  };
+
+
   const handleBatchDelete = async () => {
     setIsActionLoading(true);
     const selectedRows = table.getSelectedRowModel().rows;
@@ -364,6 +396,12 @@ export function PageDataTable({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Acciones en Lote</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => handleBatchStatusUpdate('publish')}>
+                <Eye className="mr-2 h-4 w-4" /> Hacer Visibles (Publicar)
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => handleBatchStatusUpdate('draft')}>
+                <EyeOff className="mr-2 h-4 w-4" /> Ocultar (Borrador)
+              </DropdownMenuItem>
                <DropdownMenuItem onSelect={handleBatchEditImages}>
                 <ImageIcon className="mr-2 h-4 w-4" /> Editar Imágenes
               </DropdownMenuItem>
@@ -489,5 +527,3 @@ export function PageDataTable({
     </div>
   );
 }
-
-    
