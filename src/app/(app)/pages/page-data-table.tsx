@@ -235,7 +235,7 @@ export function PageDataTable({
   };
 
   const handleRowClick = (row: any) => {
-    router.push(`/seo-optimizer/edit/${row.original.id}?type=${row.original.type}`);
+    router.push(`/seo-optimizer?id=${row.original.id}&type=${row.original.type}`);
   };
   
   const languages = React.useMemo(() => {
@@ -396,13 +396,37 @@ export function PageDataTable({
           {table.getFilteredSelectedRowModel().rows.length} de{" "}
           {table.getFilteredRowModel().rows.length} fila(s) seleccionadas.
         </div>
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
-            Anterior
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
-            Siguiente
-          </Button>
+        <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+                <p className="text-sm font-medium">Filas por página</p>
+                <Select
+                    value={`${table.getState().pagination.pageSize}`}
+                    onValueChange={(value) => { table.setPageSize(Number(value)) }}
+                >
+                    <SelectTrigger className="h-8 w-[70px]">
+                        <SelectValue placeholder={table.getState().pagination.pageSize} />
+                    </SelectTrigger>
+                    <SelectContent side="top">
+                        {[10, 20, 50, 100].map((pageSize) => (
+                        <SelectItem key={pageSize} value={`${pageSize}`}>
+                            {pageSize}
+                        </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium">
+                    Página {table.getState().pagination.pageIndex + 1} de{' '}
+                    {table.getPageCount()}
+                </span>
+                <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
+                    Anterior
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
+                    Siguiente
+                </Button>
+            </div>
         </div>
       </div>
     </div>

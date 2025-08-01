@@ -1,4 +1,5 @@
 
+
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -625,6 +626,14 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
                     if (!value.url.includes('placeholder.png')) {
                         images.push({ url: value.url, id: value.id || null, width: value.width || null, height: value.height || null });
                     }
+                } else if (key === 'gallery' && Array.isArray(value)) { // Specifically handle 'gallery' widget
+                    value.forEach(galleryImage => {
+                        if (typeof galleryImage === 'object' && galleryImage !== null && typeof galleryImage.url === 'string' && galleryImage.url) {
+                            if (!galleryImage.url.includes('placeholder.png')) {
+                                images.push({ url: galleryImage.url, id: galleryImage.id || null, width: null, height: null });
+                            }
+                        }
+                    });
                 } else if (repeaterKeys.includes(key) && Array.isArray(value)) {
                     value.forEach(item => images.push(...findImageUrlsInElementor(item)));
                 } else if (typeof value === 'object' && value !== null) {
