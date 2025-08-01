@@ -19,6 +19,11 @@ Este documento recoge las ideas y posibles futuras herramientas para expandir la
 -   [ ] **Generador de Campañas de Email:**
     -   Basado en un producto o entrada de blog, generar una secuencia de 3 emails (lanzamiento, recordatorio, última oportunidad) para una campaña de marketing, listos para copiar y pegar en una herramienta de email marketing.
 
+-   [ ] **Lista de Tareas con Ejecución por IA:**
+    -   Crear un panel centralizado de "Lista de Tareas" o "To-Do List".
+    -   Permitir que las tareas generadas en el "Planificador de Publicidad" se puedan enviar a esta lista.
+    -   Para cada tarea, tener un botón de "Ejecutar con IA" que realice la acción correspondiente (ej. configurar una campaña en la API de Google Ads, escribir un post para redes sociales, etc.).
+
 ## 2. Gestión y Mantenimiento del Sitio
 
 -   [ ] **Gestor Avanzado de la Biblioteca de Medios:**

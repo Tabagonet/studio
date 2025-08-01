@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2, Copy, Wand2 } from 'lucide-react';
@@ -47,64 +47,62 @@ const CreativeItem = ({ title, content }: { title: string, content: string | str
 
 export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdate }: CreativeStudioDialogProps) {
   const [creatives, setCreatives] = useState<GenerateAdCreativesOutput | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (strategy && plan) {
-      // If creatives are already in the plan state, use them.
-      if (strategy.creatives) {
-        setCreatives(strategy.creatives);
+  const fetchCreatives = useCallback(async (currentPlan: CreateAdPlanOutput, currentStrategy: Strategy) => {
+      setIsLoading(true);
+      setCreatives(null);
+      const user = auth.currentUser;
+      if (!user) {
+        toast({ title: 'Error de autenticación', variant: 'destructive' });
         setIsLoading(false);
         return;
       }
 
-      // Otherwise, fetch from AI.
-      const fetchCreatives = async () => {
-        setIsLoading(true);
-        setCreatives(null);
-        const user = auth.currentUser;
-        if (!user) {
-          toast({ title: 'Error de autenticación', variant: 'destructive' });
-          setIsLoading(false);
-          return;
+      try {
+        const token = await user.getIdToken();
+        const result = await generateAdCreativesAction({
+          url: currentPlan.url,
+          objectives: currentPlan.objectives,
+          platform: currentStrategy.platform,
+          campaign_type: currentStrategy.campaign_type,
+          funnel_stage: currentStrategy.funnel_stage,
+          target_audience: currentPlan.buyer_persona,
+        }, token);
+
+        if (result.error || !result.data) {
+          throw new Error(result.error || 'La IA no pudo generar los creativos.');
         }
 
-        try {
-          const token = await user.getIdToken();
-          const result = await generateAdCreativesAction({
-            url: plan.url,
-            objectives: plan.objectives,
-            platform: strategy.platform,
-            campaign_type: strategy.campaign_type,
-            funnel_stage: strategy.funnel_stage,
-            target_audience: plan.buyer_persona,
-          }, token);
+        setCreatives(result.data);
+        
+        // Persist the newly generated creatives to the main plan state
+        const updatedPlan = {
+          ...currentPlan,
+          strategies: currentPlan.strategies.map(s => 
+            s.platform === currentStrategy.platform ? { ...s, creatives: result.data } : s
+          )
+        };
+        onPlanUpdate(updatedPlan);
 
-          if (result.error || !result.data) {
-            throw new Error(result.error || 'La IA no pudo generar los creativos.');
-          }
+      } catch (error: any) {
+        toast({ title: 'Error al Generar Creativos', description: error.message, variant: 'destructive' });
+      } finally {
+        setIsLoading(false);
+      }
+    }, [toast, onPlanUpdate]);
 
-          setCreatives(result.data);
-          
-          // Persist the newly generated creatives to the main plan state
-          const updatedPlan = {
-            ...plan,
-            strategies: plan.strategies.map(s => 
-              s.platform === strategy.platform ? { ...s, creatives: result.data } : s
-            )
-          };
-          onPlanUpdate(updatedPlan);
-
-        } catch (error: any) {
-          toast({ title: 'Error al Generar Creativos', description: error.message, variant: 'destructive' });
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      fetchCreatives();
+  useEffect(() => {
+    if (strategy && plan) {
+      if (strategy.creatives) {
+        setCreatives(strategy.creatives);
+        setIsLoading(false);
+      } else {
+        fetchCreatives(plan, strategy);
+      }
     }
-  }, [strategy, plan, toast, onPlanUpdate]);
+  }, [strategy, plan, fetchCreatives]);
 
   if (!strategy || !plan) return null;
 

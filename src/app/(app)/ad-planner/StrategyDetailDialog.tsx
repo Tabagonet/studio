@@ -41,68 +41,59 @@ export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange
   }, [companyInfo]);
 
 
+  const fetchAndSetTasks = useCallback(async (currentPlan: CreateAdPlanOutput, currentStrategy: Strategy) => {
+    setIsLoadingTasks(true);
+    const user = auth.currentUser;
+    if (!user) {
+      toast({ title: 'Error de autenticación', variant: 'destructive' });
+      setIsLoadingTasks(false);
+      return;
+    }
+    try {
+      const token = await user.getIdToken();
+      const result = await generateStrategyTasksAction({
+        url: currentPlan.url,
+        objectives: currentPlan.objectives,
+        platform: currentStrategy.platform,
+        campaign_type: currentStrategy.campaign_type,
+        funnel_stage: currentStrategy.funnel_stage,
+        strategy_rationale: currentStrategy.strategy_rationale,
+      }, token);
+
+      if (result.error || !result.data) {
+        throw new Error(result.error || 'La IA no pudo generar tareas.');
+      }
+
+      const newTasksWithIds = result.data.tasks.map(t => ({ ...t, id: uuidv4() }));
+      setTasks(newTasksWithIds);
+
+      const updatedPlan: CreateAdPlanOutput = {
+        ...currentPlan,
+        strategies: currentPlan.strategies.map(s =>
+          s.platform === currentStrategy.platform ? { ...s, tasks: newTasksWithIds } : s
+        )
+      };
+      onPlanUpdate(updatedPlan);
+
+    } catch (error: any) {
+      toast({ title: 'Error al generar tareas', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsLoadingTasks(false);
+    }
+  }, [onPlanUpdate, toast]);
+  
   useEffect(() => {
     if (strategy && plan) {
-      const currentStrategyFromPlan = plan.strategies.find(s => s.platform === strategy.platform);
-      setEditableBudget(currentStrategyFromPlan?.monthly_budget ?? 0);
+        const currentStrategyFromPlan = plan.strategies.find(s => s.platform === strategy.platform);
+        setEditableBudget(currentStrategyFromPlan?.monthly_budget ?? 0);
 
-      // If tasks are already in the plan object, use them. This is the most up-to-date source.
-      if (currentStrategyFromPlan?.tasks && currentStrategyFromPlan.tasks.length > 0) {
-        setTasks(currentStrategyFromPlan.tasks);
-        return; // Exit effect
-      }
-      
-      // If not, and we are not already fetching, start fetching.
-      if (isLoadingTasks) return;
-
-      const fetchTasks = async () => {
-        setIsLoadingTasks(true);
-        const user = auth.currentUser;
-        if (!user) {
-          toast({ title: 'Error de autenticación', variant: 'destructive' });
-          setIsLoadingTasks(false);
-          return;
+        if (currentStrategyFromPlan?.tasks && currentStrategyFromPlan.tasks.length > 0) {
+            setTasks(currentStrategyFromPlan.tasks);
+        } else {
+            fetchAndSetTasks(plan, strategy);
         }
-        try {
-          const token = await user.getIdToken();
-          const result = await generateStrategyTasksAction({
-            url: plan.url,
-            objectives: plan.objectives,
-            platform: strategy.platform,
-            campaign_type: strategy.campaign_type,
-            funnel_stage: strategy.funnel_stage,
-            strategy_rationale: strategy.strategy_rationale,
-          }, token);
-
-          if (result.error || !result.data) {
-            throw new Error(result.error || 'La IA no pudo generar tareas.');
-          }
-
-          const newTasksWithIds = result.data.tasks.map(t => ({...t, id: uuidv4()}));
-          setTasks(newTasksWithIds);
-
-          // Persist the newly generated tasks to the main plan state
-          const updatedPlan: CreateAdPlanOutput = {
-            ...plan,
-            strategies: plan.strategies.map(s => 
-              s.platform === strategy.platform ? { ...s, tasks: newTasksWithIds } : s
-            )
-          };
-          onPlanUpdate(updatedPlan);
-
-        } catch (error: any) {
-          toast({ title: 'Error al generar tareas', description: error.message, variant: 'destructive' });
-        } finally {
-          setIsLoadingTasks(false);
-        }
-      };
-      
-      fetchTasks();
     }
-  // We've intentionally simplified dependencies to avoid re-fetching loops.
-  // The component state is reset when the dialog closes, ensuring clean state on re-open.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [strategy, plan]);
+  }, [strategy, plan, fetchAndSetTasks]);
 
 
   const addTask = () => {
@@ -133,11 +124,9 @@ export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange
     return { totalHours, totalCost };
   }, [tasks, hourlyRate]);
   
-
-  const handleUpdateProposal = () => {
+   const updatePlanState = useCallback(() => {
     if (!strategy || !plan) return;
     
-    // Create an updated array of strategies with the current dialog's changes
     const updatedStrategies = plan.strategies.map(s => 
       s.platform === strategy.platform 
         ? { 
@@ -148,7 +137,6 @@ export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange
         : s
     );
 
-    // Recalculate the total management fee from ALL strategies using the updated data
     const newTotalManagementFee = updatedStrategies.reduce((total, s) => {
         const strategyHours = s.tasks?.reduce((sum, task) => sum + (task.hours || 0), 0) || 0;
         return total + (strategyHours * hourlyRate);
@@ -163,23 +151,21 @@ export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange
       },
     };
     onPlanUpdate(updatedPlan);
-    toast({ title: 'Propuesta Actualizada', description: `La cuota de gestión total se ha actualizado a ${formatCurrency(newTotalManagementFee)}.` });
+    return newTotalManagementFee;
+  }, [strategy, plan, tasks, editableBudget, hourlyRate, onPlanUpdate]);
+
+
+  const handleUpdateProposal = () => {
+    const newFee = updatePlanState();
+    if(newFee !== undefined) {
+      toast({ title: 'Propuesta Actualizada', description: `La cuota de gestión total se ha actualizado a ${formatCurrency(newFee)}.` });
+    }
   };
   
   const handleSaveAndClose = useCallback(() => {
-     if (strategy && plan) {
-         const updatedPlan: CreateAdPlanOutput = {
-           ...plan,
-           strategies: plan.strategies.map(s => 
-             s.platform === strategy.platform 
-                ? { ...s, tasks: tasks, monthly_budget: Number(editableBudget) } 
-                : s
-           ),
-         };
-         onPlanUpdate(updatedPlan);
-     }
+     updatePlanState();
      onOpenChange(false);
-  }, [strategy, plan, tasks, onPlanUpdate, onOpenChange, editableBudget]);
+  }, [updatePlanState, onOpenChange]);
 
 
   if (!strategy || !plan) return null;
@@ -188,10 +174,6 @@ export function StrategyDetailDialog({ plan, strategy, companyInfo, onOpenChange
     <Dialog open={!!strategy} onOpenChange={(open) => {
       if (!open) {
         handleSaveAndClose();
-        // Reset local state when dialog closes
-        setTasks([]);
-        setEditableBudget('');
-        setIsLoadingTasks(false);
       } else {
         onOpenChange(true);
       }

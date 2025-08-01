@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { Strategy } from './schema';
 import { formatCurrency } from '@/lib/utils';
-import { Target, FileText, Wand2, Lightbulb } from 'lucide-react';
+import { FileText, Wand2, Lightbulb } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface StrategiesTableProps {
