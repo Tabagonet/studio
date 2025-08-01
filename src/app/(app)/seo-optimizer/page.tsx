@@ -110,64 +110,42 @@ export default function SeoOptimizerPage() {
     }
   }, [toast, runAnalysis]);
 
-  const fetchContentData = useCallback(async () => {
+  const fetchContentData = useCallback(async (token: string) => {
     setIsLoading(true);
     setIsLoadingStats(true);
     setError(null);
-    const user = auth.currentUser;
-    if (!user) {
-        setError("Debes iniciar sesión para usar esta función.");
-        setIsLoading(false);
-        setIsLoadingStats(false);
-        return;
-    };
+
     try {
-        const token = await user.getIdToken();
         const params = new URLSearchParams({
             page: (pagination.pageIndex + 1).toString(),
             per_page: pagination.pageSize.toString(),
         });
         
-        const listPromise = fetch(`/api/wordpress/content-list?${params.toString()}`, { headers: { 'Authorization': `Bearer ${token}` } });
-        const statsPromise = fetch('/api/wordpress/content-stats', { headers: { 'Authorization': `Bearer ${token}` } });
-        const configPromise = fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` } });
-        const scoresPromise = fetch('/api/seo/latest-scores', { headers: { 'Authorization': `Bearer ${token}` } });
-        
-        const [listResponse, statsResponse, configResponse, scoresResponse] = await Promise.all([listPromise, statsPromise, configPromise, scoresResponse]);
-
-        let localContentList: ContentItem[] = [];
-        if (listResponse.ok) {
-            const listData = await listResponse.json();
-            localContentList = listData.content;
-            setContentList(localContentList);
-            setPageCount(listData.totalPages);
-        } else {
-            const errorData = await listResponse.json();
-            setError(errorData.error || 'No se pudo cargar el contenido del sitio.');
-            setContentList([]);
+        const contentResponse = await fetch(`/api/wordpress/content-list?${params.toString()}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!contentResponse.ok) {
+            const errorData = await contentResponse.json();
+            throw new Error(errorData.error || 'No se pudo cargar el contenido del sitio.');
         }
-        
-        if (statsResponse.ok) setStats(await statsResponse.json()); else setStats(null);
-        if (configResponse.ok) setActiveConnectionUrl((await configResponse.json()).activeStoreUrl || '');
+        const contentData = await contentResponse.json();
+        setContentList(contentData.content);
+        setPageCount(contentData.totalPages);
 
-        if (scoresResponse.ok && localContentList.length > 0) {
+        const scoresResponse = await fetch('/api/seo/latest-scores', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (scoresResponse.ok) {
             const scoresData = await scoresResponse.json();
             const scoresByUrl: Record<string, number> = scoresData.scores || {};
             const scoresById: Record<number, number> = {};
-
             const normalizeUrl = (url: string) => {
                 try {
                     const parsed = new URL(url);
                     return `${parsed.protocol}//${parsed.hostname}${parsed.pathname.replace(/\/$/, '')}`;
                 } catch { return url; }
             };
-            
             const normalizedScoresMap = new Map<string, number>();
             for (const [url, score] of Object.entries(scoresByUrl)) {
                 normalizedScoresMap.set(normalizeUrl(url), score);
             }
-
-            localContentList.forEach(item => {
+            contentData.content.forEach((item: ContentItem) => {
                 const normalizedItemLink = normalizeUrl(item.link);
                 if (normalizedScoresMap.has(normalizedItemLink)) {
                     scoresById[item.id] = normalizedScoresMap.get(normalizedItemLink)!;
@@ -177,6 +155,12 @@ export default function SeoOptimizerPage() {
         } else {
             setScores({});
         }
+
+        const statsResponse = await fetch('/api/wordpress/content-stats', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (statsResponse.ok) setStats(await statsResponse.json()); else setStats(null);
+        
+        const configResponse = await fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (configResponse.ok) setActiveConnectionUrl((await configResponse.json()).activeStoreUrl || '');
 
     } catch (err: any) {
         setError(err.message);
@@ -192,7 +176,7 @@ export default function SeoOptimizerPage() {
   useEffect(() => {
     const handleAuth = (user: import('firebase/auth').User | null) => {
         if (user) {
-            fetchContentData();
+            user.getIdToken().then(fetchContentData);
         } else {
             setIsLoading(false);
             setIsLoadingStats(false);
@@ -201,8 +185,7 @@ export default function SeoOptimizerPage() {
     };
     
     const unsubscribe = onAuthStateChanged(auth, handleAuth);
-    
-    const handleConnectionsUpdate = () => { if (auth.currentUser) fetchContentData() };
+    const handleConnectionsUpdate = () => { if (auth.currentUser) auth.currentUser.getIdToken().then(fetchContentData); };
     window.addEventListener('connections-updated', handleConnectionsUpdate);
     
     return () => {
