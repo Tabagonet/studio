@@ -96,17 +96,22 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreat
 
   useEffect(() => {
     if (strategy && plan) {
+      // If creatives already exist in the strategy object, display them.
+      // The Object.keys check ensures that an empty {} object doesn't prevent generation.
       if (strategy.creatives && Object.keys(strategy.creatives).length > 0) {
         setCreatives(strategy.creatives);
         setIsLoading(false);
       } else {
+        // Otherwise, fetch them.
         fetchCreatives(plan, strategy);
       }
     } else {
+      // Reset state if the dialog is closed or there's no strategy
       setCreatives(null);
       setIsLoading(false);
     }
   }, [strategy, plan, fetchCreatives]);
+
 
   const handleCloseDialog = () => {
     onOpenChange(false);
@@ -141,10 +146,10 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreat
           ) : creatives ? (
             <ScrollArea className="h-full pr-4 -mr-4">
               <div className="space-y-6">
-                <CreativeItem title="Titulares (Headlines)" content={creatives.headlines} />
-                <CreativeItem title="Descripciones" content={creatives.descriptions} />
-                <CreativeItem title="Llamadas a la Acción (CTAs)" content={creatives.cta_suggestions} />
-                <CreativeItem title="Ideas Visuales" content={creatives.visual_ideas} />
+                {creatives.headlines && <CreativeItem title="Titulares (Headlines)" content={creatives.headlines} />}
+                {creatives.descriptions && <CreativeItem title="Descripciones" content={creatives.descriptions} />}
+                {creatives.cta_suggestions && <CreativeItem title="Llamadas a la Acción (CTAs)" content={creatives.cta_suggestions} />}
+                {creatives.visual_ideas && <CreativeItem title="Ideas Visuales" content={creatives.visual_ideas} />}
               </div>
             </ScrollArea>
           ) : (
