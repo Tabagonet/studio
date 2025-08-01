@@ -51,12 +51,9 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreat
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const fetchCreatives = useCallback(async (currentPlan: CreateAdPlanOutput, currentStrategy: Strategy, forceRegenerate = false) => {
+  const fetchCreatives = useCallback(async (currentPlan: CreateAdPlanOutput, currentStrategy: Strategy) => {
       setIsLoading(true);
-      if (forceRegenerate) {
-        setCreatives(null);
-      }
-
+      
       const user = auth.currentUser;
       if (!user) {
         toast({ title: 'Error de autenticación', variant: 'destructive' });
@@ -80,21 +77,18 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreat
           funnel_stage: currentStrategy.funnel_stage,
           target_audience: currentPlan.buyer_persona,
         }, token);
-
+        
         if (result.error || !result.data) {
           throw new Error(result.error || 'La IA no pudo generar los creativos.');
         }
         
         setCreatives(result.data);
-        onSaveCreatives(currentStrategy.platform, result.data);
-
-        if (forceRegenerate) {
-             toast({ title: 'Creativos Regenerados', description: 'Se ha generado una nueva tanda de creativos.' });
-        }
+        onSaveCreatives(currentStrategy.platform, result.data); // Save to parent state
+        toast({ title: 'Creativos Regenerados', description: 'Se ha generado una nueva tanda de creativos.' });
 
       } catch (error: any) {
         toast({ title: 'Error al Generar Creativos', description: error.message, variant: 'destructive' });
-        setCreatives(null); // Ensure we don't show stale data on error
+        setCreatives(null); 
       } finally {
         setIsLoading(false);
       }
@@ -102,11 +96,13 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreat
 
   useEffect(() => {
     if (strategy && plan) {
+      // If creatives already exist in the strategy object, show them.
       if (strategy.creatives && Object.keys(strategy.creatives).length > 0) {
         setCreatives(strategy.creatives);
         setIsLoading(false);
       } else {
-        setIsLoading(true); // Set loading to true before fetching
+        // Otherwise, fetch them.
+        setIsLoading(true);
         fetchCreatives(plan, strategy);
       }
     } else {
@@ -114,11 +110,17 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreat
       setCreatives(null);
       setIsLoading(false);
     }
-  }, [strategy, plan, fetchCreatives]);
+  }, [strategy, plan]); // Removed fetchCreatives from deps to avoid loop
 
   const handleCloseDialog = () => {
     onOpenChange(false);
   };
+  
+  const handleRegenerate = () => {
+    if(plan && strategy) {
+        fetchCreatives(plan, strategy);
+    }
+  }
 
   if (!strategy || !plan) return null;
 
@@ -157,7 +159,7 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreat
         </div>
         
         <DialogFooter className="justify-between">
-           <Button variant="outline" onClick={() => fetchCreatives(plan, strategy, true)} disabled={isLoading}>
+           <Button variant="outline" onClick={handleRegenerate} disabled={isLoading}>
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Volver a Generar con IA
             </Button>

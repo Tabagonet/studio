@@ -234,7 +234,7 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyInfo }: AdPlanV
             </div>
 
             <Card>
-                <CardHeader><CardTitle className="flex items-center gap-2"><Megaphone className="h-6 w-6 text-primary" /> Propuesta de Honorarios</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><DollarSign className="h-6 w-6 text-primary" /> Propuesta de Honorarios</CardTitle></CardHeader>
                 <CardContent className="space-y-2">
                     <p className="flex justify-between"><span>Cuota de Configuración (Setup):</span> <span className="font-semibold">{formatCurrency(plan.fee_proposal.setup_fee)}</span></p>
                     <p className="flex justify-between"><span>Cuota de Gestión Mensual:</span> <span className="font-semibold">{formatCurrency(plan.fee_proposal.management_fee)}</span></p>
