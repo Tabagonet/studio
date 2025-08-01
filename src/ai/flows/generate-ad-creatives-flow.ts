@@ -24,7 +24,12 @@ Tu respuesta DEBE ser un único objeto JSON válido.
 
 **Instrucciones Creativas:**
 Basado en el contexto, genera los siguientes recursos para la campaña:
-1.  **"headlines"**: Crea una lista de 3 a 5 titulares cortos y potentes, optimizados para "{{platform}}". Deben captar la atención inmediatamente. Máximo 30-40 caracteres cada uno.
+1.  **"headlines"**: Crea una lista de 3 a 5 titulares cortos y potentes, optimizados para "{{platform}}". Deben captar la atención inmediatamente. 
+    {{#if (eq platform "Google Ads")}}
+    **IMPORTANTE: Los titulares para Google Ads no deben superar los 30 caracteres.**
+    {{else}}
+    Máximo 30-40 caracteres cada uno.
+    {{/if}}
 2.  **"descriptions"**: Crea una lista de 2 a 3 descripciones persuasivas para el cuerpo del anuncio. Deben complementar los titulares y expandir el mensaje. Máximo 90 caracteres cada una.
 3.  **"cta_suggestions"**: Propón una lista de 2 a 3 llamadas a la acción (Call to Action) claras y directas.
 4.  **"visual_ideas"**: Describe una lista de 2 a 3 conceptos visuales para la imagen o el vídeo del anuncio. Piensa en el estilo, los elementos a mostrar y la emoción a transmitir.
@@ -37,6 +42,11 @@ const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
     { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
 ];
+
+Handlebars.registerHelper('eq', function (a, b) {
+  return a === b;
+});
+
 
 export async function generateAdCreatives(input: GenerateAdCreativesInput): Promise<GenerateAdCreativesOutput> {
     console.log('[LOG] AI Flow: generateAdCreatives received input:', input);
@@ -70,3 +80,4 @@ export async function generateAdCreatives(input: GenerateAdCreativesInput): Prom
 
     return validatedOutput;
 }
+
