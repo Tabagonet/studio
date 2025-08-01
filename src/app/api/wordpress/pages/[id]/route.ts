@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress, extractElementorHeadings, replaceElementorTexts } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress, extractElementorHeadings, replaceElementorTexts, findImageUrlsInElementor, findBeaverBuilderImages } from '@/lib/api-helpers';
 import { z } from 'zod';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
@@ -39,30 +39,6 @@ const pageUpdateSchema = z.object({
     })).optional(),
 });
 
-function findImageUrlsInElementor(data: any): { url: string; id: number | null, width: number | null, height: number | null }[] {
-    const images: { url: string; id: number | null, width: number | null, height: number | null }[] = [];
-    if (!data) return images;
-
-    if (Array.isArray(data)) {
-        data.forEach(item => images.push(...findImageUrlsInElementor(item)));
-        return images;
-    }
-
-    if (typeof data === 'object') {
-        for (const key in data) {
-            if (key === 'background_image' || key === 'image') {
-                const value = data[key];
-                 if (typeof value === 'object' && value !== null && typeof value.url === 'string' && value.url) {
-                    images.push({ url: value.url, id: value.id || null, width: value.width || null, height: value.height || null });
-                 }
-            } else if (typeof data[key] === 'object' && data[key] !== null) {
-                images.push(...findImageUrlsInElementor(data[key]));
-            }
-        }
-    }
-    return images;
-}
-
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -83,7 +59,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     
     const pageData = response.data;
     
-    const isElementor = !!pageData.meta?._elementor_data;
+    const metaToCheck = pageData.meta_data ? pageData.meta_data.reduce((obj: any, item: any) => ({...obj, [item.key]: item.value}), {}) : pageData.meta;
+    const isElementor = !!metaToCheck?._elementor_data;
+    const isBeBuilder = !!metaToCheck?.mfn_builder_items;
     
     let finalContent;
     if (isElementor) {
@@ -132,47 +110,99 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
                 }
             }
         }
-    } else { 
-        const pageLink = pageData.link;
-        if (pageLink && wpApi) {
-            try {
-                const scrapeResponse = await axios.get(pageLink, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36', 'Cache-Control': 'no-cache' } });
-                const html = scrapeResponse.data;
-                const $ = cheerio.load(html);
-                
-                const $contentArea = $('main').length ? $('main') : $('article').length ? $('article') : $('body');
-                $contentArea.find('header, footer, nav').remove();
+    } else if (isBeBuilder) {
+        const beBuilderData = JSON.parse(metaToCheck.mfn_builder_items || '[]');
+        const imageUrlsData = findBeaverBuilderImages(beBuilderData);
+         if (imageUrlsData.length > 0) {
+            scrapedImages = imageUrlsData.map(imgData => ({
+                id: imgData.url,
+                src: imgData.url,
+                alt: '',
+                mediaId: null, // BeBuilder often doesn't store media ID in its JSON structure.
+                width: null,
+                height: null,
+            }));
+        }
+    }
 
-                const foundImageIds = new Set<number>();
+    // Always attempt to scrape the live page for images, as a fallback or primary method
+    const pageLink = pageData.link;
+    if (pageLink && wpApi) {
+        try {
+            const scrapeResponse = await axios.get(pageLink, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36', 'Cache-Control': 'no-cache' } });
+            const html = scrapeResponse.data;
+            const $ = cheerio.load(html);
+            
+            const $contentArea = $('main').length ? $('main') : $('article').length ? $('article') : $('body');
+            $contentArea.find('header, footer, nav').remove();
 
-                $contentArea.find('img').each((i, el) => {
-                    const classList = $(el).attr('class') || '';
-                    const match = classList.match(/wp-image-(\d+)/);
-                    const mediaId = match ? parseInt(match[1], 10) : null;
-                    if (mediaId) {
-                        foundImageIds.add(mediaId);
-                    }
-                });
-                
-                if (foundImageIds.size > 0) {
-                     const mediaResponse = await wpApi.get('/media', {
-                        params: { include: Array.from(foundImageIds).join(','), per_page: 100, _fields: 'id,alt_text,source_url,media_details' }
-                    });
+            const foundImageIds = new Set<number>();
+            const imageMap = new Map<string, any>();
 
-                    if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
-                         scrapedImages = mediaResponse.data.map((mediaItem: any) => ({
-                            id: mediaItem.source_url, 
-                            src: mediaItem.source_url,
-                            alt: mediaItem.alt_text || '',
-                            mediaId: mediaItem.id,
-                            width: mediaItem.media_details?.width || null,
-                            height: mediaItem.media_details?.height || null,
-                        }));
-                    }
+            $contentArea.find('img').each((i, el) => {
+                const src = $(el).attr('src');
+                if (!src) return;
+
+                const classList = $(el).attr('class') || '';
+                const match = classList.match(/wp-image-(\d+)/);
+                const mediaId = match ? parseInt(match[1], 10) : null;
+                if (mediaId) {
+                    foundImageIds.add(mediaId);
                 }
-            } catch (scrapeError) {
-                console.warn(`Could not scrape ${pageLink} for live image data:`, scrapeError);
+                
+                // Store image data using src as key to avoid duplicates from scraping
+                if (!imageMap.has(src)) {
+                    imageMap.set(src, {
+                        id: src, 
+                        src: src,
+                        alt: $(el).attr('alt') || '',
+                        mediaId: mediaId,
+                        width: null,
+                        height: null,
+                    });
+                }
+            });
+            
+            if (foundImageIds.size > 0) {
+                 const mediaResponse = await wpApi.get('/media', {
+                    params: { include: Array.from(foundImageIds).join(','), per_page: 100, _fields: 'id,alt_text,source_url,media_details' }
+                });
+
+                if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
+                     mediaResponse.data.forEach((mediaItem: any) => {
+                        if (imageMap.has(mediaItem.source_url)) {
+                            const img = imageMap.get(mediaItem.source_url);
+                            img.alt = mediaItem.alt_text || img.alt; // Prefer API alt text
+                            img.mediaId = mediaItem.id;
+                            img.width = mediaItem.media_details?.width || null;
+                            img.height = mediaItem.media_details?.height || null;
+                        } else {
+                             imageMap.set(mediaItem.source_url, {
+                                id: mediaItem.source_url, 
+                                src: mediaItem.source_url,
+                                alt: mediaItem.alt_text || '',
+                                mediaId: mediaItem.id,
+                                width: mediaItem.media_details?.width || null,
+                                height: mediaItem.media_details?.height || null,
+                            });
+                        }
+                     });
+                }
             }
+            
+            // Merge scraped images with builder images, giving preference to builder data
+            const finalImageMap = new Map<string, any>();
+            scrapedImages.forEach(img => finalImageMap.set(img.src, img));
+            imageMap.forEach((img, src) => {
+                if (!finalImageMap.has(src)) {
+                    finalImageMap.set(src, img);
+                }
+            });
+            scrapedImages = Array.from(finalImageMap.values());
+
+
+        } catch (scrapeError) {
+            console.warn(`Could not scrape ${pageLink} for live image data:`, scrapeError);
         }
     }
 
@@ -230,7 +260,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
                 title: pagePayload.title || 'Page Image',
                 alt_text: pagePayload.title || '',
                 caption: '',
-                description: pagePayload.content?.substring(0, 100) || '',
+                description: typeof pagePayload.content === 'string' ? pagePayload.content.substring(0, 100) : '',
             },
             wpApi
         );
@@ -263,9 +293,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (image_alt_updates && image_alt_updates.length > 0) {
         for (const update of image_alt_updates) {
             try {
-                await wpApi.post(`/media/${update.id}`, {
-                    alt_text: update.alt
-                });
+                if (update.id) {
+                     await wpApi.post(`/media/${update.id}`, {
+                        alt_text: update.alt
+                    });
+                }
             } catch (mediaError: any) {
                 console.warn(`Failed to update alt text for media ID ${update.id}:`, mediaError.response?.data?.message || mediaError.message);
             }

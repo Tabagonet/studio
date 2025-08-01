@@ -1,8 +1,9 @@
 
+
 // This is a new file for fetching batch content data.
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser, findElementorImageContext, findBeaverBuilderImages, findImageUrlsInElementor } from '@/lib/api-helpers';
+import { getApiClientsForUser, findImageUrlsInElementor, findBeaverBuilderImages } from '@/lib/api-helpers';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import type { ExtractedWidget } from '@/lib/types';
@@ -74,47 +75,73 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
                 id: imgData.url,
                 src: imgData.url,
                 alt: '',
-                mediaId: null, // BeBuilder often doesn't store media ID in its JSON structure.
+                mediaId: null,
                 width: null,
                 height: null,
             }));
         }
     }
-    else { // Standard content scraping for non-builder pages
-        const pageLink = post.permalink || post.link;
-        if (pageLink && wpApi) {
-            try {
-                const scrapeResponse = await axios.get(pageLink, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-                const html = scrapeResponse.data;
-                const $ = cheerio.load(html);
-                const $contentArea = $('main').length ? $('main') : $('article').length ? $('article') : $('body');
-                $contentArea.find('header, footer, nav').remove();
+    
+    const pageLink = post.permalink || post.link;
+    if (pageLink && wpApi) {
+        try {
+            const scrapeResponse = await axios.get(pageLink, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+            const html = scrapeResponse.data;
+            const $ = cheerio.load(html);
+            const $contentArea = $('main').length ? $('main') : $('article').length ? $('article') : $('body');
+            $contentArea.find('header, footer, nav').remove();
 
-                const foundImageIds = new Set<number>();
-                $contentArea.find('img').each((i, el) => {
-                    const classList = $(el).attr('class') || '';
-                    const match = classList.match(/wp-image-(\d+)/);
-                    const mediaId = match ? parseInt(match[1], 10) : null;
-                    if (mediaId) foundImageIds.add(mediaId);
-                });
+            const foundImageIds = new Set<number>();
+            const imageMap = new Map<string, any>();
 
-                if (foundImageIds.size > 0) {
-                     const mediaResponse = await wpApi.get('/media', {
-                        params: { include: Array.from(foundImageIds).join(','), per_page: 100, _fields: 'id,alt_text,source_url,media_details' }
+            $contentArea.find('img').each((i, el) => {
+                const src = $(el).attr('src');
+                if (!src) return;
+
+                const classList = $(el).attr('class') || '';
+                const match = classList.match(/wp-image-(\d+)/);
+                const mediaId = match ? parseInt(match[1], 10) : null;
+                if (mediaId) foundImageIds.add(mediaId);
+
+                if (!imageMap.has(src)) {
+                    imageMap.set(src, {
+                        id: src, src: src, alt: $(el).attr('alt') || '', mediaId: mediaId,
+                        width: null, height: null,
                     });
-                    if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
-                         scrapedImages = mediaResponse.data.map((item: any) => ({
-                            id: item.source_url, src: item.source_url, alt: item.alt_text || '', mediaId: item.id,
-                            width: item.media_details?.width || null,
-                            height: item.media_details?.height || null,
-                        }));
-                    }
                 }
-            } catch (scrapeError) {
-                console.warn(`Could not scrape ${pageLink} for live image data:`, scrapeError);
+            });
+
+            if (foundImageIds.size > 0) {
+                 const mediaResponse = await wpApi.get('/media', {
+                    params: { include: Array.from(foundImageIds).join(','), per_page: 100, _fields: 'id,alt_text,source_url,media_details' }
+                });
+                if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
+                     mediaResponse.data.forEach((mediaItem: any) => {
+                        if (imageMap.has(mediaItem.source_url)) {
+                            const img = imageMap.get(mediaItem.source_url);
+                            img.alt = mediaItem.alt_text || img.alt;
+                            img.mediaId = mediaItem.id;
+                            img.width = mediaItem.media_details?.width || null;
+                            img.height = mediaItem.media_details?.height || null;
+                        }
+                     });
+                }
             }
+            
+            const finalImageMap = new Map<string, any>();
+            scrapedImages.forEach(img => finalImageMap.set(img.src, img));
+            imageMap.forEach((img, src) => {
+                if (!finalImageMap.has(src)) {
+                    finalImageMap.set(src, img);
+                }
+            });
+            scrapedImages = Array.from(finalImageMap.values());
+
+        } catch (scrapeError) {
+            console.warn(`Could not scrape ${pageLink} for live image data:`, scrapeError);
         }
     }
+
 
     return {
         id: post.id,
