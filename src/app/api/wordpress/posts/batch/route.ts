@@ -56,28 +56,19 @@ export async function POST(req: NextRequest) {
                 message += ` ${failedCount} fallido(s).`;
             }
             return NextResponse.json({ message, results: resultData });
-        } else if (action === 'update') {
-            if (!updates) {
-                return NextResponse.json({ error: 'Updates object is required for update action.' }, { status: 400 });
-            }
-            
-            const batchPayload: { id: number; categories?: number[]; status?: 'publish' | 'draft' }[] = postIds.map(id => ({
-                id,
-                ...(updates.categories && { categories: updates.categories }),
-                ...(updates.status && { status: updates.status }),
-            }));
-
-            const response = await wpApi.post('/posts/batch', { update: batchPayload });
-            
-            const updatedCount = response.data.update?.length || 0;
-            const failedCount = postIds.length - updatedCount;
-            let message = `Proceso completado. ${updatedCount} entrada(s) actualizada(s).`;
-            if (failedCount > 0) {
-                message += ` ${failedCount} fallido(s).`;
-            }
-            return NextResponse.json({ message, results: response.data });
+        } else if (action === 'update' && updates?.status) {
+             const customEndpointUrl = `${siteUrl}/wp-json/custom/v1/batch-update-status`;
+             const response = await wpApi.post(customEndpointUrl, { post_ids: postIds, status: updates.status });
+             const resultData = response.data.data;
+             const successCount = resultData.success?.length || 0;
+             const failedCount = resultData.failed?.length || 0;
+             let message = `Proceso completado. ${successCount} elemento(s) actualizado(s).`;
+             if (failedCount > 0) {
+                 message += ` ${failedCount} fallido(s).`;
+             }
+             return NextResponse.json({ message, results: resultData });
         } else {
-            return NextResponse.json({ error: 'Action not implemented' }, { status: 400 });
+             return NextResponse.json({ error: 'Action not implemented or invalid for this endpoint' }, { status: 400 });
         }
 
     } catch (error: any) {
