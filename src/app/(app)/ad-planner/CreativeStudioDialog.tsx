@@ -106,8 +106,13 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreat
         setCreatives(strategy.creatives);
         setIsLoading(false);
       } else {
+        setIsLoading(true); // Set loading to true before fetching
         fetchCreatives(plan, strategy);
       }
+    } else {
+      // Reset state when dialog is closed or no strategy is selected
+      setCreatives(null);
+      setIsLoading(false);
     }
   }, [strategy, plan, fetchCreatives]);
 
