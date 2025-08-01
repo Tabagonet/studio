@@ -39,6 +39,7 @@ const safetySettings = [
 ];
 
 export async function generateAdCreatives(input: GenerateAdCreativesInput): Promise<GenerateAdCreativesOutput> {
+    console.log('[LOG] AI Flow: generateAdCreatives received input:', input);
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
     const model = genAI.getGenerativeModel({ 
         model: "gemini-1.5-flash-latest", 
@@ -48,15 +49,24 @@ export async function generateAdCreatives(input: GenerateAdCreativesInput): Prom
 
     const template = Handlebars.compile(CREATIVES_PROMPT, { noEscape: true });
     const finalPrompt = template(input);
+    console.log('[LOG] AI Flow: Compiled final prompt for Gemini:', finalPrompt);
     
     const result = await model.generateContent(finalPrompt);
     const response = await result.response;
+    const rawResponseText = response.text();
+    console.log('[LOG] AI Flow: Received raw text response from Gemini:', rawResponseText);
+
     let rawJson;
     try {
-        rawJson = JSON.parse(response.text());
+        rawJson = JSON.parse(rawResponseText);
     } catch(e) {
+        console.error('[LOG] AI Flow: Failed to parse JSON from AI response.', e);
         throw new Error("La IA devolvió una respuesta JSON inválida.");
     }
+    
+    console.log('[LOG] AI Flow: Parsed JSON successfully. Validating with Zod schema...');
+    const validatedOutput = GenerateAdCreativesOutputSchema.parse(rawJson);
+    console.log('[LOG] AI Flow: Schema validation successful. Returning data.');
 
-    return GenerateAdCreativesOutputSchema.parse(rawJson);
+    return validatedOutput;
 }

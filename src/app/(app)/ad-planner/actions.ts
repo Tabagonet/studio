@@ -101,27 +101,33 @@ export async function generateAdCreativesAction(
     data?: GenerateAdCreativesOutput;
     error?: string;
 }> {
+    console.log('[LOG] Server Action: generateAdCreativesAction triggered.');
     let uid: string;
     try {
         if (!adminAuth) throw new Error("Firebase Admin not initialized");
         const decodedToken = await adminAuth.verifyIdToken(token);
         uid = decodedToken.uid;
+        console.log(`[LOG] Server Action: User authenticated. UID: ${uid}`);
     } catch (error) {
         console.error('Error verifying token in generateAdCreativesAction:', error);
         return { error: 'Authentication failed. Unable to identify user.' };
     }
 
     try {
+        console.log('[LOG] Server Action: Calling generateAdCreatives flow with input:', input);
         const creatives = await generateAdCreatives(input);
+        console.log('[LOG] Server Action: Flow returned creatives:', creatives);
         
         if (adminDb) {
             const userSettingsRef = adminDb.collection('user_settings').doc(uid);
             await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
+            console.log('[LOG] Server Action: AI usage count incremented.');
         }
         
+        console.log('[LOG] Server Action: Returning successful data to client.');
         return { data: creatives };
     } catch (error: any) {
-        console.error('Error in generateAdCreativesAction:', error);
+        console.error('[LOG] Server Action: An error occurred in generateAdCreativesAction:', error);
         return { error: error.message || 'An unknown error occurred while generating creatives.' };
     }
 }
