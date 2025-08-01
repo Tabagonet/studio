@@ -96,21 +96,17 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreat
 
   useEffect(() => {
     if (strategy && plan) {
-      // If creatives already exist in the strategy object, show them.
       if (strategy.creatives && Object.keys(strategy.creatives).length > 0) {
         setCreatives(strategy.creatives);
         setIsLoading(false);
       } else {
-        // Otherwise, fetch them.
-        setIsLoading(true);
         fetchCreatives(plan, strategy);
       }
     } else {
-      // Reset state when dialog is closed or no strategy is selected
       setCreatives(null);
       setIsLoading(false);
     }
-  }, [strategy, plan]); // Removed fetchCreatives from deps to avoid loop
+  }, [strategy, plan, fetchCreatives]);
 
   const handleCloseDialog = () => {
     onOpenChange(false);
