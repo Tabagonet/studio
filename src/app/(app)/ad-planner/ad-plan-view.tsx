@@ -99,6 +99,8 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyInfo }: AdPlanV
         }
     };
 
+    // By wrapping this in useCallback, we ensure it's not recreated on every render of AdPlanView,
+    // which prevents the useEffect in CreativeStudioDialog from re-triggering unnecessarily.
     const handleSaveCreativesToPlan = useCallback((strategyPlatform: string, creatives: GenerateAdCreativesOutput) => {
         if (!plan) return;
         const updatedPlan = {
