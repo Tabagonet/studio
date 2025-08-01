@@ -63,6 +63,12 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdat
         setIsLoading(false);
         return;
       }
+      
+      if (!currentPlan.buyer_persona) {
+          toast({ title: 'Faltan datos', description: 'El "Buyer Persona" es necesario para generar creativos. No se encontró en el plan.', variant: 'destructive'});
+          setIsLoading(false);
+          return;
+      }
 
       try {
         const token = await user.getIdToken();
@@ -72,7 +78,7 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdat
           platform: currentStrategy.platform,
           campaign_type: currentStrategy.campaign_type,
           funnel_stage: currentStrategy.funnel_stage,
-          target_audience: currentPlan.buyer_persona,
+          target_audience: currentPlan.buyer_persona, // Use buyer_persona
         }, token);
 
         if (result.error || !result.data) {
