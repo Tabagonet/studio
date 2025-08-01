@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2, Copy, Wand2, RefreshCw, Download } from 'lucide-react';
@@ -49,13 +49,20 @@ const CreativeItem = ({ title, content }: { title: string, content: string | str
 export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreatives }: CreativeStudioDialogProps) {
   const [creatives, setCreatives] = useState<GenerateAdCreativesOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [hasFetched, setHasFetched] = useState(false);
   const { toast } = useToast();
 
-  const fetchCreatives = useCallback(async (currentPlan: CreateAdPlanOutput, currentStrategy: Strategy) => {
-      setIsLoading(true);
-      setHasFetched(true);
+  useEffect(() => {
+    const fetchAndSetCreatives = async () => {
+      if (!plan || !strategy) return;
       
+      // If creatives already exist in the strategy object, load them.
+      if (strategy.creatives && Object.keys(strategy.creatives).length > 0) {
+        setCreatives(strategy.creatives);
+        return;
+      }
+      
+      // Otherwise, fetch new ones.
+      setIsLoading(true);
       const user = auth.currentUser;
       if (!user) {
         toast({ title: 'Error de autenticación', variant: 'destructive' });
@@ -63,58 +70,59 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreat
         return;
       }
       
-      if (!currentPlan.buyer_persona) {
-          toast({ title: 'Faltan datos', description: 'El "Buyer Persona" es necesario para generar creativos. No se encontró en el plan.', variant: 'destructive'});
+      if (!plan.buyer_persona) {
+          toast({ title: 'Faltan datos', description: 'El "Buyer Persona" es necesario para generar creativos.', variant: 'destructive'});
           setIsLoading(false);
           return;
       }
-
+      
       try {
         const token = await user.getIdToken();
         const result = await generateAdCreativesAction({
-          url: currentPlan.url,
-          objectives: currentPlan.objectives,
-          platform: currentStrategy.platform,
-          campaign_type: currentStrategy.campaign_type,
-          funnel_stage: currentStrategy.funnel_stage,
-          target_audience: currentPlan.buyer_persona,
+          url: plan.url,
+          objectives: plan.objectives,
+          platform: strategy.platform,
+          campaign_type: strategy.campaign_type,
+          funnel_stage: strategy.funnel_stage,
+          target_audience: plan.buyer_persona,
         }, token);
-        
+
         if (result.error || !result.data) {
           throw new Error(result.error || 'La IA no pudo generar los creativos.');
         }
-        
+
         setCreatives(result.data);
-        onSaveCreatives(currentStrategy.platform, result.data);
+        onSaveCreatives(strategy.platform, result.data);
         toast({ title: 'Creativos Generados', description: 'Se ha generado una nueva tanda de creativos.' });
 
       } catch (error: any) {
         toast({ title: 'Error al Generar Creativos', description: error.message, variant: 'destructive' });
-        setCreatives(null); 
+        setCreatives(null);
       } finally {
         setIsLoading(false);
       }
-    }, [toast, onSaveCreatives]);
+    };
 
-  useEffect(() => {
-    // Reset fetch status when strategy changes
-    if (strategy) {
-        setHasFetched(false);
+    if (strategy) { // Only run if a strategy is selected
+        fetchAndSetCreatives();
+    } else { // Reset when dialog closes
         setCreatives(null);
-    }
-  }, [strategy]);
-
-  useEffect(() => {
-    if (strategy && plan) {
-      if (strategy.creatives && Object.keys(strategy.creatives).length > 0) {
-        setCreatives(strategy.creatives);
         setIsLoading(false);
-        setHasFetched(true);
-      } else if (!isLoading && !hasFetched) {
-        fetchCreatives(plan, strategy);
-      }
     }
-  }, [strategy, plan, isLoading, hasFetched, fetchCreatives]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [strategy, plan]); // Dependencies are now stable
+
+  const handleRegenerate = () => {
+     if (plan && strategy) {
+        // Clear existing creatives and trigger useEffect to refetch
+        setCreatives(null);
+        onSaveCreatives(strategy.platform, {} as GenerateAdCreativesOutput); // Clear parent state
+        // The useEffect will pick up the change and re-fetch.
+        // We manually set loading to provide immediate feedback.
+        setIsLoading(true); 
+     }
+  };
+
 
   const handleExport = () => {
     if (!creatives || !strategy) return;
@@ -155,12 +163,6 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreat
   const handleCloseDialog = () => {
     onOpenChange(false);
   };
-  
-  const handleRegenerate = () => {
-    if(plan && strategy) {
-        fetchCreatives(plan, strategy);
-    }
-  }
 
   if (!strategy || !plan) return null;
 
