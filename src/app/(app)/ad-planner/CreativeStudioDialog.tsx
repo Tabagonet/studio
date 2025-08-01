@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, Copy, Wand2, RefreshCw } from 'lucide-react';
+import { Loader2, Copy, Wand2, RefreshCw, Download } from 'lucide-react';
 import type { CreateAdPlanOutput, Strategy, GenerateAdCreativesOutput } from './schema';
 import { useToast } from '@/hooks/use-toast';
 import { generateAdCreativesAction } from './actions';
@@ -116,6 +116,42 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreat
     }
   }, [strategy, plan, isLoading, hasFetched, fetchCreatives]);
 
+  const handleExport = () => {
+    if (!creatives || !strategy) return;
+
+    const { headlines, descriptions, cta_suggestions, visual_ideas } = creatives;
+    
+    let textContent = `Creativos para ${strategy.platform}\n`;
+    textContent += `==================================\n\n`;
+
+    textContent += `** Titulares (Headlines) **\n`;
+    headlines.forEach(h => textContent += `- ${h}\n`);
+    textContent += `\n`;
+
+    textContent += `** Descripciones **\n`;
+    descriptions.forEach(d => textContent += `- ${d}\n`);
+    textContent += `\n`;
+
+    textContent += `** Llamadas a la Acción (CTAs) **\n`;
+    cta_suggestions.forEach(c => textContent += `- ${c}\n`);
+    textContent += `\n`;
+
+    textContent += `** Ideas Visuales **\n`;
+    visual_ideas.forEach(v => textContent += `- ${v}\n`);
+
+    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `creativos-${strategy.platform.toLowerCase().replace(/\s/g, '-')}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast({ title: "Creativos exportados" });
+  };
+
+
   const handleCloseDialog = () => {
     onOpenChange(false);
   };
@@ -163,10 +199,16 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onSaveCreat
         </div>
         
         <DialogFooter className="justify-between">
-           <Button variant="outline" onClick={handleRegenerate} disabled={isLoading}>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Volver a Generar con IA
-            </Button>
+           <div className="flex gap-2">
+             <Button variant="outline" onClick={handleRegenerate} disabled={isLoading}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Volver a Generar
+              </Button>
+               <Button variant="outline" onClick={handleExport} disabled={!creatives || isLoading}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Exportar Creativos
+              </Button>
+           </div>
             <Button type="button" variant="secondary" onClick={handleCloseDialog}>Cerrar</Button>
         </DialogFooter>
       </DialogContent>
