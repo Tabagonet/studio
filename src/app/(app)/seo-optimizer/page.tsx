@@ -42,6 +42,7 @@ export default function SeoOptimizerPage() {
   const [scores, setScores] = useState<Record<number, number>>({});
   
   const viewingId = searchParams.get('id');
+  const viewingType = searchParams.get('type') || 'Page';
 
   const runAnalysis = useCallback(async (page: ContentItem, token: string) => {
     setIsLoadingAnalysis(true);
@@ -208,7 +209,7 @@ export default function SeoOptimizerPage() {
 
     if (id && contentList.length > 0 && user) {
         if (!selectedPage || selectedPage.id !== id) {
-            const pageToView = contentList.find(p => p.id === id);
+            const pageToView = contentList.find(p => p.id === id && p.type === viewingType);
             if (pageToView) {
                 user.getIdToken().then(token => fetchReport(pageToView, token));
             } else if (!isLoading) {
@@ -220,7 +221,7 @@ export default function SeoOptimizerPage() {
         setSelectedPage(null);
         setAnalysisRecord(null);
     }
-  }, [viewingId, contentList, selectedPage, fetchReport, isLoading, router, toast]);
+  }, [viewingId, viewingType, contentList, selectedPage, fetchReport, isLoading, router, toast]);
 
   const handleAnalyzePage = useCallback(async (page: ContentItem) => {
     const user = auth.currentUser;

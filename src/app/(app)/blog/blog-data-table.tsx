@@ -217,7 +217,7 @@ export function BlogDataTable() {
       const response = await fetch('/api/wordpress/post-categories', {
           headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!response.ok) throw new Error('Failed to load categories');
+      if (!response.ok) throw new Error((await response.json()).error || 'Fallo al cargar las categorías.');
       setCategories(await response.json());
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

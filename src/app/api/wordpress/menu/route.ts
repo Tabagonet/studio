@@ -17,7 +17,9 @@ export async function GET(req: NextRequest) {
     
     const { wpApi } = await getApiClientsForUser(uid);
     if (!wpApi) {
-      throw new Error('WordPress API is not configured for the active connection.');
+      // If no API is configured, it's not an error, just return an empty array.
+      // The UI should handle this gracefully.
+      return NextResponse.json([]);
     }
     
     // The custom endpoint is at the root of the site, not under /wp-json/wp/v2
@@ -37,12 +39,10 @@ export async function GET(req: NextRequest) {
     
     if (error.response?.status === 404) {
         // This is an expected "error" if the user hasn't added the custom PHP snippet.
-        // We return an empty array so the UI can gracefully fall back to the next hierarchy method.
-        console.log("Menu endpoint not found (404), returning empty array for fallback.");
-        return NextResponse.json([]);
+        errorMessage = 'Endpoint /custom/v1/menus no encontrado. Asegúrate de que el plugin "AutoPress AI Helper" está instalado, activo y actualizado.';
     } 
     
-    if (error.response?.data?.message) {
+    else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
     } else if (error.message) {
         errorMessage = error.message;
@@ -50,6 +50,8 @@ export async function GET(req: NextRequest) {
 
     if (error.message && error.message.includes('not configured')) {
         status = 400;
+        // In this case, we return an empty array so the UI doesn't show a breaking error.
+        return NextResponse.json([]);
     }
     
     console.error(`Menu API Error (${status}): ${errorMessage}`);
