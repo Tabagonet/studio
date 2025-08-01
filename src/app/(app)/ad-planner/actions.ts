@@ -13,12 +13,14 @@ import {
     type CompetitorAnalysisOutput,
     ExecuteTaskInputSchema,
     KeywordResearchResultSchema,
+    GenerateAdCreativesOutputSchema,
 } from "./schema";
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { generateStrategyTasks } from '@/ai/flows/generate-strategy-tasks-flow';
 import { generateAdCreatives } from '@/ai/flows/generate-ad-creatives-flow';
 import { competitorAnalysis } from "@/ai/flows/competitor-analysis-flow";
 import { executeKeywordResearchTask } from "@/ai/flows/execute-keyword-research-task-flow";
+import { z } from "zod";
 
 
 export async function generateAdPlanAction(
@@ -315,12 +317,24 @@ export async function executeTaskAction(
   }
 
   try {
-    // For now, we only have one type of task.
-    // In the future, we can add a switch/case based on `input.taskName`
-    // to call different AI flows.
-    if (input.taskName.toLowerCase().includes('palabras clave') || input.taskName.toLowerCase().includes('keyword')) {
+    const taskNameLower = input.taskName.toLowerCase();
+    
+    if (taskNameLower.includes('palabras clave') || taskNameLower.includes('keyword')) {
         const result = await executeKeywordResearchTask(input);
         return { data: result };
+    }
+    
+    if (taskNameLower.includes('anuncios') || taskNameLower.includes('creativos') || taskNameLower.includes('copy')) {
+      const creativeInput: GenerateAdCreativesInput = {
+        url: input.url,
+        objectives: [], // These are not available at the task level, can be omitted
+        platform: 'General', // Not available at task level, use a general placeholder
+        campaign_type: 'General',
+        funnel_stage: 'Consideration',
+        target_audience: input.buyerPersona,
+      };
+      const result = await generateAdCreatives(creativeInput);
+      return { data: result };
     }
 
     // Default fallback for unimplemented tasks

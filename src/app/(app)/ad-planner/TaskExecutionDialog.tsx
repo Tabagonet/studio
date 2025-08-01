@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState } from 'react';
@@ -14,7 +15,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
-import type { Task, CreateAdPlanOutput, KeywordResearchResult } from './schema';
+import type { Task, CreateAdPlanOutput, KeywordResearchResult, GenerateAdCreativesOutput } from './schema';
 import { Loader2, Sparkles, Clipboard, Table as TableIcon } from 'lucide-react';
 import { executeTaskAction } from './actions';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -31,7 +32,7 @@ interface TaskExecutionDialogProps {
 export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, onTaskUpdate }: TaskExecutionDialogProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [result, setResult] = useState<KeywordResearchResult | null>(null);
+  const [result, setResult] = useState<KeywordResearchResult | GenerateAdCreativesOutput | null>(null);
 
   const handleExecute = async () => {
     if (!task || !plan) return;
@@ -62,10 +63,10 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, onTaskUp
         throw new Error(response.error || 'La IA no pudo ejecutar la tarea.');
       }
       
-      const taskResult = response.data as KeywordResearchResult;
+      const taskResult = response.data;
       setResult(taskResult);
       onTaskUpdate(task.id, taskResult); // Pass the result back up to the parent
-      toast({ title: 'Tarea Ejecutada', description: 'La IA ha completado la investigación de palabras clave.' });
+      toast({ title: 'Tarea Ejecutada', description: 'La IA ha completado la tarea.' });
     } catch (err: any) {
       toast({ title: 'Error en la Ejecución', description: err.message, variant: 'destructive' });
     } finally {
@@ -75,18 +76,23 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, onTaskUp
 
   const copyToClipboard = () => {
     if (!result) return;
-    const text = result.keywords.map(kw => `${kw.keyword}\t${kw.intent}\t${kw.cpc_suggestion}`).join('\n');
+    let text = '';
+    if ('keywords' in result) {
+      text = result.keywords.map(kw => `${kw.keyword}\t${kw.intent}\t${kw.cpc_suggestion}`).join('\n');
+    } else if ('headlines' in result) {
+        text += '** Titulares **\n' + result.headlines.join('\n') + '\n\n';
+        text += '** Descripciones **\n' + result.descriptions.join('\n');
+    }
     navigator.clipboard.writeText(text);
     toast({ title: 'Copiado', description: 'Resultados copiados al portapapeles.' });
   };
 
   const renderResult = () => {
-    // Check if a result is already saved in the task object when the dialog opens
-    const displayResult = result || (task?.result as KeywordResearchResult | null);
-
+    const displayResult = result || (task?.result as any | null);
     if (!displayResult) return null;
 
     if (displayResult.keywords) {
+      const keywordResult = displayResult as KeywordResearchResult;
       return (
         <div className="mt-4 space-y-2">
             <div className="flex justify-between items-center">
@@ -102,7 +108,7 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, onTaskUp
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {displayResult.keywords.map((kw, index) => (
+                    {keywordResult.keywords.map((kw, index) => (
                     <TableRow key={index}>
                         <TableCell>{kw.keyword}</TableCell>
                         <TableCell>{kw.intent}</TableCell>
@@ -113,6 +119,30 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, onTaskUp
             </Table>
         </div>
       );
+    }
+    
+    if (displayResult.headlines) {
+        const creativeResult = displayResult as GenerateAdCreativesOutput;
+        return (
+             <div className="mt-4 space-y-4">
+                <div className="flex justify-between items-center">
+                    <h4 className="font-semibold">Creativos Publicitarios Sugeridos</h4>
+                    <Button variant="outline" size="sm" onClick={copyToClipboard}><Clipboard className="mr-2 h-4 w-4" /> Copiar</Button>
+                </div>
+                 <div>
+                    <h5 className="font-medium">Titulares</h5>
+                    <ul className="list-disc list-inside text-sm text-muted-foreground mt-1 space-y-1">
+                        {creativeResult.headlines.map((h, i) => <li key={i}>{h}</li>)}
+                    </ul>
+                 </div>
+                 <div>
+                    <h5 className="font-medium">Descripciones</h5>
+                     <ul className="list-disc list-inside text-sm text-muted-foreground mt-1 space-y-1">
+                        {creativeResult.descriptions.map((d, i) => <li key={i}>{d}</li>)}
+                    </ul>
+                 </div>
+             </div>
+        )
     }
 
     return <p>La tarea no ha devuelto un resultado esperado.</p>;
@@ -140,7 +170,7 @@ export function TaskExecutionDialog({ isOpen, onOpenChange, task, plan, onTaskUp
           ) : (
             <div className="text-center p-6 border border-dashed rounded-md">
                 <p className="text-muted-foreground">
-                    Haz clic en "Generar" para que la IA realice la investigación de palabras clave. Los resultados se guardarán.
+                    Haz clic en "Generar" para que la IA realice la tarea. Los resultados se guardarán.
                 </p>
             </div>
           )}

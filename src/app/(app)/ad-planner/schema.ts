@@ -1,4 +1,5 @@
 
+
 import { z } from 'zod';
 
 // === Schemas for Generate Ad Creatives Flow ===
@@ -55,7 +56,7 @@ export const TaskSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
   hours: z.number(),
-  result: z.any().optional(), // Can hold keyword research results, etc.
+  result: z.union([KeywordResearchResultSchema, GenerateAdCreativesOutputSchema]).nullable().optional(),
 });
 export type Task = z.infer<typeof TaskSchema>;
 
