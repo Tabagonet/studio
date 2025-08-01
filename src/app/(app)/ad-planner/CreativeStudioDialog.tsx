@@ -48,7 +48,7 @@ const CreativeItem = ({ title, content }: { title: string, content: string | str
 
 export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdate }: CreativeStudioDialogProps) {
   const [creatives, setCreatives] = useState<GenerateAdCreativesOutput | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
   const fetchCreatives = useCallback(async (currentPlan: CreateAdPlanOutput, currentStrategy: Strategy, forceRegenerate = false) => {
@@ -84,9 +84,10 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdat
         if (result.error || !result.data) {
           throw new Error(result.error || 'La IA no pudo generar los creativos.');
         }
-
+        
         setCreatives(result.data);
         
+        // Update the parent plan state with the newly generated creatives
         const updatedPlan = {
           ...currentPlan,
           strategies: currentPlan.strategies.map(s => 
@@ -94,6 +95,7 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdat
           )
         };
         onPlanUpdate(updatedPlan);
+
         if (forceRegenerate) {
              toast({ title: 'Creativos Regenerados', description: 'Se ha generado una nueva tanda de creativos.' });
         }
@@ -107,10 +109,12 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdat
 
   useEffect(() => {
     if (strategy && plan) {
-      if (strategy.creatives) {
+      // If creatives already exist in the plan for this strategy, display them
+      if (strategy.creatives && Object.keys(strategy.creatives).length > 0) {
         setCreatives(strategy.creatives);
         setIsLoading(false);
       } else {
+        // Otherwise, fetch them
         setIsLoading(true);
         fetchCreatives(plan, strategy);
       }
