@@ -1,9 +1,10 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, Copy, Wand2 } from 'lucide-react';
+import { Loader2, Copy, Wand2, RefreshCw } from 'lucide-react';
 import type { CreateAdPlanOutput, Strategy, GenerateAdCreativesOutput } from './schema';
 import { useToast } from '@/hooks/use-toast';
 import { generateAdCreativesAction } from './actions';
@@ -50,9 +51,12 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdat
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const fetchCreatives = useCallback(async (currentPlan: CreateAdPlanOutput, currentStrategy: Strategy) => {
+  const fetchCreatives = useCallback(async (currentPlan: CreateAdPlanOutput, currentStrategy: Strategy, forceRegenerate = false) => {
       setIsLoading(true);
-      setCreatives(null);
+      if(forceRegenerate) {
+        setCreatives(null);
+      }
+
       const user = auth.currentUser;
       if (!user) {
         toast({ title: 'Error de autenticación', variant: 'destructive' });
@@ -77,7 +81,6 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdat
 
         setCreatives(result.data);
         
-        // Persist the newly generated creatives to the main plan state
         const updatedPlan = {
           ...currentPlan,
           strategies: currentPlan.strategies.map(s => 
@@ -85,6 +88,9 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdat
           )
         };
         onPlanUpdate(updatedPlan);
+        if(forceRegenerate) {
+             toast({ title: 'Creativos Regenerados', description: 'Se ha generado una nueva tanda de creativos.' });
+        }
 
       } catch (error: any) {
         toast({ title: 'Error al Generar Creativos', description: error.message, variant: 'destructive' });
@@ -140,8 +146,14 @@ export function CreativeStudioDialog({ plan, strategy, onOpenChange, onPlanUpdat
           )}
         </div>
         
-        <DialogFooter>
-          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>Cerrar</Button>
+        <DialogFooter className="justify-between">
+           <Button variant="outline" onClick={() => fetchCreatives(plan, strategy, true)} disabled={isLoading}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Volver a Generar con IA
+            </Button>
+            <DialogClose asChild>
+                <Button type="button" variant="secondary">Cerrar</Button>
+            </DialogClose>
         </DialogFooter>
       </DialogContent>
     </Dialog>
