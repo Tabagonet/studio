@@ -5,7 +5,7 @@ import React, { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CreateAdPlanOutput, Strategy, GenerateAdCreativesOutput } from './schema';
-import { Calendar, Zap, Users, Target, Megaphone, Lightbulb, BarChart3, Loader2, Save, Info, Swords, Wrench, Star, DollarSign, Palette } from 'lucide-react';
+import { Calendar, Zap, Users, Target, Megaphone, Lightbulb, BarChart3, Loader2, Save, Info, Swords, Wrench, Star, DollarSign, Palette, Bot } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { saveAdPlanAction } from './actions';
 import { auth } from '@/lib/firebase';
@@ -18,6 +18,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import type { Company } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { CampaignStudioDialog } from './CampaignStudioDialog';
 
 interface AdPlanViewProps {
   plan: CreateAdPlanOutput;
@@ -70,6 +71,7 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyInfo }: AdPlanV
     
     const [selectedStrategyForTasks, setSelectedStrategyForTasks] = useState<Strategy | null>(null);
     const [selectedStrategyForCreatives, setSelectedStrategyForCreatives] = useState<Strategy | null>(null);
+    const [isCampaignStudioOpen, setIsCampaignStudioOpen] = useState(false);
 
     const { toast } = useToast();
 
@@ -99,8 +101,6 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyInfo }: AdPlanV
         }
     };
 
-    // By wrapping this in useCallback, we ensure it's not recreated on every render of AdPlanView,
-    // which prevents the useEffect in CreativeStudioDialog from re-triggering unnecessarily.
     const handleSaveCreativesToPlan = useCallback((strategyPlatform: string, creatives: GenerateAdCreativesOutput) => {
         if (!plan) return;
         const updatedPlan = {
@@ -139,10 +139,16 @@ export function AdPlanView({ plan, onPlanUpdate, onReset, companyInfo }: AdPlanV
                 onOpenChange={(open) => !open && setSelectedStrategyForCreatives(null)}
                 onSaveCreatives={handleSaveCreativesToPlan}
             />
+             <CampaignStudioDialog
+                isOpen={isCampaignStudioOpen}
+                onOpenChange={setIsCampaignStudioOpen}
+                plan={plan}
+             />
             
              <div className="flex flex-wrap gap-2 justify-end">
                 <Button variant="outline" onClick={onReset}><Zap className="mr-2 h-4 w-4" /> Crear Nuevo Plan</Button>
                 <Button variant="outline" onClick={() => setIsCompetitorAnalysisOpen(true)}><Swords className="mr-2 h-4 w-4" /> Analizar Competencia</Button>
+                <Button variant="outline" onClick={() => setIsCampaignStudioOpen(true)}><Bot className="mr-2 h-4 w-4" /> Crear Campaña de Google Ads</Button>
                 <Button onClick={handleSavePlan} disabled={isSavingPlan}>{isSavingPlan ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Guardar Plan</Button>
             </div>
 

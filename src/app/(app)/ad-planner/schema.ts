@@ -187,3 +187,28 @@ export const CompetitorAnalysisOutputSchema = z.object({
   })).describe("Una lista de 2 a 3 de los principales competidores encontrados."),
 });
 export type CompetitorAnalysisOutput = z.infer<typeof CompetitorAnalysisOutputSchema>;
+
+
+// === Schemas for Google Ads Campaign Generation ===
+export const GenerateGoogleCampaignInputSchema = z.object({
+  url: z.string().url(),
+  objectives: z.array(z.string()),
+  buyer_persona: z.string(),
+  value_proposition: z.string(),
+});
+export type GenerateGoogleCampaignInput = z.infer<typeof GenerateGoogleCampaignInputSchema>;
+
+export const GoogleAdGroupSchema = z.object({
+  adGroupName: z.string().describe("Un nombre temático y conciso para el grupo de anuncios (ej. 'Zapatillas Correr Hombre')."),
+  keywords: z.array(z.string()).describe("Una lista de 5 a 15 palabras clave estrechamente relacionadas con el tema del grupo."),
+  ads: z.array(z.object({
+    headlines: z.array(z.string().max(30, "Los titulares no deben superar los 30 caracteres.")).describe("Una lista de 3 a 5 titulares potentes y cortos."),
+    descriptions: z.array(z.string().max(90, "Las descripciones no deben superar los 90 caracteres.")).describe("Una lista de 2 a 3 descripciones persuasivas."),
+  })).describe("Al menos un ejemplo de anuncio para este grupo."),
+});
+
+export const GoogleAdsCampaignSchema = z.object({
+    campaignName: z.string().describe("Un nombre general para toda la campaña (ej. 'Venta Calzado Deportivo Verano')."),
+    adGroups: z.array(GoogleAdGroupSchema).describe("Una lista de 2 a 5 grupos de anuncios temáticos.")
+});
+export type GoogleAdsCampaign = z.infer<typeof GoogleAdsCampaignSchema>;

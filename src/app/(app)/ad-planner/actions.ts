@@ -11,9 +11,10 @@ import {
     type CompetitorAnalysisInput,
     type CompetitorAnalysisOutput,
     ExecuteTaskInputSchema,
-    KeywordResearchResultSchema,
-    GenerateAdCreativesOutputSchema,
-    CampaignSetupResultSchema,
+    GoogleAdsCampaignSchema,
+    type GoogleAdsCampaign,
+    GenerateGoogleCampaignInputSchema,
+    type GenerateGoogleCampaignInput
 } from "./schema";
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { generateStrategyTasks } from '@/ai/flows/generate-strategy-tasks-flow';
@@ -21,6 +22,7 @@ import { generateAdCreatives } from '@/ai/flows/generate-ad-creatives-flow';
 import { competitorAnalysis } from "@/ai/flows/competitor-analysis-flow";
 import { executeKeywordResearchTask } from "@/ai/flows/execute-keyword-research-task-flow";
 import { executeCampaignSetupTask } from "@/ai/flows/execute-campaign-setup-task-flow"; // Import new flow
+import { generateGoogleCampaign } from "@/ai/flows/generate-google-campaign-flow";
 import { z } from "zod";
 
 
@@ -338,7 +340,6 @@ export async function executeTaskAction(
       return { data: result };
     }
     
-    // Updated logic to be more flexible
     if (taskNameLower.includes('configuraci') && taskNameLower.includes('campa')) {
       const result = await executeCampaignSetupTask(input);
       return { data: result };
@@ -350,4 +351,32 @@ export async function executeTaskAction(
     console.error('Error in executeTaskAction:', error);
     return { error: error.message || 'An unknown error occurred while executing the task.' };
   }
+}
+
+export async function generateGoogleCampaignAction(
+    input: GenerateGoogleCampaignInput, 
+    token: string
+): Promise<{
+    data?: GoogleAdsCampaign;
+    error?: string;
+}> {
+    let uid: string;
+    try {
+        if (!adminAuth) throw new Error("Firebase Admin not initialized");
+        const decodedToken = await adminAuth.verifyIdToken(token);
+        uid = decodedToken.uid;
+    } catch (error) {
+        return { error: 'Authentication failed. Unable to identify user.' };
+    }
+
+    try {
+        const campaign = await generateGoogleCampaign(input);
+        if (adminDb) {
+            await adminDb.collection('user_settings').doc(uid).set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
+        }
+        return { data: campaign };
+    } catch (error: any) {
+        console.error('Error in generateGoogleCampaignAction:', error);
+        return { error: error.message || 'An unknown error occurred while generating the campaign structure.' };
+    }
 }
