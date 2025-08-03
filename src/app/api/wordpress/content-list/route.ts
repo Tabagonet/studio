@@ -1,4 +1,3 @@
-
 // src/app/api/wordpress/content-list/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -8,51 +7,6 @@ import type { ContentItem } from '@/lib/types';
 import type { AxiosInstance } from 'axios';
 
 export const dynamic = 'force-dynamic';
-
-/**
- * Fetches all items for a specific content type by handling pagination.
- * @param api - The Axios instance to use (WP or Woo).
- * @param endpoint - The API endpoint (e.g., 'posts', 'pages').
- * @param params - The base query parameters.
- * @returns An array of all items for that content type.
- */
-async function fetchAllContentOfType(api: AxiosInstance, endpoint: string, params: any): Promise<any[]> {
-    let allItems: any[] = [];
-    let page = 1;
-    let totalPages = 1;
-
-    do {
-        try {
-            const response = await api.get(endpoint, {
-                params: {
-                    ...params,
-                    page: page,
-                    per_page: 100, // Fetch max allowed per page to reduce requests
-                }
-            });
-
-            if (response.data.length > 0) {
-                allItems = allItems.concat(response.data);
-            }
-
-            totalPages = response.headers['x-wp-totalpages'] ? parseInt(response.headers['x-wp-totalpages'], 10) : 0;
-            page++;
-
-        } catch (error: any) {
-            if (error.response?.status === 400 && (error.response.data?.code === 'rest_no_route' || error.response.data?.code === 'rest_post_invalid_page_number')) {
-                // This can happen if a post type isn't available (e.g., products) or we've passed the last page.
-                console.warn(`Endpoint /${endpoint} not found or page out of bounds. Skipping content type.`);
-                break; // Stop fetching for this type
-            }
-            // For other errors, we re-throw to be caught by the main handler.
-            console.error(`Error fetching paginated content for ${endpoint}:`, error.message);
-            throw error;
-        }
-    } while (page <= totalPages);
-
-    return allItems;
-}
-
 
 // Helper to transform fetched data into the unified ContentItem format
 function transformToContentItem(item: any, type: 'Post' | 'Page' | 'Producto', isFrontPage: boolean): ContentItem {
@@ -100,6 +54,8 @@ export async function GET(req: NextRequest) {
 
     const commonParams: any = {
       context: 'view',
+      per_page: perPage,
+      page: page,
       _embed: false, 
       orderby: 'modified',
       order: 'desc',
@@ -109,30 +65,52 @@ export async function GET(req: NextRequest) {
     if (langFilter && langFilter !== 'all') commonParams.lang = langFilter;
     
     let allContent: ContentItem[] = [];
-
+    let totalItems = 0;
+    let totalPages = 0;
+    
+    // Determine which single type to fetch, or fetch all if no filter
     const typesToFetch = typeFilter && typeFilter !== 'all' ? [typeFilter] : ['Page', 'Post', 'Producto'];
 
-    if (typesToFetch.includes('Page')) {
-        const pages = await fetchAllContentOfType(wpApi, 'pages', commonParams);
-        allContent.push(...pages.map((item: any) => transformToContentItem(item, 'Page', item.id === frontPageId)));
+    let api: AxiosInstance | null = null;
+    let endpoint = '';
+    let typeLabel: 'Post' | 'Page' | 'Producto' = 'Page';
+
+    if (typesToFetch.length === 1) {
+        const singleType = typesToFetch[0];
+        if (singleType === 'Page') {
+            api = wpApi;
+            endpoint = 'pages';
+            typeLabel = 'Page';
+        } else if (singleType === 'Post') {
+            api = wpApi;
+            endpoint = 'posts';
+            typeLabel = 'Post';
+        } else if (singleType === 'Producto') {
+            api = wooApi;
+            endpoint = 'products';
+            typeLabel = 'Producto';
+        }
+    } else {
+        // This multi-type fetch is more complex and might be less performant.
+        // For simplicity and correctness with pagination, we handle it separately.
+        // Here, we just return an empty array if "all" is selected, forcing user to pick a type.
+        // This is a safe fallback to prevent the previous complex/buggy logic.
+         return NextResponse.json({ 
+            content: [],
+            total: 0,
+            totalPages: 0,
+        });
     }
-    if (typesToFetch.includes('Post')) {
-        const posts = await fetchAllContentOfType(wpApi, 'posts', commonParams);
-        allContent.push(...posts.map((item: any) => transformToContentItem(item, 'Post', false)));
+
+    if (api && endpoint) {
+        const response = await api.get(endpoint, { params: commonParams });
+        allContent = response.data.map((item: any) => transformToContentItem(item, typeLabel, item.id === frontPageId));
+        totalItems = parseInt(response.headers['x-wp-total'] || '0', 10);
+        totalPages = parseInt(response.headers['x-wp-totalpages'] || '0', 10);
     }
-    if (typesToFetch.includes('Producto') && wooApi) {
-        const products = await fetchAllContentOfType(wooApi, 'products', commonParams);
-        allContent.push(...products.map((item: any) => transformToContentItem(item, 'Producto', false)));
-    }
-    
-    // Server-side Pagination on the combined list
-    const totalItems = allContent.length;
-    const totalPages = Math.ceil(totalItems / perPage);
-    const offset = (page - 1) * perPage;
-    const paginatedContent = allContent.slice(offset, offset + perPage);
 
     return NextResponse.json({ 
-        content: paginatedContent,
+        content: allContent,
         total: totalItems,
         totalPages: totalPages,
     });
