@@ -218,7 +218,7 @@ function autopress_ai_register_rest_endpoints() {
             }
         }
 
-        return new WP_REST_Response(['content' => $content_list], 200);
+        return new WP_REST_Response(['content' => $content_list, 'front_page_id_debug' => $front_page_id], 200);
     }
 
 
