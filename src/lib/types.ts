@@ -258,7 +258,7 @@ export interface ContentItem {
   parent: number;
   lang?: string;
   translations?: Record<string, number>;
-  modified: string;
+  modified: string | null;
   score?: number;
   is_front_page?: boolean;
 }

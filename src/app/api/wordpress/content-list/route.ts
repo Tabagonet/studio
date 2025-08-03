@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
     const perPage = parseInt(searchParams.get('per_page') || '10', 10);
-    const menuId = searchParams.get('menu_id');
+    const menuId = searchParams.get('menu_id') ? absint(searchParams.get('menu_id')!) : 0;
 
     const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
     if (!siteUrl) {
@@ -35,8 +35,8 @@ export async function GET(req: NextRequest) {
     customEndpointUrl.searchParams.set('page', page.toString());
     customEndpointUrl.searchParams.set('per_page', perPage.toString());
 
-    if (menuId && menuId !== 'all') {
-      customEndpointUrl.searchParams.set('menu_id', menuId);
+    if (menuId > 0) {
+      customEndpointUrl.searchParams.set('menu_id', menuId.toString());
     }
 
     const response = await wpApi.get(customEndpointUrl.toString());
@@ -68,3 +68,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: errorMessage }, { status });
   }
 }
+
+// Helper function to ensure we have a number, equivalent to PHP's absint
+function absint(value: string | number): number {
+  return Math.abs(parseInt(String(value), 10));
+}
+
