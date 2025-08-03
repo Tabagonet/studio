@@ -3,10 +3,8 @@
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Button, buttonVariants } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Loader2, ArrowLeft, Save } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Loader2, ArrowLeft, Save, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -15,6 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 
 
 interface PageEditState {
@@ -47,7 +47,7 @@ function EditPageContent() {
 
     try {
       const token = await user.getIdToken();
-      // This component now ONLY fetches from the pages endpoint.
+      // This endpoint is now specifically for pages
       const apiPath = `/api/wordpress/pages/${postId}`;
       
       const postResponse = await fetch(`${apiPath}?context=edit&bust=${new Date().getTime()}`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
@@ -57,7 +57,7 @@ function EditPageContent() {
       
       const loadedPost: PageEditState = {
         title: postData.title?.rendered,
-        content: postData.content?.rendered, // This will be an array for Elementor, string otherwise
+        content: postData.content?.rendered, // API returns ExtractedWidget[] for Elementor
         isElementor: postData.isElementor || false, 
         elementorEditLink: postData.elementorEditLink || null,
         link: postData.link,
