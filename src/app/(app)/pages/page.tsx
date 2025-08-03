@@ -25,7 +25,7 @@ export default function PagesManagementPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const fetchData = useCallback(async (token: string, filters: any = {}) => {
+  const fetchData = useCallback(async (token: string, filters: any = {}, forceRefresh = false) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -35,6 +35,10 @@ export default function PagesManagementPage() {
             ...filters
         });
         
+        if (forceRefresh) {
+            params.set('cache_bust', Date.now().toString());
+        }
+
         const contentResponse = await fetch(`/api/wordpress/content-list?${params.toString()}`, { headers: { 'Authorization': `Bearer ${token}` } });
 
         if (!contentResponse.ok) {
@@ -44,6 +48,33 @@ export default function PagesManagementPage() {
         const contentData = await contentResponse.json();
         setData(contentData.content);
         setPageCount(contentData.totalPages);
+
+        const scoresResponse = await fetch('/api/seo/latest-scores', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (scoresResponse.ok) {
+            const scoresData = await scoresResponse.json();
+            const scoresByUrl: Record<string, number> = scoresData.scores || {};
+            const scoresById: Record<number, number> = {};
+            const normalizeUrl = (url: string) => {
+                try {
+                    if(!url) return null;
+                    const parsed = new URL(url);
+                    return `${parsed.protocol}//${parsed.hostname}${parsed.pathname.replace(/\/$/, '')}`;
+                } catch { return url; }
+            };
+            const normalizedScoresMap = new Map<string, number>();
+            for (const [url, score] of Object.entries(scoresByUrl)) {
+                normalizedScoresMap.set(normalizeUrl(url)!, score);
+            }
+            contentData.content.forEach((item: ContentItem) => {
+                if (item.link) {
+                  const normalizedItemLink = normalizeUrl(item.link);
+                  if (normalizedItemLink && normalizedScoresMap.has(normalizedItemLink)) {
+                      scoresById[item.id] = normalizedScoresMap.get(normalizedItemLink)!;
+                  }
+                }
+            });
+            setScores(scoresById);
+        }
 
     } catch (err: any) {
         setError(err.message);
@@ -57,7 +88,7 @@ export default function PagesManagementPage() {
     const user = auth.currentUser;
     if (user) {
         toast({ title: "Actualizando...", description: "Sincronizando el contenido con tu sitio de WordPress." });
-        user.getIdToken().then(token => fetchData(token, { refresh: 'true' }));
+        user.getIdToken().then(token => fetchData(token, {}, true));
     }
   };
 
@@ -71,7 +102,7 @@ export default function PagesManagementPage() {
         }
     };
     const unsubscribe = onAuthStateChanged(auth, handleAuth);
-    const handleConnectionsUpdate = () => { if (auth.currentUser) auth.currentUser.getIdToken().then(token => fetchData(token, { refresh: 'true' })); };
+    const handleConnectionsUpdate = () => { if (auth.currentUser) auth.currentUser.getIdToken().then(token => fetchData(token, {}, true)); };
     window.addEventListener('connections-updated', handleConnectionsUpdate);
     return () => {
         unsubscribe();
@@ -106,21 +137,15 @@ export default function PagesManagementPage() {
           </Alert>
       )}
 
-      {isLoading && data.length === 0 ? (
-          <div className="flex justify-center items-center h-64 border rounded-md">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-      ) : !error && (
-           <PageDataTable 
-             data={data} 
-             scores={scores}
-             isLoading={isLoading} 
-             onDataChange={fetchData}
-             pageCount={pageCount}
-             pagination={pagination}
-             setPagination={setPagination}
-           />
-      )}
+      <PageDataTable 
+        data={data} 
+        scores={scores}
+        isLoading={isLoading} 
+        onDataChange={fetchData}
+        pageCount={pageCount}
+        pagination={pagination}
+        setPagination={setPagination}
+      />
     </div>
   );
 }

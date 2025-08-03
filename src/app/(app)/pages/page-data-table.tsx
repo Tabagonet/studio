@@ -76,7 +76,7 @@ export function PageDataTable({
   const [userRole, setUserRole] = React.useState<string | null>(null);
   const { toast } = useToast();
 
-  const debouncedColumnFilters = useDebounce(columnFilters, 300);
+  const debouncedColumnFilters = useDebounce(columnFilters, 500);
 
   React.useEffect(() => {
     const fetchUserRole = async () => {
@@ -105,7 +105,7 @@ export function PageDataTable({
             onDataChange(token, filters);
         })
     }
-  }, [debouncedColumnFilters, pagination, onDataChange]);
+  }, [debouncedColumnFilters, pagination, sorting, onDataChange]);
 
   const tableData = React.useMemo((): HierarchicalContentItem[] => {
     if (!data) return [];
@@ -139,13 +139,13 @@ export function PageDataTable({
             mainItem = itemsById.get(item.id);
         }
         
-        if (mainItem) {
+        if (mainItem && !processedIds.has(mainItem.id)) {
             roots.push(mainItem);
-            if(mainItem.id) processedIds.add(mainItem.id);
+            processedIds.add(mainItem.id);
         }
     });
 
-    return roots.sort((a, b) => a.title.localeCompare(b.title));
+    return roots;
   }, [data, scores]);
 
   const handleEditContent = (item: ContentItem) => {
@@ -190,6 +190,7 @@ export function PageDataTable({
     pageCount: pageCount,
     manualPagination: true,
     manualFiltering: true,
+    manualSorting: true,
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
     onExpandedChange: setExpanded,
@@ -509,7 +510,7 @@ export function PageDataTable({
        <div className="flex items-center justify-between space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
           {table.getFilteredSelectedRowModel().rows.length} de{" "}
-          {table.getFilteredRowModel().rows.length} fila(s) seleccionadas.
+          {table.getCoreRowModel().rows.length} fila(s) seleccionadas.
         </div>
         <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">

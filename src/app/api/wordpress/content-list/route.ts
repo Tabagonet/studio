@@ -26,41 +26,6 @@ function transformToContentItem(item: any, type: ContentItem['type'], isFrontPag
   };
 }
 
-// Helper to fetch all items of a specific type, handling pagination
-async function fetchAllOfType(api: AxiosInstance, endpoint: string, typeLabel: ContentItem['type'], frontPageId: number, requestParams: URLSearchParams): Promise<{items: ContentItem[], totalPages: number}> {
-    if (!api) return { items: [], totalPages: 0 };
-
-    const params: any = {
-        per_page: requestParams.get('per_page') || 10,
-        page: requestParams.get('page') || 1,
-        context: 'view',
-        _embed: 'wp:featuredmedia', 
-        lang: '', // Fetch all languages
-    };
-    
-    // Apply filters from the request
-    const search = requestParams.get('search');
-    const status = requestParams.get('status');
-    const lang = requestParams.get('lang');
-    if (search) params.search = search;
-    if (status && status !== 'all') params.status = status;
-    if (lang && lang !== 'all') params.lang = lang;
-
-
-    try {
-        const response = await api.get(endpoint, { params });
-        const totalPagesHeader = response.headers['x-wp-totalpages'];
-        const totalPages = totalPagesHeader ? parseInt(totalPagesHeader, 10) : 0;
-        
-        const items = response.data.map((item: any) => transformToContentItem(item, typeLabel, item.id === frontPageId));
-
-        return { items, totalPages };
-    } catch (error) {
-        console.error(`Error fetching from ${endpoint}:`, error);
-        return { items: [], totalPages: 0 };
-    }
-}
-
 export async function GET(req: NextRequest) {
   let uid: string;
   try {
@@ -79,7 +44,8 @@ export async function GET(req: NextRequest) {
 
     const { wpApi, wooApi } = await getApiClientsForUser(uid);
     if (!wpApi) {
-        throw new Error('WordPress API is not configured.');
+        // Return an empty list if not configured, UI will show a message
+        return NextResponse.json({ content: [], totalPages: 0 });
     }
     
     const { searchParams } = new URL(req.url);
@@ -92,33 +58,39 @@ export async function GET(req: NextRequest) {
         console.warn("Could not fetch 'page_on_front' option.");
     }
 
-    const {items: pages, totalPages: pagesTotalPages} = await fetchAllOfType(wpApi, 'pages', 'Page', frontPageId, searchParams);
+    const params: any = {
+        per_page: searchParams.get('per_page') || 10,
+        page: searchParams.get('page') || 1,
+        context: 'view',
+        _embed: 'wp:featuredmedia', 
+        lang: searchParams.get('lang') || undefined,
+        status: searchParams.get('status') || 'publish,draft,pending,private,future,trash',
+    };
+    if (searchParams.get('q')) params.search = searchParams.get('q');
+    if (searchParams.get('category')) params.categories = [searchParams.get('category')];
+
+    // Fetch Pages
+    const pagesResponse = await wpApi.get('pages', { params });
+    const pages = pagesResponse.data.map((item: any) => transformToContentItem(item, 'Page', item.id === frontPageId));
+    const totalPages = pagesResponse.headers['x-wp-totalpages'] ? parseInt(pagesResponse.headers['x-wp-totalpages'], 10) : 0;
     
-    const categoryId = searchParams.get('category');
+    // Fetch Categories
     let categories: ContentItem[] = [];
-    
-    // Only fetch categories if the category filter is set or no search query is active
-    if (!searchParams.get('search')) {
-        try {
-            const categoriesResponse = await wpApi.get("categories", { params: { per_page: 100 } });
-            categories = categoriesResponse.data.map((cat: any) => transformToContentItem(cat, 'Categoría de Entradas', false));
-        } catch (e) {
-            console.error("Failed to fetch categories", e);
-        }
+    if (!searchParams.get('q')) { // Don't fetch categories when searching
+      try {
+          const categoriesResponse = await wpApi.get("categories", { params: { per_page: 100 } });
+          categories = categoriesResponse.data.map((cat: any) => transformToContentItem(cat, 'Categoría de Entradas', false));
+      } catch (e) {
+          console.error("Failed to fetch categories", e);
+      }
     }
     
-    let allContent = [...pages, ...categories];
-    
-    // Apply category filter in memory if necessary
-    if (categoryId && categoryId !== 'all') {
-        const categoryPostsResponse = await wpApi.get('posts', { params: { categories: [categoryId], per_page: 100, _fields: 'id' } });
-        const postIdsInCategory = new Set(categoryPostsResponse.data.map((p: any) => p.id));
-        allContent = allContent.filter(item => postIdsInCategory.has(item.id));
-    }
+    // Combine and send
+    const allContent = [...pages, ...categories];
 
     return NextResponse.json({ 
         content: allContent,
-        totalPages: pagesTotalPages, // For now, pagination is mainly driven by pages
+        totalPages: totalPages,
     });
 
   } catch (error: any) {

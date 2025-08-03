@@ -260,7 +260,8 @@ export interface ContentItem {
   lang?: string | null;
   translations?: Record<string, number> | null;
   modified: string | null;
-  is_front_page?: boolean;
+  is_front_page: boolean;
+  score?: number;
 }
 
 export type HierarchicalContentItem = ContentItem & {
