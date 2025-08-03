@@ -39,6 +39,7 @@ export const getColumns = (
     onEdit: (item: ContentItem) => void,
     onDelete: (item: ContentItem) => void,
     onEditImages: (item: ContentItem) => void,
+    scores: Record<number, number> // Pass scores as an argument
 ): ColumnDef<HierarchicalContentItem>[] => [
     {
         id: "select",

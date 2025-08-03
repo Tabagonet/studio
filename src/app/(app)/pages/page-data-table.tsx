@@ -153,7 +153,7 @@ export function PageDataTable({
     }
   };
 
-  const columns = React.useMemo(() => getColumns(handleEditContent, handleDeleteContent, handleEditImages), [scores]); // eslint-disable-line react-hooks/exhaustive-deps
+  const columns = React.useMemo(() => getColumns(handleEditContent, handleDeleteContent, handleEditImages, scores), [scores]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const table = useReactTable({
     data: tableData,
