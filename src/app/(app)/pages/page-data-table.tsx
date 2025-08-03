@@ -127,7 +127,13 @@ export function PageDataTable({
   }, [data, scores]);
 
   const handleEditContent = (item: ContentItem) => {
-    router.push(`/pages/edit/${item.id}?type=${item.type}`);
+    const editUrlMap = {
+      'Page': '/pages/edit',
+      'Post': '/blog/edit',
+      'Producto': '/products/edit'
+    };
+    const baseUrl = editUrlMap[item.type as keyof typeof editUrlMap] || '/pages/edit';
+    router.push(`${baseUrl}/${item.id}?type=${item.type}`);
   };
   
   const handleEditImages = (item: ContentItem) => {
@@ -153,7 +159,7 @@ export function PageDataTable({
     }
   };
 
-  const columns = React.useMemo(() => getColumns(handleEditContent, handleDeleteContent, handleEditImages, scores), [scores]); // eslint-disable-line react-hooks/exhaustive-deps
+  const columns = React.useMemo(() => getColumns(handleEditContent, handleDeleteContent, handleEditImages, scores), [scores, handleEditContent, handleDeleteContent, handleEditImages]);
 
   const table = useReactTable({
     data: tableData,
