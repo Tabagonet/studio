@@ -11,7 +11,6 @@ export const dynamic = 'force-dynamic';
 
 // Helper to transform fetched data into the unified ContentItem format
 function transformToContentItem(item: any, type: ContentItem['type'], isFrontPage: boolean): ContentItem {
-  const isProduct = type === 'Producto';
   return {
     id: item.id,
     title: item.name || item.title?.rendered || 'Sin Título',
@@ -23,7 +22,7 @@ function transformToContentItem(item: any, type: ContentItem['type'], isFrontPag
     lang: item.lang || null,
     translations: item.translations || {},
     modified: item.modified || item.date_created || null,
-    is_front_page: isFrontPage,
+    is_front_page: isFrontPage || false,
   };
 }
 
@@ -126,10 +125,7 @@ export async function GET(req: NextRequest) {
       throw new Error("Firestore Admin is not initialized.");
     }
 
-    const { wpApi } = await getApiClientsForUser(uid);
-    if (!wpApi) {
-      throw new Error('WordPress API is not configured for the active connection.');
-    }
+    const { wpApi, wooApi } = await getApiClientsForUser(uid);
     
     const { searchParams } = new URL(req.url);
     const forceRefresh = searchParams.get('refresh') === 'true';
@@ -155,17 +151,18 @@ export async function GET(req: NextRequest) {
 
     // --- If no valid cache, fetch from source ---
     let frontPageId = 0;
-    try {
-        const optionsResponse = await wpApi.get('/options');
-        frontPageId = optionsResponse.data.page_on_front || 0;
-    } catch(e) {
-        console.warn("Could not fetch 'page_on_front' option. Front page icon may not display.");
+    if (wpApi) {
+        try {
+            const optionsResponse = await wpApi.get('/options');
+            frontPageId = optionsResponse.data.page_on_front || 0;
+        } catch(e) {
+            console.warn("Could not fetch 'page_on_front' option. Front page icon may not display.");
+        }
     }
     
-    // Fetch only pages and post categories
     const [pages, postCategories] = await Promise.all([
         fetchAllOfType(wpApi, 'pages', 'Page', frontPageId),
-        fetchAllCategories(wpApi, 'categories', 'Categoría de Entradas', wpApi),
+        fetchAllCategories(wpApi, 'categories', 'Categoría de Entradas', wpApi!),
     ]);
     
     let allContent = [...pages, ...postCategories];

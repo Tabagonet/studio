@@ -252,8 +252,8 @@ export interface UserNotification {
 export interface ContentItem {
   id: number;
   title: string;
-  type: 'Post' | 'Page' | 'Producto' | 'Categoría de Entradas' | 'Categoría de Productos';
   slug: string;
+  type: 'Post' | 'Page' | 'Producto' | 'Categoría de Entradas' | 'Categoría de Productos';
   link: string | null;
   status: 'publish' | 'draft' | 'pending' | 'private' | 'future' | 'trash';
   parent: number;

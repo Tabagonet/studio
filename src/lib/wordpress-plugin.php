@@ -177,6 +177,7 @@ function autopress_ai_register_rest_endpoints() {
                 $content_list[] = [
                     'id' => $post_id,
                     'title' => get_the_title(),
+                    'slug' => $post_obj->post_name,
                     'type' => $type_label,
                     'link' => get_permalink($post_id),
                     'status' => get_post_status($post_id),
@@ -199,6 +200,7 @@ function autopress_ai_register_rest_endpoints() {
                      $content_list[] = [
                         'id' => $term->term_id,
                         'title' => $term->name,
+                        'slug' => $term->slug,
                         'type' => $taxonomy === 'category' ? 'Categoría de Entradas' : 'Categoría de Productos',
                         'link' => get_term_link($term),
                         'status' => 'publish',
