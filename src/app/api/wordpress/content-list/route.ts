@@ -15,6 +15,7 @@ function transformToContentItem(item: any, type: ContentItem['type'], isFrontPag
   return {
     id: item.id,
     title: item.name || item.title?.rendered || 'Sin Título',
+    slug: item.slug || '',
     type: type,
     link: item.permalink || item.link || null,
     status: item.status || 'publish',
@@ -92,6 +93,7 @@ async function fetchAllCategories(api: AxiosInstance | null, endpoint: string, t
         return terms.map((cat: any, index: number) => ({
             id: cat.id,
             title: cat.name,
+            slug: cat.slug || '',
             type: typeLabel,
             link: cat.link || null,
             status: 'publish',
@@ -141,13 +143,24 @@ export async function GET(req: NextRequest) {
             const lastUpdated = cacheData?.timestamp?.toDate();
             // Cache is valid for 10 minutes
             if (lastUpdated && (new Date().getTime() - lastUpdated.getTime()) < 10 * 60 * 1000) {
-                return NextResponse.json(cacheData?.data);
+                const paginatedContent = cacheData?.data.content.slice((parseInt(searchParams.get('page') || '1', 10) - 1) * parseInt(searchParams.get('per_page') || '20', 10), parseInt(searchParams.get('page') || '1', 10) * parseInt(searchParams.get('per_page') || '20', 10));
+                return NextResponse.json({
+                    ...cacheData?.data,
+                    content: paginatedContent,
+                    totalPages: Math.ceil(cacheData?.data.content.length / parseInt(searchParams.get('per_page') || '20', 10))
+                });
             }
         }
     }
 
     // --- If no valid cache, fetch from source ---
-    const frontPageId = await wpApi.get('/options').then(res => res.data.page_on_front).catch(() => 0);
+    let frontPageId = 0;
+    try {
+        const optionsResponse = await wpApi.get('/options');
+        frontPageId = optionsResponse.data.page_on_front || 0;
+    } catch(e) {
+        console.warn("Could not fetch 'page_on_front' option. Front page icon may not display.");
+    }
     
     // Fetch only pages and post categories
     const [pages, postCategories] = await Promise.all([

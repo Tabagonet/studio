@@ -74,19 +74,24 @@ export const getColumns = (
                         <ChevronRight className={cn("h-4 w-4 transition-transform", row.getIsExpanded() && 'rotate-90')} />
                     </button>
                 )}
-                 {row.original.is_front_page && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                           <Home className="h-4 w-4 text-primary flex-shrink-0" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Esta es la página de inicio de tu web.</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                )}
-                <span className="font-medium">{getValue<string>()}</span>
+                 <div className="flex-shrink-0 w-5">
+                    {row.original.is_front_page && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                               <Home className="h-4 w-4 text-primary" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Esta es la página de inicio de tu web.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                    )}
+                 </div>
+                 <div>
+                    <span className="font-medium">{getValue<string>()}</span>
+                    <p className="text-xs text-muted-foreground">{row.original.slug || 'sin-slug'}</p>
+                 </div>
             </div>
         ),
     },
