@@ -124,7 +124,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             }));
         }
     }
-
+    
     // Always attempt to scrape the live page for images, as a fallback or primary method
     const pageLink = pageData.link;
     if (pageLink && wpApi) {
@@ -274,7 +274,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         
         let newElementorData = JSON.parse(JSON.stringify(currentElementorData));
         for (const widgetUpdate of elementorWidgets) {
-            newElementorData = replaceElementorTexts(newElementorData, { [widgetUpdate.id]: widgetUpdate.text });
+            newElementorData = replaceElementorTexts(newElementorData, new Map([[widgetUpdate.id, widgetUpdate.text]]));
         }
         (pagePayload as any).meta = { ...(pagePayload.meta || {}), _elementor_data: JSON.stringify(newElementorData) };
     }
@@ -349,3 +349,5 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     return NextResponse.json({ error: errorMessage }, { status });
   }
 }
+
+    

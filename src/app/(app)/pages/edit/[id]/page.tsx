@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
@@ -58,7 +59,7 @@ function EditPageContent() {
       
       const loadedPost: PageEditState = {
         title: postData.title?.rendered,
-        content: postData.content, // This will be an array for Elementor, string for others
+        content: postData.content?.rendered, // It's a string for normal pages, or an array for Elementor
         isElementor: postData.isElementor || false, 
         elementorEditLink: postData.elementorEditLink || null,
         link: postData.link,
@@ -224,3 +225,5 @@ export default function EditPage() {
         </Suspense>
     )
 }
+
+    
