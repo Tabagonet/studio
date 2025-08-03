@@ -60,7 +60,10 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'esdron.com',
       },
-      
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
     ],
   },
 };
