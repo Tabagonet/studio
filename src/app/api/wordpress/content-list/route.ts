@@ -1,5 +1,6 @@
-// src/app/api/wordpress/content-list/route.ts
 
+
+// src/app/api/wordpress/content-list/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
@@ -11,7 +12,6 @@ export const dynamic = 'force-dynamic';
 // Helper to transform fetched data into the unified ContentItem format
 function transformToContentItem(item: any, type: ContentItem['type'], isFrontPage: boolean): ContentItem {
   const isProduct = type === 'Producto';
-
   return {
     id: item.id,
     title: item.name || item.title?.rendered || 'Sin Título',
@@ -32,7 +32,7 @@ async function fetchAllOfType(api: AxiosInstance | null, endpoint: string, typeL
     
     let allItems: any[] = [];
     let page = 1;
-    const perPage = 100; // Fetch 100 items per request
+    const perPage = 100;
     
     while (true) {
         try {
@@ -42,23 +42,19 @@ async function fetchAllOfType(api: AxiosInstance | null, endpoint: string, typeL
                     page: page,
                     context: 'view',
                     _embed: 'wp:featuredmedia', 
-                    lang: '', // Fetch all languages
+                    lang: '',
                     status: 'any', 
                 },
             });
 
-            if (response.data.length === 0) {
-                break; 
-            }
+            if (response.data.length === 0) break; 
             
             allItems = allItems.concat(response.data);
             
             const totalPagesHeader = response.headers['x-wp-totalpages'];
             const totalPages = totalPagesHeader ? parseInt(totalPagesHeader, 10) : 0;
 
-            if (!totalPages || page >= totalPages) {
-                break;
-            }
+            if (!totalPages || page >= totalPages) break;
             page++;
         } catch (error) {
             console.error(`Error fetching from ${endpoint}, page ${page}:`, error);
@@ -70,20 +66,39 @@ async function fetchAllOfType(api: AxiosInstance | null, endpoint: string, typeL
 }
 
 // Fetch all categories (for posts or products)
-async function fetchAllCategories(api: AxiosInstance | null, endpoint: string, typeLabel: 'Categoría de Entradas' | 'Categoría de Productos'): Promise<ContentItem[]> {
+async function fetchAllCategories(api: AxiosInstance | null, endpoint: string, typeLabel: 'Categoría de Entradas' | 'Categoría de Productos', wpApi: AxiosInstance): Promise<ContentItem[]> {
     if (!api) return [];
     try {
         const response = await api.get(endpoint, { params: { per_page: 100, context: 'view', lang: '' } });
-        return response.data.map((cat: any) => ({
+        
+        const terms = response.data.filter((cat: any) => cat.count > 0);
+        if (terms.length === 0) return [];
+        
+        // Find the most recent post for each category to get a relevant modified date
+        const latestPostPromises = terms.map((term: any) => 
+            wpApi.get('posts', { 
+                params: { 
+                    [endpoint === 'categories' ? 'categories' : 'product_cat']: term.id,
+                    per_page: 1, 
+                    orderby: 'modified', 
+                    order: 'desc',
+                    _fields: 'modified'
+                }
+            }).then(res => res.data[0]?.modified || null).catch(() => null)
+        );
+        
+        const latestPostDates = await Promise.all(latestPostPromises);
+
+        return terms.map((cat: any, index: number) => ({
             id: cat.id,
             title: cat.name,
             type: typeLabel,
             link: cat.link,
-            status: 'publish', // Categories are always public
+            status: 'publish',
             parent: cat.parent || 0,
             lang: cat.lang || null,
             translations: cat.translations || {},
-            modified: null, // Categories don't have a reliable modified date
+            modified: latestPostDates[index], // Use the fetched date
             is_front_page: false,
         }));
     } catch (error) {
@@ -121,8 +136,8 @@ export async function GET(req: NextRequest) {
     
     const [pages, postCategories, productCategories] = await Promise.all([
         fetchAllOfType(wpApi, 'pages', 'Page', frontPageId),
-        fetchAllCategories(wpApi, 'categories', 'Categoría de Entradas'),
-        fetchAllCategories(wooApi, 'products/categories', 'Categoría de Productos'),
+        fetchAllCategories(wpApi, 'categories', 'Categoría de Entradas', wpApi),
+        fetchAllCategories(wooApi, 'products/categories', 'Categoría de Productos', wpApi),
     ]);
     
     let allContent = [...pages, ...postCategories, ...productCategories];

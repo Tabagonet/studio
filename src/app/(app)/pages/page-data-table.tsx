@@ -63,7 +63,21 @@ export function PageDataTable({
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
   const [isActionLoading, setIsActionLoading] = React.useState(false);
+  const [userRole, setUserRole] = React.useState<string | null>(null);
   const { toast } = useToast();
+
+  React.useEffect(() => {
+    const fetchUserRole = async () => {
+      const user = auth.currentUser;
+      if (user) {
+        const token = await user.getIdTokenResult();
+        setUserRole(token.claims.role || 'user');
+      }
+    };
+    fetchUserRole();
+    const unsubscribe = auth.onAuthStateChanged(fetchUserRole);
+    return () => unsubscribe();
+  }, []);
 
   const tableData = React.useMemo((): HierarchicalContentItem[] => {
     if (!data) return [];
@@ -103,7 +117,7 @@ export function PageDataTable({
         }
     });
 
-    return roots.sort((a,b) => a.title.localeCompare(b.title));
+    return roots.sort((a, b) => a.title.localeCompare(b.title));
   }, [data, scores]);
 
   const handleEditContent = (item: ContentItem) => {
@@ -322,7 +336,15 @@ export function PageDataTable({
   };
 
   const handleRowClick = (row: any) => {
-    router.push(`/seo-optimizer?id=${row.original.id}&type=${row.original.type}`);
+    if (userRole === 'super_admin') {
+      router.push(`/seo-optimizer?id=${row.original.id}&type=${row.original.type}`);
+    } else {
+      toast({
+        title: "Permiso Denegado",
+        description: "No tienes permisos para acceder al optimizador SEO. Contacta con un administrador.",
+        variant: "destructive"
+      });
+    }
   };
   
   const languages = React.useMemo(() => {
