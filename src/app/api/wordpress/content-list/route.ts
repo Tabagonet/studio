@@ -93,7 +93,7 @@ async function fetchAllCategories(api: AxiosInstance | null, endpoint: string, t
             id: cat.id,
             title: cat.name,
             type: typeLabel,
-            link: cat.link,
+            link: cat.link || null,
             status: 'publish',
             parent: cat.parent || 0,
             lang: cat.lang || null,
