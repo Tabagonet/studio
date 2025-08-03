@@ -46,7 +46,8 @@ async function fetchAllOfType(api: AxiosInstance | null, type: 'pages' | 'catego
             allItems = allItems.concat(response.data);
             page++;
         } catch (error) {
-            console.error(`Error fetching ${type} (page ${page}):`, (error as any).message);
+            // This is not a critical error if one of the types doesn't exist (e.g., categories on a simple site)
+            console.warn(`Could not fetch content type "${type}" (page ${page}):`, (error as any).message);
             break; 
         }
     }
@@ -71,29 +72,37 @@ export async function GET(req: NextRequest) {
 
     const { wpApi, wooApi } = await getApiClientsForUser(uid);
     if (!wpApi) {
-        // Return an empty list if not configured, UI will show a message
         return NextResponse.json({ content: [] });
     }
     
     let frontPageId = 0;
     try {
-        const optionsResponse = await wpApi.get('/options');
-        frontPageId = optionsResponse.data?.page_on_front || 0;
+        const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
+        if (siteUrl) {
+            // The custom endpoint is more reliable
+            const customStatusResponse = await wpApi.get(`${siteUrl}/wp-json/custom/v1/status`);
+            frontPageId = customStatusResponse.data?.front_page_id || 0;
+        } else {
+            // Fallback to the options API if base URL is tricky
+            const optionsResponse = await wpApi.get('/options');
+            frontPageId = optionsResponse.data?.page_on_front || 0;
+        }
     } catch(e) {
-        console.warn("Could not fetch 'page_on_front' option.");
+        console.warn("Could not fetch 'page_on_front' option from any endpoint:", e);
     }
-    const allFrontPageIds = new Set<number>();
+    
+    let allFrontPageIds = new Set<number>();
     if (frontPageId > 0 && typeof (wpApi as any).pll_get_post_translations === 'function') {
         try {
             const translations = await (wpApi as any).pll.get_post_translations(frontPageId);
             Object.values(translations).forEach(id => allFrontPageIds.add(id as number));
         } catch(e) {
-            console.warn("Polylang functions may not be available for page_on_front.");
+             allFrontPageIds.add(frontPageId);
+             console.warn("Polylang functions may not be available for page_on_front.");
         }
     } else if (frontPageId > 0) {
         allFrontPageIds.add(frontPageId);
     }
-
 
     const [pagesData, categoriesData] = await Promise.all([
         fetchAllOfType(wpApi, 'pages'),

@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -433,10 +434,13 @@ export function PageDataTable({
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Acciones en Lote</DropdownMenuLabel>
               <DropdownMenuItem onSelect={() => handleBatchStatusUpdate('publish')}>
-                <Eye className="mr-2 h-4 w-4" /> Hacer Visibles
+                <Eye className="mr-2 h-4 w-4" /> Hacer Visibles (Publicar)
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => handleBatchStatusUpdate('draft')}>
                 <EyeOff className="mr-2 h-4 w-4" /> Ocultar (Borrador)
+              </DropdownMenuItem>
+               <DropdownMenuItem onSelect={handleBatchEditImages}>
+                <ImageIcon className="mr-2 h-4 w-4" /> Editar Imágenes
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={handleBatchSeoMeta}>
                 <Sparkles className="mr-2 h-4 w-4" /> Generar Título y Descripción SEO
@@ -513,7 +517,7 @@ export function PageDataTable({
                 </TableRow>
               ))
             ) : (
-              <TableRow><TableCell colSpan={columns.length} className="h-24 text-center">No se encontraron resultados para los filtros seleccionados.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={columns.length} className="h-24 text-center">No se encontraron resultados.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
@@ -529,7 +533,7 @@ export function PageDataTable({
                 <p className="text-sm font-medium">Filas por página</p>
                 <Select
                     value={`${table.getState().pagination.pageSize}`}
-                    onValueChange={(value) => { table.setPageSize(Number(value)) }}
+                    onValueChange={(value) => table.setPageSize(Number(value))}
                 >
                     <SelectTrigger className="h-8 w-[70px]">
                         <SelectValue placeholder={table.getState().pagination.pageSize} />
