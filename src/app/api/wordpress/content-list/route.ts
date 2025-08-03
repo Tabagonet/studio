@@ -11,6 +11,15 @@ export const dynamic = 'force-dynamic';
 // Helper to transform fetched data into the unified ContentItem format
 function transformToContentItem(item: any, type: 'Post' | 'Page' | 'Producto', isFrontPage: boolean): ContentItem {
   const isProduct = type === 'Producto';
+  let imageUrl: string | null = null;
+  if (isProduct) {
+      if (item.images && item.images.length > 0 && item.images[0].src) {
+          imageUrl = item.images[0].src;
+      }
+  } else {
+      imageUrl = item._embedded?.['wp:featuredmedia']?.[0]?.source_url || null;
+  }
+
   return {
     id: item.id,
     title: item.name || item.title.rendered,
@@ -23,6 +32,47 @@ function transformToContentItem(item: any, type: 'Post' | 'Page' | 'Producto', i
     modified: item.modified,
     is_front_page: isFrontPage,
   };
+}
+
+// Helper to fetch all items of a specific type, handling pagination
+async function fetchAllOfType(api: AxiosInstance | null, endpoint: string, typeLabel: 'Post' | 'Page' | 'Producto', frontPageId: number): Promise<ContentItem[]> {
+    if (!api) return [];
+    
+    let allItems: any[] = [];
+    let page = 1;
+    const perPage = 100; // Fetch 100 items per request
+    
+    while (true) {
+        try {
+            const response = await api.get(endpoint, {
+                params: {
+                    per_page: perPage,
+                    page: page,
+                    context: 'view',
+                    _embed: 'author,wp:featuredmedia,wp:term', // Ensure necessary data is embedded
+                    lang: '', // Fetch all languages
+                    status: 'any', // Fetch all statuses
+                },
+            });
+
+            if (response.data.length === 0) {
+                break; // No more items to fetch
+            }
+            
+            allItems = allItems.concat(response.data);
+            
+            const totalPages = response.headers['x-wp-totalpages'];
+            if (!totalPages || page >= parseInt(totalPages, 10)) {
+                break; // Reached the last page
+            }
+            page++;
+        } catch (error) {
+            console.error(`Error fetching from ${endpoint}, page ${page}:`, error);
+            break; // Stop fetching on error
+        }
+    }
+
+    return allItems.map(item => transformToContentItem(item, typeLabel, item.id === frontPageId));
 }
 
 
@@ -51,66 +101,45 @@ export async function GET(req: NextRequest) {
     const searchQuery = searchParams.get('q');
     
     const frontPageId = await wpApi.get('/options').then(res => res.data.page_on_front).catch(() => 0);
-
-    const commonParams: any = {
-      context: 'view',
-      per_page: perPage,
-      page: page,
-      _embed: false, 
-      orderby: 'modified',
-      order: 'desc',
-    };
-    if (searchQuery) commonParams.search = searchQuery;
-    if (statusFilter && statusFilter !== 'all') commonParams.status = statusFilter;
-    if (langFilter && langFilter !== 'all') commonParams.lang = langFilter;
     
-    let allContent: ContentItem[] = [];
-    let totalItems = 0;
-    let totalPages = 0;
+    // Fetch all content types in parallel
+    const [pages, posts, products] = await Promise.all([
+        fetchAllOfType(wpApi, 'pages', 'Page', frontPageId),
+        fetchAllOfType(wpApi, 'posts', 'Post', frontPageId),
+        fetchAllOfType(wooApi, 'products', 'Producto', frontPageId),
+    ]);
     
-    // Determine which single type to fetch, or fetch all if no filter
-    const typesToFetch = typeFilter && typeFilter !== 'all' ? [typeFilter] : ['Page', 'Post', 'Producto'];
+    let allContent = [...pages, ...posts, ...products];
 
-    let api: AxiosInstance | null = null;
-    let endpoint = '';
-    let typeLabel: 'Post' | 'Page' | 'Producto' = 'Page';
-
-    if (typesToFetch.length === 1) {
-        const singleType = typesToFetch[0];
-        if (singleType === 'Page') {
-            api = wpApi;
-            endpoint = 'pages';
-            typeLabel = 'Page';
-        } else if (singleType === 'Post') {
-            api = wpApi;
-            endpoint = 'posts';
-            typeLabel = 'Post';
-        } else if (singleType === 'Producto') {
-            api = wooApi;
-            endpoint = 'products';
-            typeLabel = 'Producto';
-        }
-    } else {
-        // This multi-type fetch is more complex and might be less performant.
-        // For simplicity and correctness with pagination, we handle it separately.
-        // Here, we just return an empty array if "all" is selected, forcing user to pick a type.
-        // This is a safe fallback to prevent the previous complex/buggy logic.
-         return NextResponse.json({ 
-            content: [],
-            total: 0,
-            totalPages: 0,
-        });
+    // --- Server-side Filtering ---
+    if (searchQuery) {
+        allContent = allContent.filter(item => item.title.toLowerCase().includes(searchQuery.toLowerCase()));
     }
-
-    if (api && endpoint) {
-        const response = await api.get(endpoint, { params: commonParams });
-        allContent = response.data.map((item: any) => transformToContentItem(item, typeLabel, item.id === frontPageId));
-        totalItems = parseInt(response.headers['x-wp-total'] || '0', 10);
-        totalPages = parseInt(response.headers['x-wp-totalpages'] || '0', 10);
+    if (typeFilter && typeFilter !== 'all') {
+        allContent = allContent.filter(item => item.type === typeFilter);
     }
+    if (statusFilter && statusFilter !== 'all') {
+        allContent = allContent.filter(item => item.status === statusFilter);
+    }
+    if (langFilter && langFilter !== 'all') {
+        allContent = allContent.filter(item => item.lang === langFilter);
+    }
+    
+    // --- Server-side Sorting ---
+    allContent.sort((a, b) => {
+        // Default sort by modified date, descending
+        const dateA = a.modified ? new Date(a.modified).getTime() : 0;
+        const dateB = b.modified ? new Date(b.modified).getTime() : 0;
+        return dateB - dateA;
+    });
+    
+    // --- Server-side Pagination ---
+    const totalItems = allContent.length;
+    const totalPages = Math.ceil(totalItems / perPage);
+    const paginatedContent = allContent.slice((page - 1) * perPage, page * perPage);
 
     return NextResponse.json({ 
-        content: allContent,
+        content: paginatedContent,
         total: totalItems,
         totalPages: totalPages,
     });
