@@ -256,8 +256,8 @@ export interface ContentItem {
   link: string;
   status: 'publish' | 'draft' | 'pending' | 'private' | 'future' | 'trash';
   parent: number;
-  lang?: string;
-  translations?: Record<string, number>;
+  lang?: string | null;
+  translations?: Record<string, number> | null;
   modified: string | null;
   score?: number;
   is_front_page?: boolean;
