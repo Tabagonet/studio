@@ -82,30 +82,60 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             $contentArea.find('header, footer, nav').remove();
 
             const foundImageIds = new Set<number>();
+            const imageMap = new Map<string, any>();
 
             $contentArea.find('img').each((i, el) => {
+                const srcAttr = $(el).attr('data-src') || $(el).attr('src');
+                if (!srcAttr) return;
+                
                 const classList = $(el).attr('class') || '';
                 const match = classList.match(/wp-image-(\d+)/);
                 const mediaId = match ? parseInt(match[1], 10) : null;
                 if (mediaId) {
                     foundImageIds.add(mediaId);
                 }
+
+                const absoluteSrc = new URL(srcAttr, pageLink).href;
+                if (!imageMap.has(absoluteSrc)) {
+                    imageMap.set(absoluteSrc, {
+                        id: absoluteSrc, 
+                        src: absoluteSrc,
+                        alt: $(el).attr('alt') || '',
+                        mediaId: mediaId,
+                        width: null,
+                        height: null,
+                    });
+                }
             });
             
             if (foundImageIds.size > 0) {
                  const mediaResponse = await wpApi.get('/media', {
-                    params: { include: Array.from(foundImageIds).join(','), per_page: 100, _fields: 'id,alt_text,source_url' }
+                    params: { include: Array.from(foundImageIds).join(','), per_page: 100, _fields: 'id,alt_text,source_url,media_details' }
                 });
 
                 if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
-                     scrapedImages = mediaResponse.data.map((mediaItem: any) => ({
-                        id: mediaItem.source_url, // Use source_url as a unique key
-                        src: mediaItem.source_url,
-                        alt: mediaItem.alt_text || '',
-                        mediaId: mediaItem.id,
-                    }));
+                     mediaResponse.data.forEach((mediaItem: any) => {
+                         const absoluteSrc = new URL(mediaItem.source_url, pageLink).href;
+                        if (imageMap.has(absoluteSrc)) {
+                            const img = imageMap.get(absoluteSrc);
+                            img.alt = mediaItem.alt_text || img.alt;
+                            img.mediaId = mediaItem.id;
+                            img.width = mediaItem.media_details?.width || null;
+                            img.height = mediaItem.media_details?.height || null;
+                        } else {
+                            imageMap.set(absoluteSrc, {
+                                id: absoluteSrc,
+                                src: absoluteSrc,
+                                alt: mediaItem.alt_text || '',
+                                mediaId: mediaItem.id,
+                                width: mediaItem.media_details?.width || null,
+                                height: mediaItem.media_details?.height || null,
+                            });
+                        }
+                     });
                 }
             }
+            scrapedImages = Array.from(imageMap.values());
         } catch (scrapeError) {
             console.warn(`Could not scrape ${pageLink} for live image data:`, scrapeError);
         }
@@ -183,9 +213,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (image_alt_updates && image_alt_updates.length > 0) {
         for (const update of image_alt_updates) {
             try {
-                await wpApi.post(`/media/${update.id}`, {
-                    alt_text: update.alt
-                });
+                 if (update.id) {
+                    await wpApi.post(`/media/${update.id}`, {
+                        alt_text: update.alt
+                    });
+                 }
             } catch (mediaError: any) {
                 console.warn(`Failed to update alt text for media ID ${update.id}:`, mediaError.response?.data?.message || mediaError.message);
             }

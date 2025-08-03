@@ -13,45 +13,35 @@ export async function GET(req: NextRequest) {
     if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
     const uid = (await adminAuth.verifyIdToken(token)).uid;
 
-    const { wpApi } = await getApiClientsForUser(uid);
+    const { wpApi, wooApi } = await getApiClientsForUser(uid);
     if (!wpApi) {
       throw new Error('WordPress API is not configured for the active connection.');
     }
 
-    // Fetch all posts and pages to get language data
-    const postsResponse = await wpApi.get('/posts', { params: { per_page: 100, context: 'view', _fields: 'id,lang' }});
-    const pagesResponse = await wpApi.get('/pages', { params: { per_page: 100, context: 'view', _fields: 'id,lang' }});
-    
-    const allContent = [...postsResponse.data, ...pagesResponse.data];
-    
-    const languageCounts: { [key: string]: number } = {};
-    allContent.forEach(item => {
-        const lang = item.lang || 'default';
-        languageCounts[lang] = (languageCounts[lang] || 0) + 1;
-    });
-
-    const getCount = async (endpoint: string): Promise<number> => {
+    const getCount = async (api: any, endpoint: string, params: any = {}): Promise<number> => {
+      if (!api) return 0;
       try {
-        const response = await wpApi.get(endpoint, { params: { per_page: 1, context: 'view' } });
+        const response = await api.get(endpoint, { params: { ...params, per_page: 1, context: 'view' } });
         return response.headers['x-wp-total'] ? parseInt(response.headers['x-wp-total'], 10) : 0;
       } catch (e) {
-        console.error(`Failed to get count for ${endpoint}`, e);
+        console.warn(`Failed to get count for ${endpoint}`, e);
         return 0;
       }
     };
     
-    const [totalPosts, totalPages] = await Promise.all([
-        getCount('/posts'),
-        getCount('/pages')
+    const [totalPosts, totalPages, totalProducts] = await Promise.all([
+        getCount(wpApi, '/posts'),
+        getCount(wpApi, '/pages'),
+        getCount(wooApi, 'products'),
     ]);
 
     const stats = {
       totalPosts,
       totalPages,
-      totalContent: totalPosts + totalPages,
-      languages: languageCounts,
-      // Status stats are removed as language stats are more valuable here
-      status: {}
+      totalContent: totalPosts + totalPages + totalProducts,
+      totalProducts: totalProducts,
+      languages: {}, // Language stats removed for performance, handled in other endpoints if needed
+      status: {} // Status stats removed for performance
     };
 
     return NextResponse.json(stats);

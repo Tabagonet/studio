@@ -140,8 +140,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             const imageMap = new Map<string, any>();
 
             $contentArea.find('img').each((i, el) => {
-                const src = $(el).attr('src');
-                if (!src) return;
+                const srcAttr = $(el).attr('data-src') || $(el).attr('src');
+                if (!srcAttr) return;
 
                 const classList = $(el).attr('class') || '';
                 const match = classList.match(/wp-image-(\d+)/);
@@ -151,10 +151,11 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
                 }
                 
                 // Store image data using src as key to avoid duplicates from scraping
-                if (!imageMap.has(src)) {
-                    imageMap.set(src, {
-                        id: src, 
-                        src: src,
+                const absoluteSrc = new URL(srcAttr, pageLink).href;
+                if (!imageMap.has(absoluteSrc)) {
+                    imageMap.set(absoluteSrc, {
+                        id: absoluteSrc, 
+                        src: absoluteSrc,
                         alt: $(el).attr('alt') || '',
                         mediaId: mediaId,
                         width: null,
@@ -170,16 +171,17 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
                 if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
                      mediaResponse.data.forEach((mediaItem: any) => {
-                        if (imageMap.has(mediaItem.source_url)) {
-                            const img = imageMap.get(mediaItem.source_url);
+                         const absoluteSrc = new URL(mediaItem.source_url, pageLink).href;
+                        if (imageMap.has(absoluteSrc)) {
+                            const img = imageMap.get(absoluteSrc);
                             img.alt = mediaItem.alt_text || img.alt; // Prefer API alt text
                             img.mediaId = mediaItem.id;
                             img.width = mediaItem.media_details?.width || null;
                             img.height = mediaItem.media_details?.height || null;
                         } else {
-                             imageMap.set(mediaItem.source_url, {
-                                id: mediaItem.source_url, 
-                                src: mediaItem.source_url,
+                             imageMap.set(absoluteSrc, {
+                                id: absoluteSrc, 
+                                src: absoluteSrc,
                                 alt: mediaItem.alt_text || '',
                                 mediaId: mediaItem.id,
                                 width: mediaItem.media_details?.width || null,

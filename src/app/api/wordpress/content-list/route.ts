@@ -9,25 +9,53 @@ import type { AxiosInstance } from 'axios';
 
 export const dynamic = 'force-dynamic';
 
-// Helper to fetch a specific content type with pagination
-async function fetchContent(api: AxiosInstance, endpoint: string, params: any): Promise<{data: any[], totalPages: number}> {
-  try {
-    const response = await api.get(endpoint, { params });
-    const totalPages = response.headers['x-wp-totalpages'] ? parseInt(response.headers['x-wp-totalpages'], 10) : 1;
-    return { data: response.data, totalPages };
-  } catch (error: any) {
-    if (error.response?.status === 400 && error.response.data?.code === 'rest_no_route') {
-      // This happens if, for example, WooCommerce is not active. It's not a critical error.
-      console.warn(`Endpoint /${endpoint} not found. Skipping content type.`);
-      return { data: [], totalPages: 0 };
-    }
-    // For other errors, we re-throw to be caught by the main handler.
-    throw error;
-  }
+/**
+ * Fetches all items for a specific content type by handling pagination.
+ * @param api - The Axios instance to use (WP or Woo).
+ * @param endpoint - The API endpoint (e.g., 'posts', 'pages').
+ * @param params - The base query parameters.
+ * @returns An array of all items for that content type.
+ */
+async function fetchAllContentOfType(api: AxiosInstance, endpoint: string, params: any): Promise<any[]> {
+    let allItems: any[] = [];
+    let page = 1;
+    let totalPages = 1;
+
+    do {
+        try {
+            const response = await api.get(endpoint, {
+                params: {
+                    ...params,
+                    page: page,
+                    per_page: 100, // Fetch max allowed per page to reduce requests
+                }
+            });
+
+            if (response.data.length > 0) {
+                allItems = allItems.concat(response.data);
+            }
+
+            totalPages = response.headers['x-wp-totalpages'] ? parseInt(response.headers['x-wp-totalpages'], 10) : 0;
+            page++;
+
+        } catch (error: any) {
+            if (error.response?.status === 400 && (error.response.data?.code === 'rest_no_route' || error.response.data?.code === 'rest_post_invalid_page_number')) {
+                // This can happen if a post type isn't available (e.g., products) or we've passed the last page.
+                console.warn(`Endpoint /${endpoint} not found or page out of bounds. Skipping content type.`);
+                break; // Stop fetching for this type
+            }
+            // For other errors, we re-throw to be caught by the main handler.
+            console.error(`Error fetching paginated content for ${endpoint}:`, error.message);
+            throw error;
+        }
+    } while (page <= totalPages);
+
+    return allItems;
 }
 
+
 // Helper to transform fetched data into the unified ContentItem format
-function transformToContentItem(item: any, type: 'Post' | 'Page' | 'Producto'): ContentItem {
+function transformToContentItem(item: any, type: 'Post' | 'Page' | 'Producto', isFrontPage: boolean): ContentItem {
   const isProduct = type === 'Producto';
   return {
     id: item.id,
@@ -39,17 +67,10 @@ function transformToContentItem(item: any, type: 'Post' | 'Page' | 'Producto'): 
     lang: item.lang || null,
     translations: item.translations || {},
     modified: item.modified,
-    is_front_page: get_option('page_on_front') == item.id,
+    is_front_page: isFrontPage,
   };
 }
 
-// Helper to get the value of a WordPress option
-function get_option(option_name: string): any {
-    // This is a simplified mock. In a real scenario, this might be another API call if needed.
-    // For 'page_on_front', it's often handled client-side or during a full site analysis.
-    // We are mocking a simple return as it's not critical for the main listing logic.
-    return 0; // Returning a default/mock value
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -74,10 +95,12 @@ export async function GET(req: NextRequest) {
     const statusFilter = searchParams.get('status');
     const langFilter = searchParams.get('lang');
     const searchQuery = searchParams.get('q');
+    
+    const frontPageId = await wpApi.get('/options').then(res => res.data.page_on_front).catch(() => 0);
 
     const commonParams: any = {
       context: 'view',
-      _embed: false, // We don't need embedded data for this list, saving bandwidth
+      _embed: false, 
       orderby: 'modified',
       order: 'desc',
     };
@@ -90,19 +113,19 @@ export async function GET(req: NextRequest) {
     const typesToFetch = typeFilter && typeFilter !== 'all' ? [typeFilter] : ['Page', 'Post', 'Producto'];
 
     if (typesToFetch.includes('Page')) {
-        const { data } = await fetchContent(wpApi, 'pages', { ...commonParams, per_page: 100, page: 1 });
-        allContent.push(...data.map((item: any) => transformToContentItem(item, 'Page')));
+        const pages = await fetchAllContentOfType(wpApi, 'pages', commonParams);
+        allContent.push(...pages.map((item: any) => transformToContentItem(item, 'Page', item.id === frontPageId)));
     }
     if (typesToFetch.includes('Post')) {
-        const { data } = await fetchContent(wpApi, 'posts', { ...commonParams, per_page: 100, page: 1 });
-        allContent.push(...data.map((item: any) => transformToContentItem(item, 'Post')));
+        const posts = await fetchAllContentOfType(wpApi, 'posts', commonParams);
+        allContent.push(...posts.map((item: any) => transformToContentItem(item, 'Post', false)));
     }
     if (typesToFetch.includes('Producto') && wooApi) {
-        const { data } = await fetchContent(wooApi, 'products', { ...commonParams, per_page: 100, page: 1 });
-        allContent.push(...data.map((item: any) => transformToContentItem(item, 'Producto')));
+        const products = await fetchAllContentOfType(wooApi, 'products', commonParams);
+        allContent.push(...products.map((item: any) => transformToContentItem(item, 'Producto', false)));
     }
     
-    // Server-side Pagination
+    // Server-side Pagination on the combined list
     const totalItems = allContent.length;
     const totalPages = Math.ceil(totalItems / perPage);
     const offset = (page - 1) * perPage;

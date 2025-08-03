@@ -287,6 +287,7 @@ export interface ExtractedWidget {
 export interface ContentStats {
     totalPosts: number;
     totalPages: number;
+    totalProducts: number;
     totalContent: number;
     languages: Record<string, number>;
     status: Record<string, number>;
