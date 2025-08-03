@@ -1,39 +1,28 @@
 
-
 "use client";
 
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import { CheckCircle, XCircle, Sparkles, ExternalLink, Image as ImageIcon, Replace } from 'lucide-react';
+import React, { useMemo, useCallback } from 'react';
+import { CheckCircle, XCircle, Sparkles, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
-import { Checkbox } from '@/components/ui/checkbox';
-import type { ContentImage, ExtractedWidget } from '@/lib/types';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import type { PostEditState } from '@/app/(app)/seo-optimizer/edit/[id]/page';
-
+import type { PostEditState } from '@/app/(app)/pages/edit/[id]/page';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 
 interface SeoAnalyzerProps {
   post: PostEditState | null;
   setPost: React.Dispatch<React.SetStateAction<PostEditState | null>>;
   isLoading: boolean;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
-  contentImages: ContentImage[];
-  setContentImages: React.Dispatch<React.SetStateAction<ContentImage[]>>;
+  contentImages: any[]; // Use any to avoid dependency cycle if ContentImage is complex
+  setContentImages: React.Dispatch<React.SetStateAction<any[]>>;
   applyAiMetaToFeatured: boolean;
   setApplyAiMetaToFeatured: React.Dispatch<React.SetStateAction<boolean>>;
   postId: number;
-}
-
-interface ReplaceImageDialogState {
-    open: boolean;
-    oldImageSrc: string | null;
-    newImageFile: File | null;
 }
 
 interface SeoCheck {
@@ -59,7 +48,7 @@ const CheckItem = ({ check, onFix, isAiLoading }: { check: SeoCheck, onFix: (mod
          <Button size="sm" variant="outline" onClick={() => onFix(check.aiMode, check.editLink)} disabled={isAiLoading}>
            {isAiLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
            {!isAiLoading && (check.aiMode ? <Sparkles className="mr-2 h-4 w-4" /> : <ExternalLink className="mr-2 h-4 w-4" />)}
-           {check.aiMode ? "Arreglar con IA" : "Editar"}
+           {check.aiMode ? "Arreglar" : "Editar"}
          </Button>
       )}
     </li>
@@ -71,62 +60,8 @@ export function SeoAnalyzer({
     setPost, 
     isLoading, 
     setIsLoading,
-    contentImages,
-    setContentImages,
-    applyAiMetaToFeatured,
-    setApplyAiMetaToFeatured,
-    postId
 }: SeoAnalyzerProps) {
   const { toast } = useToast();
-  const hasTriggeredAutoKeyword = React.useRef(false);
-  const [replaceDialogState, setReplaceDialogState] = useState<ReplaceImageDialogState>({ open: false, oldImageSrc: null, newImageFile: null });
-  const [isReplacing, setIsReplacing] = useState(false);
-
-
-  const handleImageAltChange = useCallback((mediaId: number | null, newAlt: string) => {
-    if (!mediaId) return;
-    setContentImages(prevImages => 
-        prevImages.map((img) => img.mediaId === mediaId ? { ...img, alt: newAlt } : img)
-    );
-  }, [setContentImages]);
-  
-  const handleReplaceImage = async () => {
-    const { oldImageSrc, newImageFile } = replaceDialogState;
-    if (!post || !oldImageSrc || !newImageFile) {
-      toast({ title: 'Error', description: 'Faltan datos para reemplazar la imagen.', variant: 'destructive' });
-      return;
-    }
-    setIsReplacing(true);
-    try {
-        const user = auth.currentUser;
-        if (!user) throw new Error("No autenticado.");
-        const token = await user.getIdToken();
-        const formData = new FormData();
-        formData.append('newImageFile', newImageFile);
-        formData.append('postId', postId.toString());
-        formData.append('postType', post.postType);
-        formData.append('oldImageUrl', oldImageSrc);
-        
-        const response = await fetch('/api/wordpress/replace-image', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` },
-            body: formData,
-        });
-        
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'Fallo en la API de reemplazo de imagen.');
-        
-        setPost(p => p ? { ...p, content: result.newContent } : null);
-        setContentImages(prev => prev.map(img => img.src === oldImageSrc ? { ...img, src: result.newImageUrl, alt: result.newImageAlt } : img));
-        toast({ title: 'Imagen Reemplazada', description: 'La imagen ha sido actualizada.' });
-        setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null });
-    } catch (error: any) {
-        toast({ title: 'Error al reemplazar', description: error.message, variant: 'destructive' });
-    } finally {
-        setIsReplacing(false);
-    }
-  };
-
 
   const handleFixWithAI = useCallback(async (mode: SeoCheck['aiMode'], editLink?: string | null) => {
     if (editLink) {
@@ -143,11 +78,10 @@ export function SeoAnalyzer({
         
         const payload: any = { 
             mode, 
-            language: post.lang || 'es', // Use the post's language
+            language: post.lang || 'es',
             existingTitle: post.meta._yoast_wpseo_title || post.title,
-            existingContent: typeof post.content === 'string' ? post.content : (post.content as ExtractedWidget[]).map(w => w.text).join('\n'),
+            existingContent: typeof post.content === 'string' ? post.content : post.content.map(w => w.text).join('\n'),
             keywords: post.meta._yoast_wpseo_focuskw || '',
-            postType: post.postType,
         };
         const response = await fetch('/api/generate-blog-post', {
             method: 'POST',
@@ -172,8 +106,7 @@ export function SeoAnalyzer({
   }, [post, setPost, toast, setIsLoading]);
 
   const autoGenerateKeyword = useCallback(async () => {
-    if (post && !post.meta._yoast_wpseo_focuskw && typeof post.content === 'string' && post.content && !hasTriggeredAutoKeyword.current) {
-        hasTriggeredAutoKeyword.current = true;
+    if (post && !post.meta._yoast_wpseo_focuskw && post.content) {
         setIsLoading(true);
         try {
             const user = auth.currentUser; if (!user) return;
@@ -194,40 +127,6 @@ export function SeoAnalyzer({
     autoGenerateKeyword();
   }, [autoGenerateKeyword]);
 
-  const handleGenerateImageAlts = useCallback(async () => {
-    if (!post) return;
-    setIsLoading(true);
-    try {
-        const user = auth.currentUser;
-        if (!user) throw new Error("No autenticado.");
-        const token = await user.getIdToken();
-        const payload = {
-            mode: 'generate_image_meta',
-            language: post.lang || 'es',
-            existingTitle: post.title,
-            existingContent: typeof post.content === 'string' ? post.content : (post.content as ExtractedWidget[]).map(w => w.text).join('\n'),
-        };
-        const response = await fetch('/api/generate-blog-post', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify(payload),
-        });
-        if (!response.ok) throw new Error((await response.json()).error || 'La IA falló al generar metadatos.');
-        
-        const aiContent = await response.json();
-        
-        setContentImages(prevImages => prevImages.map(img => 
-            !img.alt ? { ...img, alt: aiContent.imageAltText } : img
-        ));
-
-        toast({ title: 'Textos alternativos generados', description: "Se ha añadido 'alt text' a las imágenes que no lo tenían." });
-    } catch (e: any) {
-        toast({ title: 'Error de IA', description: e.message, variant: "destructive" });
-    } finally {
-        setIsLoading(false);
-    }
-  }, [post, toast, setIsLoading, setContentImages]);
-
 
   const checks = useMemo<SeoCheck[]>(() => {
     if (!post || !post.meta) return [];
@@ -235,10 +134,9 @@ export function SeoAnalyzer({
     const keyword = (post.meta._yoast_wpseo_focuskw || '').trim().toLowerCase();
     if (!keyword) return [];
     
-    const effectiveSeoTitle = (post.meta._yoast_wpseo_title || '').trim();
-    const effectiveMetaDescription = (post.meta._yoast_wpseo_metadesc || '').trim();
-
-    const contentText = typeof post.content === 'string' ? post.content : (post.content || []).map(w => w.text).join(' ');
+    const seoTitle = (post.meta._yoast_wpseo_title || '').trim();
+    const metaDescription = (post.meta._yoast_wpseo_metadesc || '').trim();
+    const contentText = typeof post.content === 'string' ? post.content : post.content.map(w => w.text).join(' ');
     const plainContent = contentText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     const firstParagraph = plainContent.substring(0, 600).toLowerCase();
     const editLink = post.isElementor ? post.elementorEditLink : post.adminEditLink;
@@ -246,29 +144,29 @@ export function SeoAnalyzer({
     return [
       {
         id: 'keywordInTitle',
-        pass: effectiveSeoTitle.toLowerCase().includes(keyword),
+        pass: seoTitle.toLowerCase().includes(keyword),
         text: <>La palabra clave (<strong>{keyword}</strong>) aparece en el <strong>título SEO</strong>.</>,
         fixable: true,
         aiMode: 'enhance_title'
       },
       {
         id: 'titleLength',
-        pass: effectiveSeoTitle.length >= 30 && effectiveSeoTitle.length <= 65,
-        text: <>El título SEO tiene una longitud adecuada ({effectiveSeoTitle.length} de 30-65 caracteres).</>,
+        pass: seoTitle.length >= 30 && seoTitle.length <= 65,
+        text: <>El título SEO tiene una longitud adecuada ({seoTitle.length} de 30-65 caracteres).</>,
         fixable: true,
         aiMode: 'enhance_title'
       },
       {
         id: 'keywordInMetaDesc',
-        pass: effectiveMetaDescription.toLowerCase().includes(keyword),
+        pass: metaDescription.toLowerCase().includes(keyword),
         text: <>La palabra clave aparece en la <strong>meta descripción</strong>.</>,
         fixable: true,
         aiMode: 'generate_meta_description'
       },
       {
         id: 'metaDescLength',
-        pass: effectiveMetaDescription.length >= 50 && effectiveMetaDescription.length <= 160,
-        text: <>La meta descripción tiene una longitud adecuada ({effectiveMetaDescription.length} de 50-160 caracteres).</>,
+        pass: metaDescription.length >= 50 && metaDescription.length <= 160,
+        text: <>La meta descripción tiene una longitud adecuada ({metaDescription.length} de 50-160 caracteres).</>,
         fixable: true,
         aiMode: 'generate_meta_description'
       },
@@ -290,108 +188,57 @@ export function SeoAnalyzer({
         </Card>
       )
   }
-
+  
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (!post) return;
+    const { name, value } = e.target;
+    setPost({ ...post, meta: { ...post.meta, [name]: value } });
+  };
+  
   const keyword = post.meta?._yoast_wpseo_focuskw || '';
 
   return (
-    <>
-      <div className="space-y-6">
-          <Card>
-              <CardHeader>
-                  <CardTitle>Checklist SEO Accionable</CardTitle>
-                  <CardDescription>Completa estas tareas para mejorar el SEO on-page de tu contenido.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                  {!keyword ? (
-                    <p className="text-sm text-muted-foreground p-4 text-center border-dashed border rounded-md">
-                      Introduce una Palabra Clave Principal en la tarjeta "Edición SEO" para empezar el análisis.
-                    </p>
-                  ) : (
-                    <ul className="space-y-3">
-                        {checks.map(check => (
-                            <CheckItem key={check.id} check={check} onFix={handleFixWithAI} isAiLoading={isLoading}/>
-                        ))}
-                    </ul>
-                  )}
-              </CardContent>
-          </Card>
+    <div className="space-y-6">
+        <Card>
+            <CardHeader>
+              <CardTitle>Edición SEO</CardTitle>
+              <CardDescription>Modifica los campos clave para el posicionamiento en buscadores.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+               <div>
+                  <Label htmlFor="_yoast_wpseo_focuskw">Palabra Clave Principal</Label>
+                  <Input id="_yoast_wpseo_focuskw" name="_yoast_wpseo_focuskw" value={post.meta._yoast_wpseo_focuskw} onChange={handleInputChange} />
+               </div>
+               <div>
+                  <Label htmlFor="_yoast_wpseo_title">Título SEO</Label>
+                  <Input id="_yoast_wpseo_title" name="_yoast_wpseo_title" value={post.meta._yoast_wpseo_title} onChange={handleInputChange} />
+               </div>
+               <div>
+                   <Label htmlFor="_yoast_wpseo_metadesc">Meta Descripción</Label>
+                   <Input id="_yoast_wpseo_metadesc" name="_yoast_wpseo_metadesc" value={post.meta._yoast_wpseo_metadesc} onChange={handleInputChange} />
+               </div>
+            </CardContent>
+        </Card>
 
-          <Card>
-              <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><ImageIcon className="h-5 w-5 text-primary" /> Optimización de Imágenes</CardTitle>
-                  <CardDescription>Revisa y añade texto alternativo a las imágenes de tu contenido para mejorar el SEO y la accesibilidad.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                  <Button onClick={handleGenerateImageAlts} disabled={isLoading}>
-                      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                      Generar 'alt text' con IA
-                  </Button>
-                  
-                   {post.featuredImageUrl && (
-                      <div className="flex items-center space-x-2 pt-4 border-t">
-                          <Checkbox id="apply-featured" checked={applyAiMetaToFeatured} onCheckedChange={(checked) => setApplyAiMetaToFeatured(!!checked)} />
-                          <Label htmlFor="apply-featured" className="text-sm font-normal">
-                             Aplicar también el 'alt text' de la palabra clave a la imagen destacada.
-                          </Label>
-                      </div>
-                   )}
-
-                  <div className="space-y-2 max-h-72 overflow-y-auto pr-2">
-                      {contentImages.map((img) => (
-                          <div key={img.id} className="flex items-center gap-3 p-2 border rounded-md">
-                              <div className="relative h-10 w-10 flex-shrink-0">
-                                  <img src={img.src} alt="Vista previa" className="rounded-md object-cover h-full w-full" />
-                              </div>
-                              <div className="flex-1 text-sm text-muted-foreground truncate" title={img.src}>
-                                  {img.src.split('/').pop()}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                 <div className="h-2 w-2 rounded-full" style={{ backgroundColor: img.alt ? 'hsl(var(--primary))' : 'hsl(var(--destructive))' }} />
-                                 <Input 
-                                   value={img.alt}
-                                   onChange={(e) => handleImageAltChange(img.mediaId, e.target.value)}
-                                   placeholder="Añade el 'alt text'..."
-                                   className="text-xs h-8"
-                                 />
-                              </div>
-                              <Button 
-                                  size="icon-sm"
-                                  variant="outline"
-                                  onClick={() => setReplaceDialogState({ open: true, oldImageSrc: img.src, newImageFile: null })}
-                              >
-                                  <Replace className="h-4 w-4" />
-                              </Button>
-                          </div>
+        <Card>
+            <CardHeader>
+                <CardTitle>Checklist SEO Accionable</CardTitle>
+                <CardDescription>Completa estas tareas para mejorar el SEO on-page de tu contenido.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {!keyword ? (
+                  <p className="text-sm text-muted-foreground p-4 text-center border-dashed border rounded-md">
+                    Introduce una Palabra Clave Principal para empezar el análisis.
+                  </p>
+                ) : (
+                  <ul className="space-y-3">
+                      {checks.map(check => (
+                          <CheckItem key={check.id} check={check} onFix={handleFixWithAI} isAiLoading={isLoading}/>
                       ))}
-                      {contentImages.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No se encontraron imágenes en el contenido.</p>}
-                  </div>
-              </CardContent>
-          </Card>
-      </div>
-
-       <AlertDialog open={replaceDialogState.open} onOpenChange={(open) => !isReplacing && setReplaceDialogState({ open: false, oldImageSrc: null, newImageFile: null })}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Reemplazar Imagen</AlertDialogTitle>
-            <AlertDialogDescription>
-                Sube una nueva imagen para reemplazar la actual. La antigua será eliminada de la biblioteca de medios.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="py-4 space-y-4">
-            <div>
-              <Label htmlFor="new-image-upload">Nueva Imagen</Label>
-              <Input id="new-image-upload" type="file" accept="image/*" onChange={(e) => setReplaceDialogState(s => ({ ...s, newImageFile: e.target.files?.[0] || null }))} disabled={isReplacing} />
-            </div>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => { if (!isReplacing) setReplaceDialogState({ ...replaceDialogState, open: false }) }} disabled={isReplacing}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleReplaceImage} disabled={isReplacing || !replaceDialogState.newImageFile}>
-              {isReplacing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isReplacing ? 'Procesando...' : 'Reemplazar'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+                  </ul>
+                )}
+            </CardContent>
+        </Card>
+    </div>
   );
 }
