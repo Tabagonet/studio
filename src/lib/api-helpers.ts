@@ -1,5 +1,4 @@
 
-
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -62,7 +61,7 @@ export async function getPartnerCredentials(): Promise<PartnerAppConnectionData>
 }
 
 
-function extractHeadingsRecursive(elements: any[], widgets: ExtractedWidget[]): void {
+function extractWidgetsRecursive(elements: any[], widgets: ExtractedWidget[]): void {
     if (!elements || !Array.isArray(elements)) return;
 
     for (const element of elements) {
@@ -79,25 +78,26 @@ function extractHeadingsRecursive(elements: any[], widgets: ExtractedWidget[]): 
                     id: element.id,
                     text: element.settings.editor,
                     type: 'text-editor',
+                    tag: 'p',
                 });
             }
         }
         
         if (element.elements && element.elements.length > 0) {
-            extractHeadingsRecursive(element.elements, widgets);
+            extractWidgetsRecursive(element.elements, widgets);
         }
     }
 }
 
-export function extractElementorHeadings(elementorDataString: string): ExtractedWidget[] {
+export function extractElementorWidgets(elementorDataString: string): ExtractedWidget[] {
     try {
         const widgets: ExtractedWidget[] = [];
         if (!elementorDataString) return widgets;
         const elementorData = JSON.parse(elementorDataString);
-        extractHeadingsRecursive(elementorData, widgets);
+        extractWidgetsRecursive(elementorData, widgets);
         return widgets;
     } catch (e) {
-        console.error("Failed to parse or extract Elementor headings", e);
+        console.error("Failed to parse or extract Elementor widgets", e);
         return [];
     }
 }
@@ -155,12 +155,12 @@ export function collectElementorTexts(elements: any[]): string[] {
 
 /**
  * Recursively traverses a deep copy of Elementor's data structure and replaces text content
- * with items from a mutable object of translated strings.
+ * based on a map of widget IDs to their new text.
  * @param data A deep copy of the original 'elements' array or nested object/array.
- * @param widgetUpdates A mutable object mapping widget IDs to their new text content.
+ * @param widgetUpdates A map where keys are widget IDs and values are the new text content.
  * @returns The Elementor data structure with translated text.
  */
-export function replaceElementorTexts(data: any, widgetUpdates: { [widgetId: string]: string }): any {
+export function replaceElementorTexts(data: any, widgetUpdates: Map<string, string>): any {
     if (!data) return data;
 
     function traverse(elements: any[]): any[] {
@@ -170,8 +170,8 @@ export function replaceElementorTexts(data: any, widgetUpdates: { [widgetId: str
             const newElement = { ...element };
 
             // If this element is a widget we need to update, replace its text
-            if (newElement.elType === 'widget' && widgetUpdates[newElement.id]) {
-                const newText = widgetUpdates[newElement.id];
+            if (newElement.elType === 'widget' && widgetUpdates.has(newElement.id)) {
+                const newText = widgetUpdates.get(newElement.id);
                 if (newElement.widgetType === 'heading' && newElement.settings) {
                     newElement.settings = { ...newElement.settings, title: newText };
                 } else if (newElement.widgetType === 'text-editor' && newElement.settings) {
