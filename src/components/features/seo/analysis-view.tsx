@@ -36,13 +36,13 @@ interface AnalysisViewProps {
   onEdit: (item: ContentItem) => void;
   onReanalyze: () => void;
   onSelectHistoryItem: (record: SeoAnalysisRecord) => void;
-  contentModifiedDate: string;
+  contentModifiedDate: string | null;
 }
 
 
 export function AnalysisView({ record, item, history, onEdit, onReanalyze, onSelectHistoryItem, contentModifiedDate }: AnalysisViewProps) {
   const { analysis, interpretation } = record;
-  const isStale = new Date(contentModifiedDate) > new Date(record.createdAt);
+  const isStale = contentModifiedDate ? new Date(contentModifiedDate) > new Date(record.createdAt) : false;
 
   const scoreColor = analysis.aiAnalysis.score >= 80 ? 'text-green-500' : analysis.aiAnalysis.score >= 50 ? 'text-amber-500' : 'text-destructive';
   const latestAnalysisId = history[0]?.id;

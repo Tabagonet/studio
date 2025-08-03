@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { SearchCheck, Loader2, BrainCircuit, ArrowLeft, Package, Newspaper, FileText, FileCheck2, Edit, AlertTriangle, Printer, RefreshCw } from "lucide-react";
+import { SearchCheck, Loader2, BrainCircuit, ArrowLeft, Package, Newspaper, FileText, FileCheck2, Edit, AlertTriangle, Printer, RefreshCw, Lightbulb } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { SeoPageListTable } from '@/components/features/seo/page-list-table';
@@ -54,6 +54,12 @@ export default function SeoOptimizerPage() {
     setSelectedPage(page);
     setLoadingMessage(`Analizando: ${page.title}...`);
 
+    if (!page.link) {
+        setError('Esta página no tiene una URL válida para analizar.');
+        setIsLoadingAnalysis(false);
+        return;
+    }
+
     try {
         toast({ title: "Analizando con IA...", description: "Estamos leyendo la página y generando el informe SEO."});
         const response = await fetch('/api/seo/analyze-url', {
@@ -87,6 +93,12 @@ export default function SeoOptimizerPage() {
     setError(null);
     setAnalysisRecord(null);
     setSelectedPage(page);
+
+    if (!page.link) {
+      setError('Esta página no tiene una URL válida para obtener su historial.');
+      setIsLoadingAnalysis(false);
+      return;
+    }
 
     try {
       const historyResponse = await fetch(`/api/seo/history?url=${encodeURIComponent(page.link)}`, { 
@@ -135,7 +147,8 @@ export default function SeoOptimizerPage() {
             const scoresData = await scoresResponse.json();
             const scoresByUrl: Record<string, number> = scoresData.scores || {};
             const scoresById: Record<number, number> = {};
-            const normalizeUrl = (url: string) => {
+            const normalizeUrl = (url: string | null): string | null => {
+                if(!url) return null;
                 try {
                     const parsed = new URL(url);
                     return `${parsed.protocol}//${parsed.hostname}${parsed.pathname.replace(/\/$/, '')}`;
@@ -143,11 +156,12 @@ export default function SeoOptimizerPage() {
             };
             const normalizedScoresMap = new Map<string, number>();
             for (const [url, score] of Object.entries(scoresByUrl)) {
-                normalizedScoresMap.set(normalizeUrl(url), score);
+                const normalized = normalizeUrl(url);
+                if (normalized) normalizedScoresMap.set(normalized, score);
             }
-            contentData.content.forEach((item: ContentItem) => {
+            (contentData.content || []).forEach((item: ContentItem) => {
                 const normalizedItemLink = normalizeUrl(item.link);
-                if (normalizedScoresMap.has(normalizedItemLink)) {
+                if (normalizedItemLink && normalizedScoresMap.has(normalizedItemLink)) {
                     scoresById[item.id] = normalizedScoresMap.get(normalizedItemLink)!;
                 }
             });
@@ -244,6 +258,7 @@ export default function SeoOptimizerPage() {
           status: 'publish',
           parent: 0,
           modified: new Date().toISOString(),
+          is_front_page: false,
       };
       
       const user = auth.currentUser;
@@ -379,7 +394,7 @@ export default function SeoOptimizerPage() {
                     onReanalyze={() => handleAnalyzePage(selectedPage)}
                     history={analysisHistory}
                     onSelectHistoryItem={handleSelectHistoryItem}
-                    contentModifiedDate={selectedPage.modified}
+                    contentModifiedDate={selectedPage.modified!}
                 />
             </div>
         )
