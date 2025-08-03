@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress, findOrCreateTags, extractElementorHeadings } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress, findOrCreateTags, extractElementorWidgets } from '@/lib/api-helpers';
 import { z } from 'zod';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
     let finalContent;
     if (isElementor && postData.meta?._elementor_data) {
-        finalContent = extractElementorHeadings(postData.meta._elementor_data);
+        finalContent = extractElementorWidgets(postData.meta._elementor_data);
     } else {
         finalContent = postData.content?.rendered || '';
     }
