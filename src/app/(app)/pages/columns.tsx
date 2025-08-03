@@ -137,7 +137,10 @@ export const getColumns = (
     {
         accessorKey: "modified",
         header: "Última Modificación",
-        cell: ({ row }) => new Date(row.original.modified).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }),
+        cell: ({ row }) => {
+            if (!row.original.modified) return <span className="text-muted-foreground">-</span>;
+            return new Date(row.original.modified).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
+        },
     },
     {
         id: 'score',
@@ -160,10 +163,9 @@ export const getColumns = (
                             <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><span className="sr-only">Abrir menú</span><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => onEdit(item)}><Edit className="mr-2 h-4 w-4" /> Editar Página</DropdownMenuItem>
+                                <DropdownMenuItem asChild><Link href={`/seo-optimizer/edit/${item.id}?type=${item.type}`}><Edit className="mr-2 h-4 w-4" /> Editar / Optimizar</Link></DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => onEditImages(item)}><ImageIcon className="mr-2 h-4 w-4" /> Editar Imágenes</DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem asChild><Link href={`/seo-optimizer?id=${item.id}&type=${item.type}`}><FileText className="mr-2 h-4 w-4" /> Optimizar SEO</Link></DropdownMenuItem>
                                 <DropdownMenuItem asChild><Link href={item.link} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-2 h-4 w-4" /> Ver en la web</Link></DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <AlertDialogTrigger asChild>

@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useEffect } from 'react';
 import { CheckCircle, XCircle, Sparkles, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -9,17 +9,21 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
-import type { PostEditState } from '@/app/(app)/pages/edit/[id]/page';
-import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ContentImage } from '@/lib/types';
+import { ImageIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import type { PostEditState } from '@/app/(app)/pages/edit/[id]/page';
+
 
 interface SeoAnalyzerProps {
   post: PostEditState | null;
   setPost: React.Dispatch<React.SetStateAction<PostEditState | null>>;
   isLoading: boolean;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
-  contentImages: any[]; // Use any to avoid dependency cycle if ContentImage is complex
-  setContentImages: React.Dispatch<React.SetStateAction<any[]>>;
+  contentImages: ContentImage[];
+  setContentImages: React.Dispatch<React.SetStateAction<ContentImage[]>>;
   applyAiMetaToFeatured: boolean;
   setApplyAiMetaToFeatured: React.Dispatch<React.SetStateAction<boolean>>;
   postId: number;
@@ -60,8 +64,43 @@ export function SeoAnalyzer({
     setPost, 
     isLoading, 
     setIsLoading,
+    contentImages,
+    setContentImages,
+    applyAiMetaToFeatured,
+    setApplyAiMetaToFeatured
 }: SeoAnalyzerProps) {
   const { toast } = useToast();
+  const hasTriggeredAutoKeyword = React.useRef(false);
+
+  const handleImageAltChange = useCallback((imageId: string, newAlt: string) => {
+    if (!post) return;
+
+    // Update the visual list of images
+    setContentImages(prevImages => 
+        prevImages.map((img) => img.id === imageId ? { ...img, alt: newAlt } : img)
+    );
+    
+    // Update the master HTML content string in the parent component's state
+    setPost(prevPost => {
+        if (!prevPost) return null;
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = prevPost.content;
+        
+        // Find the specific image by its original `src` attribute (which we use as an ID)
+        // Use querySelector with attribute selector for reliability
+        const imageToUpdate = tempDiv.querySelector(`img[src="${CSS.escape(imageId)}"]`);
+        
+        if (imageToUpdate) {
+            imageToUpdate.setAttribute('alt', newAlt);
+        } else {
+             console.warn(`Could not find image with src="${imageId}" to update alt text.`);
+        }
+        
+        return { ...prevPost, content: tempDiv.innerHTML };
+    });
+  }, [post, setContentImages, setPost]);
+
 
   const handleFixWithAI = useCallback(async (mode: SeoCheck['aiMode'], editLink?: string | null) => {
     if (editLink) {
@@ -106,13 +145,14 @@ export function SeoAnalyzer({
   }, [post, setPost, toast, setIsLoading]);
 
   const autoGenerateKeyword = useCallback(async () => {
-    if (post && !post.meta._yoast_wpseo_focuskw && post.content) {
+    if (post && !post.meta._yoast_wpseo_focuskw && post.content && !hasTriggeredAutoKeyword.current) {
+        hasTriggeredAutoKeyword.current = true;
         setIsLoading(true);
         try {
             const user = auth.currentUser; if (!user) return;
             const token = await user.getIdToken();
 
-            const payload = { mode: 'generate_focus_keyword', language: post.lang || 'es', existingTitle: post.title, existingContent: typeof post.content === 'string' ? post.content : '' };
+            const payload = { mode: 'generate_focus_keyword', language: post.lang || 'es', existingTitle: post.title, existingContent: typeof post.content === 'string' ? post.content : post.content.map(w=>w.text).join('\n') };
             const response = await fetch('/api/generate-blog-post', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload) });
             if (response.ok) {
                 const aiContent = await response.json();
@@ -126,6 +166,54 @@ export function SeoAnalyzer({
   useEffect(() => {
     autoGenerateKeyword();
   }, [autoGenerateKeyword]);
+
+  const handleGenerateImageAlts = useCallback(async () => {
+    if (!post) return;
+    setIsLoading(true);
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("No autenticado.");
+        const token = await user.getIdToken();
+        const payload = {
+            mode: 'generate_image_meta',
+            language: post.lang || 'es',
+            existingTitle: post.title,
+            existingContent: typeof post.content === 'string' ? post.content : '',
+        };
+        const response = await fetch('/api/generate-blog-post', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error((await response.json()).error || 'La IA falló al generar metadatos.');
+        
+        const aiContent = await response.json();
+        
+        const newImages = contentImages.map(img => 
+            !img.alt ? { ...img, alt: aiContent.imageAltText } : img
+        );
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = typeof post.content === 'string' ? post.content : '';
+
+        newImages.forEach((updatedImage) => {
+           if (!updatedImage.alt) return;
+           const imageElement = tempDiv.querySelector(`img[src="${CSS.escape(updatedImage.id)}"]`);
+           if (imageElement && !imageElement.hasAttribute('alt')) {
+               imageElement.setAttribute('alt', updatedImage.alt);
+           }
+        });
+        
+        setPost(p => p ? { ...p, content: tempDiv.innerHTML } : null);
+        setContentImages(newImages);
+
+        toast({ title: 'Textos alternativos generados', description: "Se ha añadido 'alt text' a las imágenes que no lo tenían." });
+    } catch (e: any) {
+        toast({ title: 'Error de IA', description: e.message, variant: "destructive" });
+    } finally {
+        setIsLoading(false);
+    }
+  }, [post, toast, setIsLoading, setPost, setContentImages, contentImages]);
 
 
   const checks = useMemo<SeoCheck[]>(() => {
@@ -180,6 +268,12 @@ export function SeoAnalyzer({
     ];
   }, [post]);
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (!post) return;
+    const { name, value } = e.target;
+    setPost({ ...post, meta: { ...post.meta, [name]: value } });
+  };
+  
   if (!post) {
       return (
         <Card>
@@ -188,38 +282,26 @@ export function SeoAnalyzer({
         </Card>
       )
   }
-  
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    if (!post) return;
-    const { name, value } = e.target;
-    setPost({ ...post, meta: { ...post.meta, [name]: value } });
-  };
-  
+
   const keyword = post.meta?._yoast_wpseo_focuskw || '';
 
   return (
     <div className="space-y-6">
-        <Card>
+       <Card>
             <CardHeader>
               <CardTitle>Edición SEO</CardTitle>
-              <CardDescription>Modifica los campos clave para el posicionamiento en buscadores.</CardDescription>
+              <CardDescription>
+                  Introduce tu palabra clave principal para empezar el análisis. Luego, optimiza el título y la descripción para mejorar tu posicionamiento.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-               <div>
+                <div>
                   <Label htmlFor="_yoast_wpseo_focuskw">Palabra Clave Principal</Label>
                   <Input id="_yoast_wpseo_focuskw" name="_yoast_wpseo_focuskw" value={post.meta._yoast_wpseo_focuskw} onChange={handleInputChange} />
                </div>
-               <div>
-                  <Label htmlFor="_yoast_wpseo_title">Título SEO</Label>
-                  <Input id="_yoast_wpseo_title" name="_yoast_wpseo_title" value={post.meta._yoast_wpseo_title} onChange={handleInputChange} />
-               </div>
-               <div>
-                   <Label htmlFor="_yoast_wpseo_metadesc">Meta Descripción</Label>
-                   <Input id="_yoast_wpseo_metadesc" name="_yoast_wpseo_metadesc" value={post.meta._yoast_wpseo_metadesc} onChange={handleInputChange} />
-               </div>
             </CardContent>
         </Card>
-
+        
         <Card>
             <CardHeader>
                 <CardTitle>Checklist SEO Accionable</CardTitle>
@@ -237,6 +319,51 @@ export function SeoAnalyzer({
                       ))}
                   </ul>
                 )}
+            </CardContent>
+        </Card>
+
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><ImageIcon className="h-5 w-5 text-primary" /> Optimización de Imágenes</CardTitle>
+                <CardDescription>Revisa y añade texto alternativo a las imágenes de tu contenido para mejorar el SEO y la accesibilidad.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <Button onClick={handleGenerateImageAlts} disabled={isLoading}>
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                    Generar y Aplicar 'alt text' con IA
+                </Button>
+                
+                 {post.featuredImageUrl && (
+                    <div className="flex items-center space-x-2 pt-4 border-t">
+                        <Checkbox id="apply-featured" checked={applyAiMetaToFeatured} onCheckedChange={(checked) => setApplyAiMetaToFeatured(!!checked)} />
+                        <Label htmlFor="apply-featured" className="text-sm font-normal">
+                           Aplicar también el 'alt text' de la palabra clave a la imagen destacada.
+                        </Label>
+                    </div>
+                 )}
+
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-2">
+                    {contentImages.map((img) => (
+                        <div key={img.id} className="flex items-center gap-3 p-2 border rounded-md">
+                            <div className="relative h-10 w-10 flex-shrink-0">
+                                <img src={img.src} alt="Vista previa" className="rounded-md object-cover h-full w-full" />
+                            </div>
+                            <div className="flex-1 text-sm text-muted-foreground truncate" title={img.src}>
+                                {img.id.split('/').pop()}
+                            </div>
+                            <div className="flex items-center gap-2">
+                               <div className="h-2 w-2 rounded-full" style={{ backgroundColor: img.alt ? 'hsl(var(--primary))' : 'hsl(var(--destructive))' }} />
+                               <Input 
+                                 value={img.alt}
+                                 onChange={(e) => handleImageAltChange(img.id, e.target.value)}
+                                 placeholder="Añade el 'alt text'..."
+                                 className="text-xs h-8"
+                               />
+                            </div>
+                        </div>
+                    ))}
+                    {contentImages.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No se encontraron imágenes en el contenido.</p>}
+                </div>
             </CardContent>
         </Card>
     </div>
