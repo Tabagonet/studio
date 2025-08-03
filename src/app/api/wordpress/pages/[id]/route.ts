@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress, extractElementorHeadings, replaceElementorTexts, findImageUrlsInElementor, findBeaverBuilderImages } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress, extractElementorWidgets, replaceElementorTexts, findImageUrlsInElementor, findBeaverBuilderImages } from '@/lib/api-helpers';
 import { z } from 'zod';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
@@ -27,7 +27,7 @@ const pageUpdateSchema = z.object({
         _yoast_wpseo_title: z.string().optional(),
         _yoast_wpseo_metadesc: z.string().optional(),
         _yoast_wpseo_focuskw: z.string().optional(),
-        _elementor_data: z.string().optional(), // Allow passing full elementor data
+        _elementor_data: z.string().optional(),
     }).optional(),
     featured_image_metadata: z.object({
         title: z.string(),
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     
     let finalContent;
     if (isElementor) {
-        finalContent = extractElementorHeadings(pageData.meta._elementor_data);
+        finalContent = extractElementorWidgets(pageData.meta._elementor_data);
     } else {
         finalContent = pageData.content?.rendered || '';
     }
@@ -272,10 +272,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const { data: currentPageData } = await wpApi.get(`/pages/${pageId}`, { params: { context: 'edit' } });
         const currentElementorData = JSON.parse(currentPageData.meta?._elementor_data || '[]');
         
-        let newElementorData = JSON.parse(JSON.stringify(currentElementorData));
-        for (const widgetUpdate of elementorWidgets) {
-            newElementorData = replaceElementorTexts(newElementorData, new Map([[widgetUpdate.id, widgetUpdate.text]]));
-        }
+        const widgetUpdates = new Map<string, string>();
+        elementorWidgets.forEach(widget => {
+            widgetUpdates.set(widget.id, widget.text);
+        });
+
+        const newElementorData = replaceElementorTexts(JSON.parse(JSON.stringify(currentElementorData)), widgetUpdates);
         (pagePayload as any).meta = { ...(pagePayload.meta || {}), _elementor_data: JSON.stringify(newElementorData) };
     }
     
@@ -349,5 +351,3 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     return NextResponse.json({ error: errorMessage }, { status });
   }
 }
-
-    

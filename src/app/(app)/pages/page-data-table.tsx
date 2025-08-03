@@ -127,13 +127,7 @@ export function PageDataTable({
   }, [data, scores]);
 
   const handleEditContent = (item: ContentItem) => {
-    const editUrlMap = {
-      'Page': '/pages/edit',
-      'Post': '/blog/edit',
-      'Producto': '/products/edit'
-    };
-    const baseUrl = editUrlMap[item.type as keyof typeof editUrlMap] || '/pages/edit';
-    router.push(`${baseUrl}/${item.id}?type=${item.type}`);
+    router.push(`/pages/edit/${item.id}`);
   };
   
   const handleEditImages = (item: ContentItem) => {
@@ -343,7 +337,7 @@ export function PageDataTable({
   
   const handleBatchEditImages = () => {
     const selectedIds = table.getSelectedRowModel().rows.map(row => row.original.id);
-    const postType = table.getSelectedRowModel().rows[0]?.original.type || 'Page'; // Assume all are same type for now
+    const postType = table.getSelectedRowModel().rows[0]?.original.type || 'Page';
     router.push(`/pages/edit-images?ids=${selectedIds.join(',')}&type=${postType}`);
   };
 
@@ -499,7 +493,7 @@ export function PageDataTable({
                   data-state={row.getIsSelected() && "selected"}
                   onClick={(e) => {
                       const target = e.target as HTMLElement;
-                      if (!(target instanceof HTMLButtonElement || target.tagName === 'A' || target.closest('button, a, [role=checkbox], [role=menuitem]') )) {
+                      if (!(target instanceof HTMLButtonElement || target instanceof HTMLAnchorElement || target.closest('button, a, [role=checkbox], [role=menuitem]') )) {
                         handleRowClick(row);
                       }
                     }}
@@ -522,7 +516,7 @@ export function PageDataTable({
           </TableBody>
         </Table>
       </div>
-
+      
        <div className="flex items-center justify-between space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
           {table.getFilteredSelectedRowModel().rows.length} de{" "}

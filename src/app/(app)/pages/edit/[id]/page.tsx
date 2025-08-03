@@ -4,15 +4,15 @@
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Save, ExternalLink } from 'lucide-react';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Loader2, ArrowLeft, ExternalLink, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import type { ExtractedWidget } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ExtractedWidget } from '@/lib/types';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
@@ -32,7 +32,6 @@ function EditPageContent() {
   const params = useParams();
   const router = useRouter();
   const postId = Number(params.id);
-  const postType = 'Page'; // This page is specifically for editing Pages.
     
   const [post, setPost] = useState<PageEditState | null>(null);
   
@@ -59,7 +58,7 @@ function EditPageContent() {
       
       const loadedPost: PageEditState = {
         title: postData.title?.rendered,
-        content: postData.content?.rendered, // It's a string for normal pages, or an array for Elementor
+        content: postData.content?.rendered, // This will be an array for Elementor, string otherwise
         isElementor: postData.isElementor || false, 
         elementorEditLink: postData.elementorEditLink || null,
         link: postData.link,
@@ -150,6 +149,14 @@ function EditPageContent() {
                         <Button variant="outline" onClick={() => router.back()}>
                             <ArrowLeft className="mr-2 h-4 w-4" /> Volver
                         </Button>
+                         {post.link && (
+                             <Button asChild variant="outline">
+                                <Link href={post.link} target="_blank" rel="noopener noreferrer">
+                                    <ExternalLink className="mr-2 h-4 w-4" />
+                                    Vista Previa
+                                </Link>
+                            </Button>
+                         )}
                         <Button onClick={handleSaveChanges} disabled={isSaving}>
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             <Save className="mr-2 h-4 w-4" />
@@ -207,7 +214,7 @@ function EditPageContent() {
                         <RichTextEditor
                             content={typeof post.content === 'string' ? post.content : ''}
                             onChange={handleContentChange}
-                            onInsertImage={() => toast({ title: "Función no disponible aquí", description: "La inserción de imágenes se realiza en el editor de imágenes.", variant: "destructive"})}
+                            onInsertImage={() => toast({ title: "Función no disponible aquí", description: "La inserción de imágenes se realiza en el editor de imágenes dedicado.", variant: "destructive"})}
                             placeholder="Escribe el contenido de la página..."
                         />
                     </div>
@@ -225,5 +232,3 @@ export default function EditPage() {
         </Suspense>
     )
 }
-
-    
