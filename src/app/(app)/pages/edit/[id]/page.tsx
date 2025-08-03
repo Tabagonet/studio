@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ContentImage, ExtractedWidget } from '@/lib/types';
+import { ExtractedWidget } from '@/lib/types';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -31,7 +31,7 @@ function EditPageContent() {
   const params = useParams();
   const router = useRouter();
   const postId = Number(params.id);
-  const postType = 'Page'; 
+  const postType = 'Page'; // This page is specifically for editing Pages.
     
   const [post, setPost] = useState<PageEditState | null>(null);
   
@@ -48,6 +48,7 @@ function EditPageContent() {
 
     try {
       const token = await user.getIdToken();
+      // This component now ONLY fetches from the pages endpoint.
       const apiPath = `/api/wordpress/pages/${postId}`;
       
       const postResponse = await fetch(`${apiPath}?context=edit&bust=${new Date().getTime()}`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
@@ -172,18 +173,22 @@ function EditPageContent() {
                     </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    {Array.isArray(post.content) && post.content.map((widget, index) => (
-                        <div key={widget.id || index} className="space-y-1">
-                            <Label htmlFor={`widget-${widget.id}`}>Widget: {widget.tag?.toUpperCase() || widget.type}</Label>
-                            <Textarea
-                                id={`widget-${widget.id}`}
-                                value={widget.text}
-                                onChange={(e) => handleWidgetChange(widget.id, e.target.value)}
-                                rows={Math.max(2, Math.min(10, widget.text.split('\n').length))}
-                                className="font-sans"
-                            />
-                        </div>
-                    ))}
+                    {Array.isArray(post.content) && post.content.length > 0 ? (
+                        post.content.map((widget, index) => (
+                          <div key={widget.id || index} className="space-y-1">
+                              <Label htmlFor={`widget-${widget.id}`}>Widget: {widget.tag?.toUpperCase() || widget.type}</Label>
+                              <Textarea
+                                  id={`widget-${widget.id}`}
+                                  value={widget.text}
+                                  onChange={(e) => handleWidgetChange(widget.id, e.target.value)}
+                                  rows={Math.max(2, Math.min(10, widget.text.split('\n').length))}
+                                  className="font-sans"
+                              />
+                          </div>
+                      ))
+                    ) : (
+                        <p className="text-center text-muted-foreground p-4">No se encontraron widgets de texto editables en esta página de Elementor.</p>
+                    )}
                 </CardContent>
             </Card>
         ) : (
