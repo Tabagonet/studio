@@ -16,12 +16,12 @@ function transformToContentItem(item: any, type: ContentItem['type'], isFrontPag
     id: item.id,
     title: item.name || item.title?.rendered || 'Sin Título',
     type: type,
-    link: item.permalink || item.link,
+    link: item.permalink || item.link || null, // Ensure null instead of undefined
     status: item.status || 'publish', // Categories don't have a status
     parent: item.parent || 0,
     lang: item.lang || null,
     translations: item.translations || {},
-    modified: item.modified || (item.date_created || new Date(0).toISOString()),
+    modified: item.modified || item.date_created || null, // Fallback to date_created, then null
     is_front_page: isFrontPage,
   };
 }
