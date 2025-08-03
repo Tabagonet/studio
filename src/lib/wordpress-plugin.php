@@ -146,27 +146,6 @@ function autopress_ai_register_rest_endpoints() {
     function custom_api_batch_update_status( $request ) { $post_ids = $request->get_param( 'post_ids' ); $status = $request->get_param('status'); if ( empty( $post_ids ) || ! is_array( $post_ids ) || !in_array($status, ['publish', 'draft', 'pending', 'private'])) { return new WP_Error( 'invalid_payload', 'Se requiere un array de IDs y un estado válido.', ['status' => 400] ); } $results = [ 'success' => [], 'failed' => [] ]; foreach ( $post_ids as $post_id ) { $id = absint($post_id); if ( $id && current_user_can('edit_post', $id) ) { $updated_post = wp_update_post(['ID' => $id, 'post_status' => $status], true); if (is_wp_error($updated_post)) { $results['failed'][] = ['id' => $id, 'reason' => $updated_post->get_error_message()]; } else { $results['success'][] = $id; } } else { $results['failed'][] = ['id' => $id, 'reason' => 'Permiso denegado o ID inválido.']; } } return new WP_REST_Response( ['success' => true, 'data' => $results], 200 ); }
     function custom_api_batch_clone_posts( $request ) { $post_ids = $request->get_param( 'post_ids' ); $target_lang = sanitize_key( $request->get_param( 'target_lang' ) ); if ( empty( $post_ids ) || ! is_array( $post_ids ) ) { return new WP_Error( 'invalid_payload', 'Se requiere un array de IDs de posts.', [ 'status' => 400 ] ); } if ( ! $target_lang || !function_exists('pll_set_post_language') ) { return new WP_Error( 'no_target_lang', 'Debes indicar el idioma destino y Polylang debe estar activo.', [ 'status' => 400 ] ); } $results = [ 'success' => [], 'failed' => [] ]; foreach ( $post_ids as $source_id ) { $source_id = absint( $source_id ); if ( ! $source_id || ! current_user_can( 'edit_post', $source_id ) ) { $results['failed'][] = ['id' => $source_id, 'reason' => 'Permiso denegado o ID inválido.']; continue; } $source_post = get_post( $source_id ); if ( ! $source_post ) { $results['failed'][] = ['id' => $source_id, 'reason' => 'Post no encontrado.']; continue; } $original_lang = pll_get_post_language( $source_id, 'slug' ); if ( ! $original_lang || $original_lang === $target_lang ) { $results['failed'][] = ['id' => $source_id, 'reason' => 'Idioma inválido o ya coincide.']; continue; } $new_post_args = [ 'post_author' => $source_post->post_author, 'post_content' => $source_post->post_content, 'post_title' => $source_post->post_title, 'post_excerpt' => $source_post->post_excerpt, 'post_status' => 'draft', 'post_type' => $source_post->post_type ]; $new_post_id = wp_insert_post( wp_slash( $new_post_args ), true ); if ( is_wp_error( $new_post_id ) ) { $results['failed'][] = ['id' => $source_id, 'reason' => 'Error al clonar.']; continue; } $meta_blacklist = [ '_edit_lock', '_edit_last', '_thumbnail_id', '_pll_content_id', '_post_translations', ]; $source_meta = get_post_meta( $source_id ); foreach ( $source_meta as $meta_key => $meta_values ) { if ( in_array( $meta_key, $meta_blacklist ) ) { continue; } foreach ( $meta_values as $meta_value ) { add_post_meta( $new_post_id, $meta_key, maybe_unserialize( $meta_value ) ); } } $taxonomies = get_object_taxonomies( $source_post->post_type ); foreach ( $taxonomies as $taxonomy ) { if ($taxonomy == 'language' || $taxonomy == 'post_translations') continue; $terms = wp_get_object_terms( $source_id, $taxonomy, [ 'fields' => 'ids' ] ); if ( ! is_wp_error( $terms ) ) { wp_set_object_terms( $new_post_id, $terms, $taxonomy ); } } $thumbnail_id = get_post_thumbnail_id( $source_id ); if ( $thumbnail_id ) { set_post_thumbnail( $new_post_id, $thumbnail_id ); } pll_set_post_language( $new_post_id, $target_lang ); $existing_translations = pll_get_post_translations( $source_id ); $new_translations = array_merge($existing_translations, [$target_lang => $new_post_id]); pll_save_post_translations( $new_translations ); $results['success'][] = [ 'original_id' => $source_id, 'clone_id' => $new_post_id, 'post_type' => $source_post->post_type ]; } return new WP_REST_Response( $results, 200 ); }
     
-    function get_latest_post_date_for_term($term_id, $taxonomy) {
-        $args = array(
-            'posts_per_page' => 1,
-            'orderby' => 'modified',
-            'order' => 'DESC',
-            'tax_query' => array(
-                array(
-                    'taxonomy' => $taxonomy,
-                    'field' => 'term_id',
-                    'terms' => $term_id,
-                ),
-            ),
-            'fields' => 'ids', // Solo necesitamos el ID para obtener la fecha
-        );
-        $query = new WP_Query($args);
-        if (!empty($query->posts)) {
-            return get_the_modified_date('c', $query->posts[0]);
-        }
-        return null;
-    }
-
     function custom_api_get_content_list($request) {
         $content_list = [];
         $front_page_id = get_option('page_on_front');
@@ -210,6 +189,28 @@ function autopress_ai_register_rest_endpoints() {
             }
         }
         wp_reset_postdata();
+
+        // Add categories
+        $taxonomies = ['category', 'product_cat'];
+        foreach ($taxonomies as $taxonomy) {
+            $terms = get_terms(['taxonomy' => $taxonomy, 'hide_empty' => false]);
+            if (!is_wp_error($terms)) {
+                foreach ($terms as $term) {
+                     $content_list[] = [
+                        'id' => $term->term_id,
+                        'title' => $term->name,
+                        'type' => $taxonomy === 'category' ? 'Categoría de Entradas' : 'Categoría de Productos',
+                        'link' => get_term_link($term),
+                        'status' => 'publish',
+                        'parent' => $term->parent,
+                        'lang' => function_exists('pll_get_term_language') ? pll_get_term_language($term->term_id, 'slug') : null,
+                        'translations' => function_exists('pll_get_term_translations') ? pll_get_term_translations($term->term_id) : [],
+                        'modified' => null, // No reliable modified date for terms
+                        'is_front_page' => false,
+                    ];
+                }
+            }
+        }
 
         return new WP_REST_Response(['content' => $content_list], 200);
     }

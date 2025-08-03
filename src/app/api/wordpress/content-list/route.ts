@@ -9,33 +9,25 @@ import type { AxiosInstance } from 'axios';
 export const dynamic = 'force-dynamic';
 
 // Helper to transform fetched data into the unified ContentItem format
-function transformToContentItem(item: any, type: 'Post' | 'Page' | 'Producto', isFrontPage: boolean): ContentItem {
+function transformToContentItem(item: any, type: ContentItem['type'], isFrontPage: boolean): ContentItem {
   const isProduct = type === 'Producto';
-  let imageUrl: string | null = null;
-  if (isProduct) {
-      if (item.images && item.images.length > 0 && item.images[0].src) {
-          imageUrl = item.images[0].src;
-      }
-  } else {
-      imageUrl = item._embedded?.['wp:featuredmedia']?.[0]?.source_url || null;
-  }
 
   return {
     id: item.id,
-    title: item.name || item.title.rendered,
+    title: item.name || item.title?.rendered || 'Sin Título',
     type: type,
     link: item.permalink || item.link,
-    status: item.status,
+    status: item.status || 'publish', // Categories don't have a status
     parent: item.parent || 0,
     lang: item.lang || null,
     translations: item.translations || {},
-    modified: item.modified,
+    modified: item.modified || (item.date_created || new Date(0).toISOString()),
     is_front_page: isFrontPage,
   };
 }
 
 // Helper to fetch all items of a specific type, handling pagination
-async function fetchAllOfType(api: AxiosInstance | null, endpoint: string, typeLabel: 'Post' | 'Page' | 'Producto', frontPageId: number): Promise<ContentItem[]> {
+async function fetchAllOfType(api: AxiosInstance | null, endpoint: string, typeLabel: ContentItem['type'], frontPageId: number): Promise<ContentItem[]> {
     if (!api) return [];
     
     let allItems: any[] = [];
@@ -49,30 +41,55 @@ async function fetchAllOfType(api: AxiosInstance | null, endpoint: string, typeL
                     per_page: perPage,
                     page: page,
                     context: 'view',
-                    _embed: 'author,wp:featuredmedia,wp:term', // Ensure necessary data is embedded
+                    _embed: 'wp:featuredmedia', 
                     lang: '', // Fetch all languages
-                    status: 'any', // Fetch all statuses
+                    status: 'any', 
                 },
             });
 
             if (response.data.length === 0) {
-                break; // No more items to fetch
+                break; 
             }
             
             allItems = allItems.concat(response.data);
             
-            const totalPages = response.headers['x-wp-totalpages'];
-            if (!totalPages || page >= parseInt(totalPages, 10)) {
-                break; // Reached the last page
+            const totalPagesHeader = response.headers['x-wp-totalpages'];
+            const totalPages = totalPagesHeader ? parseInt(totalPagesHeader, 10) : 0;
+
+            if (!totalPages || page >= totalPages) {
+                break;
             }
             page++;
         } catch (error) {
             console.error(`Error fetching from ${endpoint}, page ${page}:`, error);
-            break; // Stop fetching on error
+            break;
         }
     }
 
     return allItems.map(item => transformToContentItem(item, typeLabel, item.id === frontPageId));
+}
+
+// Fetch all categories (for posts or products)
+async function fetchAllCategories(api: AxiosInstance | null, endpoint: string, typeLabel: 'Categoría de Entradas' | 'Categoría de Productos'): Promise<ContentItem[]> {
+    if (!api) return [];
+    try {
+        const response = await api.get(endpoint, { params: { per_page: 100, context: 'view', lang: '' } });
+        return response.data.map((cat: any) => ({
+            id: cat.id,
+            title: cat.name,
+            type: typeLabel,
+            link: cat.link,
+            status: 'publish', // Categories are always public
+            parent: cat.parent || 0,
+            lang: cat.lang || null,
+            translations: cat.translations || {},
+            modified: null, // Categories don't have a reliable modified date
+            is_front_page: false,
+        }));
+    } catch (error) {
+        console.error(`Error fetching categories from ${endpoint}:`, error);
+        return [];
+    }
 }
 
 
@@ -94,7 +111,7 @@ export async function GET(req: NextRequest) {
     
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const perPage = parseInt(searchParams.get('per_page') || '10', 10);
+    const perPage = parseInt(searchParams.get('per_page') || '20', 10);
     const typeFilter = searchParams.get('type');
     const statusFilter = searchParams.get('status');
     const langFilter = searchParams.get('lang');
@@ -102,14 +119,13 @@ export async function GET(req: NextRequest) {
     
     const frontPageId = await wpApi.get('/options').then(res => res.data.page_on_front).catch(() => 0);
     
-    // Fetch all content types in parallel
-    const [pages, posts, products] = await Promise.all([
+    const [pages, postCategories, productCategories] = await Promise.all([
         fetchAllOfType(wpApi, 'pages', 'Page', frontPageId),
-        fetchAllOfType(wpApi, 'posts', 'Post', frontPageId),
-        fetchAllOfType(wooApi, 'products', 'Producto', frontPageId),
+        fetchAllCategories(wpApi, 'categories', 'Categoría de Entradas'),
+        fetchAllCategories(wooApi, 'products/categories', 'Categoría de Productos'),
     ]);
     
-    let allContent = [...pages, ...posts, ...products];
+    let allContent = [...pages, ...postCategories, ...productCategories];
 
     // --- Server-side Filtering ---
     if (searchQuery) {
@@ -125,13 +141,8 @@ export async function GET(req: NextRequest) {
         allContent = allContent.filter(item => item.lang === langFilter);
     }
     
-    // --- Server-side Sorting ---
-    allContent.sort((a, b) => {
-        // Default sort by modified date, descending
-        const dateA = a.modified ? new Date(a.modified).getTime() : 0;
-        const dateB = b.modified ? new Date(b.modified).getTime() : 0;
-        return dateB - dateA;
-    });
+    // --- Server-side Sorting (Default by title) ---
+    allContent.sort((a, b) => a.title.localeCompare(b.title));
     
     // --- Server-side Pagination ---
     const totalItems = allContent.length;
