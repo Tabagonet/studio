@@ -1,4 +1,5 @@
 
+
 // src/app/api/wordpress/content-list/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -25,7 +26,7 @@ function transformToContentItem(item: any, type: ContentItem['type'], isFrontPag
   };
 }
 
-async function fetchAllOfType(api: AxiosInstance | null, type: 'pages' | 'categories') {
+async function fetchAllOfType(api: AxiosInstance | null, type: 'pages' | 'categories' | 'posts') {
     if (!api) return [];
 
     let allItems: any[] = [];
@@ -70,25 +71,22 @@ export async function GET(req: NextRequest) {
       throw new Error("Firestore Admin is not initialized.");
     }
 
-    const { wpApi } = await getApiClientsForUser(uid);
+    const { wpApi, wooApi } = await getApiClientsForUser(uid);
     if (!wpApi) {
         return NextResponse.json({ content: [] });
     }
     
+    // Use the custom plugin endpoint which is more reliable
     let frontPageId = 0;
     try {
         const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
         if (siteUrl) {
-            // The custom endpoint is more reliable
             const customStatusResponse = await wpApi.get(`${siteUrl}/wp-json/custom/v1/status`);
             frontPageId = customStatusResponse.data?.front_page_id || 0;
-        } else {
-            // Fallback to the options API if base URL is tricky
-            const optionsResponse = await wpApi.get('/options');
-            frontPageId = optionsResponse.data?.page_on_front || 0;
+            console.log(`[content-list API] Front page ID from plugin: ${frontPageId}`);
         }
     } catch(e) {
-        console.warn("Could not fetch 'page_on_front' option from any endpoint:", e);
+        console.warn("Could not fetch 'page_on_front' option from custom endpoint:", e);
     }
     
     let allFrontPageIds = new Set<number>();
@@ -103,16 +101,27 @@ export async function GET(req: NextRequest) {
     } else if (frontPageId > 0) {
         allFrontPageIds.add(frontPageId);
     }
+    console.log('[content-list API] Final front page IDs:', Array.from(allFrontPageIds));
 
-    const [pagesData, categoriesData] = await Promise.all([
+    // Fetch all content types
+    const [pagesData, postsData, categoriesData] = await Promise.all([
         fetchAllOfType(wpApi, 'pages'),
+        fetchAllOfType(wpApi, 'posts'),
         fetchAllOfType(wpApi, 'categories')
     ]);
 
     const pages = pagesData.map((item: any) => transformToContentItem(item, 'Page', allFrontPageIds.has(item.id)));
+    const posts = postsData.map((item: any) => transformToContentItem(item, 'Post', allFrontPageIds.has(item.id)));
     const categories = categoriesData.map((item: any) => transformToContentItem(item, 'Categoría de Entradas', false));
     
-    const allContent = [...pages, ...categories];
+    const allContent = [...pages, ...posts, ...categories];
+    
+    const frontPage = allContent.find(item => item.is_front_page);
+    if (frontPage) {
+        console.log(`[content-list API] Front page FOUND in processed data. ID: ${frontPage.id}, Title: ${frontPage.title}`);
+    } else {
+        console.log(`[content-list API] Front page NOT FOUND in final processed data.`);
+    }
 
     return NextResponse.json({ 
         content: allContent,

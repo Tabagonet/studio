@@ -66,33 +66,40 @@ export const getColumns = (
                 Título <ArrowUpDown className="ml-2 h-4 w-4" />
             </Button>
         ),
-        cell: ({ row, getValue }) => (
-            <div style={{ paddingLeft: `${row.depth * 1.5}rem` }} className="flex items-center gap-2">
-                {row.getCanExpand() && (
-                    <button onClick={row.getToggleExpandedHandler()} className="cursor-pointer p-1 -ml-1" aria-label={row.getIsExpanded() ? 'Contraer fila' : 'Expandir fila'}>
-                        <ChevronRight className={cn("h-4 w-4 transition-transform", row.getIsExpanded() && 'rotate-90')} />
-                    </button>
-                )}
-                 <div className="flex-shrink-0 w-5">
-                    {row.original.is_front_page && (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                               <Home className="h-4 w-4 text-primary" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Esta es la página de inicio de tu web.</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+        cell: ({ row, getValue }) => {
+            const isFrontPage = row.original.is_front_page;
+            // LOGGING POINT
+            if (isFrontPage) {
+                console.log(`[columns.tsx] Rendering row for "${getValue()}", is_front_page is TRUE.`);
+            }
+            return (
+                <div style={{ paddingLeft: `${row.depth * 1.5}rem` }} className="flex items-center gap-2">
+                    {row.getCanExpand() && (
+                        <button onClick={row.getToggleExpandedHandler()} className="cursor-pointer p-1 -ml-1" aria-label={row.getIsExpanded() ? 'Contraer fila' : 'Expandir fila'}>
+                            <ChevronRight className={cn("h-4 w-4 transition-transform", row.getIsExpanded() && 'rotate-90')} />
+                        </button>
                     )}
-                 </div>
-                 <div>
-                    <span className="font-medium">{getValue<string>()}</span>
-                    <p className="text-xs text-muted-foreground">{row.original.slug || 'sin-slug'}</p>
-                 </div>
-            </div>
-        ),
+                     <div className="flex-shrink-0 w-5">
+                        {isFrontPage && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                   <Home className="h-4 w-4 text-primary" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Esta es la página de inicio de tu web.</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                        )}
+                     </div>
+                     <div>
+                        <span className="font-medium">{getValue<string>()}</span>
+                        <p className="text-xs text-muted-foreground">{row.original.slug || 'sin-slug'}</p>
+                     </div>
+                </div>
+            );
+        },
     },
     {
         accessorKey: "status",

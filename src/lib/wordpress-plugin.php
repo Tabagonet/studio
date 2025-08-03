@@ -151,46 +151,57 @@ function autopress_ai_register_rest_endpoints() {
     function custom_api_get_content_list($request) {
         $content_list = [];
         $front_page_id = (int) get_option('page_on_front');
+        error_log('[AutoPress AI] Front page ID from get_option: ' . $front_page_id);
+
         $all_front_page_ids = [];
         if ($front_page_id > 0 && function_exists('pll_get_post_translations')) {
             $all_front_page_ids = array_values(pll_get_post_translations($front_page_id));
         } elseif ($front_page_id > 0) {
             $all_front_page_ids = [$front_page_id];
         }
+        error_log('[AutoPress AI] All front page IDs (including translations): ' . print_r($all_front_page_ids, true));
 
-        $post_types_to_query = ['page'];
-        $args = [
-            'post_type' => $post_types_to_query,
-            'posts_per_page' => -1,
-            'post_status' => ['publish', 'draft', 'pending', 'private', 'future', 'trash'],
-            'lang' => '',
-        ];
-        $query = new WP_Query($args);
+        $post_types_to_query = get_post_types(['public' => true], 'names');
 
-        if ($query->have_posts()) {
-            while ($query->have_posts()) {
-                $query->the_post();
-                $post_id = get_the_ID();
-                $post_obj = get_post($post_id);
+        foreach($post_types_to_query as $post_type) {
+            $args = [
+                'post_type' => $post_type,
+                'posts_per_page' => -1,
+                'post_status' => ['publish', 'draft', 'pending', 'private', 'future', 'trash'],
+                'lang' => '',
+            ];
+            $query = new WP_Query($args);
 
-                $content_list[] = [
-                    'id' => $post_id,
-                    'title' => get_the_title(),
-                    'slug' => $post_obj->post_name,
-                    'type' => 'Page',
-                    'link' => get_permalink($post_id),
-                    'status' => get_post_status($post_id),
-                    'parent' => $post_obj->post_parent,
-                    'lang' => function_exists('pll_get_post_language') ? pll_get_post_language($post_id, 'slug') : null,
-                    'translations' => function_exists('pll_get_post_translations') ? pll_get_post_translations($post_id) : [],
-                    'modified' => get_the_modified_date('c', $post_id),
-                    'is_front_page' => in_array($post_id, $all_front_page_ids),
-                ];
+            if ($query->have_posts()) {
+                while ($query->have_posts()) {
+                    $query->the_post();
+                    $post_id = get_the_ID();
+                    $post_obj = get_post($post_id);
+
+                    $is_front = in_array($post_id, $all_front_page_ids, true);
+                    if ($is_front) {
+                         error_log('[AutoPress AI] Found front page! ID: ' . $post_id . ' Title: ' . get_the_title());
+                    }
+
+                    $content_list[] = [
+                        'id' => $post_id,
+                        'title' => get_the_title(),
+                        'slug' => $post_obj->post_name,
+                        'type' => get_post_type_object($post_type)->labels->singular_name,
+                        'link' => get_permalink($post_id),
+                        'status' => get_post_status($post_id),
+                        'parent' => $post_obj->post_parent,
+                        'lang' => function_exists('pll_get_post_language') ? pll_get_post_language($post_id, 'slug') : null,
+                        'translations' => function_exists('pll_get_post_translations') ? pll_get_post_translations($post_id) : [],
+                        'modified' => get_the_modified_date('c', $post_id),
+                        'is_front_page' => $is_front,
+                    ];
+                }
             }
+            wp_reset_postdata();
         }
-        wp_reset_postdata();
 
-        $taxonomies = ['category'];
+        $taxonomies = ['category', 'product_cat'];
         foreach ($taxonomies as $taxonomy) {
             $terms = get_terms(['taxonomy' => $taxonomy, 'hide_empty' => false]);
             if (!is_wp_error($terms)) {
@@ -199,7 +210,7 @@ function autopress_ai_register_rest_endpoints() {
                         'id' => $term->term_id,
                         'title' => $term->name,
                         'slug' => $term->slug,
-                        'type' => 'Categoría de Entradas',
+                        'type' => $taxonomy === 'category' ? 'Categoría de Entradas' : 'Categoría de Productos',
                         'link' => get_term_link($term),
                         'status' => 'publish',
                         'parent' => $term->parent,
