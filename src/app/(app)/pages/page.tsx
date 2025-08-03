@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -53,7 +54,8 @@ export default function PagesManagementPage() {
             const scoresData = await scoresResponse.json();
             const scoresByUrl: Record<string, number> = scoresData.scores || {};
             const scoresById: Record<number, number> = {};
-            const normalizeUrl = (url: string) => {
+            const normalizeUrl = (url: string | null) => {
+                if (!url) return null;
                 try {
                     const parsed = new URL(url);
                     return `${parsed.protocol}//${parsed.hostname}${parsed.pathname.replace(/\/$/, '')}`;
@@ -61,14 +63,13 @@ export default function PagesManagementPage() {
             };
             const normalizedScoresMap = new Map<string, number>();
             for (const [url, score] of Object.entries(scoresByUrl)) {
-                normalizedScoresMap.set(normalizeUrl(url), score);
+                const normalized = normalizeUrl(url);
+                if (normalized) normalizedScoresMap.set(normalized, score);
             }
             contentData.content.forEach((item: ContentItem) => {
-                if (item.link) {
-                    const normalizedItemLink = normalizeUrl(item.link);
-                    if (normalizedScoresMap.has(normalizedItemLink)) {
-                        scoresById[item.id] = normalizedScoresMap.get(normalizedItemLink)!;
-                    }
+                const normalizedItemLink = normalizeUrl(item.link);
+                if (normalizedItemLink && normalizedScoresMap.has(normalizedItemLink)) {
+                    scoresById[item.id] = normalizedScoresMap.get(normalizedItemLink)!;
                 }
             });
             setScores(scoresById);
@@ -116,7 +117,7 @@ export default function PagesManagementPage() {
                 <FileText className="h-8 w-8 text-primary" />
                 <div>
                     <CardTitle>Gestión de Contenido</CardTitle>
-                    <CardDescription>Visualiza, filtra y gestiona tus páginas, entradas y productos. Haz clic en una fila para optimizar su SEO.</CardDescription>
+                    <CardDescription>Visualiza, filtra y gestiona tus páginas. Haz clic en una fila para optimizar su SEO.</CardDescription>
                 </div>
             </div>
             <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>

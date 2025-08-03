@@ -30,7 +30,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getColumns } from "./columns"; 
 import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
-import { Loader2, ChevronDown, Trash2, Sparkles, Edit, Image as ImageIcon, Link2 } from "lucide-react";
+import { Loader2, ChevronDown, Trash2, Sparkles, Edit, Image as ImageIcon, Link2, Languages } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
@@ -46,6 +46,15 @@ interface PageDataTableProps {
   pagination: { pageIndex: number; pageSize: number };
   setPagination: React.Dispatch<React.SetStateAction<{ pageIndex: number; pageSize: number }>>;
 }
+
+const LANGUAGE_MAP: { [key: string]: string } = {
+    es: 'Español',
+    en: 'Inglés',
+    fr: 'Francés',
+    de: 'Alemán',
+    pt: 'Portugués',
+};
+
 
 export function PageDataTable({
   data,
@@ -320,6 +329,14 @@ export function PageDataTable({
     }
   };
   
+  const availableLanguages = React.useMemo(() => {
+    const langSet = new Set<string>();
+    data.forEach(item => {
+        if (item.lang && item.lang !== 'default') langSet.add(item.lang);
+    });
+    return Array.from(langSet).map(code => ({ code, name: LANGUAGE_MAP[code as keyof typeof LANGUAGE_MAP] || code.toUpperCase() }));
+  }, [data]);
+
   return (
     <div className="w-full space-y-4">
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 py-4">
@@ -339,11 +356,8 @@ export function PageDataTable({
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="all">Todos los Tipos</SelectItem>
-                    <SelectItem value="Post">Entradas</SelectItem>
                     <SelectItem value="Page">Páginas</SelectItem>
-                    <SelectItem value="Producto">Productos</SelectItem>
                     <SelectItem value="Categoría de Entradas">Cat. Entradas</SelectItem>
-                    <SelectItem value="Categoría de Productos">Cat. Productos</SelectItem>
                 </SelectContent>
             </Select>
             <Select
@@ -359,6 +373,22 @@ export function PageDataTable({
                     <SelectItem value="draft">Borrador</SelectItem>
                     <SelectItem value="pending">Pendiente</SelectItem>
                     <SelectItem value="private">Privado</SelectItem>
+                </SelectContent>
+            </Select>
+            <Select
+                value={table.getColumn('lang')?.getFilterValue() as string ?? 'all'}
+                onValueChange={(value) => table.getColumn('lang')?.setFilterValue(value === 'all' ? null : value)}
+                disabled={availableLanguages.length === 0}
+            >
+                <SelectTrigger className="w-full sm:w-[180px]">
+                    <Languages className="mr-2 h-4 w-4" />
+                    <SelectValue placeholder="Filtrar por idioma" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">Todos los Idiomas</SelectItem>
+                    {availableLanguages.map(lang => (
+                        <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>
+                    ))}
                 </SelectContent>
             </Select>
         </div>

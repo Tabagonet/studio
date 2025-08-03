@@ -14,6 +14,8 @@ import {
   type ColumnDef,
   type ColumnFiltersState,
   type ExpandedState,
+  type RowSelectionState,
+  type SortingState,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -23,10 +25,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { SearchCheck, ChevronRight, FileText } from "lucide-react";
+import { SearchCheck, ChevronRight, FileText, Languages } from "lucide-react";
 import type { ContentItem, HierarchicalContentItem } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -65,7 +67,14 @@ const ScoreBadge = ({ score }: { score: number | undefined }) => {
 export function SeoPageListTable({ data, scores, onAnalyzePage, onViewReport, pageCount, pagination, setPagination }: SeoPageListTableProps) {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
-  const [languageFilter, setLanguageFilter] = React.useState('all');
+  
+  const LANGUAGE_MAP: { [key: string]: string } = {
+    es: 'Español',
+    en: 'Inglés',
+    fr: 'Francés',
+    de: 'Alemán',
+    pt: 'Portugués',
+  };
 
   const tableData = React.useMemo((): HierarchicalContentItem[] => {
     if (!data) return [];
@@ -101,13 +110,13 @@ export function SeoPageListTable({ data, scores, onAnalyzePage, onViewReport, pa
             if(mainItem) processedIds.add(mainItem.id);
         }
 
-        if (mainItem && (languageFilter === 'all' || mainItem.lang === languageFilter)) {
+        if (mainItem) {
             roots.push(mainItem);
         }
     });
 
     return roots.sort((a,b) => a.title.localeCompare(b.title));
-  }, [data, languageFilter]);
+  }, [data]);
 
 
   const columns = React.useMemo<ColumnDef<HierarchicalContentItem>[]>(
@@ -141,8 +150,8 @@ export function SeoPageListTable({ data, scores, onAnalyzePage, onViewReport, pa
         cell: ({ getValue }) => {
           const type = getValue<string>();
           let variant: "secondary" | "outline" | "default" = "secondary";
-          if (type === 'Page') variant = 'outline';
-          if (type === 'Producto') variant = 'default';
+          if (type.includes('Page') || type.includes('Página')) variant = 'outline';
+          if (type.includes('Product') || type.includes('Producto')) variant = 'default';
 
           return <Badge variant={variant}>{type}</Badge>
         }
@@ -218,9 +227,12 @@ export function SeoPageListTable({ data, scores, onAnalyzePage, onViewReport, pa
     manualPagination: true,
   });
   
-  const languages = React.useMemo(() => {
-    const langSet = new Set(data.map(item => item.lang).filter(lang => lang && lang !== 'default'));
-    return Array.from(langSet) as string[];
+  const availableLanguages = React.useMemo(() => {
+    const langSet = new Set<string>();
+    data.forEach(item => {
+        if (item.lang && item.lang !== 'default') langSet.add(item.lang);
+    });
+    return Array.from(langSet).map(code => ({ code, name: LANGUAGE_MAP[code as keyof typeof LANGUAGE_MAP] || code.toUpperCase() }));
   }, [data]);
 
   return (
@@ -243,9 +255,8 @@ export function SeoPageListTable({ data, scores, onAnalyzePage, onViewReport, pa
             </SelectTrigger>
             <SelectContent>
                 <SelectItem value="all">Todos los Tipos</SelectItem>
-                <SelectItem value="Post">Entradas (Posts)</SelectItem>
                 <SelectItem value="Page">Páginas</SelectItem>
-                <SelectItem value="Producto">Productos</SelectItem>
+                 <SelectItem value="Categoría de Entradas">Cat. Entradas</SelectItem>
             </SelectContent>
         </Select>
         <Select
@@ -264,17 +275,18 @@ export function SeoPageListTable({ data, scores, onAnalyzePage, onViewReport, pa
             </SelectContent>
         </Select>
          <Select
-            value={languageFilter}
-            onValueChange={setLanguageFilter}
-            disabled={languages.length === 0}
+            value={(table.getColumn('lang')?.getFilterValue() as string) ?? 'all'}
+            onValueChange={(value) => table.getColumn('lang')?.setFilterValue(value === 'all' ? null : value)}
+            disabled={availableLanguages.length === 0}
         >
             <SelectTrigger className="w-full sm:w-[180px]">
+                <Languages className="mr-2 h-4 w-4" />
                 <SelectValue placeholder="Filtrar por idioma" />
             </SelectTrigger>
             <SelectContent>
                 <SelectItem value="all">Todos los Idiomas</SelectItem>
-                 {languages.map(lang => (
-                    <SelectItem key={lang} value={lang}>{lang.toUpperCase()}</SelectItem>
+                 {availableLanguages.map(lang => (
+                    <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>
                 ))}
             </SelectContent>
         </Select>
