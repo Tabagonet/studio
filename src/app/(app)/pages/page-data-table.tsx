@@ -16,6 +16,7 @@ import {
   type ExpandedState,
   type RowSelectionState,
   type SortingState,
+  type Row,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -134,7 +135,7 @@ export function PageDataTable({
   };
   
   const handleEditImages = (item: ContentItem) => {
-    router.push(`/pages/edit-images?ids=${item.id}&type=${item.type}`);
+    router.push(`/pages/edit-images?ids=${item.id}&type=Page`);
   };
 
   const handleDeleteContent = async (item: ContentItem) => {
@@ -521,7 +522,7 @@ export function PageDataTable({
        <div className="flex items-center justify-between space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
           {table.getFilteredSelectedRowModel().rows.length} de{" "}
-          {table.getCoreRowModel().rows.length} fila(s) seleccionadas.
+          {table.getFilteredRowModel().rows.length} fila(s) seleccionadas.
         </div>
         <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
@@ -543,6 +544,10 @@ export function PageDataTable({
                 </Select>
             </div>
             <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium">
+                    Página {table.getState().pagination.pageIndex + 1} de{' '}
+                    {table.getPageCount()}
+                </span>
                 <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
                     Anterior
                 </Button>

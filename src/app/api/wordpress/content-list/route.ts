@@ -1,3 +1,4 @@
+
 // src/app/api/wordpress/content-list/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -12,7 +13,7 @@ function transformToContentItem(item: any, type: ContentItem['type'], isFrontPag
   return {
     id: item.id,
     title: item.name || item.title?.rendered || 'Sin Título',
-    slug: item.slug || '',
+    slug: item.slug || null,
     type: type,
     link: item.permalink || item.link || null,
     status: item.status || 'publish',
@@ -20,7 +21,7 @@ function transformToContentItem(item: any, type: ContentItem['type'], isFrontPag
     lang: item.lang || null,
     translations: item.translations || {},
     modified: item.modified || item.date_created || null,
-    is_front_page: isFrontPage || false,
+    is_front_page: isFrontPage,
   };
 }
 
@@ -36,7 +37,7 @@ async function fetchAllOfType(api: AxiosInstance | null, type: 'pages' | 'catego
                     per_page: 100,
                     page: page,
                     context: 'view',
-                    _embed: false, // No needed for this list view
+                    _embed: false, 
                     lang: '', // Fetch all languages
                     status: 'publish,future,draft,pending,private,trash'
                 }
@@ -81,13 +82,25 @@ export async function GET(req: NextRequest) {
     } catch(e) {
         console.warn("Could not fetch 'page_on_front' option.");
     }
+    const allFrontPageIds = new Set<number>();
+    if (frontPageId > 0 && typeof (wpApi as any).pll_get_post_translations === 'function') {
+        try {
+            const translations = await (wpApi as any).pll.get_post_translations(frontPageId);
+            Object.values(translations).forEach(id => allFrontPageIds.add(id as number));
+        } catch(e) {
+            console.warn("Polylang functions may not be available for page_on_front.");
+        }
+    } else if (frontPageId > 0) {
+        allFrontPageIds.add(frontPageId);
+    }
+
 
     const [pagesData, categoriesData] = await Promise.all([
         fetchAllOfType(wpApi, 'pages'),
         fetchAllOfType(wpApi, 'categories')
     ]);
 
-    const pages = pagesData.map((item: any) => transformToContentItem(item, 'Page', item.id === frontPageId));
+    const pages = pagesData.map((item: any) => transformToContentItem(item, 'Page', allFrontPageIds.has(item.id)));
     const categories = categoriesData.map((item: any) => transformToContentItem(item, 'Categoría de Entradas', false));
     
     const allContent = [...pages, ...categories];

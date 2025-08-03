@@ -45,7 +45,7 @@ export default function PagesManagementPage() {
             const scoresData = await scoresResponse.json();
             const scoresByUrl: Record<string, number> = scoresData.scores || {};
             const scoresById: Record<number, number> = {};
-            const normalizeUrl = (url: string) => {
+            const normalizeUrl = (url: string | null) => {
                 if(!url) return null;
                 try {
                     const parsed = new URL(url);
@@ -86,7 +86,7 @@ export default function PagesManagementPage() {
   useEffect(() => {
     const handleAuth = (user: import('firebase/auth').User | null) => {
         if (user) {
-            user.getIdToken().then(token => fetchData(token));
+            user.getIdToken().then(token => fetchData(token, false));
         } else {
             setIsLoading(false);
             setError("Debes iniciar sesión para usar esta función.");
@@ -132,7 +132,7 @@ export default function PagesManagementPage() {
          data={data} 
          scores={scores}
          isLoading={isLoading} 
-         onDataChange={fetchData}
+         onDataChange={(token: string) => fetchData(token, true)}
        />
     </div>
   );
