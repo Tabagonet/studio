@@ -4,6 +4,8 @@ Plugin Name: AutoPress AI Helper
 Description: Añade endpoints a la REST API para gestionar traducciones, stock y otras funciones personalizadas para AutoPress AI.
 Version: 1.45
 Author: intelvisual@intelvisual.es
+Requires at least: 5.8
+Requires PHP: 7.4
 */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -148,11 +150,10 @@ function autopress_ai_register_rest_endpoints() {
     
     function custom_api_get_content_list($request) {
         $content_list = [];
-        $front_page_id = get_option('page_on_front');
+        $front_page_id = (int) get_option('page_on_front');
         $all_front_page_ids = ($front_page_id && function_exists('pll_get_post_translations')) ? array_values(pll_get_post_translations($front_page_id)) : ($front_page_id ? [$front_page_id] : []);
     
-        // Fetch all public post types
-        $post_types_to_query = get_post_types(['public' => true], 'names');
+        $post_types_to_query = ['page'];
         $args = [
             'post_type' => $post_types_to_query,
             'posts_per_page' => -1, // Get all items
@@ -167,18 +168,11 @@ function autopress_ai_register_rest_endpoints() {
                 $post_id = get_the_ID();
                 $post_obj = get_post($post_id);
 
-                $type_slug = get_post_type($post_id);
-                $type_obj = get_post_type_object($type_slug);
-                $type_label = $type_obj ? $type_obj->labels->singular_name : ucfirst($type_slug);
-                if ($type_slug === 'product') {
-                    $type_label = 'Producto';
-                }
-
                 $content_list[] = [
                     'id' => $post_id,
                     'title' => get_the_title(),
                     'slug' => $post_obj->post_name,
-                    'type' => $type_label,
+                    'type' => 'Page',
                     'link' => get_permalink($post_id),
                     'status' => get_post_status($post_id),
                     'parent' => $post_obj->post_parent,
@@ -191,8 +185,7 @@ function autopress_ai_register_rest_endpoints() {
         }
         wp_reset_postdata();
 
-        // Add categories
-        $taxonomies = ['category', 'product_cat'];
+        $taxonomies = ['category'];
         foreach ($taxonomies as $taxonomy) {
             $terms = get_terms(['taxonomy' => $taxonomy, 'hide_empty' => false]);
             if (!is_wp_error($terms)) {
@@ -201,13 +194,13 @@ function autopress_ai_register_rest_endpoints() {
                         'id' => $term->term_id,
                         'title' => $term->name,
                         'slug' => $term->slug,
-                        'type' => $taxonomy === 'category' ? 'Categoría de Entradas' : 'Categoría de Productos',
+                        'type' => 'Categoría de Entradas',
                         'link' => get_term_link($term),
                         'status' => 'publish',
                         'parent' => $term->parent,
                         'lang' => function_exists('pll_get_term_language') ? pll_get_term_language($term->term_id, 'slug') : null,
                         'translations' => function_exists('pll_get_term_translations') ? pll_get_term_translations($term->term_id) : [],
-                        'modified' => null, // No reliable modified date for terms
+                        'modified' => null,
                         'is_front_page' => false,
                     ];
                 }
