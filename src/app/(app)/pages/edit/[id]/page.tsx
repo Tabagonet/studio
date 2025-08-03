@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
@@ -7,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowLeft, ExternalLink, Save } from 'lucide-react';
+import { Loader2, ArrowLeft, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -149,14 +148,6 @@ function EditPageContent() {
                         <Button variant="outline" onClick={() => router.back()}>
                             <ArrowLeft className="mr-2 h-4 w-4" /> Volver
                         </Button>
-                         {post.link && (
-                             <Button asChild variant="outline">
-                                <Link href={post.link} target="_blank" rel="noopener noreferrer">
-                                    <ExternalLink className="mr-2 h-4 w-4" />
-                                    Vista Previa
-                                </Link>
-                            </Button>
-                         )}
                         <Button onClick={handleSaveChanges} disabled={isSaving}>
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             <Save className="mr-2 h-4 w-4" />
@@ -175,9 +166,11 @@ function EditPageContent() {
                             <CardTitle>Textos de Elementor</CardTitle>
                             <CardDescription>Edita los textos de los widgets de Elementor encontrados en esta página.</CardDescription>
                         </div>
-                         <Button asChild size="sm" variant="outline">
-                            <Link href={post.elementorEditLink || '#'} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-2 h-4 w-4"/>Abrir con Elementor</Link>
-                         </Button>
+                         {post.elementorEditLink && (
+                            <Button asChild size="sm" variant="outline">
+                                <Link href={post.elementorEditLink} target="_blank" rel="noopener noreferrer">Abrir con Elementor</Link>
+                             </Button>
+                         )}
                     </div>
                 </CardHeader>
                 <CardContent className="space-y-4">

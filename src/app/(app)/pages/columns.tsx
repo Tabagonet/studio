@@ -167,7 +167,7 @@ export const getColumns = (
                                 <DropdownMenuItem onSelect={() => onEdit(item)}><Edit className="mr-2 h-4 w-4" /> Editar Contenido</DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => onEditImages(item)}><ImageIcon className="mr-2 h-4 w-4" /> Editar Imágenes</DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem asChild><Link href={item.link} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-2 h-4 w-4" /> Ver en la web</Link></DropdownMenuItem>
+                                <DropdownMenuItem asChild><Link href={item.link || '#'} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-2 h-4 w-4" /> Ver en la web</Link></DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <AlertDialogTrigger asChild>
                                     <DropdownMenuItem className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Mover a la papelera</DropdownMenuItem>

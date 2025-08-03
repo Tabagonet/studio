@@ -61,7 +61,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     
     const metaToCheck = pageData.meta_data ? pageData.meta_data.reduce((obj: any, item: any) => ({...obj, [item.key]: item.value}), {}) : pageData.meta;
     const isElementor = !!metaToCheck?._elementor_data;
-    const isBeBuilder = !!metaToCheck?.mfn_builder_items;
     
     let finalContent;
     if (isElementor) {
@@ -72,60 +71,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     
     let scrapedImages: any[] = [];
     
-    if (isElementor) {
-        const elementorData = JSON.parse(pageData.meta._elementor_data || '[]');
-        const imageUrlsData = findImageUrlsInElementor(elementorData);
-        if (imageUrlsData.length > 0) {
-            scrapedImages = imageUrlsData.map(imgData => ({
-                id: imgData.url,
-                src: imgData.url,
-                alt: '', 
-                mediaId: imgData.id,
-                width: imgData.width,
-                height: imgData.height,
-            }));
-
-            const mediaIdsToFetch = imageUrlsData.map(img => img.id).filter((id): id is number => id !== null);
-            if (mediaIdsToFetch.length > 0) {
-                try {
-                    const mediaResponse = await wpApi.get('/media', {
-                        params: { include: [...new Set(mediaIdsToFetch)].join(','), per_page: 100, _fields: 'id,alt_text,source_url,media_details' }
-                    });
-                    if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
-                        const mediaDataMap = new Map<number, any>();
-                        mediaResponse.data.forEach((mediaItem: any) => {
-                            mediaDataMap.set(mediaItem.id, mediaItem);
-                        });
-                        scrapedImages.forEach(img => {
-                            if (img.mediaId && mediaDataMap.has(img.mediaId)) {
-                                const mediaItem = mediaDataMap.get(img.mediaId);
-                                img.alt = mediaItem.alt_text || '';
-                                img.width = img.width || mediaItem.media_details?.width || null;
-                                img.height = img.height || mediaItem.media_details?.height || null;
-                            }
-                        });
-                    }
-                } catch (mediaError) {
-                    console.warn(`Could not fetch media details for some Elementor images:`, mediaError);
-                }
-            }
-        }
-    } else if (isBeBuilder) {
-        const beBuilderData = JSON.parse(metaToCheck.mfn_builder_items || '[]');
-        const imageUrlsData = findBeaverBuilderImages(beBuilderData);
-         if (imageUrlsData.length > 0) {
-            scrapedImages = imageUrlsData.map(imgData => ({
-                id: imgData.url,
-                src: imgData.url,
-                alt: '',
-                mediaId: null, // BeBuilder often doesn't store media ID in its JSON structure.
-                width: null,
-                height: null,
-            }));
-        }
-    }
-    
-    // Always attempt to scrape the live page for images, as a fallback or primary method
     const pageLink = pageData.link;
     if (pageLink && wpApi) {
         try {
@@ -150,7 +95,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
                     foundImageIds.add(mediaId);
                 }
                 
-                // Store image data using src as key to avoid duplicates from scraping
                 const absoluteSrc = new URL(srcAttr, pageLink).href;
                 if (!imageMap.has(absoluteSrc)) {
                     imageMap.set(absoluteSrc, {
@@ -174,7 +118,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
                          const absoluteSrc = new URL(mediaItem.source_url, pageLink).href;
                         if (imageMap.has(absoluteSrc)) {
                             const img = imageMap.get(absoluteSrc);
-                            img.alt = mediaItem.alt_text || img.alt; // Prefer API alt text
+                            img.alt = mediaItem.alt_text || img.alt;
                             img.mediaId = mediaItem.id;
                             img.width = mediaItem.media_details?.width || null;
                             img.height = mediaItem.media_details?.height || null;
@@ -191,18 +135,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
                      });
                 }
             }
-            
-            // Merge scraped images with builder images, giving preference to builder data
-            const finalImageMap = new Map<string, any>();
-            scrapedImages.forEach(img => finalImageMap.set(img.src, img));
-            imageMap.forEach((img, src) => {
-                if (!finalImageMap.has(src)) {
-                    finalImageMap.set(src, img);
-                }
-            });
-            scrapedImages = Array.from(finalImageMap.values());
-
-
+            scrapedImages = Array.from(imageMap.values());
         } catch (scrapeError) {
             console.warn(`Could not scrape ${pageLink} for live image data:`, scrapeError);
         }
