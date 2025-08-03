@@ -56,9 +56,10 @@ export default function PagesManagementPage() {
             };
             const normalizedScoresMap = new Map<string, number>();
             for (const [url, score] of Object.entries(scoresByUrl)) {
-                normalizedScoresMap.set(normalizeUrl(url)!, score);
+                const normalized = normalizeUrl(url);
+                if (normalized) normalizedScoresMap.set(normalized, score);
             }
-            contentData.content.forEach((item: ContentItem) => {
+            rawContent.forEach((item: ContentItem) => {
                 if (item.link) {
                   const normalizedItemLink = normalizeUrl(item.link);
                   if (normalizedItemLink && normalizedScoresMap.has(normalizedItemLink)) {

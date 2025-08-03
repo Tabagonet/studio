@@ -31,7 +31,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getColumns } from "./columns"; 
 import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
-import { Loader2, ChevronDown, Trash2, Sparkles, Edit, Image as ImageIcon, Link2, Languages, X, Eye, EyeOff } from "lucide-react";
+import { Loader2, ChevronDown, Trash2, Sparkles, Edit, Image as ImageIcon, Languages, Link2, X, Eye, EyeOff } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
@@ -68,27 +68,7 @@ export function PageDataTable({
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
   const [isActionLoading, setIsActionLoading] = React.useState(false);
-  const [userRole, setUserRole] = React.useState<string | null>(null);
   const { toast } = useToast();
-
-  React.useEffect(() => {
-    const fetchUserRole = async () => {
-      const user = auth.currentUser;
-      if (user) {
-        const tokenResult = await user.getIdTokenResult();
-        const customRole = (tokenResult.claims.role as string) || 'user';
-        setUserRole(customRole);
-      }
-    };
-    
-    fetchUserRole();
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-        if (user) fetchUserRole();
-        else setUserRole(null);
-    });
-
-    return () => unsubscribe();
-  }, []);
 
   const tableData = React.useMemo((): HierarchicalContentItem[] => {
     if (!data) return [];
@@ -158,7 +138,7 @@ export function PageDataTable({
     }
   };
 
-  const columns = React.useMemo(() => getColumns(handleEditContent, handleDeleteContent, handleEditImages), []); 
+  const columns = React.useMemo(() => getColumns(handleEditContent, handleDeleteContent, handleEditImages), [scores]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const table = useReactTable({
     data: tableData,
@@ -254,7 +234,7 @@ export function PageDataTable({
         return;
     }
 
-    const languages = selectedRows.map((row) => row.original.lang);
+    const languages = selectedRows.map((row: Row<HierarchicalContentItem>) => row.original.lang);
     if (new Set(languages).size !== languages.length) {
         toast({ title: "Idiomas duplicados", description: "No puedes enlazar dos elementos del mismo idioma.", variant: "destructive" });
         setIsActionLoading(false);
@@ -262,7 +242,7 @@ export function PageDataTable({
     }
     
     const translations: Record<string, number> = {};
-    selectedRows.forEach((row) => {
+    selectedRows.forEach((row: Row<HierarchicalContentItem>) => {
         if(row.original.lang) {
             translations[row.original.lang] = row.original.id;
         }
@@ -523,42 +503,14 @@ export function PageDataTable({
         </Table>
       </div>
       
-       <div className="flex items-center justify-between space-x-2 py-4">
+       <div className="flex items-center justify-end space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
           {table.getFilteredSelectedRowModel().rows.length} de{" "}
           {table.getFilteredRowModel().rows.length} fila(s) seleccionadas.
         </div>
-        <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-                <p className="text-sm font-medium">Filas por página</p>
-                <Select
-                    value={`${table.getState().pagination.pageSize}`}
-                    onValueChange={(value) => table.setPageSize(Number(value))}
-                >
-                    <SelectTrigger className="h-8 w-[70px]">
-                        <SelectValue placeholder={table.getState().pagination.pageSize} />
-                    </SelectTrigger>
-                    <SelectContent side="top">
-                        {[10, 20, 50, 100].map((pageSize) => (
-                        <SelectItem key={pageSize} value={`${pageSize}`}>
-                            {pageSize}
-                        </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
-            <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium">
-                    Página {table.getState().pagination.pageIndex + 1} de{' '}
-                    {table.getPageCount()}
-                </span>
-                <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
-                    Anterior
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
-                    Siguiente
-                </Button>
-            </div>
+        <div className="space-x-2">
+            <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>Anterior</Button>
+            <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>Siguiente</Button>
         </div>
       </div>
     </div>

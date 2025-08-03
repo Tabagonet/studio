@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
 
     const { wpApi, wooApi } = await getApiClientsForUser(uid);
     if (!wpApi) {
-        return NextResponse.json({ content: [] });
+        return NextResponse.json({ content: [], totalPages: 0 });
     }
     
     // Use the custom plugin endpoint which is more reliable
