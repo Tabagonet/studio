@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
       throw new Error("Firestore Admin is not initialized.");
     }
 
-    const { wpApi, wooApi } = await getApiClientsForUser(uid);
+    const { wpApi } = await getApiClientsForUser(uid);
     if (!wpApi) {
         return NextResponse.json({ content: [] });
     }
@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
     let allFrontPageIds = new Set<number>();
     if (frontPageId > 0 && typeof (wpApi as any).pll_get_post_translations === 'function') {
         try {
-            const translations = await (wpApi as any).pll.get_post_translations(frontPageId);
+            const translations = await (wpApi as any).pll_get_post_translations(frontPageId);
             Object.values(translations).forEach(id => allFrontPageIds.add(id as number));
         } catch(e) {
              allFrontPageIds.add(frontPageId);
