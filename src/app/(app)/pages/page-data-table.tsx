@@ -37,7 +37,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useToast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { useDebounce } from "@/hooks/use-debounce";
 
 
 interface PageDataTableProps {
@@ -45,6 +44,9 @@ interface PageDataTableProps {
   scores: Record<number, number>;
   isLoading: boolean;
   onDataChange: (token: string, force: boolean) => void;
+  pageCount: number;
+  pagination: { pageIndex: number; pageSize: number };
+  setPagination: React.Dispatch<React.SetStateAction<{ pageIndex: number; pageSize: number }>>;
 }
 
 const LANGUAGE_MAP: { [key: string]: string } = {
@@ -61,6 +63,9 @@ export function PageDataTable({
   scores,
   isLoading,
   onDataChange,
+  pageCount,
+  pagination,
+  setPagination,
 }: PageDataTableProps) {
   const router = useRouter();
   const [sorting, setSorting] = React.useState<SortingState>([{ id: 'title', desc: false }]);
@@ -148,7 +153,11 @@ export function PageDataTable({
       expanded,
       columnFilters,
       rowSelection,
+      pagination,
     },
+    pageCount: pageCount,
+    manualPagination: true,
+    onPaginationChange: setPagination,
     onSortingChange: setSorting,
     onExpandedChange: setExpanded,
     onColumnFiltersChange: setColumnFilters,
@@ -503,14 +512,42 @@ export function PageDataTable({
         </Table>
       </div>
       
-       <div className="flex items-center justify-end space-x-2 py-4">
+       <div className="flex items-center justify-between space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
           {table.getFilteredSelectedRowModel().rows.length} de{" "}
           {table.getFilteredRowModel().rows.length} fila(s) seleccionadas.
         </div>
-        <div className="space-x-2">
-            <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>Anterior</Button>
-            <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>Siguiente</Button>
+        <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+                <p className="text-sm font-medium">Filas por página</p>
+                <Select
+                    value={`${table.getState().pagination.pageSize}`}
+                    onValueChange={(value) => { table.setPageSize(Number(value)) }}
+                >
+                    <SelectTrigger className="h-8 w-[70px]">
+                        <SelectValue placeholder={table.getState().pagination.pageSize} />
+                    </SelectTrigger>
+                    <SelectContent side="top">
+                        {[10, 20, 50, 100].map((pageSize) => (
+                        <SelectItem key={pageSize} value={`${pageSize}`}>
+                            {pageSize}
+                        </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium">
+                    Página {table.getState().pagination.pageIndex + 1} de{' '}
+                    {table.getPageCount()}
+                </span>
+                <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
+                    Anterior
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
+                    Siguiente
+                </Button>
+            </div>
         </div>
       </div>
     </div>

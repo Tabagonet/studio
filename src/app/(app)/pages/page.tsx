@@ -19,6 +19,8 @@ export default function PagesManagementPage() {
   const [scores, setScores] = useState<Record<number, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 });
+  const [pageCount, setPageCount] = useState(0);
 
   const router = useRouter();
   const { toast } = useToast();
@@ -27,22 +29,27 @@ export default function PagesManagementPage() {
     setIsLoading(true);
     setError(null);
     try {
-        const params = new URLSearchParams();
+        const params = new URLSearchParams({
+            page: (pagination.pageIndex + 1).toString(),
+            per_page: pagination.pageSize.toString(),
+        });
         if (forceRefresh) {
             params.set('cache_bust', Date.now().toString());
         }
 
-        const contentResponse = await fetch(`/api/wordpress/content-list?${params.toString()}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const [contentResponse, scoresResponse] = await Promise.all([
+            fetch(`/api/wordpress/content-list?${params.toString()}`, { headers: { 'Authorization': `Bearer ${token}` } }),
+            fetch('/api/seo/latest-scores', { headers: { 'Authorization': `Bearer ${token}` } })
+        ]);
 
         if (!contentResponse.ok) {
             const errorData = await contentResponse.json();
             throw new Error(errorData.error || 'No se pudo cargar el contenido del sitio.');
         }
         const contentData = await contentResponse.json();
-        const rawContent = contentData.content || [];
-        setData(rawContent);
+        setData(contentData.content || []);
+        setPageCount(contentData.totalPages || 0);
 
-        const scoresResponse = await fetch('/api/seo/latest-scores', { headers: { 'Authorization': `Bearer ${token}` } });
         if (scoresResponse.ok) {
             const scoresData = await scoresResponse.json();
             const scoresByUrl: Record<string, number> = scoresData.scores || {};
@@ -59,7 +66,7 @@ export default function PagesManagementPage() {
                 const normalized = normalizeUrl(url);
                 if (normalized) normalizedScoresMap.set(normalized, score);
             }
-            rawContent.forEach((item: ContentItem) => {
+            (contentData.content || []).forEach((item: ContentItem) => {
                 if (item.link) {
                   const normalizedItemLink = normalizeUrl(item.link);
                   if (normalizedItemLink && normalizedScoresMap.has(normalizedItemLink)) {
@@ -76,7 +83,7 @@ export default function PagesManagementPage() {
     } finally {
         setIsLoading(false);
     }
-  }, []);
+  }, [pagination]);
   
   const handleRefresh = () => {
     const user = auth.currentUser;
@@ -136,6 +143,9 @@ export default function PagesManagementPage() {
          scores={scores}
          isLoading={isLoading} 
          onDataChange={(token: string) => fetchData(token, true)}
+         pageCount={pageCount}
+         pagination={pagination}
+         setPagination={setPagination}
        />
     </div>
   );
