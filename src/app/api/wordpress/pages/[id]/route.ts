@@ -39,14 +39,17 @@ const pageUpdateSchema = z.object({
     })).optional(),
 });
 
-
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  try {
+async function getAuthenticatedUid(req: NextRequest): Promise<string> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) throw new Error('No auth token provided.');
     if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
-    const uid = (await adminAuth.verifyIdToken(token)).uid;
-    
+    const decodedToken = await adminAuth.verifyIdToken(token);
+    return decodedToken.uid;
+}
+
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const uid = await getAuthenticatedUid(req);
     const { wpApi } = await getApiClientsForUser(uid);
     if (!wpApi) {
         throw new Error('WordPress API is not configured for the active connection.');
@@ -167,11 +170,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const token = req.headers.get('Authorization')?.split('Bearer ')[1];
-    if (!token) throw new Error('No auth token provided.');
-    if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
-    const uid = (await adminAuth.verifyIdToken(token)).uid;
-    
+    const uid = await getAuthenticatedUid(req);
     const { wpApi } = await getApiClientsForUser(uid);
     if (!wpApi) {
         throw new Error('WordPress API is not configured for the active connection.');
@@ -252,11 +251,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const token = req.headers.get('Authorization')?.split('Bearer ')[1];
-    if (!token) throw new Error('No auth token provided.');
-    if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
-    const uid = (await adminAuth.verifyIdToken(token)).uid;
-    
+    const uid = await getAuthenticatedUid(req);
     const { wpApi } = await getApiClientsForUser(uid);
     if (!wpApi) {
         throw new Error('WordPress API is not configured for the active connection.');

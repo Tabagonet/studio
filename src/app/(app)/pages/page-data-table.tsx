@@ -30,18 +30,20 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getColumns } from "./columns"; 
 import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
-import { Loader2, ChevronDown, Trash2, Sparkles, Edit, Image as ImageIcon, Link2, Languages } from "lucide-react";
+import { Loader2, ChevronDown, Trash2, Sparkles, Edit, Image as ImageIcon, Link2, Languages, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { useDebounce } from "@/hooks/use-debounce";
+
 
 interface PageDataTableProps {
   data: ContentItem[];
   scores: Record<number, number>;
   isLoading: boolean;
-  onDataChange: (token: string) => void;
+  onDataChange: (token: string, filters: any) => void;
   pageCount: number;
   pagination: { pageIndex: number; pageSize: number };
   setPagination: React.Dispatch<React.SetStateAction<{ pageIndex: number; pageSize: number }>>;
@@ -74,6 +76,8 @@ export function PageDataTable({
   const [userRole, setUserRole] = React.useState<string | null>(null);
   const { toast } = useToast();
 
+  const debouncedColumnFilters = useDebounce(columnFilters, 300);
+
   React.useEffect(() => {
     const fetchUserRole = async () => {
       const user = auth.currentUser;
@@ -92,6 +96,16 @@ export function PageDataTable({
 
     return () => unsubscribe();
   }, []);
+
+  React.useEffect(() => {
+    const user = auth.currentUser;
+    if(user) {
+        user.getIdToken().then(token => {
+            const filters = Object.fromEntries(debouncedColumnFilters.map(f => [f.id, f.value]));
+            onDataChange(token, filters);
+        })
+    }
+  }, [debouncedColumnFilters, pagination, onDataChange]);
 
   const tableData = React.useMemo((): HierarchicalContentItem[] => {
     if (!data) return [];
@@ -135,7 +149,7 @@ export function PageDataTable({
   }, [data, scores]);
 
   const handleEditContent = (item: ContentItem) => {
-    router.push(`/pages/edit/${item.id}?type=${item.type}`);
+    router.push(`/pages/edit/${item.id}`);
   };
   
   const handleEditImages = (item: ContentItem) => {
@@ -155,7 +169,7 @@ export function PageDataTable({
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || result.message);
       toast({ title: "Movido a la papelera", description: "El contenido ha sido enviado a la papelera de WordPress." });
-      onDataChange(token);
+      onDataChange(token, Object.fromEntries(columnFilters.map(f => [f.id, f.value])));
     } catch (e: any) {
       toast({ title: "Error al mover a papelera", description: e.message, variant: "destructive" });
     }
@@ -175,6 +189,7 @@ export function PageDataTable({
     },
     pageCount: pageCount,
     manualPagination: true,
+    manualFiltering: true,
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
     onExpandedChange: setExpanded,
@@ -210,7 +225,7 @@ export function PageDataTable({
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || result.message);
         toast({ title: "Contenido movido a la papelera", description: result.message });
-        onDataChange(token);
+        onDataChange(token, Object.fromEntries(columnFilters.map(f => [f.id, f.value])));
         table.resetRowSelection();
     } catch (e: any) {
         toast({ title: "Error al eliminar", description: e.message, variant: "destructive" });
@@ -265,7 +280,7 @@ export function PageDataTable({
 
         toast({ title: "¡Traducciones enlazadas!", description: result.message });
         table.resetRowSelection();
-        onDataChange(token);
+        onDataChange(token, Object.fromEntries(columnFilters.map(f => [f.id, f.value])));
     } catch (error: any) {
          toast({ title: "Error al enlazar", description: error.message, variant: "destructive" });
     } finally {
@@ -313,19 +328,12 @@ export function PageDataTable({
   
   const handleBatchEditImages = () => {
     const selectedIds = table.getSelectedRowModel().rows.map(row => row.original.id);
-    const postType = table.getSelectedRowModel().rows[0]?.original.type || 'Page';
-    router.push(`/pages/edit-images?ids=${selectedIds.join(',')}&type=${postType}`);
+    router.push(`/pages/edit-images?ids=${selectedIds.join(',')}&type=Page`);
   };
 
   const handleRowClick = (row: any) => {
     if (userRole === 'super_admin') {
-      router.push(`/seo-optimizer?id=${row.original.id}&type=${row.original.type}`);
-    } else {
-      toast({
-        title: "Permiso Denegado",
-        description: "No tienes permisos para acceder al optimizador SEO. Contacta con un administrador.",
-        variant: "destructive"
-      });
+      router.push(`/seo-optimizer/edit/${row.original.id}?type=${row.original.type}`);
     }
   };
   
@@ -336,17 +344,31 @@ export function PageDataTable({
     });
     return Array.from(langSet).map(code => ({ code, name: LANGUAGE_MAP[code as keyof typeof LANGUAGE_MAP] || code.toUpperCase() }));
   }, [data]);
+  
+  const titleFilterValue = (table.getColumn('title')?.getFilterValue() as string) ?? '';
 
   return (
     <div className="w-full space-y-4">
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 py-4">
         <div className="flex flex-wrap gap-2 w-full md:w-auto">
-            <Input
-              placeholder="Filtrar por título..."
-              value={(table.getColumn('title')?.getFilterValue() as string) ?? ''}
-              onChange={(event) => table.getColumn('title')?.setFilterValue(event.target.value)}
-              className="max-w-sm"
-            />
+            <div className="relative max-w-sm w-full sm:w-auto">
+              <Input
+                placeholder="Filtrar por título..."
+                value={titleFilterValue}
+                onChange={(event) => table.getColumn('title')?.setFilterValue(event.target.value)}
+                className="pr-8"
+              />
+              {titleFilterValue && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground"
+                  onClick={() => table.getColumn('title')?.setFilterValue('')}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
             <Select
                 value={(table.getColumn('type')?.getFilterValue() as string) ?? 'all'}
                 onValueChange={(value) => table.getColumn('type')?.setFilterValue(value === 'all' ? undefined : value)}
@@ -386,7 +408,7 @@ export function PageDataTable({
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="all">Todos los Idiomas</SelectItem>
-                    {availableLanguages.map(lang => (
+                     {availableLanguages.map(lang => (
                         <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>
                     ))}
                 </SelectContent>
@@ -478,7 +500,7 @@ export function PageDataTable({
                 </TableRow>
               ))
             ) : (
-              <TableRow><TableCell colSpan={columns.length} className="h-24 text-center">No se encontraron resultados.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={columns.length} className="h-24 text-center">No se encontraron resultados para los filtros seleccionados.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>

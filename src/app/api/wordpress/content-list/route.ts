@@ -27,87 +27,39 @@ function transformToContentItem(item: any, type: ContentItem['type'], isFrontPag
 }
 
 // Helper to fetch all items of a specific type, handling pagination
-async function fetchAllOfType(api: AxiosInstance | null, endpoint: string, typeLabel: ContentItem['type'], frontPageId: number): Promise<ContentItem[]> {
-    if (!api) return [];
+async function fetchAllOfType(api: AxiosInstance, endpoint: string, typeLabel: ContentItem['type'], frontPageId: number, requestParams: URLSearchParams): Promise<{items: ContentItem[], totalPages: number}> {
+    if (!api) return { items: [], totalPages: 0 };
+
+    const params: any = {
+        per_page: requestParams.get('per_page') || 10,
+        page: requestParams.get('page') || 1,
+        context: 'view',
+        _embed: 'wp:featuredmedia', 
+        lang: '', // Fetch all languages
+    };
     
-    let allItems: any[] = [];
-    let page = 1;
-    const perPage = 100;
-    
-    while (true) {
-        try {
-            const response = await api.get(endpoint, {
-                params: {
-                    per_page: perPage,
-                    page: page,
-                    context: 'view',
-                    _embed: 'wp:featuredmedia', 
-                    lang: '', // Fetch all languages
-                    status: 'any', 
-                },
-            });
+    // Apply filters from the request
+    const search = requestParams.get('search');
+    const status = requestParams.get('status');
+    const lang = requestParams.get('lang');
+    if (search) params.search = search;
+    if (status && status !== 'all') params.status = status;
+    if (lang && lang !== 'all') params.lang = lang;
 
-            if (response.data.length === 0) break; 
-            
-            allItems = allItems.concat(response.data);
-            
-            const totalPagesHeader = response.headers['x-wp-totalpages'];
-            const totalPages = totalPagesHeader ? parseInt(totalPagesHeader, 10) : 0;
 
-            if (!totalPages || page >= totalPages) break;
-            page++;
-        } catch (error) {
-            console.error(`Error fetching from ${endpoint}, page ${page}:`, error);
-            break;
-        }
-    }
-
-    return allItems.map(item => transformToContentItem(item, typeLabel, item.id === frontPageId));
-}
-
-// Fetch all categories (for posts or products)
-async function fetchAllCategories(api: AxiosInstance | null, endpoint: string, typeLabel: 'Categoría de Entradas' | 'Categoría de Productos', wpApi: AxiosInstance): Promise<ContentItem[]> {
-    if (!api) return [];
     try {
-        const response = await api.get(endpoint, { params: { per_page: 100, context: 'view', lang: '' } });
+        const response = await api.get(endpoint, { params });
+        const totalPagesHeader = response.headers['x-wp-totalpages'];
+        const totalPages = totalPagesHeader ? parseInt(totalPagesHeader, 10) : 0;
         
-        const terms = response.data.filter((cat: any) => cat.count > 0);
-        if (terms.length === 0) return [];
-        
-        // Find the most recent post for each category to get a relevant modified date
-        const latestPostPromises = terms.map((term: any) => 
-            wpApi.get('posts', { 
-                params: { 
-                    [endpoint === 'categories' ? 'categories' : 'product_cat']: term.id,
-                    per_page: 1, 
-                    orderby: 'modified', 
-                    order: 'desc',
-                    _fields: 'modified'
-                }
-            }).then(res => res.data[0]?.modified || null).catch(() => null)
-        );
-        
-        const latestPostDates = await Promise.all(latestPostPromises);
+        const items = response.data.map((item: any) => transformToContentItem(item, typeLabel, item.id === frontPageId));
 
-        return terms.map((cat: any, index: number) => ({
-            id: cat.id,
-            title: cat.name,
-            slug: cat.slug || '',
-            type: typeLabel,
-            link: cat.link || null,
-            status: 'publish',
-            parent: cat.parent || 0,
-            lang: cat.lang || null,
-            translations: cat.translations || {},
-            modified: latestPostDates[index], // Use the fetched date
-            is_front_page: false,
-        }));
+        return { items, totalPages };
     } catch (error) {
-        console.error(`Error fetching categories from ${endpoint}:`, error);
-        return [];
+        console.error(`Error fetching from ${endpoint}:`, error);
+        return { items: [], totalPages: 0 };
     }
 }
-
 
 export async function GET(req: NextRequest) {
   let uid: string;
@@ -126,71 +78,48 @@ export async function GET(req: NextRequest) {
     }
 
     const { wpApi, wooApi } = await getApiClientsForUser(uid);
+    if (!wpApi) {
+        throw new Error('WordPress API is not configured.');
+    }
     
     const { searchParams } = new URL(req.url);
-    const forceRefresh = searchParams.get('refresh') === 'true';
-    const cacheRef = adminDb.collection('content_cache').doc(uid);
 
-    // Try to get from cache first
-    if (!forceRefresh) {
-        const cacheDoc = await cacheRef.get();
-        if (cacheDoc.exists) {
-            const cacheData = cacheDoc.data();
-            const lastUpdated = cacheData?.timestamp?.toDate();
-            // Cache is valid for 10 minutes
-            if (lastUpdated && (new Date().getTime() - lastUpdated.getTime()) < 10 * 60 * 1000) {
-                const paginatedContent = cacheData?.data.content.slice((parseInt(searchParams.get('page') || '1', 10) - 1) * parseInt(searchParams.get('per_page') || '20', 10), parseInt(searchParams.get('page') || '1', 10) * parseInt(searchParams.get('per_page') || '20', 10));
-                return NextResponse.json({
-                    ...cacheData?.data,
-                    content: paginatedContent,
-                    totalPages: Math.ceil(cacheData?.data.content.length / parseInt(searchParams.get('per_page') || '20', 10))
-                });
-            }
-        }
-    }
-
-    // --- If no valid cache, fetch from source ---
     let frontPageId = 0;
-    if (wpApi) {
+    try {
+        const optionsResponse = await wpApi.get('/options');
+        frontPageId = optionsResponse.data.page_on_front || 0;
+    } catch(e) {
+        console.warn("Could not fetch 'page_on_front' option.");
+    }
+
+    const {items: pages, totalPages: pagesTotalPages} = await fetchAllOfType(wpApi, 'pages', 'Page', frontPageId, searchParams);
+    
+    const categoryId = searchParams.get('category');
+    let categories: ContentItem[] = [];
+    
+    // Only fetch categories if the category filter is set or no search query is active
+    if (!searchParams.get('search')) {
         try {
-            const optionsResponse = await wpApi.get('/options');
-            frontPageId = optionsResponse.data.page_on_front || 0;
-        } catch(e) {
-            console.warn("Could not fetch 'page_on_front' option. Front page icon may not display.");
+            const categoriesResponse = await wpApi.get("categories", { params: { per_page: 100 } });
+            categories = categoriesResponse.data.map((cat: any) => transformToContentItem(cat, 'Categoría de Entradas', false));
+        } catch (e) {
+            console.error("Failed to fetch categories", e);
         }
     }
     
-    const [pages, postCategories] = await Promise.all([
-        fetchAllOfType(wpApi, 'pages', 'Page', frontPageId),
-        fetchAllCategories(wpApi, 'categories', 'Categoría de Entradas', wpApi!),
-    ]);
+    let allContent = [...pages, ...categories];
     
-    let allContent = [...pages, ...postCategories];
-    
-    // Server-side Pagination
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const perPage = parseInt(searchParams.get('per_page') || '20', 10);
-    const totalItems = allContent.length;
-    const totalPages = Math.ceil(totalItems / perPage);
-    const paginatedContent = allContent.slice((page - 1) * perPage, page * perPage);
+    // Apply category filter in memory if necessary
+    if (categoryId && categoryId !== 'all') {
+        const categoryPostsResponse = await wpApi.get('posts', { params: { categories: [categoryId], per_page: 100, _fields: 'id' } });
+        const postIdsInCategory = new Set(categoryPostsResponse.data.map((p: any) => p.id));
+        allContent = allContent.filter(item => postIdsInCategory.has(item.id));
+    }
 
-    const responsePayload = { 
-        content: paginatedContent,
-        total: totalItems,
-        totalPages: totalPages,
-    };
-    
-    // Save the full, unpaginated data to cache
-    await cacheRef.set({
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      data: {
-        content: allContent, // Cache all content
-        total: totalItems,
-        totalPages: Math.ceil(totalItems / 20) // Assuming default page size for cache consistency
-      }
+    return NextResponse.json({ 
+        content: allContent,
+        totalPages: pagesTotalPages, // For now, pagination is mainly driven by pages
     });
-
-    return NextResponse.json(responsePayload);
 
   } catch (error: any) {
     console.error(`[API /content-list] Critical error:`, error.response?.data || error.message);

@@ -25,22 +25,17 @@ export default function PagesManagementPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const fetchData = useCallback(async (token: string, forceRefresh: boolean = false) => {
+  const fetchData = useCallback(async (token: string, filters: any = {}) => {
     setIsLoading(true);
     setError(null);
     try {
         const params = new URLSearchParams({
             page: (pagination.pageIndex + 1).toString(),
             per_page: pagination.pageSize.toString(),
+            ...filters
         });
-        if (forceRefresh) {
-            params.append('refresh', 'true');
-        }
         
-        const [contentResponse, scoresResponse] = await Promise.all([
-            fetch(`/api/wordpress/content-list?${params.toString()}`, { headers: { 'Authorization': `Bearer ${token}` } }),
-            fetch('/api/seo/latest-scores', { headers: { 'Authorization': `Bearer ${token}` } })
-        ]);
+        const contentResponse = await fetch(`/api/wordpress/content-list?${params.toString()}`, { headers: { 'Authorization': `Bearer ${token}` } });
 
         if (!contentResponse.ok) {
             const errorData = await contentResponse.json();
@@ -49,31 +44,6 @@ export default function PagesManagementPage() {
         const contentData = await contentResponse.json();
         setData(contentData.content);
         setPageCount(contentData.totalPages);
-
-        if (scoresResponse.ok) {
-            const scoresData = await scoresResponse.json();
-            const scoresByUrl: Record<string, number> = scoresData.scores || {};
-            const scoresById: Record<number, number> = {};
-            const normalizeUrl = (url: string | null) => {
-                if (!url) return null;
-                try {
-                    const parsed = new URL(url);
-                    return `${parsed.protocol}//${parsed.hostname}${parsed.pathname.replace(/\/$/, '')}`;
-                } catch { return url; }
-            };
-            const normalizedScoresMap = new Map<string, number>();
-            for (const [url, score] of Object.entries(scoresByUrl)) {
-                const normalized = normalizeUrl(url);
-                if (normalized) normalizedScoresMap.set(normalized, score);
-            }
-            contentData.content.forEach((item: ContentItem) => {
-                const normalizedItemLink = normalizeUrl(item.link);
-                if (normalizedItemLink && normalizedScoresMap.has(normalizedItemLink)) {
-                    scoresById[item.id] = normalizedScoresMap.get(normalizedItemLink)!;
-                }
-            });
-            setScores(scoresById);
-        }
 
     } catch (err: any) {
         setError(err.message);
@@ -87,21 +57,21 @@ export default function PagesManagementPage() {
     const user = auth.currentUser;
     if (user) {
         toast({ title: "Actualizando...", description: "Sincronizando el contenido con tu sitio de WordPress." });
-        user.getIdToken().then(token => fetchData(token, true));
+        user.getIdToken().then(token => fetchData(token, { refresh: 'true' }));
     }
   };
 
   useEffect(() => {
     const handleAuth = (user: import('firebase/auth').User | null) => {
         if (user) {
-            user.getIdToken().then(fetchData);
+            user.getIdToken().then(token => fetchData(token));
         } else {
             setIsLoading(false);
             setError("Debes iniciar sesión para usar esta función.");
         }
     };
     const unsubscribe = onAuthStateChanged(auth, handleAuth);
-    const handleConnectionsUpdate = () => { if (auth.currentUser) auth.currentUser.getIdToken().then(token => fetchData(token, true)); };
+    const handleConnectionsUpdate = () => { if (auth.currentUser) auth.currentUser.getIdToken().then(token => fetchData(token, { refresh: 'true' })); };
     window.addEventListener('connections-updated', handleConnectionsUpdate);
     return () => {
         unsubscribe();

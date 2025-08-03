@@ -151,8 +151,13 @@ function autopress_ai_register_rest_endpoints() {
     function custom_api_get_content_list($request) {
         $content_list = [];
         $front_page_id = (int) get_option('page_on_front');
-        $all_front_page_ids = ($front_page_id && function_exists('pll_get_post_translations')) ? array_values(pll_get_post_translations($front_page_id)) : ($front_page_id ? [$front_page_id] : []);
-    
+        $all_front_page_ids = [];
+        if ($front_page_id > 0 && function_exists('pll_get_post_translations')) {
+            $all_front_page_ids = array_values(pll_get_post_translations($front_page_id));
+        } elseif ($front_page_id > 0) {
+            $all_front_page_ids = [$front_page_id];
+        }
+
         $post_types_to_query = ['page'];
         $args = [
             'post_type' => $post_types_to_query,
