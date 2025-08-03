@@ -68,10 +68,7 @@ export const getColumns = (
         ),
         cell: ({ row, getValue }) => {
             const isFrontPage = row.original.is_front_page;
-            // LOGGING POINT
-            if (isFrontPage) {
-                console.log(`[columns.tsx] Rendering row for "${getValue()}", is_front_page is TRUE.`);
-            }
+            
             return (
                 <div style={{ paddingLeft: `${row.depth * 1.5}rem` }} className="flex items-center gap-2">
                     {row.getCanExpand() && (

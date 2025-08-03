@@ -151,7 +151,6 @@ function autopress_ai_register_rest_endpoints() {
     function custom_api_get_content_list($request) {
         $content_list = [];
         $front_page_id = (int) get_option('page_on_front');
-        error_log('[AutoPress AI] Front page ID from get_option: ' . $front_page_id);
 
         $all_front_page_ids = [];
         if ($front_page_id > 0 && function_exists('pll_get_post_translations')) {
@@ -159,7 +158,6 @@ function autopress_ai_register_rest_endpoints() {
         } elseif ($front_page_id > 0) {
             $all_front_page_ids = [$front_page_id];
         }
-        error_log('[AutoPress AI] All front page IDs (including translations): ' . print_r($all_front_page_ids, true));
 
         $post_types_to_query = get_post_types(['public' => true], 'names');
 
@@ -179,9 +177,6 @@ function autopress_ai_register_rest_endpoints() {
                     $post_obj = get_post($post_id);
 
                     $is_front = in_array($post_id, $all_front_page_ids, true);
-                    if ($is_front) {
-                         error_log('[AutoPress AI] Found front page! ID: ' . $post_id . ' Title: ' . get_the_title());
-                    }
 
                     $content_list[] = [
                         'id' => $post_id,

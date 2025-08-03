@@ -83,7 +83,6 @@ export async function GET(req: NextRequest) {
         if (siteUrl) {
             const customStatusResponse = await wpApi.get(`${siteUrl}/wp-json/custom/v1/status`);
             frontPageId = customStatusResponse.data?.front_page_id || 0;
-            console.log(`[content-list API] Front page ID from plugin: ${frontPageId}`);
         }
     } catch(e) {
         console.warn("Could not fetch 'page_on_front' option from custom endpoint:", e);
@@ -101,34 +100,23 @@ export async function GET(req: NextRequest) {
     } else if (frontPageId > 0) {
         allFrontPageIds.add(frontPageId);
     }
-    console.log('[content-list API] Final front page IDs:', Array.from(allFrontPageIds));
 
     // Fetch all content types
-    const [pagesData, postsData, categoriesData] = await Promise.all([
+    const [pagesData, categoriesData] = await Promise.all([
         fetchAllOfType(wpApi, 'pages'),
-        fetchAllOfType(wpApi, 'posts'),
         fetchAllOfType(wpApi, 'categories')
     ]);
 
     const pages = pagesData.map((item: any) => transformToContentItem(item, 'Page', allFrontPageIds.has(item.id)));
-    const posts = postsData.map((item: any) => transformToContentItem(item, 'Post', allFrontPageIds.has(item.id)));
     const categories = categoriesData.map((item: any) => transformToContentItem(item, 'Categoría de Entradas', false));
     
-    const allContent = [...pages, ...posts, ...categories];
+    const allContent = [...pages, ...categories];
     
-    const frontPage = allContent.find(item => item.is_front_page);
-    if (frontPage) {
-        console.log(`[content-list API] Front page FOUND in processed data. ID: ${frontPage.id}, Title: ${frontPage.title}`);
-    } else {
-        console.log(`[content-list API] Front page NOT FOUND in final processed data.`);
-    }
-
     return NextResponse.json({ 
         content: allContent,
     });
 
   } catch (error: any) {
-    console.error(`[API /content-list] Critical error:`, error.response?.data || error.message);
     const errorMessage = error.response?.data?.message || 'Failed to fetch content list.';
     const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     return NextResponse.json({ error: errorMessage }, { status });

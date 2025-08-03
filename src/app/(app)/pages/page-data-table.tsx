@@ -98,14 +98,6 @@ export function PageDataTable({
     const itemsById = new Map<number, HierarchicalContentItem>(enrichedData.map((p) => [p.id, { ...p, subRows: [] }]));
     const roots: HierarchicalContentItem[] = [];
     const processedIds = new Set<number>();
-    
-    // LOGGING POINT
-    const frontPageItem = enrichedData.find(item => item.is_front_page);
-    if(frontPageItem) {
-        console.log(`[page-data-table.tsx] Front page found in tableData processing! ID: ${frontPageItem.id}, Title: ${frontPageItem.title}`);
-    } else {
-        console.log(`[page-data-table.tsx] No front page found in received data.`);
-    }
 
     enrichedData.forEach((item) => {
         if (processedIds.has(item.id)) return;

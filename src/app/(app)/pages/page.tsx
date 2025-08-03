@@ -42,14 +42,6 @@ export default function PagesManagementPage() {
         const rawContent = contentData.content || [];
         setData(rawContent);
 
-        // LOGGING POINT
-        const frontPage = rawContent.find((item: ContentItem) => item.is_front_page);
-        if (frontPage) {
-            console.log(`[page.tsx] Front page received from API! ID: ${frontPage.id}, Title: ${frontPage.title}`);
-        } else {
-            console.log(`[page.tsx] No front page flag received from API.`);
-        }
-
         const scoresResponse = await fetch('/api/seo/latest-scores', { headers: { 'Authorization': `Bearer ${token}` } });
         if (scoresResponse.ok) {
             const scoresData = await scoresResponse.json();
