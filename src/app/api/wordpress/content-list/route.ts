@@ -3,6 +3,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
+import type { ContentItem } from '@/lib/types';
+
 
 export const dynamic = 'force-dynamic';
 
@@ -25,29 +27,46 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
     const perPage = parseInt(searchParams.get('per_page') || '10', 10);
-    const menuId = searchParams.get('menu_id') ? absint(searchParams.get('menu_id')!) : 0;
+    const typeFilter = searchParams.get('type');
+    const statusFilter = searchParams.get('status');
+    const langFilter = searchParams.get('lang');
+    const searchQuery = searchParams.get('q');
+
 
     const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
     if (!siteUrl) {
       throw new Error("Could not determine base site URL from WordPress API configuration.");
     }
     const customEndpointUrl = new URL(`${siteUrl}/wp-json/custom/v1/content-list`);
-    customEndpointUrl.searchParams.set('page', page.toString());
-    customEndpointUrl.searchParams.set('per_page', perPage.toString());
-
-    if (menuId > 0) {
-      customEndpointUrl.searchParams.set('menu_id', menuId.toString());
-    }
-
+    
+    // Fetch all content from the custom endpoint
     const response = await wpApi.get(customEndpointUrl.toString());
+    let allContent: ContentItem[] = response.data.content || [];
 
-    const total = response.headers['x-wp-total'];
-    const totalPages = response.headers['x-wp-totalpages'];
+    // --- Server-side Filtering ---
+    if (searchQuery) {
+        allContent = allContent.filter(item => item.title.toLowerCase().includes(searchQuery.toLowerCase()));
+    }
+    if (typeFilter && typeFilter !== 'all') {
+        allContent = allContent.filter(item => item.type === typeFilter);
+    }
+    if (statusFilter && statusFilter !== 'all') {
+        allContent = allContent.filter(item => item.status === statusFilter);
+    }
+     if (langFilter && langFilter !== 'all') {
+        allContent = allContent.filter(item => item.lang === langFilter);
+    }
+    
+    // --- Server-side Pagination ---
+    const totalItems = allContent.length;
+    const totalPages = Math.ceil(totalItems / perPage);
+    const offset = (page - 1) * perPage;
+    const paginatedContent = allContent.slice(offset, offset + perPage);
 
     return NextResponse.json({ 
-        content: response.data.content || [],
-        total: total ? parseInt(total, 10) : 0,
-        totalPages: totalPages ? parseInt(totalPages, 10) : 1,
+        content: paginatedContent,
+        total: totalItems,
+        totalPages: totalPages,
     });
 
   } catch (error: any) {

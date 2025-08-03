@@ -151,107 +151,47 @@ function autopress_ai_register_rest_endpoints() {
         $front_page_id = get_option('page_on_front');
         $all_front_page_ids = ($front_page_id && function_exists('pll_get_post_translations')) ? array_values(pll_get_post_translations($front_page_id)) : ($front_page_id ? [$front_page_id] : []);
     
-        // 1. Get all public post types and taxonomies
         $post_types_to_query = get_post_types(['public' => true], 'names');
-        $taxonomies_to_query = get_taxonomies(['public' => true, 'object_type' => $post_types_to_query]);
-    
-        // 2. Query all terms from relevant taxonomies
-        $terms = get_terms(['taxonomy' => $taxonomies_to_query, 'hide_empty' => false]);
-        if (!is_wp_error($terms)) {
-            foreach ($terms as $term) {
-                 // Get the last modified post in the category
-                $latest_post_args = [
-                    'posts_per_page' => 1,
-                    'tax_query' => [['taxonomy' => $term->taxonomy, 'field' => 'term_id', 'terms' => $term->term_id]],
-                    'orderby' => 'modified',
-                    'order' => 'DESC',
-                    'fields' => 'ids',
-                    'post_status' => 'any'
-                ];
-                $latest_posts = get_posts($latest_post_args);
-                $modified_date = !empty($latest_posts) ? get_post_modified_time('c', true, $latest_posts[0]) : $term->last_update_date ?? null;
-                
-                $term_type = 'Categoría';
-                if ($term->taxonomy === 'product_cat') {
-                    $term_type = 'Categoría de Productos';
-                } elseif ($term->taxonomy === 'category') {
-                     $term_type = 'Categoría de Entradas';
-                }
-
-                $content_list[] = [
-                    'id' => $term->term_id, 'title' => $term->name,
-                    'type' => $term_type,
-                    'link' => get_term_link($term), 'status' => 'publish', 'parent' => $term->parent,
-                    'lang' => function_exists('pll_get_term_language') ? pll_get_term_language($term->term_id, 'slug') : null,
-                    'translations' => function_exists('pll_get_term_translations') ? pll_get_term_translations($term->term_id) : [],
-                    'modified' => $modified_date,
-                    'is_front_page' => false,
-                ];
-            }
-        }
-    
-        // 3. Query all posts from relevant post types
+        
         $args = [
-            'post_type' => $post_types_to_query, 'posts_per_page' => -1,
-            'post_status' => ['publish', 'draft', 'pending', 'private', 'future', 'trash'], 'fields' => 'ids', 'lang' => '',
+            'post_type' => $post_types_to_query,
+            'posts_per_page' => -1,
+            'post_status' => ['publish', 'draft', 'pending', 'private', 'future', 'trash'],
+            'fields' => 'ids',
+            'lang' => '', // Fetch all languages
         ];
-    
-        $menu_id = $request->get_param('menu_id') ? absint($request->get_param('menu_id')) : 0;
-        if ($menu_id > 0) {
-            $menu_items = wp_get_nav_menu_items($menu_id);
-            if (!empty($menu_items)) {
-                $object_ids = wp_list_pluck($menu_items, 'object_id');
-                $args['post__in'] = array_map('absint', $object_ids);
-            } else {
-                $args['post__in'] = [0]; // Force no results if menu is empty
-            }
-        }
-    
+
         $query = new WP_Query($args);
         $post_ids = $query->posts;
-    
+
         if (!empty($post_ids)) {
             foreach ($post_ids as $post_id) {
-                $post_obj = get_post($post_id); if (!$post_obj) continue;
+                $post_obj = get_post($post_id);
+                if (!$post_obj) continue;
+
                 $type_slug = get_post_type($post_obj->ID);
                 $type_obj = get_post_type_object($type_slug);
                 $type_label = $type_obj ? $type_obj->labels->singular_name : ucfirst($type_slug);
-                if ($type_slug === 'product') $type_label = 'Producto';
-                
-                $is_front = in_array($post_obj->ID, $all_front_page_ids);
+                if ($type_slug === 'product') {
+                    $type_label = 'Producto';
+                }
+
                 $content_list[] = [
-                    'id' => $post_obj->ID, 'title' => $post_obj->post_title, 'type' => $type_label, 'link' => get_permalink($post_obj->ID),
-                    'status' => $post_obj->post_status, 'parent' => $post_obj->post_parent,
+                    'id' => $post_obj->ID,
+                    'title' => $post_obj->post_title,
+                    'type' => $type_label,
+                    'link' => get_permalink($post_obj->ID),
+                    'status' => $post_obj->post_status,
+                    'parent' => $post_obj->post_parent,
                     'lang' => function_exists('pll_get_post_language') ? pll_get_post_language($post_obj->ID, 'slug') : null,
                     'translations' => function_exists('pll_get_post_translations') ? pll_get_post_translations($post_obj->ID) : [],
                     'modified' => $post_obj->post_modified_gmt,
-                    'is_front_page' => $is_front,
+                    'is_front_page' => in_array($post_obj->ID, $all_front_page_ids),
                 ];
             }
         }
         
-        // Remove duplicates (e.g., a post is also a category, which shouldn't happen but good to be safe)
-        $content_list = array_values(array_reduce($content_list, function($carry, $item) {
-            $key = $item['type'] . '-' . $item['id'];
-            if (!isset($carry[$key])) {
-                $carry[$key] = $item;
-            }
-            return $carry;
-        }, []));
-
-        // 4. Paginate the combined list
-        $total_items = count($content_list);
-        $per_page = $request->get_param('per_page') ? absint($request->get_param('per_page')) : 100;
-        $page = $request->get_param('page') ? absint($request->get_param('page')) : 1;
-        $total_pages = ceil($total_items / $per_page);
-        $offset = ($page - 1) * $per_page;
-        $paginated_content = array_slice($content_list, $offset, $per_page);
-
-        $response = new WP_REST_Response(['content' => $paginated_content], 200);
-        $response->header('X-WP-Total', $total_items);
-        $response->header('X-WP-TotalPages', $total_pages);
-    
-        return $response;
+        return new WP_REST_Response(['content' => $content_list], 200);
     }
 
     function custom_api_regenerate_elementor_css( $request ) { $post_id = $request->get_param('id'); $id = absint($post_id); if ( !$id || !class_exists( 'Elementor\\Plugin' ) ) { return new WP_Error( 'invalid_request', 'ID de post inválido o Elementor no está activo.', ['status' => 400] ); } try { \Elementor\Plugin::$instance->files_manager->clear_cache(); return new WP_REST_Response( ['success' => true, 'message' => "Caché de CSS de Elementor limpiada para el post {$id}."], 200 ); } catch ( Exception $e ) { return new WP_Error( 'regeneration_failed', 'Fallo al regenerar el CSS: ' . $e->getMessage(), ['status' => 500] ); } }
