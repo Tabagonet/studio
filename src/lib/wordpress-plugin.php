@@ -161,9 +161,9 @@ function autopress_ai_register_rest_endpoints() {
         $post_types_to_query = ['page'];
         $args = [
             'post_type' => $post_types_to_query,
-            'posts_per_page' => -1, // Get all items
+            'posts_per_page' => -1,
             'post_status' => ['publish', 'draft', 'pending', 'private', 'future', 'trash'],
-            'lang' => '', // Fetch all languages
+            'lang' => '',
         ];
         $query = new WP_Query($args);
 

@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -19,22 +18,15 @@ export default function PagesManagementPage() {
   const [scores, setScores] = useState<Record<number, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 });
-  const [pageCount, setPageCount] = useState(0);
 
   const router = useRouter();
   const { toast } = useToast();
 
-  const fetchData = useCallback(async (token: string, filters: any = {}, forceRefresh = false) => {
+  const fetchData = useCallback(async (token: string, forceRefresh = false) => {
     setIsLoading(true);
     setError(null);
     try {
-        const params = new URLSearchParams({
-            page: (pagination.pageIndex + 1).toString(),
-            per_page: pagination.pageSize.toString(),
-            ...filters
-        });
-        
+        const params = new URLSearchParams();
         if (forceRefresh) {
             params.set('cache_bust', Date.now().toString());
         }
@@ -47,7 +39,6 @@ export default function PagesManagementPage() {
         }
         const contentData = await contentResponse.json();
         setData(contentData.content);
-        setPageCount(contentData.totalPages);
 
         const scoresResponse = await fetch('/api/seo/latest-scores', { headers: { 'Authorization': `Bearer ${token}` } });
         if (scoresResponse.ok) {
@@ -55,8 +46,8 @@ export default function PagesManagementPage() {
             const scoresByUrl: Record<string, number> = scoresData.scores || {};
             const scoresById: Record<number, number> = {};
             const normalizeUrl = (url: string) => {
+                if(!url) return null;
                 try {
-                    if(!url) return null;
                     const parsed = new URL(url);
                     return `${parsed.protocol}//${parsed.hostname}${parsed.pathname.replace(/\/$/, '')}`;
                 } catch { return url; }
@@ -82,13 +73,13 @@ export default function PagesManagementPage() {
     } finally {
         setIsLoading(false);
     }
-  }, [pagination]);
+  }, []);
   
   const handleRefresh = () => {
     const user = auth.currentUser;
     if (user) {
         toast({ title: "Actualizando...", description: "Sincronizando el contenido con tu sitio de WordPress." });
-        user.getIdToken().then(token => fetchData(token, {}, true));
+        user.getIdToken().then(token => fetchData(token, true));
     }
   };
 
@@ -102,7 +93,7 @@ export default function PagesManagementPage() {
         }
     };
     const unsubscribe = onAuthStateChanged(auth, handleAuth);
-    const handleConnectionsUpdate = () => { if (auth.currentUser) auth.currentUser.getIdToken().then(token => fetchData(token, {}, true)); };
+    const handleConnectionsUpdate = () => { if (auth.currentUser) auth.currentUser.getIdToken().then(token => fetchData(token, true)); };
     window.addEventListener('connections-updated', handleConnectionsUpdate);
     return () => {
         unsubscribe();
@@ -136,16 +127,13 @@ export default function PagesManagementPage() {
             </AlertDescription>
           </Alert>
       )}
-
-      <PageDataTable 
-        data={data} 
-        scores={scores}
-        isLoading={isLoading} 
-        onDataChange={fetchData}
-        pageCount={pageCount}
-        pagination={pagination}
-        setPagination={setPagination}
-      />
+      
+       <PageDataTable 
+         data={data} 
+         scores={scores}
+         isLoading={isLoading} 
+         onDataChange={fetchData}
+       />
     </div>
   );
 }

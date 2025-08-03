@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -30,7 +29,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getColumns } from "./columns"; 
 import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
-import { Loader2, ChevronDown, Trash2, Sparkles, Edit, Image as ImageIcon, Link2, Languages, X } from "lucide-react";
+import { Loader2, ChevronDown, Trash2, Sparkles, Edit, Image as ImageIcon, Link2, Languages, X, Eye, EyeOff } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
@@ -43,10 +42,7 @@ interface PageDataTableProps {
   data: ContentItem[];
   scores: Record<number, number>;
   isLoading: boolean;
-  onDataChange: (token: string, filters: any) => void;
-  pageCount: number;
-  pagination: { pageIndex: number; pageSize: number };
-  setPagination: React.Dispatch<React.SetStateAction<{ pageIndex: number; pageSize: number }>>;
+  onDataChange: (token: string, force: boolean) => void;
 }
 
 const LANGUAGE_MAP: { [key: string]: string } = {
@@ -63,9 +59,6 @@ export function PageDataTable({
   scores,
   isLoading,
   onDataChange,
-  pageCount,
-  pagination,
-  setPagination,
 }: PageDataTableProps) {
   const router = useRouter();
   const [sorting, setSorting] = React.useState<SortingState>([{ id: 'title', desc: false }]);
@@ -75,8 +68,6 @@ export function PageDataTable({
   const [isActionLoading, setIsActionLoading] = React.useState(false);
   const [userRole, setUserRole] = React.useState<string | null>(null);
   const { toast } = useToast();
-
-  const debouncedColumnFilters = useDebounce(columnFilters, 500);
 
   React.useEffect(() => {
     const fetchUserRole = async () => {
@@ -96,16 +87,6 @@ export function PageDataTable({
 
     return () => unsubscribe();
   }, []);
-
-  React.useEffect(() => {
-    const user = auth.currentUser;
-    if(user) {
-        user.getIdToken().then(token => {
-            const filters = Object.fromEntries(debouncedColumnFilters.map(f => [f.id, f.value]));
-            onDataChange(token, filters);
-        })
-    }
-  }, [debouncedColumnFilters, pagination, sorting, onDataChange]);
 
   const tableData = React.useMemo((): HierarchicalContentItem[] => {
     if (!data) return [];
@@ -145,7 +126,7 @@ export function PageDataTable({
         }
     });
 
-    return roots;
+    return roots.sort((a,b) => a.title.localeCompare(b.title));
   }, [data, scores]);
 
   const handleEditContent = (item: ContentItem) => {
@@ -169,13 +150,13 @@ export function PageDataTable({
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || result.message);
       toast({ title: "Movido a la papelera", description: "El contenido ha sido enviado a la papelera de WordPress." });
-      onDataChange(token, Object.fromEntries(columnFilters.map(f => [f.id, f.value])));
+      onDataChange(token, true);
     } catch (e: any) {
       toast({ title: "Error al mover a papelera", description: e.message, variant: "destructive" });
     }
   };
 
-  const columns = React.useMemo(() => getColumns(handleEditContent, handleDeleteContent, handleEditImages, scores), [scores]); // eslint-disable-line react-hooks/exhaustive-deps
+  const columns = React.useMemo(() => getColumns(handleEditContent, handleDeleteContent, handleEditImages), []); 
 
   const table = useReactTable({
     data: tableData,
@@ -185,13 +166,7 @@ export function PageDataTable({
       expanded,
       columnFilters,
       rowSelection,
-      pagination
     },
-    pageCount: pageCount,
-    manualPagination: true,
-    manualFiltering: true,
-    manualSorting: true,
-    onPaginationChange: setPagination,
     onSortingChange: setSorting,
     onExpandedChange: setExpanded,
     onColumnFiltersChange: setColumnFilters,
@@ -204,6 +179,38 @@ export function PageDataTable({
     getSortedRowModel: getSortedRowModel(),
   });
   
+  const handleBatchStatusUpdate = async (status: 'publish' | 'draft') => {
+    setIsActionLoading(true);
+    const selectedRows = table.getSelectedRowModel().rows;
+    const postIds = selectedRows.flatMap(row => [row.original.id, ...(row.original.subRows?.map(sub => sub.id) || [])]);
+    const uniqueIds = [...new Set(postIds)];
+
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: 'No autenticado', variant: 'destructive' });
+        setIsActionLoading(false);
+        return;
+    }
+    const token = await user.getIdToken();
+    try {
+        const response = await fetch('/api/wordpress/posts/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ postIds: uniqueIds, action: 'update', updates: { status } })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || result.message);
+        toast({ title: `Estado actualizado a "${status}"`, description: result.message });
+        onDataChange(token, true);
+        table.resetRowSelection();
+    } catch (e: any) {
+        toast({ title: "Error al actualizar estado", description: e.message, variant: "destructive" });
+    } finally {
+        setIsActionLoading(false);
+    }
+  };
+
+
   const handleBatchDelete = async () => {
     setIsActionLoading(true);
     const selectedRows = table.getSelectedRowModel().rows;
@@ -226,7 +233,7 @@ export function PageDataTable({
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || result.message);
         toast({ title: "Contenido movido a la papelera", description: result.message });
-        onDataChange(token, Object.fromEntries(columnFilters.map(f => [f.id, f.value])));
+        onDataChange(token, true);
         table.resetRowSelection();
     } catch (e: any) {
         toast({ title: "Error al eliminar", description: e.message, variant: "destructive" });
@@ -281,7 +288,7 @@ export function PageDataTable({
 
         toast({ title: "¡Traducciones enlazadas!", description: result.message });
         table.resetRowSelection();
-        onDataChange(token, Object.fromEntries(columnFilters.map(f => [f.id, f.value])));
+        onDataChange(token, true);
     } catch (error: any) {
          toast({ title: "Error al enlazar", description: error.message, variant: "destructive" });
     } finally {
@@ -333,9 +340,7 @@ export function PageDataTable({
   };
 
   const handleRowClick = (row: any) => {
-    if (userRole === 'super_admin') {
-      router.push(`/seo-optimizer/edit/${row.original.id}?type=${row.original.type}`);
-    }
+    router.push(`/seo-optimizer?id=${row.original.id}&type=${row.original.type}`);
   };
   
   const availableLanguages = React.useMemo(() => {
@@ -426,6 +431,12 @@ export function PageDataTable({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Acciones en Lote</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => handleBatchStatusUpdate('publish')}>
+                <Eye className="mr-2 h-4 w-4" /> Hacer Visibles
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => handleBatchStatusUpdate('draft')}>
+                <EyeOff className="mr-2 h-4 w-4" /> Ocultar (Borrador)
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={handleBatchSeoMeta}>
                 <Sparkles className="mr-2 h-4 w-4" /> Generar Título y Descripción SEO
               </DropdownMenuItem>
@@ -483,7 +494,7 @@ export function PageDataTable({
                   data-state={row.getIsSelected() && "selected"}
                   onClick={(e) => {
                       const target = e.target as HTMLElement;
-                      if (!(target instanceof HTMLButtonElement || target instanceof HTMLAnchorElement || target.closest('button, a, [role=checkbox], [role=menuitem]') )) {
+                      if (!(target instanceof HTMLButtonElement || target.tagName === 'A' || target.closest('button, a, [role=checkbox], [role=menuitem]') )) {
                         handleRowClick(row);
                       }
                     }}
@@ -532,10 +543,6 @@ export function PageDataTable({
                 </Select>
             </div>
             <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium">
-                    Página {table.getState().pagination.pageIndex + 1} de{' '}
-                    {table.getPageCount()}
-                </span>
                 <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
                     Anterior
                 </Button>

@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
@@ -39,7 +38,6 @@ export const getColumns = (
     onEdit: (item: ContentItem) => void,
     onDelete: (item: ContentItem) => void,
     onEditImages: (item: ContentItem) => void,
-    scores: Record<number, number>
 ): ColumnDef<HierarchicalContentItem>[] => [
     {
         id: "select",
@@ -154,7 +152,7 @@ export const getColumns = (
         header: () => <div className="text-right">Score SEO</div>,
         cell: ({ row }) => (
             <div className="text-right">
-                <ScoreBadge score={scores[row.original.id]} />
+                <ScoreBadge score={row.original.score} />
             </div>
         )
     },
@@ -172,6 +170,7 @@ export const getColumns = (
                                 <DropdownMenuItem onSelect={() => onEdit(item)}><Edit className="mr-2 h-4 w-4" /> Editar Contenido</DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => onEditImages(item)}><ImageIcon className="mr-2 h-4 w-4" /> Editar Imágenes</DropdownMenuItem>
                                 <DropdownMenuSeparator />
+                                <DropdownMenuItem asChild><Link href={`/seo-optimizer?id=${item.id}&type=${item.type}`}><FileText className="mr-2 h-4 w-4" /> Optimizar SEO</Link></DropdownMenuItem>
                                 <DropdownMenuItem asChild><Link href={item.link || '#'} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-2 h-4 w-4" /> Ver en la web</Link></DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <AlertDialogTrigger asChild>
