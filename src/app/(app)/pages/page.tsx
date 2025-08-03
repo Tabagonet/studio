@@ -1,17 +1,17 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Loader2 } from "lucide-react";
+import { FileText, Loader2, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { PageDataTable } from "./page-data-table";
 import type { ContentItem } from '@/lib/types';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 export default function PagesManagementPage() {
   const [data, setData] = useState<ContentItem[]>([]);
@@ -24,7 +24,7 @@ export default function PagesManagementPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const fetchData = useCallback(async (token: string) => {
+  const fetchData = useCallback(async (token: string, forceRefresh: boolean = false) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -32,6 +32,9 @@ export default function PagesManagementPage() {
             page: (pagination.pageIndex + 1).toString(),
             per_page: pagination.pageSize.toString(),
         });
+        if (forceRefresh) {
+            params.append('refresh', 'true');
+        }
         
         const [contentResponse, scoresResponse] = await Promise.all([
             fetch(`/api/wordpress/content-list?${params.toString()}`, { headers: { 'Authorization': `Bearer ${token}` } }),
@@ -61,9 +64,11 @@ export default function PagesManagementPage() {
                 normalizedScoresMap.set(normalizeUrl(url), score);
             }
             contentData.content.forEach((item: ContentItem) => {
-                const normalizedItemLink = normalizeUrl(item.link);
-                if (normalizedScoresMap.has(normalizedItemLink)) {
-                    scoresById[item.id] = normalizedScoresMap.get(normalizedItemLink)!;
+                if (item.link) {
+                    const normalizedItemLink = normalizeUrl(item.link);
+                    if (normalizedScoresMap.has(normalizedItemLink)) {
+                        scoresById[item.id] = normalizedScoresMap.get(normalizedItemLink)!;
+                    }
                 }
             });
             setScores(scoresById);
@@ -77,6 +82,14 @@ export default function PagesManagementPage() {
     }
   }, [pagination]);
   
+  const handleRefresh = () => {
+    const user = auth.currentUser;
+    if (user) {
+        toast({ title: "Actualizando...", description: "Sincronizando el contenido con tu sitio de WordPress." });
+        user.getIdToken().then(token => fetchData(token, true));
+    }
+  };
+
   useEffect(() => {
     const handleAuth = (user: import('firebase/auth').User | null) => {
         if (user) {
@@ -87,7 +100,7 @@ export default function PagesManagementPage() {
         }
     };
     const unsubscribe = onAuthStateChanged(auth, handleAuth);
-    const handleConnectionsUpdate = () => { if (auth.currentUser) auth.currentUser.getIdToken().then(fetchData); };
+    const handleConnectionsUpdate = () => { if (auth.currentUser) auth.currentUser.getIdToken().then(token => fetchData(token, true)); };
     window.addEventListener('connections-updated', handleConnectionsUpdate);
     return () => {
         unsubscribe();
@@ -98,7 +111,7 @@ export default function PagesManagementPage() {
   return (
     <div className="container mx-auto py-8 space-y-6">
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-start justify-between">
             <div className="flex items-center space-x-3">
                 <FileText className="h-8 w-8 text-primary" />
                 <div>
@@ -106,6 +119,10 @@ export default function PagesManagementPage() {
                     <CardDescription>Visualiza, filtra y gestiona tus páginas, entradas y productos. Haz clic en una fila para optimizar su SEO.</CardDescription>
                 </div>
             </div>
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                Refrescar Contenido
+            </Button>
         </CardHeader>
       </Card>
       

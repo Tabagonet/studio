@@ -2,7 +2,7 @@
 
 // src/app/api/wordpress/content-list/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth } from '@/lib/firebase-admin';
+import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import type { ContentItem } from '@/lib/types';
 import type { AxiosInstance } from 'axios';
@@ -42,7 +42,7 @@ async function fetchAllOfType(api: AxiosInstance | null, endpoint: string, typeL
                     page: page,
                     context: 'view',
                     _embed: 'wp:featuredmedia', 
-                    lang: '',
+                    lang: '', // Fetch all languages
                     status: 'any', 
                 },
             });
@@ -109,6 +109,7 @@ async function fetchAllCategories(api: AxiosInstance | null, endpoint: string, t
 
 
 export async function GET(req: NextRequest) {
+  let uid: string;
   try {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) {
@@ -117,58 +118,71 @@ export async function GET(req: NextRequest) {
     if (!adminAuth) {
       throw new Error("Firebase Admin Auth is not initialized.");
     }
-    const uid = (await adminAuth.verifyIdToken(token)).uid;
+    uid = (await adminAuth.verifyIdToken(token)).uid;
     
+    if (!adminDb) {
+      throw new Error("Firestore Admin is not initialized.");
+    }
+
     const { wpApi, wooApi } = await getApiClientsForUser(uid);
     if (!wpApi) {
       throw new Error('WordPress API is not configured for the active connection.');
     }
     
     const { searchParams } = new URL(req.url);
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const perPage = parseInt(searchParams.get('per_page') || '20', 10);
-    const typeFilter = searchParams.get('type');
-    const statusFilter = searchParams.get('status');
-    const langFilter = searchParams.get('lang');
-    const searchQuery = searchParams.get('q');
-    
+    const forceRefresh = searchParams.get('refresh') === 'true';
+    const cacheRef = adminDb.collection('content_cache').doc(uid);
+
+    // Try to get from cache first
+    if (!forceRefresh) {
+        const cacheDoc = await cacheRef.get();
+        if (cacheDoc.exists) {
+            const cacheData = cacheDoc.data();
+            const lastUpdated = cacheData?.timestamp?.toDate();
+            // Cache is valid for 10 minutes
+            if (lastUpdated && (new Date().getTime() - lastUpdated.getTime()) < 10 * 60 * 1000) {
+                return NextResponse.json(cacheData?.data);
+            }
+        }
+    }
+
+    // --- If no valid cache, fetch from source ---
     const frontPageId = await wpApi.get('/options').then(res => res.data.page_on_front).catch(() => 0);
     
-    const [pages, postCategories, productCategories] = await Promise.all([
+    const [pages, posts, products, postCategories, productCategories] = await Promise.all([
         fetchAllOfType(wpApi, 'pages', 'Page', frontPageId),
+        fetchAllOfType(wpApi, 'posts', 'Post', frontPageId),
+        fetchAllOfType(wooApi, 'products', 'Producto', frontPageId),
         fetchAllCategories(wpApi, 'categories', 'Categoría de Entradas', wpApi),
         fetchAllCategories(wooApi, 'products/categories', 'Categoría de Productos', wpApi),
     ]);
     
-    let allContent = [...pages, ...postCategories, ...productCategories];
-
-    // --- Server-side Filtering ---
-    if (searchQuery) {
-        allContent = allContent.filter(item => item.title.toLowerCase().includes(searchQuery.toLowerCase()));
-    }
-    if (typeFilter && typeFilter !== 'all') {
-        allContent = allContent.filter(item => item.type === typeFilter);
-    }
-    if (statusFilter && statusFilter !== 'all') {
-        allContent = allContent.filter(item => item.status === statusFilter);
-    }
-    if (langFilter && langFilter !== 'all') {
-        allContent = allContent.filter(item => item.lang === langFilter);
-    }
+    let allContent = [...pages, ...posts, ...products, ...postCategories, ...productCategories];
     
-    // --- Server-side Sorting (Default by title) ---
-    allContent.sort((a, b) => a.title.localeCompare(b.title));
-    
-    // --- Server-side Pagination ---
+    // Server-side Pagination
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const perPage = parseInt(searchParams.get('per_page') || '20', 10);
     const totalItems = allContent.length;
     const totalPages = Math.ceil(totalItems / perPage);
     const paginatedContent = allContent.slice((page - 1) * perPage, page * perPage);
 
-    return NextResponse.json({ 
+    const responsePayload = { 
         content: paginatedContent,
         total: totalItems,
         totalPages: totalPages,
+    };
+    
+    // Save the full, unpaginated data to cache
+    await cacheRef.set({
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      data: {
+        content: allContent, // Cache all content
+        total: totalItems,
+        totalPages: Math.ceil(totalItems / 20) // Assuming default page size for cache consistency
+      }
     });
+
+    return NextResponse.json(responsePayload);
 
   } catch (error: any) {
     console.error(`[API /content-list] Critical error:`, error.response?.data || error.message);

@@ -12,11 +12,11 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
+  type ColumnDef,
   type ColumnFiltersState,
   type ExpandedState,
   type RowSelectionState,
   type SortingState,
-  type Row,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -26,17 +26,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getColumns } from "./columns"; 
 import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
-import { Loader2, ChevronDown, Trash2, Sparkles, Edit, Image as ImageIcon, Languages, Link2, Eye, EyeOff } from "lucide-react";
+import { Loader2, ChevronDown, Trash2, Sparkles, Edit, Image as ImageIcon, Link2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { buttonVariants } from "@/components/ui/button";
 
 interface PageDataTableProps {
   data: ContentItem[];
@@ -127,7 +126,7 @@ export function PageDataTable({
   }, [data, scores]);
 
   const handleEditContent = (item: ContentItem) => {
-    router.push(`/pages/edit/${item.id}`);
+    router.push(`/pages/edit/${item.id}?type=${item.type}`);
   };
   
   const handleEditImages = (item: ContentItem) => {
@@ -153,7 +152,7 @@ export function PageDataTable({
     }
   };
 
-  const columns = React.useMemo(() => getColumns(handleEditContent, handleDeleteContent, handleEditImages, scores), [scores, handleEditContent, handleDeleteContent, handleEditImages]);
+  const columns = React.useMemo(() => getColumns(handleEditContent, handleDeleteContent, handleEditImages, scores), [scores]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const table = useReactTable({
     data: tableData,
@@ -180,38 +179,6 @@ export function PageDataTable({
     getSortedRowModel: getSortedRowModel(),
   });
   
-  const handleBatchStatusUpdate = async (status: 'publish' | 'draft') => {
-    setIsActionLoading(true);
-    const selectedRows = table.getSelectedRowModel().rows;
-    const postIds = selectedRows.flatMap(row => [row.original.id, ...(row.original.subRows?.map(sub => sub.id) || [])]);
-    const uniqueIds = [...new Set(postIds)];
-
-    const user = auth.currentUser;
-    if (!user) {
-        toast({ title: 'No autenticado', variant: 'destructive' });
-        setIsActionLoading(false);
-        return;
-    }
-    const token = await user.getIdToken();
-    try {
-        const response = await fetch('/api/wordpress/posts/batch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ postIds: uniqueIds, action: 'update', updates: { status } })
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || result.message);
-        toast({ title: `Estado actualizado a "${status}"`, description: result.message });
-        onDataChange(token);
-        table.resetRowSelection();
-    } catch (e: any) {
-        toast({ title: "Error al actualizar estado", description: e.message, variant: "destructive" });
-    } finally {
-        setIsActionLoading(false);
-    }
-  };
-
-
   const handleBatchDelete = async () => {
     setIsActionLoading(true);
     const selectedRows = table.getSelectedRowModel().rows;
@@ -253,7 +220,7 @@ export function PageDataTable({
         return;
     }
 
-    const languages = selectedRows.map((row: Row<HierarchicalContentItem>) => row.original.lang);
+    const languages = selectedRows.map((row) => row.original.lang);
     if (new Set(languages).size !== languages.length) {
         toast({ title: "Idiomas duplicados", description: "No puedes enlazar dos elementos del mismo idioma.", variant: "destructive" });
         setIsActionLoading(false);
@@ -261,7 +228,7 @@ export function PageDataTable({
     }
     
     const translations: Record<string, number> = {};
-    selectedRows.forEach((row: Row<HierarchicalContentItem>) => {
+    selectedRows.forEach((row) => {
         if(row.original.lang) {
             translations[row.original.lang] = row.original.id;
         }
@@ -353,11 +320,6 @@ export function PageDataTable({
     }
   };
   
-  const languages = React.useMemo(() => {
-    const langSet = new Set(data.map(item => item.lang).filter(lang => lang && lang !== 'default'));
-    return Array.from(langSet) as string[];
-  }, [data]);
-
   return (
     <div className="w-full space-y-4">
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 py-4">
@@ -399,22 +361,6 @@ export function PageDataTable({
                     <SelectItem value="private">Privado</SelectItem>
                 </SelectContent>
             </Select>
-             <Select
-                value={(table.getColumn('lang')?.getFilterValue() as string) ?? 'all'}
-                onValueChange={(value) => table.getColumn('lang')?.setFilterValue(value === 'all' ? null : value)}
-                disabled={languages.length === 0}
-            >
-                <SelectTrigger className="w-full sm:w-[180px]">
-                    <Languages className="mr-2 h-4 w-4" />
-                    <SelectValue placeholder="Idioma" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">Todos los Idiomas</SelectItem>
-                    {languages.map(lang => (
-                        <SelectItem key={lang} value={lang}>{lang.toUpperCase()}</SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
         </div>
         
         <AlertDialog>
@@ -427,15 +373,6 @@ export function PageDataTable({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Acciones en Lote</DropdownMenuLabel>
-              <DropdownMenuItem onSelect={() => handleBatchStatusUpdate('publish')}>
-                <Eye className="mr-2 h-4 w-4" /> Hacer Visibles (Publicar)
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => handleBatchStatusUpdate('draft')}>
-                <EyeOff className="mr-2 h-4 w-4" /> Ocultar (Borrador)
-              </DropdownMenuItem>
-               <DropdownMenuItem onSelect={handleBatchEditImages}>
-                <ImageIcon className="mr-2 h-4 w-4" /> Editar Imágenes
-              </DropdownMenuItem>
               <DropdownMenuItem onSelect={handleBatchSeoMeta}>
                 <Sparkles className="mr-2 h-4 w-4" /> Generar Título y Descripción SEO
               </DropdownMenuItem>
