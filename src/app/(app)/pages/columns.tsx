@@ -148,7 +148,7 @@ export const getColumns = (
         header: () => <div className="text-right">Score SEO</div>,
         cell: ({ row }) => (
             <div className="text-right">
-                <ScoreBadge score={row.original.score} />
+                <ScoreBadge score={scores[row.original.id]} />
             </div>
         )
     },
@@ -163,7 +163,7 @@ export const getColumns = (
                             <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><span className="sr-only">Abrir menú</span><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                <DropdownMenuItem asChild><Link href={`/seo-optimizer/edit/${item.id}?type=${item.type}`}><Edit className="mr-2 h-4 w-4" /> Editar / Optimizar</Link></DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => onEdit(item)}><Edit className="mr-2 h-4 w-4" /> Editar Contenido</DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => onEditImages(item)}><ImageIcon className="mr-2 h-4 w-4" /> Editar Imágenes</DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem asChild><Link href={item.link} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-2 h-4 w-4" /> Ver en la web</Link></DropdownMenuItem>

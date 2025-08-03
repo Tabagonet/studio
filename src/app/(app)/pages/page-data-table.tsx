@@ -70,12 +70,18 @@ export function PageDataTable({
     const fetchUserRole = async () => {
       const user = auth.currentUser;
       if (user) {
-        const token = await user.getIdTokenResult();
-        setUserRole(token.claims.role || 'user');
+        const tokenResult = await user.getIdTokenResult();
+        const customRole = (tokenResult.claims.role as string) || 'user';
+        setUserRole(customRole);
       }
     };
+    
     fetchUserRole();
-    const unsubscribe = auth.onAuthStateChanged(fetchUserRole);
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+        if (user) fetchUserRole();
+        else setUserRole(null);
+    });
+
     return () => unsubscribe();
   }, []);
 
@@ -113,7 +119,7 @@ export function PageDataTable({
         
         if (mainItem) {
             roots.push(mainItem);
-            processedIds.add(mainItem.id);
+            if(mainItem.id) processedIds.add(mainItem.id);
         }
     });
 
