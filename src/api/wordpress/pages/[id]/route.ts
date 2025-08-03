@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress, extractElementorHeadings, replaceElementorTexts, findImageUrlsInElementor, findBeaverBuilderImages } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress, extractElementorWidgets, replaceElementorTexts, findImageUrlsInElementor, findBeaverBuilderImages } from '@/lib/api-helpers';
 import { z } from 'zod';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     
     let finalContent;
     if (isElementor) {
-        finalContent = extractElementorHeadings(pageData.meta._elementor_data);
+        finalContent = extractElementorWidgets(pageData.meta._elementor_data);
     } else {
         finalContent = pageData.content?.rendered || '';
     }
@@ -234,7 +234,41 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         
         let newElementorData = JSON.parse(JSON.stringify(currentElementorData));
         for (const widgetUpdate of elementorWidgets) {
-            newElementorData = replaceElementorTexts(newElementorData, { [widgetUpdate.id]: widgetUpdate.text });
+            newElementorData = replaceElementorTexts(newElementorData, {
+                [widgetUpdate.id]: widgetUpdate.text,
+                clear: function (): void {
+                    throw new Error('Function not implemented.');
+                },
+                delete: function (key: string): boolean {
+                    throw new Error('Function not implemented.');
+                },
+                forEach: function (callbackfn: (value: string, key: string, map: Map<string, string>) => void, thisArg?: any): void {
+                    throw new Error('Function not implemented.');
+                },
+                get: function (key: string): string | undefined {
+                    throw new Error('Function not implemented.');
+                },
+                has: function (key: string): boolean {
+                    throw new Error('Function not implemented.');
+                },
+                set: function (key: string, value: string): Map<string, string> {
+                    throw new Error('Function not implemented.');
+                },
+                size: 0,
+                entries: function (): MapIterator<[string, string]> {
+                    throw new Error('Function not implemented.');
+                },
+                keys: function (): MapIterator<string> {
+                    throw new Error('Function not implemented.');
+                },
+                values: function (): MapIterator<string> {
+                    throw new Error('Function not implemented.');
+                },
+                [Symbol.iterator]: function (): MapIterator<[string, string]> {
+                    throw new Error('Function not implemented.');
+                },
+                [Symbol.toStringTag]: ''
+            });
         }
         (pagePayload as any).meta = { ...(pagePayload.meta || {}), _elementor_data: JSON.stringify(newElementorData) };
     }
