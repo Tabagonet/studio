@@ -36,12 +36,12 @@ Proponemos un modelo de tres niveles para adaptarnos a las necesidades y tamaño
     -   Procesamiento en Lotes (CSV + Imágenes).
     -   Soporte por email.
 
-### **Plan Agencia (Recomendado)**
-*El producto estrella, diseñado para equipos y agencias en crecimiento.*
+### **Plan Business (Para Equipos In-House)**
+*Ideal para equipos que gestionan su propio sitio de e-commerce o contenido.*
 
--   **Precio:** **149 € / mes**
+-   **Precio:** **89 € / mes**
 -   **Usuarios:** Hasta 5
--   **Conexiones a Sitios:** Hasta 20
+-   **Conexiones a Sitios:** 1
 -   **Créditos de IA:** Paquete Avanzado (ej. 500.000 créditos/mes)
 -   **Funcionalidades Incluidas:**
     -   Todo lo del Plan Profesional.
@@ -49,6 +49,18 @@ Proponemos un modelo de tres niveles para adaptarnos a las necesidades y tamaño
     -   **Clonador de Contenido y Menús.**
     -   **Gestión de Roles y Permisos de Usuario.**
     -   **Panel de Actividad de Usuarios.**
+    -   Soporte Prioritario.
+
+### **Plan Agencia (Recomendado)**
+*El producto estrella, diseñado para agencias que gestionan múltiples clientes.*
+
+-   **Precio:** **149 € / mes**
+-   **Usuarios:** Hasta 10
+-   **Conexiones a Sitios:** Hasta 20
+-   **Créditos de IA:** Paquete Avanzado (ej. 500.000 créditos/mes)
+-   **Funcionalidades Incluidas:**
+    -   Todo lo del Plan Business.
+    -   Funcionalidades multi-sitio y de gestión de clientes.
     -   Soporte Prioritario.
 
 ### **Plan Enterprise**
