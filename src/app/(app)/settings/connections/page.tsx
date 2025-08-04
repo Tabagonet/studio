@@ -1,4 +1,5 @@
 
+
 // src/app/(app)/settings/connections/page.tsx
 "use client";
 
@@ -166,7 +167,7 @@ export default function ConnectionsPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [toast]); // Removed fetchStatus and selectedKey from dependency array to break potential loops
+    }, [toast]); // Removed fetchStatus from dependency array to break potential loops
     
     const fetchStatus = useCallback(async (targetType: 'user' | 'company' | null, targetId: string | null, token: string) => {
         if (!targetType || !targetId) {
@@ -634,7 +635,7 @@ export default function ConnectionsPage() {
                         </div>
                     </div>
 
-                    {showShopify && (
+                    {showShopify && currentUser?.role === 'super_admin' && (
                        <ShopifyPartnerCard 
                          editingTarget={editingTarget}
                          partnerFormData={partnerFormData}

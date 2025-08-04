@@ -1,4 +1,5 @@
 
+
 // src/app/api/woocommerce/products/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -89,8 +90,8 @@ export async function POST(request: NextRequest) {
         const tagNames = typeof finalProductData.tags === 'string' 
             ? finalProductData.tags.split(',').map(t => t.trim()).filter(Boolean)
             : [];
-        const tagIds = await findOrCreateTags(tagNames, wpApi);
-        console.log(`[API Products] Final tag IDs:`, tagIds);
+        const wooTags = tagNames.map(name => ({ name }));
+        console.log(`[API Products] Final tags payload:`, wooTags);
 
 
         const wooPayload: any = {
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
             description: finalProductData.longDescription, short_description: finalProductData.shortDescription,
             categories: finalCategoryId ? [{ id: finalCategoryId }] : [],
             images: wordpressImageIds, attributes: wooAttributes,
-            tags: tagIds.map(id => ({ id })), // Use the array of tag IDs
+            tags: wooTags, // Use the processed tags
             lang: finalProductData.language === 'Spanish' ? 'es' : 'en', // Default to es
             weight: finalProductData.weight || undefined,
             dimensions: finalProductData.dimensions,

@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 
@@ -29,9 +30,13 @@ async function deleteQueryBatch(db: FirebaseFirestore.Firestore, query: Firebase
     await batch.commit();
 
     // Recurse on the same query to process next batch
-    process.nextTick(() => {
-        deleteQueryBatch(db, query, resolve, reject);
-    });
+    if (snapshot.size === 500) {
+        process.nextTick(() => {
+            deleteQueryBatch(db, query, resolve, reject);
+        });
+    } else {
+        resolve(true);
+    }
   } catch(error) {
     reject(error);
   }

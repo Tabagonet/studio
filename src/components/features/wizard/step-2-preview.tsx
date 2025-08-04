@@ -25,7 +25,10 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
 
   const primaryPhoto = photos.find(p => p.isPrimary) || photos[0];
   
-  const tagList = Array.isArray(tags) ? tags : (tags || '').split(',').map(t => t.trim()).filter(Boolean);
+  const tagList = typeof tags === 'string'
+    ? tags.split(',').map(t => t.trim()).filter(Boolean)
+    : [];
+
 
   return (
     <div className="space-y-8">
