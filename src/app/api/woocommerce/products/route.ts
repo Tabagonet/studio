@@ -20,27 +20,41 @@ const slugify = (text: string) => {
 export async function POST(request: NextRequest) {
     let uid: string;
     try {
+        console.log('[API Products] Received POST request.');
         const token = request.headers.get('Authorization')?.split('Bearer ')[1];
         if (!token) { return NextResponse.json({ error: 'Authentication token not provided.' }, { status: 401 }); }
         if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
         
         const decodedToken = await adminAuth.verifyIdToken(token);
         uid = decodedToken.uid;
+        console.log(`[API Products] User authenticated: ${uid}`);
         
         const { wooApi, wpApi, activeConnectionKey } = await getApiClientsForUser(uid);
         if (!wooApi || !wpApi) { throw new Error('Both WooCommerce and WordPress APIs must be configured.'); }
+        console.log('[API Products] API clients obtained.');
         
         const { productData, lang } = await request.json();
         const finalProductData: ProductData = productData;
+        console.log('[API Products] Request body parsed. Data to process:', JSON.stringify(finalProductData, null, 2));
+
 
         // 1. Handle category
-        const finalCategoryId = await findOrCreateCategoryByPath(finalProductData.categoryPath || finalProductData.category?.name || '', wooApi);
+        let finalCategoryId: number | null = null;
+        if (finalProductData.categoryPath) {
+            console.log(`[API Products] CategoryPath provided: "${finalProductData.categoryPath}". Finding or creating...`);
+            finalCategoryId = await findOrCreateCategoryByPath(finalProductData.categoryPath, wooApi);
+        } else if (finalProductData.category?.id) {
+            console.log(`[API Products] Category ID provided: ${finalProductData.category.id}. Using existing.`);
+            finalCategoryId = finalProductData.category.id;
+        }
+        console.log(`[API Products] Final Category ID: ${finalCategoryId}`);
+
 
         // 2. Upload and process images (if they have an uploadedUrl from the temp server)
         const wordpressImageIds = [];
         for (const [index, photo] of finalProductData.photos.entries()) {
             if (photo.uploadedUrl) {
-                // The filename passed to the helper will have its extension replaced with .webp
+                console.log(`[API Products] Uploading new image: ${photo.name}`);
                 const newImageId = await uploadImageToWordPress(
                     photo.uploadedUrl,
                     `${slugify(finalProductData.name)}-${index + 1}.jpg`,
@@ -48,21 +62,29 @@ export async function POST(request: NextRequest) {
                     wpApi
                 );
                 wordpressImageIds.push({ id: newImageId });
+                console.log(`[API Products] Image uploaded with new ID: ${newImageId}`);
             } else if (photo.id && typeof photo.id === 'number') {
                 wordpressImageIds.push({ id: photo.id });
             }
         }
+        console.log(`[API Products] Final image ID list:`, wordpressImageIds);
 
         // 3. Prepare common product data
         const wooAttributes = finalProductData.attributes
             .filter(attr => attr.name && attr.value)
             .map((attr, index) => ({
-                name: attr.name, position: index, visible: attr.visible !== false, variation: finalProductData.productType === 'variable' && !!attr.forVariations,
-                options: finalProductData.productType === 'variable' ? attr.value.split('|').map(s => s.trim()) : [attr.value],
+                id: 0, // Let WooCommerce handle the attribute ID
+                name: attr.name, 
+                position: index, 
+                visible: attr.visible !== false, 
+                variation: finalProductData.productType === 'variable' && !!attr.forVariations,
+                options: attr.value.split('|').map(s => s.trim()),
             }));
+        console.log(`[API Products] Processed attributes:`, JSON.stringify(wooAttributes, null, 2));
         
         const tagNames = finalProductData.tags ? finalProductData.tags.split(',').map(k => k.trim()).filter(Boolean) : [];
         const tagIds = await findOrCreateTags(tagNames, wpApi);
+        console.log(`[API Products] Final tag IDs: ${tagIds.join(', ')}`);
 
 
         const wooPayload: any = {
@@ -70,7 +92,7 @@ export async function POST(request: NextRequest) {
             description: finalProductData.longDescription, short_description: finalProductData.shortDescription,
             categories: finalCategoryId ? [{ id: finalCategoryId }] : [],
             images: wordpressImageIds, attributes: wooAttributes,
-            tags: tagIds.map(id => ({ id })), // Use the IDs returned by the helper
+            tags: tagIds.map(id => ({ id })),
             lang: lang,
             weight: finalProductData.weight || undefined,
             dimensions: finalProductData.dimensions,
@@ -94,12 +116,15 @@ export async function POST(request: NextRequest) {
         }
 
         // 4. Create the product
+        console.log('[API Products] Final WooCommerce Payload:', JSON.stringify(wooPayload, null, 2));
         const response = await wooApi.post('products', wooPayload);
         const createdProduct = response.data;
         const productId = createdProduct.id;
+        console.log(`[API Products] Product created successfully with ID: ${productId}`);
 
         // 5. Create variations if applicable
         if (finalProductData.productType === 'variable' && finalProductData.variations && finalProductData.variations.length > 0) {
+            console.log(`[API Products] Creating ${finalProductData.variations.length} variations...`);
             const batchCreatePayload = finalProductData.variations.map(v => {
                 const variationPayload: any = {
                     regular_price: v.regularPrice || undefined, 
@@ -119,21 +144,24 @@ export async function POST(request: NextRequest) {
                 return variationPayload;
             });
             await wooApi.post(`products/${productId}/variations/batch`, { create: batchCreatePayload });
+            console.log('[API Products] Variations created.');
         }
 
         // 6. Log the activity
-        if (adminDb && admin.firestore.FieldValue && lang === 'es') { // Only log the original creation
+        if (adminDb && admin.firestore.FieldValue && lang === 'es') { 
             await adminDb.collection('activity_logs').add({
                 userId: uid, action: 'PRODUCT_CREATED', timestamp: admin.firestore.FieldValue.serverTimestamp(),
                 details: { productId, productName: createdProduct.name, connectionKey: activeConnectionKey, source: finalProductData.source || 'unknown' }
             });
+             console.log('[API Products] Activity logged.');
         }
         
         // 7. Fire-and-forget deletion of temp images
         for (const photo of finalProductData.photos) {
             if (photo.uploadedFilename) {
                 axios.post(`${request.nextUrl.origin}/api/delete-image`, { filename: photo.uploadedFilename }, { headers: { 'Authorization': `Bearer ${token}` }})
-                     .catch(deleteError => console.warn(`Failed to delete temp image ${photo.uploadedFilename}.`, deleteError));
+                     .then(() => console.log(`[API Products] Deleted temp image: ${photo.uploadedFilename}`))
+                     .catch(deleteError => console.warn(`[API Products] Failed to delete temp image ${photo.uploadedFilename}.`, deleteError));
             }
         }
         

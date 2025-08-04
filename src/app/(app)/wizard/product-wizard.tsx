@@ -15,6 +15,7 @@ import { auth } from '@/lib/firebase';
 import { ArrowLeft, ArrowRight, Rocket, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
+import axios from 'axios';
 
 export function ProductWizard() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -42,6 +43,9 @@ export function ProductWizard() {
   const handleCreateProduct = useCallback(async () => {
     setCurrentStep(4);
     
+    // --- LOGGING: Log the state right before the API call ---
+    console.log('[WIZARD LOG] Data being sent to API:', JSON.stringify(productData, null, 2));
+
     const initialSteps: SubmissionStep[] = [];
     if (productData.photos.some(p => p.file)) {
       initialSteps.push({ id: 'upload_images', name: 'Subiendo imágenes', status: 'pending', progress: 0 });
@@ -119,17 +123,8 @@ export function ProductWizard() {
                     short_description: finalProductData.shortDescription,
                     long_description: finalProductData.longDescription,
                 };
-                
-                const translateResponse = await fetch('/api/translate', { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
-                    body: JSON.stringify({ contentToTranslate: contentToTranslate, targetLanguage: lang })
-                });
-
-                if (!translateResponse.ok) {
-                    const errorData = await translateResponse.json();
-                    throw new Error(errorData.error || `Error al traducir a ${lang}`);
-                }
+                const translateResponse = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ contentToTranslate, targetLanguage: lang }) });
+                if (!translateResponse.ok) throw new Error(`Error al traducir a ${lang}`);
                 const translatedContent = await translateResponse.json();
                 updateStepStatus(`translate_${lang}`, 'success', undefined, 100);
 
