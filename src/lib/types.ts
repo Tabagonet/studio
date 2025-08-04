@@ -378,6 +378,7 @@ export interface User {
   companyId: string | null;
   companyName: string | null;
   companyPlan?: 'lite' | 'pro' | 'agency' | null;
+  plan?: 'lite' | 'pro' | 'agency' | null;
   platform?: 'woocommerce' | 'shopify' | null;
 }
 

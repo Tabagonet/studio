@@ -1,3 +1,4 @@
+
 // src/app/api/admin/users/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -50,6 +51,7 @@ export async function GET(req: NextRequest) {
                 id: doc.id,
                 name: data.name,
                 platform: data.platform || 'woocommerce',
+                plan: data.plan || 'lite',
                 createdAt: data.createdAt?.toDate()?.toISOString() || new Date().toISOString()
             });
         });
@@ -82,6 +84,8 @@ export async function GET(req: NextRequest) {
                 createdAt: createdAt,
                 companyId: companyId,
                 companyName: companyInfo ? companyInfo.name : null,
+                companyPlan: companyInfo ? companyInfo.plan : null,
+                plan: data.plan || null, // Individual user plan
                 platform: companyInfo ? companyInfo.platform : (data.platform || null),
             };
         });

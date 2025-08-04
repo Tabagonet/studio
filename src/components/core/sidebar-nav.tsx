@@ -1,4 +1,5 @@
 
+
 // src/components/core/sidebar-nav.tsx
 "use client";
 
@@ -25,6 +26,7 @@ interface UserData {
   platform?: 'woocommerce' | 'shopify' | null;
   companyId?: string | null;
   companyPlan?: 'lite' | 'pro' | 'agency' | null;
+  plan?: 'lite' | 'pro' | 'agency' | null; // Individual user plan
 }
 
 
@@ -137,7 +139,8 @@ export function SidebarNav() {
     }
 
     const effectivePlatform = userData?.companyPlatform || userData?.platform;
-    const companyPlan = userData?.companyPlan || 'lite'; // Default to 'lite' if no plan is set
+    // The user's effective plan is their company's plan, or their individual plan if they have no company.
+    const effectivePlan = userData?.companyPlan || userData?.plan || 'lite';
 
     return NAV_GROUPS.map((group) => {
       const visibleItems = group.items.filter(item => {
@@ -153,8 +156,8 @@ export function SidebarNav() {
         const hasRequiredPlatform = !group.requiredPlatform || (effectivePlatform && group.requiredPlatform === effectivePlatform);
         if (!hasRequiredPlatform) return false;
 
-        // NEW: Check for plan requirements
-        if (item.requiredPlan && !item.requiredPlan.includes(companyPlan)) {
+        // Check for plan requirements
+        if (item.requiredPlan && !item.requiredPlan.includes(effectivePlan)) {
             return false;
         }
         

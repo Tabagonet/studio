@@ -1,4 +1,5 @@
 
+
 // src/app/api/user/verify/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
@@ -20,6 +21,7 @@ const userSchema = z.object({
   companyId: z.string().nullable().optional(),
   companyName: z.string().nullable().optional(),
   companyPlan: z.enum(['lite', 'pro', 'agency']).optional().nullable(),
+  plan: z.enum(['lite', 'pro', 'agency']).optional().nullable(), // Plan individual del usuario
   platform: z.enum(['woocommerce', 'shopify']).optional().nullable(),
   companyPlatform: z.enum(['woocommerce', 'shopify']).optional().nullable(),
 });
@@ -40,7 +42,7 @@ async function ensureApiKeyExists(uid: string, apiKey: string | undefined): Prom
         // The user has no API key at all. Create a new one.
         const newApiKey = uuidv4();
         await adminDb.collection('users').doc(uid).update({ apiKey: newApiKey });
-        await adminDb.collection('api_keys').doc(newApiKey).set({ userId: uid, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+        await adminDb.collection('api_keys').doc(newApiKey).set({ userId: uid, createdAt: newUser.createdAt });
         return newApiKey;
     }
 }
