@@ -143,28 +143,31 @@ export function SidebarNav() {
 
     return NAV_GROUPS.map((group) => {
       const visibleItems = group.items.filter(item => {
-        // Rule 1: Super Admin sees everything.
         if (userData?.role === 'super_admin') {
             return true;
         }
-
-        // Rule 2: Check role permissions.
+        
         const hasRequiredRole = !item.requiredRoles || (userData?.role && item.requiredRoles.includes(userData.role));
         if (!hasRequiredRole) return false;
         
-        // Rule 3: Check platform requirement.
         const effectivePlatform = userData?.companyPlatform || userData?.platform;
         const hasRequiredPlatform = !group.requiredPlatform || (effectivePlatform && group.requiredPlatform === effectivePlatform);
         if (!hasRequiredPlatform) return false;
 
-        // Rule 4: If no plan is required for the item, show it (e.g. Dashboard, Settings).
+        // If an admin has no company, they should still see user management
+        if (item.requiresCompany && userData?.role === 'admin' && !userData.companyId) {
+             return true;
+        }
+        if (item.requiresCompany && !userData?.companyId) {
+            return false;
+        }
+
         if (!item.requiredPlan) {
           return true;
         }
 
-        // Rule 5: Check feature flag from dynamic plan configuration.
         const effectivePlanId = userData?.companyPlan || userData?.plan;
-        if (!effectivePlanId) return false; // No plan, no access to planned features.
+        if (!effectivePlanId) return false;
         
         const plan = planConfig.find(p => p.id === effectivePlanId);
         if (plan && plan.features[item.href]) {
