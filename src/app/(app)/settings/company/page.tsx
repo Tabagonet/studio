@@ -77,34 +77,36 @@ export default function CompanySettingsPage() {
         },
     });
 
-
-    const fetchSettingsData = useCallback(async (user: FirebaseUser, type: 'user' | 'company' | null, id: string | null) => {
-        if (!id || !type) {
-            form.reset();
-            setLogoPhotos([]);
-            setIsLoading(false);
-            return;
-        }
+     const fetchSettingsData = useCallback(async (user: FirebaseUser, type: 'user' | 'company', id: string) => {
         setIsLoading(true);
         try {
             const token = await user.getIdToken();
-            
             let dataToSet: Partial<CompanyFormData>;
-            let entityName = 'Usuario Desconocido';
-            
+            let entityName = 'Entidad Desconocida';
+
             if (type === 'company') {
                 const companyResponse = await fetch(`/api/user-settings/company?companyId=${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
-                const companyDetails = allCompanies.find(c => c.id === id);
+                const companyDetails = (await (await fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } })).json()).companies.find((c: any) => c.id === id);
                 entityName = companyDetails?.name || 'Empresa Desconocida';
                 const fetchedCompanyData = companyResponse.ok ? (await companyResponse.json()).company : {};
-                dataToSet = { name: entityName, platform: companyDetails?.platform || 'woocommerce', ...fetchedCompanyData };
-
+                dataToSet = {
+                    name: entityName,
+                    platform: companyDetails?.platform || 'woocommerce',
+                    plan: companyDetails?.plan || 'pro',
+                    ...fetchedCompanyData
+                };
             } else { // type === 'user'
-                 const userDocSnap = await fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } });
-                 const userData = await userDocSnap.json();
-                 entityName = userData?.displayName || 'Usuario Desconocido';
+                 const usersResponse = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } });
+                 const allUsers = (await usersResponse.json()).users;
+                 const targetUser = allUsers.find((u: AppUser) => u.uid === id);
+                 entityName = targetUser?.displayName || 'Usuario Desconocido';
                  const userSettingsResponse = await fetch(`/api/user-settings/connections?userId=${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
-                 dataToSet = { name: entityName, platform: userData.platform, ...(userSettingsResponse.ok ? (await userSettingsResponse.json()).companyData : {}) };
+                 dataToSet = {
+                     name: entityName,
+                     platform: targetUser?.platform,
+                     plan: targetUser?.plan || 'pro',
+                     ...(userSettingsResponse.ok ? (await userSettingsResponse.json()).companyData : {})
+                 };
             }
             
             form.reset(dataToSet);
@@ -113,28 +115,26 @@ export default function CompanySettingsPage() {
             } else {
                 setLogoPhotos([]);
             }
-
         } catch (error) {
             console.error(`Error fetching data for ${type} ${id}:`, error);
             toast({ title: "Error al Cargar Datos", description: `No se pudo obtener la información.`, variant: "destructive" });
         } finally {
             setIsLoading(false);
         }
-    }, [toast, allCompanies, form]);
-    
-    
+    }, [form, toast]);
+
+
     useEffect(() => {
-        const fetchInitialData = async (user: FirebaseUser) => {
-            setIsLoading(true);
-            try {
+        const unsubscribe = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
+            if (user) {
+                setIsLoading(true);
                 const token = await user.getIdToken();
                 const response = await fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } });
                 const userData = await response.json();
                 setCurrentUser(userData);
 
-                const targetIdFromUrl = searchParams.get('companyId');
-                let initialId: string | null = targetIdFromUrl;
-                let initialType: 'user' | 'company' | null = targetIdFromUrl ? 'company' : null;
+                let initialType: 'user' | 'company' = 'user';
+                let initialId: string | null = user.uid;
 
                 if (userData.role === 'super_admin') {
                     const [companiesResponse, usersResponse] = await Promise.all([
@@ -143,41 +143,33 @@ export default function CompanySettingsPage() {
                     ]);
                     if (companiesResponse.ok) setAllCompanies((await companiesResponse.json()).companies);
                     if (usersResponse.ok) setUnassignedUsers((await usersResponse.json()).users.filter((u: AppUser) => !u.companyId));
-                }
 
-                if (!initialId) {
-                    if (userData.companyId) {
-                        initialId = userData.companyId;
-                        initialType = 'company';
-                    } else {
-                        initialId = user.uid;
-                        initialType = 'user';
+                    const companyIdFromUrl = searchParams.get('companyId');
+                    if(companyIdFromUrl) {
+                      initialType = 'company';
+                      initialId = companyIdFromUrl;
                     }
-                }
 
-                if (initialId && initialType) {
-                    setEditingTargetId(initialId);
-                    setEditingEntityType(initialType);
-                    await fetchSettingsData(user, initialType, initialId);
+                } else if (userData.companyId) {
+                     initialType = 'company';
+                     initialId = userData.companyId;
                 }
-            } catch (e) {
-                console.error("Failed to initialize company settings page:", e);
-                toast({ title: "Error de Inicialización", description: "No se pudieron cargar los datos iniciales.", variant: "destructive" });
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        
-        const unsubscribe = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
-            if (user) {
-                await fetchInitialData(user);
+                
+                setEditingEntityType(initialType);
+                setEditingTargetId(initialId);
+                
+                if (initialId) {
+                    await fetchSettingsData(user, initialType, initialId);
+                } else {
+                    setIsLoading(false);
+                }
             } else {
                 setIsLoading(false);
             }
         });
         return () => unsubscribe();
-    }, [searchParams, fetchSettingsData, toast]);
-
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchParams]);
 
     const handleTargetSelection = (value: string) => {
         const user = auth.currentUser;
@@ -300,7 +292,7 @@ export default function CompanySettingsPage() {
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel>Plan de Suscripción</FormLabel>
-                                                <Select onValueChange={field.onChange} defaultValue={field.value || 'pro'} disabled={isSaving}>
+                                                <Select onValueChange={field.onChange} value={field.value || 'pro'} disabled={isSaving}>
                                                     <FormControl>
                                                         <SelectTrigger><SelectValue /></SelectTrigger>
                                                     </FormControl>
