@@ -3,7 +3,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
+import { Step1DetailsPhotos } from '@/components/features/wizard/step-1-details-photos';
 import { Step2Preview } from './step-2-preview'; 
 import { Step3Confirm } from './step-3-confirm';
 import { Step4Processing } from './step-4-processing';
@@ -118,28 +118,24 @@ export function ProductWizard() {
         if (finalProductData.targetLanguages) {
             for (const lang of finalProductData.targetLanguages) {
                 updateStepStatus(`translate_${lang}`, 'processing', undefined, 50);
-                const contentToTranslate = {
+                const translationPayload = {
                     name: finalProductData.name,
                     short_description: finalProductData.shortDescription,
                     long_description: finalProductData.longDescription,
                 };
-                const translateResponse = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ contentToTranslate, targetLanguage: lang }) });
-                if (!translateResponse.ok) throw new Error(`Error al traducir a ${lang}`);
-                const translatedContent = await translateResponse.json();
+                const translateResponse = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ content: translationPayload, targetLanguage: lang }) });
+                if (!translateResponse.ok) throw new Error(`Error traduciendo a ${lang}`);
+                const translatedContent = (await translateResponse.json()).content;
                 updateStepStatus(`translate_${lang}`, 'success', undefined, 100);
 
                 updateStepStatus(`create_${lang}`, 'processing', undefined, 50);
                 const targetLangSlug = ALL_LANGUAGES.find(l => l.code === lang)?.slug || lang.toLowerCase().substring(0, 2);
-                
-                const baseSkuForTranslation = finalProductData.sku.trim() || `PROD${originalResult.data.id}`;
-                const translatedSku = `${baseSkuForTranslation}-${targetLangSlug.toUpperCase()}`;
-
                 const translatedProductData = {
                   ...finalProductData,
                   name: translatedContent.name,
                   shortDescription: translatedContent.short_description,
                   longDescription: translatedContent.long_description,
-                  sku: translatedSku
+                  sku: `${finalProductData.sku || 'PROD'}-${targetLangSlug.toUpperCase()}`
                 };
                 
                 const translatedPayload = { productData: translatedProductData, lang: targetLangSlug };

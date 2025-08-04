@@ -1,809 +1,266 @@
-
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Step1DetailsPhotos } from '@/components/features/wizard/step-1-details-photos';
+import { Step2Preview } from './step-2-preview'; 
+import { Step3Confirm } from './step-3-confirm';
+import { Step4Processing } from './step-4-processing';
+import type { ProductData, SubmissionStep, SubmissionStatus } from '@/lib/types';
+import { INITIAL_PRODUCT_DATA, ALL_LANGUAGES } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
-import { ImageUploader } from '@/components/features/wizard/image-uploader';
-import { VariableProductManager } from '@/components/features/wizard/variable-product-manager';
-import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
-import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory } from '@/lib/types';
-import { PRODUCT_TYPES, ALL_LANGUAGES } from '@/lib/constants';
-import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
-import { Checkbox } from '@/components/ui/checkbox';
-import { auth, onAuthStateChanged } from '@/lib/firebase';
-import { useDebounce } from '@/hooks/use-debounce';
-import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
-import type { SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
+import { auth } from '@/lib/firebase';
+import { ArrowLeft, ArrowRight, Rocket, ExternalLink } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import Link from 'next/link';
+import axios from 'axios';
 
+export function ProductWizard() {
+  const [currentStep, setCurrentStep] = useState(1);
+  const [productData, setProductData] = useState<ProductData>(INITIAL_PRODUCT_DATA);
+  const [submissionStatus, setSubmissionStatus] = useState<SubmissionStatus>('idle');
+  const [steps, setSteps] = useState<SubmissionStep[]>([]);
+  const [finalLinks, setFinalLinks] = useState<{ url: string; title: string }[]>([]);
 
-interface Step1DetailsPhotosProps {
-  productData: ProductData;
-  updateProductData: (data: Partial<ProductData>) => void;
-  isProcessing?: boolean;
-}
-
-const StatusIndicator = ({ status, message }: { status: 'idle' | 'checking' | 'exists' | 'available'; message: string }) => {
-    if (status === 'idle') return null;
-    if (status === 'checking') return <div className="flex items-center text-xs text-muted-foreground mt-1"><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Verificando...</div>;
-    const color = status === 'exists' ? 'text-destructive' : 'text-green-600';
-    const Icon = status === 'exists' ? AlertCircle : CheckCircle;
-    return <div className={`flex items-center text-xs ${color} mt-1`}><Icon className="h-3 w-3 mr-1" /> {message}</div>;
-};
-
-
-export function Step1DetailsPhotos({ productData, updateProductData, isProcessing = false }: Step1DetailsPhotosProps) {
-  const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
-  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isGeneratingImageMeta, setIsGeneratingImageMeta] = useState(false);
-  const [skuStatus, setSkuStatus] = useState<{ status: 'idle' | 'checking' | 'exists' | 'available'; message: string }>({ status: 'idle', message: '' });
-  const [nameStatus, setNameStatus] = useState<{ status: 'idle' | 'checking' | 'exists' | 'available'; message: string }>({ status: 'idle', message: '' });
   const { toast } = useToast();
+
+  const isProcessing = submissionStatus === 'processing';
+
+  const updateProductData = useCallback((data: Partial<ProductData>) => {
+    setProductData(prev => ({ ...prev, ...data }));
+  }, []);
   
-  const debouncedSku = useDebounce(productData.sku, 500);
-  const debouncedName = useDebounce(productData.name, 500);
+  const updateStepStatus = (id: string, status: SubmissionStep['status'], error?: string, progress?: number) => {
+    setSteps(prevSteps => 
+      prevSteps.map(step => 
+        step.id === id ? { ...step, status, error, progress } : step
+      )
+    );
+  };
 
-  const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
-  const [imageUrl, setImageUrl] = useState('');
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const handleCreateProduct = useCallback(async () => {
+    setCurrentStep(4);
+    
+    // --- LOGGING: Log the state right before the API call ---
+    console.log('[WIZARD LOG] Data being sent to API:', JSON.stringify(productData, null, 2));
 
-  const [isSuggestingLinks, setIsSuggestingLinks] = useState(false);
-  const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>([]);
+    const initialSteps: SubmissionStep[] = [];
+    if (productData.photos.some(p => p.file)) {
+      initialSteps.push({ id: 'upload_images', name: 'Subiendo imágenes', status: 'pending', progress: 0 });
+    }
+    const sourceLangName = ALL_LANGUAGES.find(l => l.code === productData.language)?.name || productData.language;
+    initialSteps.push({ id: 'create_original', name: `Creando producto original (${sourceLangName})`, status: 'pending', progress: 0 });
+    
+    productData.targetLanguages?.forEach(lang => {
+        const targetLangName = ALL_LANGUAGES.find(l => l.code === lang)?.name || lang;
+        initialSteps.push({ id: `translate_${lang}`, name: `Traduciendo a ${targetLangName}`, status: 'pending', progress: 0 });
+        initialSteps.push({ id: `create_${lang}`, name: `Creando producto en ${targetLangName}`, status: 'pending', progress: 0 });
+    });
+     if (productData.targetLanguages && productData.targetLanguages.length > 0) {
+        initialSteps.push({ id: 'sync_translations', name: 'Sincronizando enlaces de traducción', status: 'pending', progress: 0 });
+    }
+    setSteps(initialSteps);
+    setFinalLinks([]);
+    setSubmissionStatus('processing');
+    
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: 'Error', description: 'No autenticado.', variant: 'destructive' });
+        setSubmissionStatus('error');
+        return;
+    }
+    
+    try {
+        const token = await user.getIdToken();
+        let finalProductData = { ...productData };
+        let createdPostUrls: { url: string; title: string }[] = [];
+        const allTranslations: { [key: string]: number } = {};
+
+        // --- Step 1: Upload Images (if necessary) ---
+        if (productData.photos.some(p => p.file)) {
+            updateStepStatus('upload_images', 'processing', undefined, 10);
+            const photosToUpload = productData.photos.filter(p => p.file);
+            const uploadedPhotosInfo: { id: string | number; uploadedUrl: string; uploadedFilename: string }[] = [];
+            
+            for (const [index, photo] of photosToUpload.entries()) {
+                 const formData = new FormData();
+                 formData.append('imagen', photo.file!);
+                 const response = await fetch('/api/upload-image', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData });
+                 if (!response.ok) throw new Error(`Error subiendo ${photo.name}`);
+                 const imageData = await response.json();
+                 uploadedPhotosInfo.push({ id: photo.id, uploadedUrl: imageData.url, uploadedFilename: imageData.filename_saved_on_server });
+                 const progress = Math.round(((index + 1) / photosToUpload.length) * 100);
+                 updateStepStatus('upload_images', 'processing', undefined, progress);
+            }
+            
+            finalProductData.photos = productData.photos.map(p => {
+                const uploaded = uploadedPhotosInfo.find(u => u.id === p.id);
+                return uploaded ? { ...p, file: undefined, uploadedUrl: uploaded.uploadedUrl, uploadedFilename: uploaded.uploadedFilename } : p;
+            });
+            updateStepStatus('upload_images', 'success', undefined, 100);
+        }
+        
+        // --- Step 2: Create Original Product ---
+        updateStepStatus('create_original', 'processing', undefined, 50);
+        const sourceLangSlug = ALL_LANGUAGES.find(l => l.code === finalProductData.language)?.slug || 'es';
+        const originalPayload = { productData: { ...finalProductData, targetLanguages: [] }, lang: sourceLangSlug };
+        
+        const originalResponse = await fetch('/api/woocommerce/products', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(originalPayload) });
+        if (!originalResponse.ok) { const errorData = await originalResponse.json(); throw new Error(errorData.error || `Error creando producto original`); }
+        const originalResult = await originalResponse.json();
+        createdPostUrls.push({ url: originalResult.data.url, title: originalResult.data.title });
+        allTranslations[sourceLangSlug] = originalResult.data.id;
+        updateStepStatus('create_original', 'success', undefined, 100);
+
+        // --- Step 3: Create Translations ---
+        if (finalProductData.targetLanguages) {
+            for (const lang of finalProductData.targetLanguages) {
+                updateStepStatus(`translate_${lang}`, 'processing', undefined, 50);
+                const translationPayload = {
+                    name: finalProductData.name,
+                    short_description: finalProductData.shortDescription,
+                    long_description: finalProductData.longDescription,
+                };
+                const translateResponse = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ content: translationPayload, targetLanguage: lang }) });
+                if (!translateResponse.ok) throw new Error(`Error traduciendo a ${lang}`);
+                const translatedContent = (await translateResponse.json()).content;
+                updateStepStatus(`translate_${lang}`, 'success', undefined, 100);
+
+                updateStepStatus(`create_${lang}`, 'processing', undefined, 50);
+                const targetLangSlug = ALL_LANGUAGES.find(l => l.code === lang)?.slug || lang.toLowerCase().substring(0, 2);
+                const translatedProductData = {
+                  ...finalProductData,
+                  name: translatedContent.name,
+                  shortDescription: translatedContent.short_description,
+                  longDescription: translatedContent.long_description,
+                  sku: `${finalProductData.sku || 'PROD'}-${targetLangSlug.toUpperCase()}`
+                };
+                
+                const translatedPayload = { productData: translatedProductData, lang: targetLangSlug };
+                const translatedResponse = await fetch('/api/woocommerce/products', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(translatedPayload) });
+                if (!translatedResponse.ok) { const errorData = await translatedResponse.json(); throw new Error(errorData.error || `Error creando producto en ${lang}`); }
+                const translatedResult = await translatedResponse.json();
+                createdPostUrls.push({ url: translatedResult.data.url, title: translatedResult.data.title });
+                allTranslations[targetLangSlug] = translatedResult.data.id;
+                updateStepStatus(`create_${lang}`, 'success', undefined, 100);
+            }
+        }
+        
+        // --- Step 4: Final Sync of all translation links ---
+        if (Object.keys(allTranslations).length > 1) {
+            updateStepStatus('sync_translations', 'processing', undefined, 50);
+            const linkResponse = await fetch('/api/wordpress/posts/link-translations', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ translations: allTranslations }) });
+            if (!linkResponse.ok) { const errorResult = await linkResponse.json(); throw new Error(errorResult.message || 'Error al enlazar las traducciones.'); }
+            updateStepStatus('sync_translations', 'success', undefined, 100);
+        }
+
+        setFinalLinks(createdPostUrls);
+        setSubmissionStatus('success');
+
+    } catch (error: any) {
+        const failedStep = steps.find(s => s.status === 'processing');
+        if (failedStep) {
+            updateStepStatus(failedStep.id, 'error', error.message);
+        }
+        toast({ title: 'Proceso Interrumpido', description: error.message, variant: 'destructive' });
+        setSubmissionStatus('error');
+    }
+  }, [productData, toast, steps]);
+
 
   useEffect(() => {
-    const fetchCategories = async (token: string) => {
-      setIsLoadingCategories(true);
-      try {
-        const response = await fetch('/api/woocommerce/categories', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+    if (currentStep === 4 && submissionStatus === 'idle') {
+      handleCreateProduct();
+    }
+  }, [currentStep, submissionStatus, handleCreateProduct]);
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || `Error: ${response.status}`);
-        }
-        const data: WooCommerceCategory[] = await response.json();
-        
-        const categoryMap = new Map<number, WooCommerceCategory>(data.map(cat => ({ ...cat, children: [] })).map(cat => [cat.id, cat]));
-        const tree: WooCommerceCategory[] = [];
-
-        data.forEach(cat => {
-            if (cat.parent === 0) {
-                tree.push(categoryMap.get(cat.id)!);
-            } else {
-                const parent = categoryMap.get(cat.parent);
-                if (parent) {
-                    (parent as any).children.push(categoryMap.get(cat.id)!);
-                }
-            }
-        });
-        
-        const flattenedHierarchy: WooCommerceCategory[] = [];
-        const flatten = (categories: WooCommerceCategory[], depth: number) => {
-            for (const category of categories) {
-                flattenedHierarchy.push({
-                    ...category,
-                    name: '— '.repeat(depth) + category.name,
-                });
-                if ((category as any).children.length > 0) {
-                    flatten((category as any).children, depth + 1);
-                }
-            }
-        };
-
-        flatten(tree, 0);
-        setWooCategories(flattenedHierarchy);
-
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        toast({
-          title: "Error al Cargar Categorías",
-          description: errorMessage || "No se pudieron cargar las categorías de WooCommerce.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoadingCategories(false);
-      }
-    };
-    
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-        if (user) {
-            const token = await user.getIdToken();
-            fetchCategories(token);
-        } else {
-            setIsLoadingCategories(false);
-            setWooCategories([]);
-        }
-    });
-
-    return () => unsubscribe();
-  }, [toast]);
-  
-    useEffect(() => {
-    const checkProductExistence = async (field: 'sku' | 'name', value: string) => {
-        if (!value || value.length < 3) {
-            (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'idle', message: '' });
-            return;
-        }
-
-        const user = auth.currentUser;
-        if (!user) return;
-        const token = await user.getIdToken();
-
-        (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'checking', message: '' });
-
-        try {
-            const response = await fetch(`/api/woocommerce/products/check?${field}=${encodeURIComponent(value)}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await response.json();
-            if (response.ok) {
-                if (data.exists) {
-                    (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'exists', message: data.message });
-                } else {
-                    (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'available', message: `El ${field.toUpperCase()} está disponible.` });
-                }
-            } else {
-                 (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'idle', message: '' }); // Reset on error
-            }
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error(`Error checking ${field}:`, errorMessage);
-            (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'idle', message: '' });
-        }
-    };
-
-    if (debouncedSku) checkProductExistence('sku', debouncedSku);
-    if (debouncedName) checkProductExistence('name', debouncedName);
-
-  }, [debouncedSku, debouncedName, toast]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    updateProductData({ [e.target.name]: e.target.value });
-  };
-  
-  const handleShortDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    updateProductData({ shortDescription: e.target.value });
-  };
-
-
-  const handleLongDescriptionChange = (newContent: string) => {
-    updateProductData({ longDescription: newContent });
-  };
-
-
-  const handleSelectChange = (name: 'productType' | 'category', value: string) => {
-    if (name === 'productType') {
-      updateProductData({ 
-        productType: value as ProductType, 
-        attributes: [{ name: '', value: '', forVariations: false, visible: true }], 
-        variations: [] 
-      });
-    } else if (name === 'category') {
-      const selectedCat = wooCategories.find(c => c.id.toString() === value);
-      // When a category is selected from dropdown, clear the text input path
-      updateProductData({ category: selectedCat || null, categoryPath: '' });
+  const nextStep = () => {
+    if (currentStep < 3) {
+      setCurrentStep(prev => prev + 1);
+      window.scrollTo(0, 0);
+    } else if (currentStep === 3) {
+      setCurrentStep(4);
     }
   };
   
-  const handleCategoryPathChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const path = e.target.value;
-    // When user types in path, deselect dropdown category
-    if (path) {
-      updateProductData({ categoryPath: path, category: null });
-    } else {
-      updateProductData({ categoryPath: '' });
+  const prevStep = () => {
+    if (currentStep > 1 && !isProcessing) {
+      setCurrentStep(prev => prev - 1);
+      window.scrollTo(0, 0);
     }
   };
 
-
-  const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
-    if (!productData.name && newPhotos.length > 0) {
-      const firstNewFile = newPhotos.find(p => p && p.file);
-      if (firstNewFile) {
-        const { extractedProductName } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
-        if (extractedProductName) {
-            updateProductData({ photos: newPhotos, name: extractedProductName });
-            return;
-        }
-      }
-    }
-    updateProductData({ photos: newPhotos });
-  };
-  
-  const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string | boolean) => {
-    const newAttributes = [...productData.attributes];
-    newAttributes[index] = { ...newAttributes[index], [field]: value };
-    updateProductData({ attributes: newAttributes });
-  };
-
-  const addAttribute = () => {
-    updateProductData({ attributes: [...productData.attributes, { name: '', value: '', forVariations: false, visible: true }] });
-  };
-
-  const removeAttribute = (index: number) => {
-    const newAttributes = productData.attributes.filter((_, i) => i !== index);
-    updateProductData({ attributes: newAttributes });
-  };
-  
-  const handleLanguageToggle = (langCode: string) => {
-      const newLangs = productData.targetLanguages?.includes(langCode)
-          ? productData.targetLanguages.filter(l => l !== langCode)
-          : [...(productData.targetLanguages || []), langCode];
-      updateProductData({ targetLanguages: newLangs });
-  };
-  
-  const handleSourceLanguageChange = (newSourceLang: string) => {
-      updateProductData({
-          language: newSourceLang as ProductData['language'],
-          targetLanguages: productData.targetLanguages?.filter(l => l !== newSourceLang)
-      });
-  };
-  
-  const availableTargetLanguages = ALL_LANGUAGES.filter(lang => lang.code !== productData.language);
-
-  const handleGenerateContentWithAI = async () => {
-    if (!productData.name) {
-        toast({ title: "Falta el nombre", description: "Por favor, introduce un nombre para el producto antes de usar la IA.", variant: "destructive" });
-        return;
-    }
-    setIsGenerating(true);
-    try {
-        const user = auth.currentUser;
-        if (!user) throw new Error("No autenticado.");
-        const token = await user.getIdToken();
-
-        const aiContextName = extractProductNameAndAttributesFromFilename(productData.photos[0]?.name || '').extractedProductName || productData.name;
-
-        const payload = {
-            baseProductName: productData.name,
-            productName: aiContextName,
-            productType: productData.productType,
-            keywords: productData.tags, 
-            language: productData.language,
-            groupedProductIds: productData.groupedProductIds,
-        };
-
-        const response = await fetch('/api/generate-description', {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-            let errorToastDescription = `El servidor respondió con un error ${response.status}.`;
-            try {
-                const errorData = await response.json();
-                errorToastDescription = errorData.error || errorData.message || errorToastDescription;
-            } catch (e) {
-                errorToastDescription = `Error interno del servidor (${response.status}). La respuesta no es un JSON válido.`;
-            }
-            throw new Error(errorToastDescription);
-        }
-
-        const aiContent = await response.json();
-        
-        updateProductData({
-            name: aiContent.name,
-            shortDescription: aiContent.shortDescription,
-            longDescription: aiContent.longDescription,
-            tags: aiContent.keywords,
-            imageTitle: aiContent.imageTitle,
-            imageAltText: aiContent.imageAltText,
-            imageCaption: aiContent.imageCaption,
-            imageDescription: aiContent.imageDescription,
-        });
-
-        toast({ title: "¡Contenido generado!", description: "La IA ha rellenado el nombre, descripciones, palabras clave y metadatos de imagen." });
-
-    } catch (error: any) {
-        toast({ title: "Error de IA", description: error.message, variant: "destructive", duration: 10000 });
-    } finally {
-        setIsGenerating(false);
-    }
-  };
-
-  const handleGenerateImageMetadata = async () => {
-    if (!productData.name) {
-        toast({ title: "Falta el nombre", description: "Por favor, introduce un nombre para el producto.", variant: "destructive" });
-        return;
-    }
-    setIsGeneratingImageMeta(true);
-    try {
-        const user = auth.currentUser;
-        if (!user) throw new Error("No autenticado.");
-        const token = await user.getIdToken();
-
-        const payload = {
-            productName: productData.name,
-            productType: productData.productType,
-            keywords: productData.tags, // Using tags field
-            language: productData.language,
-            mode: 'image_meta_only',
-        };
-
-        const response = await fetch('/api/generate-description', {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-            let errorToastDescription = `El servidor respondió con un error ${response.status}.`;
-            try {
-                const errorData = await response.json();
-                errorToastDescription = errorData.error || errorData.message || errorToastDescription;
-            } catch (e) {
-                // Ignore if parsing fails
-            }
-            throw new Error(errorToastDescription);
-        }
-
-        const aiContent = await response.json();
-        
-        updateProductData({
-            imageTitle: aiContent.imageTitle,
-            imageAltText: aiContent.imageAltText,
-            imageCaption: aiContent.imageCaption,
-            imageDescription: aiContent.imageDescription,
-        });
-
-        toast({ title: "Metadatos de imagen generados", description: "La IA ha rellenado los datos SEO para las imágenes." });
-
-    } catch (error: any) {
-        toast({ title: "Error de IA", description: error.message, variant: "destructive", duration: 7000 });
-    } finally {
-        setIsGeneratingImageMeta(false);
+  const renderStep = () => {
+    switch (currentStep) {
+      case 1:
+        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} />;
+      case 2:
+        return <Step2Preview productData={productData} />;
+      case 3:
+        return <Step3Confirm productData={productData} />;
+      case 4:
+        return <Step4Processing status={submissionStatus} steps={steps} />;
+      default:
+        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} />;
     }
   };
   
-  const handleInsertImage = async () => {
-    let finalImageUrl = imageUrl;
-    if (imageFile) {
-        setIsUploadingImage(true);
-        try {
-            const user = auth.currentUser;
-            if (!user) throw new Error("No autenticado.");
-            const token = await user.getIdToken();
-            const formData = new FormData();
-            formData.append('imagen', imageFile);
-            const response = await fetch('/api/upload-image', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData });
-            if (!response.ok) throw new Error((await response.json()).error || 'Fallo en la subida de imagen.');
-            finalImageUrl = (await response.json()).url;
-        } catch (err: any) {
-            toast({ title: 'Error al subir imagen', description: err.message, variant: 'destructive' });
-            setIsUploadingImage(false);
-            return;
-        } finally {
-            setIsUploadingImage(false);
-        }
-    }
-    if (!finalImageUrl) {
-        toast({ title: 'Falta la imagen', description: 'Por favor, sube un archivo o introduce una URL.', variant: 'destructive' });
-        return;
-    }
-
-    const imgTag = `<img src="${finalImageUrl}" alt="${productData.name || 'Imagen insertada'}" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px;" />`;
-    updateProductData({ longDescription: productData.longDescription + `\n${imgTag}` });
-
-    setImageUrl('');
-    setImageFile(null);
-    setIsImageDialogOpen(false);
-  };
-
-  const handleSuggestLinks = async () => {
-    if (!productData.longDescription.trim() && !productData.shortDescription.trim()) {
-        toast({ title: "Contenido vacío", description: "Escribe algo en las descripciones antes de pedir sugerencias.", variant: "destructive" });
-        return;
-    }
-    setIsSuggestingLinks(true);
-    try {
-        const user = auth.currentUser;
-        if (!user) throw new Error("No autenticado.");
-        const token = await user.getIdToken();
-        const response = await fetch('/api/ai/suggest-links', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ content: `${productData.shortDescription}\n${productData.longDescription}` })
-        });
-        if (!response.ok) throw new Error((await response.json()).message || "La IA falló al sugerir enlaces.");
-        
-        const data: SuggestLinksOutput = await response.json();
-        setLinkSuggestions(data.suggestions || []);
-
-    } catch(e: any) {
-        toast({ title: "Error al sugerir enlaces", description: e.message, variant: "destructive" });
-        setLinkSuggestions([]);
-    } finally {
-        setIsSuggestingLinks(false);
-    }
-  };
-
-  const applyLink = (content: string, suggestion: LinkSuggestion): string => {
-    const phrase = suggestion.phraseToLink.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`(?<!<a[^>]*>)${phrase}(?!<\\/a>)`, '');
-    if (content.match(regex)) {
-        return content.replace(regex, `<a href="${suggestion.targetUrl}" target="_blank">${suggestion.phraseToLink}</a>`);
-    }
-    return content;
-  };
-
-  const handleApplySuggestion = (suggestion: LinkSuggestion) => {
-    let applied = false;
-    let newShortDesc = productData.shortDescription;
-    let newLongDesc = productData.longDescription;
-
-    if (newShortDesc.includes(suggestion.phraseToLink)) {
-        newShortDesc = applyLink(newShortDesc, suggestion);
-        applied = true;
-    } else if (newLongDesc.includes(suggestion.phraseToLink)) {
-        newLongDesc = applyLink(newLongDesc, suggestion);
-        applied = true;
-    }
-    
-    if (applied) {
-        updateProductData({ shortDescription: newShortDesc, longDescription: newLongDesc });
-        toast({ title: "Enlace aplicado", description: `Se ha enlazado la frase "${suggestion.phraseToLink}".` });
-        setLinkSuggestions(prev => prev.filter(s => s.phraseToLink !== suggestion.phraseToLink || s.targetUrl !== suggestion.targetUrl));
-    } else {
-        toast({ title: "No se pudo aplicar", description: "No se encontró la frase exacta o ya estaba enlazada.", variant: "destructive" });
-    }
-  };
-
-  const handleApplyAllSuggestions = () => {
-     let updatedShortDesc = productData.shortDescription;
-     let updatedLongDesc = productData.longDescription;
-     let appliedCount = 0;
-     for (const suggestion of linkSuggestions) {
-         const newShort = applyLink(updatedShortDesc, suggestion);
-         if (newShort !== updatedShortDesc) {
-             updatedShortDesc = newShort;
-             appliedCount++;
-         } else {
-            const newLong = applyLink(updatedLongDesc, suggestion);
-            if (newLong !== updatedLongDesc) {
-                updatedLongDesc = newLong;
-                appliedCount++;
-            }
-         }
-     }
-     if (appliedCount > 0) {
-        updateProductData({ shortDescription: updatedShortDesc, longDescription: updatedLongDesc });
-        toast({ title: "Enlaces aplicados", description: `Se han aplicado ${appliedCount} sugerencias de enlaces.` });
-        setLinkSuggestions([]);
-     } else {
-        toast({ title: "No se aplicó nada", description: "No se encontraron frases o ya estaban enlazadas.", variant: "destructive" });
-     }
-  };
+  const startOver = () => {
+    setProductData(INITIAL_PRODUCT_DATA);
+    setSteps([]);
+    setFinalLinks([]);
+    setSubmissionStatus('idle');
+    setCurrentStep(1);
+    window.scrollTo(0, 0);
+  }
 
   return (
-    <>
-      <div className="space-y-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Paso 1: Detalles y Fotos</CardTitle>
-            <CardDescription>Completa la información básica y añade las imágenes de tu producto.</CardDescription>
-          </CardHeader>
-        </Card>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-8">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Información del Producto</CardTitle>
-                  <CardDescription>Define los detalles clave de tu producto. Las opciones cambiarán según el tipo que elijas.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <Label htmlFor="name">Nombre del Producto</Label>
-                      <Input id="name" name="name" value={productData.name} onChange={handleInputChange} placeholder="Ej: Camiseta de Algodón" disabled={isProcessing} />
-                      <StatusIndicator status={nameStatus.status} message={nameStatus.message} />
-                    </div>
-                    <div>
-                      <Label htmlFor="sku">SKU</Label>
-                      <Input id="sku" name="sku" value={productData.sku} onChange={handleInputChange} placeholder="Ej: CAM-ALG-AZ-M" disabled={isProcessing} />
-                      <StatusIndicator status={skuStatus.status} message={skuStatus.message} />
-                    </div>
-                  </div>
+    <div className="space-y-8">
+      {renderStep()}
+      
+      {currentStep < 4 && !isProcessing && (
+        <div className="flex justify-between mt-8">
+            <Button onClick={prevStep} disabled={currentStep === 1}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Anterior
+            </Button>
 
-                  <div>
-                    <Label htmlFor="productType">Tipo de Producto</Label>
-                    <Select name="productType" value={productData.productType} onValueChange={(value) => handleSelectChange('productType', value)} disabled={isProcessing}>
-                      <SelectTrigger id="productType">
-                        <SelectValue placeholder="Selecciona un tipo de producto" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PRODUCT_TYPES.map(type => (
-                          <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+            {currentStep < 3 ? (
+            <Button onClick={nextStep}>
+                Siguiente
+                <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+            ) : (
+            <Button onClick={() => setCurrentStep(4)}>
+                <Rocket className="mr-2 h-4 w-4" />
+                Crear Producto(s)
+            </Button>
+            )}
+        </div>
+      )}
+
+      {(submissionStatus === 'success' || submissionStatus === 'error') && (
+         <Card>
+            <CardHeader>
+                <CardTitle>{submissionStatus === 'success' ? 'Proceso Completado' : 'Proceso Interrumpido'}</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col items-start gap-4">
+                {finalLinks.length > 0 && (
+                    <div className="space-y-2">
+                        <h3 className="font-semibold">Productos Creados:</h3>
+                        {finalLinks.map((link, index) => (
+                           <Button variant="link" asChild key={index}>
+                             <Link href={link.url} target="_blank" rel="noopener noreferrer">
+                               <ExternalLink className="mr-2 h-4 w-4" /> Ver "{link.title}"
+                             </Link>
+                           </Button>
                         ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                   <div>
-                      <Label htmlFor="category">Categoría</Label>
-                      <div className="flex gap-2">
-                          <Select name="category" value={productData.category?.id.toString() || ''} onValueChange={(value) => handleSelectChange('category', value)} disabled={isProcessing || isLoadingCategories}>
-                          <SelectTrigger id="category">
-                              {isLoadingCategories ? (
-                              <div className="flex items-center">
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  <SelectValue placeholder="Cargando categorías..." />
-                              </div>
-                              ) : (
-                              <SelectValue placeholder="Selecciona una categoría existente..." />
-                              )}
-                          </SelectTrigger>
-                          <SelectContent>
-                              {!isLoadingCategories && wooCategories.length === 0 && <SelectItem value="" disabled>No hay categorías disponibles</SelectItem>}
-                              {wooCategories.map(cat => (
-                                  <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
-                              ))}
-                          </SelectContent>
-                          </Select>
-                          <Input
-                              name="categoryPath"
-                              value={productData.categoryPath || ''}
-                              onChange={handleCategoryPathChange}
-                              placeholder="O crea una nueva (Ej: Ropa > Camisetas)"
-                              disabled={isProcessing}
-                          />
-                      </div>
-                  </div>
-
-                  {productData.productType === 'simple' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t pt-6">
-                      <div>
-                        <Label htmlFor="regularPrice">Precio Regular (€)</Label>
-                        <Input id="regularPrice" name="regularPrice" type="number" value={productData.regularPrice} onChange={handleInputChange} placeholder="Ej: 29.99" disabled={isProcessing} />
-                      </div>
-                      <div>
-                        <Label htmlFor="salePrice">Precio de Oferta (€)</Label>
-                        <Input id="salePrice" name="salePrice" type="number" value={productData.salePrice} onChange={handleInputChange} placeholder="Opcional" disabled={isProcessing} />
-                      </div>
                     </div>
-                  )}
-                  
-                  {productData.productType === 'grouped' && (
-                      <div className="border-t pt-6 mt-6">
-                          <h3 className="text-lg font-medium mb-2">Productos Agrupados</h3>
-                          <p className="text-sm text-muted-foreground mb-4">Busca y selecciona los productos simples que formarán parte de este grupo.</p>
-                          <GroupedProductSelector 
-                              productIds={productData.groupedProductIds || []} 
-                              onProductIdsChange={(ids) => updateProductData({ groupedProductIds: ids })} 
-                          />
-                      </div>
-                  )}
-
-                  {productData.productType !== 'grouped' && (
-                      <div className="border-t pt-6 mt-6">
-                          <h3 className="text-lg font-medium mb-2">Atributos del Producto</h3>
-                          <p className="text-sm text-muted-foreground mb-4">Añade atributos como talla, color, etc. Para productos variables, marca la casilla "Para variaciones" y separa los valores con " | ".</p>
-                          {productData.attributes.map((attr, index) => (
-                             <div key={index} className="flex flex-col sm:flex-row items-start sm:items-end gap-2 p-3 border rounded-md bg-muted/20 mb-2">
-                                  <div className="flex-1 w-full">
-                                      <Label htmlFor={`attrName-${index}`}>Nombre</Label>
-                                      <Input id={`attrName-${index}`} value={attr.name} onChange={(e) => handleAttributeChange(index, 'name', e.target.value)} placeholder="Ej: Color" disabled={isProcessing || isGenerating} />
-                                  </div>
-                                  <div className="flex-1 w-full">
-                                      <Label htmlFor={`attrValue-${index}`}>Valor(es)</Label>
-                                      <Input id={`attrValue-${index}`} value={attr.value} onChange={(e) => handleAttributeChange(index, 'value', e.target.value)} placeholder="Ej: Azul | Rojo | Verde" disabled={isProcessing || isGenerating} />
-                                  </div>
-                                  <div className="flex items-center gap-4 pt-2 sm:pt-0 sm:self-end sm:h-10">
-                                      {productData.productType === 'variable' && (
-                                          <div className="flex items-center space-x-2">
-                                              <Checkbox id={`attrVar-${index}`} checked={attr.forVariations} onCheckedChange={(checked) => handleAttributeChange(index, 'forVariations', !!checked)} disabled={isProcessing || isGenerating} />
-                                              <Label htmlFor={`attrVar-${index}`} className="text-sm font-normal whitespace-nowrap">Para variaciones</Label>
-                                          </div>
-                                      )}
-                                      <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" disabled={isProcessing || isGenerating} className="flex-shrink-0">
-                                          <Trash2 className="h-4 w-4 text-destructive" />
-                                      </Button>
-                                  </div>
-                              </div>
-                          ))}
-                          <Button type="button" variant="outline" onClick={addAttribute} className="mt-2" disabled={isProcessing || isGenerating}>
-                              <PlusCircle className="mr-2 h-4 w-4" /> Añadir Atributo
-                          </Button>
-                      </div>
-                  )}
-
-                  {productData.productType === 'variable' && (
-                      <div className="border-t pt-6 mt-6">
-                          <VariableProductManager productData={productData} updateProductData={updateProductData} />
-                      </div>
-                  )}
-                  
-                  {productData.productType !== 'variable' && (
-                      <div className="border-t pt-6 mt-6 space-y-4">
-                          <h3 className="text-lg font-medium">Inventario y Envío</h3>
-                          <div className="flex items-center space-x-2">
-                              <Checkbox id="manage_stock" checked={productData.manage_stock} onCheckedChange={(checked) => updateProductData({ manage_stock: !!checked, stockQuantity: !!checked ? productData.stockQuantity : '' })} disabled={isProcessing} />
-                              <Label htmlFor="manage_stock" className="text-sm font-normal">Gestionar inventario a nivel de producto</Label>
-                          </div>
-                          {productData.manage_stock && (
-                              <div>
-                                  <Label htmlFor="stockQuantity">Cantidad en Stock</Label>
-                                  <Input id="stockQuantity" name="stockQuantity" type="number" value={productData.stockQuantity} onChange={handleInputChange} placeholder="Ej: 100" disabled={isProcessing} />
-                              </div>
-                          )}
-                          <div>
-                              <Label htmlFor="weight">Peso (kg)</Label>
-                              <Input id="weight" name="weight" type="number" value={productData.weight} onChange={handleInputChange} placeholder="Ej: 0.5" disabled={isProcessing} />
-                          </div>
-                          <div>
-                              <Label>Dimensiones (cm)</Label>
-                              <div className="grid grid-cols-3 gap-2">
-                                  <Input name="length" value={productData.dimensions?.length} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), length: e.target.value } as any })} placeholder="Largo" disabled={isProcessing} />
-                                  <Input name="width" value={productData.dimensions?.width} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), width: e.target.value } as any })} placeholder="Ancho" disabled={isProcessing} />
-                                  <Input name="height" value={productData.dimensions?.height} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), height: e.target.value } as any })} placeholder="Alto" disabled={isProcessing} />
-                              </div>
-                          </div>
-                          <div>
-                              <Label htmlFor="shipping_class">Clase de envío</Label>
-                              <Input id="shipping_class" name="shipping_class" value={productData.shipping_class} onChange={handleInputChange} placeholder="Introduce el slug de la clase de envío" disabled={isProcessing} />
-                              <p className="text-xs text-muted-foreground mt-1">Encuentra el slug en WooCommerce &gt; Ajustes &gt; Envío &gt; Clases de envío.</p>
-                          </div>
-                      </div>
-                  )}
-
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Descripciones y Palabras Clave</CardTitle>
-                <CardDescription>Esta información es clave para el SEO y para informar a tus clientes.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                 <div>
-                  <Label htmlFor="tags">Etiquetas (separadas por comas)</Label>
-                  <Input id="tags" name="tags" value={productData.tags} onChange={handleInputChange} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing || isGenerating} />
-                  <p className="text-xs text-muted-foreground mt-1">Ayudan a la IA y al SEO de tu producto.</p>
-                </div>
-
-                <div className="pt-2">
-                  <Button onClick={handleGenerateContentWithAI} disabled={isProcessing || isGenerating || !productData.name} className="w-full sm:w-auto">
-                      {isGenerating ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}
-                      {isGenerating ? "Generando..." : "Generar Contenido con IA"}
-                  </Button>
-                  {!productData.name && <p className="text-xs text-destructive mt-1">Introduce un nombre de producto para activar la IA.</p>}
-                </div>
-
-                <div className="border-t pt-6 space-y-6">
-                  <div>
-                      <Label htmlFor="shortDescription">Descripción Corta</Label>
-                       <Textarea
-                        id="shortDescription"
-                        name="shortDescription"
-                        value={productData.shortDescription}
-                        onChange={handleShortDescriptionChange}
-                        placeholder="Un resumen atractivo y conciso de tu producto que será generado por la IA."
-                        rows={3}
-                        disabled={isProcessing || isGenerating}
-                      />
-                  </div>
-                
-                  <div>
-                      <Label htmlFor="longDescription">Descripción Larga</Label>
-                      <RichTextEditor
-                          content={productData.longDescription}
-                          onChange={handleLongDescriptionChange}
-                          onInsertImage={() => setIsImageDialogOpen(true)}
-                          onSuggestLinks={handleSuggestLinks}
-                          placeholder="Describe tu producto en detalle: características, materiales, usos, etc. La IA lo generará por ti."
-                      />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-        </div>
-        <div className="lg:col-span-1 space-y-8">
-            <Card>
-              <CardHeader>
-                <CardTitle>Imágenes del Producto</CardTitle>
-                <CardDescription>Sube las imágenes para tu producto. La primera se usará como principal.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} isProcessing={isProcessing || isGenerating} maxPhotos={15} />
-                <Button 
-                  onClick={handleGenerateImageMetadata} 
-                  disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} 
-                  className="w-full"
-                  variant="outline"
-                >
-                  {isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}
-                  {isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Languages /> Traducción (Opcional)</CardTitle>
-                    <CardDescription>Crea automáticamente copias de este producto en otros idiomas.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div>
-                        <Label>Idioma de Origen</Label>
-                        <Select name="language" value={productData.language} onValueChange={handleSourceLanguageChange}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                {ALL_LANGUAGES.map(lang => (<SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div>
-                        <Label>Crear traducciones en:</Label>
-                         <div className="grid grid-cols-2 gap-2 pt-2">
-                            {availableTargetLanguages.map(lang => (
-                                <div key={lang.code} className="flex items-center space-x-2">
-                                    <Checkbox id={`lang-${lang.code}`} checked={productData.targetLanguages?.includes(lang.code)} onCheckedChange={() => handleLanguageToggle(lang.code)} />
-                                    <Label htmlFor={`lang-${lang.code}`} className="font-normal">{lang.name}</Label>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
-      </div>
-      <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
-          <AlertDialogContent>
-              <AlertDialogHeader>
-                  <AlertDialogTitle>Insertar Imagen</AlertDialogTitle>
-                  <AlertDialogDescription>Sube una imagen o introduce una URL para insertarla en el contenido.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <div className="space-y-4">
-                  <div>
-                      <Label htmlFor="image-upload">Subir archivo</Label>
-                      <Input id="image-upload" type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
-                  </div>
-                  <div className="relative">
-                      <div className="absolute inset-0 flex items-center">
-                          <span className="w-full border-t" />
-                      </div>
-                      <div className="relative flex justify-center text-xs uppercase">
-                          <span className="bg-background px-2 text-muted-foreground">O</span></div>
-                  </div>
-                  <div>
-                      <Label htmlFor="image-url">Insertar desde URL</Label>
-                      <Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" />
-                  </div>
-              </div>
-              <AlertDialogFooter>
-                  <AlertDialogCancel onClick={() => { setImageUrl(''); setImageFile(null); }}>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleInsertImage} disabled={isUploadingImage}>
-                      {isUploadingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Insertar Imagen
-                  </AlertDialogAction>
-              </AlertDialogFooter>
-          </AlertDialogContent>
-      </AlertDialog>
-      <LinkSuggestionsDialog
-          open={linkSuggestions.length > 0 && !isSuggestingLinks}
-          onOpenChange={(open) => { if (!open) setLinkSuggestions([]); }}
-          suggestions={linkSuggestions}
-          onApplySuggestion={handleApplySuggestion}
-          onApplyAll={handleApplyAllSuggestions}
-      />
-    </>
+                )}
+                <Button onClick={startOver}>Crear otro producto</Button>
+            </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
