@@ -1,9 +1,11 @@
+
 // src/app/api/woocommerce/products/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress, findOrCreateWpCategoryByPath } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress, findOrCreateWpCategoryByPath, findOrCreateTags } from '@/lib/api-helpers';
 import type { ProductData, ProductVariation } from '@/lib/types';
+import axios from 'axios';
 
 const slugify = (text: string) => {
     if (!text) return '';
@@ -82,6 +84,13 @@ export async function POST(request: NextRequest) {
                 options: attr.value.split('|').map(s => s.trim()),
             }));
         console.log(`[API Products] Processed attributes:`, JSON.stringify(wooAttributes, null, 2));
+        
+        // Correct Tag Handling
+        const tagNames = typeof finalProductData.tags === 'string' 
+            ? finalProductData.tags.split(',').map(t => t.trim()).filter(Boolean)
+            : [];
+        const tagIds = await findOrCreateTags(tagNames, wpApi);
+        console.log(`[API Products] Final tag IDs:`, tagIds);
 
 
         const wooPayload: any = {
@@ -89,7 +98,7 @@ export async function POST(request: NextRequest) {
             description: finalProductData.longDescription, short_description: finalProductData.shortDescription,
             categories: finalCategoryId ? [{ id: finalCategoryId }] : [],
             images: wordpressImageIds, attributes: wooAttributes,
-            tags: (finalProductData.tags || []).map(tag => ({ name: tag })), // Use array of tags
+            tags: tagIds.map(id => ({ id })), // Use the array of tag IDs
             lang: finalProductData.language === 'Spanish' ? 'es' : 'en', // Default to es
             weight: finalProductData.weight || undefined,
             dimensions: finalProductData.dimensions,
