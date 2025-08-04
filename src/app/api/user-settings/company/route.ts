@@ -1,5 +1,4 @@
 
-
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
@@ -32,7 +31,7 @@ const companyUpdateSchema = z.object({
   taxId: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
-  email: z.string().email("Formato de email inválido.").optional().nullable(),
+  email: z.string().email("Formato de email inválido.").or(z.literal('')).optional().nullable(),
   logoUrl: z.string().url("Formato de URL inválido.").optional().nullable(),
   seoHourlyRate: z.preprocess(
     (val) => (val === "" || val === null || val === undefined ? undefined : parseFloat(String(val))),
@@ -139,8 +138,12 @@ export async function POST(req: NextRequest) {
             if (platform !== undefined) updatePayload.platform = platform;
             if (plan !== undefined) updatePayload.plan = plan;
         } else if (entityType === 'user') {
-            // If editing a user, we can change the plan, but not name/platform which are tied to company.
+            if (name !== undefined) updatePayload.name = name;
             if (plan !== undefined) updatePayload.plan = plan;
+        } else if (role === 'admin' && entityType === 'company') {
+            // An admin can edit their own company's details, but not name, platform or plan.
+        } else {
+             return NextResponse.json({ error: 'Permission denied to modify certain fields.' }, { status: 403 });
         }
         
         await settingsRef.set(updatePayload, { merge: true });

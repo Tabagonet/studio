@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,30 +16,35 @@ import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useForm, FormProvider } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 
-type EditableCompanyData = Omit<Company, 'id' | 'createdAt' | 'userCount'>;
+const companySchema = z.object({
+    name: z.string().min(2, "El nombre de la empresa es obligatorio."),
+    logoUrl: z.string().url().nullable().optional(),
+    taxId: z.string().optional().nullable(),
+    address: z.string().optional().nullable(),
+    phone: z.string().optional().nullable(),
+    email: z.string().email("Formato de email inválido.").or(z.literal('')).optional().nullable(),
+    seoHourlyRate: z.preprocess(
+        (val) => (val === "" || val === null || val === undefined ? undefined : parseFloat(String(val))),
+        z.number().positive("El precio debe ser un número positivo.").optional().nullable()
+    ),
+    platform: z.enum(['woocommerce', 'shopify'], { required_error: 'Debes seleccionar una plataforma.' }),
+    plan: z.enum(['lite', 'pro', 'agency'], { required_error: 'Debes seleccionar un plan.' }).nullable(),
+    shopifyCreationDefaults: z.object({
+        createProducts: z.boolean(),
+        theme: z.string().optional(),
+    }).optional(),
+});
 
-const INITIAL_COMPANY_DATA: EditableCompanyData = {
-    name: '',
-    logoUrl: '',
-    taxId: '',
-    address: '',
-    phone: '',
-    email: '',
-    seoHourlyRate: 10,
-    platform: 'woocommerce',
-    plan: 'pro',
-    shopifyCreationDefaults: {
-        createProducts: true,
-        theme: '',
-    }
-};
-
+type CompanyFormData = z.infer<typeof companySchema>;
 
 export default function CompanySettingsPage() {
     const searchParams = useSearchParams();
-    const [companyData, setCompanyData] = useState<EditableCompanyData>(INITIAL_COMPANY_DATA);
     const [logoPhotos, setLogoPhotos] = useState<ProductPhoto[]>([]);
     
     const [isLoading, setIsLoading] = useState(true);
@@ -51,6 +56,26 @@ export default function CompanySettingsPage() {
     const [unassignedUsers, setUnassignedUsers] = useState<AppUser[]>([]);
     const [editingTargetId, setEditingTargetId] = useState<string | null>(null);
     const [editingEntityType, setEditingEntityType] = useState<'user' | 'company' | null>(null);
+
+
+    const form = useForm<CompanyFormData>({
+        resolver: zodResolver(companySchema),
+        defaultValues: {
+            name: '',
+            platform: 'woocommerce',
+            plan: 'pro',
+            logoUrl: null,
+            taxId: '',
+            address: '',
+            phone: '',
+            email: '',
+            seoHourlyRate: 60,
+            shopifyCreationDefaults: {
+                createProducts: true,
+                theme: '',
+            },
+        },
+    });
 
 
     const fetchAllCompaniesAndUsers = useCallback(async (token: string) => {
@@ -69,7 +94,7 @@ export default function CompanySettingsPage() {
 
     const fetchSettingsData = useCallback(async (user: FirebaseUser, type: 'user' | 'company' | null, id: string | null) => {
         if (!id || !type) {
-            setCompanyData(INITIAL_COMPANY_DATA);
+            form.reset();
             setLogoPhotos([]);
             setIsLoading(false);
             return;
@@ -78,45 +103,25 @@ export default function CompanySettingsPage() {
         try {
             const token = await user.getIdToken();
             
-            let dataToSet: Company;
+            let dataToSet: Partial<CompanyFormData>;
             let entityName = 'Usuario Desconocido';
-            let entityPlatform: 'woocommerce' | 'shopify' | null = 'woocommerce';
-
+            
             if (type === 'company') {
                 const companyResponse = await fetch(`/api/user-settings/company?companyId=${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
                 const companyDetails = allCompanies.find(c => c.id === id);
                 entityName = companyDetails?.name || 'Empresa Desconocida';
-                entityPlatform = companyDetails?.platform || 'woocommerce';
+                const fetchedCompanyData = companyResponse.ok ? (await companyResponse.json()).company : {};
+                dataToSet = { name: entityName, platform: companyDetails?.platform || 'woocommerce', ...fetchedCompanyData };
 
-                if (companyResponse.ok) {
-                    dataToSet = { ...INITIAL_COMPANY_DATA, name: entityName, platform: entityPlatform, ...(await companyResponse.json()).company };
-                } else {
-                     dataToSet = { ...INITIAL_COMPANY_DATA, name: entityName, platform: entityPlatform } as Company;
-                     if (companyResponse.status !== 404) toast({ title: "Error al Cargar Datos", description: (await companyResponse.json()).error, variant: "destructive" });
-                }
             } else { // type === 'user'
                  const userDocSnap = await fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } });
                  const userData = await userDocSnap.json();
                  entityName = userData?.displayName || 'Usuario Desconocido';
-                 entityPlatform = userData?.platform || 'woocommerce';
-                 
                  const userSettingsResponse = await fetch(`/api/user-settings/connections?userId=${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
-                 if (userSettingsResponse.ok) {
-                    const userSettings = await userSettingsResponse.json();
-                    
-                    dataToSet = {
-                        ...INITIAL_COMPANY_DATA,
-                        name: entityName,
-                        platform: entityPlatform,
-                        ...(userSettings.companyData || {})
-                    };
-                 } else {
-                    dataToSet = { ...INITIAL_COMPANY_DATA, name: entityName, platform: entityPlatform } as Company;
-                    if (userSettingsResponse.status !== 404) toast({ title: "Error al Cargar Datos", description: (await userSettingsResponse.json()).error, variant: "destructive" });
-                 }
+                 dataToSet = { name: entityName, platform: userData.platform, ...(userSettingsResponse.ok ? (await userSettingsResponse.json()).companyData : {}) };
             }
             
-            setCompanyData(dataToSet);
+            form.reset(dataToSet);
             if (dataToSet.logoUrl) {
                 setLogoPhotos([{ id: 'logo', previewUrl: dataToSet.logoUrl, name: 'Logo de la empresa', status: 'completed', progress: 100 }]);
             } else {
@@ -129,7 +134,7 @@ export default function CompanySettingsPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [toast, allCompanies]);
+    }, [toast, allCompanies, form]);
     
     const handleTargetSelection = (value: string) => {
         const [type, id] = value.split(':');
@@ -184,10 +189,9 @@ export default function CompanySettingsPage() {
             }
         });
         return () => unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchParams, fetchAllCompaniesAndUsers]);
+    }, [searchParams, fetchAllCompaniesAndUsers, fetchSettingsData]);
 
-    const handleSave = async () => {
+    const onSubmit = async (formData: CompanyFormData) => {
         if (!editingTargetId || !editingEntityType) {
             toast({ title: "Error", description: "No se ha seleccionado una entidad para editar.", variant: "destructive" });
             return;
@@ -201,16 +205,16 @@ export default function CompanySettingsPage() {
 
         try {
             const token = await user.getIdToken();
-            let finalData = { ...companyData };
+            let finalData: Partial<CompanyFormData> = { ...formData };
 
             const newLogoPhoto = logoPhotos.find(p => p.file);
             if (newLogoPhoto?.file) {
-                const formData = new FormData();
-                formData.append('imagen', newLogoPhoto.file);
+                const formImageData = new FormData();
+                formImageData.append('imagen', newLogoPhoto.file);
                 const uploadResponse = await fetch('/api/upload-image', {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${token}` },
-                    body: formData,
+                    body: formImageData,
                 });
                 if (!uploadResponse.ok) throw new Error('Fallo al subir el logo.');
                 const imageData = await uploadResponse.json();
@@ -242,27 +246,7 @@ export default function CompanySettingsPage() {
             setIsSaving(false);
         }
     };
-
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setCompanyData(prev => ({ ...prev, [e.target.name]: e.target.value }));
-    };
-
-    const editingTargetPlatform = useMemo(() => {
-        if (!editingEntityType || !editingTargetId) return null;
-
-        if (editingEntityType === 'company') {
-            return allCompanies.find(c => c.id === editingTargetId)?.platform || null;
-        }
-        
-        let targetUserId = editingTargetId;
-        const user = allCompanies.flatMap(c => (c as any).users || []).find((u: AppUser) => u.uid === targetUserId) ||
-                     unassignedUsers.find(u => u.uid === targetUserId) ||
-                     (currentUser?.uid === targetUserId ? (currentUser as any) : null);
-        
-        return user?.platform || null;
-    }, [editingEntityType, editingTargetId, allCompanies, unassignedUsers, currentUser]);
-
-
+    
     const renderContent = () => {
         if (isLoading) {
             return <Skeleton className="h-96 w-full" />;
@@ -291,139 +275,124 @@ export default function CompanySettingsPage() {
         const canEditUserName = !isCompany;
 
         return (
-            <div className="space-y-6">
-                <Card>
-                    <CardHeader><CardTitle>{generalInfoTitle}</CardTitle></CardHeader>
-                    <CardContent className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <Label htmlFor="name">{nameLabel}</Label>
-                                <Input id="name" name="name" value={companyData.name || ''} onChange={handleInputChange} placeholder="Ej: Mi Gran Empresa S.L." disabled={isSaving || (!canEditCompanyName && !canEditUserName)} />
-                                {!canEditCompanyName && isCompany && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar el nombre de la empresa.</p>}
-                            </div>
-                           {currentUser?.role === 'super_admin' && isCompany && (
-                               <div>
-                                    <Label htmlFor="plan">Plan de Suscripción</Label>
-                                    <Select 
-                                        name="plan" 
-                                        value={companyData.plan || 'pro'} 
-                                        onValueChange={(value) => setCompanyData(prev => ({...prev, plan: value as any}))}
-                                        disabled={isSaving}
-                                    >
-                                        <SelectTrigger id="plan"><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="lite">Lite (29€/mes)</SelectItem>
-                                            <SelectItem value="pro">Pro (49€/mes)</SelectItem>
-                                            <SelectItem value="agency">Agency (99€/mes)</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            )}
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <Label htmlFor="taxId">{taxLabel}</Label>
-                                <Input id="taxId" name="taxId" value={companyData.taxId || ''} onChange={handleInputChange} placeholder="Ej: B12345678" disabled={isSaving} />
-                            </div>
-                            <div>
-                                <Label htmlFor="address">{addressLabel}</Label>
-                                <Input id="address" name="address" value={companyData.address || ''} onChange={handleInputChange} placeholder="Ej: Calle Principal 123, 28001 Madrid, España" disabled={isSaving} />
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <Label htmlFor="phone">Teléfono de Contacto</Label>
-                                <Input id="phone" name="phone" value={companyData.phone || ''} onChange={handleInputChange} placeholder="Ej: +34 910 000 000" disabled={isSaving} />
-                            </div>
-                            <div>
-                                <Label htmlFor="email">Email de Contacto</Label>
-                                <Input id="email" name="email" type="email" value={companyData.email || ''} onChange={handleInputChange} placeholder="Ej: contacto@empresa.com" disabled={isSaving} />
-                            </div>
-                        </div>
-                         {currentUser?.role === 'super_admin' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <Label htmlFor="seoHourlyRate" className="flex items-center gap-2"><DollarSign className="h-4 w-4" />Precio Hora SEO (€)</Label>
-                                    <Input id="seoHourlyRate" name="seoHourlyRate" type="number" value={companyData.seoHourlyRate || ''} onChange={handleInputChange} placeholder="10" disabled={isSaving} />
-                                    <p className="text-xs text-muted-foreground mt-1">Este valor se usará por defecto en el Planificador de Publicidad.</p>
-                                </div>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-                
-                {editingTargetPlatform === 'shopify' && (
+            <FormProvider {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Automatización de Shopify</CardTitle>
-                            <CardDescription>Define los ajustes por defecto para la creación de nuevas tiendas Shopify.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="flex items-center space-x-2">
-                                <Checkbox
-                                    id="create-products-default"
-                                    checked={companyData.shopifyCreationDefaults?.createProducts ?? true}
-                                    onCheckedChange={(checked) => setCompanyData(prev => ({
-                                        ...prev,
-                                        shopifyCreationDefaults: {
-                                            ...(prev.shopifyCreationDefaults || { theme: '' }),
-                                            createProducts: !!checked,
-                                        }
-                                    }))}
-                                    disabled={isSaving}
+                        <CardHeader><CardTitle>{generalInfoTitle}</CardTitle></CardHeader>
+                        <CardContent className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <FormField
+                                    control={form.control}
+                                    name="name"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>{nameLabel}</FormLabel>
+                                            <FormControl>
+                                                <Input {...field} placeholder="Ej: Mi Gran Empresa S.L." disabled={isSaving || (!canEditCompanyName && !canEditUserName)} />
+                                            </FormControl>
+                                            {!canEditCompanyName && isCompany && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar el nombre de la empresa.</p>}
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
                                 />
-                                <Label htmlFor="create-products-default" className="text-sm font-normal cursor-pointer">
-                                    Crear productos de ejemplo por defecto en nuevas tiendas Shopify
-                                </Label>
+                               {currentUser?.role === 'super_admin' && isCompany && (
+                                   <FormField
+                                        control={form.control}
+                                        name="plan"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Plan de Suscripción</FormLabel>
+                                                <Select onValueChange={field.onChange} defaultValue={field.value || 'pro'} disabled={isSaving}>
+                                                    <FormControl>
+                                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        <SelectItem value="lite">Lite (29€/mes)</SelectItem>
+                                                        <SelectItem value="pro">Pro (49€/mes)</SelectItem>
+                                                        <SelectItem value="agency">Agency (99€/mes)</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                   />
+                                )}
                             </div>
-                            <p className="text-xs text-muted-foreground mt-1 pl-6">
-                                Si se desmarca, no se crearán productos aunque el solicitante (ej. el chatbot) lo pida.
-                            </p>
-
-                            <div className="pt-4 border-t">
-                               <Label htmlFor="shopify-theme">Handle de la Plantilla de Tema</Label>
-                                <Input
-                                    id="shopify-theme"
-                                    value={companyData.shopifyCreationDefaults?.theme || ''}
-                                    onChange={(e) => {
-                                        const newTheme = e.target.value;
-                                        setCompanyData(prev => ({
-                                            ...prev,
-                                            shopifyCreationDefaults: {
-                                                ...(prev.shopifyCreationDefaults || { createProducts: true }),
-                                                theme: newTheme,
-                                            }
-                                        }));
-                                    }}
-                                    placeholder="Ej: dawn, refresh, taste"
-                                    disabled={isSaving}
-                                />
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Introduce el identificador del tema (ej. 'dawn'). Esto se usa principalmente para temas gratuitos. La instalación de temas de pago no está soportada por la API de creación de tiendas de Shopify.
-                                </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <FormField control={form.control} name="taxId" render={({ field }) => (<FormItem><FormLabel>{taxLabel}</FormLabel><FormControl><Input {...field} placeholder="Ej: B12345678" disabled={isSaving} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="address" render={({ field }) => (<FormItem><FormLabel>{addressLabel}</FormLabel><FormControl><Input {...field} placeholder="Ej: Calle Principal 123, 28001 Madrid, España" disabled={isSaving} /></FormControl><FormMessage /></FormItem>)} />
                             </div>
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <FormField control={form.control} name="phone" render={({ field }) => (<FormItem><FormLabel>Teléfono de Contacto</FormLabel><FormControl><Input {...field} placeholder="Ej: +34 910 000 000" disabled={isSaving} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email de Contacto</FormLabel><FormControl><Input type="email" {...field} placeholder="Ej: contacto@empresa.com" disabled={isSaving} /></FormControl><FormMessage /></FormItem>)} />
+                            </div>
+                             {currentUser?.role === 'super_admin' && (
+                                <FormField control={form.control} name="seoHourlyRate" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="flex items-center gap-2"><DollarSign className="h-4 w-4" />Precio Hora SEO (€)</FormLabel>
+                                        <FormControl>
+                                             <Input type="number" {...field} placeholder="60" disabled={isSaving} />
+                                        </FormControl>
+                                        <p className="text-xs text-muted-foreground">Este valor se usará por defecto en el Planificador de Publicidad.</p>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}/>
+                            )}
                         </CardContent>
                     </Card>
-                )}
+                    
+                    {form.getValues('platform') === 'shopify' && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Automatización de Shopify</CardTitle>
+                                <CardDescription>Define los ajustes por defecto para la creación de nuevas tiendas Shopify.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <FormField control={form.control} name="shopifyCreationDefaults.createProducts" render={({ field }) => (
+                                    <FormItem className="flex items-center space-x-2">
+                                        <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={isSaving} /></FormControl>
+                                        <Label htmlFor="create-products-default" className="text-sm font-normal cursor-pointer">
+                                            Crear productos de ejemplo por defecto en nuevas tiendas Shopify
+                                        </Label>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}/>
+                                <p className="text-xs text-muted-foreground mt-1 pl-6">
+                                    Si se desmarca, no se crearán productos aunque el solicitante (ej. el chatbot) lo pida.
+                                </p>
+                                <FormField control={form.control} name="shopifyCreationDefaults.theme" render={({ field }) => (
+                                     <FormItem className="pt-4 border-t">
+                                        <FormLabel>Handle de la Plantilla de Tema</FormLabel>
+                                        <FormControl><Input {...field} placeholder="Ej: dawn, refresh, taste" disabled={isSaving} /></FormControl>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          Introduce el identificador del tema (ej. 'dawn'). Esto se usa principalmente para temas gratuitos. La instalación de temas de pago no está soportada por la API de creación de tiendas de Shopify.
+                                        </p>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}/>
+                            </CardContent>
+                        </Card>
+                    )}
 
-                <Card>
-                    <CardHeader><CardTitle>Logo</CardTitle></CardHeader>
-                    <CardContent>
-                        <ImageUploader
-                            photos={logoPhotos}
-                            onPhotosChange={setLogoPhotos}
-                            isProcessing={isSaving}
-                            maxPhotos={1}
-                        />
-                    </CardContent>
-                </Card>
-                <div className="flex justify-end">
-                    <Button onClick={handleSave} disabled={isSaving || isLoading}>
-                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                        Guardar Cambios
-                    </Button>
-                </div>
-            </div>
+                    <Card>
+                        <CardHeader><CardTitle>Logo</CardTitle></CardHeader>
+                        <CardContent>
+                            <ImageUploader
+                                photos={logoPhotos}
+                                onPhotosChange={setLogoPhotos}
+                                isProcessing={isSaving}
+                                maxPhotos={1}
+                            />
+                        </CardContent>
+                    </Card>
+                    <div className="flex justify-end">
+                        <Button type="submit" disabled={isSaving || isLoading}>
+                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                            Guardar Cambios
+                        </Button>
+                    </div>
+                </form>
+            </FormProvider>
         );
     };
     
