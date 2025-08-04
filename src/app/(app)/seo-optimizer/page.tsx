@@ -253,6 +253,7 @@ export default function SeoOptimizerPage() {
       const dummyItem: ContentItem = {
           id: Date.now(),
           title: fullUrl,
+          slug: null,
           type: 'Page',
           link: fullUrl,
           status: 'publish',
