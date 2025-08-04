@@ -128,7 +128,8 @@ export async function POST(req: NextRequest) {
         
         settingsRef = adminDb.collection(entityType === 'company' ? 'companies' : 'user_settings').doc(effectiveId);
         
-        const { name, platform, ...restOfData } = data;
+        // We separate the fields that have special permissions
+        const { name, platform, plan, ...restOfData } = data;
         
         let updatePayload: any = { ...restOfData };
         
@@ -136,7 +137,10 @@ export async function POST(req: NextRequest) {
         if (role === 'super_admin' && entityType === 'company') {
             if (name !== undefined) updatePayload.name = name;
             if (platform !== undefined) updatePayload.platform = platform;
-            if (data.plan !== undefined) updatePayload.plan = data.plan; // Correctly include plan
+            if (plan !== undefined) updatePayload.plan = plan;
+        } else if (entityType === 'user') {
+            // If editing a user, we can change the plan, but not name/platform which are tied to company.
+            if (plan !== undefined) updatePayload.plan = plan;
         }
         
         await settingsRef.set(updatePayload, { merge: true });
