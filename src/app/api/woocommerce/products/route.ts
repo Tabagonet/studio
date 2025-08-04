@@ -87,16 +87,21 @@ export async function POST(request: NextRequest) {
         console.log(`[API Products] Processed attributes:`, JSON.stringify(wooAttributes, null, 2));
         
         // Correct Tag Handling
-        const tagNames = (finalProductData.tags || []).map((t: any) => t.name || t);
+        const tagNames = typeof finalProductData.tags === 'string' 
+            ? finalProductData.tags.split(',').map(t => t.trim()).filter(Boolean)
+            : [];
         const wooTags = tagNames.map((name: string) => ({ name }));
         console.log(`[API Products] Final tags payload:`, wooTags);
 
 
         const wooPayload: any = {
-            name: finalProductData.name, type: finalProductData.productType,
-            description: finalProductData.longDescription, short_description: finalProductData.shortDescription,
+            name: finalProductData.name,
+            type: finalProductData.productType,
+            description: finalProductData.longDescription,
+            short_description: finalProductData.shortDescription,
             categories: finalCategoryId ? [{ id: finalCategoryId }] : [],
-            images: wordpressImageIds, attributes: wooAttributes,
+            images: wordpressImageIds,
+            attributes: wooAttributes,
             tags: wooTags, // Use the processed tags
             lang: finalProductData.language === 'Spanish' ? 'es' : 'en', // Default to es
             weight: finalProductData.weight || undefined,
@@ -154,8 +159,15 @@ export async function POST(request: NextRequest) {
         // 6. Log the activity
         if (adminDb && admin.firestore.FieldValue) { 
             await adminDb.collection('activity_logs').add({
-                userId: uid, action: 'PRODUCT_CREATED', timestamp: admin.firestore.FieldValue.serverTimestamp(),
-                details: { productId, productName: createdProduct.name, connectionKey: activeConnectionKey, source: finalProductData.source || 'unknown' }
+                userId: uid,
+                action: 'PRODUCT_CREATED',
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                details: {
+                    productId,
+                    productName: createdProduct.name,
+                    connectionKey: activeConnectionKey,
+                    source: finalProductData.source || 'unknown'
+                }
             });
              console.log('[API Products] Activity logged.');
         }
