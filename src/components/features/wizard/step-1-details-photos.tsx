@@ -251,6 +251,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const token = await user.getIdToken();
 
         const payload = {
+            baseProductName: productData.name,
             productName: productData.name,
             productType: productData.productType,
             tags: productData.tags,
@@ -281,6 +282,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const aiContent = await response.json();
         
         updateProductData({
+            name: aiContent.name,
             shortDescription: aiContent.shortDescription,
             longDescription: aiContent.longDescription,
             tags: aiContent.tags,
@@ -313,7 +315,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const payload = {
             productName: productData.name,
             productType: productData.productType,
-            tags: productData.tags,
+            tags: productData.tags.split(',').map(t => t.trim()).filter(Boolean),
             language: productData.language,
             mode: 'image_meta_only',
         };
