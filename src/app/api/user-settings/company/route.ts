@@ -122,14 +122,25 @@ export async function POST(req: NextRequest) {
         
         settingsRef = adminDb.collection(entityType === 'company' ? 'companies' : 'user_settings').doc(effectiveId);
         
-        const { name, platform, ...restOfData } = data;
+        const { name, platform, plan, ...restOfData } = data;
         const updatePayload: any = restOfData;
 
         // Only super_admin can change the company name, platform and plan
         if (role === 'super_admin' && entityType === 'company') {
             if (name) updatePayload.name = name;
             if (platform) updatePayload.platform = platform;
-            if (data.plan) updatePayload.plan = data.plan;
+            if (plan) updatePayload.plan = plan;
+        } else if (entityType === 'company') {
+            // For non-super admins editing a company, only allow specific fields
+            const allowedUpdates: any = {};
+            const allowedFields = ['taxId', 'address', 'phone', 'email', 'logoUrl', 'seoHourlyRate', 'shopifyCreationDefaults'];
+            for (const key of allowedFields) {
+                if (key in data) {
+                    allowedUpdates[key] = (data as any)[key];
+                }
+            }
+             await settingsRef.set(allowedUpdates, { merge: true });
+             return NextResponse.json({ success: true, message: 'Data saved successfully.' });
         }
         
         await settingsRef.set(updatePayload, { merge: true });
