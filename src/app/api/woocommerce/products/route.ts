@@ -2,9 +2,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress, findOrCreateCategoryByPath } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress, findOrCreateWpCategoryByPath } from '@/lib/api-helpers';
 import type { ProductData, ProductVariation } from '@/lib/types';
-import axios from 'axios';
 
 const slugify = (text: string) => {
     if (!text) return '';
@@ -42,21 +41,11 @@ export async function POST(request: NextRequest) {
         const finalProductData: ProductData = JSON.parse(productDataString);
         console.log('[API Products] Request body parsed. Data to process:', JSON.stringify(finalProductData, null, 2));
 
-        // 1. Handle category using the new custom endpoint
+        // 1. Handle category
         let finalCategoryId: number | null = null;
         if (finalProductData.categoryPath) {
-            console.log(`[API Products] CategoryPath provided: "${finalProductData.categoryPath}". Finding or creating via custom endpoint...`);
-            const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
-            const categoryEndpoint = `${siteUrl}/wp-json/custom/v1/get-or-create-category`;
-            const categoryResponse = await wpApi.post(categoryEndpoint, {
-                path: finalProductData.categoryPath,
-                lang: finalProductData.language || 'es',
-            });
-            if (categoryResponse.data.success) {
-                 finalCategoryId = categoryResponse.data.term_id;
-            } else {
-                throw new Error(categoryResponse.data.message || 'Failed to get or create category via custom endpoint.');
-            }
+            console.log(`[API Products] CategoryPath provided: "${finalProductData.categoryPath}". Finding or creating...`);
+            finalCategoryId = await findOrCreateWpCategoryByPath(finalProductData.categoryPath, wpApi);
         } else if (finalProductData.category?.id) {
             console.log(`[API Products] Category ID provided: ${finalProductData.category.id}. Using existing.`);
             finalCategoryId = finalProductData.category.id;
@@ -100,7 +89,7 @@ export async function POST(request: NextRequest) {
             description: finalProductData.longDescription, short_description: finalProductData.shortDescription,
             categories: finalCategoryId ? [{ id: finalCategoryId }] : [],
             images: wordpressImageIds, attributes: wooAttributes,
-            tags: finalProductData.tags,
+            tags: (finalProductData.tags || []).map(tag => ({ name: tag })), // Use array of tags
             lang: finalProductData.language === 'Spanish' ? 'es' : 'en', // Default to es
             weight: finalProductData.weight || undefined,
             dimensions: finalProductData.dimensions,

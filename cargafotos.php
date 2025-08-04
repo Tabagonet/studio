@@ -120,14 +120,14 @@ $ruta_destino = $directorio . $nombre_final_para_guardar;
 error_log("[cargafotos.php] Moving uploaded file from $tmp_path to $ruta_destino (Filename: $nombre_final_para_guardar)");
 
 if (rename($tmp_path, $ruta_destino)) {
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
     $host = $_SERVER['HTTP_HOST'];
     $script_path = dirname($_SERVER['SCRIPT_NAME']);
     $full_directory_path = rtrim($script_path, '/') . '/' . trim($directorio, '/');
     $full_directory_path = str_replace('\\', '/', $full_directory_path);
     $full_directory_path = preg_replace('#/+#', '/', $full_directory_path);
 
-    $url = $scheme . '://' . $host . $full_directory_path . '/' . $nombre_final_para_guardar;
+    $url = $scheme . $host . $full_directory_path . '/' . $nombre_final_para_guardar;
 
     echo json_encode([
         'success' => true,
