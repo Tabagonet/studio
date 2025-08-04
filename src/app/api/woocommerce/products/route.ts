@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
 
         // 3. Prepare product data - Corrected Attribute Logic
         const wooAttributes = finalProductData.attributes
-            .filter(attr => attr.name && attr.name.trim() !== '' && attr.value && attr.value.trim() !== '')
+            .filter(attr => attr.name && attr.name.trim() !== '') // Only filter by name
             .map((attr, index) => ({
                 name: attr.name,
                 position: index,

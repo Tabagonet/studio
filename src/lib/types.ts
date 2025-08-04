@@ -105,7 +105,7 @@ export interface BlogPostData {
   title: string;
   content: string;
   topic: string; // for AI
-  tags: string; // for AI and tags
+  tags: string;
   focusKeyword: string;
   metaDescription: string;
   category: WordPressPostCategory | null;
@@ -292,6 +292,7 @@ export interface ContentStats {
     totalContent: number;
     languages: Record<string, number>;
     status: Record<string, number>;
+    totalProducts: number;
 }
 
 export interface AnalysisResult {
