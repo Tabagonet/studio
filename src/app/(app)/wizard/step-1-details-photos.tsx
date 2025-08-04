@@ -172,6 +172,11 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     updateProductData({ [e.target.name]: e.target.value });
   };
   
+  const handleShortDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    updateProductData({ shortDescription: e.target.value });
+  };
+
+
   const handleLongDescriptionChange = (newContent: string) => {
     updateProductData({ longDescription: newContent });
   };
@@ -485,8 +490,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
      } else {
         toast({ title: "No se aplicó nada", description: "No se encontraron frases o ya estaban enlazadas.", variant: "destructive" });
      }
-  }
-
+  };
 
   return (
     <>
@@ -690,7 +694,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                         id="shortDescription"
                         name="shortDescription"
                         value={productData.shortDescription}
-                        onChange={handleInputChange}
+                        onChange={handleShortDescriptionChange}
                         placeholder="Un resumen atractivo y conciso de tu producto que será generado por la IA."
                         rows={3}
                         disabled={isProcessing || isGenerating}
