@@ -22,6 +22,8 @@ import { useDebounce } from '@/hooks/use-debounce';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
 import type { LinkSuggestion, SuggestLinksOutput } from '@/ai/schemas';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+
 
 interface Step1DetailsPhotosProps {
   productData: ProductData;
@@ -653,14 +655,13 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                   <div className="border-t pt-6 space-y-6">
                     <div>
                         <Label htmlFor="shortDescription">Descripción Corta</Label>
-                        <Textarea
-                          id="shortDescription"
-                          name="shortDescription"
-                          value={productData.shortDescription}
-                          onChange={handleInputChange}
-                          placeholder="Un resumen atractivo y conciso de tu producto que será generado por la IA."
-                          rows={3}
-                          disabled={isProcessing || isGenerating}
+                        <RichTextEditor 
+                            content={productData.shortDescription}
+                            onChange={handleShortDescriptionChange}
+                            onInsertImage={() => setIsImageDialogOpen(true)}
+                            onSuggestLinks={handleSuggestLinks}
+                            placeholder="Un resumen atractivo y conciso de tu producto..."
+                            size="small"
                         />
                     </div>
                   
@@ -671,7 +672,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                             onChange={handleLongDescriptionChange}
                             onInsertImage={() => setIsImageDialogOpen(true)}
                             onSuggestLinks={handleSuggestLinks}
-                            placeholder="Escribe la descripción larga aquí..."
+                            placeholder="Describe tu producto en detalle: características, materiales, usos, etc."
                         />
                     </div>
                   </div>
@@ -771,3 +772,5 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     </>
   );
 }
+
+    

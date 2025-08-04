@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -123,9 +122,9 @@ export function ProductWizard() {
                     short_description: finalProductData.shortDescription,
                     long_description: finalProductData.longDescription,
                 };
-                const translateResponse = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ content: translationPayload, targetLanguage: lang }) });
+                const translateResponse = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ contentToTranslate: translationPayload, targetLanguage: lang }) });
                 if (!translateResponse.ok) throw new Error(`Error traduciendo a ${lang}`);
-                const translatedContent = (await translateResponse.json()).content;
+                const translatedContent = (await translateResponse.json());
                 updateStepStatus(`translate_${lang}`, 'success', undefined, 100);
 
                 updateStepStatus(`create_${lang}`, 'processing', undefined, 50);
@@ -266,3 +265,5 @@ export function ProductWizard() {
     </div>
   );
 }
+
+    
