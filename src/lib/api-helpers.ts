@@ -504,7 +504,7 @@ export function validateHmac(searchParams: URLSearchParams, clientSecret: string
  * explicit entity information to avoid incorrect permission checks.
  *
  * @param uid The UID of the user making the request.
- * @param entity An object specifying the entity type ('user' or 'company') and its ID.
+ * @param entity An optional object specifying the entity type ('user' or 'company') and its ID.
  * @returns An object containing initialized API clients and settings info.
  * @throws If no settings or active connection are found.
  */
@@ -515,12 +515,13 @@ export async function getApiClientsForUser(uid: string, entity?: {type: 'user' |
 
   let settingsSource: admin.firestore.DocumentData | undefined;
   
+  // Determine which settings to use based on the entity provided or the user's own data
   if (entity) {
     const settingsRef = adminDb.collection(entity.type === 'company' ? 'companies' : 'user_settings').doc(entity.id);
     const docSnap = await settingsRef.get();
     settingsSource = docSnap.exists ? docSnap.data() : undefined;
   } else {
-      // Fallback to original logic if no explicit entity is provided
+      // Fallback to original logic if no explicit entity is provided: check user's company, then user's own settings.
       const userDocRef = await adminDb.collection('users').doc(uid).get();
       if (!userDocRef.exists) throw new Error('User not found. Cannot determine settings.');
       const userData = userDocRef.data()!;
