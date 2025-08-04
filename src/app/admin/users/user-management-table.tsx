@@ -1,10 +1,8 @@
-
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { auth } from '@/lib/firebase';
+import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -364,7 +362,7 @@ export function UserManagementTable() {
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-center font-medium">
-                                        {u.siteLimitFromPlan === null ? 'N/A' : (u.siteLimitFromPlan >= 999 ? 'Ilimitado' : u.siteLimitFromPlan)}
+                                        {u.siteLimitFromPlan == null ? 'N/A' : (u.siteLimitFromPlan >= 999 ? 'Ilimitado' : u.siteLimitFromPlan)}
                                     </TableCell>
                                     <TableCell>{getStatusBadge(u.status)}</TableCell>
                                     <TableCell className="text-right">

@@ -504,6 +504,3 @@ export function UserManagementTable() {
         </div>
     );
 }
-
-
-    
