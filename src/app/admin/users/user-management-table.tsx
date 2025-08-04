@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -7,18 +8,19 @@ import { auth } from '@/lib/firebase';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, UserCheck, UserX, MoreHorizontal, Trash2, Shield, User, KeyRound, Briefcase, BarChart, FileSignature, BookCopy, Search, Building, Store } from 'lucide-react';
+import { Loader2, UserCheck, UserX, MoreHorizontal, Trash2, Shield, User, Briefcase, Building, Store } from 'lucide-react';
 import Image from 'next/image';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuPortal } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { Company } from '@/lib/types';
+import type { Company, User as AppUser } from '@/lib/types';
 import { ShopifyIcon } from '@/components/core/icons';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type UserRole = 'super_admin' | 'admin' | 'content_manager' | 'product_manager' | 'seo_analyst' | 'pending' | 'user';
 type UserPlatform = 'woocommerce' | 'shopify';
+type UserPlan = 'lite' | 'pro' | 'agency';
 
 const ROLE_NAMES: Record<UserRole, string> = {
     super_admin: 'Super Admin',
@@ -30,17 +32,15 @@ const ROLE_NAMES: Record<UserRole, string> = {
     user: 'Usuario (obsoleto)',
 };
 
-interface User {
-  uid: string;
-  email: string;
-  displayName: string;
-  photoURL: string;
-  role: UserRole;
-  status: 'active' | 'rejected' | 'pending_approval';
-  siteLimit: number;
-  companyId: string | null;
-  companyName: string | null;
-  platform?: UserPlatform | null;
+interface Plan {
+    id: UserPlan;
+    sites: number;
+    [key: string]: any;
+}
+
+interface User extends AppUser {
+  plan?: UserPlan | null;
+  siteLimitFromPlan?: number | null;
 }
 
 type GroupedUsers = {
@@ -51,16 +51,18 @@ type GroupedUsers = {
 export function UserManagementTable() {
     const [users, setUsers] = useState<User[]>([]);
     const [companies, setCompanies] = useState<Company[]>([]);
+    const [plans, setPlans] = useState<Plan[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState<string | null>(null);
     const { toast } = useToast();
     const currentAdmin = auth.currentUser;
     const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
     
-    // State for site limit modal
-    const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
-    const [selectedUserForLimit, setSelectedUserForLimit] = useState<User | null>(null);
-    const [newSiteLimit, setNewSiteLimit] = useState<number | string>('');
+    // State for plan modal
+    const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+    const [selectedUserForPlan, setSelectedUserForPlan] = useState<User | null>(null);
+    const [newUserPlan, setNewUserPlan] = useState<UserPlan | ''>('');
+
 
     const fetchUsersAndCompanies = useCallback(async () => {
         setIsLoading(true);
@@ -73,27 +75,20 @@ export function UserManagementTable() {
 
         try {
             const token = await user.getIdToken();
-            const [usersResponse, verifyResponse, companiesResponse] = await Promise.all([
+            const [usersResponse, verifyResponse, companiesResponse, plansResponse] = await Promise.all([
                 fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } }),
                 fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } })
+                fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch('/api/settings/plans', { headers: { 'Authorization': `Bearer ${token}` } })
             ]);
 
-            if (!usersResponse.ok) {
-                const errorData = await usersResponse.json();
-                throw new Error(errorData.error || 'Failed to fetch users.');
-            }
-            if(verifyResponse.ok) {
-                const userData = await verifyResponse.json();
-                setCurrentUserRole(userData.role);
-            }
-            if (companiesResponse.ok) {
-                const companyData = await companiesResponse.json();
-                setCompanies(companyData.companies);
-            }
-
-            const data = await usersResponse.json();
-            setUsers(data.users);
+            if (!usersResponse.ok) throw new Error((await usersResponse.json()).error || 'Failed to fetch users.');
+            if(verifyResponse.ok) setCurrentUserRole((await verifyResponse.json()).role);
+            if(companiesResponse.ok) setCompanies((await companiesResponse.json()).companies);
+            if(plansResponse.ok) setPlans((await plansResponse.json()).plans);
+            
+            const usersData = (await usersResponse.json()).users;
+            setUsers(usersData);
 
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
@@ -190,25 +185,26 @@ export function UserManagementTable() {
         setIsUpdating(null);
     };
 
-    const handleUpdateSiteLimit = async () => {
-        if (!selectedUserForLimit || newSiteLimit === '' || Number(newSiteLimit) < 0) {
-            toast({ title: 'Valor inválido', description: 'Por favor, introduce un número válido para el límite.', variant: 'destructive'});
+    const handleUpdatePlan = async () => {
+        if (!selectedUserForPlan || !newUserPlan) {
+            toast({ title: 'Valor inválido', description: 'Por favor, selecciona un plan.', variant: 'destructive'});
             return;
         }
-        setIsUpdating(selectedUserForLimit.uid);
+        setIsUpdating(selectedUserForPlan.uid);
         const success = await performApiCall(
-            `/api/admin/users/${selectedUserForLimit.uid}/update-site-limit`,
+            `/api/admin/users/${selectedUserForPlan.uid}/update-plan`,
             'POST',
-            { siteLimit: Number(newSiteLimit) },
-            `El límite de sitios para ${selectedUserForLimit.displayName} ha sido actualizado.`
+            { plan: newUserPlan },
+            `El plan de suscripción para ${selectedUserForPlan.displayName} ha sido actualizado.`
         );
         setIsUpdating(null);
         if(success) {
-             setIsLimitModalOpen(false);
-             setSelectedUserForLimit(null);
-             setNewSiteLimit('');
+             setIsPlanModalOpen(false);
+             setSelectedUserForPlan(null);
+             setNewUserPlan('');
         }
     };
+
 
     const handleDeleteUser = async (targetUid: string) => {
         setIsUpdating(targetUid);
@@ -248,11 +244,20 @@ export function UserManagementTable() {
     };
     
     const groupedUsers = useMemo((): GroupedUsers[] => {
-        if (!users || users.length === 0) return [];
+        if (!users || users.length === 0 || plans.length === 0) return [];
+        
+        const usersWithPlanLimits = users.map(user => {
+            const effectivePlanId = user.companyPlan || user.plan;
+            const plan = plans.find(p => p.id === effectivePlanId);
+            return {
+                ...user,
+                siteLimitFromPlan: plan ? plan.sites : null,
+            };
+        });
         
         const groups: Record<string, User[]> = {};
         
-        users.forEach(user => {
+        usersWithPlanLimits.forEach(user => {
             const companyKey = user.companyName || 'Sin Empresa Asignada';
             if (!groups[companyKey]) {
                 groups[companyKey] = [];
@@ -268,7 +273,7 @@ export function UserManagementTable() {
             if (b.companyName === 'Sin Empresa Asignada') return -1;
             return a.companyName.localeCompare(b.companyName);
         });
-    }, [users]);
+    }, [users, plans]);
     
     if (isLoading) {
         return (
@@ -281,34 +286,38 @@ export function UserManagementTable() {
     
     return (
         <div className="rounded-md border">
-            <AlertDialog open={isLimitModalOpen} onOpenChange={setIsLimitModalOpen}>
+            {/* Plan Modal */}
+            <AlertDialog open={isPlanModalOpen} onOpenChange={setIsPlanModalOpen}>
                 <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Establecer Límite de Sitios</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Define cuántos perfiles de conexión puede guardar este usuario. Usa un número alto (ej. 999) para "ilimitado".
+                     <AlertDialogHeader>
+                        <AlertDialogTitle>Asignar Plan de Suscripción</AlertDialogTitle>
+                         <AlertDialogDescription>
+                            Selecciona el plan para {selectedUserForPlan?.displayName}. Esto determinará su acceso a las funcionalidades.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <div className="py-4">
-                        <Label htmlFor="site-limit-input">Límite de Sitios para {selectedUserForLimit?.displayName}</Label>
-                        <Input
-                            id="site-limit-input"
-                            type="number"
-                            min="0"
-                            value={newSiteLimit}
-                            onChange={(e) => setNewSiteLimit(e.target.value)}
-                            placeholder="Ej: 5"
-                        />
+                        <Label htmlFor="user-plan-select">Plan de Suscripción</Label>
+                        <Select value={newUserPlan} onValueChange={(value) => setNewUserPlan(value as any)}>
+                            <SelectTrigger id="user-plan-select">
+                                <SelectValue placeholder="Selecciona un plan..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="lite">Lite</SelectItem>
+                                <SelectItem value="pro">Pro</SelectItem>
+                                <SelectItem value="agency">Agency</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
                     <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => { setSelectedUserForLimit(null); setNewSiteLimit(''); }}>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleUpdateSiteLimit} disabled={isUpdating === selectedUserForLimit?.uid}>
-                             {isUpdating === selectedUserForLimit?.uid && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                             Guardar Límite
+                        <AlertDialogCancel onClick={() => { setSelectedUserForPlan(null); setNewUserPlan(''); }}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleUpdatePlan} disabled={isUpdating === selectedUserForPlan?.uid}>
+                             {isUpdating === selectedUserForPlan?.uid && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                             Guardar Plan
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
 
             <Table>
                 <TableHeader>
@@ -316,7 +325,7 @@ export function UserManagementTable() {
                         <TableHead className="w-[300px]">Usuario</TableHead>
                         <TableHead>Email</TableHead>
                         <TableHead>Rol</TableHead>
-                        <TableHead>Plataforma</TableHead>
+                        <TableHead>Plan</TableHead>
                         <TableHead>Límite Sitios</TableHead>
                         <TableHead>Estado</TableHead>
                         <TableHead className="text-right w-[100px]">Acciones</TableHead>
@@ -333,7 +342,9 @@ export function UserManagementTable() {
                                     </div>
                                 </TableCell>
                             </TableRow>
-                            {group.users.map((u) => (
+                            {group.users.map((u) => {
+                               const effectivePlan = u.companyPlan || u.plan;
+                               return (
                                 <TableRow key={u.uid} className={cn(isUpdating === u.uid && "opacity-50")}>
                                     <TableCell>
                                         <div className="flex items-center gap-3">
@@ -344,20 +355,16 @@ export function UserManagementTable() {
                                     <TableCell className="text-muted-foreground">{u.email}</TableCell>
                                     <TableCell>
                                         <Badge variant="outline" className="capitalize">
-                                            {ROLE_NAMES[u.role] || u.role}
+                                            {ROLE_NAMES[u.role as UserRole] || u.role}
                                         </Badge>
                                     </TableCell>
-                                     <TableCell>
-                                        {u.platform ? (
-                                            <Badge variant={u.platform === 'shopify' ? 'default' : 'secondary'} className={u.platform === 'shopify' ? 'bg-[#7ab55c]' : ''}>
-                                                 {u.platform === 'shopify' ? 'Shopify' : 'WooCommerce'}
-                                            </Badge>
-                                        ) : (
-                                            <Badge variant="outline">N/A</Badge>
-                                        )}
+                                      <TableCell>
+                                        <Badge variant={effectivePlan ? "default" : "secondary"} className="capitalize">
+                                            {effectivePlan || 'N/A'}
+                                        </Badge>
                                     </TableCell>
                                     <TableCell className="text-center font-medium">
-                                        {u.siteLimit >= 999 ? 'Ilimitado' : u.siteLimit}
+                                        {u.siteLimitFromPlan === null ? 'N/A' : (u.siteLimitFromPlan >= 999 ? 'Ilimitado' : u.siteLimitFromPlan)}
                                     </TableCell>
                                     <TableCell>{getStatusBadge(u.status)}</TableCell>
                                     <TableCell className="text-right">
@@ -391,9 +398,12 @@ export function UserManagementTable() {
                                                             <>
                                                                 {currentUserRole === 'super_admin' && (
                                                                     <>
-                                                                        <DropdownMenuItem onSelect={() => { setSelectedUserForLimit(u); setNewSiteLimit(u.siteLimit); setIsLimitModalOpen(true); }}>
-                                                                            <KeyRound className="mr-2 h-4 w-4" /> Fijar Límite de Sitios
-                                                                        </DropdownMenuItem>
+                                                                        {!u.companyId && (
+                                                                             <DropdownMenuItem onSelect={() => { setSelectedUserForPlan(u); setNewUserPlan(u.plan || ''); setIsPlanModalOpen(true); }}>
+                                                                                <Briefcase className="mr-2 h-4 w-4" /> Asignar Plan Individual
+                                                                            </DropdownMenuItem>
+                                                                        )}
+
                                                                         <DropdownMenuSub>
                                                                             <DropdownMenuSubTrigger>
                                                                                 <Building className="mr-2 h-4 w-4" /> Asignar a Empresa
@@ -442,9 +452,9 @@ export function UserManagementTable() {
                                                                             {currentUserRole === 'super_admin' && (
                                                                                 <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'admin')}><Shield className="mr-2 h-4 w-4" /> Administrador</DropdownMenuItem>
                                                                             )}
-                                                                            <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'content_manager')}><FileSignature className="mr-2 h-4 w-4" /> Gestor de Contenido</DropdownMenuItem>
-                                                                            <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'product_manager')}><BookCopy className="mr-2 h-4 w-4" /> Gestor de Productos</DropdownMenuItem>
-                                                                            <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'seo_analyst')}><Search className="mr-2 h-4 w-4" /> Analista SEO</DropdownMenuItem>
+                                                                            <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'content_manager')}>Gestor de Contenido</DropdownMenuItem>
+                                                                            <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'product_manager')}>Gestor de Productos</DropdownMenuItem>
+                                                                            <DropdownMenuItem onSelect={() => handleUpdateRole(u.uid, 'seo_analyst')}>Analista SEO</DropdownMenuItem>
                                                                         </DropdownMenuSubContent>
                                                                     </DropdownMenuPortal>
                                                                 </DropdownMenuSub>
@@ -480,7 +490,8 @@ export function UserManagementTable() {
                                         )}
                                     </TableCell>
                                 </TableRow>
-                            ))}
+                               );
+                            })}
                         </React.Fragment>
                     )) : (
                         <TableRow>
