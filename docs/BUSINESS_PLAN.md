@@ -3,9 +3,9 @@
 
 ## 1. Misión y Propuesta de Valor
 
-**Misión:** Empoderar a agencias digitales, freelancers y gestores de e-commerce para que escalen sus operaciones, eliminen tareas manuales y ofrezcan resultados superiores a sus clientes mediante la automatización inteligente y la IA.
+**Misión:** Empoderar a agencias digitales, freelancers y a sus clientes para que gestionen sus sitios web de manera autónoma, eficiente e inteligente.
 
-**Propuesta de Valor:** AutoPress AI es un "Sistema Operativo para Agencias Digitales" que centraliza y automatiza las tareas más tediosas y lentas de la gestión de contenido y marketing en WordPress, WooCommerce y Shopify. Nuestra plataforma no solo ejecuta tareas, sino que multiplica la eficiencia, permitiendo a nuestros clientes gestionar más proyectos con menos esfuerzo y mayor calidad.
+**Propuesta de Valor Principal:** "Actualiza tu blog y productos sin depender de tu diseñador." AutoPress AI es una herramienta de gestión de contenido que ahorra tiempo, reduce errores y da autonomía a los usuarios no técnicos.
 
 ---
 
@@ -13,87 +13,70 @@
 
 Nuestro cliente ideal se divide en tres segmentos principales:
 
-1.  **Agencias de Marketing Digital y Desarrollo Web:** Nuestro `core target`. Gestionan múltiples clientes, valoran la eficiencia por encima de todo y necesitan herramientas que se integren con WordPress y Shopify.
-2.  **Freelancers (Desarrolladores y Marketers):** Profesionales individuales que buscan optimizar su tiempo para poder atender a más clientes o aumentar su rentabilidad por proyecto.
-3.  **Gestores de E-commerce y Contenido In-House:** Equipos dentro de empresas medianas o grandes que gestionan uno o varios sitios web de alto tráfico y necesitan escalar su producción de contenido y campañas.
+1.  **Autónomos y Pequeños Negocios:** El `core target` inicial. Gestionan su propia web o tienen un presupuesto limitado para mantenimiento técnico. Valoran la simplicidad y el ahorro de tiempo.
+2.  **Agencias de Marketing Digital y Desarrollo Web Pequeñas:** Utilizan la plataforma como una herramienta de valor añadido para sus clientes, permitiéndoles gestionar el contenido de forma segura y estructurada.
+3.  **Equipos de Contenido y E-commerce In-House:** Equipos que gestionan sitios web de alto tráfico y necesitan escalar su producción de contenido y campañas de forma colaborativa.
 
 ---
 
 ## 3. Modelo de Precios (SaaS por Suscripción)
 
-Proponemos un modelo de tres niveles para adaptarnos a las necesidades y tamaño de cada segmento. Los precios están en Euros (€) y se basan en un modelo de suscripción mensual (con un descuento del 15-20% en planes anuales).
+Proponemos un modelo de tres niveles para adaptarnos a las necesidades y tamaño de cada segmento. Los precios están en Euros (€) y se basan en un modelo de suscripción mensual.
 
-### **Plan Profesional**
-*Ideal para freelancers y pequeños negocios.*
+### **Plan Lite – 29 €/mes**
+*Ideal para: autónomos o webs pequeñas que publican 1-2 veces por semana.*
 
--   **Precio:** **49 € / mes**
 -   **Usuarios:** 1
--   **Conexiones a Sitios:** Hasta 3 (WooCommerce y/o Shopify)
--   **Créditos de IA:** Paquete Básico (ej. 100.000 créditos/mes)
--   **Funcionalidades Incluidas:**
-    -   Gestión de Productos, Entradas y Páginas.
-    -   Asistentes de Creación (Productos y Blog).
-    -   Procesamiento en Lotes (CSV + Imágenes).
-    -   Soporte por email.
-
-### **Plan Business (Para Equipos In-House)**
-*Ideal para equipos que gestionan su propio sitio de e-commerce o contenido.*
-
--   **Precio:** **89 € / mes**
--   **Usuarios:** Hasta 5
 -   **Conexiones a Sitios:** 1
--   **Créditos de IA:** Paquete Avanzado (ej. 500.000 créditos/mes)
 -   **Funcionalidades Incluidas:**
-    -   Todo lo del Plan Profesional.
-    -   **Herramientas de Marketing y SEO (Planificador, Optimizador, Estrategia).**
-    -   **Clonador de Contenido y Menús.**
-    -   **Gestión de Roles y Permisos de Usuario.**
-    -   **Panel de Actividad de Usuarios.**
-    -   Soporte Prioritario.
+    -   Acceso a panel web privado.
+    -   Gestión de entradas de blog.
+    -   Gestión de productos básicos (sin stock ni variantes complejas).
+    -   Subida de imágenes.
+    -   Editor WYSIWYG simple.
+    -   Soporte por email.
+-   **No Incluye:**
+    -   Funciones avanzadas de IA (solo generación básica de texto).
+    -   Acciones masivas.
+    -   Multiusuario.
 
-### **Plan Agencia (Recomendado)**
-*El producto estrella, diseñado para agencias que gestionan múltiples clientes.*
+### **Plan Pro – 49 €/mes (Recomendado)**
+*Ideal para: negocios con más contenido, varios autores o equipos de comunicación.*
 
--   **Precio:** **149 € / mes**
--   **Usuarios:** Hasta 10
--   **Conexiones a Sitios:** Hasta 20
--   **Créditos de IA:** Paquete Avanzado (ej. 500.000 créditos/mes)
+-   **Usuarios:** Hasta 3
+-   **Conexiones a Sitios:** Hasta 3
 -   **Funcionalidades Incluidas:**
-    -   Todo lo del Plan Business.
-    -   Funcionalidades multi-sitio y de gestión de clientes.
-    -   Soporte Prioritario.
+    -   Todo lo del Plan Lite.
+    -   **Gestión avanzada de productos (variantes, stock, categorías).**
+    -   **Acciones masivas (duplicar, eliminar, publicar en lote).**
+    -   Filtros y etiquetas personalizadas.
+    -   Herramientas SEO (Optimizador On-Page).
+    -   Exportación CSV.
+    -   Soporte por email prioritario.
 
-### **Plan Enterprise**
-*Para grandes agencias, corporaciones y necesidades a medida.*
+### **Plan Agency / Empresa – desde 99 €/mes**
+*Ideal para: agencias o empresas con múltiples colaboradores o marcas.*
 
--   **Precio:** **Desde 499 € / mes (Personalizado)**
--   **Usuarios:** Ilimitados (con política de uso justo)
--   **Conexiones a Sitios:** Ilimitadas
--   **Créditos de IA:** Volumen Personalizado
+-   **Usuarios:** Desde 5 (escalable)
+-   **Conexiones a Sitios:** Desde 5 (escalable)
 -   **Funcionalidades Incluidas:**
-    -   Todo lo del Plan Agencia.
-    -   **Acceso a la API de AutoPress AI** (para integraciones como chatbots, etc.).
-    -   Gestor de Cuenta Dedicado (CSM).
-    -   Acuerdo de Nivel de Servicio (SLA).
-    -   Opciones de Marca Blanca (Whitelabeling).
-    -   Soporte 24/7.
+    -   Todo lo del Plan Pro.
+    -   **Paneles multi-web (si gestiona varias marcas).**
+    -   **Workflows personalizados (roles, validaciones, estados).**
+    -   Herramientas de Marketing (Planificador, Estrategia).
+    -   Integraciones (vía API/Zapier).
+    -   Soporte premium (videollamada, formación).
 
 ---
 
 ## 4. Estrategia de Adquisición (Go-to-Market)
 
-1.  **Prueba Gratuita de 14 Días:** Ofrecer una prueba sin compromiso del **Plan Agencia** para que los nuevos usuarios experimenten el máximo valor de la plataforma. Esto es crucial para la conversión, ya que el "momento ¡ajá!" se produce al ver la automatización en acción.
+1.  **Lanzamiento Enfocado:** Lanzar inicialmente solo los planes **Lite (29€)** y **Pro (49€)**. Esto permite validar el producto con el público más amplio y concentrar los esfuerzos de marketing.
 
-2.  **Marketing de Contenidos Enfocado:**
-    -   **Blog y Tutoriales en Vídeo:** Crear contenido práctico que resuelva problemas específicos de nuestro target. Ejemplos: "Cómo lanzar una tienda con 50 productos en 2 horas usando IA", "La guía definitiva para el SEO On-Page con AutoPress AI".
-    -   **Casos de Estudio:** Documentar cómo una agencia X duplicó su capacidad de gestión de clientes usando la plataforma.
+2.  **Marketing de Contenidos:** Crear tutoriales y guías que resuelvan el dolor principal: "Cómo cambiar los precios de toda una categoría en 2 minutos sin tocar WooCommerce", "Programa tus posts del mes en 1 hora con IA".
 
-3.  **Penetración en Comunidades:**
-    -   Participar activamente en comunidades online donde se congregan nuestros clientes: grupos de Facebook para agencias, foros de WordPress/Shopify, subreddits relevantes.
-    -   Ofrecer demos y Q&A en directo para estos grupos.
+3.  **Prueba Gratuita del Plan Pro:** Ofrecer una prueba de 14 días sin compromiso del **Plan Pro** para que los usuarios experimenten el máximo valor de las acciones en lote y la gestión avanzada.
 
-4.  **Programa de Afiliados:**
-    -   Crear un programa de afiliados atractivo para que influencers, consultores y blogs de tecnología recomienden AutoPress AI a sus audiencias a cambio de una comisión recurrente.
+4.  **Colaboración con Agencias:** Ofrecer el Plan Agency a agencias de diseño web como un paquete de "mantenimiento de contenido" que pueden revender a sus clientes, dándoles una herramienta segura para que autogestionen su web.
 
-5.  **Integraciones y Marketplace:**
-    -   A largo plazo, buscar integraciones con otras herramientas populares para agencias (CRMs, herramientas de gestión de proyectos, etc.) y aparecer en sus marketplaces.
+5.  **Programa de Afiliados:** Crear un programa para que freelancers, consultores y blogs de tecnología recomienden AutoPress AI a sus audiencias a cambio de una comisión recurrente.
