@@ -94,7 +94,8 @@ export async function POST(req: NextRequest) {
         let settingsRef;
         let entityType: 'user' | 'company' | null = null;
         let effectiveId: string | null = null;
-
+        
+        // Determine which entity is being edited and if the user has permission
         if (role === 'super_admin') {
             if (targetCompanyId) {
                 entityType = 'company';
@@ -102,20 +103,17 @@ export async function POST(req: NextRequest) {
             } else if (targetUserId) {
                 entityType = 'user';
                 effectiveId = targetUserId;
-            } else {
-                 return NextResponse.json({ error: 'Super Admins must specify a target companyId or userId.' }, { status: 400 });
             }
         } else if (role === 'admin') {
             if (userCompanyId) {
                 entityType = 'company';
                 effectiveId = userCompanyId;
             } else {
-                // Admin without a company manages their own user_settings
                 entityType = 'user';
                 effectiveId = uid;
             }
         }
-
+        
         if (!effectiveId || !entityType) {
              return NextResponse.json({ error: 'Forbidden. No permissions to save data.' }, { status: 403 });
         }
@@ -123,24 +121,23 @@ export async function POST(req: NextRequest) {
         settingsRef = adminDb.collection(entityType === 'company' ? 'companies' : 'user_settings').doc(effectiveId);
         
         const { name, platform, plan, ...restOfData } = data;
-        const updatePayload: any = { ...restOfData };
-
-        // Only super_admin can change the company name, platform and plan
+        
+        let updatePayload: any = { ...restOfData };
+        
+        // A super_admin editing a company can change name, platform, and plan.
         if (role === 'super_admin' && entityType === 'company') {
-            if (name) updatePayload.name = name;
-            if (platform) updatePayload.platform = platform;
-            if (plan !== undefined) updatePayload.plan = plan; // Check for undefined to allow setting null
-        } else if (entityType === 'company') {
-            // For non-super admins editing a company, only allow specific fields
-            const allowedUpdates: any = {};
-            const allowedFields = ['taxId', 'address', 'phone', 'email', 'logoUrl', 'seoHourlyRate', 'shopifyCreationDefaults'];
-            for (const key of allowedFields) {
-                if (key in data) {
-                    allowedUpdates[key] = (data as any)[key];
-                }
-            }
-             await settingsRef.set(allowedUpdates, { merge: true });
-             return NextResponse.json({ success: true, message: 'Data saved successfully.' });
+            if (name !== undefined) updatePayload.name = name;
+            if (platform !== undefined) updatePayload.platform = platform;
+            if (plan !== undefined) updatePayload.plan = plan;
+        } 
+        // A regular admin editing their own company cannot change name, platform or plan.
+        else if (role === 'admin' && entityType === 'company') {
+            // The restOfData is already assigned to updatePayload.
+            // No extra fields are added. This section could be removed, but is kept for clarity.
+        } 
+        // Any user editing their own settings (user_settings)
+        else if (entityType === 'user') {
+           // updatePayload already contains all editable fields from the schema for user_settings
         }
         
         await settingsRef.set(updatePayload, { merge: true });
