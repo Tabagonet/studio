@@ -15,7 +15,7 @@ interface Step2PreviewProps {
 export function Step2Preview({ productData }: Step2PreviewProps) {
   const { 
     name, sku, productType, regularPrice, salePrice, stockQuantity, category, 
-    keywords, shortDescription, longDescription, attributes, photos,
+    tags, shortDescription, longDescription, attributes, photos,
     variations,
   } = productData;
 
@@ -170,11 +170,11 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
               </div>
             )}
             
-            {keywords && (
+            {tags && (
               <div>
                 <h4 className="font-semibold text-lg">Palabras Clave/Etiquetas</h4>
                 <div className="flex flex-wrap gap-2">
-                  {keywords.split(',').map(k => k.trim()).filter(k => k).map((keyword, index) => (
+                  {tags.split(',').map(k => k.trim()).filter(k => k).map((keyword, index) => (
                     <Badge key={index} variant="secondary">{keyword}</Badge>
                   ))}
                 </div>

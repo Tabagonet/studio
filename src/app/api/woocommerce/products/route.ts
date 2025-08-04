@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress, findOrCreateWpCategoryByPath } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress, findOrCreateTags, findOrCreateWpCategoryByPath } from '@/lib/api-helpers';
 import type { ProductData, ProductVariation } from '@/lib/types';
 import axios from 'axios';
 
@@ -91,13 +91,17 @@ export async function POST(request: NextRequest) {
             }));
         console.log(`[API Products] Processed attributes:`, JSON.stringify(wooAttributes, null, 2));
 
+        const tagNames = finalProductData.tags ? finalProductData.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [];
+        const tagIds = await findOrCreateTags(tagNames, wpApi);
+        console.log('[API Products] Final tag IDs:', tagIds);
+
 
         const wooPayload: any = {
             name: finalProductData.name, type: finalProductData.productType,
             description: finalProductData.longDescription, short_description: finalProductData.shortDescription,
             categories: finalCategoryId ? [{ id: finalCategoryId }] : [],
             images: wordpressImageIds, attributes: wooAttributes,
-            tags: finalProductData.tags ? finalProductData.tags.split(',').map(tag => ({ name: tag.trim() })) : [],
+            tags: tagIds.map(id => ({ id })),
             lang: lang,
             weight: finalProductData.weight || undefined,
             dimensions: finalProductData.dimensions,
