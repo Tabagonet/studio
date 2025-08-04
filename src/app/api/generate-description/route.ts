@@ -35,6 +35,7 @@ The response must be a valid JSON object. Do not include any markdown backticks 
 - **Descriptive Context (from image filename, use this for inspiration):** {{productName}}
 - **Language for output:** {{language}}
 - **Product Type:** {{productType}}
+- **Category:** {{categoryName}}
 - **User-provided Tags (for inspiration):** {{tags}}
 - **Contained Products (for "Grouped" type only):**
 {{{groupedProductsList}}}
@@ -84,7 +85,8 @@ export async function POST(req: NextRequest) {
         baseProductName: z.string().optional(),
         productName: z.string().min(1),
         productType: z.string(),
-        tags: z.string().optional(), // Expecting a string now
+        categoryName: z.string().optional(),
+        tags: z.string().optional(), 
         language: z.enum(['Spanish', 'English', 'French', 'German', 'Portuguese']).default('Spanish'),
         groupedProductIds: z.array(z.number()).optional(),
         mode: z.enum(['full_product', 'image_meta_only']).default('full_product'),
@@ -128,9 +130,11 @@ export async function POST(req: NextRequest) {
       outputSchema = FullProductOutputSchema;
       promptTemplate = await getProductDescriptionPrompt(uid);
     }
+    
+    const cleanedCategoryName = clientInput.categoryName ? clientInput.categoryName.replace(/—/g, '').trim() : '';
 
     const template = Handlebars.compile(promptTemplate, { noEscape: true });
-    const templateData = { ...clientInput, tags: clientInput.tags || '', groupedProductsList };
+    const templateData = { ...clientInput, categoryName: cleanedCategoryName, tags: clientInput.tags || '', groupedProductsList };
     const finalPrompt = template(templateData);
     
     const result = await model.generateContent(finalPrompt);
