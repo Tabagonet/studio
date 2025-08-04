@@ -19,7 +19,7 @@ A continuación se presenta un resumen de las funcionalidades, herramientas y pr
     -   Acciones en lote para enlazar traducciones y mover a la papelera.
     -   Acceso al editor completo para cada entrada.
 -   **Gestión de Páginas**
-    -   Visualización jerárquica de traducciones y sub-páginas.
+    -   Visualización jerárqurica de traducciones y sub-páginas.
     -   Filtros por título, estado e idioma.
     -   Acceso directo al optimizador SEO para análisis o para ver informes existentes.
     -   Acciones en lote para enlazar traducciones y mover a la papelera.
