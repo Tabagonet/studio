@@ -1,8 +1,7 @@
 
-
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -187,13 +186,16 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
       });
     } else if (name === 'category') {
       const selectedCat = wooCategories.find(c => c.id.toString() === value);
+      // When a category is selected from dropdown, clear the text input path
       updateProductData({ category: selectedCat || null, categoryPath: '' });
     }
   };
   
   const handleCategoryPathChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.value) {
-      updateProductData({ categoryPath: e.target.value, category: null });
+    const path = e.target.value;
+    // When user types in path, deselect dropdown category
+    if (path) {
+      updateProductData({ categoryPath: path, category: null });
     } else {
       updateProductData({ categoryPath: '' });
     }
@@ -365,7 +367,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         setIsGeneratingImageMeta(false);
     }
   };
-
+  
   const handleInsertImage = async () => {
     let finalImageUrl = imageUrl;
     if (imageFile) {
@@ -468,11 +470,12 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
          if (newShort !== updatedShortDesc) {
              updatedShortDesc = newShort;
              appliedCount++;
-         }
-         const newLong = applyLink(updatedLongDesc, suggestion);
-         if (newLong !== updatedLongDesc) {
-             updatedLongDesc = newLong;
-             appliedCount++;
+         } else {
+            const newLong = applyLink(updatedLongDesc, suggestion);
+            if (newLong !== updatedLongDesc) {
+                updatedLongDesc = newLong;
+                appliedCount++;
+            }
          }
      }
      if (appliedCount > 0) {
@@ -482,7 +485,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
      } else {
         toast({ title: "No se aplicó nada", description: "No se encontraron frases o ya estaban enlazadas.", variant: "destructive" });
      }
-  };
+  }
 
 
   return (
@@ -758,7 +761,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             </Card>
         </div>
       </div>
-       <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
+      <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
           <AlertDialogContent>
               <AlertDialogHeader>
                   <AlertDialogTitle>Insertar Imagen</AlertDialogTitle>
