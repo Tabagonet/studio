@@ -139,6 +139,9 @@ function autopress_ai_register_rest_endpoints() {
 
         register_rest_route( 'custom/v1', '/menus', ['methods' => 'GET', 'callback' => 'custom_api_get_all_menus', 'permission_callback' => 'autopress_ai_permission_check']);
         register_rest_route( 'custom/v1', '/clone-menu', ['methods' => 'POST', 'callback' => 'custom_api_clone_menu', 'permission_callback' => 'autopress_ai_permission_check']);
+        
+        register_rest_route( 'custom/v1', '/get-or-create-category', ['methods' => 'POST', 'callback' => 'custom_api_get_or_create_category', 'permission_callback' => 'autopress_ai_permission_check']);
+
     });
     
     function custom_api_status_check($request) { return new WP_REST_Response([ 'status' => 'ok', 'plugin_version' => autopress_ai_get_plugin_version(), 'verified' => true, 'message' => 'Plugin activo y verificado.', 'woocommerce_active' => class_exists('WooCommerce'), 'polylang_active' => function_exists('pll_get_post_language'), 'front_page_id' => (int) get_option('page_on_front', 0), ], 200); }
@@ -287,6 +290,58 @@ function autopress_ai_register_rest_endpoints() {
         return new WP_REST_Response(['success' => true, 'message' => "Menú clonado y traducido con éxito a '{$target_lang}'."], 200);
     }
 
-}
+    function custom_api_get_or_create_category(WP_REST_Request $request) {
+        $path_string = $request->get_param('path');
+        $lang_slug = $request->get_param('lang');
+        $taxonomy = 'product_cat'; // WooCommerce product category
 
+        if (empty($path_string)) {
+            return new WP_Error('invalid_path', 'Se requiere una ruta de categoría.', ['status' => 400]);
+        }
+
+        $path_parts = array_map('trim', explode('>', $path_string));
+        $parent_id = 0;
+        $term_id = null;
+
+        foreach ($path_parts as $part) {
+            $args = [
+                'taxonomy' => $taxonomy,
+                'name' => $part,
+                'parent' => $parent_id,
+                'hide_empty' => false,
+                'fields' => 'ids',
+                'lang' => $lang_slug, // Filter by language if Polylang is active
+            ];
+            
+            $existing_terms = get_terms($args);
+
+            if (!empty($existing_terms) && !is_wp_error($existing_terms)) {
+                $term_id = $existing_terms[0];
+            } else {
+                $new_term_result = wp_insert_term($part, $taxonomy, ['parent' => $parent_id]);
+                if (is_wp_error($new_term_result)) {
+                    // Handle cases where the term exists but not in the specified language.
+                    if ($new_term_result->get_error_code() === 'term_exists') {
+                        $term_id = $new_term_result->get_error_data('term_exists')['term_id'];
+                    } else {
+                        return new WP_Error('term_creation_failed', 'No se pudo crear la categoría: ' . $new_term_result->get_error_message(), ['status' => 500]);
+                    }
+                } else {
+                    $term_id = $new_term_result['term_id'];
+                }
+
+                if (function_exists('pll_set_term_language') && $lang_slug) {
+                    pll_set_term_language($term_id, $lang_slug);
+                }
+            }
+            $parent_id = $term_id;
+        }
+
+        if ($term_id) {
+            return new WP_REST_Response(['success' => true, 'term_id' => $term_id], 200);
+        } else {
+            return new WP_Error('final_term_not_found', 'No se pudo resolver la categoría final.', ['status' => 500]);
+        }
+    }
+}
 ?>

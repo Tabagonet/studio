@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
-import { getApiClientsForUser, findOrCreateCategoryByPath, uploadImageToWordPress, findOrCreateTags } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress, findOrCreateTags } from '@/lib/api-helpers';
 import type { ProductData, ProductVariation } from '@/lib/types';
 import axios from 'axios';
 
@@ -38,11 +38,21 @@ export async function POST(request: NextRequest) {
         console.log('[API Products] Request body parsed. Data to process:', JSON.stringify(finalProductData, null, 2));
 
 
-        // 1. Handle category
+        // 1. Handle category using the new custom endpoint
         let finalCategoryId: number | null = null;
         if (finalProductData.categoryPath) {
-            console.log(`[API Products] CategoryPath provided: "${finalProductData.categoryPath}". Finding or creating...`);
-            finalCategoryId = await findOrCreateCategoryByPath(finalProductData.categoryPath, wooApi);
+            console.log(`[API Products] CategoryPath provided: "${finalProductData.categoryPath}". Finding or creating via custom endpoint...`);
+            const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
+            const categoryEndpoint = `${siteUrl}/wp-json/custom/v1/get-or-create-category`;
+            const categoryResponse = await wpApi.post(categoryEndpoint, {
+                path: finalProductData.categoryPath,
+                lang: lang,
+            });
+            if (categoryResponse.data.success) {
+                 finalCategoryId = categoryResponse.data.term_id;
+            } else {
+                throw new Error(categoryResponse.data.message || 'Failed to get or create category via custom endpoint.');
+            }
         } else if (finalProductData.category?.id) {
             console.log(`[API Products] Category ID provided: ${finalProductData.category.id}. Using existing.`);
             finalCategoryId = finalProductData.category.id;
@@ -69,14 +79,13 @@ export async function POST(request: NextRequest) {
         }
         console.log(`[API Products] Final image ID list:`, wordpressImageIds);
 
-        // 3. Prepare common product data
+        // 3. Prepare product data - Corrected Attribute Logic
         const wooAttributes = finalProductData.attributes
-            .filter(attr => attr.name && attr.value)
+            .filter(attr => attr.name && attr.name.trim() !== '' && attr.value && attr.value.trim() !== '')
             .map((attr, index) => ({
-                id: 0, // Let WooCommerce handle the attribute ID
-                name: attr.name, 
-                position: index, 
-                visible: attr.visible !== false, 
+                name: attr.name,
+                position: index,
+                visible: attr.visible !== false,
                 variation: finalProductData.productType === 'variable' && !!attr.forVariations,
                 options: attr.value.split('|').map(s => s.trim()),
             }));
