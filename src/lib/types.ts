@@ -374,7 +374,7 @@ export interface User {
   photoURL: string;
   role: string;
   status: 'active' | 'rejected' | 'pending_approval';
-  siteLimit?: number;
+  siteLimit: number;
   companyId: string | null;
   companyName: string | null;
   companyPlan?: 'lite' | 'pro' | 'agency' | null;
