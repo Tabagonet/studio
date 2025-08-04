@@ -24,6 +24,8 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
   } = productData;
 
   const primaryPhoto = photos.find(p => p.isPrimary) || photos[0];
+  
+  const tagList = Array.isArray(tags) ? tags : (tags || '').split(',').map(t => t.trim()).filter(Boolean);
 
   return (
     <div className="space-y-8">
@@ -174,11 +176,11 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
               </div>
             )}
             
-            {tags && tags.length > 0 && (
+            {tagList.length > 0 && (
               <div>
                 <h4 className="font-semibold text-lg">Palabras Clave/Etiquetas</h4>
                 <div className="flex flex-wrap gap-2">
-                  {tags.map((keyword, index) => (
+                  {tagList.map((keyword, index) => (
                     <Badge key={index} variant="secondary">{keyword}</Badge>
                   ))}
                 </div>

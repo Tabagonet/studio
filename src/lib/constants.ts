@@ -106,7 +106,7 @@ export const INITIAL_PRODUCT_DATA: ProductData = {
   },
   shipping_class: "",
   category: null,
-  tags: [],
+  tags: "",
   shortDescription: "",
   longDescription: "",
   attributes: [{ name: '', value: '', forVariations: false, visible: true }],
@@ -126,7 +126,7 @@ export const INITIAL_BLOG_DATA: BlogPostData = {
   title: '',
   content: '',
   topic: '', // for AI
-  tags: [], // for AI and tags
+  tags: '', // for AI and tags
   focusKeyword: '',
   metaDescription: '',
   category: null,

@@ -91,17 +91,13 @@ export async function POST(request: NextRequest) {
             }));
         console.log(`[API Products] Processed attributes:`, JSON.stringify(wooAttributes, null, 2));
 
-        const tagNames = finalProductData.tags ? finalProductData.tags : [];
-        const tagIds = await findOrCreateTags(tagNames, wpApi);
-        console.log('[API Products] Final tag IDs:', tagIds);
-
 
         const wooPayload: any = {
             name: finalProductData.name, type: finalProductData.productType,
             description: finalProductData.longDescription, short_description: finalProductData.shortDescription,
             categories: finalCategoryId ? [{ id: finalCategoryId }] : [],
             images: wordpressImageIds, attributes: wooAttributes,
-            tags: tagIds.map(id => ({ id })),
+            tags: (finalProductData.tags || '').split(',').map(name => ({name: name.trim()})).filter(t => t.name),
             lang: lang,
             weight: finalProductData.weight || undefined,
             dimensions: finalProductData.dimensions,
