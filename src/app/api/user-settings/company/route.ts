@@ -123,13 +123,13 @@ export async function POST(req: NextRequest) {
         settingsRef = adminDb.collection(entityType === 'company' ? 'companies' : 'user_settings').doc(effectiveId);
         
         const { name, platform, plan, ...restOfData } = data;
-        const updatePayload: any = restOfData;
+        const updatePayload: any = { ...restOfData };
 
         // Only super_admin can change the company name, platform and plan
         if (role === 'super_admin' && entityType === 'company') {
             if (name) updatePayload.name = name;
             if (platform) updatePayload.platform = platform;
-            if (plan) updatePayload.plan = plan;
+            if (plan !== undefined) updatePayload.plan = plan; // Check for undefined to allow setting null
         } else if (entityType === 'company') {
             // For non-super admins editing a company, only allow specific fields
             const allowedUpdates: any = {};
