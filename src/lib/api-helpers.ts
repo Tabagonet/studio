@@ -297,7 +297,9 @@ export async function uploadImageToWordPress(
         let contentType: string;
 
         if (typeof source === 'string') {
-            const imageResponse = await axios.get(source, {
+             // Sanitize URL before fetching
+            const sanitizedUrl = source.startsWith('http') ? source : `https://${source.replace(/^https?/, '')}`;
+            const imageResponse = await axios.get(sanitizedUrl, {
                 responseType: 'arraybuffer',
             });
             imageBuffer = Buffer.from(imageResponse.data);

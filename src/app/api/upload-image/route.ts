@@ -1,3 +1,4 @@
+
 // src/app/api/upload-image/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
@@ -88,8 +89,14 @@ export async function POST(req: NextRequest) {
        console.error("Error reportado por quefoto.es/cargafotos.php:", errorMsg);
        throw new Error(errorMsg);
     }
+    
+    // Sanitize the URL returned from the external server
+    let sanitizedUrl = data.url;
+    if (sanitizedUrl && !sanitizedUrl.startsWith('http')) {
+        sanitizedUrl = `https://${sanitizedUrl.replace(/^https?/, '')}`;
+    }
 
-    return NextResponse.json({ success: true, url: data.url, filename_saved_on_server: data.filename_saved });
+    return NextResponse.json({ success: true, url: sanitizedUrl, filename_saved_on_server: data.filename_saved });
   } catch (error) {
     console.error("Error al procesar la imagen en /api/upload-image:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
