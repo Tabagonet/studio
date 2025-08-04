@@ -462,7 +462,16 @@ export async function findOrCreateTags(tagNames: string[], wpApi: AxiosInstance)
         tagIds.push(createResponse.data.id);
       }
     } catch (error: any) {
-        console.error(`Failed to find or create tag "${name}":`, error.response?.data || error.message);
+        if (error.response?.data?.code === 'term_exists') {
+            const existingId = error.response.data.data?.term_id;
+            if (existingId) {
+                tagIds.push(existingId);
+            } else {
+                 console.error(`Tag "${name}" exists but could not retrieve its ID from the error response.`);
+            }
+        } else {
+            console.error(`Failed to find or create tag "${name}":`, error.response?.data || error.message);
+        }
     }
   }
   return tagIds;
