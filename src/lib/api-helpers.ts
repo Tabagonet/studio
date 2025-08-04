@@ -298,9 +298,13 @@ export async function uploadImageToWordPress(
 
         if (typeof source === 'string') {
              // Sanitize URL before fetching
-            const sanitizedUrl = source.startsWith('http') ? source : `https://${source.replace(/^https?/, '')}`;
+            const sanitizedUrl = source.startsWith('http') ? source : `https://${source.replace(/^https?:\/\//, '')}`;
             const imageResponse = await axios.get(sanitizedUrl, {
                 responseType: 'arraybuffer',
+                headers: {
+                    // Add a standard User-Agent header to mimic a browser request
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                },
             });
             imageBuffer = Buffer.from(imageResponse.data);
             contentType = imageResponse.headers['content-type'] || 'application/octet-stream';
@@ -654,3 +658,4 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
 }
 
     
+
