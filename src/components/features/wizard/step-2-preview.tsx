@@ -1,7 +1,11 @@
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+"use client";
+
+import React from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { ProductData } from "@/lib/types";
-import Image from 'next/image';
+import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -170,11 +174,11 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
               </div>
             )}
             
-            {tags && (
+            {tags && tags.length > 0 && (
               <div>
                 <h4 className="font-semibold text-lg">Palabras Clave/Etiquetas</h4>
                 <div className="flex flex-wrap gap-2">
-                  {tags.split(',').map(k => k.trim()).filter(k => k).map((keyword, index) => (
+                  {tags.map((keyword, index) => (
                     <Badge key={index} variant="secondary">{keyword}</Badge>
                   ))}
                 </div>
@@ -204,5 +208,3 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
     </div>
   );
 }
-
-    

@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React from 'react';
@@ -16,7 +17,7 @@ interface ProductPreviewCardProps {
         sale_price: string;
         status: string;
         category_id: number | null;
-        tags: string;
+        tags: string[];
         short_description: string;
     };
     categories: WooCommerceCategory[];
@@ -45,9 +46,9 @@ export function ProductPreviewCard({ product, categories }: ProductPreviewCardPr
                     <Badge variant="outline">{product.status}</Badge>
                     <Badge variant="secondary">{categoryName}</Badge>
                 </div>
-                 {product.tags && (
+                 {product.tags && product.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 justify-center pt-2">
-                        {product.tags.split(',').map(k => k.trim()).filter(k => k).map((keyword, index) => (
+                        {product.tags.map((keyword, index) => (
                             <Badge key={index} variant="outline" className="text-xs font-normal">{keyword}</Badge>
                         ))}
                     </div>

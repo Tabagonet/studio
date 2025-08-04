@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
@@ -31,7 +32,7 @@ interface ProductEditState {
   description: string;
   images: ProductPhoto[];
   status: 'publish' | 'draft' | 'pending' | 'private';
-  tags: string;
+  tags: string[];
   category_id: number | null;
   manage_stock: boolean;
   stock_quantity: string;
@@ -237,7 +238,7 @@ function EditProductPageContent() {
           description: productData.description || '',
           images: existingImagesAsProductPhotos,
           status: productData.status || 'draft',
-          tags: productData.tags?.map((t: any) => t.name).join(', ') || '',
+          tags: productData.tags?.map((t: any) => t.name) || [],
           category_id: productData.categories?.length > 0 ? productData.categories[0].id : null,
           manage_stock: productData.manage_stock || false,
           stock_quantity: productData.stock_quantity?.toString() || '',
@@ -481,13 +482,17 @@ function EditProductPageContent() {
                       <CardHeader><CardTitle>Organización</CardTitle></CardHeader>
                       <CardContent className="space-y-4">
                            <div><Label htmlFor="category_id">Categoría</Label><Select name="category_id" value={product.category_id?.toString() || ''} onValueChange={(value) => handleSelectChange('category_id', value)} disabled={isLoadingCategories}><SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger><SelectContent>{wooCategories.map((cat) => (<SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>))}</SelectContent></Select></div>
-                           <div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={product.tags} onChange={handleInputChange} /></div>
+                           <div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={product.tags.join(', ')} onChange={(e) => setProduct({ ...product, tags: e.target.value.split(',').map(t => t.trim()) })} /></div>
                       </CardContent>
                   </Card>
                    <Card>
                       <CardHeader><CardTitle>Imágenes</CardTitle></CardHeader>
                       <CardContent>
-                          <ImageUploader photos={product.images} onPhotosChange={handlePhotosChange} isProcessing={isSaving} />
+                          <ImageUploader 
+                              photos={product.images} 
+                              onPhotosChange={handlePhotosChange} 
+                              isProcessing={isSaving}
+                          />
                       </CardContent>
                   </Card>
                    <Card>

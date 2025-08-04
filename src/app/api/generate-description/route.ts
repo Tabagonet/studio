@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
         baseProductName: z.string().optional(),
         productName: z.string().min(1),
         productType: z.string(),
-        tags: z.string().optional(),
+        tags: z.array(z.string()).optional(),
         language: z.enum(['Spanish', 'English', 'French', 'German', 'Portuguese']).default('Spanish'),
         groupedProductIds: z.array(z.number()).optional(),
         mode: z.enum(['full_product', 'image_meta_only']).default('full_product'),
@@ -130,7 +130,8 @@ export async function POST(req: NextRequest) {
     }
 
     const template = Handlebars.compile(promptTemplate, { noEscape: true });
-    const finalPrompt = template({ ...clientInput, groupedProductsList });
+    const templateData = { ...clientInput, tags: clientInput.tags?.join(', ') || '', groupedProductsList };
+    const finalPrompt = template(templateData);
     
     const result = await model.generateContent(finalPrompt);
     const response = await result.response;
