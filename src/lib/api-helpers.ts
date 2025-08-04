@@ -1,4 +1,3 @@
-
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -492,39 +491,42 @@ export function validateHmac(searchParams: URLSearchParams, clientSecret: string
 
 
 /**
- * Retrieves API clients based on the user's active configuration, correctly
- * handling user-specific vs. company-wide settings.
+ * Retrieves API clients based on the user's active configuration. It now accepts
+ * explicit entity information to avoid incorrect permission checks.
  *
  * @param uid The UID of the user making the request.
+ * @param entity An object specifying the entity type ('user' or 'company') and its ID.
  * @returns An object containing initialized API clients and settings info.
  * @throws If no settings or active connection are found.
  */
-export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
+export async function getApiClientsForUser(uid: string, entity?: {type: 'user' | 'company', id: string}): Promise<ApiClients> {
   if (!adminDb) {
     throw new Error('Firestore admin is not initialized.');
   }
-  
-  const userDocRef = await adminDb.collection('users').doc(uid).get();
-  if (!userDocRef.exists) {
-      throw new Error('User not found. Cannot determine settings.');
-  }
-  const userData = userDocRef.data()!;
-  
+
   let settingsSource: admin.firestore.DocumentData | undefined;
   
-  if (userData.companyId) {
-      const companyDoc = await adminDb.collection('companies').doc(userData.companyId).get();
-      settingsSource = companyDoc.exists ? companyDoc.data() : undefined;
+  if (entity) {
+    const settingsRef = adminDb.collection(entity.type === 'company' ? 'companies' : 'user_settings').doc(entity.id);
+    const docSnap = await settingsRef.get();
+    settingsSource = docSnap.exists ? docSnap.data() : undefined;
+  } else {
+      // Fallback to original logic if no explicit entity is provided
+      const userDocRef = await adminDb.collection('users').doc(uid).get();
+      if (!userDocRef.exists) throw new Error('User not found. Cannot determine settings.');
+      const userData = userDocRef.data()!;
+      if (userData.companyId) {
+          const companyDoc = await adminDb.collection('companies').doc(userData.companyId).get();
+          settingsSource = companyDoc.exists ? companyDoc.data() : undefined;
+      }
+      if (!settingsSource) {
+          const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+          settingsSource = userSettingsDoc.exists ? userSettingsDoc.data() : undefined;
+      }
   }
   
-  // Fallback to personal settings if no company or company doc not found
   if (!settingsSource) {
-      const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
-      settingsSource = userSettingsDoc.exists ? userSettingsDoc.data() : undefined;
-  }
-  
-  if (!settingsSource) {
-    throw new Error('No settings found for user or their company. Please configure API connections in Settings.');
+    throw new Error('No settings found for the specified entity. Please configure API connections in Settings.');
   }
   
   const allConnections = settingsSource.connections || {};

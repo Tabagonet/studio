@@ -17,7 +17,7 @@ interface RichTextEditorProps {
   content: string;
   onChange: (richText: string) => void;
   onInsertImage: () => void;
-  onSuggestLinks?: () => void;
+  onSuggestLinks?: (() => void) | undefined; // Make optional
   placeholder?: string;
   size?: 'default' | 'small';
 }

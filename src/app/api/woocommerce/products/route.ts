@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
 import { getApiClientsForUser, findOrCreateCategoryByPath, uploadImageToWordPress, findOrCreateTags } from '@/lib/api-helpers';
@@ -17,9 +18,9 @@ const slugify = (text: string) => {
 
 
 export async function POST(request: NextRequest) {
-    let uid, token;
+    let uid: string;
     try {
-        token = request.headers.get('Authorization')?.split('Bearer ')[1];
+        const token = request.headers.get('Authorization')?.split('Bearer ')[1];
         if (!token) { return NextResponse.json({ error: 'Authentication token not provided.' }, { status: 401 }); }
         if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
         

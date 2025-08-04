@@ -119,11 +119,13 @@ export function ProductWizard() {
                     short_description: finalProductData.shortDescription,
                     long_description: finalProductData.longDescription,
                 };
+                
                 const translateResponse = await fetch('/api/translate', { 
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
-                    body: JSON.stringify({ contentToTranslate, targetLanguage: lang })
+                    body: JSON.stringify({ contentToTranslate: contentToTranslate, targetLanguage: lang })
                 });
+
                 if (!translateResponse.ok) {
                     const errorData = await translateResponse.json();
                     throw new Error(errorData.error || `Error al traducir a ${lang}`);

@@ -169,7 +169,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     
     // Handle stock quantity: it should be a number for WooCommerce API
     if (wooPayload.stock_quantity !== undefined && wooPayload.stock_quantity !== null && wooPayload.stock_quantity !== '') {
-        wooPayload.stock_quantity = parseInt(String(wooPayload.stock_quantity), 10);
+        const stock = parseInt(String(wooPayload.stock_quantity), 10);
+        wooPayload.stock_quantity = isNaN(stock) ? undefined : stock;
     }
     
     const response = await wooApi.put(`products/${productId}`, wooPayload);
@@ -208,8 +209,8 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       return NextResponse.json({ error: 'Product ID is required.' }, { status: 400 });
     }
 
-    // `force: false` moves to trash, `force: true` permanently deletes.
-    const response = await wooApi.delete(`products/${productId}`, { force: false });
+    // `force: true` permanently deletes the product. `force: false` would move to trash.
+    const response = await wooApi.delete(`products/${productId}`, { force: true });
 
     return NextResponse.json({ success: true, data: response.data });
 

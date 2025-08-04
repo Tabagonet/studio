@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
+import { getApiClientsForUser } from '@/lib/api-helpers';
 
 async function getUserContext(req: NextRequest): Promise<{ uid: string; role: string | null; companyId: string | null }> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
@@ -48,19 +49,20 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Firestore not configured' }, { status: 503 });
     }
     try {
-        await getUserContext(req); // Just for auth check
+        // Auth check happens inside getApiClientsForUser
         const { searchParams } = new URL(req.url);
-        const targetCompanyIdFromUrl = searchParams.get('companyId');
+        const targetCompanyId = searchParams.get('companyId');
 
-        if (!targetCompanyIdFromUrl) {
+        if (!targetCompanyId) {
             return NextResponse.json({ error: 'Company ID is required.' }, { status: 400 });
         }
-
-        const settingsRef = adminDb.collection('companies').doc(targetCompanyIdFromUrl);
+        
+        // This is a public-facing GET, so no need for complex auth, just existence check.
+        const settingsRef = adminDb.collection('companies').doc(targetCompanyId);
         const docSnap = await settingsRef.get();
 
         if (!docSnap.exists) {
-            return NextResponse.json({ company: null }, { status: 200 }); // Return null if not found
+            return NextResponse.json({ company: null }, { status: 404 });
         }
         return NextResponse.json({ company: docSnap.data() });
 
@@ -75,7 +77,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Firestore not configured' }, { status: 503 });
     }
     try {
-        const { uid, role, companyId: userCompanyId } = await getUserContext(req);
+        const { uid, role } = await getUserContext(req);
         const body = await req.json();
 
         const payloadSchema = z.object({
@@ -95,7 +97,7 @@ export async function POST(req: NextRequest) {
         let entityType: 'user' | 'company' | null = null;
         let effectiveId: string | null = null;
         
-        // Determine which entity is being edited and if the user has permission
+        // Super admin can edit any specified company or user.
         if (role === 'super_admin') {
             if (targetCompanyId) {
                 entityType = 'company';
@@ -103,41 +105,38 @@ export async function POST(req: NextRequest) {
             } else if (targetUserId) {
                 entityType = 'user';
                 effectiveId = targetUserId;
-            }
-        } else if (role === 'admin') {
-            if (userCompanyId) {
-                entityType = 'company';
-                effectiveId = userCompanyId;
             } else {
+                 return NextResponse.json({ error: 'No target entity ID provided for super_admin.' }, { status: 400 });
+            }
+        } 
+        // A regular admin can only edit their own company settings.
+        else if (role === 'admin') {
+            const userDoc = (await adminDb.collection('users').doc(uid).get()).data();
+            if (userDoc?.companyId) {
+                entityType = 'company';
+                effectiveId = userDoc.companyId;
+            } else {
+                // An admin without a company can edit their own user_settings.
                 entityType = 'user';
                 effectiveId = uid;
             }
         }
         
         if (!effectiveId || !entityType) {
-             return NextResponse.json({ error: 'Forbidden. No permissions to save data.' }, { status: 403 });
+             return NextResponse.json({ error: 'Forbidden. No permissions to save data for the target entity.' }, { status: 403 });
         }
         
         settingsRef = adminDb.collection(entityType === 'company' ? 'companies' : 'user_settings').doc(effectiveId);
         
-        const { name, platform, plan, ...restOfData } = data;
+        const { name, platform, ...restOfData } = data;
         
         let updatePayload: any = { ...restOfData };
         
-        // A super_admin editing a company can change name, platform, and plan.
+        // Only a Super Admin can change the name, platform, or plan of a company.
         if (role === 'super_admin' && entityType === 'company') {
             if (name !== undefined) updatePayload.name = name;
             if (platform !== undefined) updatePayload.platform = platform;
-            if (plan !== undefined) updatePayload.plan = plan;
-        } 
-        // A regular admin editing their own company cannot change name, platform or plan.
-        else if (role === 'admin' && entityType === 'company') {
-            // The restOfData is already assigned to updatePayload.
-            // No extra fields are added. This section could be removed, but is kept for clarity.
-        } 
-        // Any user editing their own settings (user_settings)
-        else if (entityType === 'user') {
-           // updatePayload already contains all editable fields from the schema for user_settings
+            if (data.plan !== undefined) updatePayload.plan = data.plan; // Correctly include plan
         }
         
         await settingsRef.set(updatePayload, { merge: true });

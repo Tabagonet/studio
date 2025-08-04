@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser, uploadImageToWordPress, findOrCreateTags, findOrCreateWpCategoryByPath } from '@/lib/api-helpers';
@@ -37,19 +38,17 @@ const payloadSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-    let uid, token;
+    let uid: string;
     try {
-        token = request.headers.get('Authorization')?.split('Bearer ')[1];
-        if (!token) throw new Error('Authentication token not provided.');
+        const token = request.headers.get('Authorization')?.split('Bearer ')[1];
+        if (!token) { return NextResponse.json({ error: 'Authentication token not provided.' }, { status: 401 }); }
         if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
         
         const decodedToken = await adminAuth.verifyIdToken(token);
         uid = decodedToken.uid;
         
         const { wpApi } = await getApiClientsForUser(uid);
-        if (!wpApi) {
-            throw new Error('WordPress API is not configured for the active connection.');
-        }
+        if (!wpApi) { throw new Error('WordPress API is not configured for the active connection.'); }
 
         const body = await request.json();
         
