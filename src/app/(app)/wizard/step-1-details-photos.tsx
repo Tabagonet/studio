@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -186,19 +187,20 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
       });
     } else if (name === 'category') {
       const selectedCat = wooCategories.find(c => c.id.toString() === value);
-      // When selecting an existing category, clear the path input to avoid confusion
       updateProductData({ category: selectedCat || null, categoryPath: '' });
     }
   };
   
   const handleCategoryPathChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // When typing a new path, clear the selected category object
-    updateProductData({ categoryPath: e.target.value, category: null });
+    if (e.target.value) {
+      updateProductData({ categoryPath: e.target.value, category: null });
+    } else {
+      updateProductData({ categoryPath: '' });
+    }
   };
 
 
   const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
-    // Check if product name is empty and if there are new photos
     if (!productData.name && newPhotos.length > 0) {
       const firstNewFile = newPhotos.find(p => p && p.file);
       if (firstNewFile) {
@@ -482,6 +484,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
      }
   };
 
+
   return (
     <>
       <div className="space-y-8">
@@ -755,8 +758,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             </Card>
         </div>
       </div>
-      </div>
-      <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
+       <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
           <AlertDialogContent>
               <AlertDialogHeader>
                   <AlertDialogTitle>Insertar Imagen</AlertDialogTitle>

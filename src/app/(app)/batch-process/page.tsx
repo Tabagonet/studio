@@ -415,7 +415,7 @@ export default function BatchProcessPage() {
                     weight: pData.weight,
                     dimensions: pData.dimensions,
                     shipping_class: pData.shipping_class,
-                    keywords: pData.keywords,
+                    tags: pData.tags,
                     shortDescription: pData.shortDescription, longDescription: pData.longDescription,
                     photos: uploadedPhotos,
                     imageTitle: aiContent.imageTitle, imageAltText: aiContent.imageAltText, imageCaption: aiContent.imageCaption, imageDescription: aiContent.imageDescription,
@@ -468,7 +468,7 @@ export default function BatchProcessPage() {
                     height: product.csvData.alto || '',
                 },
                 shipping_class: product.csvData.clase_de_envio || '',
-                shortDescription: aiContent.shortDescription, longDescription: aiContent.longDescription, keywords: aiContent.keywords,
+                shortDescription: aiContent.shortDescription, longDescription: aiContent.longDescription, tags: aiContent.keywords,
                 attributes: [], photos: [], language: sourceLang, category: null
             };
             const originalApiPayload = { productData: createBasePayload(originalProductData), lang: sourceLangSlug };
