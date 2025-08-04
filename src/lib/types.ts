@@ -380,6 +380,7 @@ export interface User {
   companyPlan?: 'lite' | 'pro' | 'agency' | null;
   plan?: 'lite' | 'pro' | 'agency' | null;
   platform?: 'woocommerce' | 'shopify' | null;
+  companyPlatform?: 'woocommerce' | 'shopify' | null;
 }
 
 export interface Prospect {

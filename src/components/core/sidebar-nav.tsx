@@ -25,7 +25,8 @@ interface UserData {
   platform?: 'woocommerce' | 'shopify' | null;
   companyId?: string | null;
   companyPlan?: 'lite' | 'pro' | 'agency' | null;
-  plan?: 'lite' | 'pro' | 'agency' | null; // Individual user plan
+  plan?: 'lite' | 'pro' | 'agency' | null;
+  companyPlatform?: 'woocommerce' | 'shopify' | null;
 }
 
 
