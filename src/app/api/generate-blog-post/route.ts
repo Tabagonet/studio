@@ -22,14 +22,14 @@ const BlogContentInputSchema = z.object({
   ]),
   language: z.string().optional().default('Spanish'),
   topic: z.string().optional(),
-  keywords: z.string().optional(),
+  tags: z.string().optional(),
   ideaKeyword: z.string().optional(),
   existingTitle: z.string().optional(),
   existingContent: z.string().optional(),
 });
 
 const PROMPT_DEFAULTS: Record<string, string> = {
-    blogGeneration: `You are a professional blog writer and SEO specialist. Your task is to generate a blog post based on a given topic. The response must be a single, valid JSON object with four keys: 'title' (an engaging, SEO-friendly headline), 'content' (a well-structured blog post of at least 400 words, using HTML tags like <h2>, <p>, <ul>, <li>, and <strong> for formatting. All paragraphs (<p> tags) MUST be styled with text-align: justify; for example: <p style="text-align: justify;">Your paragraph here.</p>), 'suggestedKeywords' (a comma-separated string of 5-7 relevant, SEO-focused keywords), and 'metaDescription' (a compelling summary of around 150 characters for search engines). Do not include markdown or the word 'json' in your output.\n\nGenerate a blog post.\nTopic: "{{topic}}"\nInspiration Keywords: "{{keywords}}"\nLanguage: {{language}}`,
+    blogGeneration: `You are a professional blog writer and SEO specialist. Your task is to generate a blog post based on a given topic. The response must be a single, valid JSON object with four keys: 'title' (an engaging, SEO-friendly headline), 'content' (a well-structured blog post of at least 400 words, using HTML tags like <h2>, <p>, <ul>, <li>, and <strong> for formatting. All paragraphs (<p> tags) MUST be styled with text-align: justify; for example: <p style="text-align: justify;">Your paragraph here.</p>), 'suggestedKeywords' (a comma-separated string of 5-7 relevant, SEO-focused keywords), and 'metaDescription' (a compelling summary of around 150 characters for search engines). Do not include markdown or the word 'json' in your output.\n\nGenerate a blog post.\nTopic: "{{topic}}"\nInspiration Keywords: "{{tags}}"\nLanguage: {{language}}`,
     blogEnhancement: `You are an expert SEO copywriter. Your task is to analyze a blog post's title and content and rewrite them to be more engaging, clear, and SEO-optimized. Return a single, valid JSON object with two keys: 'title' and 'content'. The content should preserve the original HTML tags. Do not include markdown or the word 'json' in your output.\n\nRewrite and improve the title and content in {{language}} for this blog post.\nOriginal Title: "{{existingTitle}}"\nOriginal Content:\n---\n{{{existingContent}}}\n---`,
     titleSuggestion: `You are an expert SEO and content strategist. Based on the provided keyword, generate 5 creative, engaging, and SEO-friendly blog post titles. Return a single, valid JSON object with one key: 'titles', which is an array of 5 string titles. Do not include markdown or the word 'json' in your output.\n\nGenerate 5 blog post titles in {{language}} for the keyword: "{{ideaKeyword}}`,
     keywordSuggestion: `You are an expert SEO specialist. Based on the following blog post title and content, generate a list of relevant, SEO-focused keywords. Return a single, valid JSON object with one key: 'suggestedKeywords' (a comma-separated string of 5-7 relevant keywords). Do not include markdown or the word 'json' in your output.\n\nGenerate SEO keywords for this blog post in {{language}}.\nTitle: "{{existingTitle}}"\nContent:\n---\n{{{existingContent}}}\n---`,
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
                  promptTemplate = await getPrompt(uid, 'keywordSuggestion');
                  break;
             case 'enhance_title':
-                specificInstruction = `You are an expert SEO copywriter. Rewrite a blog post title to be more engaging and SEO-optimized (under 60 characters). Respond with a JSON object: {"title": "new title"}.\n\nRewrite the title for this post in ${modelInput.language}, including the keyword "${modelInput.keywords}".\nOriginal Title: "${modelInput.existingTitle}"\nContext:\n${modelInput.existingContent}`;
+                specificInstruction = `You are an expert SEO copywriter. Rewrite a blog post title to be more engaging and SEO-optimized (under 60 characters). Respond with a JSON object: {"title": "new title"}.\n\nRewrite the title for this post in ${modelInput.language}, including the keyword "${modelInput.tags}".\nOriginal Title: "${modelInput.existingTitle}"\nContext:\n${modelInput.existingContent}`;
                 break;
             case 'generate_meta_description':
                 specificInstruction = `You are an expert SEO copywriter. Write a compelling meta description (under 160 characters) for the given blog post. Respond with a JSON object: {"metaDescription": "new meta description"}.\n\nGenerate a meta description in ${modelInput.language} for:\nTitle: "${modelInput.existingTitle}"\nContent:\n${modelInput.existingContent}`;

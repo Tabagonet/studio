@@ -40,9 +40,9 @@ export function BlogCreator() {
 
   useEffect(() => {
     const topic = searchParams.get('topic');
-    const keywords = searchParams.get('keywords');
+    const tagsValue = searchParams.get('keywords'); // URL param is still 'keywords'
     if (topic) {
-        updatePostData({ topic, keywords: keywords || '' });
+        updatePostData({ topic, tags: tagsValue || '' });
     }
   }, [searchParams, updatePostData]);
 
@@ -182,7 +182,7 @@ export function BlogCreator() {
         setFinalLinks(createdPostUrls);
         setSubmissionStatus('success');
 
-    } catch (error) {
+    } catch (error: any) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         const failedStep = steps.find(s => s.status === 'processing');
         if (failedStep) {

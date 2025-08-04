@@ -102,7 +102,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
         return () => unsubscribe();
     }, [toast, updatePostData, postData.author]);
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         updatePostData({ [e.target.name]: e.target.value });
     };
 
@@ -174,7 +174,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
             if (mode === 'generate_from_topic') {
                 if (!postData.topic) throw new Error("Por favor, introduce un tema para la IA.");
                 payload.topic = postData.topic;
-                payload.keywords = postData.keywords;
+                payload.tags = postData.tags;
             } else {
                 if (!postData.title) throw new Error("El título es necesario para esta acción.");
                 payload.existingTitle = postData.title;
@@ -199,7 +199,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                     title: aiContent.title,
                     content: aiContent.content,
                     metaDescription: aiContent.metaDescription,
-                    ...(aiContent.suggestedKeywords && { keywords: aiContent.suggestedKeywords })
+                    ...(aiContent.suggestedKeywords && { tags: aiContent.suggestedKeywords })
                 });
                 toast({ title: "Contenido generado por la IA", description: "Se han rellenado los campos de contenido." });
             } else if (mode === 'enhance_content') {
@@ -213,7 +213,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                 toast({ title: "Meta descripción generada", description: "El campo para buscadores ha sido actualizado." });
             } else { // suggest_keywords
                 updatePostData({
-                    ...(aiContent.suggestedKeywords && { keywords: aiContent.suggestedKeywords })
+                    ...(aiContent.suggestedKeywords && { tags: aiContent.suggestedKeywords })
                 });
                 toast({ title: "Etiquetas sugeridas", description: "Se han actualizado las etiquetas." });
             }
@@ -529,8 +529,8 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                             </div>
 
                             <div className="pt-4 border-t">
-                                <Label htmlFor="keywords">Etiquetas (Palabras Clave)</Label>
-                                <Input id="keywords" name="keywords" value={postData.keywords} onChange={handleInputChange} placeholder="Ej: SEO, marketing, WordPress" />
+                                <Label htmlFor="tags">Etiquetas (Palabras Clave)</Label>
+                                <Input id="tags" name="tags" value={postData.tags} onChange={handleInputChange} placeholder="Ej: SEO, marketing, WordPress" />
                             </div>
                         </CardContent>
                     </Card>
