@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { Company, User as AppUser } from '@/lib/types';
 import { ShopifyIcon } from '@/components/core/icons';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type UserRole = 'super_admin' | 'admin' | 'content_manager' | 'product_manager' | 'seo_analyst' | 'pending' | 'user';
 type UserPlatform = 'woocommerce' | 'shopify';
@@ -554,3 +555,4 @@ export function UserManagementTable() {
         </div>
     );
 }
+
