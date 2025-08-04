@@ -167,7 +167,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
   }, [debouncedSku, debouncedName, toast]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     updateProductData({ [e.target.name]: e.target.value });
   };
   
@@ -259,7 +259,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             baseProductName: productData.name,
             productName: aiContextName,
             productType: productData.productType,
-            keywords: productData.keywords,
+            keywords: productData.tags, // Using tags field
             language: productData.language,
             groupedProductIds: productData.groupedProductIds,
         };
@@ -290,7 +290,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             name: aiContent.name,
             shortDescription: aiContent.shortDescription,
             longDescription: aiContent.longDescription,
-            keywords: aiContent.keywords,
+            tags: aiContent.keywords,
             imageTitle: aiContent.imageTitle,
             imageAltText: aiContent.imageAltText,
             imageCaption: aiContent.imageCaption,
@@ -320,7 +320,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const payload = {
             productName: productData.name,
             productType: productData.productType,
-            keywords: productData.keywords,
+            keywords: productData.tags, // Using tags field
             language: productData.language,
             mode: 'image_meta_only',
         };
@@ -435,20 +435,20 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   };
 
   const handleApplySuggestion = (suggestion: LinkSuggestion) => {
-    const newShortDesc = applyLink(productData.shortDescription, suggestion);
-    const newLongDesc = applyLink(productData.longDescription, suggestion);
-    
     let applied = false;
-    if (newShortDesc !== productData.shortDescription) {
-        updateProductData({ shortDescription: newShortDesc });
-        applied = true;
-    }
-    if (newLongDesc !== productData.longDescription) {
-        updateProductData({ longDescription: newLongDesc });
-        applied = true;
-    }
+    let newShortDesc = productData.shortDescription;
+    let newLongDesc = productData.longDescription;
 
+    if (newShortDesc.includes(suggestion.phraseToLink)) {
+        newShortDesc = applyLink(newShortDesc, suggestion);
+        applied = true;
+    } else if (newLongDesc.includes(suggestion.phraseToLink)) {
+        newLongDesc = applyLink(newLongDesc, suggestion);
+        applied = true;
+    }
+    
     if (applied) {
+        updateProductData({ shortDescription: newShortDesc, longDescription: newLongDesc });
         toast({ title: "Enlace aplicado", description: `Se ha enlazado la frase "${suggestion.phraseToLink}".` });
         setLinkSuggestions(prev => prev.filter(s => s.phraseToLink !== suggestion.phraseToLink || s.targetUrl !== suggestion.targetUrl));
     } else {
@@ -479,7 +479,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
      } else {
         toast({ title: "No se aplicó nada", description: "No se encontraron frases o ya estaban enlazadas.", variant: "destructive" });
      }
-  };
+  }
 
   return (
     <>
@@ -653,105 +653,104 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                       </div>
                   )}
 
-                </CardContent>
-              </Card>
+              </CardContent>
+            </Card>
 
-              <Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Descripciones y Palabras Clave</CardTitle>
+                <CardDescription>Esta información es clave para el SEO y para informar a tus clientes.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                 <div>
+                  <Label htmlFor="tags">Etiquetas (separadas por comas)</Label>
+                  <Input id="tags" name="tags" value={productData.tags} onChange={handleInputChange} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing || isGenerating} />
+                  <p className="text-xs text-muted-foreground mt-1">Ayudan a la IA y al SEO de tu producto.</p>
+                </div>
+
+                <div className="pt-2">
+                  <Button onClick={handleGenerateContentWithAI} disabled={isProcessing || isGenerating || !productData.name} className="w-full sm:w-auto">
+                      {isGenerating ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}
+                      {isGenerating ? "Generando..." : "Generar Contenido con IA"}
+                  </Button>
+                  {!productData.name && <p className="text-xs text-destructive mt-1">Introduce un nombre de producto para activar la IA.</p>}
+                </div>
+
+                <div className="border-t pt-6 space-y-6">
+                  <div>
+                      <Label htmlFor="shortDescription">Descripción Corta</Label>
+                       <RichTextEditor
+                          content={productData.shortDescription}
+                          onChange={handleShortDescriptionChange}
+                          onInsertImage={() => setIsImageDialogOpen(true)}
+                          onSuggestLinks={handleSuggestLinks}
+                          placeholder="Un resumen atractivo y conciso de tu producto que será generado por la IA."
+                          size="small"
+                      />
+                  </div>
+                
+                  <div>
+                      <Label htmlFor="longDescription">Descripción Larga</Label>
+                      <RichTextEditor
+                          content={productData.longDescription}
+                          onChange={handleLongDescriptionChange}
+                          onInsertImage={() => setIsImageDialogOpen(true)}
+                          onSuggestLinks={handleSuggestLinks}
+                          placeholder="Describe tu producto en detalle: características, materiales, usos, etc. La IA lo generará por ti."
+                      />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+        </div>
+        <div className="lg:col-span-1 space-y-8">
+            <Card>
+              <CardHeader>
+                <CardTitle>Imágenes del Producto</CardTitle>
+                <CardDescription>Sube las imágenes para tu producto. La primera se usará como principal.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} isProcessing={isProcessing || isGenerating} maxPhotos={15} />
+                <Button 
+                  onClick={handleGenerateImageMetadata} 
+                  disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} 
+                  className="w-full"
+                  variant="outline"
+                >
+                  {isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}
+                  {isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
                 <CardHeader>
-                  <CardTitle>Descripciones y Palabras Clave</CardTitle>
-                  <CardDescription>Esta información es clave para el SEO y para informar a tus clientes.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                   <div>
-                    <Label htmlFor="keywords">Palabras Clave (separadas por comas)</Label>
-                    <Input id="keywords" name="keywords" value={productData.keywords} onChange={handleInputChange} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing || isGenerating} />
-                    <p className="text-xs text-muted-foreground mt-1">Ayudan a la IA y al SEO de tu producto.</p>
-                  </div>
-
-                  <div className="pt-2">
-                    <Button onClick={handleGenerateContentWithAI} disabled={isProcessing || isGenerating || !productData.name} className="w-full sm:w-auto">
-                        {isGenerating ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}
-                        {isGenerating ? "Generando..." : "Generar Contenido con IA"}
-                    </Button>
-                    {!productData.name && <p className="text-xs text-destructive mt-1">Introduce un nombre de producto para activar la IA.</p>}
-                  </div>
-
-                  <div className="border-t pt-6 space-y-6">
-                    <div>
-                        <Label htmlFor="shortDescription">Descripción Corta</Label>
-                         <RichTextEditor
-                            content={productData.shortDescription}
-                            onChange={handleShortDescriptionChange}
-                            onInsertImage={() => setIsImageDialogOpen(true)}
-                            onSuggestLinks={handleSuggestLinks}
-                            placeholder="Un resumen atractivo y conciso de tu producto que será generado por la IA."
-                            size="small"
-                        />
-                    </div>
-                  
-                    <div>
-                        <Label htmlFor="longDescription">Descripción Larga</Label>
-                        <RichTextEditor
-                            content={productData.longDescription}
-                            onChange={handleLongDescriptionChange}
-                            onInsertImage={() => setIsImageDialogOpen(true)}
-                            onSuggestLinks={handleSuggestLinks}
-                            placeholder="Describe tu producto en detalle: características, materiales, usos, etc. La IA lo generará por ti."
-                        />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-          </div>
-          <div className="lg:col-span-1 space-y-8">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Imágenes del Producto</CardTitle>
-                  <CardDescription>Sube las imágenes para tu producto. La primera se usará como principal.</CardDescription>
+                    <CardTitle className="flex items-center gap-2"><Languages /> Traducción (Opcional)</CardTitle>
+                    <CardDescription>Crea automáticamente copias de este producto en otros idiomas.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} isProcessing={isProcessing || isGenerating} maxPhotos={15} />
-                  <Button 
-                    onClick={handleGenerateImageMetadata} 
-                    disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} 
-                    className="w-full"
-                    variant="outline"
-                  >
-                    {isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}
-                    {isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}
-                  </Button>
+                    <div>
+                        <Label>Idioma de Origen</Label>
+                        <Select name="language" value={productData.language} onValueChange={handleSourceLanguageChange}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                {ALL_LANGUAGES.map(lang => (<SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div>
+                        <Label>Crear traducciones en:</Label>
+                         <div className="grid grid-cols-2 gap-2 pt-2">
+                            {availableTargetLanguages.map(lang => (
+                                <div key={lang.code} className="flex items-center space-x-2">
+                                    <Checkbox id={`lang-${lang.code}`} checked={productData.targetLanguages?.includes(lang.code)} onCheckedChange={() => handleLanguageToggle(lang.code)} />
+                                    <Label htmlFor={`lang-${lang.code}`} className="font-normal">{lang.name}</Label>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </CardContent>
-              </Card>
-
-              <Card>
-                  <CardHeader>
-                      <CardTitle className="flex items-center gap-2"><Languages /> Traducción (Opcional)</CardTitle>
-                      <CardDescription>Crea automáticamente copias de este producto en otros idiomas.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                      <div>
-                          <Label>Idioma de Origen</Label>
-                          <Select name="language" value={productData.language} onValueChange={handleSourceLanguageChange}>
-                              <SelectTrigger><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                  {ALL_LANGUAGES.map(lang => (<SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>))}
-                              </SelectContent>
-                          </Select>
-                      </div>
-                      <div>
-                          <Label>Crear traducciones en:</Label>
-                           <div className="grid grid-cols-2 gap-2 pt-2">
-                              {availableTargetLanguages.map(lang => (
-                                  <div key={lang.code} className="flex items-center space-x-2">
-                                      <Checkbox id={`lang-${lang.code}`} checked={productData.targetLanguages?.includes(lang.code)} onCheckedChange={() => handleLanguageToggle(lang.code)} />
-                                      <Label htmlFor={`lang-${lang.code}`} className="font-normal">{lang.name}</Label>
-                                  </div>
-                              ))}
-                          </div>
-                      </div>
-                  </CardContent>
-              </Card>
-          </div>
+            </Card>
         </div>
       </div>
       <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
@@ -792,7 +791,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
           suggestions={linkSuggestions}
           onApplySuggestion={handleApplySuggestion}
           onApplyAll={handleApplyAllSuggestions}
-        />
+      />
     </>
   );
 }
+

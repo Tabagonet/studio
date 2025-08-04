@@ -51,6 +51,7 @@ export function Step3Confirm({ productData }: Step3ConfirmProps) {
             <p><span className="font-semibold">Categoría:</span> {productData.category?.name || "N/A"}</p>
             <p><span className="font-semibold">Atributos:</span> {validAttributesCount}</p>
             <p><span className="font-semibold">Imágenes:</span> {productData.photos.length}</p>
+            <p><span className="font-semibold">Etiquetas:</span> {productData.tags || "Ninguna"}</p>
         </CardContent>
       </Card>
       

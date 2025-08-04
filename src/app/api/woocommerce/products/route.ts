@@ -60,7 +60,8 @@ export async function POST(request: NextRequest) {
                 name: attr.name, position: index, visible: attr.visible !== false, variation: finalProductData.productType === 'variable' && !!attr.forVariations,
                 options: finalProductData.productType === 'variable' ? attr.value.split('|').map(s => s.trim()) : [attr.value],
             }));
-        const tagNames = finalProductData.keywords ? finalProductData.keywords.split(',').map(k => k.trim()).filter(Boolean) : [];
+        
+        const tagNames = finalProductData.tags ? finalProductData.tags.split(',').map(k => k.trim()).filter(Boolean) : [];
         const tagIds = await findOrCreateTags(tagNames, wpApi);
 
 
