@@ -153,8 +153,7 @@ export interface ProductData {
   shipping_class: string;
   category: WooCommerceCategory | null; // Store category object
   categoryPath?: string; // Used for batch creation by name/path
-  keywords: string;
-  tags: string; // This field was missing
+  tags: string;
   shortDescription: string;
   longDescription: string;
   attributes: ProductAttribute[];

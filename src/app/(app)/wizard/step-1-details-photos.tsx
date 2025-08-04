@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
@@ -171,10 +172,6 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     updateProductData({ [e.target.name]: e.target.value });
   };
   
-  const handleShortDescriptionChange = (newContent: string) => {
-    updateProductData({ shortDescription: newContent });
-  };
-
   const handleLongDescriptionChange = (newContent: string) => {
     updateProductData({ longDescription: newContent });
   };
@@ -189,23 +186,27 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
       });
     } else if (name === 'category') {
       const selectedCat = wooCategories.find(c => c.id.toString() === value);
+      // When selecting an existing category, clear the path input to avoid confusion
       updateProductData({ category: selectedCat || null, categoryPath: '' });
     }
   };
+  
+  const handleCategoryPathChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // When typing a new path, clear the selected category object
+    updateProductData({ categoryPath: e.target.value, category: null });
+  };
+
 
   const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
-    // Check if product SKU is empty, and if there are new photos
-    if (!productData.sku && newPhotos.length > 0) {
+    // Check if product name is empty and if there are new photos
+    if (!productData.name && newPhotos.length > 0) {
       const firstNewFile = newPhotos.find(p => p && p.file);
       if (firstNewFile) {
-        const { sku } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
-        // Create an update object, only setting fields if they are empty
-        const updates: Partial<ProductData> = { photos: newPhotos };
-        if (sku) {
-            updates.sku = sku;
+        const { extractedProductName } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
+        if (extractedProductName) {
+            updateProductData({ photos: newPhotos, name: extractedProductName });
+            return;
         }
-        updateProductData(updates);
-        return;
       }
     }
     updateProductData({ photos: newPhotos });
@@ -259,7 +260,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             baseProductName: productData.name,
             productName: aiContextName,
             productType: productData.productType,
-            keywords: productData.tags, // Using tags field
+            keywords: productData.tags, 
             language: productData.language,
             groupedProductIds: productData.groupedProductIds,
         };
@@ -550,7 +551,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                           <Input
                               name="categoryPath"
                               value={productData.categoryPath || ''}
-                              onChange={(e) => updateProductData({ categoryPath: e.target.value, category: null })}
+                              onChange={handleCategoryPathChange}
                               placeholder="O crea una nueva (Ej: Ropa > Camisetas)"
                               disabled={isProcessing}
                           />
@@ -679,13 +680,14 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                 <div className="border-t pt-6 space-y-6">
                   <div>
                       <Label htmlFor="shortDescription">Descripción Corta</Label>
-                       <RichTextEditor
-                          content={productData.shortDescription}
-                          onChange={handleShortDescriptionChange}
-                          onInsertImage={() => setIsImageDialogOpen(true)}
-                          onSuggestLinks={handleSuggestLinks}
-                          placeholder="Un resumen atractivo y conciso de tu producto que será generado por la IA."
-                          size="small"
+                       <Textarea
+                        id="shortDescription"
+                        name="shortDescription"
+                        value={productData.shortDescription}
+                        onChange={handleInputChange}
+                        placeholder="Un resumen atractivo y conciso de tu producto que será generado por la IA."
+                        rows={3}
+                        disabled={isProcessing || isGenerating}
                       />
                   </div>
                 
@@ -702,8 +704,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                 </div>
               </CardContent>
             </Card>
-          </div>
-          <div className="lg:col-span-1 space-y-8">
+        </div>
+        <div className="lg:col-span-1 space-y-8">
             <Card>
               <CardHeader>
                 <CardTitle>Imágenes del Producto</CardTitle>
@@ -751,8 +753,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                     </div>
                 </CardContent>
             </Card>
-          </div>
         </div>
+      </div>
       </div>
       <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
           <AlertDialogContent>
