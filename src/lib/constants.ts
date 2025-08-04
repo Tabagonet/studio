@@ -126,7 +126,7 @@ export const INITIAL_BLOG_DATA: BlogPostData = {
   title: '',
   content: '',
   topic: '', // for AI
-  tags: '', // for AI and tags
+  tags: [], // for AI and tags
   focusKeyword: '',
   metaDescription: '',
   category: null,

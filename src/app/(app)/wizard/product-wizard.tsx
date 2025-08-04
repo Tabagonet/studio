@@ -3,6 +3,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
 import { Step2Preview } from '@/components/features/wizard/step-2-preview'; 
 import { Step3Confirm } from './step-3-confirm';
 import { Step4Processing } from './step-4-processing';
@@ -15,7 +16,6 @@ import { ArrowLeft, ArrowRight, Rocket, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import axios from 'axios';
-import { Step1DetailsPhotos } from '@/components/features/wizard/step-1-details-photos';
 
 export function ProductWizard() {
   const [currentStep, setCurrentStep] = useState(1);

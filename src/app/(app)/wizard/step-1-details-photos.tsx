@@ -181,12 +181,11 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   const handleLongDescriptionChange = (newContent: string) => {
     updateProductData({ longDescription: newContent });
   };
-
+  
   const handleTagsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const tagsArray = e.target.value.split(',').map(tag => tag.trim());
     updateProductData({ tags: tagsArray });
   };
-
 
   const handleSelectChange = (name: 'productType' | 'category', value: string) => {
     if (name === 'productType') {
@@ -320,7 +319,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const payload = {
             productName: productData.name,
             productType: productData.productType,
-            tags: productData.tags.join(', '),
+            tags: productData.tags,
             language: productData.language,
             mode: 'image_meta_only',
         };
@@ -648,7 +647,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                 <CardContent className="space-y-6">
                    <div>
                     <Label htmlFor="tags">Etiquetas (separadas por comas)</Label>
-                    <Input id="tags" name="tags" value={Array.isArray(productData.tags) ? productData.tags.join(', ') : productData.tags} onChange={handleTagsChange} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing || isGenerating} />
+                    <Input id="tags" name="tags" value={productData.tags.join(', ')} onChange={handleTagsChange} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing || isGenerating} />
                     <p className="text-xs text-muted-foreground mt-1">Ayudan a la IA y al SEO de tu producto.</p>
                   </div>
 
