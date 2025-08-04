@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ContentImage } from '@/lib/types';
+import { ContentImage, ExtractedWidget } from '@/lib/types';
 import { ImageIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -82,13 +82,12 @@ export function SeoAnalyzer({
     
     // Update the master HTML content string in the parent component's state
     setPost(prevPost => {
-        if (!prevPost) return null;
+        if (!prevPost || typeof prevPost.content !== 'string') return prevPost;
         
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = prevPost.content;
         
         // Find the specific image by its original `src` attribute (which we use as an ID)
-        // Use querySelector with attribute selector for reliability
         const imageToUpdate = tempDiv.querySelector(`img[src="${CSS.escape(imageId)}"]`);
         
         if (imageToUpdate) {
@@ -115,11 +114,13 @@ export function SeoAnalyzer({
         if (!user) throw new Error("No autenticado.");
         const token = await user.getIdToken();
         
+        const contentText = typeof post.content === 'string' ? post.content : post.content.map(w => w.text).join('\n');
+        
         const payload: any = { 
             mode, 
             language: post.lang || 'es',
             existingTitle: post.meta._yoast_wpseo_title || post.title,
-            existingContent: typeof post.content === 'string' ? post.content : post.content.map(w => w.text).join('\n'),
+            existingContent: contentText,
             keywords: post.meta._yoast_wpseo_focuskw || '',
         };
         const response = await fetch('/api/generate-blog-post', {
@@ -145,14 +146,15 @@ export function SeoAnalyzer({
   }, [post, setPost, toast, setIsLoading]);
 
   const autoGenerateKeyword = useCallback(async () => {
-    if (post && !post.meta._yoast_wpseo_focuskw && post.content && !hasTriggeredAutoKeyword.current) {
+    const contentText = post && post.content ? (typeof post.content === 'string' ? post.content : post.content.map(w => w.text).join('\n')) : '';
+    if (post && !post.meta._yoast_wpseo_focuskw && contentText && !hasTriggeredAutoKeyword.current) {
         hasTriggeredAutoKeyword.current = true;
         setIsLoading(true);
         try {
             const user = auth.currentUser; if (!user) return;
             const token = await user.getIdToken();
 
-            const payload = { mode: 'generate_focus_keyword', language: post.lang || 'es', existingTitle: post.title, existingContent: typeof post.content === 'string' ? post.content : post.content.map(w=>w.text).join('\n') };
+            const payload = { mode: 'generate_focus_keyword', language: post.lang || 'es', existingTitle: post.title, existingContent: contentText };
             const response = await fetch('/api/generate-blog-post', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload) });
             if (response.ok) {
                 const aiContent = await response.json();
@@ -168,7 +170,7 @@ export function SeoAnalyzer({
   }, [autoGenerateKeyword]);
 
   const handleGenerateImageAlts = useCallback(async () => {
-    if (!post) return;
+    if (!post || typeof post.content !== 'string') return;
     setIsLoading(true);
     try {
         const user = auth.currentUser;
@@ -178,7 +180,7 @@ export function SeoAnalyzer({
             mode: 'generate_image_meta',
             language: post.lang || 'es',
             existingTitle: post.title,
-            existingContent: typeof post.content === 'string' ? post.content : '',
+            existingContent: post.content,
         };
         const response = await fetch('/api/generate-blog-post', {
             method: 'POST',
@@ -194,7 +196,7 @@ export function SeoAnalyzer({
         );
 
         const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = typeof post.content === 'string' ? post.content : '';
+        tempDiv.innerHTML = post.content;
 
         newImages.forEach((updatedImage) => {
            if (!updatedImage.alt) return;
@@ -328,7 +330,7 @@ export function SeoAnalyzer({
                 <CardDescription>Revisa y añade texto alternativo a las imágenes de tu contenido para mejorar el SEO y la accesibilidad.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                <Button onClick={handleGenerateImageAlts} disabled={isLoading}>
+                <Button onClick={handleGenerateImageAlts} disabled={isLoading || typeof post.content !== 'string'}>
                     {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                     Generar y Aplicar 'alt text' con IA
                 </Button>

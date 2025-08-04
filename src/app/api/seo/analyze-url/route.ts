@@ -222,29 +222,36 @@ export async function POST(req: NextRequest) {
         const response = await apiToUse.get(endpoint, { params: { context: 'edit', '_': new Date().getTime() } });
         post = response.data;
 
-        // Scrape the live page to get the most accurate image data
+        // Scrape the live page to get the most accurate image data and H1
         const livePageData = await getPageContentFromScraping(post.link, wpApi);
 
         const getMetaValue = (key: string) => {
-            if (post.meta_data) {
+            if (post.meta_data) { // WooCommerce format
                 const meta = post.meta_data.find((m: any) => m.key === key);
                 return meta ? meta.value : '';
             }
-            return post.meta?.[key] || '';
+            return post.meta?.[key] || ''; // WordPress format
         };
 
         const yoastTitle = getMetaValue('_yoast_wpseo_title');
-        const $ = cheerio.load(post.content?.rendered || '');
+        
+        // Combine content from different sources for a full picture
+        const mainContentHtml = post.content?.rendered || post.description || '';
+        const shortDescriptionHtml = post.short_description || '';
+        const combinedHtml = `${shortDescriptionHtml} ${mainContentHtml}`;
+        
+        const $ = cheerio.load(combinedHtml);
+        const textContent = $('body').text().replace(/\s\s+/g, ' ').trim();
 
         pageData = {
             title: yoastTitle || post.name || post.title?.rendered || '',
-            metaDescription: getMetaValue('_yoast_wpseo_metadesc') || post.short_description || '',
+            metaDescription: getMetaValue('_yoast_wpseo_metadesc') || post.short_description?.replace(/<[^>]+>/g, '') || '',
             focusKeyword: getMetaValue('_yoast_wpseo_focuskw') || '',
             canonicalUrl: post.permalink || post.link || '',
             h1: livePageData.h1,
             headings: livePageData.headings,
             images: livePageData.images,
-            textContent: livePageData.textContent,
+            textContent: textContent,
         };
 
     } else {
