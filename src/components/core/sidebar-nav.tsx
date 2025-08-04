@@ -1,3 +1,4 @@
+
 // src/components/core/sidebar-nav.tsx
 "use client";
 
@@ -36,12 +37,20 @@ interface ConfigStatus {
   pluginActive: boolean;
 }
 
+interface Plan {
+    id: 'lite' | 'pro' | 'agency';
+    name: string;
+    price: string;
+    features: Record<string, boolean>; // href -> isEnabled
+}
+
 export function SidebarNav() {
   const pathname = usePathname();
   const { toast } = useToast();
   const router = useRouter();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [configStatus, setConfigStatus] = useState<ConfigStatus | null>(null);
+  const [planConfig, setPlanConfig] = useState<Plan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchUserAndConfigData = useCallback(async (user: FirebaseUser) => {
@@ -49,27 +58,21 @@ export function SidebarNav() {
     try {
       const token = await user.getIdToken();
       
-      const [userResponse, configResponse] = await Promise.all([
+      const [userResponse, configResponse, plansResponse] = await Promise.all([
         fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` }})
+        fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/settings/plans', { headers: { 'Authorization': `Bearer ${token}` } }),
       ]);
 
-      if (userResponse.ok) {
-        setUserData(await userResponse.json());
-      } else {
-        setUserData(null);
-      }
-
-      if(configResponse.ok) {
-        setConfigStatus(await configResponse.json());
-      } else {
-        setConfigStatus({ wooCommerceConfigured: false, wordPressConfigured: false, shopifyConfigured: false, shopifyPartnerConfigured: false, pluginActive: false });
-      }
+      if (userResponse.ok) setUserData(await userResponse.json()); else setUserData(null);
+      if (configResponse.ok) setConfigStatus(await configResponse.json()); else setConfigStatus(null);
+      if (plansResponse.ok) setPlanConfig((await plansResponse.json()).plans); else setPlanConfig([]);
 
     } catch (error) {
       console.error("Failed to fetch user/config for sidebar", error);
       setUserData(null);
-      setConfigStatus({ wooCommerceConfigured: false, wordPressConfigured: false, shopifyConfigured: false, shopifyPartnerConfigured: false, pluginActive: false });
+      setConfigStatus(null);
+      setPlanConfig([]);
     } finally {
       setIsLoading(false);
     }
@@ -82,6 +85,7 @@ export function SidebarNav() {
       } else {
         setUserData(null);
         setConfigStatus(null);
+        setPlanConfig([]);
         setIsLoading(false);
       }
     });
@@ -138,41 +142,35 @@ export function SidebarNav() {
 
     return NAV_GROUPS.map((group) => {
       const visibleItems = group.items.filter(item => {
-        // Rule 1: Super Admin sees everything, no other checks needed.
+        // Rule 1: Super Admin sees everything.
         if (userData?.role === 'super_admin') {
             return true;
         }
 
-        // Determine the effective plan. Company plan takes precedence.
-        let effectivePlan: 'lite' | 'pro' | 'agency' = 'lite'; // Default to the most restrictive plan.
-        if (userData?.companyPlan) {
-            effectivePlan = userData.companyPlan; // Company plan is king.
-        } else if (userData?.plan) {
-            effectivePlan = userData.plan; // Fallback to individual user plan.
-        }
-        
-        // Determine the effective platform. Company platform takes precedence.
-        const effectivePlatform = userData?.companyPlatform || userData?.platform;
-
-        // Check if the user's role is allowed
+        // Rule 2: Check role permissions.
         const hasRequiredRole = !item.requiredRoles || (userData?.role && item.requiredRoles.includes(userData.role));
         if (!hasRequiredRole) return false;
         
-        // Check if the item requires a company and if the user (as admin) has one.
-        if (item.requiresCompany && userData?.role === 'admin' && !userData.companyId) {
-            return false;
-        }
-
-        // Check if the item requires a specific platform (WooCommerce/Shopify)
+        // Rule 3: Check platform requirement.
+        const effectivePlatform = userData?.companyPlatform || userData?.platform;
         const hasRequiredPlatform = !group.requiredPlatform || (effectivePlatform && group.requiredPlatform === effectivePlatform);
         if (!hasRequiredPlatform) return false;
 
-        // Check if the user's effective plan meets the requirement for the item
-        const hasRequiredPlan = !item.requiredPlan || item.requiredPlan.includes(effectivePlan);
-        if (!hasRequiredPlan) return false;
+        // Rule 4: If no plan is required for the item, show it (e.g. Dashboard, Settings).
+        if (!item.requiredPlan) {
+          return true;
+        }
+
+        // Rule 5: Check feature flag from dynamic plan configuration.
+        const effectivePlanId = userData?.companyPlan || userData?.plan;
+        if (!effectivePlanId) return false; // No plan, no access to planned features.
         
-        // If all checks pass, show the item.
-        return true;
+        const plan = planConfig.find(p => p.id === effectivePlanId);
+        if (plan && plan.features[item.href]) {
+            return true;
+        }
+
+        return false;
       });
       
       if (visibleItems.length === 0) return null;
