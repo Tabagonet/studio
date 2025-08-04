@@ -1,8 +1,8 @@
-
+// src/app/api/woocommerce/products/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress, findOrCreateTags, findOrCreateWpCategoryByPath } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress, findOrCreateCategoryByPath } from '@/lib/api-helpers';
 import type { ProductData, ProductVariation } from '@/lib/types';
 import axios from 'axios';
 
@@ -33,10 +33,14 @@ export async function POST(request: NextRequest) {
         if (!wooApi || !wpApi) { throw new Error('Both WooCommerce and WordPress APIs must be configured.'); }
         console.log('[API Products] API clients obtained.');
         
-        const { productData, lang } = await request.json();
-        const finalProductData: ProductData = productData;
+        const formData = await request.formData();
+        const productDataString = formData.get('productData');
+        if (typeof productDataString !== 'string') {
+            throw new Error("productData is missing or not a string.");
+        }
+        
+        const finalProductData: ProductData = JSON.parse(productDataString);
         console.log('[API Products] Request body parsed. Data to process:', JSON.stringify(finalProductData, null, 2));
-
 
         // 1. Handle category using the new custom endpoint
         let finalCategoryId: number | null = null;
@@ -46,7 +50,7 @@ export async function POST(request: NextRequest) {
             const categoryEndpoint = `${siteUrl}/wp-json/custom/v1/get-or-create-category`;
             const categoryResponse = await wpApi.post(categoryEndpoint, {
                 path: finalProductData.categoryPath,
-                lang: lang,
+                lang: finalProductData.language || 'es',
             });
             if (categoryResponse.data.success) {
                  finalCategoryId = categoryResponse.data.term_id;
@@ -59,29 +63,28 @@ export async function POST(request: NextRequest) {
         }
         console.log(`[API Products] Final Category ID: ${finalCategoryId}`);
 
-
-        // 2. Upload and process images (if they have an uploadedUrl from the temp server)
+        // 2. Upload and process images
         const wordpressImageIds = [];
-        for (const [index, photo] of finalProductData.photos.entries()) {
-            if (photo.uploadedUrl) {
-                console.log(`[API Products] Uploading new image: ${photo.name}`);
-                const newImageId = await uploadImageToWordPress(
-                    photo.uploadedUrl,
-                    `${slugify(finalProductData.name)}-${index + 1}.jpg`,
+        const photoFiles = formData.getAll('photos');
+
+        for (const [index, photoFile] of photoFiles.entries()) {
+            if (photoFile instanceof File) {
+                 console.log(`[API Products] Uploading new image: ${photoFile.name}`);
+                 const newImageId = await uploadImageToWordPress(
+                    photoFile,
+                    `${slugify(finalProductData.name)}-${index + 1}.webp`,
                     { title: finalProductData.imageTitle || finalProductData.name, alt_text: finalProductData.imageAltText || finalProductData.name, caption: finalProductData.imageCaption || '', description: finalProductData.imageDescription || '' },
                     wpApi
                 );
                 wordpressImageIds.push({ id: newImageId });
                 console.log(`[API Products] Image uploaded with new ID: ${newImageId}`);
-            } else if (photo.id && typeof photo.id === 'number') {
-                wordpressImageIds.push({ id: photo.id });
             }
         }
         console.log(`[API Products] Final image ID list:`, wordpressImageIds);
 
         // 3. Prepare product data - Corrected Attribute Logic
         const wooAttributes = finalProductData.attributes
-            .filter(attr => attr.name && attr.name.trim() !== '') // Only filter by name
+            .filter(attr => attr.name && attr.name.trim() !== '')
             .map((attr, index) => ({
                 name: attr.name,
                 position: index,
@@ -97,8 +100,8 @@ export async function POST(request: NextRequest) {
             description: finalProductData.longDescription, short_description: finalProductData.shortDescription,
             categories: finalCategoryId ? [{ id: finalCategoryId }] : [],
             images: wordpressImageIds, attributes: wooAttributes,
-            tags: (finalProductData.tags || '').split(',').map(name => ({name: name.trim()})).filter(t => t.name),
-            lang: lang,
+            tags: finalProductData.tags,
+            lang: finalProductData.language === 'Spanish' ? 'es' : 'en', // Default to es
             weight: finalProductData.weight || undefined,
             dimensions: finalProductData.dimensions,
             shipping_class: finalProductData.shipping_class || undefined,
@@ -108,7 +111,6 @@ export async function POST(request: NextRequest) {
         if (finalProductData.shouldSaveSku !== false) {
              wooPayload.sku = finalProductData.sku;
         }
-
 
         if (finalProductData.productType === 'simple') {
             wooPayload.regular_price = finalProductData.regularPrice;
@@ -153,21 +155,12 @@ export async function POST(request: NextRequest) {
         }
 
         // 6. Log the activity
-        if (adminDb && admin.firestore.FieldValue && lang === 'es') { 
+        if (adminDb && admin.firestore.FieldValue) { 
             await adminDb.collection('activity_logs').add({
                 userId: uid, action: 'PRODUCT_CREATED', timestamp: admin.firestore.FieldValue.serverTimestamp(),
                 details: { productId, productName: createdProduct.name, connectionKey: activeConnectionKey, source: finalProductData.source || 'unknown' }
             });
              console.log('[API Products] Activity logged.');
-        }
-        
-        // 7. Fire-and-forget deletion of temp images
-        for (const photo of finalProductData.photos) {
-            if (photo.uploadedFilename) {
-                axios.post(`${request.nextUrl.origin}/api/delete-image`, { filename: photo.uploadedFilename }, { headers: { 'Authorization': `Bearer ${token}` }})
-                     .then(() => console.log(`[API Products] Deleted temp image: ${photo.uploadedFilename}`))
-                     .catch(deleteError => console.warn(`[API Products] Failed to delete temp image ${photo.uploadedFilename}.`, deleteError));
-            }
         }
         
         const storeUrl = wooApi.url.endsWith('/') ? wooApi.url.slice(0, -1) : wooApi.url;

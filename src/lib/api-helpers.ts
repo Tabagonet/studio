@@ -1,4 +1,3 @@
-
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -294,7 +293,6 @@ export async function uploadImageToWordPress(
 ): Promise<number> {
     try {
         let imageBuffer: Buffer;
-        let contentType: string;
 
         if (typeof source === 'string') {
              // Sanitize URL before fetching
@@ -307,10 +305,8 @@ export async function uploadImageToWordPress(
                 },
             });
             imageBuffer = Buffer.from(imageResponse.data);
-            contentType = imageResponse.headers['content-type'] || 'application/octet-stream';
         } else {
             imageBuffer = Buffer.from(await source.arrayBuffer());
-            contentType = source.type;
         }
         
         let processedBuffer = sharp(imageBuffer);
@@ -656,6 +652,3 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
     // Return a unique set of images based on URL
     return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
-
-    
-

@@ -1,4 +1,3 @@
-
 // src/app/api/upload-image/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
@@ -93,7 +92,7 @@ export async function POST(req: NextRequest) {
     // Sanitize the URL returned from the external server
     let sanitizedUrl = data.url;
     if (sanitizedUrl && !sanitizedUrl.startsWith('http')) {
-        sanitizedUrl = `https://${sanitizedUrl.replace(/^https?/, '')}`;
+        sanitizedUrl = `https://${sanitizedUrl.replace(/^(https?:\/\/)?/, '')}`;
     }
 
     return NextResponse.json({ success: true, url: sanitizedUrl, filename_saved_on_server: data.filename_saved });
