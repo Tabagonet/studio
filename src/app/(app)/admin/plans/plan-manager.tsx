@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { NAV_GROUPS } from "@/lib/constants";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, Users, Globe, BrainCircuit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -19,7 +19,10 @@ interface Plan {
     id: PlanId;
     name: string;
     price: string;
-    features: Record<string, boolean>; // href -> isEnabled
+    sites: number;
+    users: number;
+    aiCredits: number;
+    features: Record<string, boolean>;
 }
 
 const allTools = NAV_GROUPS.flatMap(group => 
@@ -80,13 +83,22 @@ export function PlanManager() {
         );
     };
     
-    const handlePriceChange = (planId: PlanId, newPrice: string) => {
+    const handleFieldChange = (planId: PlanId, field: 'price' | 'sites' | 'users' | 'aiCredits', value: string) => {
         setPlans(currentPlans =>
-             currentPlans.map(plan =>
-                plan.id === planId ? { ...plan, price: newPrice } : plan
-            )
+             currentPlans.map(plan => {
+                if (plan.id === planId) {
+                    if (field === 'price') {
+                        return { ...plan, price: value };
+                    } else {
+                        const numericValue = parseInt(value, 10);
+                        return { ...plan, [field]: isNaN(numericValue) ? 0 : numericValue };
+                    }
+                }
+                return plan;
+            })
         )
     };
+
 
     const handleSaveChanges = async () => {
         setIsSaving(true);
@@ -109,7 +121,7 @@ export function PlanManager() {
             });
             if (!response.ok) throw new Error("No se pudieron guardar los cambios.");
             toast({ title: "¡Éxito!", description: "La configuración de planes ha sido guardada." });
-            fetchPlans(); // Refresh data from server
+            fetchPlans();
         } catch (error: any) {
             toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
         } finally {
@@ -144,34 +156,53 @@ export function PlanManager() {
                              <div className="w-32">
                                 <Input 
                                     value={plan.price} 
-                                    onChange={(e) => handlePriceChange(plan.id, e.target.value)}
+                                    onChange={(e) => handleFieldChange(plan.id, 'price', e.target.value)}
                                     className="text-right font-semibold"
                                 />
                              </div>
                         </div>
                         <CardDescription>
-                        Activa o desactiva las herramientas para este plan.
+                         Activa o desactiva las herramientas y define los límites para este plan.
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        {allTools.map(tool => {
-                        const isEnabled = plan.features[tool.id] ?? false;
-                        const ToolIcon = tool.icon;
-                        return (
-                            <div key={tool.id} className="flex items-center justify-between p-3 rounded-md border bg-muted/50">
-                            <Label htmlFor={`${plan.id}-${tool.id}`} className="flex items-center gap-3 cursor-pointer">
-                                <ToolIcon className="h-5 w-5 text-muted-foreground" />
-                                <span className="text-sm">{tool.title}</span>
-                            </Label>
-                            <Switch
-                                id={`${plan.id}-${tool.id}`}
-                                checked={isEnabled}
-                                onCheckedChange={(checked) => handleToggleFeature(plan.id, tool.id, checked)}
-                                disabled={isSaving}
-                            />
+                        <div className="space-y-3 p-3 rounded-md border bg-muted/30">
+                            <h4 className="text-sm font-semibold mb-2">Límites del Plan</h4>
+                            <div className="flex items-center gap-2">
+                                <Label htmlFor={`sites-${plan.id}`} className="w-24 flex items-center gap-1.5"><Globe className="h-4 w-4 text-muted-foreground"/> Sitios</Label>
+                                <Input id={`sites-${plan.id}`} type="number" value={plan.sites} onChange={(e) => handleFieldChange(plan.id, 'sites', e.target.value)} />
                             </div>
-                        );
-                        })}
+                            <div className="flex items-center gap-2">
+                                <Label htmlFor={`users-${plan.id}`} className="w-24 flex items-center gap-1.5"><Users className="h-4 w-4 text-muted-foreground"/> Usuarios</Label>
+                                <Input id={`users-${plan.id}`} type="number" value={plan.users} onChange={(e) => handleFieldChange(plan.id, 'users', e.target.value)} />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Label htmlFor={`aiCredits-${plan.id}`} className="w-24 flex items-center gap-1.5"><BrainCircuit className="h-4 w-4 text-muted-foreground"/> Créditos IA</Label>
+                                <Input id={`aiCredits-${plan.id}`} type="number" value={plan.aiCredits} onChange={(e) => handleFieldChange(plan.id, 'aiCredits', e.target.value)} />
+                            </div>
+                        </div>
+
+                        <div className="space-y-3 pt-4 border-t">
+                            <h4 className="text-sm font-semibold mb-2">Herramientas Incluidas</h4>
+                            {allTools.map(tool => {
+                            const isEnabled = plan.features[tool.id] ?? false;
+                            const ToolIcon = tool.icon;
+                            return (
+                                <div key={tool.id} className="flex items-center justify-between">
+                                <Label htmlFor={`${plan.id}-${tool.id}`} className="flex items-center gap-3 cursor-pointer">
+                                    <ToolIcon className="h-5 w-5 text-muted-foreground" />
+                                    <span className="text-sm">{tool.title}</span>
+                                </Label>
+                                <Switch
+                                    id={`${plan.id}-${tool.id}`}
+                                    checked={isEnabled}
+                                    onCheckedChange={(checked) => handleToggleFeature(plan.id, tool.id, checked)}
+                                    disabled={isSaving}
+                                />
+                                </div>
+                            );
+                            })}
+                        </div>
                     </CardContent>
                     </Card>
                 ))}

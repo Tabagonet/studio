@@ -9,6 +9,9 @@ const planSchema = z.object({
     id: z.enum(['lite', 'pro', 'agency']),
     name: z.string(),
     price: z.string(),
+    sites: z.number().int().min(0),
+    users: z.number().int().min(0),
+    aiCredits: z.number().int().min(0),
     features: z.record(z.boolean()), // Maps tool href to boolean
 });
 
@@ -19,9 +22,9 @@ const plansUpdateSchema = z.object({
 // Helper to get default plan configuration from constants
 const getDefaultPlans = () => {
     const defaultPlans: any[] = [
-        { id: 'lite', name: 'Plan Lite', price: '29€/mes', features: {} },
-        { id: 'pro', name: 'Plan Pro', price: '49€/mes', features: {} },
-        { id: 'agency', name: 'Plan Agency', price: '99€/mes', features: {} },
+        { id: 'lite', name: 'Plan Lite', price: '29€/mes', sites: 1, users: 1, aiCredits: 100, features: {} },
+        { id: 'pro', name: 'Plan Pro', price: '49€/mes', sites: 3, users: 3, aiCredits: 500, features: {} },
+        { id: 'agency', name: 'Plan Agency', price: '99€/mes', sites: 10, users: 10, aiCredits: 2000, features: {} },
     ];
     
     const allTools = NAV_GROUPS.flatMap(group => 
