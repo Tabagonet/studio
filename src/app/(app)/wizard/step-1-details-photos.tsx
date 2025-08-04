@@ -254,7 +254,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             baseProductName: productData.name,
             productName: productData.name,
             productType: productData.productType,
-            tags: productData.tags.split(',').map(t => t.trim()).filter(Boolean),
+            tags: productData.tags,
             language: productData.language,
             groupedProductIds: productData.groupedProductIds,
         };

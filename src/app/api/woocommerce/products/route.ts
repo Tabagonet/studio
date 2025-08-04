@@ -87,10 +87,8 @@ export async function POST(request: NextRequest) {
         console.log(`[API Products] Processed attributes:`, JSON.stringify(wooAttributes, null, 2));
         
         // Correct Tag Handling
-        const tagNames = typeof finalProductData.tags === 'string' 
-            ? finalProductData.tags.split(',').map(t => t.trim()).filter(Boolean)
-            : [];
-        const wooTags = tagNames.map(name => ({ name }));
+        const tagNames = (finalProductData.tags || []).map((t: any) => t.name || t);
+        const wooTags = tagNames.map((name: string) => ({ name }));
         console.log(`[API Products] Final tags payload:`, wooTags);
 
 

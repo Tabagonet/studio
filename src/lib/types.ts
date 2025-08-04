@@ -105,7 +105,7 @@ export interface BlogPostData {
   title: string;
   content: string;
   topic: string; // for AI
-  tags: string;
+  tags: string; // for AI and tags
   focusKeyword: string;
   metaDescription: string;
   category: WordPressPostCategory | null;
@@ -153,7 +153,7 @@ export interface ProductData {
   shipping_class: string;
   category: WooCommerceCategory | null; // Store category object
   categoryPath?: string; // Used for batch creation by name/path
-  tags: string; // Changed back to string
+  tags: string; 
   shortDescription: string;
   longDescription: string;
   attributes: ProductAttribute[];

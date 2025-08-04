@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
         baseProductName: z.string().optional(),
         productName: z.string().min(1),
         productType: z.string(),
-        tags: z.string().optional(),
+        tags: z.string().optional(), // Expecting a string now
         language: z.enum(['Spanish', 'English', 'French', 'German', 'Portuguese']).default('Spanish'),
         groupedProductIds: z.array(z.number()).optional(),
         mode: z.enum(['full_product', 'image_meta_only']).default('full_product'),
