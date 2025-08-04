@@ -479,7 +479,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
      } else {
         toast({ title: "No se aplicó nada", description: "No se encontraron frases o ya estaban enlazadas.", variant: "destructive" });
      }
-  }
+  };
 
   return (
     <>
@@ -702,8 +702,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                 </div>
               </CardContent>
             </Card>
-        </div>
-        <div className="lg:col-span-1 space-y-8">
+          </div>
+          <div className="lg:col-span-1 space-y-8">
             <Card>
               <CardHeader>
                 <CardTitle>Imágenes del Producto</CardTitle>
@@ -751,6 +751,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                     </div>
                 </CardContent>
             </Card>
+          </div>
         </div>
       </div>
       <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
@@ -795,4 +796,3 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     </>
   );
 }
-
