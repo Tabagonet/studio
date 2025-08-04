@@ -60,14 +60,16 @@ export async function POST(request: NextRequest) {
                 name: attr.name, position: index, visible: attr.visible !== false, variation: finalProductData.productType === 'variable' && !!attr.forVariations,
                 options: finalProductData.productType === 'variable' ? attr.value.split('|').map(s => s.trim()) : [attr.value],
             }));
-        const wooTags = finalProductData.keywords ? await findOrCreateTags(finalProductData.keywords.split(',').map(k => k.trim()).filter(Boolean), wpApi) : [];
+        const tagNames = finalProductData.keywords ? finalProductData.keywords.split(',').map(k => k.trim()).filter(Boolean) : [];
+        const tagIds = await findOrCreateTags(tagNames, wpApi);
+
 
         const wooPayload: any = {
             name: finalProductData.name, type: finalProductData.productType,
             description: finalProductData.longDescription, short_description: finalProductData.shortDescription,
             categories: finalCategoryId ? [{ id: finalCategoryId }] : [],
             images: wordpressImageIds, attributes: wooAttributes,
-            tags: wooTags.map(id => ({ id })),
+            tags: tagIds.map(id => ({ id })), // Use the IDs returned by the helper
             lang: lang,
             weight: finalProductData.weight || undefined,
             dimensions: finalProductData.dimensions,
