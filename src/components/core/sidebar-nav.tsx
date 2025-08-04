@@ -1,5 +1,3 @@
-
-
 // src/components/core/sidebar-nav.tsx
 "use client";
 
@@ -138,29 +136,42 @@ export function SidebarNav() {
       )
     }
 
-    const effectivePlatform = userData?.companyPlatform || userData?.platform;
-    // The user's effective plan is their company's plan, or their individual plan if they have no company.
-    const effectivePlan = userData?.companyPlan || userData?.plan || 'lite';
-
     return NAV_GROUPS.map((group) => {
       const visibleItems = group.items.filter(item => {
-        if (userData?.role === 'super_admin') return true;
+        // Rule 1: Super Admin sees everything, no other checks needed.
+        if (userData?.role === 'super_admin') {
+            return true;
+        }
+
+        // Determine the effective plan. Company plan takes precedence.
+        let effectivePlan: 'lite' | 'pro' | 'agency' = 'lite'; // Default to the most restrictive plan.
+        if (userData?.companyPlan) {
+            effectivePlan = userData.companyPlan; // Company plan is king.
+        } else if (userData?.plan) {
+            effectivePlan = userData.plan; // Fallback to individual user plan.
+        }
         
+        // Determine the effective platform. Company platform takes precedence.
+        const effectivePlatform = userData?.companyPlatform || userData?.platform;
+
+        // Check if the user's role is allowed
         const hasRequiredRole = !item.requiredRoles || (userData?.role && item.requiredRoles.includes(userData.role));
         if (!hasRequiredRole) return false;
         
+        // Check if the item requires a company and if the user (as admin) has one.
         if (item.requiresCompany && userData?.role === 'admin' && !userData.companyId) {
             return false;
         }
 
+        // Check if the item requires a specific platform (WooCommerce/Shopify)
         const hasRequiredPlatform = !group.requiredPlatform || (effectivePlatform && group.requiredPlatform === effectivePlatform);
         if (!hasRequiredPlatform) return false;
 
-        // Check for plan requirements
-        if (item.requiredPlan && !item.requiredPlan.includes(effectivePlan)) {
-            return false;
-        }
+        // Check if the user's effective plan meets the requirement for the item
+        const hasRequiredPlan = !item.requiredPlan || item.requiredPlan.includes(effectivePlan);
+        if (!hasRequiredPlan) return false;
         
+        // If all checks pass, show the item.
         return true;
       });
       
