@@ -22,18 +22,15 @@ const slugify = (text: string) => {
 export async function POST(request: NextRequest) {
     let uid: string;
     try {
-        console.log('[API Products] Received POST request.');
         const token = request.headers.get('Authorization')?.split('Bearer ')[1];
         if (!token) { return NextResponse.json({ error: 'Authentication token not provided.' }, { status: 401 }); }
         if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
         
         const decodedToken = await adminAuth.verifyIdToken(token);
         uid = decodedToken.uid;
-        console.log(`[API Products] User authenticated: ${uid}`);
         
         const { wooApi, wpApi, activeConnectionKey } = await getApiClientsForUser(uid);
         if (!wooApi || !wpApi) { throw new Error('Both WooCommerce and WordPress APIs must be configured.'); }
-        console.log('[API Products] API clients obtained.');
         
         const formData = await request.formData();
         const productDataString = formData.get('productData');
@@ -42,18 +39,14 @@ export async function POST(request: NextRequest) {
         }
         
         const finalProductData: ProductData = JSON.parse(productDataString);
-        console.log('[API Products] Request body parsed. Data to process:', JSON.stringify(finalProductData, null, 2));
 
         // 1. Handle category
         let finalCategoryId: number | null = null;
         if (finalProductData.categoryPath) {
-            console.log(`[API Products] CategoryPath provided: "${finalProductData.categoryPath}". Finding or creating...`);
             finalCategoryId = await findOrCreateWpCategoryByPath(finalProductData.categoryPath, wpApi);
         } else if (finalProductData.category?.id) {
-            console.log(`[API Products] Category ID provided: ${finalProductData.category.id}. Using existing.`);
             finalCategoryId = finalProductData.category.id;
         }
-        console.log(`[API Products] Final Category ID: ${finalCategoryId}`);
 
         // 2. Upload and process images
         const wordpressImageIds = [];
@@ -61,7 +54,6 @@ export async function POST(request: NextRequest) {
 
         for (const [index, photoFile] of photoFiles.entries()) {
             if (photoFile instanceof File) {
-                 console.log(`[API Products] Uploading new image: ${photoFile.name}`);
                  const newImageId = await uploadImageToWordPress(
                     photoFile,
                     `${slugify(finalProductData.name)}-${index + 1}.webp`,
@@ -69,10 +61,8 @@ export async function POST(request: NextRequest) {
                     wpApi
                 );
                 wordpressImageIds.push({ id: newImageId });
-                console.log(`[API Products] Image uploaded with new ID: ${newImageId}`);
             }
         }
-        console.log(`[API Products] Final image ID list:`, wordpressImageIds);
 
         // 3. Prepare product data - Corrected Attribute Logic
         const wooAttributes = finalProductData.attributes
@@ -84,14 +74,10 @@ export async function POST(request: NextRequest) {
                 variation: finalProductData.productType === 'variable' && !!attr.forVariations,
                 options: attr.value.split('|').map(s => s.trim()),
             }));
-        console.log(`[API Products] Processed attributes:`, JSON.stringify(wooAttributes, null, 2));
         
-        // Correct Tag Handling
-        const tagNames = typeof finalProductData.tags === 'string' 
-            ? finalProductData.tags.split(',').map(t => t.trim()).filter(Boolean)
-            : [];
+        // Correct Tag Handling from string to array of objects
+        const tagNames = finalProductData.tags ? finalProductData.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
         const wooTags = tagNames.map((name: string) => ({ name }));
-        console.log(`[API Products] Final tags payload:`, wooTags);
 
 
         const wooPayload: any = {
@@ -102,7 +88,7 @@ export async function POST(request: NextRequest) {
             categories: finalCategoryId ? [{ id: finalCategoryId }] : [],
             images: wordpressImageIds,
             attributes: wooAttributes,
-            tags: wooTags, // Use the processed tags
+            tags: wooTags,
             lang: finalProductData.language === 'Spanish' ? 'es' : 'en', // Default to es
             weight: finalProductData.weight || undefined,
             dimensions: finalProductData.dimensions,
@@ -125,15 +111,12 @@ export async function POST(request: NextRequest) {
         }
 
         // 4. Create the product
-        console.log('[API Products] Final WooCommerce Payload:', JSON.stringify(wooPayload, null, 2));
         const response = await wooApi.post('products', wooPayload);
         const createdProduct = response.data;
         const productId = createdProduct.id;
-        console.log(`[API Products] Product created successfully with ID: ${productId}`);
 
         // 5. Create variations if applicable
         if (finalProductData.productType === 'variable' && finalProductData.variations && finalProductData.variations.length > 0) {
-            console.log(`[API Products] Creating ${finalProductData.variations.length} variations...`);
             const batchCreatePayload = finalProductData.variations.map(v => {
                 const variationPayload: any = {
                     regular_price: v.regularPrice || undefined, 
@@ -153,7 +136,6 @@ export async function POST(request: NextRequest) {
                 return variationPayload;
             });
             await wooApi.post(`products/${productId}/variations/batch`, { create: batchCreatePayload });
-            console.log('[API Products] Variations created.');
         }
 
         // 6. Log the activity
@@ -169,7 +151,6 @@ export async function POST(request: NextRequest) {
                     source: finalProductData.source || 'unknown'
                 }
             });
-             console.log('[API Products] Activity logged.');
         }
         
         const storeUrl = wooApi.url.endsWith('/') ? wooApi.url.slice(0, -1) : wooApi.url;
