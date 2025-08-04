@@ -19,41 +19,41 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'WooCommerce',
     requiredPlatform: 'woocommerce',
     items: [
-      { title: 'Asistente de Creación', href: '/wizard', icon: Wand2, requiredRoles: ['admin', 'super_admin', 'product_manager'] },
-      { title: 'Gestión de Productos', href: '/batch', icon: Layers, requiredRoles: ['admin', 'super_admin', 'product_manager'] },
-      { title: 'Proceso en Lotes', href: '/batch-process', icon: UploadCloud, requiredRoles: ['admin', 'super_admin', 'product_manager'] },
+      { title: 'Asistente de Creación', href: '/wizard', icon: Wand2, requiredRoles: ['admin', 'super_admin', 'product_manager'], requiredPlan: ['pro', 'agency'] },
+      { title: 'Gestión de Productos', href: '/batch', icon: Layers, requiredRoles: ['admin', 'super_admin', 'product_manager'], requiredPlan: ['lite', 'pro', 'agency'] },
+      { title: 'Proceso en Lotes', href: '/batch-process', icon: UploadCloud, requiredRoles: ['admin', 'super_admin', 'product_manager'], requiredPlan: ['agency'] },
     ]
   },
    {
     title: 'Shopify',
     requiredPlatform: 'shopify',
     items: [
-      { title: 'Trabajos de Creación', href: '/shopify/jobs', icon: ListChecks, requiredRoles: ['admin', 'super_admin'] },
+      { title: 'Trabajos de Creación', href: '/shopify/jobs', icon: ListChecks, requiredRoles: ['admin', 'super_admin'], requiredPlan: ['agency'] },
     ]
   },
   {
     title: 'Blog y Páginas',
     requiredPlatform: 'woocommerce',
     items: [
-       { title: 'Creador de Entradas', href: '/blog-creator', icon: Newspaper, requiredRoles: ['admin', 'super_admin', 'content_manager'] },
-       { title: 'Gestión de Entradas', href: '/blog', icon: ClipboardList, requiredRoles: ['admin', 'super_admin', 'content_manager'] },
-       { title: 'Gestión de Páginas', href: '/pages', icon: FileText, requiredRoles: ['admin', 'super_admin', 'content_manager'] },
+       { title: 'Creador de Entradas', href: '/blog-creator', icon: Newspaper, requiredRoles: ['admin', 'super_admin', 'content_manager'], requiredPlan: ['pro', 'agency'] },
+       { title: 'Gestión de Entradas', href: '/blog', icon: ClipboardList, requiredRoles: ['admin', 'super_admin', 'content_manager'], requiredPlan: ['lite', 'pro', 'agency'] },
+       { title: 'Gestión de Páginas', href: '/pages', icon: FileText, requiredRoles: ['admin', 'super_admin', 'content_manager'], requiredPlan: ['lite', 'pro', 'agency'] },
     ]
   },
   {
     title: 'Herramientas',
     items: [
-       { title: 'Estrategia de Contenidos', href: '/content-strategy', icon: Lightbulb, requiredRoles: ['super_admin'] },
-       { title: 'Planificador de Publicidad', href: '/ad-planner', icon: Megaphone, requiredRoles: ['super_admin'] },
-       { title: 'Optimizador SEO', href: '/seo-optimizer', icon: SearchCheck, requiredRoles: ['super_admin'] },
-       { title: 'Clonador de Contenido', href: '/content-cloner', icon: Copy, requiredRoles: ['super_admin'] },
-       { title: 'Clonador de Menús', href: '/menu-cloner', icon: Copy, requiredRoles: ['super_admin'] },
+       { title: 'Estrategia de Contenidos', href: '/content-strategy', icon: Lightbulb, requiredRoles: ['super_admin'], requiredPlan: ['agency'] },
+       { title: 'Planificador de Publicidad', href: '/ad-planner', icon: Megaphone, requiredRoles: ['super_admin'], requiredPlan: ['agency'] },
+       { title: 'Optimizador SEO', href: '/seo-optimizer', icon: SearchCheck, requiredRoles: ['super_admin'], requiredPlan: ['agency'] },
+       { title: 'Clonador de Contenido', href: '/content-cloner', icon: Copy, requiredRoles: ['super_admin'], requiredPlan: ['agency'] },
+       { title: 'Clonador de Menús', href: '/menu-cloner', icon: Copy, requiredRoles: ['super_admin'], requiredPlan: ['agency'] },
     ]
   },
    {
     title: 'Captación',
     items: [
-      { title: 'Prospectos', href: '/prospects', icon: Briefcase, requiredRoles: ['super_admin'] },
+      { title: 'Prospectos', href: '/prospects', icon: Briefcase, requiredRoles: ['super_admin'], requiredPlan: ['pro', 'agency'] },
     ]
   },
    {

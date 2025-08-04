@@ -23,9 +23,10 @@ import { Skeleton } from '../ui/skeleton';
 interface UserData {
   role: string | null;
   platform?: 'woocommerce' | 'shopify' | null;
-  companyPlatform?: 'woocommerce' | 'shopify' | null;
   companyId?: string | null;
+  companyPlan?: 'lite' | 'pro' | 'agency' | null;
 }
+
 
 interface ConfigStatus {
   wooCommerceConfigured: boolean;
@@ -136,6 +137,7 @@ export function SidebarNav() {
     }
 
     const effectivePlatform = userData?.companyPlatform || userData?.platform;
+    const companyPlan = userData?.companyPlan || 'lite'; // Default to 'lite' if no plan is set
 
     return NAV_GROUPS.map((group) => {
       const visibleItems = group.items.filter(item => {
@@ -150,6 +152,11 @@ export function SidebarNav() {
 
         const hasRequiredPlatform = !group.requiredPlatform || (effectivePlatform && group.requiredPlatform === effectivePlatform);
         if (!hasRequiredPlatform) return false;
+
+        // NEW: Check for plan requirements
+        if (item.requiredPlan && !item.requiredPlan.includes(companyPlan)) {
+            return false;
+        }
         
         return true;
       });
@@ -167,7 +174,6 @@ export function SidebarNav() {
                 const isWpVerified = configStatus?.wordPressConfigured && configStatus.pluginActive;
                 const isWooConfigured = configStatus?.wooCommerceConfigured;
                 
-                // Tools that absolutely require WooCommerce
                 const requiresStore = item.href.includes('/wizard') || item.href.includes('/batch');
                 
                 if (!isWpVerified) {

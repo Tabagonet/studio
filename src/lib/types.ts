@@ -13,6 +13,7 @@ export interface NavItem {
   external?: boolean;
   requiredRoles?: string[];
   requiresCompany?: boolean;
+  requiredPlan?: ('lite' | 'pro' | 'agency')[];
 }
 
 export interface NavGroup {
@@ -359,6 +360,7 @@ export interface Company {
   email?: string | null;
   seoHourlyRate?: number;
   platform?: 'woocommerce' | 'shopify';
+  plan?: 'lite' | 'pro' | 'agency';
   shopifyCreationDefaults?: {
     createProducts?: boolean;
     theme?: string;
@@ -375,6 +377,7 @@ export interface User {
   siteLimit: number;
   companyId: string | null;
   companyName: string | null;
+  companyPlan?: 'lite' | 'pro' | 'agency' | null;
   platform?: 'woocommerce' | 'shopify' | null;
 }
 

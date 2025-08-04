@@ -45,6 +45,7 @@ export async function GET(req: NextRequest) {
                 createdAt: data.createdAt.toDate().toISOString(),
                 userCount: userCounts[doc.id] || 0,
                 platform: data.platform || 'woocommerce',
+                plan: data.plan || 'pro', // Default to 'pro' if not set
             };
         });
 
@@ -59,6 +60,7 @@ export async function GET(req: NextRequest) {
 const createCompanySchema = z.object({
   name: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
   platform: z.enum(['woocommerce', 'shopify'], { required_error: 'Debes seleccionar una plataforma.' }),
+  plan: z.enum(['lite', 'pro', 'agency'], { required_error: 'Debes seleccionar un plan.' }),
 });
 
 export async function POST(req: NextRequest) {
@@ -77,12 +79,13 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid data', details: validation.error.flatten() }, { status: 400 });
         }
         
-        const { name, platform } = validation.data;
+        const { name, platform, plan } = validation.data;
         const newCompanyRef = adminDb.collection('companies').doc();
         
         await newCompanyRef.set({
             name: name,
             platform: platform,
+            plan: plan,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 

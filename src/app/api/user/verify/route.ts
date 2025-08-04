@@ -1,3 +1,4 @@
+
 // src/app/api/user/verify/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
@@ -18,6 +19,7 @@ const userSchema = z.object({
   apiKey: z.string().uuid().optional(),
   companyId: z.string().nullable().optional(),
   companyName: z.string().nullable().optional(),
+  companyPlan: z.enum(['lite', 'pro', 'agency']).optional().nullable(),
   platform: z.enum(['woocommerce', 'shopify']).optional().nullable(),
   companyPlatform: z.enum(['woocommerce', 'shopify']).optional().nullable(),
 });
@@ -94,6 +96,7 @@ export async function GET(req: NextRequest) {
               const companyData = companyDoc.data();
               finalUserData.companyName = companyData?.name || null;
               finalUserData.companyPlatform = companyData?.platform || null;
+              finalUserData.companyPlan = companyData?.plan || null;
           }
       }
       
