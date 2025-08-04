@@ -309,19 +309,19 @@ export default function CompanySettingsPage() {
                                 )}
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <FormField control={form.control} name="taxId" render={({ field }) => (<FormItem><FormLabel>{taxLabel}</FormLabel><FormControl><Input {...field} placeholder="Ej: B12345678" disabled={isSaving} /></FormControl><FormMessage /></FormItem>)} />
-                                <FormField control={form.control} name="address" render={({ field }) => (<FormItem><FormLabel>{addressLabel}</FormLabel><FormControl><Input {...field} placeholder="Ej: Calle Principal 123, 28001 Madrid, España" disabled={isSaving} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="taxId" render={({ field }) => (<FormItem><FormLabel>{taxLabel}</FormLabel><FormControl><Input {...field} value={field.value ?? ''} placeholder="Ej: B12345678" disabled={isSaving} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="address" render={({ field }) => (<FormItem><FormLabel>{addressLabel}</FormLabel><FormControl><Input {...field} value={field.value ?? ''} placeholder="Ej: Calle Principal 123, 28001 Madrid, España" disabled={isSaving} /></FormControl><FormMessage /></FormItem>)} />
                             </div>
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <FormField control={form.control} name="phone" render={({ field }) => (<FormItem><FormLabel>Teléfono de Contacto</FormLabel><FormControl><Input {...field} placeholder="Ej: +34 910 000 000" disabled={isSaving} /></FormControl><FormMessage /></FormItem>)} />
-                                <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email de Contacto</FormLabel><FormControl><Input type="email" {...field} placeholder="Ej: contacto@empresa.com" disabled={isSaving} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="phone" render={({ field }) => (<FormItem><FormLabel>Teléfono de Contacto</FormLabel><FormControl><Input {...field} value={field.value ?? ''} placeholder="Ej: +34 910 000 000" disabled={isSaving} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email de Contacto</FormLabel><FormControl><Input type="email" {...field} value={field.value ?? ''} placeholder="Ej: contacto@empresa.com" disabled={isSaving} /></FormControl><FormMessage /></FormItem>)} />
                             </div>
                              {currentUser?.role === 'super_admin' && (
                                 <FormField control={form.control} name="seoHourlyRate" render={({ field }) => (
                                     <FormItem>
                                         <FormLabel className="flex items-center gap-2"><DollarSign className="h-4 w-4" />Precio Hora SEO (€)</FormLabel>
                                         <FormControl>
-                                             <Input type="number" {...field} placeholder="60" disabled={isSaving} />
+                                             <Input type="number" {...field} value={field.value ?? ''} placeholder="60" disabled={isSaving} />
                                         </FormControl>
                                         <p className="text-xs text-muted-foreground">Este valor se usará por defecto en el Planificador de Publicidad.</p>
                                         <FormMessage />
@@ -353,7 +353,7 @@ export default function CompanySettingsPage() {
                                 <FormField control={form.control} name="shopifyCreationDefaults.theme" render={({ field }) => (
                                      <FormItem className="pt-4 border-t">
                                         <FormLabel>Handle de la Plantilla de Tema</FormLabel>
-                                        <FormControl><Input {...field} placeholder="Ej: dawn, refresh, taste" disabled={isSaving} /></FormControl>
+                                        <FormControl><Input {...field} value={field.value ?? ''} placeholder="Ej: dawn, refresh, taste" disabled={isSaving} /></FormControl>
                                         <p className="text-xs text-muted-foreground mt-1">
                                           Introduce el identificador del tema (ej. 'dawn'). Esto se usa principalmente para temas gratuitos. La instalación de temas de pago no está soportada por la API de creación de tiendas de Shopify.
                                         </p>
