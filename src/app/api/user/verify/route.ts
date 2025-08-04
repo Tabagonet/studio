@@ -42,7 +42,7 @@ async function ensureApiKeyExists(uid: string, apiKey: string | undefined): Prom
         // The user has no API key at all. Create a new one.
         const newApiKey = uuidv4();
         await adminDb.collection('users').doc(uid).update({ apiKey: newApiKey });
-        await adminDb.collection('api_keys').doc(newApiKey).set({ userId: uid, createdAt: newUser.createdAt });
+        await adminDb.collection('api_keys').doc(newApiKey).set({ userId: uid, createdAt: admin.firestore.FieldValue.serverTimestamp() });
         return newApiKey;
     }
 }
