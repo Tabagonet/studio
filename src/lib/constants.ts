@@ -106,7 +106,7 @@ export const INITIAL_PRODUCT_DATA: ProductData = {
   },
   shipping_class: "",
   category: null,
-  tags: "",
+  tags: [],
   shortDescription: "",
   longDescription: "",
   attributes: [{ name: '', value: '', forVariations: false, visible: true }],

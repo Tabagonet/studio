@@ -256,9 +256,10 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const token = await user.getIdToken();
 
         const payload = {
+            baseProductName: productData.name,
             productName: productData.name,
             productType: productData.productType,
-            tags: productData.tags.join(','),
+            tags: productData.tags.join(', '),
             language: productData.language,
             groupedProductIds: productData.groupedProductIds,
         };
@@ -286,6 +287,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const aiContent = await response.json();
         
         updateProductData({
+            name: aiContent.name,
             shortDescription: aiContent.shortDescription,
             longDescription: aiContent.longDescription,
             tags: (aiContent.tags || '').split(',').map((t: string) => t.trim()).filter(Boolean),
@@ -318,7 +320,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const payload = {
             productName: productData.name,
             productType: productData.productType,
-            tags: productData.tags.join(','),
+            tags: productData.tags.join(', '),
             language: productData.language,
             mode: 'image_meta_only',
         };
@@ -646,7 +648,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                 <CardContent className="space-y-6">
                    <div>
                     <Label htmlFor="tags">Etiquetas (separadas por comas)</Label>
-                    <Input id="tags" name="tags" value={productData.tags.join(', ')} onChange={handleTagsChange} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing || isGenerating} />
+                    <Input id="tags" name="tags" value={Array.isArray(productData.tags) ? productData.tags.join(', ') : productData.tags} onChange={handleTagsChange} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing || isGenerating} />
                     <p className="text-xs text-muted-foreground mt-1">Ayudan a la IA y al SEO de tu producto.</p>
                   </div>
 

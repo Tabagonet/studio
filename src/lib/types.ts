@@ -105,7 +105,7 @@ export interface BlogPostData {
   title: string;
   content: string;
   topic: string; // for AI
-  tags: string[]; // Corrected from string
+  tags: string; // for AI and tags
   focusKeyword: string;
   metaDescription: string;
   category: WordPressPostCategory | null;
