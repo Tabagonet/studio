@@ -182,6 +182,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     updateProductData({ longDescription: newContent });
   };
 
+
   const handleSelectChange = (name: 'productType' | 'category', value: string) => {
     if (name === 'productType') {
       updateProductData({ 
@@ -253,7 +254,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             baseProductName: productData.name,
             productName: productData.name,
             productType: productData.productType,
-            tags: productData.tags,
+            tags: productData.tags.split(',').map(t => t.trim()).filter(Boolean),
             language: productData.language,
             groupedProductIds: productData.groupedProductIds,
         };
@@ -314,7 +315,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const payload = {
             productName: productData.name,
             productType: productData.productType,
-            tags: productData.tags,
+            tags: productData.tags.split(',').map(t => t.trim()).filter(Boolean),
             language: productData.language,
             mode: 'image_meta_only',
         };
