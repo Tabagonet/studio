@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -181,6 +182,11 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     updateProductData({ longDescription: newContent });
   };
 
+  const handleTagsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const tagsArray = e.target.value.split(',').map(tag => tag.trim());
+    updateProductData({ tags: tagsArray });
+  };
+
 
   const handleSelectChange = (name: 'productType' | 'category', value: string) => {
     if (name === 'productType') {
@@ -252,7 +258,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const payload = {
             productName: productData.name,
             productType: productData.productType,
-            keywords: productData.tags,
+            tags: productData.tags.join(','),
             language: productData.language,
             groupedProductIds: productData.groupedProductIds,
         };
@@ -282,7 +288,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         updateProductData({
             shortDescription: aiContent.shortDescription,
             longDescription: aiContent.longDescription,
-            tags: aiContent.keywords,
+            tags: (aiContent.tags || '').split(',').map((t: string) => t.trim()).filter(Boolean),
             imageTitle: aiContent.imageTitle,
             imageAltText: aiContent.imageAltText,
             imageCaption: aiContent.imageCaption,
@@ -312,7 +318,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const payload = {
             productName: productData.name,
             productType: productData.productType,
-            keywords: productData.tags,
+            tags: productData.tags.join(','),
             language: productData.language,
             mode: 'image_meta_only',
         };
@@ -634,13 +640,13 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Descripciones y Palabras Clave</CardTitle>
+                  <CardTitle>Descripciones y Etiquetas</CardTitle>
                   <CardDescription>Esta información es clave para el SEO y para informar a tus clientes.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                    <div>
                     <Label htmlFor="tags">Etiquetas (separadas por comas)</Label>
-                    <Input id="tags" name="tags" value={productData.tags} onChange={handleInputChange} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing || isGenerating} />
+                    <Input id="tags" name="tags" value={productData.tags.join(', ')} onChange={handleTagsChange} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing || isGenerating} />
                     <p className="text-xs text-muted-foreground mt-1">Ayudan a la IA y al SEO de tu producto.</p>
                   </div>
 
@@ -772,5 +778,3 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     </>
   );
 }
-
-    

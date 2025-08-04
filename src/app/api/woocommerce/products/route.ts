@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
             }));
         console.log(`[API Products] Processed attributes:`, JSON.stringify(wooAttributes, null, 2));
 
-        const tagNames = finalProductData.tags ? finalProductData.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [];
+        const tagNames = finalProductData.tags ? finalProductData.tags : [];
         const tagIds = await findOrCreateTags(tagNames, wpApi);
         console.log('[API Products] Final tag IDs:', tagIds);
 
