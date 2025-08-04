@@ -27,6 +27,7 @@ async function getUserContext(req: NextRequest): Promise<{ uid: string; role: st
 const companyUpdateSchema = z.object({
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres.").optional(),
   platform: z.enum(['woocommerce', 'shopify']).optional(),
+  plan: z.enum(['lite', 'pro', 'agency']).optional().nullable(),
   taxId: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
@@ -38,6 +39,7 @@ const companyUpdateSchema = z.object({
   ),
   shopifyCreationDefaults: z.object({
       createProducts: z.boolean(),
+      theme: z.string().optional(),
   }).optional(),
 });
 
@@ -123,10 +125,11 @@ export async function POST(req: NextRequest) {
         const { name, platform, ...restOfData } = data;
         const updatePayload: any = restOfData;
 
-        // Only super_admin can change the company name and platform
+        // Only super_admin can change the company name, platform and plan
         if (role === 'super_admin' && entityType === 'company') {
             if (name) updatePayload.name = name;
             if (platform) updatePayload.platform = platform;
+            if (data.plan) updatePayload.plan = data.plan;
         }
         
         await settingsRef.set(updatePayload, { merge: true });

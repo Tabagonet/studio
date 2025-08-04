@@ -360,7 +360,7 @@ export interface Company {
   email?: string | null;
   seoHourlyRate?: number;
   platform?: 'woocommerce' | 'shopify';
-  plan?: 'lite' | 'pro' | 'agency';
+  plan?: 'lite' | 'pro' | 'agency' | null;
   shopifyCreationDefaults?: {
     createProducts?: boolean;
     theme?: string;

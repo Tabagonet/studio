@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -30,6 +29,7 @@ const INITIAL_COMPANY_DATA: EditableCompanyData = {
     email: '',
     seoHourlyRate: 10,
     platform: 'woocommerce',
+    plan: 'pro',
     shopifyCreationDefaults: {
         createProducts: true,
         theme: '',
@@ -301,19 +301,20 @@ export default function CompanySettingsPage() {
                                 <Input id="name" name="name" value={companyData.name || ''} onChange={handleInputChange} placeholder="Ej: Mi Gran Empresa S.L." disabled={isSaving || (!canEditCompanyName && !canEditUserName)} />
                                 {!canEditCompanyName && isCompany && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar el nombre de la empresa.</p>}
                             </div>
-                           {currentUser?.role === 'super_admin' && (
+                           {currentUser?.role === 'super_admin' && isCompany && (
                                <div>
-                                    <Label htmlFor="platform">Plataforma Principal</Label>
+                                    <Label htmlFor="plan">Plan de Suscripción</Label>
                                     <Select 
-                                        name="platform" 
-                                        value={companyData.platform || 'woocommerce'} 
-                                        onValueChange={(value) => setCompanyData(prev => ({...prev, platform: value as any}))}
+                                        name="plan" 
+                                        value={companyData.plan || 'pro'} 
+                                        onValueChange={(value) => setCompanyData(prev => ({...prev, plan: value as any}))}
                                         disabled={isSaving}
                                     >
-                                        <SelectTrigger id="platform"><SelectValue /></SelectTrigger>
+                                        <SelectTrigger id="plan"><SelectValue /></SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="woocommerce">WordPress / WooCommerce</SelectItem>
-                                            <SelectItem value="shopify">Shopify</SelectItem>
+                                            <SelectItem value="lite">Lite (29€/mes)</SelectItem>
+                                            <SelectItem value="pro">Pro (49€/mes)</SelectItem>
+                                            <SelectItem value="agency">Agency (99€/mes)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
