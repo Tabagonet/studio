@@ -4,6 +4,19 @@ import { getApiClientsForUser } from '@/lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 
+const slugify = (text: string): string => {
+    if (!text) return '';
+    return text
+        .toString()
+        .toLowerCase()
+        .replace(/\s+/g, '-')           // Replace spaces with -
+        .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
+        .replace(/\-\-+/g, '-')         // Replace multiple - with single -
+        .replace(/^-+/, '')             // Trim - from start of text
+        .replace(/-+$/, '');            // Trim - from end of text
+};
+
+
 export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('Authorization')?.split('Bearer ')[1];
@@ -35,10 +48,12 @@ export async function GET(request: NextRequest) {
     }
 
     if (name) {
-      const response = await wooApi.get('products', { search: name.trim() });
-      const exactMatch = response.data.find((product: any) => product.name.toLowerCase() === name.toLowerCase());
-      if (exactMatch) {
-        return NextResponse.json({ exists: true, message: `Un producto con el nombre "${name}" ya existe.` });
+      // Use slug for a more exact name check
+      const slug = slugify(name);
+      const response = await wooApi.get('products', { slug: slug, status: 'any' });
+      // If we get any result for a slug, it means the name is taken.
+      if (response.data.length > 0) {
+        return NextResponse.json({ exists: true, message: `Un producto con el nombre "${name}" o un slug similar ya existe.` });
       }
     }
 
