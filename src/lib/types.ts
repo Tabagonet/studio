@@ -1,4 +1,5 @@
 
+      
 
 import type { LucideIcon } from 'lucide-react';
 import type { SeoInterpretationOutput, SuggestLinksInput, SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
@@ -105,7 +106,7 @@ export interface BlogPostData {
   title: string;
   content: string;
   topic: string; // for AI
-  tags: string; // for AI and tags
+  tags: string;
   focusKeyword: string;
   metaDescription: string;
   category: WordPressPostCategory | null;
@@ -467,3 +468,5 @@ export interface PlanUsage {
   users: { used: number; limit: number; };
   aiCredits: { used: number; limit: number; };
 }
+
+    

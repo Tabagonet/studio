@@ -1,4 +1,5 @@
 
+      
 // src/components/core/sidebar-nav.tsx
 "use client";
 
@@ -122,6 +123,24 @@ export function SidebarNav() {
     }
   };
   
+  const isItemVisible = (item: any) => {
+    if (userData?.role === 'super_admin') {
+      return true;
+    }
+    const hasRequiredRole = !item.requiredRoles || (userData?.role && item.requiredRoles.includes(userData.role));
+    if (!hasRequiredRole) return false;
+
+    if (!item.requiredPlan) {
+      return true;
+    }
+
+    const effectivePlanId = userData?.companyPlan || userData?.plan;
+    if (!effectivePlanId) return false;
+
+    const plan = planConfig.find(p => p.id === effectivePlanId);
+    return plan?.features[item.href] ?? false;
+  };
+  
   const renderNavItems = () => {
     if (isLoading) {
       return (
@@ -142,41 +161,17 @@ export function SidebarNav() {
     }
 
     return NAV_GROUPS.map((group) => {
-      const visibleItems = group.items.filter(item => {
-        if (userData?.role === 'super_admin') {
-            return true;
-        }
-        
-        const hasRequiredRole = !item.requiredRoles || (userData?.role && item.requiredRoles.includes(userData.role));
-        if (!hasRequiredRole) return false;
-        
-        const effectivePlatform = userData?.companyPlatform || userData?.platform;
-        const hasRequiredPlatform = !group.requiredPlatform || (effectivePlatform && group.requiredPlatform === effectivePlatform);
-        if (!hasRequiredPlatform) return false;
-
-        // If an admin has no company, they should still see user management
-        if (item.requiresCompany && userData?.role === 'admin' && !userData.companyId) {
-             return true;
-        }
-        if (item.requiresCompany && !userData?.companyId) {
-            return false;
-        }
-
-        if (!item.requiredPlan) {
-          return true;
-        }
-
-        const effectivePlanId = userData?.companyPlan || userData?.plan;
-        if (!effectivePlanId) return false;
-        
-        const plan = planConfig.find(p => p.id === effectivePlanId);
-        if (plan && plan.features[item.href]) {
-            return true;
-        }
-
-        return false;
-      });
+      const effectivePlatform = userData?.companyPlatform || userData?.platform;
       
+      const isGroupVisible = !group.requiredPlatform || 
+                              userData?.role === 'super_admin' || 
+                              (effectivePlatform && group.requiredPlatform === effectivePlatform);
+
+      if (!isGroupVisible) {
+          return null;
+      }
+
+      const visibleItems = group.items.filter(item => isItemVisible(item));
       if (visibleItems.length === 0) return null;
 
       return (
@@ -268,3 +263,5 @@ export function SidebarNav() {
     </div>
   );
 }
+
+    

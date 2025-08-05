@@ -1,4 +1,5 @@
 
+      
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -185,7 +186,7 @@ export function PlanManager() {
                         <div className="space-y-3 pt-4 border-t">
                             <h4 className="text-sm font-semibold mb-2">Herramientas Incluidas</h4>
                             {allTools.map(tool => {
-                            const isEnabled = plan.features[tool.id] ?? false;
+                            const isEnabled = plan.features[tool.href] ?? false;
                             const ToolIcon = tool.icon;
                             return (
                                 <div key={tool.id} className="flex items-center justify-between">
@@ -211,3 +212,5 @@ export function PlanManager() {
         </div>
     );
 }
+
+    
