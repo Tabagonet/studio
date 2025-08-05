@@ -7,16 +7,17 @@ import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, UserCheck, UserX, MoreHorizontal, Trash2, Shield, User, Briefcase, Building, Store } from 'lucide-react';
+import { Loader2, UserCheck, UserX, MoreHorizontal, Trash2, Shield, User, Briefcase, Building, Store, BrainCircuit } from 'lucide-react';
 import Image from 'next/image';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuPortal } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
-import type { Company, User as AppUser } from '@/lib/types';
+import type { Company, User as AppUser, PlanUsage } from '@/lib/types';
 import { ShopifyIcon } from '@/components/core/icons';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { deleteUserAction } from './actions';
+import { deleteUserAction, addCreditsAction } from './actions';
+import { Input } from '@/components/ui/input';
 
 
 type UserRole = 'super_admin' | 'admin' | 'content_manager' | 'product_manager' | 'seo_analyst' | 'pending' | 'user';
@@ -49,7 +50,14 @@ type GroupedUsers = {
     users: User[];
 }
 
-export function UserManagementTable() {
+interface AddCreditsDialogState {
+    open: boolean;
+    entityType: 'user' | 'company';
+    entityId: string;
+    entityName: string;
+}
+
+export function UserManagementTable({ onDataChange }: { onDataChange: () => void }) {
     const [users, setUsers] = useState<User[]>([]);
     const [companies, setCompanies] = useState<Company[]>([]);
     const [plans, setPlans] = useState<Plan[]>([]);
@@ -59,9 +67,15 @@ export function UserManagementTable() {
     const currentAdmin = auth.currentUser;
     const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
     
+    // State for plan modal
     const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
     const [selectedUserForPlan, setSelectedUserForPlan] = useState<User | null>(null);
     const [newUserPlan, setNewUserPlan] = useState<UserPlan | ''>('');
+
+    // State for credits modal
+    const [addCreditsDialog, setAddCreditsDialog] = useState<AddCreditsDialogState>({ open: false, entityId: '', entityName: '', entityType: 'user' });
+    const [creditsToAdd, setCreditsToAdd] = useState('');
+    const [isAddingCredits, setIsAddingCredits] = useState(false);
 
 
     const fetchUsersAndCompanies = useCallback(async () => {
@@ -204,6 +218,32 @@ export function UserManagementTable() {
              setNewUserPlan('');
         }
     };
+    
+    const handleAddCredits = async () => {
+      const credits = parseInt(creditsToAdd, 10);
+      if (isNaN(credits) || credits <= 0) {
+        toast({ title: 'Créditos inválidos', description: 'Por favor, introduce un número positivo.', variant: 'destructive' });
+        return;
+      }
+      
+      const { entityId, entityType, entityName } = addCreditsDialog;
+      setIsAddingCredits(true);
+      const user = auth.currentUser;
+      if (!user) return;
+      const token = await user.getIdToken();
+      
+      const result = await addCreditsAction({ entityId, entityType, credits }, token);
+
+      if (result.success) {
+        toast({ title: "Créditos añadidos", description: `Se han añadido ${credits} créditos a ${entityName}.` });
+        setCreditsToAdd('');
+        setAddCreditsDialog({ ...addCreditsDialog, open: false });
+        onDataChange();
+      } else {
+        toast({ title: 'Error al añadir créditos', description: result.error, variant: 'destructive' });
+      }
+      setIsAddingCredits(false);
+    };
 
 
     const handleDeleteUser = async (targetUid: string) => {
@@ -311,6 +351,35 @@ export function UserManagementTable() {
                 </AlertDialogContent>
             </AlertDialog>
 
+            {/* Add Credits Modal */}
+            <AlertDialog open={addCreditsDialog.open} onOpenChange={(open) => !open && setAddCreditsDialog({ ...addCreditsDialog, open: false })}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Añadir Créditos Extra</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Introduce la cantidad de créditos de un solo uso que quieres añadir a <strong>{addCreditsDialog.entityName}</strong>.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="py-4">
+                        <Label htmlFor="credits-to-add">Créditos de IA a añadir</Label>
+                        <Input
+                            id="credits-to-add"
+                            type="number"
+                            value={creditsToAdd}
+                            onChange={(e) => setCreditsToAdd(e.target.value)}
+                            placeholder="Ej: 500"
+                        />
+                    </div>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleAddCredits} disabled={isAddingCredits}>
+                            {isAddingCredits && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Añadir Créditos
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
 
             <Table>
                 <TableHeader>
@@ -328,15 +397,33 @@ export function UserManagementTable() {
                     {groupedUsers.length > 0 ? groupedUsers.map((group) => (
                         <React.Fragment key={group.companyName}>
                             <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                <TableCell colSpan={7} className="py-3 text-lg font-semibold text-primary">
+                                <TableCell colSpan={6} className="py-3 text-lg font-semibold text-primary">
                                     <div className="flex items-center gap-2">
                                         <Building className="h-5 w-5" />
                                         {group.companyName}
                                     </div>
                                 </TableCell>
+                                <TableCell className="text-right">
+                                    {group.companyName !== 'Sin Empresa Asignada' && (
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => setAddCreditsDialog({
+                                                open: true,
+                                                entityId: companies.find(c => c.name === group.companyName)?.id || '',
+                                                entityName: group.companyName,
+                                                entityType: 'company',
+                                            })}
+                                        >
+                                            <BrainCircuit className="h-4 w-4" />
+                                            <span className="sr-only">Añadir créditos a la empresa</span>
+                                        </Button>
+                                    )}
+                                </TableCell>
                             </TableRow>
                             {group.users.map((u) => {
                                const effectivePlan = u.companyPlan || u.plan;
+                               const isIndividualUser = !u.companyId;
                                return (
                                 <TableRow key={u.uid} className={cn(isUpdating === u.uid && "opacity-50")}>
                                     <TableCell>
@@ -391,10 +478,15 @@ export function UserManagementTable() {
                                                             <>
                                                                 {currentUserRole === 'super_admin' && (
                                                                     <>
-                                                                        {!u.companyId && (
-                                                                             <DropdownMenuItem onSelect={() => { setSelectedUserForPlan(u); setNewUserPlan(u.plan || ''); setIsPlanModalOpen(true); }}>
-                                                                                <Briefcase className="mr-2 h-4 w-4" /> Asignar Plan Individual
-                                                                            </DropdownMenuItem>
+                                                                        {isIndividualUser && (
+                                                                            <>
+                                                                                <DropdownMenuItem onSelect={() => { setSelectedUserForPlan(u); setNewUserPlan(u.plan || ''); setIsPlanModalOpen(true); }}>
+                                                                                    <Briefcase className="mr-2 h-4 w-4" /> Asignar Plan Individual
+                                                                                </DropdownMenuItem>
+                                                                                 <DropdownMenuItem onSelect={() => setAddCreditsDialog({ open: true, entityId: u.uid, entityName: u.displayName, entityType: 'user' })}>
+                                                                                    <BrainCircuit className="mr-2 h-4 w-4" /> Añadir Créditos Extra
+                                                                                </DropdownMenuItem>
+                                                                            </>
                                                                         )}
 
                                                                         <DropdownMenuSub>

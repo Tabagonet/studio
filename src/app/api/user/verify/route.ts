@@ -23,6 +23,8 @@ const userSchema = z.object({
   plan: z.enum(['lite', 'pro', 'agency']).optional().nullable(), // Plan individual del usuario
   platform: z.enum(['woocommerce', 'shopify']).optional().nullable(),
   companyPlatform: z.enum(['woocommerce', 'shopify']).optional().nullable(),
+  aiUsageCount: z.number().optional(),
+  oneTimeCredits: z.array(z.object({ amount: z.number(), source: z.string(), addedAt: z.string() })).optional(),
 });
 
 const SUPER_ADMIN_EMAIL = 'tabagonet@gmail.com';
@@ -92,6 +94,16 @@ export async function GET(req: NextRequest) {
               finalUserData.companyName = companyData?.name || null;
               finalUserData.companyPlatform = companyData?.platform || null;
               finalUserData.companyPlan = companyData?.plan || null;
+              finalUserData.aiUsageCount = companyData?.aiUsageCount || 0;
+              finalUserData.oneTimeCredits = companyData?.oneTimeCredits || [];
+          }
+      } else {
+          // If no company, get individual user settings for credits
+          const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+          if (userSettingsDoc.exists) {
+              const userSettingsData = userSettingsDoc.data();
+              finalUserData.aiUsageCount = userSettingsData?.aiUsageCount || 0;
+              finalUserData.oneTimeCredits = userSettingsData?.oneTimeCredits || [];
           }
       }
       

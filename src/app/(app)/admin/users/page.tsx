@@ -102,9 +102,9 @@ export default function AdminUsersPage() {
                         <div className="flex items-center space-x-3">
                             <Users className="h-8 w-8 text-primary" />
                             <div>
-                                <CardTitle>Gestión de Usuarios</CardTitle>
+                                <CardTitle>Gestión de Usuarios y Empresas</CardTitle>
                                 <CardDescription>
-                                    Aprueba, rechaza y gestiona los roles y créditos de los usuarios de la aplicación.
+                                    Gestiona usuarios, empresas, roles y asignaciones de créditos.
                                 </CardDescription>
                             </div>
                         </div>
@@ -155,7 +155,7 @@ export default function AdminUsersPage() {
                 </DialogContent>
             </Dialog>
             
-            <UserManagementTable key={fetchDataTrigger} />
+            <UserManagementTable key={fetchDataTrigger} onDataChange={() => setFetchDataTrigger(prev => prev + 1)} />
         </div>
     );
 }

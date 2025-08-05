@@ -45,7 +45,12 @@ export async function GET(req: NextRequest) {
         let usage = {
             connections: { used: 0, limit: 0 },
             users: { used: 0, limit: 0 },
-            aiCredits: { used: 0, limit: 0 },
+            aiCredits: { 
+              used: 0, 
+              limit: 0,
+              oneTimeAvailable: 0,
+              totalAvailable: 0,
+            },
         };
         
         // Super admin might be checking a specific company's plan
@@ -71,6 +76,9 @@ export async function GET(req: NextRequest) {
                 
                 usage.aiCredits.used = companyData.aiUsageCount || 0;
                 usage.aiCredits.limit = currentPlan?.aiCredits ?? 0;
+                usage.aiCredits.oneTimeAvailable = (companyData.oneTimeCredits || []).reduce((sum: number, credit: any) => sum + credit.amount, 0);
+                usage.aiCredits.totalAvailable = usage.aiCredits.limit + usage.aiCredits.oneTimeAvailable;
+
             }
         } else {
             // User is individual (or admin without company)
@@ -83,11 +91,13 @@ export async function GET(req: NextRequest) {
                 const connections = userSettings.connections || {};
                 usage.connections.used = Object.keys(connections).filter(k => k !== 'partner_app').length;
                 usage.aiCredits.used = userSettings.aiUsageCount || 0;
+                usage.aiCredits.oneTimeAvailable = (userSettings.oneTimeCredits || []).reduce((sum: number, credit: any) => sum + credit.amount, 0);
             }
             usage.connections.limit = currentPlan?.sites ?? 0;
             usage.users.used = 1; // An individual user is 1 user
             usage.users.limit = currentPlan?.users ?? 0;
             usage.aiCredits.limit = currentPlan?.aiCredits ?? 0;
+            usage.aiCredits.totalAvailable = usage.aiCredits.limit + usage.aiCredits.oneTimeAvailable;
         }
 
         if (!currentPlan) {
