@@ -248,6 +248,17 @@ export default function DashboardPage() {
       if (userData?.role === 'admin') return "Actividad Reciente de la Empresa";
       return "Tu Actividad Reciente";
   };
+  
+  const getAiCardTitle = () => {
+      if (userData?.companyId) return "Consumo de IA (Empresa)";
+      if (userData?.role === 'super_admin') return "Consumo de IA (Personal SA)";
+      return "Tus Generaciones con IA";
+  };
+  
+  const getAiCardDescription = () => {
+      if (userData?.companyId) return "Créditos de IA usados este mes por tu empresa.";
+      return "Esta es una métrica personal.";
+  };
 
   const isSuperAdmin = userData?.role === 'super_admin';
   const effectivePlatform = userData?.companyPlatform || userData?.platform;
@@ -381,7 +392,16 @@ export default function DashboardPage() {
               <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Productos Creados</CardTitle><BarChart3 className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{stats.productsInPeriod}</div><p className="text-xs text-muted-foreground">{getStatsSubtitle(filterOptions.find(f => f.value === filter)?.label)}</p></CardContent></Card>
               <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total Productos Histórico</CardTitle><Layers className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{stats.totalProducts}</div><p className="text-xs text-muted-foreground">{getTotalSubtitle()}</p></CardContent></Card>
               <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Webs Utilizadas</CardTitle><LinkIcon className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{stats.connectionsUsed}</div><p className="text-xs text-muted-foreground">Conexiones API activas usadas</p></CardContent></Card>
-              <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">{userData?.role === 'user' ? 'Generaciones con IA' : 'Tus Generaciones con IA'}</CardTitle><BrainCircuit className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{configStatus?.aiUsageCount || 0}</div><p className="text-xs text-muted-foreground">{userData?.role === 'user' ? 'Total de usos de la API de IA' : 'Esta es una métrica personal'}</p></CardContent></Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">{getAiCardTitle()}</CardTitle>
+                    <BrainCircuit className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{(configStatus?.aiUsageCount || 0).toLocaleString('es-ES')}</div>
+                    <p className="text-xs text-muted-foreground">{getAiCardDescription()}</p>
+                </CardContent>
+              </Card>
             </div>
           </section>
 
@@ -416,5 +436,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    

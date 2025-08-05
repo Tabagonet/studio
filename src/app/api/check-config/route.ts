@@ -1,3 +1,4 @@
+
 // src/app/api/check-config/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -139,6 +140,16 @@ export async function GET(req: NextRequest) {
            userConfig.pluginError = pluginCheck.error;
         }
     }
+    
+    if (userCompanyId) {
+        const companyDoc = await adminDb.collection('companies').doc(userCompanyId).get();
+        if (companyDoc.exists) {
+            userConfig.aiUsageCount = companyDoc.data()?.aiUsageCount || 0;
+        }
+    } else {
+        const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
+        userConfig.aiUsageCount = userSettingsDoc.data()?.aiUsageCount || 0;
+    }
 
   } catch (error: any) {
       console.log(`Config check failed for user ${uid}, likely due to no active connection. Error: ${error.message}`);
@@ -153,9 +164,6 @@ export async function GET(req: NextRequest) {
     userConfig.shopifyCustomAppConfigured = false;
   }
   
-  const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
-  userConfig.aiUsageCount = userSettingsDoc.data()?.aiUsageCount || 0;
-
 
   const finalConfigStatus = {
     ...globalConfig,
@@ -167,5 +175,3 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json(finalConfigStatus);
 }
-
-    

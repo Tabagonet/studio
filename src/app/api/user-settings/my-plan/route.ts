@@ -47,25 +47,28 @@ export async function GET(req: NextRequest) {
             users: { used: 0, limit: 0 },
             aiCredits: { used: 0, limit: 0 },
         };
+        
+        // Super admin might be checking a specific company's plan
+        const targetCompanyId = req.nextUrl.searchParams.get('companyId');
+        const effectiveCompanyId = userContext.role === 'super_admin' && targetCompanyId ? targetCompanyId : userContext.companyId;
 
-        if (userContext.companyId) {
+        if (effectiveCompanyId) {
             // User belongs to a company, get company plan and usage
-            const companyDoc = await adminDb.collection('companies').doc(userContext.companyId).get();
+            const companyDoc = await adminDb.collection('companies').doc(effectiveCompanyId).get();
             if (companyDoc.exists) {
                 const companyData = companyDoc.data()!;
                 const planId = companyData.plan || 'lite';
                 currentPlan = allPlans.find((p: any) => p.id === planId);
                 
-                const companySettingsDoc = await adminDb.collection('companies').doc(userContext.companyId).get();
+                const companySettingsDoc = await adminDb.collection('companies').doc(effectiveCompanyId).get();
                 const connections = companySettingsDoc.data()?.connections || {};
                 usage.connections.used = Object.keys(connections).filter(k => k !== 'partner_app').length;
                 usage.connections.limit = currentPlan?.sites ?? 0;
                 
-                const usersSnapshot = await adminDb.collection('users').where('companyId', '==', userContext.companyId).get();
+                const usersSnapshot = await adminDb.collection('users').where('companyId', '==', effectiveCompanyId).get();
                 usage.users.used = usersSnapshot.size;
                 usage.users.limit = currentPlan?.users ?? 0;
                 
-                // AI credits are tracked on the company document
                 usage.aiCredits.used = companyData.aiUsageCount || 0;
                 usage.aiCredits.limit = currentPlan?.aiCredits ?? 0;
             }
@@ -102,5 +105,3 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
-
-    
