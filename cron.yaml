@@ -1,0 +1,13 @@
+
+# cron.yaml
+# Defines scheduled tasks for the App Hosting backend.
+# https://firebase.google.com/docs/app-hosting/reference/cron-yaml
+cron:
+- schedule: "1 of month 00:00" # Runs at midnight on the 1st day of every month.
+  timeZone: "Europe/Madrid"
+  target:
+    # The service ID is your backend ID, which defaults to your site ID.
+    # It must be the same as the serviceId you specify in firebase.json.
+    serviceId: default
+    # The relative path of the endpoint to invoke.
+    path: /api/tasks/reset-monthly-credits
