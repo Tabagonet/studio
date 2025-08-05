@@ -6,7 +6,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { NAV_GROUPS } from "@/lib/constants";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
@@ -27,7 +26,7 @@ interface Plan {
 }
 
 const allTools = NAV_GROUPS.flatMap(group => 
-    group.items.filter(item => item.requiredPlan) // Only include items that are part of a plan
+    group.items.filter(item => typeof item.requiredPlan !== 'undefined')
 ).map(item => ({
     id: item.href,
     title: item.title,
@@ -186,7 +185,7 @@ export function PlanManager() {
                         <div className="space-y-3 pt-4 border-t">
                             <h4 className="text-sm font-semibold mb-2">Herramientas Incluidas</h4>
                             {allTools.map(tool => {
-                            const isEnabled = plan.features[tool.href] ?? false;
+                            const isEnabled = plan.features[tool.id] ?? false;
                             const ToolIcon = tool.icon;
                             return (
                                 <div key={tool.id} className="flex items-center justify-between">
@@ -212,5 +211,3 @@ export function PlanManager() {
         </div>
     );
 }
-
-    
