@@ -4,18 +4,18 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, UploadCloud, History, BarChart3, Layers, Loader2, Link as LinkIcon, Calendar, Download, Newspaper, BrainCircuit, PlayCircle } from "lucide-react";
+import { PlusCircle, UploadCloud, History, BarChart3, Layers, Loader2, Link as LinkIcon, Calendar, Download, Newspaper, BrainCircuit, PlayCircle, Shield } from "lucide-react";
 import Link from "next/link";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
-import type { ActivityLog } from '@/lib/types';
+import type { ActivityLog, Plan } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow, parseISO, subDays, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Papa from 'papaparse';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { APP_NAME } from '@/lib/constants';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -42,12 +42,6 @@ interface UserData {
   plan?: 'lite' | 'pro' | 'agency' | null;
   companyPlatform: 'woocommerce' | 'shopify' | null;
   companyName?: string | null;
-}
-
-interface Plan {
-    id: 'lite' | 'pro' | 'agency';
-    name: string;
-    features: Record<string, boolean>;
 }
 
 export default function DashboardPage() {
@@ -296,49 +290,49 @@ export default function DashboardPage() {
             <TooltipProvider>
                 <Tooltip delayDuration={100}>
                   <TooltipTrigger asChild>
-                    <div className={cn(!wooWpConfigured && "cursor-not-allowed")}>
-                      <Card className={cn("shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col", !wooWpConfigured && "bg-muted/50")}>
+                    <div className={cn(!wooWpConfigured && "cursor-not-allowed", !wizardCheck.enabled && "cursor-not-allowed")}>
+                      <Card className={cn("shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col", (!wooWpConfigured || !wizardCheck.enabled) && "bg-muted/50")}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-lg font-medium">Crear Nuevo Producto</CardTitle><PlusCircle className="h-6 w-6 text-primary" /></CardHeader>
                         <CardContent className="flex flex-col flex-grow">
                           <CardDescription className="mb-4 text-sm">Inicia el asistente para añadir productos a tu tienda WooCommerce.</CardDescription>
-                          <Button asChild className="w-full mt-auto" disabled={!wooWpConfigured || !wizardCheck.enabled}><Link href="/wizard" className={cn(!wooWpConfigured && "pointer-events-none")}>Iniciar Asistente</Link></Button>
+                          <Link href="/wizard" className={cn(!wooWpConfigured || !wizardCheck.enabled ? "pointer-events-none" : "", buttonVariants({className: "w-full mt-auto"}))}>Iniciar Asistente</Link>
                         </CardContent>
                       </Card>
                     </div>
                   </TooltipTrigger>
-                  {(!wooWpConfigured || !wizardCheck.enabled) && (<TooltipContent><p>{!wooWpConfigured ? 'Configuración de WooCommerce/WordPress incompleta.' : wizardCheck.tooltip}</p></TooltipContent>)}
+                  {(!wooWpConfigured || !wizardCheck.enabled) && (<TooltipContent><p>{!wizardCheck.enabled ? wizardCheck.tooltip : 'Configuración de WooCommerce/WordPress incompleta.'}</p></TooltipContent>)}
                 </Tooltip>
             </TooltipProvider>
             <TooltipProvider>
               <Tooltip delayDuration={100}>
                 <TooltipTrigger asChild>
-                  <div className={cn(!wooWpConfigured && "cursor-not-allowed")}>
-                    <Card className={cn("shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col", !wooWpConfigured && "bg-muted/50")}>
+                  <div className={cn(!wooWpConfigured && "cursor-not-allowed", !batchProcessCheck.enabled && "cursor-not-allowed")}>
+                    <Card className={cn("shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col", (!wooWpConfigured || !batchProcessCheck.enabled) && "bg-muted/50")}>
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-lg font-medium">Procesamiento en Lotes</CardTitle><UploadCloud className="h-6 w-6 text-primary" /></CardHeader>
                       <CardContent className="flex flex-col flex-grow">
                         <CardDescription className="mb-4 text-sm">Sube un CSV para crear productos de forma masiva y eficiente.</CardDescription>
-                        <Button asChild variant="outline" className="w-full mt-auto" disabled={!wooWpConfigured || !batchProcessCheck.enabled}><Link href="/batch-process" className={cn(!wooWpConfigured && "pointer-events-none")}>Iniciar Procesamiento</Link></Button>
+                         <Link href="/batch-process" className={cn(!wooWpConfigured || !batchProcessCheck.enabled ? "pointer-events-none" : "", buttonVariants({variant: 'outline', className: "w-full mt-auto"}))}>Iniciar Procesamiento</Link>
                       </CardContent>
                     </Card>
                   </div>
                 </TooltipTrigger>
-                 {(!wooWpConfigured || !batchProcessCheck.enabled) && (<TooltipContent><p>{!wooWpConfigured ? 'Configuración de WooCommerce/WordPress incompleta.' : batchProcessCheck.tooltip}</p></TooltipContent>)}
+                 {(!wooWpConfigured || !batchProcessCheck.enabled) && (<TooltipContent><p>{!batchProcessCheck.enabled ? batchProcessCheck.tooltip : 'Configuración de WooCommerce/WordPress incompleta.'}</p></TooltipContent>)}
               </Tooltip>
             </TooltipProvider>
             <TooltipProvider>
               <Tooltip delayDuration={100}>
                 <TooltipTrigger asChild>
-                  <div className={cn(!wpConfigured && "cursor-not-allowed")}>
-                    <Card className={cn("shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col", !wpConfigured && "bg-muted/50")}>
+                  <div className={cn(!wpConfigured && "cursor-not-allowed", !blogCreatorCheck.enabled && "cursor-not-allowed")}>
+                    <Card className={cn("shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col", (!wpConfigured || !blogCreatorCheck.enabled) && "bg-muted/50")}>
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-lg font-medium">Crear Nueva Entrada</CardTitle><Newspaper className="h-6 w-6 text-primary" /></CardHeader>
                       <CardContent className="flex flex-col flex-grow">
                         <CardDescription className="mb-4 text-sm">Usa el asistente con IA para generar contenido para tu blog.</CardDescription>
-                        <Button asChild variant="secondary" className="w-full mt-auto" disabled={!wpConfigured || !blogCreatorCheck.enabled}><Link href="/blog-creator" className={cn(!wpConfigured && "pointer-events-none")}>Crear Entrada</Link></Button>
+                         <Link href="/blog-creator" className={cn(!wpConfigured || !blogCreatorCheck.enabled ? "pointer-events-none" : "", buttonVariants({variant: 'secondary', className: "w-full mt-auto"}))}>Crear Entrada</Link>
                       </CardContent>
                     </Card>
                   </div>
                 </TooltipTrigger>
-                {(!wpConfigured || !blogCreatorCheck.enabled) && (<TooltipContent><p>{!wpConfigured ? 'Configuración de WordPress incompleta.' : blogCreatorCheck.tooltip}</p></TooltipContent>)}
+                {(!wpConfigured || !blogCreatorCheck.enabled) && (<TooltipContent><p>{!blogCreatorCheck.enabled ? blogCreatorCheck.tooltip : 'Configuración de WordPress incompleta.'}</p></TooltipContent>)}
               </Tooltip>
             </TooltipProvider>
           </div>

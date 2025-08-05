@@ -1,6 +1,6 @@
 
 
-import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList, SearchCheck, Copy, Building, Megaphone, Briefcase, Store, ListChecks, Lightbulb, FileText, Shield } from 'lucide-react';
+import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList, SearchCheck, Copy, Building, Megaphone, Briefcase, Store, ListChecks, Lightbulb, FileText, Shield, Sparkles } from 'lucide-react';
 import type { NavItem, ProductType, ProductData, BlogPostData, NavGroup } from '@/lib/types';
 import { ShopifyIcon } from '@/components/core/icons';
 
@@ -59,6 +59,7 @@ export const NAV_GROUPS: NavGroup[] = [
    {
     title: 'Ajustes',
     items: [
+       { title: 'Mi Plan y Facturación', href: '/settings/my-plan', icon: Sparkles, requiredRoles: ['admin', 'super_admin'] },
        { title: 'Datos de Cuenta', href: '/settings/company', icon: Building, requiredRoles: ['admin', 'super_admin'] },
        { title: 'Gestión de Prompts IA', href: '/prompts', icon: Brain, requiredRoles: ['super_admin'] },
        { title: 'Configuración', href: '/settings', icon: Settings, requiredRoles: ['admin', 'super_admin'] },
@@ -126,7 +127,7 @@ export const INITIAL_BLOG_DATA: BlogPostData = {
   title: '',
   content: '',
   topic: '', // for AI
-  tags: '', // for AI and tags
+  tags: '',
   focusKeyword: '',
   metaDescription: '',
   category: null,

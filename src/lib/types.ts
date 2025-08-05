@@ -450,3 +450,20 @@ export interface ShopifyCreationJob {
   // Data added on completion
   createdStoreAdminUrl?: string;
 }
+
+// New types for Plan Management
+export interface Plan {
+  id: 'lite' | 'pro' | 'agency';
+  name: string;
+  price: string;
+  sites: number;
+  users: number;
+  aiCredits: number;
+  features: Record<string, boolean>; // e.g. { '/wizard': true, '/batch': false }
+}
+
+export interface PlanUsage {
+  connections: { used: number; limit: number; };
+  users: { used: number; limit: number; };
+  aiCredits: { used: number; limit: number; };
+}
