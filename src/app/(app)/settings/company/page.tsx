@@ -182,7 +182,7 @@ export default function CompanySettingsPage() {
             if(company) entityDetails = { name: company.name, platform: company.platform, plan: company.plan };
         } else {
             const selectedUser = unassignedUsers.find(u => u.uid === id);
-            if (selectedUser) entityDetails = { name: selectedUser.displayName, platform: selectedUser.platform, plan: selectedUser.plan };
+            if (selectedUser) entityDetails = { name: selectedUser.displayName, platform: selectedUser.platform || 'woocommerce', plan: selectedUser.plan };
         }
         
         fetchSettingsData(user, entityType, id, entityDetails);
