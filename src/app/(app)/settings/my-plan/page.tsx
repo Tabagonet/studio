@@ -37,12 +37,12 @@ const PlanCard = ({ plan, isCurrent }: { plan: Plan; isCurrent: boolean }) => {
                 <CardDescription>{plan.price}</CardDescription>
             </CardHeader>
             <CardContent className="flex-grow space-y-4">
-                <ul className="space-y-2 text-sm">
-                    <li className="flex items-center justify-between border-b pb-2">
+                <ul className="space-y-2 text-sm border-b pb-4">
+                    <li className="flex items-center justify-between">
                         <span><Users className="inline h-4 w-4 mr-2 text-muted-foreground"/>Usuarios por empresa:</span>
                         <span className="font-semibold">{plan.users >= 999 ? 'Ilimitado' : plan.users}</span>
                     </li>
-                    <li className="flex items-center justify-between border-b pb-2">
+                    <li className="flex items-center justify-between">
                         <span><Globe className="inline h-4 w-4 mr-2 text-muted-foreground"/>Conexiones a Sitios:</span>
                         <span className="font-semibold">{plan.sites >= 999 ? 'Ilimitado' : plan.sites}</span>
                     </li>
@@ -54,21 +54,25 @@ const PlanCard = ({ plan, isCurrent }: { plan: Plan; isCurrent: boolean }) => {
 
                 <Accordion type="single" collapsible className="w-full">
                     <AccordionItem value="item-1">
-                        <AccordionTrigger>Ver detalle de uso de IA</AccordionTrigger>
+                        <AccordionTrigger>Ver ejemplos de uso de IA</AccordionTrigger>
                         <AccordionContent>
-                           <div className="text-xs text-muted-foreground space-y-2 pt-2">
+                           <div className="space-y-3 pt-2">
+                                <p className="text-xs text-muted-foreground">
+                                    Tus créditos se consumen de un saldo común. Por ejemplo, con este plan podrías realizar una de las siguientes opciones cada mes:
+                                </p>
                                 {featuresToShow.length > 0 ? (
-                                    featuresToShow.map(feature => {
-                                        const uses = Math.floor(plan.aiCredits / feature.credits);
-                                        return (
-                                            <div key={feature.name} className="flex justify-between items-center">
-                                                <span>{feature.name}</span>
-                                                <span className="font-bold text-foreground">~ {uses} / mes</span>
-                                            </div>
-                                        )
-                                    })
+                                    <ul className="list-disc list-inside space-y-1 text-sm">
+                                        {featuresToShow.map(feature => {
+                                            const uses = Math.floor(plan.aiCredits / feature.credits);
+                                            return (
+                                                <li key={feature.name}>
+                                                    <span className="font-semibold">~{uses}</span> {feature.name}
+                                                </li>
+                                            )
+                                        })}
+                                    </ul>
                                 ) : (
-                                    <p className="text-center italic py-2">Este plan no incluye herramientas de IA.</p>
+                                    <p className="text-center italic py-2 text-sm text-muted-foreground">Este plan no incluye herramientas de IA.</p>
                                 )}
                             </div>
                         </AccordionContent>
