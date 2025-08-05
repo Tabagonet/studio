@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Firestore not configured' }, { status: 503 });
     }
     try {
-        const { uid, role } = await getUserContext(req);
+        const { uid, role, companyId } = await getUserContext(req);
         const body = await req.json();
 
         const payloadSchema = z.object({
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
         let entityType: 'user' | 'company' | null = null;
         let effectiveId: string | null = null;
         
-        // Super admin can edit any specified company or user.
+        // Determine the entity being edited based on roles and provided IDs
         if (role === 'super_admin') {
             if (targetCompanyId) {
                 entityType = 'company';
@@ -121,14 +121,11 @@ export async function POST(req: NextRequest) {
                  return NextResponse.json({ error: 'No target entity ID provided for super_admin.' }, { status: 400 });
             }
         } 
-        // A regular admin can only edit their own company settings.
         else if (role === 'admin') {
-            const userDoc = (await adminDb.collection('users').doc(uid).get()).data();
-            if (userDoc?.companyId) {
+            if (companyId) { // Admin of a company
                 entityType = 'company';
-                effectiveId = userDoc.companyId;
-            } else {
-                // An admin without a company can edit their own user_settings.
+                effectiveId = companyId;
+            } else { // Admin without a company (unlikely, but handled)
                 entityType = 'user';
                 effectiveId = uid;
             }
@@ -144,13 +141,15 @@ export async function POST(req: NextRequest) {
         
         let updatePayload: any = { ...restOfData };
         
+        // Super admin can edit anything on a company
         if (role === 'super_admin' && entityType === 'company') {
             if (name !== undefined) updatePayload.name = name;
             if (platform !== undefined) updatePayload.platform = platform;
             if (plan !== undefined) updatePayload.plan = plan;
-        } else {
-            // Regular admins cannot change the name, platform, or plan of a company.
-            // These fields will be ignored if sent.
+        } 
+        // Company admin can edit their own company name and other data, but not platform or plan
+        else if (role === 'admin' && entityType === 'company' && effectiveId === companyId) {
+             if (name !== undefined) updatePayload.name = name;
         }
         
         await settingsRef.set(updatePayload, { merge: true });
