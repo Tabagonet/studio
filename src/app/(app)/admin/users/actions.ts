@@ -117,7 +117,7 @@ const addCreditsSchema = z.object({
   source: z.string().optional().default('Manual Admin Add'),
 });
 
-export async function addCreditsAction(data: z.infer<typeof addCreditsSchema>, token: string): Promise<{ success: boolean; error?: string }> {
+export async function addCreditsAction(data: z.input<typeof addCreditsSchema>, token: string): Promise<{ success: boolean; error?: string }> {
   try {
     if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized");
     const decodedToken = await adminAuth.verifyIdToken(token);
@@ -126,7 +126,9 @@ export async function addCreditsAction(data: z.infer<typeof addCreditsSchema>, t
       return { success: false, error: 'Forbidden: Only super admins can add credits.' };
     }
 
-    const { entityId, entityType, credits, source } = data;
+    const validatedData = addCreditsSchema.parse(data);
+    const { entityId, entityType, credits, source } = validatedData;
+    
     const collectionName = entityType === 'company' ? 'companies' : 'user_settings';
     const entityRef = adminDb.collection(collectionName).doc(entityId);
 
@@ -144,6 +146,9 @@ export async function addCreditsAction(data: z.infer<typeof addCreditsSchema>, t
     return { success: true };
   } catch (error: any) {
     console.error('Error in addCreditsAction:', error);
+    if (error instanceof z.ZodError) {
+        return { success: false, error: JSON.stringify(error.flatten()) };
+    }
     return { success: false, error: error.message || 'An unknown error occurred while adding credits.' };
   }
 }
