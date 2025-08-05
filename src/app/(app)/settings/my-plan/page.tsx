@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Sparkles, AlertCircle, CheckCircle, Mail, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +13,7 @@ import { SUPPORT_EMAIL } from '@/lib/constants';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from '@/components/ui/badge';
 
 
 const PlanCard = ({ plan, isCurrent }: { plan: Plan; isCurrent: boolean }) => (
@@ -190,4 +191,3 @@ export default function MyPlanPage() {
         </div>
     );
 }
-
