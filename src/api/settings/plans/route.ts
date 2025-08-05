@@ -1,5 +1,5 @@
 
-      
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
@@ -24,7 +24,7 @@ const plansUpdateSchema = z.object({
 const getDefaultPlans = () => {
     const defaultPlans: any[] = [
         { id: 'lite', name: 'Plan Lite', price: '29€/mes', sites: 1, users: 1, aiCredits: 100, features: {} },
-        { id: 'pro', name: 'Plan Pro', price: '49€/mes', sites: 3, users: 3, aiCredits: 500, features: {} },
+        { id: 'pro', name: 'Plan Pro', price: '49€/mes', sites: 3, users: 3, aiCredits: 750, features: {} },
         { id: 'agency', name: 'Plan Agency', price: '99€/mes', sites: 10, users: 10, aiCredits: 2000, features: {} },
     ];
     
@@ -126,5 +126,3 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: e.message }, { status: 500 });
     }
 }
-
-    
