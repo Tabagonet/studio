@@ -63,6 +63,18 @@ Generate the complete JSON object now.`;
     }
 }
 
+async function getEntityRef(uid: string, cost: number): Promise<[FirebaseFirestore.DocumentReference, number]> {
+    if (!adminDb) throw new Error("Firestore not configured.");
+
+    const userDoc = await adminDb.collection('users').doc(uid).get();
+    const userData = userDoc.data();
+
+    if (userData?.companyId) {
+        return [adminDb.collection('companies').doc(userData.companyId), cost];
+    }
+    return [adminDb.collection('user_settings').doc(uid), cost];
+}
+
 
 export async function POST(req: NextRequest) {
   let uid: string;
@@ -99,12 +111,11 @@ export async function POST(req: NextRequest) {
     
     const clientInput = validationResult.data;
     
-    // Fetch clients and settings ONCE
     const { wooApi } = await getApiClientsForUser(uid);
     
     let groupedProductsList = 'N/A';
     if (clientInput.productType === 'grouped' && clientInput.groupedProductIds && clientInput.groupedProductIds.length > 0) {
-        if (wooApi) { // Check if wooApi was successfully created
+        if (wooApi) {
              try {
                 const response = await wooApi.get('products', { include: clientInput.groupedProductIds, per_page: 100, lang: 'all' });
                 if (response.data && response.data.length > 0) {
@@ -122,13 +133,16 @@ export async function POST(req: NextRequest) {
     
     let promptTemplate: string;
     let outputSchema: z.ZodTypeAny;
+    let creditCost: number;
 
     if (clientInput.mode === 'image_meta_only') {
       outputSchema = ImageMetaOnlySchema;
-      promptTemplate = await getProductDescriptionPrompt(uid); // Use the same base prompt
+      promptTemplate = await getProductDescriptionPrompt(uid);
+      creditCost = 1;
     } else { // full_product
       outputSchema = FullProductOutputSchema;
       promptTemplate = await getProductDescriptionPrompt(uid);
+      creditCost = 10;
     }
     
     const cleanedCategoryName = clientInput.categoryName ? clientInput.categoryName.replace(/—/g, '').trim() : '';
@@ -145,16 +159,16 @@ export async function POST(req: NextRequest) {
       throw new Error('AI returned an empty response.');
     }
     
-    // Increment AI usage count
-    if (adminDb) {
-        const userSettingsRef = adminDb.collection('user_settings').doc(uid);
-        await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
-    }
+    const [entityRef, cost] = await getEntityRef(uid, creditCost);
+    await entityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(cost) }, { merge: true });
 
     return NextResponse.json(aiContent);
 
   } catch (error: any) {
     console.error('🔥 Error in /api/generate-description:', error);
+    if (error.message && error.message.includes('503')) {
+        return NextResponse.json({ error: 'El servicio de IA está sobrecargado en este momento. Por favor, inténtalo de nuevo más tarde.' }, { status: 503 });
+    }
     let errorMessage = 'La IA falló: ' + (error instanceof Error ? error.message : String(error));
     if (error instanceof z.ZodError) {
         errorMessage = 'La IA falló: ' + JSON.stringify(error.errors);

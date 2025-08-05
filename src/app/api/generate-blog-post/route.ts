@@ -35,6 +35,17 @@ const PROMPT_DEFAULTS: Record<string, string> = {
     keywordSuggestion: `You are an expert SEO specialist. Based on the following blog post title and content, generate a list of relevant, SEO-focused keywords. Return a single, valid JSON object with one key: 'suggestedKeywords' (a comma-separated string of 5-7 relevant keywords). Do not include markdown or the word 'json' in your output.\n\nGenerate SEO keywords for this blog post in {{language}}.\nTitle: "{{existingTitle}}"\nContent:\n---\n{{{existingContent}}}\n---`,
 };
 
+const CREDIT_COSTS: Record<string, number> = {
+    generate_from_topic: 10,
+    enhance_content: 5,
+    suggest_titles: 1,
+    suggest_keywords: 1,
+    generate_meta_description: 1,
+    generate_focus_keyword: 1,
+    generate_image_meta: 1,
+    enhance_title: 1,
+};
+
 
 async function getPrompt(uid: string, promptKey: string): Promise<string> {
     const defaultPrompt = PROMPT_DEFAULTS[promptKey];
@@ -48,6 +59,18 @@ async function getPrompt(uid: string, promptKey: string): Promise<string> {
         console.error(`Error fetching '${promptKey}' prompt, using default.`, error);
         return defaultPrompt;
     }
+}
+
+async function getEntityRef(uid: string, cost: number): Promise<[FirebaseFirestore.DocumentReference, number]> {
+    if (!adminDb) throw new Error("Firestore not configured.");
+
+    const userDoc = await adminDb.collection('users').doc(uid).get();
+    const userData = userDoc.data();
+
+    if (userData?.companyId) {
+        return [adminDb.collection('companies').doc(userData.companyId), cost];
+    }
+    return [adminDb.collection('user_settings').doc(uid), cost];
 }
 
 
@@ -75,6 +98,7 @@ export async function POST(req: NextRequest) {
         }
         
         const input = validationResult.data;
+        const cost = CREDIT_COSTS[input.mode] || 1;
         
         // Convert language code (e.g., 'en') to language name ('English') for the AI
         const languageName = languageCodeToName[input.language] || input.language;
@@ -130,16 +154,17 @@ export async function POST(req: NextRequest) {
         if (!aiContent) {
           throw new Error('AI returned an empty response for blog content generation.');
         }
-
-        if (adminDb) {
-            const userSettingsRef = adminDb.collection('user_settings').doc(uid);
-            await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
-        }
+        
+        const [entityRef, creditCost] = await getEntityRef(uid, cost);
+        await entityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(creditCost) }, { merge: true });
 
         return NextResponse.json(aiContent);
 
     } catch (error: any) {
         console.error('🔥 Error in /api/generate-blog-post:', error);
+        if (error.message && error.message.includes('503')) {
+           return NextResponse.json({ error: 'El servicio de IA está sobrecargado en este momento. Por favor, inténtalo de nuevo más tarde.' }, { status: 503 });
+        }
         return NextResponse.json({ error: 'La IA falló: ' + error.message }, { status: 500 });
     }
 }

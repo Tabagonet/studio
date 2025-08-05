@@ -1,4 +1,5 @@
 
+
 'use server';
 import { createAdPlan } from "@/ai/flows/create-ad-plan-flow";
 import { 
@@ -25,6 +26,17 @@ import { executeCampaignSetupTask } from "@/ai/flows/execute-campaign-setup-task
 import { generateGoogleCampaign } from "@/ai/flows/generate-google-campaign-flow";
 import { z } from "zod";
 
+async function getEntityRef(uid: string, cost: number): Promise<[FirebaseFirestore.DocumentReference]> {
+    if (!adminDb) throw new Error("Firestore not configured.");
+
+    const userDoc = await adminDb.collection('users').doc(uid).get();
+    const userData = userDoc.data();
+
+    if (userData?.companyId) {
+        return [adminDb.collection('companies').doc(userData.companyId)];
+    }
+    return [adminDb.collection('user_settings').doc(uid)];
+}
 
 export async function generateAdPlanAction(
     input: CreateAdPlanInput, 
@@ -44,26 +56,22 @@ export async function generateAdPlanAction(
     }
 
     try {
+        const [entityRef] = await getEntityRef(uid, 5); // Ad Plan costs 5 credits
+        await entityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(5) }, { merge: true });
+
         const adPlan = await createAdPlan(input, uid);
         
         if (adminDb) {
-            // Increment AI usage count
-            const userSettingsRef = adminDb.collection('user_settings').doc(uid);
-            await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
-            
             const { id, ...planDataToSave } = adPlan;
-            
             const newPlanRef = await adminDb.collection('ad_plans').add({
                 userId: uid,
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 ...planDataToSave
             });
-
-            // Return the plan with its new ID
             return { data: { ...adPlan, id: newPlanRef.id } };
         }
-        
         return { data: adPlan };
+
     } catch (error: any) {
         console.error('Error in generateAdPlanAction:', error);
         return { error: error.message || 'An unknown error occurred while generating the plan.' };
@@ -89,14 +97,12 @@ export async function generateStrategyTasksAction(
     }
 
     try {
+        const [entityRef] = await getEntityRef(uid, 2); // Tasks cost 2 credits
+        await entityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(2) }, { merge: true });
+        
         const tasks = await generateStrategyTasks(input);
-        
-        if (adminDb) {
-            const userSettingsRef = adminDb.collection('user_settings').doc(uid);
-            await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
-        }
-        
         return { data: tasks };
+
     } catch (error: any) {
         console.error('Error in generateStrategyTasksAction:', error);
         return { error: error.message || 'An unknown error occurred while generating tasks.' };
@@ -110,30 +116,21 @@ export async function generateAdCreativesAction(
     data?: GenerateAdCreativesOutput;
     error?: string;
 }> {
-    console.log('[LOG] Server Action: generateAdCreativesAction triggered.');
     let uid: string;
     try {
         if (!adminAuth) throw new Error("Firebase Admin not initialized");
         const decodedToken = await adminAuth.verifyIdToken(token);
         uid = decodedToken.uid;
-        console.log(`[LOG] Server Action: User authenticated. UID: ${uid}`);
     } catch (error) {
         console.error('Error verifying token in generateAdCreativesAction:', error);
         return { error: 'Authentication failed. Unable to identify user.' };
     }
 
     try {
-        console.log('[LOG] Server Action: Calling generateAdCreatives flow with input:', input);
+        const [entityRef] = await getEntityRef(uid, 2); // Creatives cost 2 credits
+        await entityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(2) }, { merge: true });
+
         const creatives = await generateAdCreatives(input);
-        console.log('[LOG] Server Action: Flow returned creatives:', creatives);
-        
-        if (adminDb) {
-            const userSettingsRef = adminDb.collection('user_settings').doc(uid);
-            await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
-            console.log('[LOG] Server Action: AI usage count incremented.');
-        }
-        
-        console.log('[LOG] Server Action: Returning successful data to client.');
         return { data: creatives };
     } catch (error: any) {
         console.error('[LOG] Server Action: An error occurred in generateAdCreativesAction:', error);
@@ -203,18 +200,15 @@ export async function competitorAnalysisAction(
     }
 
     try {
-        // 1. Generate the new analysis
+        const [entityRef] = await getEntityRef(uid, 5); // Competitor Analysis costs 5 credits
+        await entityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(5) }, { merge: true });
+        
         const analysisData = await competitorAnalysis(input);
         
         if (!adminDb) {
              throw new Error("Database not available to save analysis.");
         }
         
-        // 2. Increment AI usage count
-        const userSettingsRef = adminDb.collection('user_settings').doc(uid);
-        await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
-
-        // 3. Prepare record for saving
         const newAnalysisRecord = {
             userId: uid,
             url: input.url,
@@ -230,17 +224,14 @@ export async function competitorAnalysisAction(
 
         let docId: string;
         if (!existingQuery.empty) {
-            // Update existing document
             const docRef = existingQuery.docs[0].ref;
             await docRef.update(newAnalysisRecord);
             docId = docRef.id;
         } else {
-            // Create new document
             const newDocRef = await adminDb.collection('competitor_analyses').add(newAnalysisRecord);
             docId = newDocRef.id;
         }
         
-        // 4. Return the new analysis with its ID and timestamp for the client
         return { 
             data: {
                 id: docId,
@@ -322,12 +313,10 @@ export async function executeTaskAction(
   try {
     const taskNameLower = input.taskName.toLowerCase();
     
+    let result;
     if (taskNameLower.includes('keyword') || taskNameLower.includes('palabras clave')) {
-        const result = await executeKeywordResearchTask(input);
-        return { data: result };
-    }
-    
-    if (taskNameLower.includes('anuncios') || taskNameLower.includes('creativos') || taskNameLower.includes('copy')) {
+        result = await executeKeywordResearchTask(input);
+    } else if (taskNameLower.includes('anuncios') || taskNameLower.includes('creativos') || taskNameLower.includes('copy')) {
       const creativeInput: GenerateAdCreativesInput = {
         url: input.url,
         objectives: [], 
@@ -336,16 +325,17 @@ export async function executeTaskAction(
         funnel_stage: 'Consideration',
         target_audience: input.buyerPersona,
       };
-      const result = await generateAdCreatives(creativeInput);
-      return { data: result };
+      result = await generateAdCreatives(creativeInput);
+    } else if (taskNameLower.includes('configuraci') && taskNameLower.includes('campa')) {
+      result = await executeCampaignSetupTask(input);
+    } else {
+        return { error: 'La ejecución para este tipo de tarea aún no está implementada.' };
     }
     
-    if (taskNameLower.includes('configuraci') && taskNameLower.includes('campa')) {
-      const result = await executeCampaignSetupTask(input);
-      return { data: result };
-    }
+    const [entityRef] = await getEntityRef(uid, 1); // Task execution costs 1 credit
+    await entityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
 
-    return { error: 'La ejecución para este tipo de tarea aún no está implementada.' };
+    return { data: result };
 
   } catch (error: any) {
     console.error('Error in executeTaskAction:', error);
@@ -370,10 +360,10 @@ export async function generateGoogleCampaignAction(
     }
 
     try {
+        const [entityRef] = await getEntityRef(uid, 10); // Campaign generation costs 10 credits
+        await entityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(10) }, { merge: true });
+
         const campaign = await generateGoogleCampaign(input);
-        if (adminDb) {
-            await adminDb.collection('user_settings').doc(uid).set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
-        }
         return { data: campaign };
     } catch (error: any) {
         console.error('Error in generateGoogleCampaignAction:', error);

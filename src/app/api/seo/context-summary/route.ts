@@ -1,10 +1,25 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getApiClientsForUser } from '@/lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
+
+async function getEntityRef(uid: string): Promise<[FirebaseFirestore.DocumentReference, number]> {
+    if (!adminDb) throw new Error("Firestore not configured.");
+
+    const userDoc = await adminDb.collection('users').doc(uid).get();
+    const userData = userDoc.data();
+    const cost = 1; // Cost for context summary
+
+    if (userData?.companyId) {
+        return [adminDb.collection('companies').doc(userData.companyId), cost];
+    }
+    return [adminDb.collection('user_settings').doc(uid), cost];
+}
+
 
 async function fetchAdPlanData(uid: string, url: string | null) {
     if (!adminDb || !url) return null; // Do not proceed if no specific URL is provided
@@ -133,15 +148,16 @@ export async function GET(req: NextRequest) {
         const response = await result.response;
         const summary = response.text();
 
-        // Increment AI usage count
-        await adminDb.collection('user_settings').doc(uid).set({ 
-            aiUsageCount: admin.firestore.FieldValue.increment(1) 
-        }, { merge: true });
+        const [entityRef, cost] = await getEntityRef(uid);
+        await entityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(cost) }, { merge: true });
 
         return NextResponse.json({ summary });
 
     } catch (error: any) {
         console.error('Error generating context summary:', error);
+        if (error.message && error.message.includes('503')) {
+           return NextResponse.json({ error: 'El servicio de IA está sobrecargado en este momento. Por favor, inténtalo de nuevo más tarde.' }, { status: 503 });
+        }
         return NextResponse.json({ error: 'Failed to generate context summary from past analyses.', details: error.message }, { status: 500 });
     }
 }

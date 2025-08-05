@@ -11,7 +11,7 @@ async function getEntityRef(uid: string): Promise<[FirebaseFirestore.DocumentRef
 
     const userDoc = await adminDb.collection('users').doc(uid).get();
     const userData = userDoc.data();
-    const cost = 10; // Cost for generating an ad plan
+    const cost = 5; // Cost for generating an ad plan
 
     if (userData?.companyId) {
         return [adminDb.collection('companies').doc(userData.companyId), cost];
@@ -62,6 +62,9 @@ export async function POST(req: NextRequest) {
 
     } catch (error: any) {
         console.error('🔥 Error in /api/ad-planner:', error);
+        if (error.message && error.message.includes('503')) {
+           return NextResponse.json({ error: 'El servicio de IA está sobrecargado en este momento. Por favor, inténtalo de nuevo más tarde.' }, { status: 503 });
+        }
         return NextResponse.json({ error: 'Failed to generate ad plan: ' + error.message }, { status: 500 });
     }
 }

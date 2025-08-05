@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
@@ -11,6 +12,20 @@ import Handlebars from 'handlebars';
 const suggestLinksBodySchema = z.object({
   content: z.string(),
 });
+
+async function getEntityRef(uid: string): Promise<[FirebaseFirestore.DocumentReference, number]> {
+    if (!adminDb) throw new Error("Firestore not configured.");
+
+    const userDoc = await adminDb.collection('users').doc(uid).get();
+    const userData = userDoc.data();
+    const cost = 1; // Cost for suggesting links
+
+    if (userData?.companyId) {
+        return [adminDb.collection('companies').doc(userData.companyId), cost];
+    }
+    return [adminDb.collection('user_settings').doc(uid), cost];
+}
+
 
 // Helper to fetch all content titles and links
 async function fetchAllContent(wpApi: AxiosInstance) {
@@ -135,16 +150,16 @@ export async function POST(req: NextRequest) {
 
         const result = await suggestInternalLinks(finalPrompt);
 
-        // Increment AI usage count
-        if (adminDb) {
-            const userSettingsRef = adminDb.collection('user_settings').doc(uid);
-            await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(1) }, { merge: true });
-        }
+        const [entityRef, cost] = await getEntityRef(uid);
+        await entityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(cost) }, { merge: true });
         
         return NextResponse.json(result);
 
     } catch (error: any) {
         console.error('Error in suggest-internal-links API:', error);
+        if (error.message && error.message.includes('503')) {
+           return NextResponse.json({ error: 'El servicio de IA está sobrecargado en este momento. Por favor, inténtalo de nuevo más tarde.' }, { status: 503 });
+        }
         return NextResponse.json({ error: 'Failed to suggest internal links', message: error.message }, { status: 500 });
     }
 }
