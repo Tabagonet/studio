@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, LineChart, History, Calendar, Download, Building, Store } from "lucide-react";
+import { Loader2, LineChart, History, Calendar, Download, Building, Store, BrainCircuit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged, type FirebaseUser } from "@/lib/firebase";
 import type { ActivityLog } from '@/lib/types';
@@ -32,12 +32,14 @@ interface UserStat {
     connections: Set<string>;
     companyName: string | null;
     platform: string | null;
+    aiUsageCount: number;
 }
 
 type GroupedUserStats = {
     companyName: string;
     platform: string | null;
     users: UserStat[];
+    aiUsageCount: number;
 }
 
 type FilterType = 'this_month' | 'last_30_days' | 'all_time';
@@ -126,6 +128,7 @@ export default function AdminActivityPage() {
                     connections: new Set<string>(),
                     companyName: log.user.companyName || null,
                     platform: log.user.platform || null,
+                    aiUsageCount: log.user.aiUsageCount || 0,
                 };
             }
             stats[log.userId].productCount++;
@@ -139,20 +142,26 @@ export default function AdminActivityPage() {
     const groupedUserStats = useMemo((): GroupedUserStats[] => {
         if (userStats.length === 0) return [];
         
-        const groups: Record<string, UserStat[]> = {};
+        const groups: Record<string, { users: UserStat[], aiUsageCount: number, platform: string | null }> = {};
         
         userStats.forEach(stat => {
             const companyKey = stat.companyName || 'Sin Empresa Asignada';
             if (!groups[companyKey]) {
-                groups[companyKey] = [];
+                groups[companyKey] = { users: [], aiUsageCount: 0, platform: null };
             }
-            groups[companyKey].push(stat);
+            groups[companyKey].users.push(stat);
+            // Assign usage and platform at the group level. Since it's the same for all users in a company, we can just take it from the first user we see.
+            if (groups[companyKey].users.length === 1) {
+                groups[companyKey].aiUsageCount = stat.aiUsageCount;
+                groups[companyKey].platform = stat.platform;
+            }
         });
 
-        return Object.entries(groups).map(([companyName, users]) => ({
+        return Object.entries(groups).map(([companyName, groupData]) => ({
             companyName,
-            platform: users[0]?.platform || null,
-            users: users.sort((a,b) => b.productCount - a.productCount)
+            platform: groupData.platform,
+            users: groupData.users.sort((a,b) => b.productCount - a.productCount),
+            aiUsageCount: groupData.aiUsageCount
         })).sort((a,b) => {
             if (a.companyName === 'Sin Empresa Asignada') return 1;
             if (b.companyName === 'Sin Empresa Asignada') return -1;
@@ -172,6 +181,7 @@ export default function AdminActivityPage() {
             'Empresa': stat.companyName || 'N/A',
             'Productos Creados': stat.productCount,
             'Webs Utilizadas': Array.from(stat.connections).join(', '),
+            'Creditos IA Usados (Mes)': stat.aiUsageCount,
         }));
 
         const csv = Papa.unparse(dataToExport);
@@ -289,6 +299,7 @@ export default function AdminActivityPage() {
                             <TableRow>
                                 <TableHead>Usuario</TableHead>
                                 <TableHead className="text-center">Productos Creados</TableHead>
+                                <TableHead className="text-center">Créditos IA (Mes)</TableHead>
                                 <TableHead>Webs Utilizadas</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -296,7 +307,7 @@ export default function AdminActivityPage() {
                             {groupedUserStats.length > 0 ? groupedUserStats.map(group => (
                                 <React.Fragment key={group.companyName}>
                                     <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                        <TableCell colSpan={3} className="py-3 text-lg font-semibold text-primary">
+                                        <TableCell colSpan={2} className="py-3 text-lg font-semibold text-primary">
                                             <div className="flex items-center gap-2">
                                                 <Building className="h-5 w-5" />
                                                 {group.companyName}
@@ -308,6 +319,13 @@ export default function AdminActivityPage() {
                                                 )}
                                             </div>
                                         </TableCell>
+                                        <TableCell className="text-center font-bold text-lg text-primary">
+                                            <div className="flex items-center justify-center gap-2">
+                                                <BrainCircuit className="h-5 w-5" />
+                                                <span>{group.aiUsageCount.toLocaleString('es-ES')}</span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell></TableCell>
                                     </TableRow>
                                     {group.users.map(stat => (
                                         <TableRow key={stat.userId}>
@@ -321,6 +339,9 @@ export default function AdminActivityPage() {
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-center font-bold text-lg">{stat.productCount}</TableCell>
+                                            <TableCell className="text-center font-medium">
+                                                {stat.companyName ? <span className="text-muted-foreground">-</span> : stat.aiUsageCount.toLocaleString('es-ES')}
+                                            </TableCell>
                                             <TableCell>
                                                 <div className="flex flex-col gap-1">
                                                     {Array.from(stat.connections).map(conn => (
@@ -333,7 +354,7 @@ export default function AdminActivityPage() {
                                 </React.Fragment>
                             )) : (
                                 <TableRow>
-                                    <TableCell colSpan={3} className="h-24 text-center">
+                                    <TableCell colSpan={4} className="h-24 text-center">
                                         No hay estadísticas de creación de productos para el periodo seleccionado.
                                     </TableCell>
                                 </TableRow>

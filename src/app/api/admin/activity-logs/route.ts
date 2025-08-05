@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import type { ActivityLog } from '@/lib/types';
@@ -40,31 +41,45 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        // Step 1: Fetch all companies to map their names and platforms
+        // Step 1: Fetch all companies to map their names, platforms, and AI usage
         const companiesSnapshot = await adminDb.collection('companies').get();
-        const companiesMap = new Map<string, { name: string, platform: string | null }>();
+        const companiesMap = new Map<string, { name: string, platform: string | null, aiUsageCount: number }>();
         companiesSnapshot.forEach(doc => {
             const data = doc.data();
             companiesMap.set(doc.id, {
                 name: data.name,
-                platform: data.platform || null
+                platform: data.platform || null,
+                aiUsageCount: data.aiUsageCount || 0
             });
         });
 
-        // Step 2: Fetch all users to create a detailed user map
+        // Step 2: Fetch all users to create a detailed user map, including individual AI usage
         const usersSnapshot = await adminDb.collection('users').get();
+        const userSettingsSnapshot = await adminDb.collection('user_settings').get();
+        const userSettingsMap = new Map<string, { aiUsageCount: number }>();
+        userSettingsSnapshot.forEach(doc => {
+            userSettingsMap.set(doc.id, { aiUsageCount: doc.data().aiUsageCount || 0 });
+        });
+
         const usersMap = new Map<string, any>();
         usersSnapshot.forEach(doc => {
             const data = doc.data();
             const companyId = data.companyId || null;
             const companyInfo = companyId ? companiesMap.get(companyId) : null;
+            
+            // Determine AI usage: company's if they belong to one, otherwise their own.
+            const aiUsageCount = companyInfo 
+                ? companyInfo.aiUsageCount 
+                : (userSettingsMap.get(doc.id)?.aiUsageCount || 0);
+
             usersMap.set(doc.id, {
                 displayName: data.displayName || 'No Name',
                 email: data.email || '',
                 photoURL: data.photoURL || '',
                 companyId: companyId,
                 companyName: companyInfo ? companyInfo.name : null,
-                platform: companyInfo ? companyInfo.platform : (data.platform || null) // Effective platform
+                platform: companyInfo ? companyInfo.platform : (data.platform || null),
+                aiUsageCount: aiUsageCount
             });
         });
 
@@ -75,7 +90,7 @@ export async function GET(req: NextRequest) {
         const allEnrichedLogs: ActivityLog[] = logsSnapshot.docs.map(doc => {
             const logData = doc.data();
             // Use the user map, providing a fallback for deleted users
-            const user = usersMap.get(logData.userId) || { displayName: 'Usuario Eliminado', email: '', photoURL: '', companyId: null, companyName: null, platform: null };
+            const user = usersMap.get(logData.userId) || { displayName: 'Usuario Eliminado', email: '', photoURL: '', companyId: null, companyName: null, platform: null, aiUsageCount: 0 };
             return {
                 id: doc.id,
                 userId: logData.userId,
