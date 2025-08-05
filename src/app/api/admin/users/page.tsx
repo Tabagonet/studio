@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -13,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import type { PlanUsage } from '@/lib/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { deleteUserAction, inviteUserAction } from './actions';
 
 export default function AdminUsersPage() {
     const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
@@ -72,19 +74,14 @@ export default function AdminUsersPage() {
 
         try {
             const token = await user.getIdToken();
-            const response = await fetch('/api/admin/users/invite', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ email: emailToInvite }),
-            });
-            const result = await response.json();
+            const result = await inviteUserAction(emailToInvite, token);
 
-            if (!response.ok) {
+            if (!result.success) {
                 throw new Error(result.error || 'No se pudo enviar la invitación.');
             }
             
             toast({ title: "Invitación Creada", description: result.message });
-            setFetchDataTrigger(prev => prev + 1);
+            setFetchDataTrigger(prev => prev + 1); // Trigger a re-fetch of table data
             setIsInviteDialogOpen(false);
             setEmailToInvite('');
 
@@ -159,7 +156,7 @@ export default function AdminUsersPage() {
                 </DialogContent>
             </Dialog>
             
-            <UserManagementTable />
+            <UserManagementTable key={fetchDataTrigger} />
         </div>
     );
 }

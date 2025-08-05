@@ -16,6 +16,8 @@ import { Label } from '@/components/ui/label';
 import type { Company, User as AppUser } from '@/lib/types';
 import { ShopifyIcon } from '@/components/core/icons';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { deleteUserAction } from './actions';
+
 
 type UserRole = 'super_admin' | 'admin' | 'content_manager' | 'product_manager' | 'seo_analyst' | 'pending' | 'user';
 type UserPlatform = 'woocommerce' | 'shopify';
@@ -57,7 +59,6 @@ export function UserManagementTable() {
     const currentAdmin = auth.currentUser;
     const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
     
-    // State for plan modal
     const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
     const [selectedUserForPlan, setSelectedUserForPlan] = useState<User | null>(null);
     const [newUserPlan, setNewUserPlan] = useState<UserPlan | ''>('');
@@ -213,24 +214,17 @@ export function UserManagementTable() {
             setIsUpdating(null);
             return;
         }
-        try {
-            const token = await user.getIdToken();
-            const response = await fetch(`/api/admin/users/${targetUid}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'La operación falló.');
-            }
+        const token = await user.getIdToken();
+        const result = await deleteUserAction(targetUid, token);
+
+        if(result.success) {
             toast({ title: "Éxito", description: "El usuario ha sido eliminado." });
             fetchUsersAndCompanies();
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            toast({ title: "Error al Eliminar", description: errorMessage, variant: "destructive" });
-        } finally {
-            setIsUpdating(null);
+        } else {
+            toast({ title: "Error al Eliminar", description: result.error, variant: "destructive" });
         }
+        
+        setIsUpdating(null);
     };
 
     const getStatusBadge = (status: User['status']) => {
