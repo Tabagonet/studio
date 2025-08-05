@@ -155,7 +155,7 @@ export interface ProductData {
   shipping_class: string;
   category: WooCommerceCategory | null; // Store category object
   categoryPath?: string; // Used for batch creation by name/path
-  tags: string; 
+  tags: string;
   shortDescription: string;
   longDescription: string;
   attributes: ProductAttribute[];
@@ -238,6 +238,7 @@ export interface ActivityLog {
     companyId?: string | null;
     companyName?: string | null;
     platform?: 'woocommerce' | 'shopify' | null;
+    aiUsageCount?: number;
   };
 }
 

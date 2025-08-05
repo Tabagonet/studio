@@ -1,7 +1,9 @@
 
+
 'use server';
 
-import { adminAuth, adminDb } from '@/lib/firebase-admin';
+import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
+import { z } from 'zod';
 
 export async function inviteUserAction(email: string, token: string): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
@@ -105,5 +107,43 @@ export async function deleteUserAction(targetUid: string, token: string): Promis
   } catch (error: any) {
     console.error(`Error deleting user ${targetUid}:`, error);
     return { success: false, error: error.message || 'Error desconocido al eliminar.' };
+  }
+}
+
+const addCreditsSchema = z.object({
+  entityId: z.string(),
+  entityType: z.enum(['user', 'company']),
+  credits: z.number().int().min(1, 'La cantidad de créditos debe ser al menos 1.'),
+  source: z.string().optional().default('Manual Admin Add'),
+});
+
+export async function addCreditsAction(data: z.infer<typeof addCreditsSchema>, token: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!adminAuth || !adminDb) throw new Error("Firebase Admin not initialized");
+    const decodedToken = await adminAuth.verifyIdToken(token);
+    const adminUserDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
+    if (adminUserDoc.data()?.role !== 'super_admin') {
+      return { success: false, error: 'Forbidden: Only super admins can add credits.' };
+    }
+
+    const { entityId, entityType, credits, source } = data;
+    const collectionName = entityType === 'company' ? 'companies' : 'user_settings';
+    const entityRef = adminDb.collection(collectionName).doc(entityId);
+
+    const newCreditEntry = {
+      amount: credits,
+      source: source,
+      addedAt: new Date().toISOString(),
+    };
+
+    // Use FieldValue.arrayUnion to add to the array without overwriting existing entries.
+    await entityRef.set({
+      oneTimeCredits: admin.firestore.FieldValue.arrayUnion(newCreditEntry),
+    }, { merge: true }); // Use set with merge to create the field if it doesn't exist.
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error in addCreditsAction:', error);
+    return { success: false, error: error.message || 'An unknown error occurred while adding credits.' };
   }
 }
