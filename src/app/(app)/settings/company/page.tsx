@@ -81,14 +81,22 @@ export default function CompanySettingsPage() {
         setIsLoading(true);
         try {
             const token = await user.getIdToken();
-            let dataToSet: Partial<CompanyFormData>;
+            let dataToSet: Partial<CompanyFormData> = {};
             let entityName = 'Entidad Desconocida';
 
             if (type === 'company') {
                 const companyResponse = await fetch(`/api/user-settings/company?companyId=${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                
+                if (!companyResponse.ok) {
+                    if(companyResponse.status === 404) throw new Error("La empresa no fue encontrada.");
+                    if(companyResponse.status === 403) throw new Error("No tienes permiso para ver los datos de esta empresa.");
+                    throw new Error("No se pudieron cargar los datos de la empresa.");
+                }
+
                 const companyDetails = (await (await fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } })).json()).companies.find((c: any) => c.id === id);
                 entityName = companyDetails?.name || 'Empresa Desconocida';
-                const fetchedCompanyData = companyResponse.ok ? (await companyResponse.json()).company : {};
+                const fetchedCompanyData = (await companyResponse.json()).company || {};
+                
                 dataToSet = {
                     name: entityName,
                     platform: companyDetails?.platform || 'woocommerce',
@@ -117,7 +125,7 @@ export default function CompanySettingsPage() {
             }
         } catch (error) {
             console.error(`Error fetching data for ${type} ${id}:`, error);
-            toast({ title: "Error al Cargar Datos", description: `No se pudo obtener la información.`, variant: "destructive" });
+            toast({ title: "Error al Cargar Datos", description: (error as Error).message, variant: "destructive" });
         } finally {
             setIsLoading(false);
         }

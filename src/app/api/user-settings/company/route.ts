@@ -2,7 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
-import { getApiClientsForUser } from '@/lib/api-helpers';
 
 async function getUserContext(req: NextRequest): Promise<{ uid: string; role: string | null; companyId: string | null }> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
@@ -48,7 +47,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Firestore not configured' }, { status: 503 });
     }
     try {
-        // Auth check happens inside getApiClientsForUser
+        const { uid, role, companyId: userCompanyId } = await getUserContext(req);
         const { searchParams } = new URL(req.url);
         const targetCompanyId = searchParams.get('companyId');
 
@@ -56,7 +55,14 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Company ID is required.' }, { status: 400 });
         }
         
-        // This is a public-facing GET, so no need for complex auth, just existence check.
+        // Authorization Check
+        const isSuperAdmin = role === 'super_admin';
+        const isAdminOfTargetCompany = role === 'admin' && userCompanyId === targetCompanyId;
+
+        if (!isSuperAdmin && !isAdminOfTargetCompany) {
+             return NextResponse.json({ error: 'Forbidden. You do not have permission to view this company.' }, { status: 403 });
+        }
+        
         const settingsRef = adminDb.collection('companies').doc(targetCompanyId);
         const docSnap = await settingsRef.get();
 
@@ -138,6 +144,7 @@ export async function POST(req: NextRequest) {
             if (platform !== undefined) updatePayload.platform = platform;
             if (plan !== undefined) updatePayload.plan = plan;
         } else if (entityType === 'user') {
+            // A user or admin can edit their own name or individual plan (if they don't belong to a company)
             if (name !== undefined) updatePayload.name = name;
             if (plan !== undefined) updatePayload.plan = plan;
         } else if (role === 'admin' && entityType === 'company') {
