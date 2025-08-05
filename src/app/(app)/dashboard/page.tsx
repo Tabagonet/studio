@@ -37,8 +37,17 @@ interface ConfigStatus {
 interface UserData {
   role: string | null;
   platform: 'woocommerce' | 'shopify' | null;
+  companyId?: string | null;
+  companyPlan?: 'lite' | 'pro' | 'agency' | null;
+  plan?: 'lite' | 'pro' | 'agency' | null;
   companyPlatform: 'woocommerce' | 'shopify' | null;
   companyName?: string | null;
+}
+
+interface Plan {
+    id: 'lite' | 'pro' | 'agency';
+    name: string;
+    features: Record<string, boolean>;
 }
 
 export default function DashboardPage() {
@@ -46,6 +55,7 @@ export default function DashboardPage() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [configStatus, setConfigStatus] = useState<ConfigStatus | null>(null);
+  const [planConfig, setPlanConfig] = useState<Plan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   const [filter, setFilter] = useState<FilterType>('this_month');
@@ -56,10 +66,11 @@ export default function DashboardPage() {
     setIsLoading(true);
     try {
         const token = await user.getIdToken();
-        const [userResponse, configResponse, logsResponse] = await Promise.all([
+        const [userResponse, configResponse, logsResponse, plansResponse] = await Promise.all([
             fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } }),
             fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` } }),
-            fetch('/api/user/activity-logs', { headers: { 'Authorization': `Bearer ${token}` } })
+            fetch('/api/user/activity-logs', { headers: { 'Authorization': `Bearer ${token}` } }),
+            fetch('/api/settings/plans', { headers: { 'Authorization': `Bearer ${token}` } })
         ]);
 
         if (!userResponse.ok) throw new Error('No se pudo verificar el usuario.');
@@ -72,6 +83,13 @@ export default function DashboardPage() {
         if (!logsResponse.ok) throw new Error('No se pudo cargar la actividad.');
         const logsData = await logsResponse.json();
         setLogs(logsData.logs.sort((a: ActivityLog, b: ActivityLog) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+        
+        if (plansResponse.ok) {
+            setPlanConfig((await plansResponse.json()).plans);
+        } else {
+            console.error("Failed to load plan configuration.");
+            setPlanConfig([]);
+        }
 
     } catch (error: any) {
         toast({ title: 'Error al cargar el panel', description: error.message, variant: 'destructive' });
@@ -102,6 +120,24 @@ export default function DashboardPage() {
         window.removeEventListener('connections-updated', handleConnectionsUpdate);
     };
   }, [fetchData]);
+
+  const isToolEnabled = (toolHref: string): { enabled: boolean; tooltip: string } => {
+    if (userData?.role === 'super_admin') return { enabled: true, tooltip: '' };
+    if (isLoading || !userData || planConfig.length === 0) return { enabled: false, tooltip: 'Cargando configuración...' };
+    
+    const effectivePlanId = userData.companyPlan || userData.plan;
+    if (!effectivePlanId) return { enabled: false, tooltip: 'No tienes un plan asignado.' };
+    
+    const plan = planConfig.find(p => p.id === effectivePlanId);
+    if (!plan) return { enabled: false, tooltip: `Plan '${effectivePlanId}' no encontrado.` };
+    
+    if (plan.features[toolHref]) {
+        return { enabled: true, tooltip: '' };
+    }
+    
+    return { enabled: false, tooltip: 'No incluido en tu plan.' };
+  };
+
 
   const handleRunTest = async () => {
     setIsTestRunning(true);
@@ -228,6 +264,10 @@ export default function DashboardPage() {
 
   const shopifyTestReady = configStatus?.shopifyCustomAppConfigured;
 
+  const wizardCheck = isToolEnabled('/wizard');
+  const batchProcessCheck = isToolEnabled('/batch-process');
+  const blogCreatorCheck = isToolEnabled('/blog-creator');
+
   if (isLoading) {
     return (
         <div className="space-y-8">
@@ -261,12 +301,12 @@ export default function DashboardPage() {
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-lg font-medium">Crear Nuevo Producto</CardTitle><PlusCircle className="h-6 w-6 text-primary" /></CardHeader>
                         <CardContent className="flex flex-col flex-grow">
                           <CardDescription className="mb-4 text-sm">Inicia el asistente para añadir productos a tu tienda WooCommerce.</CardDescription>
-                          <Button asChild className="w-full mt-auto" disabled={!wooWpConfigured}><Link href="/wizard" className={cn(!wooWpConfigured && "pointer-events-none")}>Iniciar Asistente</Link></Button>
+                          <Button asChild className="w-full mt-auto" disabled={!wooWpConfigured || !wizardCheck.enabled}><Link href="/wizard" className={cn(!wooWpConfigured && "pointer-events-none")}>Iniciar Asistente</Link></Button>
                         </CardContent>
                       </Card>
                     </div>
                   </TooltipTrigger>
-                  {!wooWpConfigured && (<TooltipContent><p>Configuración de WooCommerce/WordPress incompleta.</p></TooltipContent>)}
+                  {(!wooWpConfigured || !wizardCheck.enabled) && (<TooltipContent><p>{!wooWpConfigured ? 'Configuración de WooCommerce/WordPress incompleta.' : wizardCheck.tooltip}</p></TooltipContent>)}
                 </Tooltip>
             </TooltipProvider>
             <TooltipProvider>
@@ -277,12 +317,12 @@ export default function DashboardPage() {
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-lg font-medium">Procesamiento en Lotes</CardTitle><UploadCloud className="h-6 w-6 text-primary" /></CardHeader>
                       <CardContent className="flex flex-col flex-grow">
                         <CardDescription className="mb-4 text-sm">Sube un CSV para crear productos de forma masiva y eficiente.</CardDescription>
-                        <Button asChild variant="outline" className="w-full mt-auto" disabled={!wooWpConfigured}><Link href="/batch-process" className={cn(!wooWpConfigured && "pointer-events-none")}>Iniciar Procesamiento</Link></Button>
+                        <Button asChild variant="outline" className="w-full mt-auto" disabled={!wooWpConfigured || !batchProcessCheck.enabled}><Link href="/batch-process" className={cn(!wooWpConfigured && "pointer-events-none")}>Iniciar Procesamiento</Link></Button>
                       </CardContent>
                     </Card>
                   </div>
                 </TooltipTrigger>
-                {!wooWpConfigured && (<TooltipContent><p>Configuración de WooCommerce/WordPress incompleta.</p></TooltipContent>)}
+                 {(!wooWpConfigured || !batchProcessCheck.enabled) && (<TooltipContent><p>{!wooWpConfigured ? 'Configuración de WooCommerce/WordPress incompleta.' : batchProcessCheck.tooltip}</p></TooltipContent>)}
               </Tooltip>
             </TooltipProvider>
             <TooltipProvider>
@@ -293,12 +333,12 @@ export default function DashboardPage() {
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-lg font-medium">Crear Nueva Entrada</CardTitle><Newspaper className="h-6 w-6 text-primary" /></CardHeader>
                       <CardContent className="flex flex-col flex-grow">
                         <CardDescription className="mb-4 text-sm">Usa el asistente con IA para generar contenido para tu blog.</CardDescription>
-                        <Button asChild variant="secondary" className="w-full mt-auto" disabled={!wpConfigured}><Link href="/blog-creator" className={cn(!wpConfigured && "pointer-events-none")}>Crear Entrada</Link></Button>
+                        <Button asChild variant="secondary" className="w-full mt-auto" disabled={!wpConfigured || !blogCreatorCheck.enabled}><Link href="/blog-creator" className={cn(!wpConfigured && "pointer-events-none")}>Crear Entrada</Link></Button>
                       </CardContent>
                     </Card>
                   </div>
                 </TooltipTrigger>
-                {!wpConfigured && (<TooltipContent><p>Configuración de WordPress incompleta.</p></TooltipContent>)}
+                {(!wpConfigured || !blogCreatorCheck.enabled) && (<TooltipContent><p>{!wpConfigured ? 'Configuración de WordPress incompleta.' : blogCreatorCheck.tooltip}</p></TooltipContent>)}
               </Tooltip>
             </TooltipProvider>
           </div>
