@@ -267,12 +267,13 @@ export default function CompanySettingsPage() {
         }
 
         const isCompany = editingEntityType === 'company';
+        const canEditCompanyName = currentUser?.role === 'super_admin' || (currentUser?.role === 'admin' && isCompany);
+        
         const generalInfoTitle = isCompany ? 'Información General y Fiscal' : 'Información de Contacto y Facturación';
         const nameLabel = isCompany ? 'Nombre de la Empresa' : 'Nombre de Usuario / Razón Social';
         const taxLabel = isCompany ? 'NIF/CIF (Tax ID)' : 'NIF/CIF (Opcional)';
         const addressLabel = isCompany ? 'Dirección Fiscal' : 'Dirección (Opcional)';
         
-        const canEditCompanyName = currentUser?.role === 'super_admin' && isCompany;
 
         return (
             <FormProvider {...form}>
@@ -290,7 +291,6 @@ export default function CompanySettingsPage() {
                                             <FormControl>
                                                 <Input {...field} placeholder="Ej: Mi Gran Empresa S.L." disabled={isSaving || !canEditCompanyName} />
                                             </FormControl>
-                                            {!canEditCompanyName && isCompany && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar el nombre de la empresa.</p>}
                                             <FormMessage />
                                         </FormItem>
                                     )}
