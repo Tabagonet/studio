@@ -1,6 +1,6 @@
 
 
-import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList, SearchCheck, Copy, Building, Megaphone, Briefcase, Store, ListChecks, Lightbulb, FileText, Shield, Sparkles } from 'lucide-react';
+import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList, SearchCheck, Copy, Building, Megaphone, Briefcase, Store, ListChecks, Lightbulb, FileText, Shield, Sparkles, User } from 'lucide-react';
 import type { NavItem, ProductType, ProductData, BlogPostData, NavGroup } from '@/lib/types';
 import { ShopifyIcon } from '@/components/core/icons';
 
@@ -150,9 +150,9 @@ export const ALL_LANGUAGES = [
 export const AI_CREDIT_COSTS: { name: string; href: string, credits: number }[] = [
   { name: 'Asistente de Creación de Productos', href: '/wizard', credits: 10 },
   { name: 'Asistente de Creación de Entradas', href: '/blog-creator', credits: 10 },
-  { name: 'IA en Gestión de Productos', href: '/batch', credits: 2 },
-  { name: 'IA en Gestión del Blog', href: '/blog', credits: 2 },
-  { name: 'IA en Gestión de Páginas', href: '/pages', credits: 2 },
+  { name: 'Generación IA (en Gestión de Productos)', href: '/batch', credits: 2 },
+  { name: 'Generación IA (en Gestión de Entradas)', href: '/blog', credits: 2 },
+  { name: 'Generación IA (en Gestión de Páginas)', href: '/pages', credits: 2 },
   { name: 'Estrategia de Contenidos', href: '/content-strategy', credits: 5 },
   { name: 'Planificador de Publicidad', href: '/ad-planner', credits: 5 },
   { name: 'Generador de Creatividades', href: '/ad-planner', credits: 2 },

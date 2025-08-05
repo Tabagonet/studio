@@ -5,54 +5,79 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Sparkles, AlertCircle, CheckCircle, Mail, ArrowRight } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { Loader2, Sparkles, CheckCircle, Mail, ArrowRight } from "lucide-react";
+import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { type Plan, type PlanUsage } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { SUPPORT_EMAIL } from '@/lib/constants';
+import { SUPPORT_EMAIL, AI_CREDIT_COSTS } from '@/lib/constants';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 
 
-const PlanCard = ({ plan, isCurrent }: { plan: Plan; isCurrent: boolean }) => (
-    <Card className={cn("flex flex-col", isCurrent ? "border-primary ring-2 ring-primary" : "hover:shadow-lg transition-shadow")}>
-        <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-                <span>{plan.name}</span>
-                {isCurrent && <Badge>Plan Actual</Badge>}
-            </CardTitle>
-            <CardDescription>{plan.price}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex-grow space-y-3">
-            <ul className="space-y-2 text-sm">
-                <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span>Conexiones a Sitios: <strong>{plan.sites >= 999 ? 'Ilimitado' : plan.sites}</strong></span>
-                </li>
-                <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span>Usuarios por empresa: <strong>{plan.users >= 999 ? 'Ilimitado' : plan.users}</strong></span>
-                </li>
-                 <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span>Créditos de IA / mes: <strong>{plan.aiCredits.toLocaleString('es-ES')}</strong></span>
-                </li>
-            </ul>
-        </CardContent>
-        <CardFooter>
-            {!isCurrent && (
-                 <Button asChild className="w-full">
-                    <Link href={`mailto:${SUPPORT_EMAIL}?subject=Solicitud de cambio al plan ${plan.name}`}>
-                      <Mail className="mr-2 h-4 w-4" /> Solicitar Cambio
-                    </Link>
-                </Button>
-            )}
-        </CardFooter>
-    </Card>
-);
+const PlanCard = ({ plan, isCurrent }: { plan: Plan; isCurrent: boolean }) => {
+
+    const featuresToShow = AI_CREDIT_COSTS.filter(feature => plan.features[feature.href]);
+    
+    return (
+        <Card className={cn("flex flex-col", isCurrent ? "border-primary ring-2 ring-primary" : "hover:shadow-lg transition-shadow")}>
+            <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                    <span>{plan.name}</span>
+                    {isCurrent && <Badge>Plan Actual</Badge>}
+                </CardTitle>
+                <CardDescription>{plan.price}</CardDescription>
+            </CardHeader>
+            <CardContent className="flex-grow space-y-4">
+                <ul className="space-y-2 text-sm border-b pb-4">
+                    <li className="flex items-center justify-between">
+                        <span><Users className="inline h-4 w-4 mr-2 text-muted-foreground"/>Usuarios por empresa:</span>
+                        <span className="font-semibold">{plan.users >= 999 ? 'Ilimitado' : plan.users}</span>
+                    </li>
+                    <li className="flex items-center justify-between">
+                        <span><Globe className="inline h-4 w-4 mr-2 text-muted-foreground"/>Conexiones a Sitios:</span>
+                        <span className="font-semibold">{plan.sites >= 999 ? 'Ilimitado' : plan.sites}</span>
+                    </li>
+                    <li className="flex items-center justify-between">
+                        <span><BrainCircuit className="inline h-4 w-4 mr-2 text-muted-foreground"/>Créditos de IA / mes:</span>
+                        <span className="font-semibold">{plan.aiCredits.toLocaleString('es-ES')}</span>
+                    </li>
+                </ul>
+                <div>
+                  <h4 className="text-sm font-semibold mb-2">Estimación de Uso Mensual (con IA)</h4>
+                  <div className="text-xs text-muted-foreground space-y-2">
+                    {featuresToShow.length > 0 ? (
+                        featuresToShow.map(feature => {
+                            const uses = Math.floor(plan.aiCredits / feature.credits);
+                            return (
+                                <div key={feature.name} className="flex justify-between items-center">
+                                    <span>{feature.name}</span>
+                                    <span className="font-bold text-foreground">~ {uses} / mes</span>
+                                </div>
+                            )
+                        })
+                    ) : (
+                        <p className="text-center italic py-2">Este plan no incluye herramientas de IA.</p>
+                    )}
+                  </div>
+                </div>
+            </CardContent>
+            <CardFooter>
+                {!isCurrent && (
+                     <Button asChild className="w-full">
+                        <Link href={`mailto:${SUPPORT_EMAIL}?subject=Solicitud de cambio al plan ${plan.name}`}>
+                          <Mail className="mr-2 h-4 w-4" /> Solicitar Cambio
+                        </Link>
+                    </Button>
+                )}
+            </CardFooter>
+        </Card>
+    );
+};
+
 
 export default function MyPlanPage() {
     const [currentPlan, setCurrentPlan] = useState<Plan | null>(null);
@@ -166,7 +191,7 @@ export default function MyPlanPage() {
                                 <TableCell className="text-center">{usage?.users.used ?? 0}</TableCell>
                                 <TableCell className="text-center">{usage?.users.limit ?? 0}</TableCell>
                                 <TableCell className="text-right">
-                                    <progress value={usage?.users.used} max={usage?.users.limit} className="w-24 h-2 [&::-webkit-progress-bar]:rounded-lg [&::-webkit-progress-value]:rounded-lg [&::-webkit-progress-bar]:bg-slate-300 [&::-webkit-progress-value]:bg-primary [&::-moz-progress-bar]:bg-primary"/>
+                                    <Progress value={usage?.users.used ?? 0} max={usage?.users.limit} className="w-24 h-2" />
                                 </TableCell>
                             </TableRow>
                             <TableRow>
@@ -174,7 +199,7 @@ export default function MyPlanPage() {
                                 <TableCell className="text-center">{usage?.connections.used ?? 0}</TableCell>
                                 <TableCell className="text-center">{usage?.connections.limit ?? 0}</TableCell>
                                 <TableCell className="text-right">
-                                     <progress value={usage?.connections.used} max={usage?.connections.limit} className="w-24 h-2 [&::-webkit-progress-bar]:rounded-lg [&::-webkit-progress-value]:rounded-lg [&::-webkit-progress-bar]:bg-slate-300 [&::-webkit-progress-value]:bg-primary [&::-moz-progress-bar]:bg-primary"/>
+                                     <Progress value={usage?.connections.used ?? 0} max={usage?.connections.limit} className="w-24 h-2"/>
                                 </TableCell>
                             </TableRow>
                               <TableRow>
@@ -182,7 +207,7 @@ export default function MyPlanPage() {
                                 <TableCell className="text-center">{usage?.aiCredits.used ?? 0}</TableCell>
                                 <TableCell className="text-center">{usage?.aiCredits.limit.toLocaleString('es-ES') ?? 0}</TableCell>
                                 <TableCell className="text-right">
-                                     <progress value={usage?.aiCredits.used} max={usage?.aiCredits.limit} className="w-24 h-2 [&::-webkit-progress-bar]:rounded-lg [&::-webkit-progress-value]:rounded-lg [&::-webkit-progress-bar]:bg-slate-300 [&::-webkit-progress-value]:bg-primary [&::-moz-progress-bar]:bg-primary"/>
+                                     <Progress value={usage?.aiCredits.used ?? 0} max={usage?.aiCredits.limit} className="w-24 h-2"/>
                                 </TableCell>
                             </TableRow>
                         </TableBody>
@@ -192,5 +217,3 @@ export default function MyPlanPage() {
         </div>
     );
 }
-
-    
