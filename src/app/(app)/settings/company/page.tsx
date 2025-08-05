@@ -51,7 +51,7 @@ export default function CompanySettingsPage() {
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
 
-    const [currentUser, setCurrentUser] = useState<{ uid: string | null; role: string | null; companyId: string | null; companyName: string | null; } | null>(null);
+    const [currentUser, setCurrentUser] = useState<{ uid: string | null; role: string | null; companyId: string | null; companyName: string | null; companyPlatform: 'woocommerce' | 'shopify' | null; companyPlan: 'lite' | 'pro' | 'agency' | null; } | null>(null);
     const [allCompanies, setAllCompanies] = useState<Company[]>([]);
     const [unassignedUsers, setUnassignedUsers] = useState<AppUser[]>([]);
     const [editingTargetId, setEditingTargetId] = useState<string | null>(null);
@@ -77,12 +77,12 @@ export default function CompanySettingsPage() {
         },
     });
 
-     const fetchSettingsData = useCallback(async (user: FirebaseUser, type: 'user' | 'company', id: string) => {
+     const fetchSettingsData = useCallback(async (user: FirebaseUser, type: 'user' | 'company', id: string, entityDetails?: Partial<CompanyFormData>) => {
         setIsLoading(true);
         try {
             const token = await user.getIdToken();
             let dataToSet: Partial<CompanyFormData> = {};
-            let entityName = 'Entidad Desconocida';
+            let fetchedCompanyData = {};
 
             if (type === 'company') {
                 const companyResponse = await fetch(`/api/user-settings/company?companyId=${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
@@ -92,30 +92,13 @@ export default function CompanySettingsPage() {
                     if(companyResponse.status === 403) throw new Error("No tienes permiso para ver los datos de esta empresa.");
                     throw new Error("No se pudieron cargar los datos de la empresa.");
                 }
-
-                const companyDetails = (await (await fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } })).json()).companies.find((c: any) => c.id === id);
-                entityName = companyDetails?.name || 'Empresa Desconocida';
-                const fetchedCompanyData = (await companyResponse.json()).company || {};
-                
-                dataToSet = {
-                    name: entityName,
-                    platform: companyDetails?.platform || 'woocommerce',
-                    plan: companyDetails?.plan || 'pro',
-                    ...fetchedCompanyData
-                };
+                fetchedCompanyData = (await companyResponse.json()).company || {};
             } else { // type === 'user'
-                 const usersResponse = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } });
-                 const allUsers = (await usersResponse.json()).users;
-                 const targetUser = allUsers.find((u: AppUser) => u.uid === id);
-                 entityName = targetUser?.displayName || 'Usuario Desconocido';
                  const userSettingsResponse = await fetch(`/api/user-settings/connections?userId=${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
-                 dataToSet = {
-                     name: entityName,
-                     platform: targetUser?.platform,
-                     plan: targetUser?.plan || 'pro',
-                     ...(userSettingsResponse.ok ? (await userSettingsResponse.json()).companyData : {})
-                 };
+                 fetchedCompanyData = (userSettingsResponse.ok ? (await userSettingsResponse.json()).companyData : {});
             }
+            
+            dataToSet = { ...entityDetails, ...fetchedCompanyData };
             
             form.reset(dataToSet);
             if (dataToSet.logoUrl) {
@@ -143,6 +126,7 @@ export default function CompanySettingsPage() {
 
                 let initialType: 'user' | 'company' = 'user';
                 let initialId: string | null = user.uid;
+                let initialEntityDetails: Partial<CompanyFormData> = {};
 
                 if (userData.role === 'super_admin') {
                     const [companiesResponse, usersResponse] = await Promise.all([
@@ -156,18 +140,23 @@ export default function CompanySettingsPage() {
                     if(companyIdFromUrl) {
                       initialType = 'company';
                       initialId = companyIdFromUrl;
+                       const companyData = (await (await fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } })).json()).companies.find((c: any) => c.id === initialId);
+                      if (companyData) {
+                          initialEntityDetails = { name: companyData.name, platform: companyData.platform, plan: companyData.plan };
+                      }
                     }
 
                 } else if (userData.companyId) {
                      initialType = 'company';
                      initialId = userData.companyId;
+                     initialEntityDetails = { name: userData.companyName, platform: userData.companyPlatform, plan: userData.companyPlan };
                 }
                 
                 setEditingEntityType(initialType);
                 setEditingTargetId(initialId);
                 
                 if (initialId) {
-                    await fetchSettingsData(user, initialType, initialId);
+                    await fetchSettingsData(user, initialType, initialId, initialEntityDetails);
                 } else {
                     setIsLoading(false);
                 }
@@ -183,9 +172,20 @@ export default function CompanySettingsPage() {
         const user = auth.currentUser;
         if (!user) return;
         const [type, id] = value.split(':');
-        setEditingEntityType(type as 'user' | 'company');
+        const entityType = type as 'user' | 'company';
+        setEditingEntityType(entityType);
         setEditingTargetId(id);
-        fetchSettingsData(user, type as 'user' | 'company', id);
+        
+        let entityDetails: Partial<CompanyFormData> = {};
+        if(entityType === 'company') {
+            const company = allCompanies.find(c => c.id === id);
+            if(company) entityDetails = { name: company.name, platform: company.platform, plan: company.plan };
+        } else {
+            const selectedUser = unassignedUsers.find(u => u.uid === id);
+            if (selectedUser) entityDetails = { name: selectedUser.displayName, platform: selectedUser.platform, plan: selectedUser.plan };
+        }
+        
+        fetchSettingsData(user, entityType, id, entityDetails);
     }
     
 
@@ -237,7 +237,10 @@ export default function CompanySettingsPage() {
             if (!response.ok) throw new Error((await response.json()).error || "Fallo al guardar los datos.");
             
             toast({ title: "Datos Guardados", description: `La información ha sido actualizada.` });
-            if (editingTargetId) fetchSettingsData(user, editingEntityType, editingTargetId);
+            if (editingTargetId) {
+                const entityDetails = { name: formData.name, platform: formData.platform, plan: formData.plan };
+                await fetchSettingsData(user, editingEntityType, editingTargetId, entityDetails);
+            }
         } catch (error: any) {
             toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
         } finally {
@@ -270,7 +273,6 @@ export default function CompanySettingsPage() {
         const addressLabel = isCompany ? 'Dirección Fiscal' : 'Dirección (Opcional)';
         
         const canEditCompanyName = currentUser?.role === 'super_admin' && isCompany;
-        const canEditUserName = !isCompany;
 
         return (
             <FormProvider {...form}>
@@ -286,7 +288,7 @@ export default function CompanySettingsPage() {
                                         <FormItem>
                                             <FormLabel>{nameLabel}</FormLabel>
                                             <FormControl>
-                                                <Input {...field} placeholder="Ej: Mi Gran Empresa S.L." disabled={isSaving || (!canEditCompanyName && !canEditUserName)} />
+                                                <Input {...field} placeholder="Ej: Mi Gran Empresa S.L." disabled={isSaving || !canEditCompanyName} />
                                             </FormControl>
                                             {!canEditCompanyName && isCompany && <p className="text-xs text-muted-foreground mt-1">Solo un Super Admin puede cambiar el nombre de la empresa.</p>}
                                             <FormMessage />

@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
@@ -67,7 +68,13 @@ export async function GET(req: NextRequest) {
         const docSnap = await settingsRef.get();
 
         if (!docSnap.exists) {
-            return NextResponse.json({ company: null }, { status: 404 });
+            // It might be in user_settings as a fallback
+            const userSettingsRef = adminDb.collection('user_settings').doc(targetCompanyId);
+            const userSettingsDoc = await userSettingsRef.get();
+             if (!userSettingsDoc.exists) {
+                return NextResponse.json({ company: null }, { status: 404 });
+            }
+            return NextResponse.json({ company: userSettingsDoc.data() });
         }
         return NextResponse.json({ company: docSnap.data() });
 
@@ -133,24 +140,17 @@ export async function POST(req: NextRequest) {
         
         settingsRef = adminDb.collection(entityType === 'company' ? 'companies' : 'user_settings').doc(effectiveId);
         
-        // We separate the fields that have special permissions
         const { name, platform, plan, ...restOfData } = data;
         
         let updatePayload: any = { ...restOfData };
         
-        // Only a Super Admin can change the name, platform, or plan of a company.
         if (role === 'super_admin' && entityType === 'company') {
             if (name !== undefined) updatePayload.name = name;
             if (platform !== undefined) updatePayload.platform = platform;
             if (plan !== undefined) updatePayload.plan = plan;
-        } else if (entityType === 'user') {
-            // A user or admin can edit their own name or individual plan (if they don't belong to a company)
-            if (name !== undefined) updatePayload.name = name;
-            if (plan !== undefined) updatePayload.plan = plan;
-        } else if (role === 'admin' && entityType === 'company') {
-            // An admin can edit their own company's details, but not name, platform or plan.
         } else {
-             return NextResponse.json({ error: 'Permission denied to modify certain fields.' }, { status: 403 });
+            // Regular admins cannot change the name, platform, or plan of a company.
+            // These fields will be ignored if sent.
         }
         
         await settingsRef.set(updatePayload, { merge: true });
