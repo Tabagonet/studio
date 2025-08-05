@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
+import type { ActivityLog } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,7 +72,7 @@ export async function GET(req: NextRequest) {
         const logsSnapshot = await adminDb.collection('activity_logs').orderBy('timestamp', 'desc').limit(200).get();
         
         // Step 4: Map logs to include user details, creating an enriched list
-        const allEnrichedLogs = logsSnapshot.docs.map(doc => {
+        const allEnrichedLogs: ActivityLog[] = logsSnapshot.docs.map(doc => {
             const logData = doc.data();
             // Use the user map, providing a fallback for deleted users
             const user = usersMap.get(logData.userId) || { displayName: 'Usuario Eliminado', email: '', photoURL: '', companyId: null, companyName: null, platform: null };
@@ -79,7 +80,7 @@ export async function GET(req: NextRequest) {
                 id: doc.id,
                 userId: logData.userId,
                 action: logData.action,
-                details: logData.details,
+                details: log.details,
                 timestamp: logData.timestamp.toDate().toISOString(),
                 user: user
             };

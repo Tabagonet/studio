@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, LineChart, History, Calendar, Download, Building, Store } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged, type FirebaseUser } from "@/lib/firebase";
-import type { ActivityLog, User as AppUser } from '@/lib/types';
+import type { ActivityLog } from '@/lib/types';
 import { formatDistanceToNow, parseISO, subDays, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Image from 'next/image';
