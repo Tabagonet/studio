@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Sparkles, CheckCircle, Mail, ArrowRight } from "lucide-react";
+import { Loader2, Sparkles, CheckCircle, Mail, ArrowRight, Users, Globe, BrainCircuit } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { type Plan, type PlanUsage } from '@/lib/types';
