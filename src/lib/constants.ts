@@ -146,3 +146,18 @@ export const ALL_LANGUAGES = [
     { code: 'German', name: 'Alemán', slug: 'de' },
     { code: 'Portuguese', name: 'Portugués', slug: 'pt' },
 ];
+
+export const AI_CREDIT_COSTS: { name: string; href: string, credits: number }[] = [
+  { name: 'Asistente de Creación de Productos', href: '/wizard', credits: 10 },
+  { name: 'Asistente de Creación de Entradas', href: '/blog-creator', credits: 10 },
+  { name: 'IA en Gestión de Productos', href: '/batch', credits: 2 },
+  { name: 'IA en Gestión del Blog', href: '/blog', credits: 2 },
+  { name: 'IA en Gestión de Páginas', href: '/pages', credits: 2 },
+  { name: 'Estrategia de Contenidos', href: '/content-strategy', credits: 5 },
+  { name: 'Planificador de Publicidad', href: '/ad-planner', credits: 5 },
+  { name: 'Generador de Creatividades', href: '/ad-planner', credits: 2 },
+  { name: 'Generador de Tareas de Marketing', href: '/ad-planner', credits: 2 },
+  { name: 'Análisis de Competencia', href: '/ad-planner', credits: 5 },
+  { name: 'Estructura de Campaña de Google Ads', href: '/ad-planner', credits: 10 },
+  { name: 'Optimizador SEO (Análisis Técnico)', href: '/seo-optimizer', credits: 1 },
+];

@@ -1,4 +1,5 @@
 
+
       
 
 import type { LucideIcon } from 'lucide-react';
@@ -367,6 +368,7 @@ export interface Company {
     createProducts?: boolean;
     theme?: string;
   };
+  aiUsageCount?: number; // Added field for credits
 }
 
 export interface User {
@@ -383,6 +385,7 @@ export interface User {
   plan?: 'lite' | 'pro' | 'agency' | null;
   platform?: 'woocommerce' | 'shopify' | null;
   companyPlatform?: 'woocommerce' | 'shopify' | null;
+  aiUsageCount?: number; // Added field for credits
 }
 
 export interface Prospect {
@@ -468,5 +471,3 @@ export interface PlanUsage {
   users: { used: number; limit: number; };
   aiCredits: { used: number; limit: number; };
 }
-
-    

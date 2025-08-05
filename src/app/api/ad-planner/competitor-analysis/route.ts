@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebase-admin';
+import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
+import { getApiClientsForUser } from '@/lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 

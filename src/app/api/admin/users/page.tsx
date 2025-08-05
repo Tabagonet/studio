@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import type { PlanUsage } from '@/lib/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { deleteUserAction, inviteUserAction } from './actions';
+import { inviteUserAction } from './actions';
 
 export default function AdminUsersPage() {
     const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);

@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
@@ -25,6 +26,19 @@ const outputSchema = z.object({
 });
 export type StrategyPlan = z.infer<typeof outputSchema>;
 
+async function getEntityRef(uid: string): Promise<[FirebaseFirestore.DocumentReference, number]> {
+    if (!adminDb) throw new Error("Firestore not configured.");
+
+    const userDoc = await adminDb.collection('users').doc(uid).get();
+    const userData = userDoc.data();
+    const cost = 5; // Cost for generating a content strategy plan
+
+    if (userData?.companyId) {
+        return [adminDb.collection('companies').doc(userData.companyId), cost];
+    }
+    return [adminDb.collection('user_settings').doc(uid), cost];
+}
+
 
 export async function POST(req: NextRequest) {
   let uid: string;
@@ -45,6 +59,9 @@ export async function POST(req: NextRequest) {
     }
 
     const { businessContext, url } = validation.data;
+
+    const [entityRef, cost] = await getEntityRef(uid);
+    await entityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(cost) }, { merge: true });
 
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
@@ -98,11 +115,6 @@ export async function POST(req: NextRequest) {
     const plan = outputSchema.parse(JSON.parse(response.text()));
 
     if (adminDb) {
-      await adminDb.collection('user_settings').doc(uid).set({ 
-        aiUsageCount: admin.firestore.FieldValue.increment(1) 
-      }, { merge: true });
-
-      // Save the generated plan to history
       const newPlanRef = adminDb.collection('content_strategy_plans').doc();
       const planToSave = {
         userId: uid,
@@ -120,6 +132,9 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error('Error generating content plan:', error);
+    if (error.message && error.message.includes('503')) {
+       return NextResponse.json({ error: 'El servicio de IA está sobrecargado en este momento. Por favor, inténtalo de nuevo más tarde.' }, { status: 503 });
+    }
     return NextResponse.json({ error: 'Failed to generate content plan', details: error.message }, { status: 500 });
   }
 }
