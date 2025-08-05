@@ -14,7 +14,7 @@ import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator, SelectLabel, SelectGroup } from '@/components/ui/select';
-import type { Company, User as AppUser } from '@/lib/types';
+import type { Company, User as AppUser, PlanUsage } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
@@ -22,6 +22,7 @@ import { ShopifyIcon } from '@/components/core/icons';
 import { ShopifyPartnerCard } from '@/components/features/settings/connections/shopify-partner-card';
 import type { PartnerAppConnectionData } from '@/lib/api-helpers';
 import { ConnectionStatusIndicator } from '@/components/core/ConnectionStatusIndicator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 interface ConnectionData {
@@ -107,34 +108,46 @@ export default function ConnectionsPage() {
 
     const [selectedEntityStatus, setSelectedEntityStatus] = useState<SelectedEntityStatus | null>(null);
     const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+    
+    const [planUsage, setPlanUsage] = useState<PlanUsage | null>(null);
+    const [isLoadingUsage, setIsLoadingUsage] = useState(true);
+
 
     const fetchAllDataForTarget = useCallback(async (user: FirebaseUser, targetType: 'user' | 'company', targetId: string | null) => {
         setIsLoading(true);
+        setIsLoadingUsage(true);
         if (!targetId) {
             setAllConnections({});
             setActiveKey(null);
             setSelectedKey('new');
             setFormData(INITIAL_STATE);
             setPartnerFormData(INITIAL_PARTNER_APP_STATE);
+            setPlanUsage(null);
             setIsLoading(false);
+            setIsLoadingUsage(false);
             return;
         }
 
         try {
             const token = await user.getIdToken();
-            const url = new URL('/api/user-settings/connections', window.location.origin);
+            const connectionsUrl = new URL('/api/user-settings/connections', window.location.origin);
+            const planUrl = new URL('/api/user-settings/my-plan', window.location.origin); // Using the same logic as my-plan page
+
             if (targetType === 'company') {
-                url.searchParams.append('companyId', targetId);
+                connectionsUrl.searchParams.append('companyId', targetId);
+                planUrl.searchParams.append('companyId', targetId); // Pass companyId for plan usage
             } else { // 'user'
-                url.searchParams.append('userId', targetId);
+                connectionsUrl.searchParams.append('userId', targetId);
+                planUrl.searchParams.append('userId', targetId);
             }
             
-            const response = await fetch(url.toString(), {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const [connectionsResponse, planResponse] = await Promise.all([
+                fetch(connectionsUrl.toString(), { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch(planUrl.toString(), { headers: { 'Authorization': `Bearer ${token}` } })
+            ]);
 
-            if (response.ok) {
-                const data = await response.json();
+            if (connectionsResponse.ok) {
+                const data = await connectionsResponse.json();
                 const connections = data.allConnections || {};
                 setAllConnections(connections);
                 if (connections.partner_app) {
@@ -158,14 +171,24 @@ export default function ConnectionsPage() {
                     setFormData(INITIAL_STATE);
                 }
             } else {
-                throw new Error((await response.json()).error || "Fallo al cargar las conexiones.");
+                 throw new Error((await connectionsResponse.json()).error || "Fallo al cargar las conexiones.");
             }
+
+            if (planResponse.ok) {
+                const planData = await planResponse.json();
+                setPlanUsage(planData.usage);
+            } else {
+                setPlanUsage(null);
+                console.warn("Could not load plan usage data.");
+            }
+            
             await fetchStatus(targetType, targetId, token);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "Error desconocido.";
-            toast({ title: "Error al Cargar Conexiones", description: errorMessage, variant: "destructive" });
+            toast({ title: "Error al Cargar Datos", description: errorMessage, variant: "destructive" });
         } finally {
             setIsLoading(false);
+            setIsLoadingUsage(false);
         }
     }, [toast]); // Removed fetchStatus from dependency array to break potential loops
     
@@ -386,7 +409,7 @@ export default function ConnectionsPage() {
         } catch (error: any) {
             toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
         } finally {
-            setSaving(false);
+            setIsSaving(false);
             setIsSavingPartner(false);
         }
     };
@@ -444,6 +467,9 @@ export default function ConnectionsPage() {
     
     const showWooCommerce = currentUser?.role === 'super_admin' || editingTargetPlatform === 'woocommerce';
     const showShopify = currentUser?.role === 'super_admin' || editingTargetPlatform === 'shopify';
+
+    const isConnectionLimitReached = !isLoadingUsage && planUsage ? (planUsage.connections.used >= planUsage.connections.limit) : false;
+    const canAddNewConnection = currentUser?.role === 'super_admin' || !isConnectionLimitReached;
 
     if (isDataLoading) {
         return (
@@ -518,30 +544,46 @@ export default function ConnectionsPage() {
                      <ConnectionStatusIndicator status={selectedEntityStatus} isLoading={isCheckingStatus} onRefresh={() => auth.currentUser && fetchAllDataForTarget(auth.currentUser, editingTarget.type, editingTarget.id)} />
                     <div className="flex-1">
                         <Label htmlFor="profile-selector">Selecciona un perfil para editar o añade uno nuevo</Label>
-                        <Select value={selectedKey} onValueChange={setSelectedKey} disabled={isSaving || isLoading}>
-                            <SelectTrigger id="profile-selector"><SelectValue placeholder="Selecciona un perfil..." /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="new"><PlusCircle className="inline-block mr-2 h-4 w-4" />Añadir Nueva Conexión</SelectItem>
-                                {connectionKeys.map(key => {
-                                    const connection = allConnections[key] as ConnectionData;
-                                    const isShopify = !!connection.shopifyStoreUrl;
-                                    const isWoo = !!connection.wooCommerceStoreUrl || !!connection.wordpressApiUrl;
-                                    let Icon;
-                                    if (isShopify) Icon = ShopifyIcon;
-                                    else if (isWoo) Icon = Store;
+                         <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <div className={cn(!canAddNewConnection && "cursor-not-allowed")}>
+                                        <Select value={selectedKey} onValueChange={setSelectedKey} disabled={isSaving || isLoading || (!canAddNewConnection && selectedKey === 'new')}>
+                                            <SelectTrigger id="profile-selector" disabled={isSaving || isLoading || (!canAddNewConnection && selectedKey === 'new')}><SelectValue placeholder="Selecciona un perfil..." /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="new" disabled={!canAddNewConnection}>
+                                                    <PlusCircle className="inline-block mr-2 h-4 w-4" />
+                                                    Añadir Nueva Conexión
+                                                </SelectItem>
+                                                {connectionKeys.map(key => {
+                                                    const connection = allConnections[key] as ConnectionData;
+                                                    const isShopify = !!connection.shopifyStoreUrl;
+                                                    const isWoo = !!connection.wooCommerceStoreUrl || !!connection.wordpressApiUrl;
+                                                    let Icon;
+                                                    if (isShopify) Icon = ShopifyIcon;
+                                                    else if (isWoo) Icon = Store;
 
-                                    return (
-                                        <SelectItem key={key} value={key}>
-                                            <div className="flex items-center gap-2">
-                                                {key === activeKey && <span className="mr-2 text-green-500">●</span>}
-                                                {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
-                                                {key}
-                                            </div>
-                                        </SelectItem>
-                                    );
-                                })}
-                            </SelectContent>
-                        </Select>
+                                                    return (
+                                                        <SelectItem key={key} value={key}>
+                                                            <div className="flex items-center gap-2">
+                                                                {key === activeKey && <span className="mr-2 text-green-500">●</span>}
+                                                                {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+                                                                {key}
+                                                            </div>
+                                                        </SelectItem>
+                                                    );
+                                                })}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </TooltipTrigger>
+                                {!canAddNewConnection && (
+                                    <TooltipContent>
+                                        <p>Has alcanzado el límite de sitios de tu plan.</p>
+                                    </TooltipContent>
+                                )}
+                            </Tooltip>
+                        </TooltipProvider>
                          <p className="text-xs text-muted-foreground mt-1">La conexión activa para <span className="font-semibold">{editingTarget.name}</span> está marcada con un círculo verde.</p>
                     </div>
                 </CardContent>
