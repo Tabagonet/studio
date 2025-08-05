@@ -1,5 +1,4 @@
 
-      
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -16,6 +15,12 @@ import { cn } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 
 const PlanCard = ({ plan, isCurrent }: { plan: Plan; isCurrent: boolean }) => {
@@ -32,38 +37,43 @@ const PlanCard = ({ plan, isCurrent }: { plan: Plan; isCurrent: boolean }) => {
                 <CardDescription>{plan.price}</CardDescription>
             </CardHeader>
             <CardContent className="flex-grow space-y-4">
-                <ul className="space-y-2 text-sm border-b pb-4">
-                    <li className="flex items-center justify-between">
+                <ul className="space-y-2 text-sm">
+                    <li className="flex items-center justify-between border-b pb-2">
                         <span><Users className="inline h-4 w-4 mr-2 text-muted-foreground"/>Usuarios por empresa:</span>
                         <span className="font-semibold">{plan.users >= 999 ? 'Ilimitado' : plan.users}</span>
                     </li>
-                    <li className="flex items-center justify-between">
+                    <li className="flex items-center justify-between border-b pb-2">
                         <span><Globe className="inline h-4 w-4 mr-2 text-muted-foreground"/>Conexiones a Sitios:</span>
                         <span className="font-semibold">{plan.sites >= 999 ? 'Ilimitado' : plan.sites}</span>
                     </li>
-                    <li className="flex items-center justify-between">
+                    <li className="flex items-center justify-between pt-2">
                         <span><BrainCircuit className="inline h-4 w-4 mr-2 text-muted-foreground"/>Créditos de IA / mes:</span>
                         <span className="font-semibold">{plan.aiCredits.toLocaleString('es-ES')}</span>
                     </li>
                 </ul>
-                <div>
-                  <h4 className="text-sm font-semibold mb-2">Estimación de Uso Mensual (con IA)</h4>
-                  <div className="text-xs text-muted-foreground space-y-2">
-                    {featuresToShow.length > 0 ? (
-                        featuresToShow.map(feature => {
-                            const uses = Math.floor(plan.aiCredits / feature.credits);
-                            return (
-                                <div key={feature.name} className="flex justify-between items-center">
-                                    <span>{feature.name}</span>
-                                    <span className="font-bold text-foreground">~ {uses} / mes</span>
-                                </div>
-                            )
-                        })
-                    ) : (
-                        <p className="text-center italic py-2">Este plan no incluye herramientas de IA.</p>
-                    )}
-                  </div>
-                </div>
+
+                <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="item-1">
+                        <AccordionTrigger>Ver detalle de uso de IA</AccordionTrigger>
+                        <AccordionContent>
+                           <div className="text-xs text-muted-foreground space-y-2 pt-2">
+                                {featuresToShow.length > 0 ? (
+                                    featuresToShow.map(feature => {
+                                        const uses = Math.floor(plan.aiCredits / feature.credits);
+                                        return (
+                                            <div key={feature.name} className="flex justify-between items-center">
+                                                <span>{feature.name}</span>
+                                                <span className="font-bold text-foreground">~ {uses} / mes</span>
+                                            </div>
+                                        )
+                                    })
+                                ) : (
+                                    <p className="text-center italic py-2">Este plan no incluye herramientas de IA.</p>
+                                )}
+                            </div>
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
             </CardContent>
             <CardFooter>
                 {!isCurrent && (
