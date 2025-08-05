@@ -351,6 +351,12 @@ export interface ProductStats {
   type: { [key: string]: number };
 }
 
+interface OneTimeCredit {
+    amount: number;
+    source: string; // e.g., "Manual Admin Add", "Bonus Pack"
+    addedAt: string; // ISO Date string
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -368,7 +374,8 @@ export interface Company {
     createProducts?: boolean;
     theme?: string;
   };
-  aiUsageCount?: number; // Added field for credits
+  aiUsageCount?: number;
+  oneTimeCredits?: OneTimeCredit[];
 }
 
 export interface User {
@@ -385,7 +392,8 @@ export interface User {
   plan?: 'lite' | 'pro' | 'agency' | null;
   platform?: 'woocommerce' | 'shopify' | null;
   companyPlatform?: 'woocommerce' | 'shopify' | null;
-  aiUsageCount?: number; // Added field for credits
+  aiUsageCount?: number;
+  oneTimeCredits?: OneTimeCredit[];
 }
 
 export interface Prospect {
@@ -469,5 +477,10 @@ export interface Plan {
 export interface PlanUsage {
   connections: { used: number; limit: number; };
   users: { used: number; limit: number; };
-  aiCredits: { used: number; limit: number; };
+  aiCredits: { 
+    used: number; 
+    limit: number;
+    oneTimeAvailable: number;
+    totalAvailable: number;
+  };
 }

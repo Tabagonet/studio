@@ -105,7 +105,7 @@ export default function AdminUsersPage() {
                             <div>
                                 <CardTitle>Gestión de Usuarios</CardTitle>
                                 <CardDescription>
-                                    Aprueba, rechaza y gestiona los roles de los usuarios de la aplicación.
+                                    Aprueba, rechaza y gestiona los roles y créditos de los usuarios de la aplicación.
                                 </CardDescription>
                             </div>
                         </div>
