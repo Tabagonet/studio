@@ -1,4 +1,3 @@
-
 // /src/app/api/tasks/reset-monthly-credits/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -35,7 +34,7 @@ export async function GET(req: NextRequest) {
             writeCount++;
             if (writeCount >= 499) { // Firestore batch limit is 500 writes
                 commitPromises.push(batch.commit());
-                batch = adminDb.batch();
+                batch = adminDb!.batch();
                 writeCount = 0;
             }
         });
@@ -48,7 +47,7 @@ export async function GET(req: NextRequest) {
             writeCount++;
             if (writeCount >= 499) {
                 commitPromises.push(batch.commit());
-                batch = adminDb.batch();
+                batch = adminDb!.batch();
                 writeCount = 0;
             }
         });
