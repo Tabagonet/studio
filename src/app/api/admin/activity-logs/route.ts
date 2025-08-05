@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
                 id: doc.id,
                 userId: logData.userId,
                 action: logData.action,
-                details: log.details,
+                details: logData.details,
                 timestamp: logData.timestamp.toDate().toISOString(),
                 user: user
             };
