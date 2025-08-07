@@ -72,6 +72,7 @@ export function ProductDataTable() {
   const [selectedStatus, setSelectedStatus] = React.useState('all');
   const [selectedStockStatus, setSelectedStockStatus] = React.useState('all');
   const [selectedLanguage, setSelectedLanguage] = React.useState('all');
+  const [selectedImageStatus, setSelectedImageStatus] = React.useState('all'); // New filter state
   const [availableLanguages, setAvailableLanguages] = React.useState<{code: string; name: string}[]>([]);
 
 
@@ -224,7 +225,13 @@ export function ProductDataTable() {
           }
       });
       
-      setData(roots);
+      let finalData = roots;
+      if (selectedImageStatus !== 'all') {
+          const hasImage = selectedImageStatus === 'with_image';
+          finalData = finalData.filter(p => !!p.image === hasImage);
+      }
+      
+      setData(finalData);
       setTotalPages(totalPages);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -233,7 +240,7 @@ export function ProductDataTable() {
     } finally {
       setIsLoading(false);
     }
-  }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedStockStatus, selectedLanguage, sorting, toast]); 
+  }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedStockStatus, selectedLanguage, selectedImageStatus, sorting, toast]); 
 
   React.useEffect(() => {
     const fetchCats = async (token: string) => {
@@ -934,6 +941,17 @@ export function ProductDataTable() {
                         <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>
                     ))}
                 </SelectContent>
+            </Select>
+             <Select value={selectedImageStatus} onValueChange={setSelectedImageStatus}>
+              <SelectTrigger className="w-full sm:w-auto sm:min-w-[150px] flex-grow">
+                <ImageIcon className="mr-2 h-4 w-4" />
+                <SelectValue placeholder="Imagen..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="with_image">Con Imagen</SelectItem>
+                <SelectItem value="without_image">Sin Imagen</SelectItem>
+              </SelectContent>
             </Select>
         </div>
         <AlertDialog>
