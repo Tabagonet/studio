@@ -394,6 +394,7 @@ export interface User {
   companyPlatform?: 'woocommerce' | 'shopify' | null;
   aiUsageCount?: number;
   oneTimeCredits?: OneTimeCredit[];
+  productCount?: number; // Total products created historically
 }
 
 export interface Prospect {

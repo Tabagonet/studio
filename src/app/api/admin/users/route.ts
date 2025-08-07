@@ -62,6 +62,17 @@ export async function GET(req: NextRequest) {
         userSettingsSnapshot.forEach(doc => {
             userSettingsMap.set(doc.id, { aiUsageCount: doc.data().aiUsageCount || 0 });
         });
+        
+        // --- NEW: Fetch historical product counts for all users ---
+        const allLogsSnapshot = await adminDb.collection('activity_logs').where('action', '==', 'PRODUCT_CREATED').get();
+        const historicalProductCounts = new Map<string, number>();
+        allLogsSnapshot.forEach(doc => {
+            const userId = doc.data().userId;
+            if (userId) {
+                historicalProductCounts.set(userId, (historicalProductCounts.get(userId) || 0) + 1);
+            }
+        });
+
 
         // Step 2: Fetch users based on the admin's role
         let usersQuery: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = adminDb.collection('users');
@@ -96,7 +107,8 @@ export async function GET(req: NextRequest) {
                 plan: data.plan || null, // Individual user plan
                 platform: data.platform || null,
                 companyPlatform: companyInfo?.platform || null,
-                aiUsageCount: aiUsageCount
+                aiUsageCount: aiUsageCount,
+                productCount: historicalProductCounts.get(doc.id) || 0, // Add historical count
             };
         });
 

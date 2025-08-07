@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -28,12 +29,14 @@ interface UserStat {
     displayName: string;
     email: string;
     photoURL: string;
-    productCount: number;
+    productCountInPeriod: number; // Renamed for clarity
+    productCountTotal: number; // New field for historical total
     connections: Set<string>;
     companyName: string | null;
     platform: 'woocommerce' | 'shopify' | null;
     aiUsageCount: number;
 }
+
 
 type GroupedUserStats = {
     companyName: string;
@@ -121,7 +124,8 @@ export default function AdminActivityPage() {
                 displayName: user.displayName,
                 email: user.email,
                 photoURL: user.photoURL,
-                productCount: 0,
+                productCountInPeriod: 0,
+                productCountTotal: user.productCount || 0, // Use historical count from user object
                 connections: new Set<string>(),
                 companyName: user.companyName || null,
                 platform: user.companyPlatform || user.platform || null,
@@ -129,11 +133,11 @@ export default function AdminActivityPage() {
             };
         });
         
-        // Populate counts and connections from filtered logs
+        // Populate counts and connections from *filtered* logs
         const productCreationLogs = filteredLogs.filter(log => log.action === 'PRODUCT_CREATED');
         productCreationLogs.forEach(log => {
             if (statsByUser[log.userId]) {
-                 statsByUser[log.userId].productCount++;
+                 statsByUser[log.userId].productCountInPeriod++;
                 if (log.details.connectionKey) {
                     statsByUser[log.userId].connections.add(log.details.connectionKey);
                 }
@@ -163,7 +167,7 @@ export default function AdminActivityPage() {
         return Object.entries(groups).map(([companyName, groupData]) => ({
             companyName,
             platform: groupData.platform,
-            users: groupData.users.sort((a,b) => b.productCount - a.productCount),
+            users: groupData.users.sort((a,b) => b.productCountInPeriod - a.productCountInPeriod),
             aiUsageCount: groupData.aiUsageCount
         })).sort((a,b) => {
             if (a.companyName === 'Sin Empresa Asignada') return 1;
@@ -184,9 +188,10 @@ export default function AdminActivityPage() {
             'Usuario': stat.displayName,
             'Email': stat.email,
             'Empresa': stat.companyName || 'N/A',
-            'Productos Creados (Periodo)': stat.productCount,
+            'Productos Creados (Periodo)': stat.productCountInPeriod,
+            'Productos (Total)': stat.productCountTotal,
             'Webs Utilizadas': Array.from(stat.connections).join(', '),
-            'Creditos IA Usados (Total Mes)': stat.aiUsageCount,
+            'Creditos IA Usados (Mes)': stat.aiUsageCount,
         }));
 
         const csv = Papa.unparse(dataToExport);
@@ -303,7 +308,8 @@ export default function AdminActivityPage() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Usuario</TableHead>
-                                <TableHead className="text-center">Productos Creados (Periodo)</TableHead>
+                                <TableHead className="text-center">Productos (Periodo)</TableHead>
+                                <TableHead className="text-center">Productos (Total)</TableHead>
                                 <TableHead className="text-center">Créditos IA (Mes)</TableHead>
                                 <TableHead>Webs Utilizadas</TableHead>
                             </TableRow>
@@ -312,7 +318,7 @@ export default function AdminActivityPage() {
                             {groupedUserStats.length > 0 ? groupedUserStats.map(group => (
                                 <React.Fragment key={group.companyName}>
                                     <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                        <TableCell colSpan={2} className="py-3 text-lg font-semibold text-primary">
+                                        <TableCell colSpan={3} className="py-3 text-lg font-semibold text-primary">
                                             <div className="flex items-center gap-2">
                                                 <Building className="h-5 w-5" />
                                                 {group.companyName}
@@ -343,7 +349,8 @@ export default function AdminActivityPage() {
                                                     </div>
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="text-center font-bold text-lg">{stat.productCount}</TableCell>
+                                            <TableCell className="text-center font-medium">{stat.productCountInPeriod}</TableCell>
+                                            <TableCell className="text-center font-bold text-lg">{stat.productCountTotal}</TableCell>
                                             <TableCell className="text-center font-medium">
                                                 {stat.companyName ? <span className="text-muted-foreground">-</span> : stat.aiUsageCount.toLocaleString('es-ES')}
                                             </TableCell>
@@ -359,7 +366,7 @@ export default function AdminActivityPage() {
                                 </React.Fragment>
                             )) : (
                                 <TableRow>
-                                    <TableCell colSpan={4} className="h-24 text-center">
+                                    <TableCell colSpan={5} className="h-24 text-center">
                                         No hay estadísticas de creación de productos para el periodo seleccionado.
                                     </TableCell>
                                 </TableRow>
