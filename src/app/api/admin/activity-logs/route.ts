@@ -67,7 +67,6 @@ export async function GET(req: NextRequest) {
             const companyId = data.companyId || null;
             const companyInfo = companyId ? companiesMap.get(companyId) : null;
             
-            // Determine AI usage: company's if they belong to one, otherwise their own.
             const aiUsageCount = companyInfo 
                 ? companyInfo.aiUsageCount 
                 : (userSettingsMap.get(doc.id)?.aiUsageCount || 0);
@@ -83,13 +82,33 @@ export async function GET(req: NextRequest) {
             });
         });
 
-        // Step 3: Fetch the 200 most recent activity logs
-        const logsSnapshot = await adminDb.collection('activity_logs').orderBy('timestamp', 'desc').limit(200).get();
+        // Step 3: Fetch activity logs based on role
+        let logsQuery = adminDb.collection('activity_logs').orderBy('timestamp', 'desc');
+
+        if (adminContext.role === 'admin' && adminContext.companyId) {
+            // Get all user IDs belonging to the admin's company
+            const companyUsersSnapshot = await adminDb.collection('users').where('companyId', '==', adminContext.companyId).get();
+            const companyUserIds = companyUsersSnapshot.docs.map(doc => doc.id);
+            
+            if (companyUserIds.length > 0) {
+                 // Firestore 'in' queries are limited to 30 elements
+                if (companyUserIds.length <= 30) {
+                    logsQuery = logsQuery.where('userId', 'in', companyUserIds);
+                }
+            } else {
+                // If company has no users, return empty logs
+                 return NextResponse.json({ logs: [] });
+            }
+        } else if (adminContext.role === 'admin' && !adminContext.companyId) {
+             // Admin without a company only sees their own logs
+             logsQuery = logsQuery.where('userId', '==', adminContext.uid);
+        }
+
+        const logsSnapshot = await logsQuery.limit(200).get();
         
         // Step 4: Map logs to include user details, creating an enriched list
-        const allEnrichedLogs: ActivityLog[] = logsSnapshot.docs.map(doc => {
+        let enrichedLogs: ActivityLog[] = logsSnapshot.docs.map(doc => {
             const logData = doc.data();
-            // Use the user map, providing a fallback for deleted users
             const user = usersMap.get(logData.userId) || { displayName: 'Usuario Eliminado', email: '', photoURL: '', companyId: null, companyName: null, platform: null, aiUsageCount: 0 };
             return {
                 id: doc.id,
@@ -101,27 +120,13 @@ export async function GET(req: NextRequest) {
             };
         });
 
-        // Step 5: Filter the enriched logs based on the admin's role
-        const filteredLogs = allEnrichedLogs.filter(log => {
-            // Super admins see all logs
-            if (adminContext.role === 'super_admin') {
-                return true;
-            }
-            
-            if (adminContext.role === 'admin') {
-                // If the admin has a company, they see all logs from that company.
-                if (adminContext.companyId) {
-                    return log.user.companyId === adminContext.companyId;
-                }
-                // If the admin has NO company, they only see their OWN logs.
-                return log.userId === adminContext.uid;
-            }
-            
-            // Should not be reached due to initial auth check, but as a safeguard:
-            return false;
-        });
+        // In-memory filter if the 'in' query was too large
+        if (adminContext.role === 'admin' && adminContext.companyId) {
+            const companyUserIdsSet = new Set(usersMap.keys());
+            enrichedLogs = enrichedLogs.filter(log => companyUserIdsSet.has(log.userId));
+        }
 
-        return NextResponse.json({ logs: filteredLogs });
+        return NextResponse.json({ logs: enrichedLogs });
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
