@@ -4,15 +4,15 @@
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowLeft, Save, Trash2 } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, Trash2, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { WooCommerceCategory, ProductPhoto, WooCommerceImage } from '@/lib/types';
+import type { WooCommerceCategory, ProductPhoto, WooCommerceImage, ProductType } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -26,6 +26,7 @@ import type { SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
 interface ProductEditState {
   name: string;
   sku: string;
+  type: ProductType;
   regular_price: string;
   sale_price: string;
   short_description: string;
@@ -232,6 +233,7 @@ function EditProductPageContent() {
         setProduct({
           name: productData.name || '',
           sku: productData.sku || '',
+          type: productData.type || 'simple',
           regular_price: productData.regular_price || '',
           sale_price: productData.sale_price || '',
           short_description: productData.short_description || '',
@@ -422,13 +424,33 @@ function EditProductPageContent() {
                       </CardContent>
                   </Card>
 
-                  <Card>
-                      <CardHeader><CardTitle>Precios</CardTitle></CardHeader>
-                      <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} /></div>
-                          <div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} /></div>
-                      </CardContent>
-                  </Card>
+                  {product.type === 'simple' ? (
+                    <>
+                      <Card>
+                        <CardHeader><CardTitle>Precios</CardTitle></CardHeader>
+                        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} /></div>
+                            <div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} /></div>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                          <CardHeader><CardTitle>Inventario</CardTitle></CardHeader>
+                          <CardContent className="space-y-4">
+                              <div className="flex items-center space-x-2"><Checkbox id="manage_stock" checked={product.manage_stock} onCheckedChange={(checked) => setProduct({ ...product, manage_stock: !!checked, stock_quantity: !!checked ? product.stock_quantity : '' })} /><Label htmlFor="manage_stock" className="font-normal">Gestionar inventario</Label></div>
+                              {product.manage_stock && (<div><Label htmlFor="stock_quantity">Cantidad en Stock</Label><Input id="stock_quantity" name="stock_quantity" type="number" value={product.stock_quantity} onChange={handleInputChange} /></div>)}
+                          </CardContent>
+                      </Card>
+                    </>
+                  ) : (
+                    <Alert>
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertTitle>Producto {product.type}</AlertTitle>
+                        <AlertDescription>
+                           El precio y el inventario para productos de tipo '{product.type}' se gestionan a nivel de variación o de producto individual, no aquí.
+                        </AlertDescription>
+                    </Alert>
+                  )}
                   
                    <Card>
                       <CardHeader><CardTitle>Descripciones</CardTitle></CardHeader>
@@ -454,14 +476,6 @@ function EditProductPageContent() {
                                   placeholder="Escribe la descripción larga aquí..."
                               />
                           </div>
-                      </CardContent>
-                  </Card>
-
-                  <Card>
-                      <CardHeader><CardTitle>Inventario</CardTitle></CardHeader>
-                      <CardContent className="space-y-4">
-                          <div className="flex items-center space-x-2"><Checkbox id="manage_stock" checked={product.manage_stock} onCheckedChange={(checked) => setProduct({ ...product, manage_stock: !!checked, stock_quantity: !!checked ? product.stock_quantity : '' })} /><Label htmlFor="manage_stock" className="font-normal">Gestionar inventario</Label></div>
-                          {product.manage_stock && (<div><Label htmlFor="stock_quantity">Cantidad en Stock</Label><Input id="stock_quantity" name="stock_quantity" type="number" value={product.stock_quantity} onChange={handleInputChange} /></div>)}
                       </CardContent>
                   </Card>
 
@@ -506,7 +520,7 @@ function EditProductPageContent() {
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                   <AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente este producto.</AlertDialogDescription></AlertDialogHeader>
-                                  <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className={buttonVariants({ variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter>
+                                  <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete}>Sí, eliminar</AlertDialogAction></AlertDialogFooter>
                               </AlertDialogContent>
                           </AlertDialog>
                       </CardContent>

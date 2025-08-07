@@ -20,6 +20,7 @@ const slugify = (text: string) => {
 const productUpdateSchema = z.object({
     name: z.string().min(1, 'Name cannot be empty.').optional(),
     sku: z.string().optional(),
+    type: z.enum(['simple', 'variable', 'grouped', 'external']).optional(),
     regular_price: z.string().optional(),
     sale_price: z.string().optional(),
     short_description: z.string().optional(),
