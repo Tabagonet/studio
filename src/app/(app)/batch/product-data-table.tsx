@@ -227,11 +227,11 @@ export function ProductDataTable() {
       
       let finalData = roots;
       if (selectedImageStatus !== 'all') {
-          const hasImage = selectedImageStatus === 'with_image';
-          finalData = finalData.filter(p => {
-              const mainHasImage = p.image && !p.image.includes('placeholder');
-              return mainHasImage === hasImage;
-          });
+        const hasImage = selectedImageStatus === 'with_image';
+        finalData = finalData.filter(p => {
+            const mainHasImage = !!p.image && !p.image.includes('placeholder');
+            return mainHasImage === hasImage;
+        });
       }
       
       setData(finalData);
