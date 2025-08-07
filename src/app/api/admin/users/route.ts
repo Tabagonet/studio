@@ -2,7 +2,7 @@
 // src/app/api/admin/users/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
-import type { Company } from '@/lib/types';
+import type { Company, User } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
     }
 
     try {
+        // Step 1: Fetch all companies and user settings to create maps for efficient lookup
         const companiesSnapshot = await adminDb.collection('companies').get();
         const companiesMap = new Map<string, Company>();
         companiesSnapshot.forEach(doc => {
@@ -52,26 +53,34 @@ export async function GET(req: NextRequest) {
                 name: data.name,
                 platform: data.platform || 'woocommerce',
                 plan: data.plan || 'lite',
-                createdAt: data.createdAt?.toDate()?.toISOString() || new Date().toISOString()
+                createdAt: data.createdAt?.toDate()?.toISOString() || new Date().toISOString(),
+                aiUsageCount: data.aiUsageCount || 0,
             });
         });
-        
+
+        const userSettingsSnapshot = await adminDb.collection('user_settings').get();
+        const userSettingsMap = new Map<string, { aiUsageCount: number }>();
+        userSettingsSnapshot.forEach(doc => {
+            userSettingsMap.set(doc.id, { aiUsageCount: doc.data().aiUsageCount || 0 });
+        });
+
+        // Step 2: Fetch users based on the admin's role
         let usersQuery: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = adminDb.collection('users');
 
-        if (adminContext.role === 'admin') {
-            if (!adminContext.companyId) {
-                return NextResponse.json({ users: [] });
-            }
+        if (adminContext.role === 'admin' && adminContext.companyId) {
             usersQuery = usersQuery.where('companyId', '==', adminContext.companyId);
         }
         
         const usersSnapshot = await usersQuery.get();
 
-        const users = usersSnapshot.docs.map(doc => {
+        const users: User[] = usersSnapshot.docs.map(doc => {
             const data = doc.data();
-            const createdAt = data.createdAt ? data.createdAt.toDate().toISOString() : new Date(0).toISOString();
             const companyId = data.companyId || null;
             const companyInfo = companyId ? companiesMap.get(companyId) : null;
+            
+            const aiUsageCount = companyInfo 
+                ? companyInfo.aiUsageCount 
+                : (userSettingsMap.get(doc.id)?.aiUsageCount || 0);
 
             return {
                 uid: doc.id,
@@ -81,12 +90,13 @@ export async function GET(req: NextRequest) {
                 role: data.role || 'pending',
                 status: data.status || 'pending_approval',
                 siteLimit: data.siteLimit ?? 1,
-                createdAt: createdAt,
                 companyId: companyId,
-                companyName: companyInfo ? companyInfo.name : null,
-                companyPlan: companyInfo ? companyInfo.plan : null,
+                companyName: companyInfo?.name || null,
+                companyPlan: companyInfo?.plan || null,
                 plan: data.plan || null, // Individual user plan
-                platform: companyInfo ? companyInfo.platform : (data.platform || null),
+                platform: data.platform || null,
+                companyPlatform: companyInfo?.platform || null,
+                aiUsageCount: aiUsageCount
             };
         });
 

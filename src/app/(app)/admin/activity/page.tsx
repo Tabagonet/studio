@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, LineChart, History, Calendar, Download, Building, Store, BrainCircuit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged, type FirebaseUser } from "@/lib/firebase";
-import type { ActivityLog } from '@/lib/types';
+import type { ActivityLog, User as AppUser, PlanUsage } from '@/lib/types';
 import { formatDistanceToNow, parseISO, subDays, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Image from 'next/image';
@@ -31,7 +31,7 @@ interface UserStat {
     productCount: number;
     connections: Set<string>;
     companyName: string | null;
-    platform: string | null;
+    platform: 'woocommerce' | 'shopify' | null;
     aiUsageCount: number;
 }
 
@@ -45,6 +45,7 @@ type GroupedUserStats = {
 type FilterType = 'this_month' | 'last_30_days' | 'all_time';
 
 export default function AdminActivityPage() {
+    const [allUsers, setAllUsers] = useState<AppUser[]>([]);
     const [logs, setLogs] = useState<ActivityLog[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [filter, setFilter] = useState<FilterType>('this_month');
@@ -55,18 +56,15 @@ export default function AdminActivityPage() {
         setIsLoading(true);
         try {
             const token = await user.getIdToken();
-            const [logsResponse, userResponse] = await Promise.all([
+            const [logsResponse, userResponse, allUsersResponse] = await Promise.all([
                  fetch('/api/admin/activity-logs', { headers: { 'Authorization': `Bearer ${token}` } }),
-                 fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } })
+                 fetch('/api/user/verify', { headers: { 'Authorization': `Bearer ${token}` } }),
+                 fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } })
             ]);
 
-            if (!logsResponse.ok) {
-                const errorData = await logsResponse.json();
-                throw new Error(errorData.error || 'Failed to fetch logs.');
-            }
-            if(userResponse.ok) {
-                setUserData(await userResponse.json());
-            }
+            if (!logsResponse.ok) throw new Error((await logsResponse.json()).error || 'Failed to fetch logs.');
+            if (userResponse.ok) setUserData(await userResponse.json());
+            if (allUsersResponse.ok) setAllUsers((await allUsersResponse.json()).users);
 
             const data = await logsResponse.json();
             const sortedLogs = data.logs.sort((a: ActivityLog, b: ActivityLog) => 
@@ -113,46 +111,49 @@ export default function AdminActivityPage() {
         { value: 'all_time', label: 'Desde Siempre' },
     ];
 
-    const userStats = useMemo(() => {
-        const productCreationLogs = filteredLogs.filter(log => log.action === 'PRODUCT_CREATED');
-        const stats: Record<string, UserStat> = {};
+    const groupedUserStats = useMemo((): GroupedUserStats[] => {
+        const statsByUser: Record<string, UserStat> = {};
+
+        // Initialize all users with 0 product count
+        allUsers.forEach(user => {
+            statsByUser[user.uid] = {
+                userId: user.uid,
+                displayName: user.displayName,
+                email: user.email,
+                photoURL: user.photoURL,
+                productCount: 0,
+                connections: new Set<string>(),
+                companyName: user.companyName || null,
+                platform: user.companyPlatform || user.platform || null,
+                aiUsageCount: user.aiUsageCount || 0,
+            };
+        });
         
+        // Populate counts and connections from filtered logs
+        const productCreationLogs = filteredLogs.filter(log => log.action === 'PRODUCT_CREATED');
         productCreationLogs.forEach(log => {
-            if (!stats[log.userId]) {
-                stats[log.userId] = {
-                    userId: log.userId,
-                    displayName: log.user.displayName,
-                    email: log.user.email,
-                    photoURL: log.user.photoURL,
-                    productCount: 0,
-                    connections: new Set<string>(),
-                    companyName: log.user.companyName || null,
-                    platform: log.user.platform || null,
-                    aiUsageCount: log.user.aiUsageCount || 0,
-                };
-            }
-            stats[log.userId].productCount++;
-            if (log.details.connectionKey) {
-                stats[log.userId].connections.add(log.details.connectionKey);
+            if (statsByUser[log.userId]) {
+                 statsByUser[log.userId].productCount++;
+                if (log.details.connectionKey) {
+                    statsByUser[log.userId].connections.add(log.details.connectionKey);
+                }
             }
         });
-        return Object.values(stats);
-    }, [filteredLogs]);
-    
-    const groupedUserStats = useMemo((): GroupedUserStats[] => {
-        if (userStats.length === 0) return [];
-        
+
+        // Group by company
         const groups: Record<string, { users: UserStat[], aiUsageCount: number, platform: string | null }> = {};
         
-        userStats.forEach(stat => {
+        Object.values(statsByUser).forEach(stat => {
             const companyKey = stat.companyName || 'Sin Empresa Asignada';
             if (!groups[companyKey]) {
                 groups[companyKey] = { users: [], aiUsageCount: 0, platform: null };
             }
             groups[companyKey].users.push(stat);
-            // Assign usage and platform at the group level. Since it's the same for all users in a company, we can just take it from the first user we see.
-            if (groups[companyKey].users.length === 1) {
+
+            if (stat.companyName && stat.aiUsageCount > groups[companyKey].aiUsageCount) {
                 groups[companyKey].aiUsageCount = stat.aiUsageCount;
+            }
+            if (stat.platform && !groups[companyKey].platform) {
                 groups[companyKey].platform = stat.platform;
             }
         });
@@ -167,9 +168,11 @@ export default function AdminActivityPage() {
             if (b.companyName === 'Sin Empresa Asignada') return -1;
             return a.companyName.localeCompare(b.companyName);
         });
-    }, [userStats]);
+    }, [allUsers, filteredLogs]);
+
 
     const handleExportUserStats = () => {
+        const userStats = Object.values(groupedUserStats).flatMap(g => g.users);
         if (userStats.length === 0) {
             toast({ title: 'Nada que exportar', description: 'No hay estadísticas de usuario para el periodo seleccionado.', variant: "destructive" });
             return;
@@ -179,9 +182,9 @@ export default function AdminActivityPage() {
             'Usuario': stat.displayName,
             'Email': stat.email,
             'Empresa': stat.companyName || 'N/A',
-            'Productos Creados': stat.productCount,
+            'Productos Creados (Periodo)': stat.productCount,
             'Webs Utilizadas': Array.from(stat.connections).join(', '),
-            'Creditos IA Usados (Mes)': stat.aiUsageCount,
+            'Creditos IA Usados (Total Mes)': stat.aiUsageCount,
         }));
 
         const csv = Papa.unparse(dataToExport);
@@ -298,8 +301,8 @@ export default function AdminActivityPage() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Usuario</TableHead>
-                                <TableHead className="text-center">Productos Creados</TableHead>
-                                <TableHead className="text-center">Créditos IA (Mes)</TableHead>
+                                <TableHead className="text-center">Productos Creados (Periodo)</TableHead>
+                                <TableHead className="text-center">Créditos IA (Total Mes)</TableHead>
                                 <TableHead>Webs Utilizadas</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -391,7 +394,7 @@ export default function AdminActivityPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {logs.length > 0 ? logs.map(log => (
+                            {logs.length > 0 ? logs.slice(0, 100).map(log => (
                                 <TableRow key={log.id}>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
