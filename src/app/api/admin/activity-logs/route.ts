@@ -82,29 +82,9 @@ export async function GET(req: NextRequest) {
             });
         });
 
-        // Step 3: Fetch activity logs based on role
-        let logsQuery = adminDb.collection('activity_logs').orderBy('timestamp', 'desc');
-
-        if (adminContext.role === 'admin' && adminContext.companyId) {
-            // Get all user IDs belonging to the admin's company
-            const companyUsersSnapshot = await adminDb.collection('users').where('companyId', '==', adminContext.companyId).get();
-            const companyUserIds = companyUsersSnapshot.docs.map(doc => doc.id);
-            
-            if (companyUserIds.length > 0) {
-                 // Firestore 'in' queries are limited to 30 elements
-                if (companyUserIds.length <= 30) {
-                    logsQuery = logsQuery.where('userId', 'in', companyUserIds);
-                }
-            } else {
-                // If company has no users, return empty logs
-                 return NextResponse.json({ logs: [] });
-            }
-        } else if (adminContext.role === 'admin' && !adminContext.companyId) {
-             // Admin without a company only sees their own logs
-             logsQuery = logsQuery.where('userId', '==', adminContext.uid);
-        }
-
-        const logsSnapshot = await logsQuery.limit(200).get();
+        // Step 3: Fetch all recent activity logs
+        let logsQuery = adminDb.collection('activity_logs').orderBy('timestamp', 'desc').limit(200);
+        const logsSnapshot = await logsQuery.get();
         
         // Step 4: Map logs to include user details, creating an enriched list
         let enrichedLogs: ActivityLog[] = logsSnapshot.docs.map(doc => {
@@ -120,10 +100,9 @@ export async function GET(req: NextRequest) {
             };
         });
 
-        // In-memory filter if the 'in' query was too large
+        // Step 5: If the requester is a company admin, filter the logs in memory
         if (adminContext.role === 'admin' && adminContext.companyId) {
-            const companyUserIdsSet = new Set(usersMap.keys());
-            enrichedLogs = enrichedLogs.filter(log => companyUserIdsSet.has(log.userId));
+            enrichedLogs = enrichedLogs.filter(log => log.user.companyId === adminContext.companyId);
         }
 
         return NextResponse.json({ logs: enrichedLogs });
