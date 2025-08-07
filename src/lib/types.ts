@@ -62,6 +62,7 @@ export interface ProductVariationAttribute {
 
 export interface ProductVariation {
   id: string; // client-side UUID
+  variation_id?: number; // The actual WooCommerce variation ID, available on edit
   attributes: ProductVariationAttribute[];
   sku: string;
   regularPrice: string;

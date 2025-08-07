@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { WooCommerceCategory, ProductPhoto, WooCommerceImage, ProductType } from '@/lib/types';
+import type { WooCommerceCategory, ProductPhoto, WooCommerceImage, ProductType, ProductVariation } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -21,6 +21,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
 import type { SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
+import { VariationEditor } from '@/components/features/products/variation-editor';
 
 
 interface ProductEditState {
@@ -32,6 +33,7 @@ interface ProductEditState {
   short_description: string;
   description: string;
   images: ProductPhoto[];
+  variations?: ProductVariation[];
   status: 'publish' | 'draft' | 'pending' | 'private';
   tags: string[];
   category_id: number | null;
@@ -229,6 +231,20 @@ function EditProductPageContent() {
               progress: 100,
           })
         );
+        
+        const existingVariations: ProductVariation[] = (productData.variations || []).map((v: any) => ({
+             variation_id: v.id,
+             id: v.id.toString(), // client-side unique id
+             attributes: v.attributes,
+             sku: v.sku,
+             regularPrice: v.regular_price,
+             salePrice: v.sale_price,
+             manage_stock: v.manage_stock,
+             stockQuantity: v.stock_quantity,
+             weight: v.weight,
+             dimensions: v.dimensions,
+             shipping_class: v.shipping_class,
+        }));
 
         setProduct({
           name: productData.name || '',
@@ -239,6 +255,7 @@ function EditProductPageContent() {
           short_description: productData.short_description || '',
           description: productData.description || '',
           images: existingImagesAsProductPhotos,
+          variations: existingVariations,
           status: productData.status || 'draft',
           tags: productData.tags?.map((t: any) => t.name) || [],
           category_id: productData.categories?.length > 0 ? productData.categories[0].id : null,
@@ -423,6 +440,19 @@ function EditProductPageContent() {
                           </div>
                       </CardContent>
                   </Card>
+                  
+                  {product.type === 'variable' && (
+                    <Card>
+                        <CardHeader><CardTitle>Variaciones</CardTitle></CardHeader>
+                        <CardContent>
+                            <VariationEditor 
+                                product={product} 
+                                onProductChange={(updatedProduct) => setProduct({...product, ...updatedProduct})} 
+                            />
+                        </CardContent>
+                    </Card>
+                  )}
+
 
                   {product.type === 'simple' ? (
                     <>

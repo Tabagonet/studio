@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/api-helpers';
 import { z } from 'zod';
 import { adminAuth } from '@/lib/firebase-admin';
+import type { ProductVariation } from '@/lib/types';
+
 
 const slugify = (text: string) => {
     if (!text) return '';
@@ -32,6 +34,7 @@ const productUpdateSchema = z.object({
         id: z.number().optional(), // For existing images
         src: z.string().url().optional(), // For new images from a temporary URL
     })).optional(),
+    variations: z.array(z.any()).optional(),
     // Metadata for any new images being uploaded
     imageTitle: z.string().optional(),
     imageAltText: z.string().optional(),
@@ -70,8 +73,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ error: 'Product ID is required.' }, { status: 400 });
     }
 
-    const response = await wooApi.get(`products/${productId}`);
-    return NextResponse.json(response.data);
+    const { data: productData } = await wooApi.get(`products/${productId}`);
+    
+    if (productData.type === 'variable') {
+        const { data: variationsData } = await wooApi.get(`products/${productId}/variations`, { per_page: 100 });
+        productData.variations = variationsData;
+    }
+    
+    return NextResponse.json(productData);
 
   } catch (error: any) {
     console.error(`Error fetching product ${params.id}:`, error.response?.data || error.message);
@@ -114,10 +123,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     
     const validatedData = validationResult.data;
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { imageTitle, imageAltText, imageCaption, imageDescription, ...restOfData } = validatedData;
+    const { imageTitle, imageAltText, imageCaption, imageDescription, variations, ...restOfData } = validatedData;
     const wooPayload: any = { ...restOfData };
     
-    // Process tags and categories from validated data
     if (validatedData.tags !== undefined) {
       wooPayload.tags = validatedData.tags.split(',').map((k: string) => ({ name: k.trim() })).filter((t: any) => t.name);
     }
@@ -127,7 +135,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       delete wooPayload.category_id;
     }
 
-    // New Image Handling Logic
     if (validatedData.images) {
         if (!wpApi) {
           throw new Error('WordPress API must be configured to upload new images.');
@@ -137,14 +144,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
         for (const image of validatedData.images) {
             if (image.id) {
-                // It's an existing image, just add its ID. Position is determined by array order.
                 processedImages.push({ id: image.id });
             } else if (image.src) {
-                // It's a new image from a temporary URL, upload it to WordPress
                 const baseNameForSeo = imageTitle || validatedData.name || 'product-image';
                 const filenameSuffix = validatedData.images.length > 1 ? `-${productId}-${imageIndex + 1}` : `-${productId}`;
-                
-                // Pass a .jpg name, the helper will convert it to .webp
                 const seoFilename = `${slugify(baseNameForSeo)}${filenameSuffix}.jpg`;
 
                 const newImageId = await uploadImageToWordPress(
@@ -164,17 +167,32 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         }
         wooPayload.images = processedImages;
     } else {
-        // If 'images' key is not present in payload, don't touch the images.
         delete wooPayload.images;
     }
     
-    // Handle stock quantity: it should be a number for WooCommerce API
     if (wooPayload.stock_quantity !== undefined && wooPayload.stock_quantity !== null && wooPayload.stock_quantity !== '') {
         const stock = parseInt(String(wooPayload.stock_quantity), 10);
         wooPayload.stock_quantity = isNaN(stock) ? undefined : stock;
     }
     
     const response = await wooApi.put(`products/${productId}`, wooPayload);
+    
+    if (variations && variations.length > 0) {
+        const batchPayload = {
+            update: variations.map((v: ProductVariation) => ({
+                id: v.variation_id,
+                regular_price: v.regularPrice || undefined,
+                sale_price: v.salePrice || undefined,
+                sku: v.sku || undefined,
+                manage_stock: v.manage_stock,
+                stock_quantity: v.manage_stock ? (parseInt(v.stockQuantity, 10) || null) : undefined,
+                weight: v.weight || undefined,
+                dimensions: v.dimensions,
+                shipping_class: v.shipping_class || undefined,
+            }))
+        };
+        await wooApi.post(`products/${productId}/variations/batch`, batchPayload);
+    }
 
     return NextResponse.json({ success: true, data: response.data });
   } catch (error: any)
@@ -210,7 +228,6 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       return NextResponse.json({ error: 'Product ID is required.' }, { status: 400 });
     }
 
-    // `force: true` permanently deletes the product. `force: false` would move to trash.
     const response = await wooApi.delete(`products/${productId}`, { force: true });
 
     return NextResponse.json({ success: true, data: response.data });
