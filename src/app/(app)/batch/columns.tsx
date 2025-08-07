@@ -95,19 +95,7 @@ export const getColumns = (
   },
   {
     accessorKey: "status",
-    header: ({ column }) => {
-      return (
-        <div className="text-center">
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Estado
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-        </div>
-      )
-    },
+    header: () => <div className="text-center">Estado</div>,
     cell: ({ row }) => {
       const status = row.getValue("status") as string;
       const statusText = {
