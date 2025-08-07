@@ -24,7 +24,7 @@ import type { SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
 import { VariationEditor } from '@/components/features/products/variation-editor';
 
 
-interface ProductEditState {
+export interface ProductEditState {
   name: string;
   sku: string;
   type: ProductType;
