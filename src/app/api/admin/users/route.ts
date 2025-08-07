@@ -1,4 +1,3 @@
-
 // src/app/api/admin/users/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -67,6 +66,7 @@ export async function GET(req: NextRequest) {
         // Step 2: Fetch users based on the admin's role
         let usersQuery: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = adminDb.collection('users');
 
+        // Only filter by company if the requester is a company admin, NOT a super admin
         if (adminContext.role === 'admin' && adminContext.companyId) {
             usersQuery = usersQuery.where('companyId', '==', adminContext.companyId);
         }

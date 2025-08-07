@@ -150,7 +150,9 @@ export default function AdminActivityPage() {
             }
             groups[companyKey].users.push(stat);
 
-            if (stat.companyName && stat.aiUsageCount > groups[companyKey].aiUsageCount) {
+            // The AI usage count is now directly on the user object, which holds either
+            // the company's count or their individual count.
+            if (stat.aiUsageCount > groups[companyKey].aiUsageCount) {
                 groups[companyKey].aiUsageCount = stat.aiUsageCount;
             }
             if (stat.platform && !groups[companyKey].platform) {
@@ -302,7 +304,7 @@ export default function AdminActivityPage() {
                             <TableRow>
                                 <TableHead>Usuario</TableHead>
                                 <TableHead className="text-center">Productos Creados (Periodo)</TableHead>
-                                <TableHead className="text-center">Créditos IA (Total Mes)</TableHead>
+                                <TableHead className="text-center">Créditos IA (Mes)</TableHead>
                                 <TableHead>Webs Utilizadas</TableHead>
                             </TableRow>
                         </TableHeader>
