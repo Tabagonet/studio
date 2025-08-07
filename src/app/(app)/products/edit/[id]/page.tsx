@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
@@ -22,6 +21,7 @@ import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
 import type { SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
 import { VariationEditor } from '@/components/features/products/variation-editor';
+import { PRODUCT_TYPES } from '@/lib/constants';
 
 
 export interface ProductEditState {
@@ -88,9 +88,12 @@ function EditProductPageContent() {
     setProduct({ ...product, description: newContent });
   };
 
-  const handleSelectChange = (name: 'status' | 'category_id', value: string) => {
+  const handleSelectChange = (name: 'status' | 'category_id' | 'type', value: string) => {
     if (!product) return;
-    const finalValue = name === 'category_id' ? (value ? parseInt(value, 10) : null) : value;
+    let finalValue: string | number | null = value;
+    if (name === 'category_id') {
+      finalValue = value ? parseInt(value, 10) : null;
+    }
     setProduct({ ...product, [name]: finalValue as any });
   };
   
@@ -438,10 +441,21 @@ function EditProductPageContent() {
                               <div><Label htmlFor="sku">SKU</Label><Input id="sku" name="sku" value={product.sku} onChange={handleInputChange} /></div>
                               <div><Label htmlFor="status">Estado</Label><Select name="status" value={product.status} onValueChange={(value) => handleSelectChange('status', value)}><SelectTrigger id="status"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="publish">Publicado</SelectItem><SelectItem value="draft">Borrador</SelectItem><SelectItem value="pending">Pendiente</SelectItem><SelectItem value="private">Privado</SelectItem></SelectContent></Select></div>
                           </div>
+                          <div>
+                            <Label htmlFor="type">Tipo de Producto</Label>
+                            <Select name="type" value={product.type} onValueChange={(value) => handleSelectChange('type', value)}>
+                              <SelectTrigger id="type"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {PRODUCT_TYPES.map(type => (
+                                  <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                       </CardContent>
                   </Card>
                   
-                  {product.type === 'variable' && (
+                  {product.type === 'variable' ? (
                     <Card>
                         <CardHeader><CardTitle>Variaciones</CardTitle></CardHeader>
                         <CardContent>
@@ -451,10 +465,7 @@ function EditProductPageContent() {
                             />
                         </CardContent>
                     </Card>
-                  )}
-
-
-                  {product.type === 'simple' ? (
+                  ) : product.type === 'simple' ? (
                     <>
                       <Card>
                         <CardHeader><CardTitle>Precios</CardTitle></CardHeader>
@@ -473,11 +484,11 @@ function EditProductPageContent() {
                       </Card>
                     </>
                   ) : (
-                    <Alert>
+                     <Alert>
                         <AlertTriangle className="h-4 w-4" />
-                        <AlertTitle>Producto {product.type}</AlertTitle>
+                        <AlertTitle>Producto de tipo '{product.type}'</AlertTitle>
                         <AlertDescription>
-                           El precio y el inventario para productos de tipo '{product.type}' se gestionan a nivel de variación o de producto individual, no aquí.
+                           El precio y el inventario para este tipo de producto se gestionan de forma diferente y no se pueden editar aquí.
                         </AlertDescription>
                     </Alert>
                   )}
