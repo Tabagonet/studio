@@ -13,6 +13,8 @@ import type { ExtractedWidget } from './types';
 import { z } from 'zod';
 import crypto from 'crypto';
 import sharp from 'sharp';
+import { Readable } from 'stream';
+
 
 export const partnerAppConnectionDataSchema = z.object({
   partnerApiToken: z.string().optional(),
@@ -294,11 +296,9 @@ export async function uploadImageToWordPress(
 ): Promise<number> {
     try {
         let imageBuffer: Buffer;
-        console.log(`[uploadImageToWordPress] Starting upload for: ${seoFilename}`);
 
         if (typeof source === 'string') {
             const sanitizedUrl = source.startsWith('http') ? source : `https://${source.replace(/^(https?:\/\/)?/, '')}`;
-            console.log(`[uploadImageToWordPress] Downloading remote image from: ${sanitizedUrl}`);
             const imageResponse = await axios.get(sanitizedUrl, {
                 responseType: 'arraybuffer',
                 headers: {
@@ -306,23 +306,19 @@ export async function uploadImageToWordPress(
                 },
             });
             imageBuffer = Buffer.from(imageResponse.data);
-            console.log(`[uploadImageToWordPress] Remote image downloaded successfully. Size: ${imageBuffer.length} bytes.`);
         } else {
             imageBuffer = Buffer.from(await source.arrayBuffer());
-            console.log(`[uploadImageToWordPress] Processing local file. Size: ${imageBuffer.length} bytes.`);
         }
         
-        console.log(`[uploadImageToWordPress] Processing image with Sharp...`);
         let processedBuffer = sharp(imageBuffer);
 
         if (width || height) {
-            console.log(`[uploadImageToWordPress] Resizing/cropping to ${width}x${height} with position ${position}`);
             processedBuffer = processedBuffer.resize(width, height, { 
                 fit: (width && height) ? 'cover' : 'inside', 
                 position: position as any || 'center' 
             });
         } else {
-            console.log(`[uploadImageToWordPress] Applying default optimization (1200x1200 max)`);
+            // Default optimization if no crop/resize is specified
             processedBuffer = processedBuffer.resize(1200, 1200, {
                 fit: 'inside',
                 withoutEnlargement: true,
@@ -332,28 +328,26 @@ export async function uploadImageToWordPress(
         const finalBuffer = await processedBuffer.webp({ quality: 80 }).toBuffer();
         const finalContentType = 'image/webp';
         const finalFilename = seoFilename.endsWith('.webp') ? seoFilename : seoFilename.replace(/\.[^/.]+$/, "") + ".webp";
-        console.log(`[uploadImageToWordPress] Image processed. Final size: ${finalBuffer.length} bytes. Filename: ${finalFilename}`);
 
 
         const formData = new FormData();
-        const uint8Array = new Uint8Array(finalBuffer);
-        formData.append('file', uint8Array as any, { // Explicitly cast to 'any' to bypass type check issue
+        const readableStream = Readable.from(finalBuffer); // Create a readable stream from the buffer
+        formData.append('file', readableStream, {
             filename: finalFilename,
             contentType: finalContentType,
         });
+
         formData.append('title', imageMetadata.title);
         formData.append('alt_text', imageMetadata.alt_text);
         formData.append('caption', imageMetadata.caption);
         formData.append('description', imageMetadata.description);
 
-        console.log(`[uploadImageToWordPress] Sending image to WordPress media library...`);
         const mediaResponse = await wpApi.post('/media', formData, {
             headers: {
                 ...formData.getHeaders(),
                 'Content-Disposition': `attachment; filename=${finalFilename}`,
             },
         });
-        console.log(`[uploadImageToWordPress] WordPress media upload response received. Media ID: ${mediaResponse.data.id}`);
 
         return mediaResponse.data.id;
 
