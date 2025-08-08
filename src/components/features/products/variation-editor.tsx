@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React from 'react';
@@ -8,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import type { ProductEditState, ProductVariation } from '@/app/(app)/products/edit/[id]/page'; // Adjust path if needed
+import type { ProductVariation } from '@/lib/types';
+import type { ProductEditState } from '@/app/(app)/products/edit/[id]/page';
 
 interface VariationEditorProps {
   product: ProductEditState;
