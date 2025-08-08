@@ -51,7 +51,7 @@ export const getColumns = (
     enableHiding: false,
   },
   {
-    accessorKey: "name",
+    accessorKey: "title",
     header: ({ column }) => {
       return (
         <Button
@@ -92,6 +92,14 @@ export const getColumns = (
         </div>
       )
     }
+  },
+  {
+      accessorKey: "supplier",
+      header: "Proveedor",
+      cell: ({ row }) => {
+        const supplier = row.original.supplier;
+        return supplier ? <Badge variant="outline">{supplier}</Badge> : <span className="text-muted-foreground">-</span>;
+      }
   },
   {
     accessorKey: "status",

@@ -34,9 +34,7 @@ export async function GET(req: NextRequest) {
     const orderby = searchParams.get('orderby') || 'date';
     const order = searchParams.get('order') || 'desc';
     const lang = searchParams.get('lang');
-    const hasImage = searchParams.get('has_image'); // 'yes' or 'no'
-
-    console.log(`[API search-products] Received request with params: q=${query}, category=${category}, status=${status}, has_image=${hasImage}, page=${page}`);
+    const hasImage = searchParams.get('has_image'); 
 
     const params: any = {
       page: parseInt(page, 10),
@@ -45,11 +43,8 @@ export async function GET(req: NextRequest) {
       order,
     };
     
-    // Add the has_image filter if the plugin supports it
-    if (hasImage === 'yes') {
-      params.has_image = 1;
-    } else if (hasImage === 'no') {
-      params.has_image = 0;
+    if (hasImage === '1' || hasImage === '0') {
+        params.has_image = hasImage;
     }
     
     if (include) {
@@ -73,17 +68,11 @@ export async function GET(req: NextRequest) {
     const products: ProductSearchResult[] = productsData.map((product: any) => {
         let imageUrl: string | null = null;
         
-        if (product.images && product.images.length > 0 && product.images[0].src) {
+        if (product.images && product.images.length > 0 && product.images[0].src && !product.images[0].src.includes('placeholder.png')) {
             imageUrl = product.images[0].src;
         } 
-        else if (product.image) {
-            if (typeof product.image === 'object' && product.image.src) {
-                imageUrl = product.image.src;
-            } 
-            else if (typeof product.image === 'string') {
-                imageUrl = product.image;
-            }
-        }
+        
+        const supplierAttribute = product.attributes.find((attr: any) => attr.name === 'Proveedor');
 
         return {
             id: product.id,
@@ -95,6 +84,7 @@ export async function GET(req: NextRequest) {
             sku: product.sku,
             type: product.type,
             status: product.status,
+            supplier: supplierAttribute ? supplierAttribute.options[0] : null,
             stock_status: product.stock_status,
             categories: product.categories.map((c: any) => ({ id: c.id, name: c.name })),
             date_created: product.date_created,

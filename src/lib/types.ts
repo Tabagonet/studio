@@ -57,7 +57,7 @@ export interface ProductAttribute {
 
 export interface ProductVariationAttribute {
   name: string;
-  value: string;
+  option: string;
 }
 
 export interface ProductVariation {
@@ -183,6 +183,7 @@ export interface ProductSearchResult {
   sku: string;
   type: ProductType;
   status: 'draft' | 'pending' | 'private' | 'publish' | 'trash';
+  supplier: string | null;
   stock_status: 'instock' | 'outofstock' | 'onbackorder';
   categories: { id: number; name: string }[];
   date_created: string | null;

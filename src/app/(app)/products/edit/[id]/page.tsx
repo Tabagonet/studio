@@ -27,6 +27,7 @@ import { PRODUCT_TYPES } from '@/lib/constants';
 export interface ProductEditState {
   name: string;
   sku: string;
+  supplier: string | null;
   type: ProductType;
   regular_price: string;
   sale_price: string;
@@ -249,9 +250,12 @@ function EditProductPageContent() {
              shipping_class: v.shipping_class,
         }));
 
+        const supplierAttribute = productData.attributes.find((a: any) => a.name === 'Proveedor');
+
         setProduct({
           name: productData.name || '',
           sku: productData.sku || '',
+          supplier: supplierAttribute ? supplierAttribute.options[0] : null,
           type: productData.type || 'simple',
           regular_price: productData.regular_price || '',
           sale_price: productData.sale_price || '',
@@ -439,18 +443,21 @@ function EditProductPageContent() {
                           <div><Label htmlFor="name">Nombre del Producto</Label><Input id="name" name="name" value={product.name} onChange={handleInputChange} /></div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div><Label htmlFor="sku">SKU</Label><Input id="sku" name="sku" value={product.sku} onChange={handleInputChange} /></div>
-                              <div><Label htmlFor="status">Estado</Label><Select name="status" value={product.status} onValueChange={(value) => handleSelectChange('status', value)}><SelectTrigger id="status"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="publish">Publicado</SelectItem><SelectItem value="draft">Borrador</SelectItem><SelectItem value="pending">Pendiente</SelectItem><SelectItem value="private">Privado</SelectItem></SelectContent></Select></div>
+                              <div><Label htmlFor="supplier">Proveedor</Label><Input id="supplier" name="supplier" value={product.supplier || ''} onChange={handleInputChange} /></div>
                           </div>
-                          <div>
-                            <Label htmlFor="type">Tipo de Producto</Label>
-                            <Select name="type" value={product.type} onValueChange={(value) => handleSelectChange('type', value)}>
-                              <SelectTrigger id="type"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {PRODUCT_TYPES.map(type => (
-                                  <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div><Label htmlFor="status">Estado</Label><Select name="status" value={product.status} onValueChange={(value) => handleSelectChange('status', value)}><SelectTrigger id="status"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="publish">Publicado</SelectItem><SelectItem value="draft">Borrador</SelectItem><SelectItem value="pending">Pendiente</SelectItem><SelectItem value="private">Privado</SelectItem></SelectContent></Select></div>
+                              <div>
+                                <Label htmlFor="type">Tipo de Producto</Label>
+                                <Select name="type" value={product.type} onValueChange={(value) => handleSelectChange('type', value)}>
+                                  <SelectTrigger id="type"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    {PRODUCT_TYPES.map(type => (
+                                      <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
                           </div>
                       </CardContent>
                   </Card>

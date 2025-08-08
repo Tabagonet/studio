@@ -1,7 +1,7 @@
 
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getApiClientsForUser, uploadImageToWordPress } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress, findOrCreateCategoryByPath } from '@/lib/api-helpers';
 import { z } from 'zod';
 import { adminAuth } from '@/lib/firebase-admin';
 import type { ProductVariation } from '@/lib/types';
@@ -22,6 +22,7 @@ const slugify = (text: string) => {
 const productUpdateSchema = z.object({
     name: z.string().min(1, 'Name cannot be empty.').optional(),
     sku: z.string().optional(),
+    supplier: z.string().optional().nullable(),
     type: z.enum(['simple', 'variable', 'grouped', 'external']).optional(),
     regular_price: z.string().optional(),
     sale_price: z.string().optional(),
@@ -123,17 +124,59 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     
     const validatedData = validationResult.data;
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { imageTitle, imageAltText, imageCaption, imageDescription, variations, ...restOfData } = validatedData;
+    const { imageTitle, imageAltText, imageCaption, imageDescription, variations, supplier, ...restOfData } = validatedData;
     const wooPayload: any = { ...restOfData };
     
+    // Original Product Data for comparison
+    const { data: originalProduct } = await wooApi.get(`products/${productId}`);
+
     if (validatedData.tags !== undefined) {
       wooPayload.tags = validatedData.tags.split(',').map((k: string) => ({ name: k.trim() })).filter((t: any) => t.name);
     }
     
-    if (validatedData.category_id !== undefined) {
-      wooPayload.categories = validatedData.category_id ? [{ id: validatedData.category_id }] : [];
-      delete wooPayload.category_id;
+    // Category Management
+    const currentCategoryIds = originalProduct.categories.map((c: any) => c.id);
+    let finalCategoryIds = validatedData.category_id ? [{ id: validatedData.category_id }] : [];
+    
+    // Supplier Management
+    if (supplier !== undefined) {
+        const originalSupplierAttr = originalProduct.attributes.find((a: any) => a.name === 'Proveedor');
+        const originalSupplierName = originalSupplierAttr ? originalSupplierAttr.options[0] : null;
+
+        if (originalSupplierName && originalSupplierName !== supplier) {
+            const oldSupplierCategory = originalProduct.categories.find((c: any) => c.name === originalSupplierName);
+            if (oldSupplierCategory) {
+                // Keep other categories, just remove the old supplier one
+                finalCategoryIds = currentCategoryIds.filter(id => id !== oldSupplierCategory.id);
+            }
+        }
+        
+        if (supplier) {
+            const supplierCatId = await findOrCreateCategoryByPath(supplier, wooApi);
+            if (supplierCatId && !finalCategoryIds.some(c => c.id === supplierCatId)) {
+                finalCategoryIds.push({ id: supplierCatId });
+            }
+            
+            const supplierAttrIndex = wooPayload.attributes?.findIndex((a: any) => a.name === 'Proveedor') ?? -1;
+            const newSupplierAttr = { name: 'Proveedor', options: [supplier], visible: true, variation: false };
+            if (supplierAttrIndex > -1) {
+                wooPayload.attributes[supplierAttrIndex] = newSupplierAttr;
+            } else {
+                if (!wooPayload.attributes) wooPayload.attributes = [];
+                wooPayload.attributes.push(newSupplierAttr);
+            }
+            wooPayload.slug = slugify(`${validatedData.name || originalProduct.name}-${supplier}`);
+        } else if (originalSupplierName) {
+            // Remove supplier attribute if supplier is cleared
+             if (wooPayload.attributes) {
+                wooPayload.attributes = wooPayload.attributes.filter((a: any) => a.name !== 'Proveedor');
+            }
+            wooPayload.slug = slugify(validatedData.name || originalProduct.name);
+        }
     }
+    
+    wooPayload.categories = finalCategoryIds;
+
 
     if (validatedData.images) {
         if (!wpApi) {
