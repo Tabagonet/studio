@@ -1,11 +1,11 @@
-
 {
   "name": "autopress-ai",
   "version": "0.1.0",
   "private": true,
   "description": "AutoPress AI Application",
   "scripts": {
-    "dev": "rm -rf .next node_modules package-lock.json && npm cache clean --force && npm install && next dev --port 9002 --hostname 0.0.0.0",
+    "dev": "next dev --port 9002 --hostname 0.0.0.0",
+    "dev:reset": "rm -rf .next node_modules package-lock.json && npm cache clean --force && npm install && npm run dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -54,7 +54,6 @@
     "debug": "^4.3.5",
     "firebase": "^10.12.2",
     "firebase-admin": "^12.3.0",
-    "form-data": "^4.0.0",
     "handlebars": "^4.7.8",
     "lucide-react": "^0.417.0",
     "next": "14.2.5",
@@ -67,24 +66,21 @@
     "react-hook-form": "^7.52.1",
     "recharts": "^2.12.7",
     "sharp": "^0.33.4",
-    "supports-color": "^9.2.0",
     "tailwind-merge": "^3.0.1",
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^9.0.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/cheerio": "^0.22.35",
-    "@types/crypto-js": "^4.2.2",
-    "@types/node": "^20",
+   "@types/cheerio": "^0.22.35",
+   "@types/node": "^20",
     "@types/papaparse": "^5.3.14",
     "@types/react": "^18",
-    "@types/react-dom": "^18",
-    "@types/uuid": "^9.0.8",
-    "@types/woocommerce__woocommerce-rest-api": "^1.0.3",
-    "postcss": "^8",
-    "tailwindcss": "^3.4.1",
-    "typescript": "^5.4.5",
-    "vercel": "^35.2.0"
+   "@types/react-dom": "^18",
+   "@types/uuid": "^9.0.8",
+   "@types/woocommerce__woocommerce-rest-api": "^1.0.3",
+   "tailwindcss": "^3.4.1",
+   "typescript": "^5.4.5",
+   "vercel": "^35.2.0"
   }
 }
