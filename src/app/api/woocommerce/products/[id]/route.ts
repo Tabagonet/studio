@@ -1,3 +1,4 @@
+
 // src/app/api/woocommerce/products/[id]/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -34,7 +35,6 @@ const productUpdateSchema = z.object({
     category_id: z.number().nullable().optional(),
     images: z.array(z.object({
         id: z.number().optional(), // For existing images
-        uploadedUrl: z.string().url().optional(), // For new images from a temporary URL
     })).optional(),
     variations: z.array(z.any()).optional(),
     // Metadata for any new images being uploaded
