@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useCallback, useEffect } from 'react';
@@ -442,8 +443,8 @@ export default function BatchProcessPage() {
                         const attributeValueSets = variationAttributes.map(attr => attr.value.split('|').map(v => v.trim()).filter(Boolean));
                         const combinations = cartesian(...attributeValueSets);
                         variations = combinations.map(combo => {
-                            const attrs = combo.map((value, index) => ({ name: variationAttributes[index].name, value }));
-                            const skuSuffix = attrs.map(a => a.value.substring(0,3).toUpperCase()).join('-');
+                            const attrs = combo.map((value, index) => ({ name: variationAttributes[index].name, option: value }));
+                            const skuSuffix = attrs.map(a => a.option.substring(0,3).toUpperCase()).join('-');
                             return { 
                                 id: uuidv4(), attributes: attrs, sku: `${payload.sku || 'VAR'}-${skuSuffix}`, regularPrice: '', salePrice: '', stockQuantity: '', manage_stock: false 
                             };
