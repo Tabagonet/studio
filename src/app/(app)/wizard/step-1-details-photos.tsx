@@ -486,7 +486,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
      }
   };
 
-  const isDuplicateButResolved = nameStatus.status === 'exists' && !!productData.sku && (!!productData.supplier || !!productData.newSupplier);
+  const isDuplicateButResolved = nameStatus.status === 'exists' && skuStatus.status === 'available' && (!!productData.supplier || !!productData.newSupplier);
 
 
   return (
