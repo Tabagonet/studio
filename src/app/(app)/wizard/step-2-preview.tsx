@@ -1,4 +1,4 @@
-// src/app/(app)/wizard/step-2-preview.tsx
+
 
 "use client";
 
@@ -148,7 +148,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                              {variation.attributes.map(attr => (
                                 <span key={attr.name} className="text-sm">
                                   <span className="font-medium">{attr.name}:</span>
-                                  <span className="text-muted-foreground ml-1">{attr.value}</span>
+                                  <span className="text-muted-foreground ml-1">{attr.option}</span>
                                 </span>
                               ))}
                           </div>
