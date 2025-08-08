@@ -71,6 +71,7 @@ export function ProductDataTable() {
   const [selectedStatus, setSelectedStatus] = React.useState('all');
   const [selectedStockStatus, setSelectedStockStatus] = React.useState('all');
   const [selectedLanguage, setSelectedLanguage] = React.useState('all');
+  const [selectedImageStatus, setSelectedImageStatus] = React.useState('all'); // New filter
   const [availableLanguages, setAvailableLanguages] = React.useState<{code: string; name: string}[]>([]);
 
 
@@ -163,11 +164,15 @@ export function ProductDataTable() {
         lang: 'all', // Fetch all to build hierarchy
       });
 
+      if (selectedImageStatus !== 'all') {
+        params.append('has_image', selectedImageStatus === 'with_image' ? 'yes' : 'no');
+      }
+
       if (nameFilter?.value) {
         params.append('q', nameFilter.value);
       }
       if (sort) {
-        const orderbyValue = sort.id === 'date_created' ? 'date' : (sort.id === 'status' ? '' : sort.id);
+        const orderbyValue = sort.id === 'date_created' ? 'date' : sort.id;
         if (orderbyValue) {
           params.append('orderby', orderbyValue);
           params.append('order', sort.desc ? 'desc' : 'asc');
@@ -234,7 +239,7 @@ export function ProductDataTable() {
     } finally {
       setIsLoading(false);
     }
-  }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedStockStatus, selectedLanguage, sorting, toast]); 
+  }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedStockStatus, selectedLanguage, selectedImageStatus, sorting, toast]); 
 
   React.useEffect(() => {
     const fetchCats = async (token: string) => {
@@ -369,11 +374,6 @@ export function ProductDataTable() {
     router.push(`/products/edit/${productId}`);
   };
   
-  const handleCategoryChange = (category: string) => {
-    setSelectedCategory(category);
-    setCurrentPage(1); // Reset page index when category changes
-  };
-
   const columns = React.useMemo(() => getColumns(handleStatusUpdate, handleEditProduct, handleDeleteProduct), [handleStatusUpdate, handleEditProduct, handleDeleteProduct]);
 
   const table = useReactTable({
@@ -896,7 +896,7 @@ export function ProductDataTable() {
               }
               className="w-full sm:w-auto sm:min-w-[200px] flex-grow"
             />
-            <Select value={selectedCategory} onValueChange={handleCategoryChange} disabled={isLoadingCategories}>
+            <Select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)} disabled={isLoadingCategories}>
               <SelectTrigger className="w-full sm:w-auto sm:min-w-[180px] flex-grow">
                 <SelectValue placeholder="Categoría..." />
               </SelectTrigger>
@@ -928,6 +928,17 @@ export function ProductDataTable() {
                 <SelectItem value="private">Privado</SelectItem>
                 <SelectItem value="trash">En Papelera</SelectItem>
               </SelectContent>
+            </Select>
+             <Select value={selectedImageStatus} onValueChange={setSelectedImageStatus}>
+                <SelectTrigger className="w-full sm:w-auto sm:min-w-[150px] flex-grow">
+                    <ImageIcon className="mr-2 h-4 w-4" />
+                    <SelectValue placeholder="Imagen..." />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="with_image">Con Imagen</SelectItem>
+                    <SelectItem value="without_image">Sin Imagen</SelectItem>
+                </SelectContent>
             </Select>
              <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
                 <SelectTrigger className="w-full sm:w-auto sm:min-w-[150px] flex-grow">

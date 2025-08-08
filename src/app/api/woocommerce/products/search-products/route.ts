@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import type { ProductSearchResult } from '@/lib/types';
@@ -32,8 +33,9 @@ export async function GET(req: NextRequest) {
     const orderby = searchParams.get('orderby') || 'date';
     const order = searchParams.get('order') || 'desc';
     const lang = searchParams.get('lang');
+    const hasImage = searchParams.get('has_image'); // yes or no
 
-    const params: any = {
+    let params: any = {
       per_page: parseInt(perPage, 10),
       page: parseInt(page, 10),
       orderby,
@@ -43,29 +45,26 @@ export async function GET(req: NextRequest) {
     if (include) {
       params.include = include.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
     } else {
-      if (query) {
-        params.search = query;
-      }
-      if (type && type !== 'all') {
-        params.type = type;
-      }
-       if (category && category !== 'all') {
-        params.category = category;
-      }
-      if (status && status !== 'all') {
-        params.status = status;
-      }
-       if (lang && lang !== 'all') {
-        params.lang = lang;
-      }
-      if (stock_status && stock_status !== 'all') {
-        params.stock_status = stock_status;
-      }
+      if (query) params.search = query;
+      if (type && type !== 'all') params.type = type;
+      if (category && category !== 'all') params.category = category;
+      if (status && status !== 'all') params.status = status;
+      if (lang && lang !== 'all') params.lang = lang;
+      if (stock_status && stock_status !== 'all') params.stock_status = stock_status;
     }
 
     const response = await wooApi.get("products", params);
     
-    const products: ProductSearchResult[] = response.data.map((product: any) => {
+    let productsData = response.data;
+    
+    // Perform image filtering on the server after fetching
+    if (hasImage === 'yes') {
+        productsData = productsData.filter((p: any) => p.images.length > 0);
+    } else if (hasImage === 'no') {
+        productsData = productsData.filter((p: any) => p.images.length === 0);
+    }
+
+    const products: ProductSearchResult[] = productsData.map((product: any) => {
         let imageUrl: string | null = null;
         
         if (product.images && product.images.length > 0 && product.images[0].src) {
