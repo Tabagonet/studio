@@ -1,4 +1,3 @@
-
 // src/app/api/woocommerce/products/[id]/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -34,7 +33,7 @@ const productUpdateSchema = z.object({
     tags: z.array(z.string()).optional(),
     category_id: z.number().nullable().optional(),
     images: z.array(z.object({
-        id: z.number().optional(), // For existing images
+        id: z.union([z.string(), z.number()]).optional(), // Allow both string (for new images) and number (for existing)
     })).optional(),
     variations: z.array(z.any()).optional(),
     // Metadata for any new images being uploaded
@@ -187,7 +186,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         console.log(`[AUDIT - PUT /products/:id] Handling images. Existing images in payload: ${validatedData.images?.length}. New files: ${photoFiles.length}.`);
         if (validatedData.images) {
             if (!wpApi) { throw new Error('WordPress API must be configured to upload new images.'); }
-            const existingImageIds = validatedData.images.filter(img => img.id).map(img => ({ id: img.id }));
+            const existingImageIds = validatedData.images.filter(img => typeof img.id === 'number').map(img => ({ id: img.id }));
             
             console.log(`[AUDIT - PUT /products/:id] Preserving ${existingImageIds.length} existing images.`);
 
