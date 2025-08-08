@@ -71,7 +71,6 @@ export function ProductDataTable() {
   const [selectedStatus, setSelectedStatus] = React.useState('all');
   const [selectedStockStatus, setSelectedStockStatus] = React.useState('all');
   const [selectedLanguage, setSelectedLanguage] = React.useState('all');
-  const [selectedImageStatus, setSelectedImageStatus] = React.useState('all'); // New filter state
   const [availableLanguages, setAvailableLanguages] = React.useState<{code: string; name: string}[]>([]);
 
 
@@ -226,15 +225,7 @@ export function ProductDataTable() {
           }
       });
       
-      let finalData = roots;
-      if (selectedImageStatus !== 'all') {
-        finalData = finalData.filter(p => {
-            const hasImage = p.image && !p.image.includes('placeholder');
-            return selectedImageStatus === 'with_image' ? hasImage : !hasImage;
-        });
-      }
-      
-      setData(finalData);
+      setData(roots);
       setTotalPages(totalPages);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -243,7 +234,7 @@ export function ProductDataTable() {
     } finally {
       setIsLoading(false);
     }
-  }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedStockStatus, selectedLanguage, selectedImageStatus, sorting, toast]); 
+  }, [pagination, columnFilters, selectedCategory, selectedStatus, selectedStockStatus, selectedLanguage, sorting, toast]); 
 
   React.useEffect(() => {
     const fetchCats = async (token: string) => {
@@ -380,7 +371,7 @@ export function ProductDataTable() {
   
   const handleCategoryChange = (category: string) => {
     setSelectedCategory(category);
-    setPagination(prev => ({ ...prev, pageIndex: 0 }));
+    setCurrentPage(1); // Reset page index when category changes
   };
 
   const columns = React.useMemo(() => getColumns(handleStatusUpdate, handleEditProduct, handleDeleteProduct), [handleStatusUpdate, handleEditProduct, handleDeleteProduct]);
@@ -949,17 +940,6 @@ export function ProductDataTable() {
                         <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>
                     ))}
                 </SelectContent>
-            </Select>
-             <Select value={selectedImageStatus} onValueChange={setSelectedImageStatus}>
-              <SelectTrigger className="w-full sm:w-auto sm:min-w-[150px] flex-grow">
-                <ImageIcon className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Imagen..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="with_image">Con Imagen</SelectItem>
-                <SelectItem value="without_image">Sin Imagen</SelectItem>
-              </SelectContent>
             </Select>
         </div>
         <AlertDialog>
