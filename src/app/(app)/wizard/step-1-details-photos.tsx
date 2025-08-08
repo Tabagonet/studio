@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -24,6 +23,7 @@ import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
 import type { LinkSuggestion, SuggestLinksOutput } from '@/ai/schemas';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 
 interface Step1DetailsPhotosProps {
@@ -315,7 +315,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const payload = {
             productName: productData.name,
             productType: productData.productType,
-            tags: productData.tags,
+            tags: productData.tags.split(',').map(t => t.trim()).filter(Boolean),
             language: productData.language,
             mode: 'image_meta_only',
         };
@@ -490,6 +490,15 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                       <StatusIndicator status={skuStatus.status} message={skuStatus.message} />
                     </div>
                   </div>
+                  {nameStatus.status === 'exists' && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>¡Atención! Nombre Duplicado</AlertTitle>
+                      <AlertDescription>
+                        Para crear el producto, ahora será **obligatorio** que rellenes los campos **Proveedor** y **SKU** para diferenciarlo y evitar problemas de SEO.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                   <div>
                     <Label htmlFor="supplier">Proveedor (opcional)</Label>
                     <Input id="supplier" name="supplier" value={productData.supplier || ''} onChange={handleInputChange} placeholder="Ej: Proveedor A" disabled={isProcessing} />
