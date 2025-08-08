@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import * as React from "react"
@@ -227,10 +226,9 @@ export function ProductDataTable() {
       
       let finalData = roots;
       if (selectedImageStatus !== 'all') {
-        const hasImage = selectedImageStatus === 'with_image';
         finalData = finalData.filter(p => {
-            const mainHasImage = !!p.image && !p.image.includes('placeholder');
-            return mainHasImage === hasImage;
+            const hasImage = p.image && !p.image.includes('placeholder');
+            return selectedImageStatus === 'with_image' ? hasImage : !hasImage;
         });
       }
       
@@ -900,7 +898,7 @@ export function ProductDataTable() {
               }
               className="w-full sm:w-auto sm:min-w-[200px] flex-grow"
             />
-            <Select value={selectedCategory} onValueChange={setSelectedCategory} disabled={isLoadingCategories}>
+            <Select value={selectedCategory} onValueChange={handleCategoryChange} disabled={isLoadingCategories}>
               <SelectTrigger className="w-full sm:w-auto sm:min-w-[180px] flex-grow">
                 <SelectValue placeholder="Categoría..." />
               </SelectTrigger>
@@ -1132,3 +1130,5 @@ export function ProductDataTable() {
     </div>
   )
 }
+
+    
