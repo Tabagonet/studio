@@ -52,7 +52,6 @@ export const getColumns = (
   },
   {
     accessorKey: "name",
-    id: 'title', // Use 'title' for sorting to match WooCommerce API
     header: ({ column }) => {
       return (
         <Button
