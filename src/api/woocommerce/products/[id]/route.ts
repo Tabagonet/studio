@@ -152,6 +152,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         }
         
         if (finalSupplierName) {
+            if (!wpApi) {
+              throw new Error('La API de WordPress debe estar configurada para gestionar proveedores como categorías.');
+            }
             const supplierCatId = await findOrCreateWpCategoryByPath(`Proveedores > ${finalSupplierName}`, wpApi, 'product_cat');
             if (supplierCatId && !finalCategoryIds.some(c => c.id === supplierCatId)) {
                 finalCategoryIds.push({ id: supplierCatId });

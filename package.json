@@ -6,7 +6,7 @@
   "description": "AutoPress AI Application",
   "scripts": {
     "clean": "rm -rf .next",
-    "dev": "npm run clean && next dev -p 9002 -H 0.0.0.0",
+    "dev": "rm -rf .next && rm -rf node_modules package-lock.json && npm install && next dev --port 9002 --hostname 0.0.0.0",
     "build": "npm run clean && next build",
     "start": "next start",
     "lint": "next lint",
