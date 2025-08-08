@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import * as React from "react"
@@ -165,7 +166,7 @@ export function ProductDataTable() {
       });
 
       if (selectedImageStatus !== 'all') {
-        params.append('has_image', selectedImageStatus === 'with_image' ? 'yes' : 'no');
+        params.append('has_image', selectedImageStatus === 'yes' ? 'yes' : 'no');
       }
 
       if (nameFilter?.value) {
@@ -896,7 +897,7 @@ export function ProductDataTable() {
               }
               className="w-full sm:w-auto sm:min-w-[200px] flex-grow"
             />
-            <Select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)} disabled={isLoadingCategories}>
+            <Select value={selectedCategory} onValueChange={handleCategoryChange} disabled={isLoadingCategories}>
               <SelectTrigger className="w-full sm:w-auto sm:min-w-[180px] flex-grow">
                 <SelectValue placeholder="Categoría..." />
               </SelectTrigger>
@@ -936,8 +937,8 @@ export function ProductDataTable() {
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="with_image">Con Imagen</SelectItem>
-                    <SelectItem value="without_image">Sin Imagen</SelectItem>
+                    <SelectItem value="yes">Con Imagen</SelectItem>
+                    <SelectItem value="no">Sin Imagen</SelectItem>
                 </SelectContent>
             </Select>
              <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
