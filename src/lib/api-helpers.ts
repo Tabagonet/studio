@@ -295,9 +295,11 @@ export async function uploadImageToWordPress(
   position?: string,
 ): Promise<number> {
     try {
+        console.log(`[uploadImageToWordPress] Starting upload for: ${seoFilename}`);
         let imageBuffer: Buffer;
 
         if (typeof source === 'string') {
+            console.log(`[uploadImageToWordPress] Downloading remote image from: ${source}`);
             const sanitizedUrl = source.startsWith('http') ? source : `https://${source.replace(/^(https?:\/\/)?/, '')}`;
             const imageResponse = await axios.get(sanitizedUrl, {
                 responseType: 'arraybuffer',
@@ -306,19 +308,23 @@ export async function uploadImageToWordPress(
                 },
             });
             imageBuffer = Buffer.from(imageResponse.data);
+             console.log(`[uploadImageToWordPress] Remote image downloaded. Size: ${imageBuffer.length} bytes.`);
         } else {
+            console.log(`[uploadImageToWordPress] Processing local file. Size: ${source.size} bytes.`);
             imageBuffer = Buffer.from(await source.arrayBuffer());
         }
         
+        console.log('[uploadImageToWordPress] Processing image with Sharp...');
         let processedBuffer = sharp(imageBuffer);
 
         if (width || height) {
+            console.log(`[uploadImageToWordPress] Resizing/cropping to ${width || 'auto'}x${height || 'auto'} with position ${position}`);
             processedBuffer = processedBuffer.resize(width, height, { 
                 fit: (width && height) ? 'cover' : 'inside', 
                 position: position as any || 'center' 
             });
         } else {
-            // Default optimization if no crop/resize is specified
+            console.log('[uploadImageToWordPress] Applying default optimization (1200x1200 max)');
             processedBuffer = processedBuffer.resize(1200, 1200, {
                 fit: 'inside',
                 withoutEnlargement: true,
@@ -328,15 +334,14 @@ export async function uploadImageToWordPress(
         const finalBuffer = await processedBuffer.webp({ quality: 80 }).toBuffer();
         const finalContentType = 'image/webp';
         const finalFilename = seoFilename.endsWith('.webp') ? seoFilename : seoFilename.replace(/\.[^/.]+$/, "") + ".webp";
+        console.log(`[uploadImageToWordPress] Image processed. Final size: ${finalBuffer.length} bytes. Filename: ${finalFilename}`);
 
 
         const formData = new FormData();
-        const readableStream = Readable.from(finalBuffer); // Create a readable stream from the buffer
-        formData.append('file', readableStream, {
+        formData.append('file', finalBuffer, {
             filename: finalFilename,
             contentType: finalContentType,
         });
-
         formData.append('title', imageMetadata.title);
         formData.append('alt_text', imageMetadata.alt_text);
         formData.append('caption', imageMetadata.caption);
@@ -349,6 +354,7 @@ export async function uploadImageToWordPress(
             },
         });
 
+        console.log(`[uploadImageToWordPress] Upload successful. Media ID: ${mediaResponse.data.id}`);
         return mediaResponse.data.id;
 
     } catch (uploadError: any) {
@@ -619,3 +625,5 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
     // Return a unique set of images based on URL
     return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
+
+    
