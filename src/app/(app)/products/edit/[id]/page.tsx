@@ -74,7 +74,7 @@ function EditProductPageContent() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
-  const [isSuggestingLinks, setIsSuggestingLinks] = useState(false);
+  const [isSuggestingLinks, setIsSuggestingLinks] = useState<boolean>(false);
   const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>([]);
 
 
@@ -129,6 +129,7 @@ function EditProductPageContent() {
         
         // Remove file objects before stringifying, but keep track of them
         productDataToSend.images = productDataToSend.images.map(img => {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { file, ...rest } = img;
             return rest;
         });
