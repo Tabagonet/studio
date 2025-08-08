@@ -1,18 +1,13 @@
 {
   "regions": ["fra1"],
   "functions": {
-    "api/**/*.js": {
+    "app/api/**/*.js": {
       "memory": 1024,
       "maxDuration": 60
     },
-    "api/**/*.mjs": {
+    "app/api/**/*.mjs": {
       "memory": 1024,
       "maxDuration": 60
-    }
-  },
-  "build": {
-    "env": {
-      "NEXT_SHARP_PATH": "node_modules/sharp"
     }
   }
 }
