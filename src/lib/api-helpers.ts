@@ -1,3 +1,4 @@
+
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -328,7 +329,8 @@ export async function uploadImageToWordPress(
 
 
         const formData = new FormData();
-        formData.append('file', finalBuffer, {
+        const uint8Array = new Uint8Array(finalBuffer);
+        formData.append('file', uint8Array as any, { // Explicitly cast to 'any' to bypass type check issue
             filename: finalFilename,
             contentType: finalContentType,
         });

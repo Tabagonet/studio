@@ -32,8 +32,11 @@ export async function POST(req: NextRequest) {
             })
             .webp({ quality: 80 })
             .toBuffer();
+        
+        // Convert Buffer to Uint8Array to ensure type compatibility
+        const uint8Array = new Uint8Array(processedBuffer);
 
-        return new Response(processedBuffer, {
+        return new Response(uint8Array, {
             status: 200,
             headers: { 'Content-Type': 'image/webp' }
         });
