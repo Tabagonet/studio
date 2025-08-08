@@ -168,9 +168,11 @@ export function ProductDataTable() {
         params.append('q', nameFilter.value);
       }
       if (sort) {
-        const orderbyValue = sort.id === 'date_created' ? 'date' : sort.id;
-        params.append('orderby', orderbyValue);
-        params.append('order', sort.desc ? 'desc' : 'asc');
+        const orderbyValue = sort.id === 'date_created' ? 'date' : (sort.id === 'status' ? '' : sort.id);
+        if (orderbyValue) {
+          params.append('orderby', orderbyValue);
+          params.append('order', sort.desc ? 'desc' : 'asc');
+        }
       }
 
 
@@ -374,6 +376,11 @@ export function ProductDataTable() {
 
   const handleEditProduct = (productId: number) => {
     router.push(`/products/edit/${productId}`);
+  };
+  
+  const handleCategoryChange = (category: string) => {
+    setSelectedCategory(category);
+    setPagination(prev => ({ ...prev, pageIndex: 0 }));
   };
 
   const columns = React.useMemo(() => getColumns(handleStatusUpdate, handleEditProduct, handleDeleteProduct), [handleStatusUpdate, handleEditProduct, handleDeleteProduct]);
@@ -1130,5 +1137,3 @@ export function ProductDataTable() {
     </div>
   )
 }
-
-    
