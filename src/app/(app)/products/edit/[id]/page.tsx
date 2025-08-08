@@ -116,32 +116,37 @@ function EditProductPageContent() {
     setIsSaving(true);
     const user = auth.currentUser;
     if (!user || !product) {
-      toast({ title: 'Error', description: 'No se puede guardar el producto.', variant: 'destructive' });
-      setIsSaving(false);
-      return;
+        toast({ title: 'Error', description: 'No se puede guardar el producto.', variant: 'destructive' });
+        setIsSaving(false);
+        return;
     }
 
     try {
         const token = await user.getIdToken();
-        const payload: any = { ...product };
+        const formData = new FormData();
 
-        // Handle image data before sending. We only want to send IDs of existing images
-        // and temporary URLs of new ones.
-        const apiImages = product.images.map(img => {
-            if (img.file) {
-                // For new images, just send the temporary quefoto.es URL
-                return { src: img.uploadedUrl };
-            }
-            // For existing images, just send the ID
-            return { id: img.id };
-        }).filter(img => img.id || img.src);
+        const productDataToSend = { ...product };
+        const newImages = productDataToSend.images.filter(img => img.file);
         
-        payload.images = apiImages;
+        // Remove file objects before stringifying, but keep track of them
+        productDataToSend.images = productDataToSend.images.map(img => {
+            const { file, ...rest } = img;
+            return rest;
+        });
 
+        formData.append('productData', JSON.stringify(productDataToSend));
+
+        // Append new image files for upload
+        newImages.forEach(photo => {
+            if (photo.file) {
+                formData.append('photos', photo.file, photo.name);
+            }
+        });
+        
         const response = await fetch(`/api/woocommerce/products/${productId}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify(payload)
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData,
         });
 
         if (!response.ok) {
