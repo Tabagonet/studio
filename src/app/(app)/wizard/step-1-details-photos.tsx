@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -131,44 +131,54 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     return () => unsubscribe();
   }, [toast]);
   
-    useEffect(() => {
-    const checkProductExistence = async (field: 'sku' | 'name', value: string) => {
-        if (!value || value.length < 3) {
-            (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'idle', message: '' });
-            return;
-        }
+  const checkProductExistence = useCallback(async (field: 'sku' | 'name', value: string, signal: AbortSignal) => {
+      const setStatus = field === 'sku' ? setSkuStatus : setNameStatus;
+      const user = auth.currentUser;
+      if (!user) return;
+      const token = await user.getIdToken();
 
-        const user = auth.currentUser;
-        if (!user) return;
-        const token = await user.getIdToken();
+      setStatus({ status: 'checking', message: '' });
 
-        (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'checking', message: '' });
+      try {
+          const response = await fetch(`/api/woocommerce/products/check?${field}=${encodeURIComponent(value)}`, {
+              headers: { 'Authorization': `Bearer ${token}` },
+              signal: signal,
+          });
+          if (signal.aborted) return;
+          const data = await response.json();
+          if (response.ok) {
+              setStatus({ status: data.exists ? 'exists' : 'available', message: data.message });
+          } else {
+              setStatus({ status: 'idle', message: '' }); 
+          }
+      } catch (error: any) {
+          if (error.name !== 'AbortError') {
+              console.error(`Error checking ${field}:`, error);
+              setStatus({ status: 'idle', message: '' });
+          }
+      }
+  }, []);
 
-        try {
-            const response = await fetch(`/api/woocommerce/products/check?${field}=${encodeURIComponent(value)}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await response.json();
-            if (response.ok) {
-                if (data.exists) {
-                    (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'exists', message: data.message });
-                } else {
-                    (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'available', message: `El ${field.toUpperCase()} está disponible.` });
-                }
-            } else {
-                 (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'idle', message: '' }); // Reset on error
-            }
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error(`Error checking ${field}:`, errorMessage);
-            (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'idle', message: '' });
-        }
-    };
+  useEffect(() => {
+      if (!debouncedSku || debouncedSku.length < 3) {
+          setSkuStatus({ status: 'idle', message: '' });
+          return;
+      }
+      const controller = new AbortController();
+      checkProductExistence('sku', debouncedSku, controller.signal);
+      return () => controller.abort();
+  }, [debouncedSku, checkProductExistence]);
 
-    if (debouncedSku) checkProductExistence('sku', debouncedSku);
-    if (debouncedName) checkProductExistence('name', debouncedName);
+  useEffect(() => {
+      if (!debouncedName || debouncedName.length < 3) {
+          setNameStatus({ status: 'idle', message: '' });
+          return;
+      }
+      const controller = new AbortController();
+      checkProductExistence('name', debouncedName, controller.signal);
+      return () => controller.abort();
+  }, [debouncedName, checkProductExistence]);
 
-  }, [debouncedSku, debouncedName, toast]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     updateProductData({ [e.target.name]: e.target.value });
