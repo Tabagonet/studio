@@ -124,28 +124,19 @@ function EditProductPageContent() {
     try {
         const token = await user.getIdToken();
         const payload: any = { ...product };
-        
-        const finalImagesForApi: ({id: number} | {src: string})[] = [];
 
-        product.images.filter(img => !img.file && typeof img.id === 'number').forEach(img => finalImagesForApi.push({ id: img.id as number }));
+        // Handle image data before sending. We only want to send IDs of existing images
+        // and temporary URLs of new ones.
+        const apiImages = product.images.map(img => {
+            if (img.file) {
+                // For new images, just send the temporary quefoto.es URL
+                return { src: img.uploadedUrl };
+            }
+            // For existing images, just send the ID
+            return { id: img.id };
+        }).filter(img => img.id || img.src);
         
-        const newPhotosToUpload = product.images.filter(p => p.file);
-
-        for (const photo of newPhotosToUpload) {
-            const formData = new FormData();
-            formData.append('imagen', photo.file!);
-
-            const response = await fetch('/api/upload-image', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` },
-                body: formData,
-            });
-            if (!response.ok) throw new Error(`Error subiendo ${photo.name}`);
-            const imageData = await response.json();
-            finalImagesForApi.push({ src: imageData.url });
-        }
-        
-        payload.images = finalImagesForApi;
+        payload.images = apiImages;
 
         const response = await fetch(`/api/woocommerce/products/${productId}`, {
             method: 'PUT',

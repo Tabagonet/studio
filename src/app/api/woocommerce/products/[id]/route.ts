@@ -1,7 +1,7 @@
 
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getApiClientsForUser, findOrCreateWpCategoryByPath } from '@/lib/api-helpers';
+import { getApiClientsForUser, findOrCreateWpCategoryByPath, uploadImageToWordPress } from '@/lib/api-helpers';
 import { z } from 'zod';
 import { adminAuth } from '@/lib/firebase-admin';
 import type { ProductVariation, WooCommerceImage } from '@/lib/types';
@@ -47,9 +47,9 @@ const productUpdateSchema = z.object({
     stock_quantity: z.union([z.string(), z.number()]).optional(),
     weight: z.string().optional(),
     dimensions: z.object({
-        length: z.string(),
-        width: z.string(),
-        height: z.string(),
+        length: z.string().optional(),
+        width: z.string().optional(),
+        height: z.string().optional(),
     }).optional(),
     shipping_class: z.string().optional(),
 });
@@ -172,8 +172,39 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     
     wooPayload.categories = finalCategoryIds;
 
+    // Corrected Image Handling for PUT
     if (validatedData.images) {
-      wooPayload.images = validatedData.images;
+      if (!wpApi) {
+        throw new Error('WordPress API must be configured to upload new images.');
+      }
+      const processedImages = [];
+      let imageIndex = 0;
+
+      for (const image of validatedData.images) {
+          if (image.id) {
+              processedImages.push({ id: image.id });
+          } else if (image.src) {
+              // It's a new image from a temporary URL, upload it to WordPress
+              const baseNameForSeo = imageTitle || validatedData.name || 'product-image';
+              const filenameSuffix = validatedData.images.length > 1 ? `-${productId}-${imageIndex + 1}` : `-${productId}`;
+              const seoFilename = `${slugify(baseNameForSeo)}${filenameSuffix}.jpg`;
+
+              const newImageId = await uploadImageToWordPress(
+                  image.src,
+                  seoFilename,
+                  {
+                      title: imageTitle || validatedData.name || '',
+                      alt_text: imageAltText || validatedData.name || '',
+                      caption: imageCaption || '',
+                      description: imageDescription || '',
+                  },
+                  wpApi
+              );
+              processedImages.push({ id: newImageId });
+          }
+          imageIndex++;
+      }
+      wooPayload.images = processedImages;
     } else {
       delete wooPayload.images;
     }
