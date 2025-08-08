@@ -1,4 +1,4 @@
-
+// src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
@@ -22,13 +22,14 @@ import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggest
 import type { SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
 import { VariationEditor } from '@/components/features/products/variation-editor';
 import { PRODUCT_TYPES } from '@/lib/constants';
+import { ComboBox } from '@/components/core/combobox';
 
 
 export interface ProductEditState {
   name: string;
   sku: string;
   supplier: string | null;
-  newSupplier?: string; // For creating a new one
+  newSupplier?: string; 
   type: ProductType;
   regular_price: string;
   sale_price: string;
@@ -48,6 +49,7 @@ export interface ProductEditState {
     height: string;
   };
   shipping_class: string;
+  categoryPath?: string; 
 }
 
 function EditProductPageContent() {
@@ -91,16 +93,9 @@ function EditProductPageContent() {
     setProduct({ ...product, description: newContent });
   };
 
-  const handleSelectChange = (name: 'status' | 'category_id' | 'type' | 'supplier', value: string) => {
+  const handleSelectChange = (name: 'status' | 'type', value: string) => {
     if (!product) return;
-    let finalValue: string | number | null = value;
-    if (name === 'category_id') {
-      finalValue = value ? parseInt(value, 10) : null;
-    } else if (name === 'supplier') {
-        setProduct({ ...product, supplier: value, newSupplier: '' });
-        return;
-    }
-    setProduct({ ...product, [name]: finalValue as any });
+    setProduct({ ...product, [name]: value as any });
   };
   
   const handlePhotosChange = (updatedPhotos: ProductPhoto[]) => {
@@ -228,7 +223,7 @@ function EditProductPageContent() {
           const supplierParentId = parentSupplierCategory?.id;
           const suppliers = supplierParentId ? catData.filter((c: WooCommerceCategory) => c.parent === supplierParentId) : [];
           setSupplierCategories(suppliers);
-          setWooCategories(catData);
+          setWooCategories(catData.filter((c: WooCommerceCategory) => c.id !== supplierParentId && c.parent !== supplierParentId));
         } else {
           console.error("Failed to fetch categories");
         }
@@ -247,7 +242,7 @@ function EditProductPageContent() {
         
         const existingVariations: ProductVariation[] = (productData.variations || []).map((v: any) => ({
              variation_id: v.id,
-             id: v.id.toString(), // client-side unique id
+             id: v.id.toString(),
              attributes: v.attributes,
              sku: v.sku,
              regularPrice: v.regular_price,
@@ -406,16 +401,7 @@ function EditProductPageContent() {
   
   if (error || !product) {
      return (
-        <div className="container mx-auto py-8">
-            <Alert variant="destructive">
-                <AlertTitle>Error al Cargar</AlertTitle>
-                <AlertDescription>{error || "No se pudo cargar la información del producto."}</AlertDescription>
-                 <Button variant="outline" onClick={() => router.push('/batch')} className="mt-4">
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Volver a la lista
-                </Button>
-            </Alert>
-        </div>
+        <div className="container mx-auto py-8"><Alert variant="destructive"><AlertTitle>Error al Cargar</AlertTitle><AlertDescription>{error || "No se pudo cargar la información del producto."}</AlertDescription><Button variant="outline" onClick={() => router.push('/batch')} className="mt-4"><ArrowLeft className="mr-2 h-4 w-4" />Volver a la lista</Button></Alert></div>
      );
   }
 
@@ -444,7 +430,6 @@ function EditProductPageContent() {
           </Card>
           
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-              {/* Main Column */}
               <div className="lg:col-span-2 space-y-6">
                   <Card>
                       <CardHeader><CardTitle>Información Principal</CardTitle></CardHeader>
@@ -453,24 +438,16 @@ function EditProductPageContent() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div><Label htmlFor="sku">SKU</Label><Input id="sku" name="sku" value={product.sku} onChange={handleInputChange} /></div>
                                <div>
-                                  <Label>Proveedor</Label>
-                                  <div className="flex gap-2">
-                                      <Select value={product.supplier || ''} onValueChange={(value) => handleSelectChange('supplier', value)} disabled={isSaving || isLoadingCategories}>
-                                          <SelectTrigger><SelectValue placeholder="Selecciona un proveedor..." /></SelectTrigger>
-                                          <SelectContent>
-                                              {supplierCategories.map(cat => (
-                                                  <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
-                                              ))}
-                                          </SelectContent>
-                                      </Select>
-                                      <Input
-                                          name="newSupplier"
-                                          value={product.newSupplier || ''}
-                                          onChange={(e) => setProduct({...product, newSupplier: e.target.value, supplier: ''})}
-                                          placeholder="O crea un nuevo proveedor"
-                                          disabled={isSaving}
-                                      />
-                                  </div>
+                                    <Label>Proveedor</Label>
+                                    <ComboBox
+                                        items={supplierCategories.map(s => ({ value: s.name, label: s.name }))}
+                                        selectedValue={product.supplier || ''}
+                                        onSelect={(value) => setProduct({...product, supplier: value, newSupplier: ''})}
+                                        onNewItemChange={(value) => setProduct({...product, newSupplier: value, supplier: ''})}
+                                        placeholder="Selecciona o crea un proveedor..."
+                                        newItemValue={product.newSupplier || ''}
+                                        loading={isLoadingCategories}
+                                    />
                               </div>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -491,162 +468,28 @@ function EditProductPageContent() {
                   </Card>
                   
                   {product.type === 'variable' ? (
-                    <Card>
-                        <CardHeader><CardTitle>Variaciones</CardTitle></CardHeader>
-                        <CardContent>
-                            <VariationEditor 
-                                product={product} 
-                                onProductChange={(updatedProduct) => setProduct({...product, ...updatedProduct})} 
-                            />
-                        </CardContent>
-                    </Card>
+                    <Card><CardHeader><CardTitle>Variaciones</CardTitle></CardHeader><CardContent><VariationEditor product={product} onProductChange={(updatedProduct) => setProduct({...product, ...updatedProduct})} /></CardContent></Card>
                   ) : product.type === 'simple' ? (
-                    <>
-                      <Card>
-                        <CardHeader><CardTitle>Precios</CardTitle></CardHeader>
-                        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} /></div>
-                            <div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} /></div>
-                        </CardContent>
-                      </Card>
-
-                      <Card>
-                          <CardHeader><CardTitle>Inventario</CardTitle></CardHeader>
-                          <CardContent className="space-y-4">
-                              <div className="flex items-center space-x-2"><Checkbox id="manage_stock" checked={product.manage_stock} onCheckedChange={(checked) => setProduct({ ...product, manage_stock: !!checked, stock_quantity: !!checked ? product.stock_quantity : '' })} /><Label htmlFor="manage_stock" className="font-normal">Gestionar inventario</Label></div>
-                              {product.manage_stock && (<div><Label htmlFor="stock_quantity">Cantidad en Stock</Label><Input id="stock_quantity" name="stock_quantity" type="number" value={product.stock_quantity} onChange={handleInputChange} /></div>)}
-                          </CardContent>
-                      </Card>
-                    </>
-                  ) : (
-                     <Alert>
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertTitle>Producto de tipo '{product.type}'</AlertTitle>
-                        <AlertDescription>
-                           El precio y el inventario para este tipo de producto se gestionan de forma diferente y no se pueden editar aquí.
-                        </AlertDescription>
-                    </Alert>
-                  )}
+                    <><Card><CardHeader><CardTitle>Precios</CardTitle></CardHeader><CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} /></div><div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} /></div></CardContent></Card><Card><CardHeader><CardTitle>Inventario</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex items-center space-x-2"><Checkbox id="manage_stock" checked={product.manage_stock} onCheckedChange={(checked) => setProduct({ ...product, manage_stock: !!checked, stock_quantity: !!checked ? product.stock_quantity : '' })} /><Label htmlFor="manage_stock" className="font-normal">Gestionar inventario</Label></div>{product.manage_stock && (<div><Label htmlFor="stock_quantity">Cantidad en Stock</Label><Input id="stock_quantity" name="stock_quantity" type="number" value={product.stock_quantity} onChange={handleInputChange} /></div>)}</CardContent></Card></>
+                  ) : ( <Alert><AlertTriangle className="h-4 w-4" /><AlertTitle>Producto de tipo '{product.type}'</AlertTitle><AlertDescription>El precio y el inventario para este tipo de producto se gestionan de forma diferente y no se pueden editar aquí.</AlertDescription></Alert> )}
                   
-                   <Card>
-                      <CardHeader><CardTitle>Descripciones</CardTitle></CardHeader>
-                      <CardContent className="space-y-4">
-                          <div>
-                              <Label htmlFor="short_description">Descripción Corta</Label>
-                              <RichTextEditor 
-                                  content={product.short_description}
-                                  onChange={handleShortDescriptionChange}
-                                  onInsertImage={() => setIsImageDialogOpen(true)}
-                                  onSuggestLinks={handleSuggestLinks}
-                                  placeholder="Escribe la descripción corta aquí..."
-                                  size="small"
-                              />
-                          </div>
-                          <div>
-                              <Label htmlFor="description">Descripción Larga</Label>
-                              <RichTextEditor 
-                                  content={product.description}
-                                  onChange={handleLongDescriptionChange}
-                                  onInsertImage={() => setIsImageDialogOpen(true)}
-                                  onSuggestLinks={handleSuggestLinks}
-                                  placeholder="Escribe la descripción larga aquí..."
-                              />
-                          </div>
-                      </CardContent>
-                  </Card>
-
-                   <Card>
-                      <CardHeader><CardTitle>Envío</CardTitle></CardHeader>
-                      <CardContent className="space-y-4">
-                           <div><Label htmlFor="weight">Peso (kg)</Label><Input id="weight" name="weight" type="number" value={product.weight} onChange={handleInputChange} /></div>
-                           <div><Label>Dimensiones (cm)</Label><div className="grid grid-cols-3 gap-2"><Input value={product.dimensions.length} onChange={(e) => handleDimensionChange('length', e.target.value)} placeholder="Largo" /><Input value={product.dimensions.width} onChange={(e) => handleDimensionChange('width', e.target.value)} placeholder="Ancho" /><Input value={product.dimensions.height} onChange={(e) => handleDimensionChange('height', e.target.value)} placeholder="Alto" /></div></div>
-                           <div><Label htmlFor="shipping_class">Clase de envío (slug)</Label><Input id="shipping_class" name="shipping_class" value={product.shipping_class} onChange={handleInputChange} /></div>
-                      </CardContent>
-                  </Card>
+                   <Card><CardHeader><CardTitle>Descripciones</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="short_description">Descripción Corta</Label><RichTextEditor content={product.short_description} onChange={handleShortDescriptionChange} onInsertImage={() => setIsImageDialogOpen(true)} onSuggestLinks={handleSuggestLinks} placeholder="Escribe la descripción corta aquí..." size="small"/></div><div><Label htmlFor="description">Descripción Larga</Label><RichTextEditor content={product.description} onChange={handleLongDescriptionChange} onInsertImage={() => setIsImageDialogOpen(true)} onSuggestLinks={handleSuggestLinks} placeholder="Escribe la descripción larga aquí..." /></div></CardContent></Card>
+                   <Card><CardHeader><CardTitle>Envío</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="weight">Peso (kg)</Label><Input id="weight" name="weight" type="number" value={product.weight} onChange={handleInputChange} /></div><div><Label>Dimensiones (cm)</Label><div className="grid grid-cols-3 gap-2"><Input value={product.dimensions.length} onChange={(e) => handleDimensionChange('length', e.target.value)} placeholder="Largo" /><Input value={product.dimensions.width} onChange={(e) => handleDimensionChange('width', e.target.value)} placeholder="Ancho" /><Input value={product.dimensions.height} onChange={(e) => handleDimensionChange('height', e.target.value)} placeholder="Alto" /></div></div><div><Label htmlFor="shipping_class">Clase de envío (slug)</Label><Input id="shipping_class" name="shipping_class" value={product.shipping_class} onChange={handleInputChange} /></div></CardContent></Card>
               </div>
               
-              {/* Sidebar Column */}
               <div className="space-y-6">
                   <ProductPreviewCard product={product} categories={wooCategories} />
-                  <Card>
-                      <CardHeader><CardTitle>Organización</CardTitle></CardHeader>
-                      <CardContent className="space-y-4">
-                           <div><Label htmlFor="category_id">Categoría</Label><Select name="category_id" value={product.category_id?.toString() || ''} onValueChange={(value) => handleSelectChange('category_id', value)} disabled={isLoadingCategories}><SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger><SelectContent>{wooCategories.map((cat) => (<SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>))}</SelectContent></Select></div>
-                           <div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={product.tags.join(', ')} onChange={(e) => setProduct({ ...product, tags: e.target.value.split(',').map(t => t.trim()) })} /></div>
-                      </CardContent>
-                  </Card>
-                   <Card>
-                      <CardHeader><CardTitle>Imágenes</CardTitle></CardHeader>
-                      <CardContent>
-                          <ImageUploader 
-                              photos={product.images} 
-                              onPhotosChange={handlePhotosChange} 
-                              isProcessing={isSaving}
-                          />
-                      </CardContent>
-                  </Card>
-                   <Card>
-                      <CardHeader><CardTitle className="text-destructive">Zona de Peligro</CardTitle></CardHeader>
-                      <CardContent>
-                          <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                  <Button variant="destructive" className="w-full" disabled={isDeleting}>
-                                      <Trash2 className="mr-2 h-4 w-4" /> Eliminar Producto
-                                  </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                  <AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente este producto.</AlertDialogDescription></AlertDialogHeader>
-                                  <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete}>Sí, eliminar</AlertDialogAction></AlertDialogFooter>
-                              </AlertDialogContent>
-                          </AlertDialog>
-                      </CardContent>
-                  </Card>
+                  <Card><CardHeader><CardTitle>Organización</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="category_id">Categoría</Label><ComboBox items={wooCategories.map(c => ({ value: c.id.toString(), label: c.name.replace(/—/g, '') }))} selectedValue={product.category_id?.toString() || ''} onSelect={(value) => setProduct({...product, category_id: Number(value), categoryPath: ''})} onNewItemChange={(value) => setProduct({...product, category_id: null, categoryPath: value})} placeholder="Selecciona o crea una categoría..." loading={isLoadingCategories} newItemValue={product.categoryPath || ''}/></div><div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={product.tags.join(', ')} onChange={(e) => setProduct({ ...product, tags: e.target.value.split(',').map(t => t.trim()) })} /></div></CardContent></Card>
+                   <Card><CardHeader><CardTitle>Imágenes</CardTitle></CardHeader><CardContent><ImageUploader photos={product.images} onPhotosChange={handlePhotosChange} isProcessing={isSaving}/></CardContent></Card>
+                   <Card><CardHeader><CardTitle className="text-destructive">Zona de Peligro</CardTitle></CardHeader><CardContent><AlertDialog><AlertDialogTrigger asChild><Button variant="destructive" className="w-full" disabled={isDeleting}><Trash2 className="mr-2 h-4 w-4" /> Eliminar Producto</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente este producto.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></CardContent></Card>
               </div>
           </div>
       </div>
-      <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
-          <AlertDialogContent>
-              <AlertDialogHeader>
-                  <AlertDialogTitle>Insertar Imagen</AlertDialogTitle>
-                  <AlertDialogDescription>Sube una imagen o introduce una URL para insertarla en el contenido.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <div className="space-y-4">
-                  <div>
-                      <Label htmlFor="image-upload">Subir archivo</Label>
-                      <Input id="image-upload" type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
-                  </div>
-                  <div className="relative">
-                      <div className="absolute inset-0 flex items-center">
-                          <span className="w-full border-t" />
-                      </div>
-                      <div className="relative flex justify-center text-xs uppercase">
-                          <span className="bg-background px-2 text-muted-foreground">O</span></div>
-                  </div>
-                  <div>
-                      <Label htmlFor="image-url">Insertar desde URL</Label>
-                      <Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" />
-                  </div>
-              </div>
-              <AlertDialogFooter>
-                  <AlertDialogCancel onClick={() => { setImageUrl(''); setImageFile(null); }}>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleInsertImageInLongDesc} disabled={isUploadingImage}>
-                      {isUploadingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Insertar Imagen
-                  </AlertDialogAction>
-              </AlertDialogFooter>
-          </AlertDialogContent>
-      </AlertDialog>
-      <LinkSuggestionsDialog
-          open={linkSuggestions.length > 0 && !isSuggestingLinks}
-          onOpenChange={(open) => { if (!open) setLinkSuggestions([]); }}
-          suggestions={linkSuggestions}
-          onApplySuggestion={handleApplySuggestion}
-          onApplyAll={handleApplyAllSuggestions}
-        />
+      <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Insertar Imagen</AlertDialogTitle><AlertDialogDescription>Sube una imagen o introduce una URL para insertarla en el contenido.</AlertDialogDescription></AlertDialogHeader><div className="space-y-4"><div><Label htmlFor="image-upload">Subir archivo</Label><Input id="image-upload" type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} /></div><div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">O</span></div></div><div><Label htmlFor="image-url">Insertar desde URL</Label><Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" /></div></div><AlertDialogFooter><AlertDialogCancel onClick={() => { setImageUrl(''); setImageFile(null); }}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleInsertImageInLongDesc} disabled={isUploadingImage}>{isUploadingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Insertar Imagen</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+      <LinkSuggestionsDialog open={linkSuggestions.length > 0 && !isSuggestingLinks} onOpenChange={(open) => { if (!open) setLinkSuggestions([]); }} suggestions={linkSuggestions} onApplySuggestion={handleApplySuggestion} onApplyAll={handleApplyAllSuggestions}/>
     </>
   );
 }
-
 
 export default function EditProductPage() {
     return (
