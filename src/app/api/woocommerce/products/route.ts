@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
         const decodedToken = await adminAuth.verifyIdToken(token);
         uid = decodedToken.uid;
         
-        const { wooApi, wpApi, activeConnectionKey } = await getApiClientsForUser(uid);
+        const { wooApi, wpApi, activeConnectionKey, settings } = await getApiClientsForUser(uid);
         if (!wooApi || !wpApi) { throw new Error('Both WooCommerce and WordPress APIs must be configured.'); }
         
         const formData = await request.formData();
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
         }
         
         // Handle supplier category
-        const supplierToAdd = finalProductData.supplier;
+        const supplierToAdd = finalProductData.supplier || finalProductData.newSupplier;
         if (supplierToAdd) {
             const supplierCatId = await findOrCreateWpCategoryByPath(`Proveedores > ${supplierToAdd}`, wpApi, 'product_cat');
             if (supplierCatId) finalCategoryIds.push({ id: supplierCatId });
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
         
         // Correct Tag Handling from string to array of objects
         const tagNames = finalProductData.tags ? finalProductData.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
-        const wooTags = tagNames.map((name: string) => ({ name }));
+        const wooTags = await findOrCreateTags(tagNames, wpApi);
 
         let finalSku = finalProductData.sku;
         if(finalProductData.sku && supplierToAdd) {
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
             categories: finalCategoryIds,
             images: wordpressImageIds,
             attributes: wooAttributes,
-            tags: wooTags,
+            tags: wooTags.map(tagId => ({ id: tagId })),
             lang: finalProductData.language === 'Spanish' ? 'es' : 'en', // Default to es
             weight: finalProductData.weight || undefined,
             dimensions: finalProductData.dimensions,
@@ -182,14 +182,15 @@ export async function POST(request: NextRequest) {
             });
         }
         
-        const storeUrl = wooApi.url.endsWith('/') ? wooApi.url.slice(0, -1) : wooApi.url;
+        const storeUrl = settings?.connections?.[activeConnectionKey as string]?.wooCommerceStoreUrl || '';
+        const cleanStoreUrl = storeUrl.endsWith('/') ? storeUrl.slice(0, -1) : storeUrl;
         
         return NextResponse.json({
             success: true,
             data: {
                 id: productId,
                 title: createdProduct.name,
-                url: `${storeUrl}/wp-admin/post.php?post=${productId}&action=edit`,
+                url: `${cleanStoreUrl}/wp-admin/post.php?post=${productId}&action=edit`,
             }
         });
 

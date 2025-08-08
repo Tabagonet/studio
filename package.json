@@ -5,7 +5,7 @@
   "private": true,
   "description": "AutoPress AI Application",
   "scripts": {
-    "dev": "rm -rf .next && rm -rf node_modules && rm -f package-lock.json && npm cache clean --force && npm install && next dev --port 9002 --hostname 0.0.0.0",
+    "dev": "rm -rf .next node_modules package-lock.json && npm cache clean --force && npm install && next dev --port 9002 --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -75,6 +75,7 @@
   },
   "devDependencies": {
     "@types/cheerio": "^0.22.35",
+    "@types/crypto-js": "^4.2.2",
     "@types/node": "^20",
     "@types/papaparse": "^5.3.14",
     "@types/react": "^18",
