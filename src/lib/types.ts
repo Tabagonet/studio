@@ -71,9 +71,9 @@ export interface ProductVariation {
   stockQuantity: string;
   weight?: string;
   dimensions?: {
-    length: string;
-    width: string;
-    height: string;
+    length?: string;
+    width?: string;
+    height?: string;
   };
   shipping_class?: string;
 }
