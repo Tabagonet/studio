@@ -18,6 +18,7 @@ import Link from 'next/link';
 
 export function ProductWizard() {
   const [currentStep, setCurrentStep] = useState(1);
+  const [isStepValid, setIsStepValid] = useState(true);
   const [productData, setProductData] = useState<ProductData>(INITIAL_PRODUCT_DATA);
   const [submissionStatus, setSubmissionStatus] = useState<SubmissionStatus>('idle');
   const [steps, setSteps] = useState<SubmissionStep[]>([]);
@@ -105,7 +106,15 @@ export function ProductWizard() {
       setCurrentStep(prev => prev + 1);
       window.scrollTo(0, 0);
     } else if (currentStep === 3) {
-      setCurrentStep(4);
+      if(isStepValid) {
+        setCurrentStep(4);
+      } else {
+        toast({
+            title: "Validación Fallida",
+            description: "Por favor, corrige los errores antes de continuar.",
+            variant: "destructive",
+        })
+      }
     }
   };
   
@@ -123,7 +132,7 @@ export function ProductWizard() {
       case 2:
         return <Step2Preview productData={productData} />;
       case 3:
-        return <Step3Confirm productData={productData} onValidationComplete={() => {}} />;
+        return <Step3Confirm productData={productData} onValidationComplete={setIsStepValid} />;
       case 4:
         return <Step4Processing status={submissionStatus} steps={steps} />;
       default:
@@ -157,7 +166,7 @@ export function ProductWizard() {
                 <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
             ) : (
-            <Button onClick={nextStep}>
+            <Button onClick={nextStep} disabled={!isStepValid}>
                 <Rocket className="mr-2 h-4 w-4" />
                 Crear Producto(s)
             </Button>

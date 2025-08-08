@@ -33,7 +33,7 @@ interface Step1DetailsPhotosProps {
 }
 
 const StatusIndicator = ({ status, message }: { status: 'idle' | 'checking' | 'exists' | 'available'; message: string }) => {
-    if (status === 'idle') return null;
+    if (status === 'idle' || !message) return null;
     if (status === 'checking') return <div className="flex items-center text-xs text-muted-foreground mt-1"><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Verificando...</div>;
     const color = status === 'exists' ? 'text-destructive' : 'text-green-600';
     const Icon = status === 'exists' ? AlertCircle : CheckCircle;
@@ -132,51 +132,51 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   }, [toast]);
   
   const checkProductExistence = useCallback(async (field: 'sku' | 'name', value: string, signal: AbortSignal) => {
-      const setStatus = field === 'sku' ? setSkuStatus : setNameStatus;
-      const user = auth.currentUser;
-      if (!user) return;
-      const token = await user.getIdToken();
+    const setStatus = field === 'sku' ? setSkuStatus : setNameStatus;
+    const user = auth.currentUser;
+    if (!user) return;
+    const token = await user.getIdToken();
 
-      setStatus({ status: 'checking', message: '' });
+    setStatus({ status: 'checking', message: '' });
 
-      try {
-          const response = await fetch(`/api/woocommerce/products/check?${field}=${encodeURIComponent(value)}`, {
-              headers: { 'Authorization': `Bearer ${token}` },
-              signal: signal,
-          });
-          if (signal.aborted) return;
-          const data = await response.json();
-          if (response.ok) {
-              setStatus({ status: data.exists ? 'exists' : 'available', message: data.message });
-          } else {
-              setStatus({ status: 'idle', message: '' }); 
-          }
-      } catch (error: any) {
-          if (error.name !== 'AbortError') {
-              console.error(`Error checking ${field}:`, error);
-              setStatus({ status: 'idle', message: '' });
-          }
-      }
+    try {
+        const response = await fetch(`/api/woocommerce/products/check?${field}=${encodeURIComponent(value)}`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+            signal: signal,
+        });
+        if (signal.aborted) return;
+        const data = await response.json();
+        if (response.ok) {
+            setStatus({ status: data.exists ? 'exists' : 'available', message: data.message });
+        } else {
+            setStatus({ status: 'idle', message: '' }); 
+        }
+    } catch (error: any) {
+        if (error.name !== 'AbortError') {
+            console.error(`Error checking ${field}:`, error);
+            setStatus({ status: 'idle', message: '' }); // Reset on error
+        }
+    }
   }, []);
 
   useEffect(() => {
-      if (!debouncedSku || debouncedSku.length < 3) {
-          setSkuStatus({ status: 'idle', message: '' });
-          return;
-      }
-      const controller = new AbortController();
-      checkProductExistence('sku', debouncedSku, controller.signal);
-      return () => controller.abort();
+    if (!debouncedSku || debouncedSku.length < 3) {
+      setSkuStatus({ status: 'idle', message: '' });
+      return;
+    }
+    const controller = new AbortController();
+    checkProductExistence('sku', debouncedSku, controller.signal);
+    return () => controller.abort();
   }, [debouncedSku, checkProductExistence]);
 
   useEffect(() => {
-      if (!debouncedName || debouncedName.length < 3) {
-          setNameStatus({ status: 'idle', message: '' });
-          return;
-      }
-      const controller = new AbortController();
-      checkProductExistence('name', debouncedName, controller.signal);
-      return () => controller.abort();
+    if (!debouncedName || debouncedName.length < 3) {
+      setNameStatus({ status: 'idle', message: '' });
+      return;
+    }
+    const controller = new AbortController();
+    checkProductExistence('name', debouncedName, controller.signal);
+    return () => controller.abort();
   }, [debouncedName, checkProductExistence]);
 
 
