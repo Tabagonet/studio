@@ -37,9 +37,12 @@ export async function GET(req: NextRequest) {
             existingProduct = response.data[0];
         }
     } else if (name) {
-        response = await wooApi.get('products', { search: name });
-        // The 'search' parameter can be broad, so we need to find an exact match.
+        // More efficient search: target only the product title.
+        // The `search` parameter is still useful as it's optimized by Woo/WP.
+        response = await wooApi.get('products', { search: name, search_columns: ['post_title'] });
+        
         if (response.data && response.data.length > 0) {
+            // Find an exact, case-insensitive match
             existingProduct = response.data.find((p: any) => p.name.toLowerCase() === name.toLowerCase());
         }
     }

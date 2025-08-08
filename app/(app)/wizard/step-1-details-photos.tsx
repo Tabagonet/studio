@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -496,7 +495,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                       <AlertCircle className="h-4 w-4" />
                       <AlertTitle>¡Atención! Nombre Duplicado</AlertTitle>
                       <AlertDescription>
-                        Ya existe un producto con este nombre. Para evitar problemas de SEO y URLs duplicadas, te recomendamos diferenciarlo añadiendo un proveedor o un SKU único.
+                        Para crear el producto, ahora será **obligatorio** que rellenes los campos **Proveedor** y **SKU** para diferenciarlo y evitar problemas de SEO.
                       </AlertDescription>
                     </Alert>
                   )}
