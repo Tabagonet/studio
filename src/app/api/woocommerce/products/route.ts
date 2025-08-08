@@ -1,3 +1,4 @@
+
 // src/app/api/woocommerce/products/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -145,7 +146,7 @@ export async function POST(request: NextRequest) {
                 const variationPayload: any = {
                     regular_price: v.regularPrice || undefined, 
                     sale_price: v.salePrice || undefined,
-                    attributes: v.attributes.map(a => ({ name: a.name, option: a.value })),
+                    attributes: v.attributes.map(a => ({ name: a.name, option: a.option })),
                     weight: v.weight || undefined,
                     dimensions: v.dimensions,
                     shipping_class: v.shipping_class || undefined,

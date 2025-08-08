@@ -1,3 +1,4 @@
+
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -11,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { WooCommerceCategory, ProductPhoto, ProductType, ProductVariation, WooCommerceImage } from '@/lib/types';
+import type { WooCommerceCategory, ProductPhoto, ProductType, ProductVariation, WooCommerceImage, ProductVariationAttribute } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { Checkbox } from '@/components/ui/checkbox';

@@ -1,3 +1,4 @@
+
 // src/components/features/wizard/variable-product-manager.tsx
 
 "use client";
@@ -74,9 +75,9 @@ export function VariableProductManager({ productData, updateProductData }: Varia
         const newVariations: ProductVariation[] = combinations.map(combo => {
             const attributes = combo.map((value, index) => ({
                 name: attributeNames[index],
-                value: value,
+                option: value,
             }));
-            const skuSuffix = attributes.map(a => a.value.substring(0,3).toUpperCase()).join('-');
+            const skuSuffix = attributes.map(a => a.option.substring(0,3).toUpperCase()).join('-');
             return {
                 id: uuidv4(),
                 attributes,
@@ -153,7 +154,7 @@ export function VariableProductManager({ productData, updateProductData }: Varia
                                             {variation.attributes.map(attr => (
                                                 <span key={attr.name}>
                                                 <span className="font-medium">{attr.name}:</span>
-                                                <span className="text-muted-foreground ml-1">{attr.value}</span>
+                                                <span className="text-muted-foreground ml-1">{attr.option}</span>
                                                 </span>
                                             ))}
                                     </div>
