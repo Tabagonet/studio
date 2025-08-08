@@ -54,7 +54,7 @@ export function ComboBox({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-full p-0" style={{ minWidth: 'var(--radix-popover-trigger-width)' }}>
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
         <div className="p-2 border-b">
             <Input
                 value={filter}

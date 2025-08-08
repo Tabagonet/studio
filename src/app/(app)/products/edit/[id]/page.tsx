@@ -19,7 +19,7 @@ import { ProductPreviewCard } from './product-preview-card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
-import type { SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
+import type { LinkSuggestion, SuggestLinksOutput } from '@/ai/schemas';
 import { VariationEditor } from '@/components/features/products/variation-editor';
 import { PRODUCT_TYPES } from '@/lib/constants';
 import { ComboBox } from '@/components/core/combobox';
@@ -223,7 +223,7 @@ function EditProductPageContent() {
           const supplierParentId = parentSupplierCategory?.id;
           const suppliers = supplierParentId ? catData.filter((c: WooCommerceCategory) => c.parent === supplierParentId) : [];
           setSupplierCategories(suppliers);
-          setWooCategories(catData.filter((c: WooCommerceCategory) => c.id !== supplierParentId && c.parent !== supplierParentId));
+          setWooCategories(catData.filter((c: WooCommerceCategory) => !supplierParentId || (c.id !== supplierParentId && c.parent !== supplierParentId)));
         } else {
           console.error("Failed to fetch categories");
         }
@@ -468,7 +468,16 @@ function EditProductPageContent() {
                   </Card>
                   
                   {product.type === 'variable' ? (
-                    <Card><CardHeader><CardTitle>Variaciones</CardTitle></CardHeader><CardContent><VariationEditor product={product} onProductChange={(updatedProduct) => setProduct({...product, ...updatedProduct})} /></CardContent></Card>
+                     <>
+                        <Card>
+                          <CardHeader><CardTitle>Precio por Defecto (Opcional)</CardTitle></CardHeader>
+                          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} /></div>
+                              <div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} /></div>
+                          </CardContent>
+                        </Card>
+                        <Card><CardHeader><CardTitle>Variaciones</CardTitle></CardHeader><CardContent><VariationEditor product={product} onProductChange={(updatedProduct) => setProduct({...product, ...updatedProduct})} /></CardContent></Card>
+                    </>
                   ) : product.type === 'simple' ? (
                     <><Card><CardHeader><CardTitle>Precios</CardTitle></CardHeader><CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} /></div><div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} /></div></CardContent></Card><Card><CardHeader><CardTitle>Inventario</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex items-center space-x-2"><Checkbox id="manage_stock" checked={product.manage_stock} onCheckedChange={(checked) => setProduct({ ...product, manage_stock: !!checked, stock_quantity: !!checked ? product.stock_quantity : '' })} /><Label htmlFor="manage_stock" className="font-normal">Gestionar inventario</Label></div>{product.manage_stock && (<div><Label htmlFor="stock_quantity">Cantidad en Stock</Label><Input id="stock_quantity" name="stock_quantity" type="number" value={product.stock_quantity} onChange={handleInputChange} /></div>)}</CardContent></Card></>
                   ) : ( <Alert><AlertTriangle className="h-4 w-4" /><AlertTitle>Producto de tipo '{product.type}'</AlertTitle><AlertDescription>El precio y el inventario para este tipo de producto se gestionan de forma diferente y no se pueden editar aquí.</AlertDescription></Alert> )}
