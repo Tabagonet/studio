@@ -33,9 +33,11 @@ export async function GET(req: NextRequest) {
     const orderby = searchParams.get('orderby') || 'date';
     const order = searchParams.get('order') || 'desc';
     const lang = searchParams.get('lang');
-    const hasImage = searchParams.get('has_image'); // yes or no
+    const hasImage = searchParams.get('has_image'); // 'yes' or 'no'
 
     let params: any = {
+      page: parseInt(page, 10),
+      per_page: parseInt(perPage, 10),
       orderby,
       order,
     };
@@ -52,45 +54,15 @@ export async function GET(req: NextRequest) {
       if (stock_status && stock_status !== 'all') params.stock_status = stock_status;
     }
 
-    let allProducts: any[] = [];
-    let totalPages = 1;
-    const pageNum = parseInt(page, 10);
-    const perPageNum = parseInt(perPage, 10);
-
-    if (hasImage === 'yes' || hasImage === 'no') {
-        // Fetch all products matching other criteria, then filter by image and paginate manually.
-        params.per_page = 100;
-        let currentPage = 1;
-        let morePages = true;
-        while(morePages) {
-            params.page = currentPage;
-            const response = await wooApi.get("products", params);
-            allProducts = allProducts.concat(response.data);
-            const totalPagesHeader = response.headers['x-wp-totalpages'];
-            morePages = totalPagesHeader ? currentPage < parseInt(totalPagesHeader, 10) : false;
-            currentPage++;
-        }
-        
-        const filteredProducts = allProducts.filter((p: any) => {
-             const imageExists = p.images && p.images.length > 0 && p.images[0].src && !p.images[0].src.includes('placeholder');
-             return hasImage === 'yes' ? imageExists : !imageExists;
-        });
-
-        totalPages = Math.ceil(filteredProducts.length / perPageNum);
-        const paginatedData = filteredProducts.slice((pageNum - 1) * perPageNum, pageNum * perPageNum);
-        allProducts = paginatedData;
-
-    } else {
-        // Standard pagination
-        params.page = pageNum;
-        params.per_page = perPageNum;
-        const response = await wooApi.get("products", params);
-        allProducts = response.data;
-        totalPages = response.headers['x-wp-totalpages'] ? parseInt(response.headers['x-wp-totalpages'], 10) : 1;
+    if (hasImage === 'yes') {
+      params.has_image = 1;
+    } else if (hasImage === 'no') {
+      params.has_image = 0;
     }
+    
+    const response = await wooApi.get("products", params);
 
-
-    const products: ProductSearchResult[] = allProducts.map((product: any) => {
+    const products: ProductSearchResult[] = response.data.map((product: any) => {
         let imageUrl: string | null = null;
         
         if (product.images && product.images.length > 0 && product.images[0].src) {
@@ -128,6 +100,8 @@ export async function GET(req: NextRequest) {
             shipping_class: product.shipping_class,
         };
     });
+        
+    const totalPages = response.headers['x-wp-totalpages'] ? parseInt(response.headers['x-wp-totalpages'], 10) : 1;
         
     return NextResponse.json({ products, totalPages });
   } catch (error: any) {

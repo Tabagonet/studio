@@ -2,13 +2,40 @@
 /*
 Plugin Name: AutoPress AI Helper
 Description: Añade endpoints a la REST API para gestionar traducciones, stock y otras funciones personalizadas para AutoPress AI.
-Version: 1.45
+Version: 1.50
 Author: intelvisual@intelvisual.es
 Requires at least: 5.8
 Requires PHP: 7.4
 */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
+
+add_action( 'woocommerce_rest_product_query', 'wc_rest_filter_products_by_has_image', 10, 2 );
+
+function wc_rest_filter_products_by_has_image( $args, $request ) {
+    $has_image = $request->get_param( 'has_image' );
+
+    if ( $has_image === null ) {
+        return $args;
+    }
+    
+    if ($has_image === 'yes' || $has_image === 'true' || $has_image === 1 || $has_image === '1' ) {
+        // Productos que tienen imagen destacada (thumbnail)
+        $args['meta_query'][] = array(
+            'key'     => '_thumbnail_id',
+            'compare' => 'EXISTS'
+        );
+    } elseif ($has_image === 'no' || $has_image === 'false' || $has_image === 0 || $has_image === '0') {
+        // Productos que NO tienen imagen destacada
+        $args['meta_query'][] = array(
+            'key'     => '_thumbnail_id',
+            'compare' => 'NOT EXISTS'
+        );
+    }
+
+    return $args;
+}
+
 
 // === Admin Menu and Settings Page ===
 add_action('admin_menu', 'autopress_ai_add_admin_menu');
