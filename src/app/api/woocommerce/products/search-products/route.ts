@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     }
     
     const { searchParams } = new URL(req.url);
-    const query = searchParams.get('q') || '';
+    const query = searchParams.get('q');
     const include = searchParams.get('include');
     const page = searchParams.get('page') || '1';
     const perPage = searchParams.get('per_page') || '10';
@@ -35,13 +35,16 @@ export async function GET(req: NextRequest) {
     const lang = searchParams.get('lang');
     const hasImage = searchParams.get('has_image'); // 'yes' or 'no'
 
+    console.log(`[API search-products] Received request with params: q=${query}, category=${category}, status=${status}, has_image=${hasImage}, page=${page}`);
+
     let params: any = {
       page: parseInt(page, 10),
       per_page: parseInt(perPage, 10),
       orderby,
       order,
     };
-
+    
+    // Add has_image filter to params if present
     if (hasImage === 'yes') {
       params.has_image = 1;
     } else if (hasImage === 'no') {
@@ -60,6 +63,8 @@ export async function GET(req: NextRequest) {
       if (stock_status && stock_status !== 'all') params.stock_status = stock_status;
     }
     
+    console.log('[API search-products] Sending final params to WooCommerce:', params);
+
     const response = await wooApi.get("products", params);
 
     const products: ProductSearchResult[] = response.data.map((product: any) => {
@@ -102,6 +107,8 @@ export async function GET(req: NextRequest) {
     });
         
     const totalPages = response.headers['x-wp-totalpages'] ? parseInt(response.headers['x-wp-totalpages'], 10) : 1;
+    
+    console.log(`[API search-products] WooCommerce responded with ${products.length} products and ${totalPages} total pages.`);
         
     return NextResponse.json({ products, totalPages });
   } catch (error: any) {
