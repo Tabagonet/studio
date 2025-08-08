@@ -1,5 +1,3 @@
-
-
 // src/app/api/woocommerce/products/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -46,12 +44,14 @@ export async function POST(request: NextRequest) {
             finalCategoryIds.push({ id: finalProductData.category.id });
         }
         if (finalProductData.categoryPath) {
-            const newCatId = await findOrCreateWpCategoryByPath(finalProductData.categoryPath, wpApi);
+            const newCatId = await findOrCreateWpCategoryByPath(finalProductData.categoryPath, wpApi, 'product_cat');
             if (newCatId) finalCategoryIds.push({ id: newCatId });
         }
+        
         // Handle supplier category
-        if (finalProductData.supplier) {
-            const supplierCatId = await findOrCreateWpCategoryByPath(finalProductData.supplier, wpApi);
+        const supplierToAdd = finalProductData.newSupplier || finalProductData.supplier;
+        if (supplierToAdd) {
+            const supplierCatId = await findOrCreateWpCategoryByPath(`Proveedores > ${supplierToAdd}`, wpApi, 'product_cat');
             if (supplierCatId) finalCategoryIds.push({ id: supplierCatId });
         }
 
@@ -83,13 +83,13 @@ export async function POST(request: NextRequest) {
             }));
         
         // Add supplier attribute
-        if (finalProductData.supplier) {
+        if (supplierToAdd) {
             wooAttributes.push({
                 name: 'Proveedor',
                 position: wooAttributes.length,
                 visible: true,
                 variation: false,
-                options: [finalProductData.supplier],
+                options: [supplierToAdd],
             });
         }
         
@@ -98,14 +98,14 @@ export async function POST(request: NextRequest) {
         const wooTags = tagNames.map((name: string) => ({ name }));
 
         let finalSku = finalProductData.sku;
-        if(finalProductData.sku && finalProductData.supplier) {
-            finalSku = `${finalProductData.sku}-${slugify(finalProductData.supplier)}`;
+        if(finalProductData.sku && supplierToAdd) {
+            finalSku = `${finalProductData.sku}-${slugify(supplierToAdd)}`;
         }
 
 
         const wooPayload: any = {
             name: finalProductData.name,
-            slug: finalProductData.supplier ? slugify(`${finalProductData.name}-${finalProductData.supplier}`) : undefined,
+            slug: supplierToAdd ? slugify(`${finalProductData.name}-${supplierToAdd}`) : undefined,
             type: finalProductData.productType,
             description: finalProductData.longDescription,
             short_description: finalProductData.shortDescription,
@@ -153,8 +153,8 @@ export async function POST(request: NextRequest) {
                 };
                 if(finalProductData.shouldSaveSku !== false && v.sku) {
                     let finalVariationSku = v.sku;
-                    if(finalProductData.supplier) {
-                        finalVariationSku = `${v.sku}-${slugify(finalProductData.supplier)}`;
+                    if(supplierToAdd) {
+                        finalVariationSku = `${v.sku}-${slugify(supplierToAdd)}`;
                     }
                     variationPayload.sku = finalVariationSku;
                 }

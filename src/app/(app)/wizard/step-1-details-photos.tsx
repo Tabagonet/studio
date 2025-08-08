@@ -43,6 +43,8 @@ const StatusIndicator = ({ status, message }: { status: 'idle' | 'checking' | 'e
 
 export function Step1DetailsPhotos({ productData, updateProductData, isProcessing = false }: Step1DetailsPhotosProps) {
   const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
+  const [supplierCategories, setSupplierCategories] = useState<WooCommerceCategory[]>([]);
+
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingImageMeta, setIsGeneratingImageMeta] = useState(false);
@@ -78,6 +80,13 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         
         const categoryMap = new Map<number, WooCommerceCategory>(data.map(cat => ({ ...cat, children: [] })).map(cat => [cat.id, cat]));
         const tree: WooCommerceCategory[] = [];
+        
+        const parentSupplierCategory = data.find(c => c.name.toLowerCase() === 'proveedores' && c.parent === 0);
+        const supplierParentId = parentSupplierCategory?.id;
+
+        const suppliers = supplierParentId ? data.filter(c => c.parent === supplierParentId) : [];
+        setSupplierCategories(suppliers);
+
 
         data.forEach(cat => {
             if (cat.parent === 0) {
@@ -145,6 +154,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             signal: signal,
         });
         if (signal.aborted) return;
+        
         const data = await response.json();
         if (response.ok) {
             setStatus({ status: data.exists ? 'exists' : 'available', message: data.message });
@@ -193,7 +203,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   };
 
 
-  const handleSelectChange = (name: 'productType' | 'category', value: string) => {
+  const handleSelectChange = (name: 'productType' | 'category' | 'supplier', value: string) => {
     if (name === 'productType') {
       updateProductData({ 
         productType: value as ProductType, 
@@ -203,6 +213,13 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     } else if (name === 'category') {
       const selectedCat = wooCategories.find(c => c.id.toString() === value);
       updateProductData({ category: selectedCat || null, categoryPath: '' });
+    } else if (name === 'supplier') {
+        const selectedSupplier = supplierCategories.find(s => s.name === value);
+        if (selectedSupplier) {
+             updateProductData({ supplier: selectedSupplier.name, newSupplier: '' });
+        } else {
+            updateProductData({ supplier: '' });
+        }
     }
   };
 
@@ -509,10 +526,28 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                       </AlertDescription>
                     </Alert>
                   )}
-                  <div>
-                    <Label htmlFor="supplier">Proveedor (opcional)</Label>
-                    <Input id="supplier" name="supplier" value={productData.supplier || ''} onChange={handleInputChange} placeholder="Ej: Proveedor A" disabled={isProcessing} />
-                     <p className="text-xs text-muted-foreground mt-1">Este nombre se usará para crear una categoría, un atributo y un slug únicos.</p>
+                   <div>
+                      <Label>Proveedor</Label>
+                      <div className="flex gap-2">
+                           <Select value={productData.supplier} onValueChange={(value) => handleSelectChange('supplier', value)} disabled={isProcessing || isLoadingCategories}>
+                              <SelectTrigger id="supplier">
+                                  <SelectValue placeholder="Selecciona un proveedor..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                  {supplierCategories.map(cat => (
+                                      <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                                  ))}
+                              </SelectContent>
+                          </Select>
+                          <Input
+                              name="newSupplier"
+                              value={productData.newSupplier || ''}
+                              onChange={(e) => updateProductData({ newSupplier: e.target.value, supplier: '' })}
+                              placeholder="O crea un nuevo proveedor"
+                              disabled={isProcessing}
+                          />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">El proveedor se asignará a la categoría padre "Proveedores".</p>
                   </div>
 
                   <div>
@@ -799,3 +834,4 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     </>
   );
 }
+

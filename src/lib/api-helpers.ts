@@ -362,51 +362,13 @@ export async function uploadImageToWordPress(
 }
 
 /**
- * Finds a category by its path (e.g., "Parent > Child") or creates it if it doesn't exist.
- * @param pathString The category path string.
- * @param wooApi An initialized WooCommerce API client.
- * @returns The ID of the final category in the path.
- */
-export async function findOrCreateCategoryByPath(pathString: string, wooApi: WooCommerceRestApiType): Promise<number | null> {
-    if (!pathString || !pathString.trim()) {
-        return null;
-    }
-
-    const pathParts = pathString.split('>').map(part => part.trim());
-    let parentId = 0;
-    let finalCategoryId: number | null = null;
-    
-    const allCategoriesResponse = await wooApi.get("products/categories", { per_page: 100 });
-    const allCategories = allCategoriesResponse.data;
-
-    for (const part of pathParts) {
-        let foundCategory = allCategories.find(
-            (cat: any) => cat.name.toLowerCase() === part.toLowerCase() && cat.parent === parentId
-        );
-
-        if (foundCategory) {
-            parentId = foundCategory.id;
-        } else {
-            const { data: newCategory } = await wooApi.post("products/categories", {
-                name: part,
-                parent: parentId,
-            });
-            allCategories.push(newCategory);
-            parentId = newCategory.id;
-        }
-        finalCategoryId = parentId;
-    }
-
-    return finalCategoryId;
-}
-
-/**
  * Finds a WP post category by its path (e.g., "Parent > Child") or creates it if it doesn't exist.
  * @param pathString The category path string.
  * @param wpApi An initialized Axios instance for the WordPress API.
+ * @param taxonomy The taxonomy slug (e.g., 'category', 'product_cat').
  * @returns The ID of the final category in the path.
  */
-export async function findOrCreateWpCategoryByPath(pathString: string, wpApi: AxiosInstance): Promise<number | null> {
+export async function findOrCreateWpCategoryByPath(pathString: string, wpApi: AxiosInstance, taxonomy: string = 'category'): Promise<number | null> {
     if (!pathString || !pathString.trim()) {
         return null;
     }
@@ -415,29 +377,31 @@ export async function findOrCreateWpCategoryByPath(pathString: string, wpApi: Ax
     let parentId = 0;
     let finalCategoryId: number | null = null;
     
-    const allCategoriesResponse = await wpApi.get("/categories", { params: { per_page: 100 } });
-    const allCategories = allCategoriesResponse.data;
+    // Fetch all terms for the taxonomy to check existence in memory
+    const allTermsResponse = await wpApi.get(`/${taxonomy}`, { params: { per_page: 100 } });
+    const allTerms = allTermsResponse.data;
 
     for (const part of pathParts) {
-        let foundCategory = allCategories.find(
-            (cat: any) => cat.name.toLowerCase() === part.toLowerCase() && cat.parent === parentId
+        let foundTerm = allTerms.find(
+            (term: any) => term.name.toLowerCase() === part.toLowerCase() && term.parent === parentId
         );
 
-        if (foundCategory) {
-            parentId = foundCategory.id;
+        if (foundTerm) {
+            parentId = foundTerm.id;
         } else {
-            const { data: newCategory } = await wpApi.post("/categories", {
+            const { data: newTerm } = await wpApi.post(`/${taxonomy}`, {
                 name: part,
                 parent: parentId,
             });
-            allCategories.push(newCategory);
-            parentId = newCategory.id;
+            allTerms.push(newTerm); // Add to our in-memory list
+            parentId = newTerm.id;
         }
         finalCategoryId = parentId;
     }
 
     return finalCategoryId;
 }
+
 
 /**
  * Finds tags by name or creates them if they don't exist in WordPress.
