@@ -1,3 +1,4 @@
+
 // src/app/api/upload-image/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
