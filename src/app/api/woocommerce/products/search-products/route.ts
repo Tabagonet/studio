@@ -43,8 +43,10 @@ export async function GET(req: NextRequest) {
       order,
     };
     
-    if (hasImage === '1' || hasImage === '0') {
-        params.has_image = hasImage;
+    if (hasImage === '1') {
+      params._thumbnail_id_compare = 'EXISTS';
+    } else if (hasImage === '0') {
+      params._thumbnail_id_compare = 'NOT EXISTS';
     }
     
     if (include) {

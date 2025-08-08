@@ -8,10 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, ArrowLeft, Save, Trash2, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { auth } from '@/lib/firebase';
+import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { WooCommerceCategory, ProductPhoto, WooCommerceImage, ProductType, ProductVariation } from '@/lib/types';
+import type { WooCommerceCategory, ProductPhoto, ProductType, ProductVariation } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -28,6 +28,7 @@ export interface ProductEditState {
   name: string;
   sku: string;
   supplier: string | null;
+  newSupplier?: string; // For creating a new one
   type: ProductType;
   regular_price: string;
   sale_price: string;
@@ -61,6 +62,7 @@ function EditProductPageContent() {
   const [error, setError] = useState<string | null>(null);
 
   const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
+  const [supplierCategories, setSupplierCategories] = useState<WooCommerceCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   
   const { toast } = useToast();
@@ -89,11 +91,14 @@ function EditProductPageContent() {
     setProduct({ ...product, description: newContent });
   };
 
-  const handleSelectChange = (name: 'status' | 'category_id' | 'type', value: string) => {
+  const handleSelectChange = (name: 'status' | 'category_id' | 'type' | 'supplier', value: string) => {
     if (!product) return;
     let finalValue: string | number | null = value;
     if (name === 'category_id') {
       finalValue = value ? parseInt(value, 10) : null;
+    } else if (name === 'supplier') {
+        setProduct({ ...product, supplier: value, newSupplier: '' });
+        return;
     }
     setProduct({ ...product, [name]: finalValue as any });
   };
@@ -219,6 +224,10 @@ function EditProductPageContent() {
 
         if (categoriesResponse.ok) {
           const catData = await categoriesResponse.json();
+          const parentSupplierCategory = catData.find((c: WooCommerceCategory) => c.name.toLowerCase() === 'proveedores' && c.parent === 0);
+          const supplierParentId = parentSupplierCategory?.id;
+          const suppliers = supplierParentId ? catData.filter((c: WooCommerceCategory) => c.parent === supplierParentId) : [];
+          setSupplierCategories(suppliers);
           setWooCategories(catData);
         } else {
           console.error("Failed to fetch categories");
@@ -443,7 +452,26 @@ function EditProductPageContent() {
                           <div><Label htmlFor="name">Nombre del Producto</Label><Input id="name" name="name" value={product.name} onChange={handleInputChange} /></div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div><Label htmlFor="sku">SKU</Label><Input id="sku" name="sku" value={product.sku} onChange={handleInputChange} /></div>
-                              <div><Label htmlFor="supplier">Proveedor</Label><Input id="supplier" name="supplier" value={product.supplier || ''} onChange={handleInputChange} /></div>
+                               <div>
+                                  <Label>Proveedor</Label>
+                                  <div className="flex gap-2">
+                                      <Select value={product.supplier || ''} onValueChange={(value) => handleSelectChange('supplier', value)} disabled={isSaving || isLoadingCategories}>
+                                          <SelectTrigger><SelectValue placeholder="Selecciona un proveedor..." /></SelectTrigger>
+                                          <SelectContent>
+                                              {supplierCategories.map(cat => (
+                                                  <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                                              ))}
+                                          </SelectContent>
+                                      </Select>
+                                      <Input
+                                          name="newSupplier"
+                                          value={product.newSupplier || ''}
+                                          onChange={(e) => setProduct({...product, newSupplier: e.target.value, supplier: ''})}
+                                          placeholder="O crea un nuevo proveedor"
+                                          disabled={isSaving}
+                                      />
+                                  </div>
+                              </div>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div><Label htmlFor="status">Estado</Label><Select name="status" value={product.status} onValueChange={(value) => handleSelectChange('status', value)}><SelectTrigger id="status"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="publish">Publicado</SelectItem><SelectItem value="draft">Borrador</SelectItem><SelectItem value="pending">Pendiente</SelectItem><SelectItem value="private">Privado</SelectItem></SelectContent></Select></div>
