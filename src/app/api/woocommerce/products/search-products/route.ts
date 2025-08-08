@@ -38,13 +38,14 @@ export async function GET(req: NextRequest) {
 
     console.log(`[API search-products] Received request with params: q=${query}, category=${category}, status=${status}, has_image=${hasImage}, page=${page}`);
 
-    let params: any = {
+    const params: any = {
       page: parseInt(page, 10),
       per_page: parseInt(perPage, 10),
       orderby,
       order,
     };
     
+    // Add the has_image filter if the plugin supports it
     if (hasImage === 'yes') {
       params.has_image = 1;
     } else if (hasImage === 'no') {
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
     
     if (include) {
       params.include = include.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
-      params.per_page = 100;
+      params.per_page = 100; // Increase per_page for include requests
     } else {
       if (query) params.search = query;
       if (type && type !== 'all') params.type = type;
@@ -68,17 +69,6 @@ export async function GET(req: NextRequest) {
     const response = await wooApi.get("products", params);
     
     let productsData = response.data;
-
-    // Server-side filtering for placeholder images if has_image is not supported by plugin
-    if (hasImage && typeof params.has_image === 'undefined') {
-        const hasRealImage = (p: any) => p.images.length > 0 && !p.images[0].src.includes('placeholder.png');
-        if (hasImage === 'yes') {
-            productsData = productsData.filter((p: any) => hasRealImage(p));
-        } else if (hasImage === 'no') {
-            productsData = productsData.filter((p: any) => !hasRealImage(p));
-        }
-    }
-
 
     const products: ProductSearchResult[] = productsData.map((product: any) => {
         let imageUrl: string | null = null;

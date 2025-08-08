@@ -2,7 +2,7 @@
 /*
 Plugin Name: AutoPress AI Helper
 Description: Añade endpoints a la REST API para gestionar traducciones, stock y otras funciones personalizadas para AutoPress AI.
-Version: 1.51
+Version: 1.52
 Author: intelvisual@intelvisual.es
 Requires at least: 5.8
 Requires PHP: 7.4
@@ -14,25 +14,21 @@ add_action( 'woocommerce_rest_product_query', 'wc_rest_filter_products_by_has_im
 
 function wc_rest_filter_products_by_has_image( $args, $request ) {
     $has_image = $request->get_param( 'has_image' );
-
     if ( $has_image === null ) {
         return $args;
     }
     
     if ($has_image === 'yes' || $has_image === 'true' || $has_image === 1 || $has_image === '1' ) {
-        // Productos que tienen imagen destacada (thumbnail)
         $args['meta_query'][] = array(
             'key'     => '_thumbnail_id',
             'compare' => 'EXISTS'
         );
     } elseif ($has_image === 'no' || $has_image === 'false' || $has_image === 0 || $has_image === '0') {
-        // Productos que NO tienen imagen destacada
         $args['meta_query'][] = array(
             'key'     => '_thumbnail_id',
             'compare' => 'NOT EXISTS'
         );
     }
-
     return $args;
 }
 
@@ -182,7 +178,7 @@ function autopress_ai_register_rest_endpoints() {
         $page = $request->get_param('page') ? absint($request->get_param('page')) : 1;
         $per_page = $request->get_param('per_page') ? absint($request->get_param('per_page')) : 20;
         
-        $post_types_to_query = ['post', 'page']; // Removed 'product' as it's handled by WC API
+        $post_types_to_query = ['post', 'page'];
 
         // Query posts and pages together
         $post_args = [
@@ -195,10 +191,10 @@ function autopress_ai_register_rest_endpoints() {
         $post_query = new WP_Query($post_args);
         
         // Query taxonomies (categories)
-        $taxonomies_to_query = ['category']; // 'product_cat' is handled by WC API
+        $taxonomies_to_query = ['category']; 
         $all_terms = [];
-        foreach ($taxonomies_to_query as $tax) {
-            $terms = get_terms(['taxonomy' => $tax, 'hide_empty' => false]);
+        if (taxonomy_exists('category')) {
+            $terms = get_terms(['taxonomy' => 'category', 'hide_empty' => false]);
             if (!is_wp_error($terms)) {
                 $all_terms = array_merge($all_terms, $terms);
             }
@@ -246,8 +242,6 @@ function autopress_ai_register_rest_endpoints() {
             ];
         }
 
-        // We can't easily get the total across all content types with separate queries, 
-        // so we'll let the client handle pagination based on the returned count.
         $response = new WP_REST_Response(['content' => $content_list], 200);
         $response->header('X-WP-Total', $post_query->found_posts);
         $response->header('X-WP-TotalPages', $post_query->max_num_pages);
