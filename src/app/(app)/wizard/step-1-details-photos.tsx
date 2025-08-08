@@ -486,6 +486,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
      }
   };
 
+  const isDuplicateButResolved = nameStatus.status === 'exists' && !!productData.sku && (!!productData.supplier || !!productData.newSupplier);
+
 
   return (
     <>
@@ -517,15 +519,27 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                       <StatusIndicator status={skuStatus.status} message={skuStatus.message} />
                     </div>
                   </div>
+                  
                   {nameStatus.status === 'exists' && (
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>¡Atención! Nombre Duplicado</AlertTitle>
-                      <AlertDescription>
-                        Para crear el producto, ahora será **obligatorio** que rellenes los campos **Proveedor** y **SKU** para diferenciarlo y evitar problemas de SEO.
-                      </AlertDescription>
-                    </Alert>
+                    isDuplicateButResolved ? (
+                       <Alert variant="success">
+                        <CheckCircle className="h-4 w-4" />
+                        <AlertTitle>¡Conflicto Resuelto!</AlertTitle>
+                        <AlertDescription>
+                          Has proporcionado un SKU y un proveedor, ¡perfecto! Se generará un slug único para diferenciarlo.
+                        </AlertDescription>
+                      </Alert>
+                    ) : (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>¡Atención! Nombre Duplicado</AlertTitle>
+                        <AlertDescription>
+                          Para crear el producto, ahora será **obligatorio** que rellenes los campos **Proveedor** y **SKU** para diferenciarlo y evitar problemas de SEO.
+                        </AlertDescription>
+                      </Alert>
+                    )
                   )}
+
                    <div>
                       <Label>Proveedor</Label>
                       <div className="flex gap-2">
@@ -834,4 +848,3 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     </>
   );
 }
-
