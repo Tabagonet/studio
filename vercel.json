@@ -1,13 +1,4 @@
 {
-  "regions": ["fra1"],
-  "functions": {
-    "app/api/**/*.js": {
-      "memory": 1024,
-      "maxDuration": 60
-    },
-    "app/api/**/*.mjs": {
-      "memory": 1024,
-      "maxDuration": 60
-    }
-  }
+  "regions": ["fra1"]
+
 }

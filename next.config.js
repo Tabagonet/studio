@@ -1,3 +1,4 @@
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
@@ -15,7 +16,7 @@ const nextConfig = {
     ],
     outputFileTracingIncludes: {
       // Incluye binarios de sharp en el bundle para Vercel
-      '/api/**': ['./node_modules/sharp/**/*'],
+      './src/app/api/**': ['./node_modules/sharp/**/*'],
     },
   },
   images: {
