@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
-import { Step2Preview } from '@/components/features/wizard/step-2-preview'; 
+import { Step2Preview } from './step-2-preview'; 
 import { Step3Confirm } from './step-3-confirm';
 import { Step4Processing } from './step-4-processing';
 import type { ProductData, SubmissionStep, SubmissionStatus } from '@/lib/types';
