@@ -42,6 +42,12 @@ export async function GET(req: NextRequest) {
       order,
     };
 
+    if (hasImage === 'yes') {
+      params.has_image = 1;
+    } else if (hasImage === 'no') {
+      params.has_image = 0;
+    }
+
     if (include) {
       params.include = include.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
       params.per_page = 100;
@@ -52,12 +58,6 @@ export async function GET(req: NextRequest) {
       if (status && status !== 'all') params.status = status;
       if (lang && lang !== 'all') params.lang = lang;
       if (stock_status && stock_status !== 'all') params.stock_status = stock_status;
-    }
-
-    if (hasImage === 'yes') {
-      params.has_image = 1;
-    } else if (hasImage === 'no') {
-      params.has_image = 0;
     }
     
     const response = await wooApi.get("products", params);
