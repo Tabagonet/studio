@@ -133,8 +133,9 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   
     useEffect(() => {
     const checkProductExistence = async (field: 'sku' | 'name', value: string) => {
+        const setStatus = field === 'sku' ? setSkuStatus : setNameStatus;
         if (!value || value.length < 3) {
-            (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'idle', message: '' });
+            setStatus({ status: 'idle', message: '' });
             return;
         }
 
@@ -142,7 +143,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         if (!user) return;
         const token = await user.getIdToken();
 
-        (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'checking', message: '' });
+        setStatus({ status: 'checking', message: '' });
 
         try {
             const response = await fetch(`/api/woocommerce/products/check?${field}=${encodeURIComponent(value)}`, {
@@ -151,17 +152,17 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             const data = await response.json();
             if (response.ok) {
                 if (data.exists) {
-                    (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'exists', message: data.message });
+                    setStatus({ status: 'exists', message: data.message });
                 } else {
-                    (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'available', message: `El ${field.toUpperCase()} está disponible.` });
+                    setStatus({ status: 'available', message: `El ${field.toUpperCase()} está disponible.` });
                 }
             } else {
-                 (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'idle', message: '' }); // Reset on error
+                 setStatus({ status: 'idle', message: '' }); // Reset on error
             }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             console.error(`Error checking ${field}:`, errorMessage);
-            (field === 'sku' ? setSkuStatus : setNameStatus)({ status: 'idle', message: '' });
+            setStatus({ status: 'idle', message: '' });
         }
     };
 

@@ -1,3 +1,4 @@
+
 // src/app/api/woocommerce/products/check/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiClientsForUser } from '@/lib/api-helpers';
@@ -30,11 +31,13 @@ export async function GET(req: NextRequest) {
 
     let response;
     let existingProduct = null;
+    let productType = 'desconocido';
 
     if (sku) {
         response = await wooApi.get('products', { sku: sku });
         if (response.data && response.data.length > 0) {
             existingProduct = response.data[0];
+            productType = existingProduct.type;
         }
     } else if (name) {
         // More efficient search: target only the product title.
@@ -44,14 +47,20 @@ export async function GET(req: NextRequest) {
         if (response.data && response.data.length > 0) {
             // Find an exact, case-insensitive match
             existingProduct = response.data.find((p: any) => p.name.toLowerCase() === name.toLowerCase());
+            if (existingProduct) {
+              productType = existingProduct.type;
+            }
         }
     }
 
     if (existingProduct) {
-        const productType = existingProduct.type;
+        const message = sku 
+            ? `Ya existe un producto de tipo '${productType}' con el SKU ${sku}.`
+            : `Ya existe un producto de tipo '${productType}' con el nombre "${name}".`;
+
         return NextResponse.json({ 
             exists: true, 
-            message: `Ya existe un producto de tipo '${productType}' con estos datos.`,
+            message: message,
             product: {
                 id: existingProduct.id,
                 name: existingProduct.name,
