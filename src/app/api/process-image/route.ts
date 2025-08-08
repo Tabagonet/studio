@@ -1,4 +1,3 @@
-
 // src/app/api/process-image/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
@@ -33,7 +32,7 @@ export async function POST(req: NextRequest) {
             .webp({ quality: 80 })
             .toBuffer();
 
-        return new NextResponse(processedBuffer, {
+        return new Response(processedBuffer, {
             status: 200,
             headers: { 'Content-Type': 'image/webp' }
         });
