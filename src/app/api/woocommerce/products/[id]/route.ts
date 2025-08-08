@@ -1,4 +1,4 @@
-
+// src/app/api/woocommerce/products/[id]/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiClientsForUser, findOrCreateWpCategoryByPath, uploadImageToWordPress } from '@/lib/api-helpers';
