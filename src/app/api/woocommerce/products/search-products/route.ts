@@ -1,4 +1,5 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import type { ProductSearchResult } from '@/lib/types';
@@ -44,13 +45,12 @@ export async function GET(req: NextRequest) {
       order,
     };
     
-    // Add has_image filter to params if present
     if (hasImage === 'yes') {
       params.has_image = 1;
     } else if (hasImage === 'no') {
       params.has_image = 0;
     }
-
+    
     if (include) {
       params.include = include.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
       params.per_page = 100;
@@ -66,8 +66,21 @@ export async function GET(req: NextRequest) {
     console.log('[API search-products] Sending final params to WooCommerce:', params);
 
     const response = await wooApi.get("products", params);
+    
+    let productsData = response.data;
 
-    const products: ProductSearchResult[] = response.data.map((product: any) => {
+    // Server-side filtering for placeholder images if has_image is not supported by plugin
+    if (hasImage && typeof params.has_image === 'undefined') {
+        const hasRealImage = (p: any) => p.images.length > 0 && !p.images[0].src.includes('placeholder.png');
+        if (hasImage === 'yes') {
+            productsData = productsData.filter((p: any) => hasRealImage(p));
+        } else if (hasImage === 'no') {
+            productsData = productsData.filter((p: any) => !hasRealImage(p));
+        }
+    }
+
+
+    const products: ProductSearchResult[] = productsData.map((product: any) => {
         let imageUrl: string | null = null;
         
         if (product.images && product.images.length > 0 && product.images[0].src) {

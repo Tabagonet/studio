@@ -162,11 +162,11 @@ export function ProductDataTable() {
         category: selectedCategory,
         status: selectedStatus,
         stock_status: selectedStockStatus,
-        lang: selectedLanguage, // Use selected language
+        lang: 'all', // Always fetch all languages to build hierarchy
       });
-
+      
       if (selectedImageStatus !== 'all') {
-        params.append('has_image', selectedImageStatus === 'yes' ? 'yes' : 'no');
+        params.append('has_image', selectedImageStatus === 'yes' ? '1' : '0');
       }
 
       if (nameFilter?.value) {
