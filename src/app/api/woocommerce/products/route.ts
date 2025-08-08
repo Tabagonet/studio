@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
         }
         
         // Handle supplier category
-        const supplierToAdd = finalProductData.newSupplier || finalProductData.supplier;
+        const supplierToAdd = finalProductData.supplier;
         if (supplierToAdd) {
             const supplierCatId = await findOrCreateWpCategoryByPath(`Proveedores > ${supplierToAdd}`, wpApi, 'product_cat');
             if (supplierCatId) finalCategoryIds.push({ id: supplierCatId });

@@ -124,7 +124,7 @@ export default function BatchProcessPage() {
 
   const handleDownloadTemplate = () => {
     const headers = [
-      'sku', 'nombre', 'tipo', 'categorias', 'etiquetas', 'traducir_a',
+      'sku', 'nombre', 'tipo', 'categorias', 'etiquetas', 'traducir_a', 'proveedor',
       'precio_regular', 'precio_oferta',
       'gestionar_stock', 'stock_inicial',
       'peso', 'largo', 'ancho', 'alto', 'clase_de_envio',
@@ -133,7 +133,7 @@ export default function BatchProcessPage() {
     ];
     const exampleData = [
       [
-        'SKU-PALA-ACERO', 'Pala de Jardín de Acero', 'simple', 'Herramientas', 'jardineria, pala, acero', 'English,French',
+        'SKU-PALA-ACERO', 'Pala de Jardín de Acero', 'simple', 'Herramientas', 'jardineria, pala, acero', 'English,French', 'MiProveedor S.L.',
         '12.50', '9.99',
         '1', '200',
         '0.8', '50', '20', '5', 'envio-estandar',
@@ -141,7 +141,7 @@ export default function BatchProcessPage() {
         '', '', '', ''
       ],
       [
-        'TSHIRT-COOL', 'Camiseta Molona', 'variable', 'Ropa > Camisetas', 'ropa, camiseta, verano', '',
+        'TSHIRT-COOL', 'Camiseta Molona', 'variable', 'Ropa > Camisetas', 'ropa, camiseta, verano', '', 'OtroProveedor',
         '', '',
         '1', '0',
         '0.2', '30', '25', '2', 'envio-ligero',
@@ -420,7 +420,9 @@ export default function BatchProcessPage() {
                     photos: uploadedPhotos,
                     imageTitle: aiContent.imageTitle, imageAltText: aiContent.imageAltText, imageCaption: aiContent.imageCaption, imageDescription: aiContent.imageDescription,
                     categoryPath: product.csvData.categorias || '',
-                    attributes: [], source: 'batch',
+                    attributes: [], 
+                    source: 'batch',
+                    supplier: product.csvData.proveedor || undefined
                 };
                 for (let i = 1; i <= 2; i++) {
                     if (product.csvData[`atributo_${i}_nombre`]) {
