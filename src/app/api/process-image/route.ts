@@ -33,10 +33,7 @@ export async function POST(req: NextRequest) {
             .webp({ quality: 80 })
             .toBuffer();
 
-        // Convert Node.js Buffer to ArrayBuffer for the Response constructor
-        const arrayBuffer = processedBuffer.buffer.slice(processedBuffer.byteOffset, processedBuffer.byteOffset + processedBuffer.byteLength);
-
-        return new Response(arrayBuffer, {
+        return new Response(processedBuffer, {
             status: 200,
             headers: { 'Content-Type': 'image/webp' }
         });
