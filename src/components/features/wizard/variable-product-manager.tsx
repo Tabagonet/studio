@@ -1,3 +1,4 @@
+// src/components/features/wizard/variable-product-manager.tsx
 
 "use client";
 

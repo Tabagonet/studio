@@ -1,4 +1,4 @@
-
+// src/app/(app)/wizard/step-2-preview.tsx
 
 "use client";
 
@@ -20,7 +20,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
   const { 
     name, sku, productType, regularPrice, salePrice, stockQuantity, category, 
     tags, shortDescription, longDescription, attributes, photos,
-    variations,
+    variations, supplier, newSupplier
   } = productData;
 
   const primaryPhoto = photos.find(p => p.isPrimary) || photos[0];
@@ -70,7 +70,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                 />
               </div>
 
-              {productType === 'simple' && (
+              {(productType === 'simple' || productType === 'variable') && (
                  <div className="grid grid-cols-2 gap-4">
                     <div>
                         <h4 className="font-semibold text-lg">Precios</h4>
@@ -81,6 +81,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                             {salePrice && <span className="ml-2 font-bold text-xl text-primary">{`${salePrice}€`}</span>}
                         </p>
                     </div>
+                    {productType === 'simple' && (
                      <div>
                         <h4 className="font-semibold text-lg">Inventario</h4>
                         <p className="flex items-center gap-2">
@@ -90,16 +91,14 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                            </span>
                         </p>
                     </div>
+                    )}
                 </div>
               )}
-              {(productType === 'grouped' || productType === 'variable') && (
+
+              {productType === 'grouped' && (
                  <div>
                     <h4 className="font-semibold text-lg">Precios e Inventario</h4>
-                    <p className="text-muted-foreground italic">
-                      {productType === 'grouped' 
-                        ? 'Los productos agrupados no tienen precio ni stock propio.'
-                        : 'El precio y stock se definen en cada variación.'}
-                    </p>
+                    <p className="text-muted-foreground italic">Los productos agrupados no tienen precio ni stock propio.</p>
                 </div>
               )}
 
@@ -109,6 +108,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                 <ul className="list-disc list-inside text-muted-foreground">
                   <li>Tipo: <Badge variant="outline">{productType}</Badge></li>
                   <li>Categoría: <Badge variant="outline">{category?.name || 'No especificada'}</Badge></li>
+                   <li>Proveedor: <Badge variant="outline">{supplier || newSupplier || 'No especificado'}</Badge></li>
                 </ul>
               </div>
             </div>

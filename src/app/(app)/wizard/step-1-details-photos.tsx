@@ -487,10 +487,17 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                         />
                   </div>
 
-                  {productData.productType === 'simple' && (
+                  {(productData.productType === 'simple' || productData.productType === 'variable') && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t pt-6">
-                      <div><Label htmlFor="regularPrice">Precio Regular (€)</Label><Input id="regularPrice" name="regularPrice" type="number" value={productData.regularPrice} onChange={handleInputChange} placeholder="Ej: 29.99" disabled={isProcessing} /></div>
-                      <div><Label htmlFor="salePrice">Precio de Oferta (€)</Label><Input id="salePrice" name="salePrice" type="number" value={productData.salePrice} onChange={handleInputChange} placeholder="Opcional" disabled={isProcessing} /></div>
+                      <div>
+                        <Label htmlFor="regularPrice">Precio Regular (€)</Label>
+                        <Input id="regularPrice" name="regularPrice" type="number" value={productData.regularPrice} onChange={handleInputChange} placeholder="Ej: 29.99" disabled={isProcessing} />
+                        {productData.productType === 'variable' && <p className="text-xs text-muted-foreground mt-1">Este será el precio por defecto para las nuevas variaciones.</p>}
+                      </div>
+                      <div>
+                        <Label htmlFor="salePrice">Precio de Oferta (€)</Label>
+                        <Input id="salePrice" name="salePrice" type="number" value={productData.salePrice} onChange={handleInputChange} placeholder="Opcional" disabled={isProcessing} />
+                      </div>
                     </div>
                   )}
                   
