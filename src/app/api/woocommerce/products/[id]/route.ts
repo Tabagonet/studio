@@ -47,9 +47,9 @@ const productUpdateSchema = z.object({
     stock_quantity: z.union([z.string(), z.number()]).optional(),
     weight: z.string().optional(),
     dimensions: z.object({
-        length: z.string(),
-        width: z.string(),
-        height: z.string(),
+        length: z.string().optional(),
+        width: z.string().optional(),
+        height: z.string().optional(),
     }).optional(),
     shipping_class: z.string().optional(),
 });

@@ -26,7 +26,7 @@ const nextConfig = {
       { protocol: 'https', hostname: 'placehold.co' },
       { protocol: 'https', hostname: 'www.gstatic.com' },
       { protocol: 'https', hostname: 'www.google.com' },
-      { protocol: 'https', hostname: '**.quefoto.es' },
+      { protocol: 'https', hostname: 'quefoto.es' },
       { protocol: 'https', hostname: 's.w.org' },
       { protocol: 'https', hostname: 'www.farmacialavidriera.com' },
       { protocol: 'http', hostname: 'www.farmacialavidriera.com' },
