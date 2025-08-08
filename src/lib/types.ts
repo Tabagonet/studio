@@ -141,6 +141,7 @@ export interface ProductData {
   sku: string;
   shouldSaveSku?: boolean;
   name: string;
+  supplier?: string; // New field for the supplier
   productType: ProductType;
   regularPrice: string;
   salePrice: string;

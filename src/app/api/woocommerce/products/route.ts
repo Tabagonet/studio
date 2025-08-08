@@ -41,11 +41,18 @@ export async function POST(request: NextRequest) {
         const finalProductData: ProductData = JSON.parse(productDataString);
 
         // 1. Handle category
-        let finalCategoryId: number | null = null;
+        let finalCategoryIds: { id: number }[] = [];
+        if (finalProductData.category?.id) {
+            finalCategoryIds.push({ id: finalProductData.category.id });
+        }
         if (finalProductData.categoryPath) {
-            finalCategoryId = await findOrCreateWpCategoryByPath(finalProductData.categoryPath, wpApi);
-        } else if (finalProductData.category?.id) {
-            finalCategoryId = finalProductData.category.id;
+            const newCatId = await findOrCreateWpCategoryByPath(finalProductData.categoryPath, wpApi);
+            if (newCatId) finalCategoryIds.push({ id: newCatId });
+        }
+        // Handle supplier category
+        if (finalProductData.supplier) {
+            const supplierCatId = await findOrCreateWpCategoryByPath(finalProductData.supplier, wpApi);
+            if (supplierCatId) finalCategoryIds.push({ id: supplierCatId });
         }
 
         // 2. Upload and process images
@@ -75,17 +82,34 @@ export async function POST(request: NextRequest) {
                 options: attr.value.split('|').map(s => s.trim()),
             }));
         
+        // Add supplier attribute
+        if (finalProductData.supplier) {
+            wooAttributes.push({
+                name: 'Proveedor',
+                position: wooAttributes.length,
+                visible: true,
+                variation: false,
+                options: [finalProductData.supplier],
+            });
+        }
+        
         // Correct Tag Handling from string to array of objects
         const tagNames = finalProductData.tags ? finalProductData.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
         const wooTags = tagNames.map((name: string) => ({ name }));
 
+        let finalSku = finalProductData.sku;
+        if(finalProductData.sku && finalProductData.supplier) {
+            finalSku = `${finalProductData.sku}-${slugify(finalProductData.supplier)}`;
+        }
+
 
         const wooPayload: any = {
             name: finalProductData.name,
+            slug: finalProductData.supplier ? slugify(`${finalProductData.name}-${finalProductData.supplier}`) : undefined,
             type: finalProductData.productType,
             description: finalProductData.longDescription,
             short_description: finalProductData.shortDescription,
-            categories: finalCategoryId ? [{ id: finalCategoryId }] : [],
+            categories: finalCategoryIds,
             images: wordpressImageIds,
             attributes: wooAttributes,
             tags: wooTags,
@@ -97,7 +121,7 @@ export async function POST(request: NextRequest) {
         };
         
         if (finalProductData.shouldSaveSku !== false) {
-             wooPayload.sku = finalProductData.sku;
+             wooPayload.sku = finalSku;
         }
 
         if (finalProductData.productType === 'simple') {
@@ -128,7 +152,11 @@ export async function POST(request: NextRequest) {
                     manage_stock: v.manage_stock,
                 };
                 if(finalProductData.shouldSaveSku !== false && v.sku) {
-                    variationPayload.sku = v.sku;
+                    let finalVariationSku = v.sku;
+                    if(finalProductData.supplier) {
+                        finalVariationSku = `${v.sku}-${slugify(finalProductData.supplier)}`;
+                    }
+                    variationPayload.sku = finalVariationSku;
                 }
                 if (v.manage_stock && v.stockQuantity) {
                     variationPayload.stock_quantity = parseInt(v.stockQuantity, 10);

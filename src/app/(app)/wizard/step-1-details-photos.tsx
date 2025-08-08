@@ -315,7 +315,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const payload = {
             productName: productData.name,
             productType: productData.productType,
-            tags: productData.tags.split(',').map(t => t.trim()).filter(Boolean),
+            tags: productData.tags,
             language: productData.language,
             mode: 'image_meta_only',
         };
@@ -489,6 +489,11 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                       <Input id="sku" name="sku" value={productData.sku} onChange={handleInputChange} placeholder="Ej: CAM-ALG-AZ-M" disabled={isProcessing} />
                       <StatusIndicator status={skuStatus.status} message={skuStatus.message} />
                     </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="supplier">Proveedor (opcional)</Label>
+                    <Input id="supplier" name="supplier" value={productData.supplier || ''} onChange={handleInputChange} placeholder="Ej: Proveedor A" disabled={isProcessing} />
+                     <p className="text-xs text-muted-foreground mt-1">Este nombre se usará para crear una categoría, un atributo y un slug únicos.</p>
                   </div>
 
                   <div>
