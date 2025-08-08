@@ -47,9 +47,9 @@ const productUpdateSchema = z.object({
     stock_quantity: z.union([z.string(), z.number()]).optional(),
     weight: z.string().optional(),
     dimensions: z.object({
-        length: z.string().optional(),
-        width: z.string().optional(),
-        height: z.string().optional(),
+        length: z.string(),
+        width: z.string(),
+        height: z.string(),
     }).optional(),
     shipping_class: z.string().optional(),
 });
@@ -184,8 +184,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     } else if (wooPayload.stock_quantity !== undefined && wooPayload.stock_quantity !== null && wooPayload.stock_quantity !== '') {
         const stock = parseInt(String(wooPayload.stock_quantity), 10);
         wooPayload.stock_quantity = isNaN(stock) ? null : stock;
-    } else {
-        // If manage_stock is true but quantity is empty/null, set it to 0 or null
+    } else if (wooPayload.manage_stock === true) {
+        // If manage_stock is true but quantity is empty/null, don't send it or set to null
         wooPayload.stock_quantity = null;
     }
 
