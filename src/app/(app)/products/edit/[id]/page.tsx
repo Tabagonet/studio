@@ -113,6 +113,7 @@ function EditProductPageContent() {
   };
 
   const handleSaveChanges = async () => {
+    console.log('[AUDIT - handleSaveChanges] Iniciando guardado de producto.');
     setIsSaving(true);
     const user = auth.currentUser;
     if (!user || !product) {
@@ -124,41 +125,57 @@ function EditProductPageContent() {
     try {
         const token = await user.getIdToken();
         const formData = new FormData();
+        
+        console.log('[AUDIT - handleSaveChanges] Producto a guardar:', product);
 
+        // Separar archivos de imagen del resto de los datos
         const productDataToSend = { ...product };
         const newImages = productDataToSend.images.filter(img => img.file);
         
-        // Remove file objects before stringifying, but keep track of them
+        // Quitar el objeto File antes de serializar a JSON
         productDataToSend.images = productDataToSend.images.map(img => {
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { file, ...rest } = img;
-            return rest;
+            return rest as ProductPhoto;
         });
 
         formData.append('productData', JSON.stringify(productDataToSend));
+        console.log('[AUDIT - handleSaveChanges] "productData" añadido al FormData.');
 
-        // Append new image files for upload
+        // Adjuntar los archivos de imagen
         newImages.forEach(photo => {
             if (photo.file) {
                 formData.append('photos', photo.file, photo.name);
+                console.log(`[AUDIT - handleSaveChanges] Archivo de imagen "${photo.name}" añadido al FormData.`);
             }
         });
         
+        console.log(`[AUDIT - handleSaveChanges] Enviando petición PUT a /api/woocommerce/products/${productId}`);
         const response = await fetch(`/api/woocommerce/products/${productId}`, {
             method: 'PUT',
             headers: { 'Authorization': `Bearer ${token}` },
             body: formData,
         });
+        
+        const resultText = await response.text();
+        let result;
+        try {
+            result = JSON.parse(resultText);
+        } catch (e) {
+            console.error('[AUDIT - handleSaveChanges] Error al parsear JSON de la respuesta:', resultText);
+            throw new Error(`El servidor respondió con un error no válido (código ${response.status})`);
+        }
+
 
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Fallo al guardar los cambios.');
+            console.error('[AUDIT - handleSaveChanges] La respuesta de la API no fue OK:', result);
+            throw new Error(result.error || 'Fallo al guardar los cambios.');
         }
         
         toast({ title: '¡Éxito!', description: 'El producto ha sido actualizado.' });
         router.push('/batch');
 
     } catch (e: any) {
+        console.error('[AUDIT - handleSaveChanges] Error en el bloque catch:', e);
         toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
     } finally {
         setIsSaving(false);

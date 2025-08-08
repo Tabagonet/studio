@@ -295,11 +295,11 @@ export async function uploadImageToWordPress(
   position?: string,
 ): Promise<number> {
     try {
-        console.log(`[uploadImageToWordPress] Starting upload for: ${seoFilename}`);
+        console.log(`[AUDIT - uploadImageToWordPress] Iniciando subida para: ${seoFilename}`);
         let imageBuffer: Buffer;
 
         if (typeof source === 'string') {
-            console.log(`[uploadImageToWordPress] Downloading remote image from: ${source}`);
+            console.log(`[AUDIT - uploadImageToWordPress] Descargando imagen remota desde: ${source}`);
             const sanitizedUrl = source.startsWith('http') ? source : `https://${source.replace(/^(https?:\/\/)?/, '')}`;
             const imageResponse = await axios.get(sanitizedUrl, {
                 responseType: 'arraybuffer',
@@ -308,23 +308,23 @@ export async function uploadImageToWordPress(
                 },
             });
             imageBuffer = Buffer.from(imageResponse.data);
-             console.log(`[uploadImageToWordPress] Remote image downloaded. Size: ${imageBuffer.length} bytes.`);
+            console.log(`[AUDIT - uploadImageToWordPress] Imagen remota descargada. Tamaño: ${imageBuffer.length} bytes.`);
         } else {
-            console.log(`[uploadImageToWordPress] Processing local file. Size: ${source.size} bytes.`);
+            console.log(`[AUDIT - uploadImageToWordPress] Procesando archivo local. Tamaño: ${source.size} bytes.`);
             imageBuffer = Buffer.from(await source.arrayBuffer());
         }
         
-        console.log('[uploadImageToWordPress] Processing image with Sharp...');
+        console.log('[AUDIT - uploadImageToWordPress] Procesando imagen con Sharp...');
         let processedBuffer = sharp(imageBuffer);
 
         if (width || height) {
-            console.log(`[uploadImageToWordPress] Resizing/cropping to ${width || 'auto'}x${height || 'auto'} with position ${position}`);
+            console.log(`[AUDIT - uploadImageToWordPress] Redimensionando a ${width || 'auto'}x${height || 'auto'} con posición ${position}`);
             processedBuffer = processedBuffer.resize(width, height, { 
                 fit: (width && height) ? 'cover' : 'inside', 
                 position: position as any || 'center' 
             });
         } else {
-            console.log('[uploadImageToWordPress] Applying default optimization (1200x1200 max)');
+            console.log('[AUDIT - uploadImageToWordPress] Aplicando optimización por defecto (1200x1200 max)');
             processedBuffer = processedBuffer.resize(1200, 1200, {
                 fit: 'inside',
                 withoutEnlargement: true,
@@ -334,7 +334,7 @@ export async function uploadImageToWordPress(
         const finalBuffer = await processedBuffer.webp({ quality: 80 }).toBuffer();
         const finalContentType = 'image/webp';
         const finalFilename = seoFilename.endsWith('.webp') ? seoFilename : seoFilename.replace(/\.[^/.]+$/, "") + ".webp";
-        console.log(`[uploadImageToWordPress] Image processed. Final size: ${finalBuffer.length} bytes. Filename: ${finalFilename}`);
+        console.log(`[AUDIT - uploadImageToWordPress] Imagen procesada. Tamaño final: ${finalBuffer.length} bytes. Nombre de archivo final: ${finalFilename}`);
 
 
         const formData = new FormData();
@@ -346,15 +346,16 @@ export async function uploadImageToWordPress(
         formData.append('alt_text', imageMetadata.alt_text);
         formData.append('caption', imageMetadata.caption);
         formData.append('description', imageMetadata.description);
-
+        
+        console.log('[AUDIT - uploadImageToWordPress] Enviando a la API de medios de WordPress...');
         const mediaResponse = await wpApi.post('/media', formData, {
             headers: {
                 ...formData.getHeaders(),
                 'Content-Disposition': `attachment; filename=${finalFilename}`,
             },
         });
-
-        console.log(`[uploadImageToWordPress] Upload successful. Media ID: ${mediaResponse.data.id}`);
+        
+        console.log(`[AUDIT - uploadImageToWordPress] Subida exitosa. ID del medio: ${mediaResponse.data.id}`);
         return mediaResponse.data.id;
 
     } catch (uploadError: any) {
@@ -367,7 +368,7 @@ export async function uploadImageToWordPress(
         } else {
             errorMsg += ` Razón: ${uploadError.message}`;
         }
-        console.error(errorMsg, uploadError.response?.data);
+        console.error(errorMsg, uploadError.response?.data || uploadError);
         throw new Error(errorMsg);
     }
 }
@@ -625,5 +626,3 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
     // Return a unique set of images based on URL
     return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
-
-    
