@@ -162,7 +162,7 @@ export function ProductDataTable() {
         category: selectedCategory,
         status: selectedStatus,
         stock_status: selectedStockStatus,
-        lang: 'all', // Fetch all to build hierarchy
+        lang: selectedLanguage, // Use selected language
       });
 
       if (selectedImageStatus !== 'all') {
@@ -373,6 +373,11 @@ export function ProductDataTable() {
 
   const handleEditProduct = (productId: number) => {
     router.push(`/products/edit/${productId}`);
+  };
+
+  const handleCategoryChange = (category: string) => {
+    setSelectedCategory(category);
+    setPagination(prev => ({ ...prev, pageIndex: 0 }));
   };
   
   const columns = React.useMemo(() => getColumns(handleStatusUpdate, handleEditProduct, handleDeleteProduct), [handleStatusUpdate, handleEditProduct, handleDeleteProduct]);
