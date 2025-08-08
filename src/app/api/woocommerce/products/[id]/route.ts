@@ -172,18 +172,23 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     
     wooPayload.categories = finalCategoryIds;
 
-    // This part should be improved as it doesn't handle image uploads.
-    // Assuming for now that `validatedData.images` only contains existing image IDs.
     if (validatedData.images) {
       wooPayload.images = validatedData.images;
     } else {
       delete wooPayload.images;
     }
     
-    if (wooPayload.stock_quantity !== undefined && wooPayload.stock_quantity !== null && wooPayload.stock_quantity !== '') {
+    // Correctly handle stock quantity based on stock management flag
+    if (wooPayload.manage_stock === false) {
+        wooPayload.stock_quantity = null; // Set to null if not managing stock
+    } else if (wooPayload.stock_quantity !== undefined && wooPayload.stock_quantity !== null && wooPayload.stock_quantity !== '') {
         const stock = parseInt(String(wooPayload.stock_quantity), 10);
-        wooPayload.stock_quantity = isNaN(stock) ? undefined : stock;
+        wooPayload.stock_quantity = isNaN(stock) ? null : stock;
+    } else {
+        // If manage_stock is true but quantity is empty/null, set it to 0 or null
+        wooPayload.stock_quantity = null;
     }
+
     
     const response = await wooApi.put(`products/${productId}`, wooPayload);
     
