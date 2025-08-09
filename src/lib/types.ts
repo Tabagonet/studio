@@ -1,4 +1,3 @@
-
 // src/lib/types.ts
       
 import type { LucideIcon } from 'lucide-react';
@@ -69,7 +68,7 @@ export interface ProductVariation {
   salePrice: string;
   manage_stock: boolean;
   stockQuantity: string;
-  image?: { id: number | null }; // Added for variation image
+  image?: { id: number | string | null };
   weight?: string;
   dimensions?: {
     length?: string;
@@ -142,7 +141,7 @@ export interface ProductData {
   sku: string;
   shouldSaveSku?: boolean;
   name: string;
-  supplier?: string; 
+  supplier?: string | null; 
   newSupplier?: string;
   productType: ProductType;
   regularPrice: string;
@@ -221,6 +220,7 @@ export interface SubmissionStep {
   status: SubmissionStepStatus;
   progress?: number;
   error?: string;
+  message?: string;
 }
 
 export interface ActivityLog {
@@ -490,5 +490,3 @@ export interface PlanUsage {
     totalAvailable: number;
   };
 }
-
-    

@@ -1,3 +1,4 @@
+// src/app/(app)/wizard/step-4-processing.tsx
 
 "use client";
 
@@ -56,6 +57,7 @@ export function Step4Processing({ status, steps }: Step4ProcessingProps) {
                             <StatusIcon status={step.status} />
                             <div className="flex-1 space-y-1">
                                 <p className={cn("font-medium", step.status === 'error' && 'text-destructive')}>{step.name}</p>
+                                {step.message && <p className="text-xs text-muted-foreground">{step.message}</p>}
                                 {step.status === 'processing' && step.progress !== undefined && (
                                     <Progress value={step.progress} className="h-2" />
                                 )}
