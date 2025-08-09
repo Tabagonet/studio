@@ -16,7 +16,6 @@ import { auth } from '@/lib/firebase';
 import { ArrowLeft, ArrowRight, Rocket, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
-import axios from 'axios';
 
 export function ProductWizard() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -28,6 +27,7 @@ export function ProductWizard() {
   const { toast } = useToast();
 
   const isProcessing = submissionStatus === 'processing';
+  const [isStep3Valid, setIsStep3Valid] = useState(true);
 
   const updateProductData = useCallback((data: Partial<ProductData>) => {
     setProductData(prev => ({ ...prev, ...data }));
@@ -130,7 +130,7 @@ export function ProductWizard() {
       case 2:
         return <Step2Preview productData={productData} />;
       case 3:
-        return <Step3Confirm productData={productData} />;
+        return <Step3Confirm productData={productData} onValidationComplete={setIsStep3Valid} />;
       case 4:
         return <Step4Processing status={submissionStatus} steps={steps} />;
       default:
@@ -164,7 +164,7 @@ export function ProductWizard() {
                 <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
             ) : (
-            <Button onClick={() => setCurrentStep(4)}>
+            <Button onClick={() => setCurrentStep(4)} disabled={!isStep3Valid}>
                 <Rocket className="mr-2 h-4 w-4" />
                 Crear Producto(s)
             </Button>
@@ -197,5 +197,3 @@ export function ProductWizard() {
     </div>
   );
 }
-
-    

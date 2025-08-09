@@ -2,56 +2,17 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProductData } from "@/lib/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { FileUp, ListChecks, Rocket, ShieldAlert } from "lucide-react";
-import { useState, useEffect } from "react";
-import { auth } from "@/lib/firebase";
+import { ListChecks, Rocket } from "lucide-react";
 
 interface Step3ConfirmProps {
   productData: ProductData;
   onValidationComplete: (isValid: boolean) => void;
 }
 
-export function Step3Confirm({ productData, onValidationComplete }: Step3ConfirmProps) {
-  const [isNameDuplicate, setIsNameDuplicate] = useState(false);
-  const [isChecking, setIsChecking] = useState(true);
-
-  useEffect(() => {
-    const checkName = async () => {
-        if (!productData.name) {
-            setIsChecking(false);
-            setIsNameDuplicate(false);
-            onValidationComplete(true);
-            return;
-        }
-        setIsChecking(true);
-        try {
-            const user = auth.currentUser;
-            if (!user) throw new Error("Not authenticated");
-            const token = await user.getIdToken();
-            const response = await fetch(`/api/woocommerce/products/check?name=${encodeURIComponent(productData.name)}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await response.json();
-            const duplicate = data.exists;
-            setIsNameDuplicate(duplicate);
-            const isInvalid = duplicate && (!productData.sku || !productData.supplier);
-            onValidationComplete(!isInvalid);
-        } catch (e) {
-            console.error("Failed to check name on confirmation screen", e);
-            setIsNameDuplicate(false);
-            onValidationComplete(true);
-        } finally {
-            setIsChecking(false);
-        }
-    };
-    checkName();
-  }, [productData.name, productData.sku, productData.supplier, onValidationComplete]);
-
-  const photosToUploadCount = productData.photos.filter(p => p.status === 'pending').length;
+export function Step3Confirm({ productData }: Step3ConfirmProps) {
+  const photosToUploadCount = productData.photos.filter(p => p.file).length;
   const validAttributesCount = productData.attributes.filter(a => a.name && a.name.trim() !== '').length;
   
-  const isInvalid = isNameDuplicate && (!productData.sku || !productData.supplier);
-
   return (
     <div className="space-y-8">
        <Card>
@@ -61,16 +22,6 @@ export function Step3Confirm({ productData, onValidationComplete }: Step3Confirm
         </CardHeader>
       </Card>
 
-      {isInvalid && (
-          <Alert variant="destructive">
-            <ShieldAlert className="h-4 w-4" />
-            <AlertTitle>Faltan Datos Obligatorios</AlertTitle>
-            <AlertDescription>
-                El nombre del producto ya existe. Para continuar, por favor, vuelve al paso anterior y proporciona un <strong>SKU</strong> y un <strong>Proveedor</strong> para diferenciar este producto.
-            </AlertDescription>
-          </Alert>
-      )}
-
       <Alert>
         <Rocket className="h-4 w-4" />
         <AlertTitle>Proceso de Creación</AlertTitle>
@@ -78,10 +29,10 @@ export function Step3Confirm({ productData, onValidationComplete }: Step3Confirm
           Al hacer clic en "Crear Producto", se realizarán las siguientes acciones en orden:
           <ul className="list-decimal list-inside mt-2 space-y-1">
             <li>
-              <span className="font-semibold">Subida de Imágenes:</span> Se subirán {photosToUploadCount} imágen(es) a tu servidor. Verás el progreso en la sección de imágenes.
+              <span className="font-semibold">Subida de Imágenes:</span> Se subirán {photosToUploadCount} imágen(es) nuevas a tu servidor.
             </li>
             <li>
-              <span className="font-semibold">Creación en WooCommerce:</span> Una vez que todas las imágenes estén subidas, se creará el producto en tu tienda con toda la información proporcionada.
+              <span className="font-semibold">Creación en WooCommerce:</span> Se creará el producto en tu tienda con toda la información proporcionada.
             </li>
           </ul>
         </AlertDescription>
