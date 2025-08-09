@@ -82,13 +82,6 @@ export async function POST(req: NextRequest) {
       console.error(errorMsg, data);
       throw new Error(errorMsg);
     }
-    
-    // Key Change: Ensure media_id is returned
-    if (data.success && !data.media_id) {
-       const errorMsg = "El servidor de imágenes quefoto.es no devolvió un ID de medio. Por favor, actualiza el script del servidor de imágenes.";
-       console.error(errorMsg, data);
-       throw new Error(errorMsg);
-    }
 
     if (!data.success) {
        const errorMsg = data.error || "Error desconocido al subir la imagen al servidor quefoto.es.";
@@ -101,11 +94,12 @@ export async function POST(req: NextRequest) {
         sanitizedUrl = `https://${sanitizedUrl.replace(/^(https?:\/\/)?/, '')}`;
     }
 
+    // The 'media_id' field is optional. If it's not present, it will be undefined.
     return NextResponse.json({ 
         success: true, 
         url: sanitizedUrl, 
         filename_saved_on_server: data.filename_saved,
-        media_id: data.media_id, // Return the media_id
+        media_id: data.media_id,
     });
   } catch (error) {
     console.error("Error al procesar la imagen en /api/upload-image:", error);
