@@ -20,7 +20,7 @@ import { auth, firebaseSignOut, onAuthStateChanged, type FirebaseUser } from '@/
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '../ui/skeleton';
-import { version } from '../../../package.json';
+import pkg from '../../../package.json';
 
 interface UserData {
   role: string | null;
@@ -244,7 +244,7 @@ export function SidebarNav() {
         <Package className="h-8 w-8 text-primary" />
         <div>
           <h1 className="text-xl font-semibold text-sidebar-foreground leading-tight">{APP_NAME}</h1>
-          <div className="text-xs text-sidebar-foreground/60 font-mono">v{version}</div>
+          <div className="text-xs text-sidebar-foreground/60 font-mono">v{pkg.version}</div>
         </div>
       </div>
       <SidebarMenu className="flex-1 p-0 overflow-y-auto">
