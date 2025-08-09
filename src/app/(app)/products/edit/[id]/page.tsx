@@ -4,7 +4,7 @@
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Save, Trash2, AlertTriangle } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -15,6 +15,7 @@ import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
 import { ProductData } from '@/lib/types';
 
 export interface ProductEditState extends ProductData {
+    id: number;
     variations?: ProductVariation[];
 }
 
@@ -51,16 +52,17 @@ function EditProductPageContent() {
         // Exclude file objects from the JSON payload
         const productPayload = {
             ...product,
-            photos: product.photos.map(({ file, ...rest }) => rest), 
+            photos: product.photos.filter(p => !p.file).map(p => ({ id: p.id })), // Only send existing image IDs
         };
         formData.append('productData', JSON.stringify(productPayload));
         
         // Append new files separately
-        product.photos.forEach(photo => {
+        const newPhotos = product.photos.filter(p => p.file);
+        for (const photo of newPhotos) {
             if (photo.file) {
-                 formData.append('photos', photo.file, photo.name);
+                formData.append('photos', photo.file, photo.name);
             }
-        });
+        }
 
         const response = await fetch(`/api/woocommerce/products/${productId}`, {
             method: 'PUT',
@@ -147,34 +149,38 @@ function EditProductPageContent() {
         const allCategories: WooCommerceCategory[] = (await (await fetch('/api/woocommerce/categories', { headers: { 'Authorization': `Bearer ${token}` }})).json());
         const parentSupplierCategory = allCategories.find((c: WooCommerceCategory) => c.name.toLowerCase() === 'proveedores' && c.parent === 0);
         const productCategoryId = productData.categories?.length > 0 
-            ? productData.categories.find((c: any) => c.id !== parentSupplierCategory?.id)?.id
+            ? productData.categories.find((c: any) => !parentSupplierCategory || c.id !== parentSupplierCategory.id)?.id
             : null;
         const mainCategory = allCategories.find(c => c.id === productCategoryId) || null;
 
         setProduct({
+          id: productData.id,
           name: productData.name || '',
           sku: productData.sku || '',
           supplier: supplierAttribute ? supplierAttribute.options[0] : null,
           productType: productData.type || 'simple',
-          regularPrice: productData.regular_price || '',
-          salePrice: productData.sale_price || '',
-          shortDescription: productData.short_description || '',
-          longDescription: productData.description || '',
-          photos: existingImagesAsProductPhotos,
+          regular_price: productData.regular_price || '',
+          sale_price: productData.sale_price || '',
+          short_description: productData.short_description || '',
+          description: productData.description || '',
+          images: existingImagesAsProductPhotos,
           variations: existingVariations,
           status: productData.status || 'draft',
-          tags: (productData.tags?.map((t: any) => t.name) || []).join(', '),
-          category: mainCategory,
+          tags: (productData.tags?.map((t: any) => t.name) || []),
+          category_id: mainCategory?.id || null,
           manage_stock: productData.manage_stock || false,
-          stockQuantity: productData.stock_quantity?.toString() || '',
+          stock_quantity: productData.stock_quantity?.toString() || '',
           weight: productData.weight || '',
           dimensions: productData.dimensions || { length: '', width: '', height: '' },
           shipping_class: productData.shipping_class || '',
           attributes: productData.attributes || [],
-          language: 'Spanish', // Default, can be enhanced
-          targetLanguages: [],
-          shouldSaveSku: true,
-          source: 'wizard'
+          // Fields from ProductData not present in API response
+          photos: existingImagesAsProductPhotos,
+          language: 'Spanish', // Placeholder
+          targetLanguages: [], // Placeholder
+          shouldSaveSku: true, // Placeholder
+          source: 'wizard', // Placeholder
+          category: mainCategory,
         });
 
       } catch (e: any) {
@@ -224,7 +230,7 @@ function EditProductPageContent() {
               </CardHeader>
           </Card>
           
-          <Step1DetailsPhotos productData={product} updateProductData={updateProductData} isProcessing={isSaving} />
+          <Step1DetailsPhotos productData={product} updateProductData={updateProductData} isProcessing={isSaving} originalProduct={product} />
 
           <Card>
               <CardHeader>

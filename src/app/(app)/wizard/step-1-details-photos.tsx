@@ -24,10 +24,12 @@ import type { LinkSuggestion, SuggestLinksOutput } from '@/ai/schemas';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { ComboBox } from '@/components/core/combobox';
+import type { ProductEditState } from '@/app/(app)/products/edit/[id]/page';
 
 interface Step1DetailsPhotosProps {
   productData: ProductData;
   updateProductData: (data: Partial<ProductData>) => void;
+  originalProduct?: ProductEditState | null; // Optional: For edit mode
   isProcessing?: boolean;
 }
 
@@ -39,7 +41,7 @@ const StatusIndicator = ({ status, message }: { status: 'idle' | 'checking' | 'e
     return <div className={`flex items-center text-xs ${color} mt-1`}><Icon className="h-3 w-3 mr-1" /> {message}</div>;
 };
 
-export function Step1DetailsPhotos({ productData, updateProductData, isProcessing = false }: Step1DetailsPhotosProps) {
+export function Step1DetailsPhotos({ productData, updateProductData, originalProduct = null, isProcessing = false }: Step1DetailsPhotosProps) {
   const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
   const [supplierCategories, setSupplierCategories] = useState<WooCommerceCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
@@ -117,7 +119,16 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         if (signal.aborted) return;
         const data = await response.json();
         if (response.ok) {
-            setStatus({ status: data.exists ? 'exists' : 'available', message: data.message });
+            if (data.exists) {
+                // If editing, check if the found product is the same as the one we're editing
+                if (originalProduct && data.product.id === originalProduct.id) {
+                     setStatus({ status: 'available', message: 'Este es el valor actual.' });
+                } else {
+                     setStatus({ status: 'exists', message: data.message });
+                }
+            } else {
+                 setStatus({ status: 'available', message: data.message });
+            }
         } else {
             setStatus({ status: 'idle', message: '' }); 
         }
@@ -127,27 +138,27 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             setStatus({ status: 'idle', message: '' });
         }
     }
-  }, []);
+  }, [originalProduct]);
 
   useEffect(() => {
-    if (!debouncedSku || debouncedSku.length < 3) {
+    if (!debouncedSku || (originalProduct && debouncedSku === originalProduct.sku)) {
       setSkuStatus({ status: 'idle', message: '' });
       return;
     }
     const controller = new AbortController();
     checkProductExistence('sku', debouncedSku, controller.signal);
     return () => controller.abort();
-  }, [debouncedSku, checkProductExistence]);
+  }, [debouncedSku, checkProductExistence, originalProduct]);
 
   useEffect(() => {
-    if (!debouncedName || debouncedName.length < 3) {
+    if (!debouncedName || (originalProduct && debouncedName === originalProduct.name)) {
       setNameStatus({ status: 'idle', message: '' });
       return;
     }
     const controller = new AbortController();
     checkProductExistence('name', debouncedName, controller.signal);
     return () => controller.abort();
-  }, [debouncedName, checkProductExistence]);
+  }, [debouncedName, checkProductExistence, originalProduct]);
 
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -284,11 +295,9 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         if (!user) throw new Error("No autenticado.");
         const token = await user.getIdToken();
         const payload = {
-            productName: productData.name,
-            productType: productData.productType,
+            productName: productData.name, productType: productData.productType,
             tags: productData.tags.split(',').map(t => t.trim()).filter(Boolean),
-            language: productData.language,
-            mode: 'image_meta_only',
+            language: productData.language, mode: 'image_meta_only',
         };
         const response = await fetch('/api/generate-description', {
             method: 'POST',
@@ -302,10 +311,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         }
         const aiContent = await response.json();
         updateProductData({
-            imageTitle: aiContent.imageTitle,
-            imageAltText: aiContent.imageAltText,
-            imageCaption: aiContent.imageCaption,
-            imageDescription: aiContent.imageDescription,
+            imageTitle: aiContent.imageTitle, imageAltText: aiContent.imageAltText,
+            imageCaption: aiContent.imageCaption, imageDescription: aiContent.imageDescription,
         });
         toast({ title: "Metadatos de imagen generados", description: "La IA ha rellenado los datos SEO para las imágenes." });
     } catch (error: any) {
@@ -535,13 +542,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                   )}
 
                   {productData.productType === 'variable' && (
-                      <div className="border-t pt-6 mt-6">
-                        <VariableProductManager
-                            productData={productData}
-                            onProductChange={updateProductData}
-                            images={productData.photos}
-                        />
-                      </div>
+                      <div className="border-t pt-6 mt-6"><VariableProductManager productData={productData} updateProductData={updateProductData} images={productData.photos} /></div>
                   )}
                   
                   {productData.productType !== 'variable' && (

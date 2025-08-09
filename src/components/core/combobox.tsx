@@ -95,6 +95,7 @@ export function ComboBox({
                     className="w-full"
                     onClick={() => {
                         onNewItemChange(filter);
+                        onSelect(''); // Clear selection to indicate new item
                         setOpen(false);
                         setFilter('');
                     }}
