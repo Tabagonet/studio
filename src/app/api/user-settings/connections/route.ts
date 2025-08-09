@@ -1,5 +1,4 @@
 
-
 // src/app/api/user-settings/connections/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -187,33 +186,6 @@ export async function POST(req: NextRequest) {
             }
         }
         
-        // Only attempt to modify next.config.js in a non-development environment
-        if (process.env.NODE_ENV !== 'development') {
-            if (!isPartner) {
-                const data = finalConnectionData as ConnectionData;
-                const { wooCommerceStoreUrl, wordpressApiUrl, shopifyStoreUrl } = data;
-                const hostnamesToAdd = new Set<string>();
-
-                const addHostname = (url: string | undefined) => {
-                    if (url) {
-                        try { 
-                            const fullUrl = url.startsWith('http') ? url : `https://${url}`;
-                            hostnamesToAdd.add(new URL(fullUrl).hostname); 
-                        }
-                        catch { console.warn(`Invalid URL provided, skipping remote pattern: ${url}`); }
-                    }
-                };
-                addHostname(wooCommerceStoreUrl);
-                addHostname(wordpressApiUrl);
-                addHostname(shopifyStoreUrl);
-                
-                if (hostnamesToAdd.size > 0) {
-                    const promises = Array.from(hostnamesToAdd).map(hostname => addRemotePattern(hostname).catch(err => console.error(`Failed to add remote pattern for ${hostname}:`, err)));
-                    await Promise.all(promises);
-                }
-            }
-        }
-
 
         return NextResponse.json({ success: true, message: 'Connection saved successfully.' });
 
@@ -281,3 +253,5 @@ export async function DELETE(req: NextRequest) {
         return NextResponse.json({ error: errorMessage || 'Failed to delete connection' }, { status: 500 });
     }
 }
+
+    

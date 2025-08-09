@@ -1,3 +1,4 @@
+
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb, adminStorage } from '@/lib/firebase-admin';
@@ -272,7 +273,8 @@ export function findBeaverBuilderImages(data: any[]): { url: string; }[] {
 }
 
 /**
- * Uploads an image Buffer to Firebase Storage, then tells WordPress to import it from the public URL.
+ * Uploads an image Buffer directly to the WordPress REST API.
+ * This is the corrected and robust method.
  *
  * @param imageBuffer The buffer of the image to upload (e.g., from a file or from Sharp).
  * @param seoFilename A descriptive filename for the new media item.
@@ -284,70 +286,35 @@ export async function uploadImageToWordPress(
     imageBuffer: Buffer,
     seoFilename: string,
     imageMetadata: { title: string; alt_text: string; caption: string; description: string; },
-    wpApi: AxiosInstance,
-    targetWidth: number | null = null,
-    targetHeight: number | null = null,
-    cropPosition: "center" | "top" | "bottom" | "left" | "right" | undefined = undefined,
+    wpApi: AxiosInstance
 ): Promise<number> {
-    if (!adminStorage) {
-        throw new Error("Firebase Storage is not configured. Cannot upload image.");
-    }
-    
-    // 1. Process image with Sharp
-    let sharpInstance = sharp(imageBuffer);
-    if (targetWidth || targetHeight) {
-        sharpInstance = sharpInstance.resize(targetWidth, targetHeight, {
-            fit: 'cover',
-            position: cropPosition
-        });
-    }
-    const processedBuffer = await sharpInstance.webp({ quality: 80 }).toBuffer();
-
-
-    // 2. Upload the processed buffer to Firebase Storage
-    const bucket = adminStorage.bucket();
-    const filePath = `user_uploads/sideload/${uuidv4()}-${seoFilename}`;
-    const fileUpload = bucket.file(filePath);
-
-    await fileUpload.save(processedBuffer, {
-        metadata: { 
-            contentType: 'image/webp',
-            contentDisposition: `attachment; filename="${seoFilename}"`,
-        },
-        public: true, 
-    });
-    
-    // 3. Get the public URL of the uploaded file
-    const publicUrl = fileUpload.publicUrl();
-    console.log(`[API Helper] Image uploaded to Firebase Storage. Public URL: ${publicUrl}`);
-    
     try {
-        // 4. Tell WordPress to sideload the image from the public Firebase Storage URL
-        console.log(`[API Helper] Sideloading image to WordPress from URL: ${publicUrl}`);
-        const response = await wpApi.post('/media', {}, {
-            params: {
-                file: publicUrl,
-                title: imageMetadata.title,
-                alt_text: imageMetadata.alt_text,
-                caption: imageMetadata.caption,
-                description: imageMetadata.description,
-                media_sideload: true
-            }
+        console.log(`[API Helper] Directly uploading image "${seoFilename}" to WordPress.`);
+        const response = await wpApi.post('/media', imageBuffer, {
+            headers: {
+                'Content-Type': 'image/webp',
+                'Content-Disposition': `attachment; filename="${seoFilename}"`,
+            },
         });
-
-        if (!response.data || !response.data.id) {
-            throw new Error("WordPress sideload did not return a media ID.");
+        
+        const mediaId = response.data.id;
+        if (!mediaId) {
+            throw new Error("WordPress did not return a media ID after upload.");
         }
         
-        console.log(`[API Helper] Image successfully imported to WordPress. Media ID: ${response.data.id}`);
-        
-        // 5. Delete the temporary file from Firebase Storage in a "fire-and-forget" manner
-        fileUpload.delete().catch(err => {
-            console.warn(`[API Helper] Failed to delete temporary image from Firebase Storage: ${filePath}. Error: ${err.message}`);
-        });
-        
-        return response.data.id;
+        console.log(`[API Helper] Image uploaded to WordPress with Media ID: ${mediaId}. Now updating metadata.`);
 
+        // After uploading, send a second request to update the metadata.
+        await wpApi.post(`/media/${mediaId}`, {
+            title: imageMetadata.title,
+            alt_text: imageMetadata.alt_text,
+            caption: imageMetadata.caption,
+            description: imageMetadata.description,
+        });
+
+        console.log(`[API Helper] Metadata updated for Media ID: ${mediaId}.`);
+
+        return mediaId;
     } catch (error: any) {
         let errorMsg = `Error processing image for WordPress. Reason: ${error.message}`;
         if (error.response?.data?.message) {
@@ -356,10 +323,6 @@ export async function uploadImageToWordPress(
         } else {
              console.error(errorMsg, error);
         }
-        
-        fileUpload.delete().catch(err => {
-            console.warn(`[API Helper] Failed to clean up temporary image after WP error: ${filePath}. Error: ${err.message}`);
-        });
         throw new Error(errorMsg);
     }
 }
@@ -618,3 +581,5 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
     // Return a unique set of images based on URL
     return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
+
+    

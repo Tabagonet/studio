@@ -1,3 +1,4 @@
+
 // src/app/api/woocommerce/products/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -232,3 +233,5 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `Fallo en la creación del producto: ${errorMessage}` }, { status: 500 });
     }
 }
+
+    

@@ -1,3 +1,4 @@
+
 // src/lib/types.ts
       
 import type { LucideIcon } from 'lucide-react';
@@ -33,9 +34,9 @@ export interface ProductPhoto {
   status: UploadStatus;
   progress: number; // 0-100
   error?: string; // Error message if upload fails
-  uploadedUrl?: string; // The URL from the temporary host
-  uploadedFilename?: string; // The filename on the temporary host
-  serverPath?: string; // The absolute path on our server
+  uploadedUrl?: string;
+  uploadedFilename?: string;
+  serverPath?: string;
   uploadedId?: number; // The WordPress media ID after upload
 }
 
@@ -491,3 +492,5 @@ export interface PlanUsage {
     totalAvailable: number;
   };
 }
+
+    
