@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { VariableProductManager } from '@/components/features/wizard/variable-product-manager';
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
-import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory } from '@/lib/types';
+import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory, ProductVariationAttribute } from '@/lib/types';
 import { PRODUCT_TYPES, ALL_LANGUAGES } from '@/lib/constants';
 import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -284,9 +284,11 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         if (!user) throw new Error("No autenticado.");
         const token = await user.getIdToken();
         const payload = {
-            productName: productData.name, productType: productData.productType,
-            tags: productData.tags.split(',').map(t => t.trim()).filter(Boolean),
-            language: productData.language, mode: 'image_meta_only',
+            productName: productData.name,
+            productType: productData.productType,
+            tags: productData.tags,
+            language: productData.language,
+            mode: 'image_meta_only',
         };
         const response = await fetch('/api/generate-description', {
             method: 'POST',
@@ -505,7 +507,10 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                       <div className="border-t pt-6 mt-6">
                           <h3 className="text-lg font-medium mb-2">Productos Agrupados</h3>
                           <p className="text-sm text-muted-foreground mb-4">Busca y selecciona los productos simples que formarán parte de este grupo.</p>
-                          <GroupedProductSelector productIds={productData.groupedProductIds || []} onProductIdsChange={(ids) => updateProductData({ groupedProductIds: ids })} />
+                          <GroupedProductSelector 
+                              productIds={productData.groupedProductIds || []} 
+                              onProductIdsChange={(ids) => updateProductData({ groupedProductIds: ids })} 
+                          />
                       </div>
                   )}
 
