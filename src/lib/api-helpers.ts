@@ -319,7 +319,10 @@ export async function uploadImageToWordPress(
     const fileUpload = bucket.file(uniqueFilename);
 
     await fileUpload.save(processedBuffer, {
-        metadata: { contentType: 'image/webp' },
+        metadata: { 
+            contentType: 'image/webp',
+            contentDisposition: `attachment; filename="${seoFilename}"`,
+        },
     });
     console.log(`[API Helper] Image uploaded temporarily to Firebase Storage: ${uniqueFilename}`);
     
