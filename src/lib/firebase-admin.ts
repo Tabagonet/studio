@@ -47,7 +47,7 @@ if (admin_sdk.apps.length === 0) {
     const serviceAccount = getServiceAccount();
     admin_sdk.initializeApp({
       credential: admin_sdk.credential.cert(serviceAccount),
-      storageBucket: 'wooautomate.firebasestorage.app' // Use the correct bucket name
+      storageBucket: 'wooautomate.firebasestorage.app'
     });
     console.log('Firebase Admin SDK initialized successfully.');
     adminDb = admin_sdk.firestore();

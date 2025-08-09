@@ -284,28 +284,45 @@ export async function uploadImageToWordPress(
     imageBuffer: Buffer,
     seoFilename: string,
     imageMetadata: { title: string; alt_text: string; caption: string; description: string; },
-    wpApi: AxiosInstance
+    wpApi: AxiosInstance,
+    targetWidth: number | null = null,
+    targetHeight: number | null = null,
+    cropPosition: "center" | "top" | "bottom" | "left" | "right" | undefined = undefined,
 ): Promise<number> {
     if (!adminStorage) {
         throw new Error("Firebase Storage is not configured. Cannot upload image.");
     }
     
-    // 1. Upload the processed buffer to Firebase Storage
+    // 1. Process image with Sharp
+    let sharpInstance = sharp(imageBuffer);
+    if (targetWidth || targetHeight) {
+        sharpInstance = sharpInstance.resize(targetWidth, targetHeight, {
+            fit: 'cover',
+            position: cropPosition
+        });
+    }
+    const processedBuffer = await sharpInstance.webp({ quality: 80 }).toBuffer();
+
+
+    // 2. Upload the processed buffer to Firebase Storage
     const bucket = adminStorage.bucket();
     const filePath = `user_uploads/sideload/${uuidv4()}-${seoFilename}`;
     const fileUpload = bucket.file(filePath);
 
-    await fileUpload.save(imageBuffer, {
-        metadata: { contentType: 'image/webp' },
-        public: true, // Make the file publicly readable for WordPress to fetch
+    await fileUpload.save(processedBuffer, {
+        metadata: { 
+            contentType: 'image/webp',
+            contentDisposition: `attachment; filename="${seoFilename}"`,
+        },
+        public: true, 
     });
     
-    // 2. Get the public URL of the uploaded file
+    // 3. Get the public URL of the uploaded file
     const publicUrl = fileUpload.publicUrl();
     console.log(`[API Helper] Image uploaded to Firebase Storage. Public URL: ${publicUrl}`);
     
     try {
-        // 3. Tell WordPress to sideload the image from the public Firebase Storage URL
+        // 4. Tell WordPress to sideload the image from the public Firebase Storage URL
         console.log(`[API Helper] Sideloading image to WordPress from URL: ${publicUrl}`);
         const response = await wpApi.post('/media', {}, {
             params: {
@@ -324,8 +341,7 @@ export async function uploadImageToWordPress(
         
         console.log(`[API Helper] Image successfully imported to WordPress. Media ID: ${response.data.id}`);
         
-        // 4. (Optional but recommended) Delete the temporary file from Firebase Storage
-        // We can do this in a "fire-and-forget" manner as it's not critical for the flow to succeed
+        // 5. Delete the temporary file from Firebase Storage in a "fire-and-forget" manner
         fileUpload.delete().catch(err => {
             console.warn(`[API Helper] Failed to delete temporary image from Firebase Storage: ${filePath}. Error: ${err.message}`);
         });
@@ -340,8 +356,8 @@ export async function uploadImageToWordPress(
         } else {
              console.error(errorMsg, error);
         }
-        // Attempt to clean up the storage file even if WordPress import fails
-         fileUpload.delete().catch(err => {
+        
+        fileUpload.delete().catch(err => {
             console.warn(`[API Helper] Failed to clean up temporary image after WP error: ${filePath}. Error: ${err.message}`);
         });
         throw new Error(errorMsg);
