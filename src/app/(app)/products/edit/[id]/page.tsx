@@ -53,13 +53,19 @@ function EditProductPageContent() {
         const token = await user.getIdToken();
         const formData = new FormData();
         
-        const payload = { ...product, images: product.images.filter(p => !p.file).map(p => ({ id: p.id })) };
-        formData.append('productData', JSON.stringify(payload));
+        // The payload for productData should contain only the IDs of existing images, not File objects
+        const productPayload = { 
+            ...product, 
+            images: product.images.filter(p => !p.file).map(p => ({ id: p.id })) 
+        };
+        formData.append('productData', JSON.stringify(productPayload));
         
+        // Append new files separately for the backend to handle
         const newPhotos = product.images.filter(p => p.file);
         newPhotos.forEach(photo => {
             if (photo.file) {
-                formData.append(photo.id.toString(), photo.file, photo.name);
+                // Use the client-side ID as the key for the file
+                formData.append('photos', photo.file, photo.name);
             }
         });
 
@@ -76,6 +82,7 @@ function EditProductPageContent() {
         }
         
         toast({ title: '¡Éxito!', description: 'El producto ha sido actualizado.' });
+        fetchInitialData(); // Re-fetch data to get the latest state
 
     } catch (e: any) {
         toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
@@ -108,9 +115,8 @@ function EditProductPageContent() {
         setIsDeleting(false);
     }
   };
-
-  useEffect(() => {
-    const fetchInitialData = async () => {
+  
+  const fetchInitialData = useCallback(async () => {
       setIsLoading(true);
       setError(null);
       const user = auth.currentUser;
@@ -143,14 +149,17 @@ function EditProductPageContent() {
         }));
 
         const supplierAttribute = Array.isArray(productData.attributes) ? productData.attributes.find((a: any) => a.name === 'Proveedor') : null;
-
-        const allCategories: WooCommerceCategory[] = (await (await fetch('/api/woocommerce/categories', { headers: { 'Authorization': `Bearer ${token}` }})).json());
-        const parentSupplierCategory = allCategories.find((c: WooCommerceCategory) => c.name.toLowerCase() === 'proveedores' && c.parent === 0);
-        const productCategoryId = productData.categories?.length > 0 
-            ? productData.categories.find((c: any) => !parentSupplierCategory || c.id !== parentSupplierCategory.id)?.id
-            : null;
-        const mainCategory = allCategories.find(c => c.id === productCategoryId) || null;
-
+        
+        let mainCategoryId = null;
+        if(Array.isArray(productData.categories) && productData.categories.length > 0) {
+            // Find the category that is not 'Proveedores' if possible
+            const parentSupplierCategory = (await (await fetch('/api/woocommerce/categories', { headers: { 'Authorization': `Bearer ${token}` }})).json())
+                .find((c: WooCommerceCategory) => c.name.toLowerCase() === 'proveedores' && c.parent === 0);
+            
+            const mainCat = productData.categories.find((c: any) => !parentSupplierCategory || c.id !== parentSupplierCategory.id);
+            mainCategoryId = mainCat ? mainCat.id : productData.categories[0].id;
+        }
+        
         setProduct({
           id: productData.id,
           name: productData.name || '',
@@ -165,7 +174,7 @@ function EditProductPageContent() {
           variations: existingVariations,
           status: productData.status || 'draft',
           tags: (productData.tags?.map((t: any) => t.name) || []),
-          category_id: mainCategory?.id || null,
+          category_id: mainCategoryId,
           manage_stock: productData.manage_stock || false,
           stock_quantity: productData.stock_quantity?.toString() || '',
           weight: productData.weight || '',
@@ -178,7 +187,7 @@ function EditProductPageContent() {
           targetLanguages: [], // Placeholder
           shouldSaveSku: true, // Placeholder
           source: 'wizard', // Placeholder
-          category: mainCategory,
+          category: null, // This will be fetched and set in Step1
         });
 
       } catch (e: any) {
@@ -187,12 +196,18 @@ function EditProductPageContent() {
       } finally {
         setIsLoading(false);
       }
-    };
+    }, [productId, toast]);
 
-    if (productId) {
-      fetchInitialData();
-    }
-  }, [productId, toast]);
+
+  useEffect(() => {
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            fetchInitialData();
+        } else {
+            router.push('/login');
+        }
+    });
+  }, [fetchInitialData, router]);
   
   if (isLoading) {
     return <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
@@ -231,7 +246,7 @@ function EditProductPageContent() {
           <Step1DetailsPhotos 
             productData={product} 
             updateProductData={updateProductData} 
-            onPhotosChange={handlePhotosChange} 
+            onPhotosChange={handlePhotosChange}
             isProcessing={isSaving} 
             originalProduct={product} 
           />
@@ -248,14 +263,8 @@ function EditProductPageContent() {
                           </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
-                          <AlertDialogHeader>
-                              <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
-                              <AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente este producto.</AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={handleDelete}>Sí, eliminar</AlertDialogAction>
-                          </AlertDialogFooter>
+                          <AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente este producto.</AlertDialogDescription></AlertDialogHeader>
+                          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete}>Sí, eliminar</AlertDialogAction></AlertDialogFooter>
                       </AlertDialogContent>
                   </AlertDialog>
               </CardContent>

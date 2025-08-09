@@ -122,11 +122,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         console.log("[AUDIT] Parsed product data from form.");
         
         const newPhotoFiles: { [key: string]: File } = {};
-        for (const [key, value] of formData.entries()) {
-            if (value instanceof File) {
-                newPhotoFiles[key] = value;
-            }
+        const photoFiles = formData.getAll('photos') as File[];
+        if (photoFiles && photoFiles.length > 0) {
+            photoFiles.forEach(file => {
+                // Find the original photo data to get the client-side ID
+                const originalPhoto = productData.images.find((p: any) => p.name === file.name);
+                if (originalPhoto && originalPhoto.id) {
+                    newPhotoFiles[originalPhoto.id] = file;
+                }
+            });
         }
+
         console.log(`[AUDIT] Found ${Object.keys(newPhotoFiles).length} new photo files to upload.`);
 
         const validationResult = productUpdateSchema.safeParse(productData);
@@ -198,11 +204,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             }
 
             const finalImagePayload = validatedData.images.map(img => {
-                // If it's a new file (string ID from client), get its newly uploaded numeric ID
                 if (typeof img.id === 'string' && uploadedImageMap.has(img.id)) {
                     return { id: uploadedImageMap.get(img.id) };
                 }
-                // If it's an existing image (numeric ID), keep it
                 if (typeof img.id === 'number') {
                     return { id: img.id };
                 }
