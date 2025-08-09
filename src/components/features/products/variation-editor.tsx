@@ -67,18 +67,8 @@ export function VariationEditor({ product, onProductChange }: VariationEditorPro
     const newVariations: ProductVariation[] = combinations.map(combo => {
         const attributes = combo.map((value, index) => ({ name: attributeNames[index], option: value }));
         const skuSuffix = attributes.map(a => a.option.substring(0,3).toUpperCase()).join('-');
-        return {
-            id: uuidv4(),
-            attributes,
-            sku: `${product.sku || 'SKU'}-${skuSuffix}`,
-            regularPrice: product.regular_price || '',
-            salePrice: product.sale_price || '',
-            manage_stock: product.manage_stock,
-            stockQuantity: product.stock_quantity || '',
-            image: { id: null },
-            weight: product.weight || '',
-            dimensions: product.dimensions,
-            shipping_class: product.shipping_class || '',
+        return { 
+            id: uuidv4(), attributes: attributes, sku: `${product.sku || 'VAR'}-${skuSuffix}`, regularPrice: '', salePrice: '', stockQuantity: '', manage_stock: false 
         };
     });
     
@@ -161,10 +151,16 @@ export function VariationEditor({ product, onProductChange }: VariationEditorPro
                     </div>
                     <div className="space-y-2">
                          <Label>Imagen de la Variación</Label>
-                         <Select value={variation.image?.id?.toString() ?? ''} onValueChange={(value) => handleVariationChange(variation.variation_id!, 'image', { id: Number(value) || null })}>
+                         <Select
+                            value={variation.image?.id?.toString() ?? '0'}
+                            onValueChange={(value) => {
+                                const imageId = value === '0' ? null : Number(value);
+                                handleVariationChange(variation.variation_id!, 'image', { id: imageId });
+                            }}
+                         >
                             <SelectTrigger><SelectValue placeholder="Imagen principal por defecto" /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="">Imagen principal por defecto</SelectItem>
+                                <SelectItem value="0">Imagen principal por defecto</SelectItem>
                                 {product.images.map(photo => (
                                     <SelectItem key={photo.id} value={String(photo.id)}>{photo.name}</SelectItem>
                                 ))}
@@ -189,5 +185,3 @@ export function VariationEditor({ product, onProductChange }: VariationEditorPro
     </div>
   );
 }
-
-    

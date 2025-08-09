@@ -176,10 +176,16 @@ export function VariableProductManager({ productData, updateProductData }: Varia
                                         </div>
                                         <div className="space-y-2">
                                             <Label>Imagen</Label>
-                                            <Select value={variation.image?.id?.toString() ?? ''} onValueChange={(value) => handleVariationChange(variation.id, 'image', { id: Number(value) })}>
+                                            <Select
+                                                value={variation.image?.id?.toString() ?? '0'}
+                                                onValueChange={(value) => {
+                                                    const imageId = value === '0' ? null : Number(value);
+                                                    handleVariationChange(variation.id, 'image', { id: imageId });
+                                                }}
+                                            >
                                                 <SelectTrigger><SelectValue placeholder="Usar imagen principal..." /></SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="">Usar imagen principal</SelectItem>
+                                                    <SelectItem value="0">Usar imagen principal</SelectItem>
                                                     {productData.photos.map(photo => (
                                                         <SelectItem key={photo.id} value={String(photo.id)}>{photo.name}</SelectItem>
                                                     ))}
@@ -231,5 +237,3 @@ export function VariableProductManager({ productData, updateProductData }: Varia
         </div>
     );
 }
-
-    
