@@ -1,3 +1,4 @@
+
 // src/components/features/wizard/variable-product-manager.tsx
 
 "use client";
@@ -9,16 +10,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import type { ProductVariation, ProductPhoto } from '@/lib/types';
-import type { ProductEditState } from '@/app/(app)/products/edit/[id]/page';
+import type { ProductVariation, ProductPhoto, ProductData } from '@/lib/types';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { GitCommitHorizontal, Sparkles } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface VariableProductManagerProps {
-  productData: ProductEditState;
-  onProductChange: (product: Partial<ProductEditState>) => void;
+  productData: ProductData;
+  onProductChange: (product: Partial<ProductData>) => void;
   images: ProductPhoto[];
 }
 
@@ -73,8 +73,8 @@ export function VariableProductManager({ productData, onProductChange, images }:
             variation_id: undefined, // No WooCommerce ID yet
             attributes: attributes, 
             sku: `${productData.sku || 'VAR'}-${skuSuffix}`, 
-            regularPrice: productData.regular_price || '', 
-            salePrice: productData.sale_price || '',
+            regularPrice: productData.regularPrice || '', 
+            salePrice: productData.salePrice || '',
             stockQuantity: '', 
             manage_stock: false,
             image: { id: null },

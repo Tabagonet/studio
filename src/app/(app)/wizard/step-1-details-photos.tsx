@@ -1,3 +1,4 @@
+
 // src/app/(app)/wizard/step-1-details-photos.tsx
 "use client";
 
@@ -533,7 +534,13 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                   )}
 
                   {productData.productType === 'variable' && (
-                      <div className="border-t pt-6 mt-6"><VariableProductManager productData={productData} updateProductData={updateProductData} /></div>
+                      <div className="border-t pt-6 mt-6">
+                        <VariableProductManager 
+                            productData={productData}
+                            onProductChange={updateProductData} 
+                            images={productData.photos}
+                        />
+                      </div>
                   )}
                   
                   {productData.productType !== 'variable' && (
