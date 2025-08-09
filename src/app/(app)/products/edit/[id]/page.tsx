@@ -49,8 +49,7 @@ function EditProductPageContent() {
         const token = await user.getIdToken();
         const formData = new FormData();
         
-        // This is the final state of images for the product.
-        // New images have a string UUID, existing images have a number ID.
+        // The payload now includes all images (new and existing) with their respective ID types.
         const imagePayload = product.images.map(p => ({ id: p.id }));
 
         const productPayload = {
@@ -59,11 +58,11 @@ function EditProductPageContent() {
         };
         formData.append('productData', JSON.stringify(productPayload));
         
-        // Append only the new image files to be uploaded.
-        // We use the temporary string ID as the filename to map it in the backend.
+        // Append only the new image files that need uploading.
         const newPhotoFiles = product.images.filter(p => p.file);
         for (const photo of newPhotoFiles) {
             if (photo.file) {
+                // Use the temporary string ID (UUID) as the key/filename to map it on the backend.
                 formData.append('photos', photo.file, photo.id.toString());
             }
         }
@@ -81,7 +80,7 @@ function EditProductPageContent() {
         }
         
         toast({ title: '¡Éxito!', description: 'El producto ha sido actualizado.' });
-        router.push('/batch');
+        // The redirect to /batch has been removed.
 
     } catch (e: any) {
         toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
