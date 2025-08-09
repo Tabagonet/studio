@@ -1,4 +1,3 @@
-
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb, adminStorage } from '@/lib/firebase-admin';
@@ -273,8 +272,10 @@ export function findBeaverBuilderImages(data: any[]): { url: string; }[] {
 }
 
 /**
- * Uploads an image Buffer to Firebase Storage, gets the public URL, and tells WordPress to sideload it.
- * This is the robust method for serverless environments like Vercel.
+ * Uploads an image Buffer to a temporary location in Firebase Storage,
+ * then tells WordPress to sideload it from a generated signed URL.
+ * Finally, it cleans up the temporary file from Storage.
+ * This is the most robust method for serverless environments like Vercel.
  *
  * @param imageBuffer The buffer of the image to upload.
  * @param seoFilename A descriptive filename for the new media item (e.g., 'my-product.webp').
@@ -286,39 +287,60 @@ export async function uploadImageToWordPress(
     imageBuffer: Buffer,
     seoFilename: string,
     imageMetadata: { title: string; alt_text: string; caption: string; description: string; },
-    wpApi: AxiosInstance
+    wpApi: AxiosInstance,
+    targetWidth: number | null = null,
+    targetHeight: number | null = null,
+    cropPosition: "center" | "top" | "bottom" | "left" | "right" | undefined = undefined,
 ): Promise<number> {
     if (!adminStorage) {
         throw new Error("Firebase Storage is not configured on the server.");
     }
     
-    // 1. Upload to Firebase Storage
+    // 1. Process image with Sharp
+    let sharpInstance = sharp(imageBuffer);
+    if (targetWidth || targetHeight) {
+        sharpInstance = sharpInstance.resize(targetWidth, targetHeight, {
+            fit: 'cover',
+            position: cropPosition,
+            withoutEnlargement: true
+        });
+    } else {
+         sharpInstance = sharpInstance.resize(1200, 1200, {
+            fit: 'inside',
+            withoutEnlargement: true,
+        });
+    }
+    const processedBuffer = await sharpInstance.webp({ quality: 80 }).toBuffer();
+
+
+    // 2. Upload to Firebase Storage
     const bucket = adminStorage.bucket();
     const uniqueFilename = `user_uploads/sideload/${uuidv4()}-${seoFilename}`;
     const fileUpload = bucket.file(uniqueFilename);
 
-    await fileUpload.save(imageBuffer, {
-        metadata: {
-            contentType: 'image/webp',
-            // This is the crucial part that suggests the filename to WordPress
-            contentDisposition: `attachment; filename="${seoFilename}"`,
-        },
-        public: true, // The file must be publicly readable for WordPress to fetch it
+    await fileUpload.save(processedBuffer, {
+        metadata: { contentType: 'image/webp' },
     });
+    console.log(`[API Helper] Image uploaded temporarily to Firebase Storage: ${uniqueFilename}`);
     
-    const publicUrl = fileUpload.publicUrl();
-    console.log(`[API Helper] Image uploaded to Firebase Storage. Public URL: ${publicUrl}`);
+    // 3. Generate a Signed URL
+    const [signedUrl] = await fileUpload.getSignedUrl({
+        action: 'read',
+        expires: Date.now() + 5 * 60 * 1000, // 5 minutes validity
+    });
+    console.log(`[API Helper] Generated signed URL for WordPress to use.`);
 
     try {
-        // 2. Sideload to WordPress from the public URL
-        console.log(`[API Helper] Sideloading image to WordPress from URL: ${publicUrl}`);
+        // 4. Sideload to WordPress from the signed URL
+        console.log(`[API Helper] Sideloading image to WordPress from signed URL.`);
         const response = await wpApi.post('/media', {
             ...imageMetadata,
-            status: 'publish', // Publish the media item immediately
+            status: 'publish',
         }, {
             params: {
                 _action: 'sideload',
-                source_url: publicUrl,
+                source_url: signedUrl,
+                filename: seoFilename, // Tell WP the desired filename
             }
         });
 
@@ -328,16 +350,8 @@ export async function uploadImageToWordPress(
         }
         console.log(`[API Helper] Image sideloaded to WordPress. Media ID: ${mediaId}`);
         
-        // 3. Clean up the file from Firebase Storage after successful import
-        await fileUpload.delete();
-        console.log(`[API Helper] Temporary file ${uniqueFilename} deleted from Firebase Storage.`);
-
         return mediaId;
     } catch (error: any) {
-        // If sideloading fails, try to clean up the storage file anyway
-        console.error(`[API Helper] Error sideloading image. Attempting to clean up storage file.`);
-        await fileUpload.delete().catch(cleanupError => console.error(`[API Helper] Failed to clean up storage file after an error:`, cleanupError));
-
         let errorMsg = `Error processing image for WordPress. Reason: ${error.message}`;
         if (error.response?.data?.message) {
             errorMsg = `Error processing image for WordPress. Reason: ${error.response.data.message}`;
@@ -346,6 +360,10 @@ export async function uploadImageToWordPress(
              console.error(errorMsg, error);
         }
         throw new Error(errorMsg);
+    } finally {
+        // 5. Clean up the file from Firebase Storage regardless of success or failure
+        await fileUpload.delete().catch(cleanupError => console.error(`[API Helper] FAILED TO CLEAN UP storage file ${uniqueFilename}:`, cleanupError));
+        console.log(`[API Helper] Temporary file ${uniqueFilename} deleted from Firebase Storage.`);
     }
 }
 

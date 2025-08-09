@@ -1,4 +1,3 @@
-
 // src/app/api/woocommerce/products/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -48,16 +47,11 @@ export async function POST(request: NextRequest) {
             for (const file of photoFiles) {
                 const imageBuffer = Buffer.from(await file.arrayBuffer());
                 
-                // Process with sharp before uploading
-                const processedBuffer = await sharp(imageBuffer)
-                    .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
-                    .webp({ quality: 80 })
-                    .toBuffer();
-
+                // No need to process with Sharp here, uploadImageToWordPress handles it.
                 const seoFilename = `${slugify(finalProductData.name || 'product')}-${Date.now()}.webp`;
 
                 const newImageId = await uploadImageToWordPress(
-                    processedBuffer,
+                    imageBuffer,
                     seoFilename,
                     {
                         title: finalProductData.imageTitle || finalProductData.name,
@@ -233,5 +227,3 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `Fallo en la creación del producto: ${errorMessage}` }, { status: 500 });
     }
 }
-
-    
