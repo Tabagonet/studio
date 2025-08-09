@@ -273,11 +273,11 @@ export function findBeaverBuilderImages(data: any[]): { url: string; }[] {
 }
 
 /**
- * Uploads an image Buffer directly to the WordPress REST API.
- * This is the corrected and robust method.
+ * Uploads an image Buffer to Firebase Storage, gets the public URL, and tells WordPress to sideload it.
+ * This is the robust method for serverless environments like Vercel.
  *
- * @param imageBuffer The buffer of the image to upload (e.g., from a file or from Sharp).
- * @param seoFilename A descriptive filename for the new media item.
+ * @param imageBuffer The buffer of the image to upload.
+ * @param seoFilename A descriptive filename for the new media item (e.g., 'my-product.webp').
  * @param imageMetadata SEO and accessibility data for the image.
  * @param wpApi An initialized Axios instance for the WordPress API.
  * @returns The media ID of the newly created WordPress attachment.
@@ -288,34 +288,56 @@ export async function uploadImageToWordPress(
     imageMetadata: { title: string; alt_text: string; caption: string; description: string; },
     wpApi: AxiosInstance
 ): Promise<number> {
+    if (!adminStorage) {
+        throw new Error("Firebase Storage is not configured on the server.");
+    }
+    
+    // 1. Upload to Firebase Storage
+    const bucket = adminStorage.bucket();
+    const uniqueFilename = `user_uploads/sideload/${uuidv4()}-${seoFilename}`;
+    const fileUpload = bucket.file(uniqueFilename);
+
+    await fileUpload.save(imageBuffer, {
+        metadata: {
+            contentType: 'image/webp',
+            // This is the crucial part that suggests the filename to WordPress
+            contentDisposition: `attachment; filename="${seoFilename}"`,
+        },
+        public: true, // The file must be publicly readable for WordPress to fetch it
+    });
+    
+    const publicUrl = fileUpload.publicUrl();
+    console.log(`[API Helper] Image uploaded to Firebase Storage. Public URL: ${publicUrl}`);
+
     try {
-        console.log(`[API Helper] Directly uploading image "${seoFilename}" to WordPress.`);
-        const response = await wpApi.post('/media', imageBuffer, {
-            headers: {
-                'Content-Type': 'image/webp',
-                'Content-Disposition': `attachment; filename="${seoFilename}"`,
-            },
+        // 2. Sideload to WordPress from the public URL
+        console.log(`[API Helper] Sideloading image to WordPress from URL: ${publicUrl}`);
+        const response = await wpApi.post('/media', {
+            ...imageMetadata,
+            status: 'publish', // Publish the media item immediately
+        }, {
+            params: {
+                _action: 'sideload',
+                source_url: publicUrl,
+            }
         });
-        
+
         const mediaId = response.data.id;
         if (!mediaId) {
-            throw new Error("WordPress did not return a media ID after upload.");
+            throw new Error("WordPress did not return a media ID after sideloading.");
         }
+        console.log(`[API Helper] Image sideloaded to WordPress. Media ID: ${mediaId}`);
         
-        console.log(`[API Helper] Image uploaded to WordPress with Media ID: ${mediaId}. Now updating metadata.`);
-
-        // After uploading, send a second request to update the metadata.
-        await wpApi.post(`/media/${mediaId}`, {
-            title: imageMetadata.title,
-            alt_text: imageMetadata.alt_text,
-            caption: imageMetadata.caption,
-            description: imageMetadata.description,
-        });
-
-        console.log(`[API Helper] Metadata updated for Media ID: ${mediaId}.`);
+        // 3. Clean up the file from Firebase Storage after successful import
+        await fileUpload.delete();
+        console.log(`[API Helper] Temporary file ${uniqueFilename} deleted from Firebase Storage.`);
 
         return mediaId;
     } catch (error: any) {
+        // If sideloading fails, try to clean up the storage file anyway
+        console.error(`[API Helper] Error sideloading image. Attempting to clean up storage file.`);
+        await fileUpload.delete().catch(cleanupError => console.error(`[API Helper] Failed to clean up storage file after an error:`, cleanupError));
+
         let errorMsg = `Error processing image for WordPress. Reason: ${error.message}`;
         if (error.response?.data?.message) {
             errorMsg = `Error processing image for WordPress. Reason: ${error.response.data.message}`;
@@ -581,5 +603,3 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
     // Return a unique set of images based on URL
     return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
-
-    
