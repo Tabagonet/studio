@@ -1,3 +1,4 @@
+
 // src/app/api/woocommerce/products/[id]/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -20,6 +21,7 @@ const slugify = (text: string) => {
 
 // Schema for updating a product
 const productUpdateSchema = z.object({
+    id: z.number().optional(), // Added ID for edit mode context
     name: z.string().min(1, 'Name cannot be empty.').optional(),
     sku: z.string().optional(),
     supplier: z.string().optional().nullable(),
@@ -30,7 +32,7 @@ const productUpdateSchema = z.object({
     short_description: z.string().optional(),
     description: z.string().optional(),
     status: z.enum(['publish', 'draft', 'pending', 'private']).optional(),
-    tags: z.string().optional(),
+    tags: z.array(z.string()).optional(),
     category_id: z.number().nullable().optional(),
     images: z.array(z.object({
         id: z.union([z.string(), z.number()]).optional(), // Allow both string (for new images) and number (for existing)
@@ -129,7 +131,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const { data: originalProduct } = await wooApi.get(`products/${productId}`);
 
         if (tags !== undefined) {
-          wooPayload.tags = tags.split(',').map((name: string) => ({ name: name.trim() })).filter(t => t.name);
+          wooPayload.tags = tags.map((name: string) => ({ name: name.trim() })).filter(t => t.name);
         }
         
         let finalCategoryIds: { id: number }[] = [];
@@ -147,14 +149,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             const allCategories = (await wooApi.get('products/categories', { per_page: 100 })).data;
             const parentSupplierCategory = allCategories.find((c: any) => c.name.toLowerCase() === 'proveedores' && c.parent === 0);
             
-            // Remove previous supplier category if it exists
-            const existingSupplierAttr = originalProduct.attributes.find((a:any) => a.name === 'Proveedor');
-            if (existingSupplierAttr && parentSupplierCategory) {
-                 const oldSupplierCategory = allCategories.find((c: any) => c.name === existingSupplierAttr.options[0] && c.parent === parentSupplierCategory.id);
-                 if (oldSupplierCategory) {
-                    finalCategoryIds = finalCategoryIds.filter(c => c.id !== oldSupplierCategory.id);
-                 }
+            if (parentSupplierCategory) {
+                // Remove all existing supplier sub-categories from this product
+                const supplierSubCats = allCategories.filter((c:any) => c.parent === parentSupplierCategory.id).map((c:any) => c.id);
+                finalCategoryIds = finalCategoryIds.filter(c => !supplierSubCats.includes(c.id));
             }
+            
 
             // Add new supplier category if provided
             if (finalSupplierName) {
@@ -175,8 +175,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         
         if (validatedData.images) {
             if (!wpApi) { throw new Error('WordPress API must be configured to upload new images.'); }
-            const existingImageIds = validatedData.images.filter(img => typeof img.id === 'number').map(img => ({ id: img.id }));
             
+            const existingImageIds = validatedData.images
+              .map(img => typeof img.id === 'number' ? { id: img.id } : null)
+              .filter(Boolean);
+
             const newUploadedImageIds = [];
             for (const file of photoFiles) {
                 const baseNameForSeo = imageTitle || validatedData.name || 'product-image';

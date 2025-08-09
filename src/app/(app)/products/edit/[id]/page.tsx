@@ -1,3 +1,4 @@
+
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -49,15 +50,25 @@ function EditProductPageContent() {
         const token = await user.getIdToken();
         const formData = new FormData();
         
-        // Exclude file objects from the JSON payload
+        const newPhotos = product.images.filter(p => p.file);
+
+        // Include placeholders for new images in the JSON payload
+        const imagePayload = product.images.map((p, index) => {
+            if (p.file) {
+                 // Use a unique placeholder ID for new images
+                 return { id: `new-${index}` };
+            }
+            // Keep the ID for existing images
+            return { id: p.id };
+        });
+
         const productPayload = {
             ...product,
-            photos: product.photos.filter(p => !p.file).map(p => ({ id: p.id })), // Only send existing image IDs
+            images: imagePayload,
         };
         formData.append('productData', JSON.stringify(productPayload));
         
         // Append new files separately
-        const newPhotos = product.photos.filter(p => p.file);
         for (const photo of newPhotos) {
             if (photo.file) {
                 formData.append('photos', photo.file, photo.name);
