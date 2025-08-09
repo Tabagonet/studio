@@ -1,4 +1,3 @@
-
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -50,17 +49,9 @@ function EditProductPageContent() {
         const token = await user.getIdToken();
         const formData = new FormData();
         
-        const newPhotos = product.images.filter(p => p.file);
-
-        // Include placeholders for new images in the JSON payload
-        const imagePayload = product.images.map((p, index) => {
-            if (p.file) {
-                 // Use a unique placeholder ID for new images
-                 return { id: `new-${index}` };
-            }
-            // Keep the ID for existing images
-            return { id: p.id };
-        });
+        // This is the final state of images for the product.
+        // New images have a string UUID, existing images have a number ID.
+        const imagePayload = product.images.map(p => ({ id: p.id }));
 
         const productPayload = {
             ...product,
@@ -68,10 +59,12 @@ function EditProductPageContent() {
         };
         formData.append('productData', JSON.stringify(productPayload));
         
-        // Append new files separately
-        for (const photo of newPhotos) {
+        // Append only the new image files to be uploaded.
+        // We use the temporary string ID as the filename to map it in the backend.
+        const newPhotoFiles = product.images.filter(p => p.file);
+        for (const photo of newPhotoFiles) {
             if (photo.file) {
-                formData.append('photos', photo.file, photo.name);
+                formData.append('photos', photo.file, photo.id.toString());
             }
         }
 

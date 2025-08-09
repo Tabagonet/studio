@@ -175,21 +175,28 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         if (validatedData.images !== undefined) {
             if (!wpApi) { throw new Error('WordPress API must be configured to upload new images.'); }
             
-            const existingImageIds = validatedData.images
-              .map(img => (typeof img.id === 'number' ? { id: img.id } : null))
-              .filter(Boolean);
-
-            const newUploadedImageIds = [];
+            const uploadedImageMap = new Map<string, number>();
             for (const file of photoFiles) {
-                const baseNameForSeo = imageTitle || validatedData.name || 'product-image';
-                const seoFilename = `${slugify(baseNameForSeo)}-${productId}-${Date.now()}.webp`;
-
-                const newImageId = await uploadImageToWordPress(
-                    file, seoFilename, { title: imageTitle || validatedData.name || '', alt_text: imageAltText || validatedData.name || '', caption: imageCaption || '', description: imageDescription || '' }, wpApi
-                );
-                newUploadedImageIds.push({ id: newImageId });
+                 const clientSideId = file.name;
+                 const baseNameForSeo = imageTitle || validatedData.name || 'product-image';
+                 const seoFilename = `${slugify(baseNameForSeo)}-${productId}-${Date.now()}.webp`;
+                 const newImageId = await uploadImageToWordPress(file, seoFilename, { title: imageTitle || validatedData.name || '', alt_text: imageAltText || validatedData.name || '', caption: imageCaption || '', description: imageDescription || '' }, wpApi);
+                 uploadedImageMap.set(clientSideId, newImageId);
             }
-            wooPayload.images = [...existingImageIds, ...newUploadedImageIds];
+
+            const finalImagePayload = validatedData.images.map(img => {
+                if (typeof img.id === 'string' && uploadedImageMap.has(img.id)) {
+                    // It's a new image that has been uploaded, use its new WordPress ID
+                    return { id: uploadedImageMap.get(img.id) };
+                }
+                if (typeof img.id === 'number') {
+                    // It's an existing image, keep its ID
+                    return { id: img.id };
+                }
+                return null;
+            }).filter(Boolean);
+            
+            wooPayload.images = finalImagePayload;
         } else {
             delete wooPayload.images;
         }
