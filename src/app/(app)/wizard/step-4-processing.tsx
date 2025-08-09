@@ -35,6 +35,10 @@ export function Step4Processing({ status, steps }: Step4ProcessingProps) {
             default: return 'Iniciando proceso de creación...';
         }
     }
+    
+    const totalProgress = steps.length > 0
+        ? steps.reduce((sum, step) => sum + (step.progress || 0), 0) / steps.length
+        : 0;
 
     return (
         <div className="space-y-8">
@@ -45,6 +49,11 @@ export function Step4Processing({ status, steps }: Step4ProcessingProps) {
                    {getOverallDescription()}
                 </CardDescription>
                 </CardHeader>
+                 {status === 'processing' && (
+                    <CardContent>
+                        <Progress value={totalProgress} className="w-full" />
+                    </CardContent>
+                 )}
             </Card>
 
             <Card>
@@ -58,9 +67,6 @@ export function Step4Processing({ status, steps }: Step4ProcessingProps) {
                             <div className="flex-1 space-y-1">
                                 <p className={cn("font-medium", step.status === 'error' && 'text-destructive')}>{step.name}</p>
                                 {step.message && <p className="text-xs text-muted-foreground">{step.message}</p>}
-                                {step.status === 'processing' && step.progress !== undefined && (
-                                    <Progress value={step.progress} className="h-2" />
-                                )}
                                 {step.status === 'error' && step.error && (
                                      <p className="text-xs text-destructive">{step.error}</p>
                                 )}

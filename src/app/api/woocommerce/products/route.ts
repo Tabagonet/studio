@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress, findOrCreateWpCategoryByPath, findOrCreateTags } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress, findOrCreateTags, findOrCreateWpCategoryByPath } from '@/lib/api-helpers';
 import type { ProductData, ProductVariation, ProductPhoto } from '@/lib/types';
 import axios from 'axios';
 
@@ -53,13 +53,10 @@ export async function POST(request: NextRequest) {
             if (supplierCatId) finalCategoryIds.push({ id: supplierCatId });
         }
 
-        // 2. Prepare image data - This API now expects IDs, not files
-        const wordpressImageIds = finalProductData.photos.map(photo => {
-            if (photo.uploadedId) { // Check for the WordPress Media ID
-                return { id: photo.uploadedId };
-            }
-            return null;
-        }).filter((img): img is { id: number } => img !== null);
+        // 2. Prepare image data - The payload now expects uploadedId from the client
+        const wordpressImageIds = finalProductData.photos
+            .map(photo => photo.uploadedId ? { id: photo.uploadedId } : null)
+            .filter((img): img is { id: number } => img !== null);
         
         // 3. Prepare product data
         const wooAttributes = finalProductData.attributes
@@ -79,7 +76,7 @@ export async function POST(request: NextRequest) {
             });
         }
         
-        const tagNames = finalProductData.tags ? finalProductData.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+        const tagNames = finalProductData.tags ? (typeof finalProductData.tags === 'string' ? finalProductData.tags.split(',') : finalProductData.tags).map(t => t.trim()).filter(Boolean) : [];
         const wooTags = await findOrCreateTags(tagNames, wpApi);
 
         let finalSku = finalProductData.sku;

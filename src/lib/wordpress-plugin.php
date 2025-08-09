@@ -2,7 +2,7 @@
 /*
 Plugin Name: AutoPress AI Helper
 Description: Añade endpoints a la REST API para gestionar traducciones, stock y otras funciones personalizadas para AutoPress AI.
-Version: 1.53
+Version: 1.54
 Author: intelvisual@intelvisual.es
 Requires at least: 5.8
 Requires PHP: 7.4

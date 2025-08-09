@@ -1,4 +1,3 @@
-
 // src/app/api/upload-image/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
@@ -83,6 +82,13 @@ export async function POST(req: NextRequest) {
       console.error(errorMsg, data);
       throw new Error(errorMsg);
     }
+    
+    // Key Change: Ensure media_id is returned
+    if (data.success && !data.media_id) {
+       const errorMsg = "El servidor de imágenes quefoto.es no devolvió un ID de medio. Por favor, actualiza el script del servidor de imágenes.";
+       console.error(errorMsg, data);
+       throw new Error(errorMsg);
+    }
 
     if (!data.success) {
        const errorMsg = data.error || "Error desconocido al subir la imagen al servidor quefoto.es.";
@@ -90,13 +96,17 @@ export async function POST(req: NextRequest) {
        throw new Error(errorMsg);
     }
     
-    // Sanitize the URL returned from the external server
     let sanitizedUrl = data.url;
     if (sanitizedUrl && !sanitizedUrl.startsWith('http')) {
         sanitizedUrl = `https://${sanitizedUrl.replace(/^(https?:\/\/)?/, '')}`;
     }
 
-    return NextResponse.json({ success: true, url: sanitizedUrl, filename_saved_on_server: data.filename_saved });
+    return NextResponse.json({ 
+        success: true, 
+        url: sanitizedUrl, 
+        filename_saved_on_server: data.filename_saved,
+        media_id: data.media_id, // Return the media_id
+    });
   } catch (error) {
     console.error("Error al procesar la imagen en /api/upload-image:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
