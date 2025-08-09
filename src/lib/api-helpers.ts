@@ -1,7 +1,6 @@
-
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
-import { adminDb, adminStorage } from '@/lib/firebase-admin';
+import { adminDb } from '@/lib/firebase-admin';
 import { createWooCommerceApi } from '@/lib/woocommerce';
 import { createWordPressApi } from '@/lib/wordpress';
 import { createShopifyApi } from '@/lib/shopify';
@@ -12,8 +11,8 @@ import FormData from 'form-data';
 import type { ExtractedWidget } from './types';
 import { z } from 'zod';
 import crypto from 'crypto';
-import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
+import { Readable } from 'stream';
 
 
 export const partnerAppConnectionDataSchema = z.object({
@@ -273,58 +272,71 @@ export function findBeaverBuilderImages(data: any[]): { url: string; }[] {
 }
 
 /**
- * Uploads an image Buffer to the WordPress Media Library directly.
- * This is the most robust method for serverless environments like Vercel.
- *
- * @param imageBuffer The buffer of the image to upload.
- * @param seoFilename A descriptive filename for the new media item (e.g., 'my-product.webp').
- * @param imageMetadata SEO and accessibility data for the image.
- * @param wpApi An initialized Axios instance for the WordPress API.
- * @returns The media ID of the newly created WordPress attachment.
+ * Uploads an image to the WordPress media library, with optional resizing and cropping.
+ * It can handle a URL string or a File object.
+ * @param source The URL string of the image or a File object.
+ * @param seoFilename A desired filename for SEO purposes.
+ * @param imageMetadata Metadata for the image (title, alt, etc.).
+ * @param wpApi Initialized Axios instance for WordPress API.
+ * @param width Optional. The target width for the image. If null, resizing is skipped for this dimension.
+ * @param height Optional. The target height for the image. If null, resizing is skipped for this dimension.
+ * @param position Optional. The crop position (e.g., 'center', 'top').
+ * @returns The ID of the newly uploaded media item.
  */
 export async function uploadImageToWordPress(
-    imageBuffer: Buffer | string, // Can be buffer or remote URL
-    seoFilename: string,
-    imageMetadata: { title: string; alt_text: string; caption: string; description: string; },
-    wpApi: AxiosInstance,
-    targetWidth: number | null = null,
-    targetHeight: number | null = null,
-    cropPosition: "center" | "top" | "bottom" | "left" | "right" | undefined = undefined,
+  source: File | string,
+  seoFilename: string,
+  imageMetadata: { title: string; alt_text: string; caption: string; description: string; },
+  wpApi: AxiosInstance,
+  width?: number | null,
+  height?: number | null,
+  position?: string,
 ): Promise<number> {
-    
-    let processedBuffer: Buffer;
-
-    if (typeof imageBuffer === 'string') {
-        const response = await axios.get(imageBuffer, { responseType: 'arraybuffer' });
-        processedBuffer = Buffer.from(response.data);
-    } else {
-        processedBuffer = imageBuffer;
-    }
-    
-    let sharpInstance = sharp(processedBuffer);
-    if (targetWidth || targetHeight) {
-        sharpInstance = sharpInstance.resize(targetWidth, targetHeight, {
-            fit: 'cover',
-            position: cropPosition,
-            withoutEnlargement: true
-        });
-    } else {
-         sharpInstance = sharpInstance.resize(1200, 1200, {
-            fit: 'inside',
-            withoutEnlargement: true,
-        });
-    }
-    const finalImageBuffer = await sharpInstance.webp({ quality: 80 }).toBuffer();
-
     try {
-        const response = await wpApi.post('/media', finalImageBuffer, {
+        let imageBuffer: Buffer;
+
+        if (typeof source === 'string') {
+            const sanitizedUrl = source.startsWith('http') ? source : `https://${source.replace(/^(https?:\/\/)?/, '')}`;
+            const imageResponse = await axios.get(sanitizedUrl, {
+                responseType: 'arraybuffer',
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                },
+            });
+            imageBuffer = Buffer.from(imageResponse.data);
+        } else {
+            imageBuffer = Buffer.from(await source.arrayBuffer());
+        }
+        
+        let sharpInstance = sharp(imageBuffer);
+
+        if (width || height) {
+            sharpInstance = sharpInstance.resize(width, height, { 
+                fit: (width && height) ? 'cover' : 'inside', 
+                position: position as any || 'center' 
+            });
+        } else {
+            sharpInstance = sharpInstance.resize(1200, 1200, {
+                fit: 'inside',
+                withoutEnlargement: true,
+            });
+        }
+        
+        const finalBuffer = await sharpInstance.webp({ quality: 80 }).toBuffer();
+        const finalContentType = 'image/webp';
+        const finalFilename = seoFilename.endsWith('.webp') ? seoFilename : seoFilename.replace(/\.[^/.]+$/, "") + ".webp";
+
+        const formData = new FormData();
+        formData.append('file', finalBuffer, finalFilename);
+        
+        const mediaResponse = await wpApi.post('/media', formData, {
             headers: {
-                'Content-Type': 'image/webp',
-                'Content-Disposition': `attachment; filename="${seoFilename}"`,
+                ...formData.getHeaders(),
+                'Content-Disposition': `attachment; filename=${finalFilename}`,
             },
         });
-
-        const mediaId = response.data.id;
+        
+        const mediaId = mediaResponse.data.id;
         if (!mediaId) {
             throw new Error("WordPress did not return a media ID after upload.");
         }
@@ -338,18 +350,21 @@ export async function uploadImageToWordPress(
         });
         
         return mediaId;
-    } catch (error: any) {
-        let errorMsg = `Error uploading image to WordPress. Reason: ${error.message}`;
-        if (error.response?.data?.message) {
-            errorMsg = `Error uploading image to WordPress. Reason: ${error.response.data.message}`;
-            console.error(errorMsg, error.response.data);
+
+    } catch (uploadError: any) {
+        let errorMsg = `Error al procesar la imagen.`;
+        if (uploadError.response?.data?.message) {
+            errorMsg += ` Razón: ${uploadError.response.data.message}`;
+            if (uploadError.response.status === 401 || uploadError.response.status === 403) {
+                errorMsg += ' Esto es probablemente un problema de permisos. Asegúrate de que el usuario de la Contraseña de Aplicación tiene el rol de "Editor" o "Administrador" en WordPress.';
+            }
         } else {
-             console.error(errorMsg, error);
+            errorMsg += ` Razón: ${uploadError.message}`;
         }
+        console.error(errorMsg, uploadError.response?.data || uploadError);
         throw new Error(errorMsg);
     }
 }
-
 
 /**
  * Finds a WP post category by its path (e.g., "Parent > Child") or creates it if it doesn't exist.

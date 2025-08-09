@@ -1,4 +1,3 @@
-
 // src/app/(app)/wizard/product-wizard.tsx
 
 "use client";
@@ -27,16 +26,16 @@ export function ProductWizard() {
   const { toast } = useToast();
 
   const isProcessing = submissionStatus === 'processing';
-  const [isStep3Valid, setIsStep3Valid] = useState(true);
+  const [isStepValid, setIsStepValid] = useState(true);
 
   const updateProductData = useCallback((data: Partial<ProductData>) => {
     setProductData(prev => ({ ...prev, ...data }));
   }, []);
   
-  const updateStepStatus = (id: string, status: SubmissionStep['status'], error?: string, progress?: number, message?: string) => {
+  const updateStepStatus = (id: string, status: SubmissionStep['status'], error?: string, progress?: number) => {
     setSteps(prevSteps => 
       prevSteps.map(step => 
-        step.id === id ? { ...step, status, error, progress, message: message || step.message } : step
+        step.id === id ? { ...step, status, error, progress } : step
       )
     );
   };
@@ -44,8 +43,8 @@ export function ProductWizard() {
   const handleCreateProduct = useCallback(async () => {
     setCurrentStep(4);
     
-    let initialSteps: SubmissionStep[] = [
-      { id: 'create_product', name: 'Enviando datos a WordPress', status: 'pending', progress: 0 }
+    const initialSteps: SubmissionStep[] = [
+        { id: 'create_product', name: 'Creando producto en WooCommerce', status: 'pending', progress: 0 }
     ];
     setSteps(initialSteps);
     setFinalLinks([]);
@@ -60,39 +59,34 @@ export function ProductWizard() {
     
     try {
         const token = await user.getIdToken();
-        updateStepStatus('create_product', 'processing', undefined, 10, 'Construyendo petición...');
+        
+        updateStepStatus('create_product', 'processing', undefined, 10);
         
         const formData = new FormData();
         formData.append('productData', JSON.stringify(productData));
-        
-        const photosToUpload = productData.photos.filter(p => p.file);
-        photosToUpload.forEach(photo => {
+        productData.photos.forEach(photo => {
             if (photo.file) {
                 formData.append('photos', photo.file, photo.name);
             }
         });
         
-        updateStepStatus('create_product', 'processing', undefined, 30, 'Enviando datos al servidor...');
-
+        updateStepStatus('create_product', 'processing', undefined, 30);
+        
         const response = await fetch('/api/woocommerce/products', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
-          body: formData,
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData,
         });
 
-        updateStepStatus('create_product', 'processing', undefined, 80, 'Esperando respuesta de WordPress...');
-
         const result = await response.json();
-
         if (!response.ok) {
-          throw new Error(result.error || `Error creando el producto.`);
+            throw new Error(result.error || 'Fallo en la creación del producto');
         }
-        
-        updateStepStatus('create_product', 'success', undefined, 100, '¡Producto creado con éxito!');
-        
-        setFinalLinks([{ url: result.data.url, title: result.data.title }]);
-        setSubmissionStatus('success');
 
+        updateStepStatus('create_product', 'success', undefined, 100);
+        setFinalLinks([result.data]);
+        setSubmissionStatus('success');
+        
     } catch (error: any) {
         updateStepStatus('create_product', 'error', error.message);
         toast({ title: 'Proceso Interrumpido', description: error.message, variant: 'destructive' });
@@ -112,7 +106,15 @@ export function ProductWizard() {
       setCurrentStep(prev => prev + 1);
       window.scrollTo(0, 0);
     } else if (currentStep === 3) {
-      setCurrentStep(4);
+      if(isStepValid) {
+        setCurrentStep(4);
+      } else {
+        toast({
+            title: "Validación Fallida",
+            description: "Por favor, corrige los errores antes de continuar.",
+            variant: "destructive",
+        })
+      }
     }
   };
   
@@ -130,7 +132,7 @@ export function ProductWizard() {
       case 2:
         return <Step2Preview productData={productData} />;
       case 3:
-        return <Step3Confirm productData={productData} onValidationComplete={setIsStep3Valid} />;
+        return <Step3Confirm productData={productData} onValidationComplete={setIsStepValid} />;
       case 4:
         return <Step4Processing status={submissionStatus} steps={steps} />;
       default:
@@ -164,7 +166,7 @@ export function ProductWizard() {
                 <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
             ) : (
-            <Button onClick={() => setCurrentStep(4)} disabled={!isStep3Valid}>
+            <Button onClick={nextStep} disabled={!isStepValid}>
                 <Rocket className="mr-2 h-4 w-4" />
                 Crear Producto(s)
             </Button>

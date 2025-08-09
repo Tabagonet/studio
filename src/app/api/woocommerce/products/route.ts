@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
 import { getApiClientsForUser, uploadImageToWordPress, findOrCreateTags, findOrCreateWpCategoryByPath } from '@/lib/api-helpers';
 import type { ProductData, ProductVariation } from '@/lib/types';
-import sharp from 'sharp';
+import axios from 'axios';
 
 const slugify = (text: string) => {
     if (!text) return '';
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
         const formData = await request.formData();
         const productDataString = formData.get('productData') as string | null;
         if (!productDataString) {
-            throw new Error('productData is missing from the form data.');
+            throw new Error("productData is missing from the form data.");
         }
 
         const finalProductData: ProductData = JSON.parse(productDataString);
@@ -44,20 +44,11 @@ export async function POST(request: NextRequest) {
         const wordpressImageIds: { id: number }[] = [];
         
         if (photoFiles.length > 0) {
-            for (const file of photoFiles) {
-                const imageBuffer = Buffer.from(await file.arrayBuffer());
-                
-                const seoFilename = `${slugify(finalProductData.name || 'product')}-${Date.now()}.webp`;
-
+            for (const [index, file] of photoFiles.entries()) {
                 const newImageId = await uploadImageToWordPress(
-                    imageBuffer,
-                    seoFilename,
-                    {
-                        title: finalProductData.imageTitle || finalProductData.name,
-                        alt_text: finalProductData.imageAltText || finalProductData.name,
-                        caption: finalProductData.imageCaption || '',
-                        description: finalProductData.imageDescription || '',
-                    },
+                    file,
+                    `${slugify(finalProductData.name)}-${index + 1}.webp`,
+                    { title: finalProductData.imageTitle || finalProductData.name, alt_text: finalProductData.imageAltText || finalProductData.name, caption: finalProductData.imageCaption || '', description: finalProductData.imageDescription || '' },
                     wpApi
                 );
                 wordpressImageIds.push({ id: newImageId });
@@ -136,7 +127,7 @@ export async function POST(request: NextRequest) {
             wooPayload.grouped_products = finalProductData.groupedProductIds || [];
         }
 
-        const { wooApi } = await getApiClientsForUser(uid);
+        const { wooApi, settings, activeConnectionKey } = await getApiClientsForUser(uid);
         if (!wooApi) throw new Error("WooCommerce API client could not be created.");
         const response = await wooApi.post('products', wooPayload);
         const createdProduct = response.data;
@@ -173,7 +164,6 @@ export async function POST(request: NextRequest) {
         }
 
         if (adminDb && admin.firestore.FieldValue) { 
-            const { settings } = await getApiClientsForUser(uid);
             await adminDb.collection('activity_logs').add({
                 userId: uid,
                 action: 'PRODUCT_CREATED',
@@ -181,14 +171,13 @@ export async function POST(request: NextRequest) {
                 details: {
                     productId,
                     productName: createdProduct.name,
-                    connectionKey: settings?.activeConnectionKey,
+                    connectionKey: activeConnectionKey,
                     source: finalProductData.source || 'unknown'
                 }
             });
         }
         
-        const { settings } = await getApiClientsForUser(uid);
-        const storeUrl = settings?.connections?.[settings?.activeConnectionKey as string]?.wooCommerceStoreUrl || '';
+        const storeUrl = settings?.connections?.[activeConnectionKey as string]?.wooCommerceStoreUrl || '';
         const cleanStoreUrl = storeUrl.endsWith('/') ? storeUrl.slice(0, -1) : storeUrl;
         
         return NextResponse.json({

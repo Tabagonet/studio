@@ -9,7 +9,7 @@ interface Step3ConfirmProps {
   onValidationComplete: (isValid: boolean) => void;
 }
 
-export function Step3Confirm({ productData }: Step3ConfirmProps) {
+export function Step3Confirm({ productData, onValidationComplete }: Step3ConfirmProps) {
   const photosToUploadCount = productData.photos.filter(p => p.file).length;
   const validAttributesCount = productData.attributes.filter(a => a.name && a.name.trim() !== '').length;
   
@@ -29,10 +29,10 @@ export function Step3Confirm({ productData }: Step3ConfirmProps) {
           Al hacer clic en "Crear Producto", se realizarán las siguientes acciones en orden:
           <ul className="list-decimal list-inside mt-2 space-y-1">
             <li>
-              <span className="font-semibold">Subida de Imágenes:</span> Se subirán {photosToUploadCount} imágen(es) nuevas a tu servidor.
+              <span className="font-semibold">Subida de Imágenes:</span> Se subirán {photosToUploadCount} imágen(es) a tu servidor. Verás el progreso en la sección de imágenes.
             </li>
             <li>
-              <span className="font-semibold">Creación en WooCommerce:</span> Se creará el producto en tu tienda con toda la información proporcionada.
+              <span className="font-semibold">Creación en WooCommerce:</span> Una vez que todas las imágenes estén subidas, se creará el producto en tu tienda con toda la información proporcionada.
             </li>
           </ul>
         </AlertDescription>
