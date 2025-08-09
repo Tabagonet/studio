@@ -79,6 +79,10 @@ function EditProductPageContent() {
   const [isSuggestingLinks, setIsSuggestingLinks] = useState<boolean>(false);
   const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>([]);
 
+  const updateProductData = useCallback((data: Partial<ProductEditState>) => {
+    console.log('[AUDIT - updateProductData] El componente padre recibe la actualización:', data);
+    setProduct(prev => (prev ? { ...prev, ...data } : null));
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!product) return;
@@ -526,7 +530,7 @@ function EditProductPageContent() {
                           <CardContent>
                             <VariationEditor 
                               product={product} 
-                              onProductChange={(updatedProduct) => setProduct({...product, ...updatedProduct})} 
+                              onProductChange={updateProductData} 
                               images={product.images}
                             />
                           </CardContent>
