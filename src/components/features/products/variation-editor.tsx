@@ -1,4 +1,3 @@
-
 // src/components/features/products/variation-editor.tsx
 
 "use client";
@@ -70,8 +69,15 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
         const attributes = combo.map((value, index) => ({ name: attributeNames[index], option: value }));
         const skuSuffix = attributes.map(a => a.option.substring(0,3).toUpperCase()).join('-');
         return { 
-            id: uuidv4(), attributes: attributes, sku: `${product.sku || 'VAR'}-${skuSuffix}`, regularPrice: '', salePrice: '', stockQuantity: '', manage_stock: false,
-            variation_id: undefined, // New variation doesn't have a wooCommerce ID yet.
+            id: uuidv4(), // Client-side ID
+            variation_id: undefined, // No WooCommerce ID yet
+            attributes: attributes, 
+            sku: `${product.sku || 'VAR'}-${skuSuffix}`, 
+            regularPrice: product.regular_price || '', 
+            salePrice: product.sale_price || '',
+            stockQuantity: '', 
+            manage_stock: false,
+            image: { id: null }, 
         };
     });
     
@@ -131,7 +137,7 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
             <AccordionTrigger>
               <div className="flex flex-wrap gap-x-4 gap-y-1">
                 {variation.attributes.map(attr => (
-                  <span key={attr.name}>
+                  <span key={attr.name} className="text-sm">
                     <span className="font-medium">{attr.name}:</span>
                     <span className="text-muted-foreground ml-1">{attr.option}</span>
                   </span>
