@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { v4 as uuidv4 } from 'uuid';
 import Image from 'next/image';
@@ -20,10 +20,8 @@ interface ImageUploaderProps {
   maxPhotos?: number;
 }
 
-export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing, maxPhotos = 10 }: ImageUploaderProps) {
+export function ImageUploader({ photos = [], onPhotosChange, isProcessing, maxPhotos = 10 }: ImageUploaderProps) {
   const { toast } = useToast();
-
-  const photos = useMemo(() => (Array.isArray(photosProp) ? photosProp : []), [photosProp]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newPhotos: ProductPhoto[] = acceptedFiles.map(file => ({
@@ -39,7 +37,7 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
     const currentPhotos = maxPhotos === 1 ? [] : photos;
     const combinedPhotos = [...currentPhotos, ...newPhotos].slice(0, maxPhotos);
 
-    if (combinedPhotos.filter(p => p.isPrimary).length === 0 && combinedPhotos.length > 0) {
+    if (combinedPhotos.length > 0 && !combinedPhotos.some(p => p.isPrimary)) {
         combinedPhotos[0].isPrimary = true;
     }
 
@@ -51,7 +49,7 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
       URL.revokeObjectURL(photoToDelete.previewUrl);
     }
     const remainingPhotos = photos.filter(p => p.id !== photoToDelete.id);
-    if (photoToDelete.isPrimary && remainingPhotos.length > 0) {
+    if (photoToDelete.isPrimary && remainingPhotos.length > 0 && !remainingPhotos.some(p => p.isPrimary)) {
         remainingPhotos[0].isPrimary = true;
     }
     onPhotosChange(remainingPhotos);
