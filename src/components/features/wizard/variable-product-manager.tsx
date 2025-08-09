@@ -4,23 +4,22 @@
 
 import React from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import Image from 'next/image';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { ProductVariation, ProductPhoto } from '@/lib/types';
-import type { ProductEditState } from '@/app/(app)/products/edit/[id]/page';
+import type { ProductData } from '@/lib/types';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { GitCommitHorizontal, Sparkles } from 'lucide-react';
+import { GitCommitHorizontal, Sparkles, ImageIcon } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import Image from 'next/image';
-import type { ProductData } from '@/lib/types';
 
 interface VariableProductManagerProps {
   productData: ProductData;
-  onProductChange: (data: Partial<ProductData>) => void;
+  updateProductData: (data: Partial<ProductData>) => void;
   images: ProductPhoto[];
 }
 
@@ -42,7 +41,7 @@ function cartesian(...args: string[][]): string[][] {
     return r;
 }
 
-export function VariableProductManager({ productData, onProductChange, images }: VariableProductManagerProps) {
+export function VariableProductManager({ productData, updateProductData, images }: VariableProductManagerProps) {
   const { toast } = useToast();
 
   const handleGenerateVariations = () => {
@@ -83,7 +82,7 @@ export function VariableProductManager({ productData, onProductChange, images }:
         };
     });
     
-    onProductChange({ variations: newVariations });
+    updateProductData({ variations: newVariations });
     toast({ title: `¡${newVariations.length} variaciones generadas!`, description: "Revisa los detalles de cada una." });
   };
 
@@ -96,7 +95,7 @@ export function VariableProductManager({ productData, onProductChange, images }:
       }
       return v;
     });
-    onProductChange({ variations: updatedVariations });
+    updateProductData({ variations: updatedVariations });
   };
   
   const handleDimensionChange = (variationIdentifier: string | number, dim: 'length' | 'width' | 'height', value: string) => {
@@ -106,7 +105,7 @@ export function VariableProductManager({ productData, onProductChange, images }:
       }
       return v;
     });
-    onProductChange({ variations: updatedVariations });
+    updateProductData({ variations: updatedVariations });
   };
 
   if (!productData.variations || productData.variations.length === 0) {
@@ -128,6 +127,8 @@ export function VariableProductManager({ productData, onProductChange, images }:
     )
   }
 
+  const primaryPhoto = images.find(p => p.isPrimary) || images[0];
+
   return (
     <div className="space-y-4">
       <Button onClick={handleGenerateVariations} className="w-full" variant="secondary">
@@ -137,13 +138,20 @@ export function VariableProductManager({ productData, onProductChange, images }:
       <Accordion type="single" collapsible className="w-full">
         {productData.variations.map(variation => {
             const identifier = variation.variation_id || variation.id;
+            const variationImage = images.find(p => String(p.id) === String(variation.image?.id));
+            const displayImage = variationImage || primaryPhoto;
+            
             return (
                 <AccordionItem value={String(identifier)} key={identifier}>
                     <AccordionTrigger>
-                      <div className="flex items-center gap-3">
-                        {variation.image?.id ? (
-                           <Image src={images.find(p => String(p.id) === String(variation.image?.id))?.previewUrl || 'https://placehold.co/40x40.png'} alt="Variación" width={40} height={40} className="rounded-md object-cover h-10 w-10"/>
-                        ) : null}
+                    <div className="flex items-center gap-3">
+                        {displayImage ? (
+                            <Image src={displayImage.previewUrl} alt="Variación" width={40} height={40} className="rounded-md object-cover h-10 w-10"/>
+                        ) : (
+                           <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
+                                <ImageIcon className="h-5 w-5 text-muted-foreground"/>
+                           </div>
+                        )}
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-left">
                           {variation.attributes.map(attr => (
                             <span key={attr.name} className="text-sm">
@@ -152,7 +160,7 @@ export function VariableProductManager({ productData, onProductChange, images }:
                             </span>
                           ))}
                         </div>
-                      </div>
+                    </div>
                     </AccordionTrigger>
                     <AccordionContent className="space-y-4 pt-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">

@@ -41,26 +41,35 @@ export async function POST(request: NextRequest) {
         const lang: string = finalProductData.language === 'Spanish' ? 'es' : 'en';
 
         // 1. Upload ALL images (both featured and variation potentials)
-        const wordpressImageIds: { id: number }[] = [];
+        const uploadedPhotosMap = new Map<string, number>();
         if (photoFiles.length > 0) {
             for (const [index, file] of photoFiles.entries()) {
+                // The client-side ID is in photo.id, which we find in the full productData
+                const originalPhotoData = finalProductData.photos.find(p => p.name === file.name);
                 const newImageId = await uploadImageToWordPress(
                     file,
                     `${slugify(finalProductData.name)}-${index + 1}.webp`,
                     { title: finalProductData.imageTitle || finalProductData.name, alt_text: finalProductData.imageAltText || finalProductData.name, caption: finalProductData.imageCaption || '', description: finalProductData.imageDescription || '' },
                     wpApi
                 );
-                wordpressImageIds.push({ id: newImageId });
+                if (originalPhotoData) {
+                    uploadedPhotosMap.set(originalPhotoData.id.toString(), newImageId);
+                }
             }
         }
         
-        // Map client-side UUIDs to newly uploaded WordPress IDs
-        const imageIdMap = new Map<string, number>();
-        finalProductData.photos.forEach((photo, index) => {
-            if (photo.file && wordpressImageIds[index]) {
-                imageIdMap.set(photo.id.toString(), wordpressImageIds[index].id);
+        // Prepare the `images` array for the main product payload
+        const wooImagesPayload = finalProductData.photos.map(photo => {
+             // If it's a new file, use its newly uploaded ID
+            if (uploadedPhotosMap.has(photo.id.toString())) {
+                return { id: uploadedPhotosMap.get(photo.id.toString()) };
             }
-        });
+            // If it's an existing image, just use its ID
+            if (typeof photo.id === 'number') {
+                return { id: photo.id };
+            }
+            return null;
+        }).filter(Boolean);
         
         // 2. Prepare categories and tags
         let finalCategoryIds: { id: number }[] = [];
@@ -112,7 +121,7 @@ export async function POST(request: NextRequest) {
             description: finalProductData.longDescription,
             short_description: finalProductData.shortDescription,
             categories: finalCategoryIds,
-            images: wordpressImageIds,
+            images: wooImagesPayload,
             attributes: wooAttributes,
             tags: wooTags.map(tagId => ({ id: tagId })),
             lang: lang,
@@ -164,12 +173,12 @@ export async function POST(request: NextRequest) {
                     variationPayload.stock_quantity = parseInt(v.stockQuantity, 10);
                 }
 
-                // Correctly assign image ID for the variation
                 if (v.image?.id) {
-                    // Check if the ID is a client-side UUID that needs mapping
-                    const mappedId = imageIdMap.get(v.image.id.toString());
-                    // Use the mapped WP ID if available, otherwise assume it's already a valid WP ID
-                    variationPayload.image = { id: mappedId || v.image.id };
+                    const clientId = v.image.id.toString();
+                    const wpId = uploadedPhotosMap.get(clientId) || (typeof v.image.id === 'number' ? v.image.id : null);
+                    if (wpId) {
+                        variationPayload.image = { id: wpId };
+                    }
                 }
                 return variationPayload;
             });
@@ -178,7 +187,8 @@ export async function POST(request: NextRequest) {
 
         // 7. Log activity
         if (adminDb && admin.firestore.FieldValue) {
-            const { activeConnectionKey } = await getApiClientsForUser(uid);
+            const { settings } = await getApiClientsForUser(uid);
+            const activeConnectionKey = settings?.activeConnectionKey || 'default';
             await adminDb.collection('activity_logs').add({
                 userId: uid,
                 action: 'PRODUCT_CREATED',

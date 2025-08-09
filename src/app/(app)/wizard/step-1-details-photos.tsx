@@ -286,7 +286,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const payload = {
             productName: productData.name,
             productType: productData.productType,
-            tags: productData.tags,
+            tags: productData.tags.split(',').map(t => t.trim()).filter(Boolean),
             language: productData.language,
             mode: 'image_meta_only',
         };
@@ -509,7 +509,10 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                       <div className="border-t pt-6 mt-6">
                           <h3 className="text-lg font-medium mb-2">Productos Agrupados</h3>
                           <p className="text-sm text-muted-foreground mb-4">Busca y selecciona los productos simples que formarán parte de este grupo.</p>
-                          <GroupedProductSelector productIds={productData.groupedProductIds || []} onProductIdsChange={(ids) => updateProductData({ groupedProductIds: ids })} />
+                          <GroupedProductSelector 
+                              productIds={productData.groupedProductIds || []} 
+                              onProductIdsChange={(ids) => updateProductData({ groupedProductIds: ids })} 
+                          />
                       </div>
                   )}
 
