@@ -14,6 +14,8 @@ import { z } from 'zod';
 import crypto from 'crypto';
 import sharp from 'sharp';
 import { Readable } from 'stream';
+import { promises as fs } from 'fs';
+import path from 'path';
 
 
 export const partnerAppConnectionDataSchema = z.object({
@@ -286,15 +288,21 @@ export async function uploadImageToWordPress(
         let originalFilename: string;
 
         if (typeof source === 'string') {
-            const sanitizedUrl = source.startsWith('http') ? source : `https://${source.replace(/^(https?:\/\/)?/, '')}`;
-            const imageResponse = await axios.get(sanitizedUrl, {
-                responseType: 'arraybuffer',
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                },
-            });
-            imageBuffer = Buffer.from(imageResponse.data);
-            originalFilename = new URL(sanitizedUrl).pathname.split('/').pop() || seoFilename;
+            const isLocalUrl = source.startsWith('/');
+            if (isLocalUrl) {
+                // If it's a local URL, read it from the public directory
+                const filePath = path.join(process.cwd(), 'public', source);
+                imageBuffer = await fs.readFile(filePath);
+            } else {
+                // If it's a remote URL, fetch it
+                const sanitizedUrl = source.startsWith('http') ? source : `https://${source.replace(/^(https?:\/\/)?/, '')}`;
+                const imageResponse = await axios.get(sanitizedUrl, {
+                    responseType: 'arraybuffer',
+                    headers: { 'User-Agent': 'Mozilla/5.0' },
+                });
+                imageBuffer = Buffer.from(imageResponse.data);
+            }
+            originalFilename = source.split('/').pop() || seoFilename;
         } else {
             imageBuffer = Buffer.from(await source.arrayBuffer());
             originalFilename = source.name;
@@ -318,10 +326,9 @@ export async function uploadImageToWordPress(
         const finalContentType = 'image/webp';
         const finalFilename = seoFilename.endsWith('.webp') ? seoFilename : seoFilename.replace(/\.[^/.]+$/, "") + ".webp";
 
-        // Call the local API endpoint to handle the upload to WordPress
         const formData = new FormData();
         const readableStream = new Readable();
-        readableStream._read = () => {}; // _read is required
+        readableStream._read = () => {};
         readableStream.push(finalBuffer);
         readableStream.push(null);
 
@@ -330,7 +337,6 @@ export async function uploadImageToWordPress(
             contentType: finalContentType,
         });
 
-        // Add metadata to form data
         Object.entries(imageMetadata).forEach(([key, value]) => {
             formData.append(key, value);
         });
@@ -343,20 +349,20 @@ export async function uploadImageToWordPress(
         });
 
         if (!uploadResponse.data || !uploadResponse.data.id) {
-            throw new Error("WordPress media upload did not return an ID.");
+            throw new Error("La subida de medios a WordPress no devolvió un ID.");
         }
         
         return uploadResponse.data.id;
 
     } catch (uploadError: any) {
-        let errorMsg = `Error processing image for WordPress.`;
+        let errorMsg = `Error al procesar la imagen para WordPress.`;
         if (uploadError.response?.data?.message) {
-            errorMsg += ` Reason: ${uploadError.response.data.message}`;
+            errorMsg += ` Razón: ${uploadError.response.data.message}`;
             if (uploadError.response.status === 401 || uploadError.response.status === 403) {
-                errorMsg += ' This is probably a permissions issue. Ensure the Application Password user has "Editor" or "Administrator" role in WordPress.';
+                errorMsg += ' Esto es probablemente un problema de permisos. Asegúrate de que el usuario de la Contraseña de Aplicación tiene el rol "Editor" o "Administrador" en WordPress.';
             }
         } else {
-            errorMsg += ` Reason: ${uploadError.message}`;
+            errorMsg += ` Razón: ${uploadError.message}`;
         }
         console.error(errorMsg, uploadError.response?.data || uploadError);
         throw new Error(errorMsg);
