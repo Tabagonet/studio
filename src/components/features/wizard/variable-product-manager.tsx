@@ -4,16 +4,16 @@
 
 import React from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import type { ProductData, ProductVariation } from '@/lib/types';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ProductData, ProductVariation } from '@/lib/types';
 import { GitCommitHorizontal, Sparkles } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 interface VariableProductManagerProps {
   productData: ProductData;
@@ -177,9 +177,9 @@ export function VariableProductManager({ productData, updateProductData }: Varia
                                         <div className="space-y-2">
                                             <Label>Imagen</Label>
                                             <Select
-                                                value={variation.image?.id?.toString() ?? '0'}
+                                                value={String(variation.image?.id ?? '0')}
                                                 onValueChange={(value) => {
-                                                    const imageId = value === '0' ? null : Number(value);
+                                                    const imageId = value === "0" ? null : value;
                                                     handleVariationChange(variation.id, 'image', { id: imageId });
                                                 }}
                                             >

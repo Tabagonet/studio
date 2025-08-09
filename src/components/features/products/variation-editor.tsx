@@ -86,17 +86,14 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
   };
 
 
-  const handleVariationChange = (variationId: string | number, field: string, value: any) => {
-    console.log(`[AUDIT - handleVariationChange] ID: ${variationId}, Campo: ${field}, Valor:`, value);
+  const handleVariationChange = (variationIdentifier: string | number, field: string, value: any) => {
     const updatedVariations = product.variations?.map(v => {
       // Find by either client-side UUID (string) or WooCommerce ID (number)
-      if (v.id === variationId || v.variation_id === variationId) {
-        console.log(`[AUDIT - handleVariationChange] Encontrada variación a actualizar:`, v);
+      if (v.id === variationIdentifier || v.variation_id === variationIdentifier) {
         return { ...v, [field]: value };
       }
       return v;
     });
-    console.log('[AUDIT - handleVariationChange] Estado de variaciones actualizado:', updatedVariations);
     onProductChange({ variations: updatedVariations });
   };
   
@@ -138,7 +135,6 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
       <Accordion type="single" collapsible className="w-full">
         {product.variations.map(variation => {
             const identifier = variation.variation_id || variation.id;
-            console.log(`[AUDIT - Render Variation] ID: ${identifier}, Imagen asignada ID:`, variation.image?.id);
             return (
                 <AccordionItem value={String(identifier)} key={identifier}>
                     <AccordionTrigger>
@@ -170,9 +166,7 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
                                 <Select
                                     value={variation.image?.id?.toString() ?? "0"}
                                     onValueChange={(value) => {
-                                        console.log(`[AUDIT - onValueChange] Valor seleccionado: ${value}`);
-                                        const imageId = value === "0" ? null : Number(value);
-                                        // Correctamente envuelto en un objeto
+                                        const imageId = value === "0" ? null : value.match(/^\d+$/) ? Number(value) : value;
                                         handleVariationChange(identifier, 'image', { id: imageId });
                                     }}
                                 >
