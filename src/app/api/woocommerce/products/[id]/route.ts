@@ -1,4 +1,3 @@
-
 // src/app/api/woocommerce/products/[id]/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -173,11 +172,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         }
         wooPayload.categories = finalCategoryIds;
         
-        if (validatedData.images) {
+        if (validatedData.images !== undefined) {
             if (!wpApi) { throw new Error('WordPress API must be configured to upload new images.'); }
             
             const existingImageIds = validatedData.images
-              .map(img => typeof img.id === 'number' ? { id: img.id } : null)
+              .map(img => (typeof img.id === 'number' ? { id: img.id } : null))
               .filter(Boolean);
 
             const newUploadedImageIds = [];
