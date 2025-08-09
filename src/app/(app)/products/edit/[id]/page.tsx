@@ -1,3 +1,4 @@
+
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -125,15 +126,25 @@ function EditProductPageContent() {
 
     try {
         const token = await user.getIdToken();
+        const formData = new FormData();
+        
         const payload = {
           ...product,
-          images: product.images.map(p => ({ id: p.id, src: p.uploadedUrl || p.previewUrl })),
+          images: product.images.filter(p => !p.file).map(p => ({ id: p.id })), // Only send existing image IDs
         };
+        formData.append('productData', JSON.stringify(payload));
         
+        const newPhotos = product.images.filter(p => p.file);
+        newPhotos.forEach(photo => {
+            if (photo.file) {
+                 formData.append('photos', photo.file, photo.name);
+            }
+        });
+
         const response = await fetch(`/api/woocommerce/products/${productId}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify(payload),
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData,
         });
         
         const result = await response.json();
@@ -521,7 +532,7 @@ function EditProductPageContent() {
 export default function EditProductPage() {
     return (
         <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
-            <EditPageContent />
+            <EditProductPageContent />
         </Suspense>
     )
 }
