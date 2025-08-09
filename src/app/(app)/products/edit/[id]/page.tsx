@@ -157,14 +157,7 @@ function EditProductPageContent() {
             body: formData,
         });
         
-        const resultText = await response.text();
-        let result;
-        try {
-            result = JSON.parse(resultText);
-        } catch (e) {
-            console.error('[AUDIT - PUT /products/:id] Error al parsear JSON de la respuesta:', resultText);
-            throw new Error(`El servidor respondió con un error no válido (código ${response.status})`);
-        }
+        const result = await response.json();
 
 
         if (!response.ok) {

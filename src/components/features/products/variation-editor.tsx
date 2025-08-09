@@ -86,10 +86,10 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
   };
 
 
-  const handleVariationChange = (variationIdentifier: string | number, field: string, value: any) => {
+  const handleVariationChange = (variationId: string | number, field: string, value: any) => {
     const updatedVariations = product.variations?.map(v => {
       // Check against both client-side id (string) and woocommerce id (number)
-      if (v.id === variationIdentifier || v.variation_id === variationIdentifier) {
+      if (v.id === variationId || v.variation_id === variationId) {
         return { ...v, [field]: value };
       }
       return v;
@@ -164,7 +164,7 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
                             <div className="space-y-2">
                                 <Label>Imagen de la Variación</Label>
                                 <Select
-                                    value={variation.image?.id?.toString() ?? '0'}
+                                    value={variation.image?.id?.toString() ?? "0"}
                                     onValueChange={(value) => {
                                         const imageId = value === '0' ? null : Number(value);
                                         handleVariationChange(identifier, 'image', { id: imageId });
