@@ -149,7 +149,7 @@ function EditProductPageContent() {
             }
         });
         
-        console.log(`[AUDIT - handleSaveChanges] Enviando petición PUT a /api/woocommerce/products/${productId}`);
+        console.log(`[AUDIT - PUT /products/:id] Enviando petición PUT a /api/woocommerce/products/${productId}`);
         const response = await fetch(`/api/woocommerce/products/${productId}`, {
             method: 'PUT',
             headers: { 'Authorization': `Bearer ${token}` },
@@ -161,13 +161,13 @@ function EditProductPageContent() {
         try {
             result = JSON.parse(resultText);
         } catch (e) {
-            console.error('[AUDIT - handleSaveChanges] Error al parsear JSON de la respuesta:', resultText);
+            console.error('[AUDIT - PUT /products/:id] Error al parsear JSON de la respuesta:', resultText);
             throw new Error(`El servidor respondió con un error no válido (código ${response.status})`);
         }
 
 
         if (!response.ok) {
-            console.error('[AUDIT - handleSaveChanges] La respuesta de la API no fue OK:', result);
+            console.error('[AUDIT - PUT /products/:id] La respuesta de la API no fue OK:', result);
             throw new Error(result.error || 'Fallo al guardar los cambios.');
         }
         
@@ -267,6 +267,7 @@ function EditProductPageContent() {
              weight: v.weight,
              dimensions: v.dimensions,
              shipping_class: v.shipping_class,
+             image: v.image,
         }));
 
         const supplierAttribute = productData.attributes.find((a: any) => a.name === 'Proveedor');
@@ -491,7 +492,16 @@ function EditProductPageContent() {
                               <div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} /></div>
                           </CardContent>
                         </Card>
-                        <Card><CardHeader><CardTitle>Variaciones</CardTitle></CardHeader><CardContent><VariationEditor product={product} onProductChange={(updatedProduct) => setProduct({...product, ...updatedProduct})} /></CardContent></Card>
+                        <Card>
+                          <CardHeader><CardTitle>Variaciones</CardTitle></CardHeader>
+                          <CardContent>
+                            <VariationEditor 
+                              product={product} 
+                              onProductChange={(updatedProduct) => setProduct({...product, ...updatedProduct})} 
+                              images={product.images}
+                            />
+                          </CardContent>
+                        </Card>
                     </>
                   ) : product.type === 'simple' ? (
                     <><Card><CardHeader><CardTitle>Precios</CardTitle></CardHeader><CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} /></div><div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} /></div></CardContent></Card><Card><CardHeader><CardTitle>Inventario</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex items-center space-x-2"><Checkbox id="manage_stock" checked={product.manage_stock} onCheckedChange={(checked) => setProduct({ ...product, manage_stock: !!checked, stock_quantity: !!checked ? product.stock_quantity : '' })} /><Label htmlFor="manage_stock" className="font-normal">Gestionar inventario</Label></div>{product.manage_stock && (<div><Label htmlFor="stock_quantity">Cantidad en Stock</Label><Input id="stock_quantity" name="stock_quantity" type="number" value={product.stock_quantity} onChange={handleInputChange} /></div>)}</CardContent></Card></>
@@ -518,7 +528,7 @@ function EditProductPageContent() {
 export default function EditProductPage() {
     return (
         <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
-            <EditProductPageContent />
+            <EditPageContent />
         </Suspense>
     )
 }

@@ -1,3 +1,4 @@
+
 // src/components/features/products/variation-editor.tsx
 
 "use client";
@@ -9,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import type { ProductVariation } from '@/lib/types';
+import type { ProductVariation, ProductPhoto } from '@/lib/types';
 import type { ProductEditState } from '@/app/(app)/products/edit/[id]/page';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +20,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 interface VariationEditorProps {
   product: ProductEditState;
   onProductChange: (product: Partial<ProductEditState>) => void;
+  images: ProductPhoto[];
 }
 
 // Helper function to compute the Cartesian product of arrays
@@ -39,7 +41,7 @@ function cartesian(...args: string[][]): string[][] {
     return r;
 }
 
-export function VariationEditor({ product, onProductChange }: VariationEditorProps) {
+export function VariationEditor({ product, onProductChange, images }: VariationEditorProps) {
   const { toast } = useToast();
 
   const handleGenerateVariations = () => {
@@ -68,7 +70,8 @@ export function VariationEditor({ product, onProductChange }: VariationEditorPro
         const attributes = combo.map((value, index) => ({ name: attributeNames[index], option: value }));
         const skuSuffix = attributes.map(a => a.option.substring(0,3).toUpperCase()).join('-');
         return { 
-            id: uuidv4(), attributes: attributes, sku: `${product.sku || 'VAR'}-${skuSuffix}`, regularPrice: '', salePrice: '', stockQuantity: '', manage_stock: false 
+            id: uuidv4(), attributes: attributes, sku: `${product.sku || 'VAR'}-${skuSuffix}`, regularPrice: '', salePrice: '', stockQuantity: '', manage_stock: false,
+            variation_id: undefined, // New variation doesn't have a wooCommerce ID yet.
         };
     });
     
@@ -161,7 +164,7 @@ export function VariationEditor({ product, onProductChange }: VariationEditorPro
                             <SelectTrigger><SelectValue placeholder="Imagen principal por defecto" /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="0">Imagen principal por defecto</SelectItem>
-                                {product.images.map(photo => (
+                                {images.map(photo => (
                                     <SelectItem key={photo.id} value={String(photo.id)}>{photo.name}</SelectItem>
                                 ))}
                             </SelectContent>
