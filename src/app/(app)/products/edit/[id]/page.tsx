@@ -1,3 +1,4 @@
+
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -35,6 +36,11 @@ function EditProductPageContent() {
   const updateProductData = useCallback((data: Partial<ProductEditState>) => {
     setProduct(prev => (prev ? { ...prev, ...data } : null));
   }, []);
+
+  const handlePhotosChange = useCallback((updatedPhotos: ProductPhoto[]) => {
+      if (!product) return;
+      setProduct({ ...product, images: updatedPhotos });
+  }, [product]);
   
   const handleSaveChanges = async () => {
     setIsSaving(true);
@@ -49,7 +55,7 @@ function EditProductPageContent() {
         const token = await user.getIdToken();
         const formData = new FormData();
         
-        // The payload now includes all images (new and existing) with their respective ID types.
+        // This now correctly reflects the state managed by ImageUploader
         const imagePayload = product.images.map(p => ({ id: p.id }));
 
         const productPayload = {
@@ -233,7 +239,13 @@ function EditProductPageContent() {
               </CardHeader>
           </Card>
           
-          <Step1DetailsPhotos productData={product} updateProductData={updateProductData} isProcessing={isSaving} originalProduct={product} />
+          <Step1DetailsPhotos 
+            productData={product} 
+            updateProductData={updateProductData} 
+            onPhotosChange={handlePhotosChange} 
+            isProcessing={isSaving} 
+            originalProduct={product} 
+          />
 
           <Card>
               <CardHeader>

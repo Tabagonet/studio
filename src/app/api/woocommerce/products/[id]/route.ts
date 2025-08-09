@@ -1,3 +1,4 @@
+
 // src/app/api/woocommerce/products/[id]/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -176,14 +177,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         }
         wooPayload.categories = finalCategoryIds;
         
-        // This is the crucial change: handle the `images` property explicitly.
         if (validatedData.images !== undefined) {
             console.log("[AUDIT] Processing image updates...");
             if (!wpApi) { throw new Error('WordPress API must be configured to upload new images.'); }
             
             const uploadedImageMap = new Map<string, number>();
             for (const file of photoFiles) {
-                 const clientSideId = file.name; // The client-side ID (UUID) was passed as the filename
+                 const clientSideId = file.name;
                  const baseNameForSeo = imageTitle || validatedData.name || 'product-image';
                  const seoFilename = `${slugify(baseNameForSeo)}-${productId}-${Date.now()}.webp`;
                  console.log(`[AUDIT] Uploading new image with client ID ${clientSideId}`);
@@ -194,15 +194,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
             const finalImagePayload = validatedData.images.map(img => {
                 if (typeof img.id === 'string' && uploadedImageMap.has(img.id)) {
-                    // It's a new image that has been uploaded, use its new WordPress ID
                     return { id: uploadedImageMap.get(img.id) };
                 }
                 if (typeof img.id === 'number') {
-                    // It's an existing image, keep its ID
                     return { id: img.id };
                 }
                 return null;
-            }).filter(Boolean); // Filter out any nulls
+            }).filter(Boolean);
             
             wooPayload.images = finalImagePayload;
             console.log("[AUDIT] Final image payload for WooCommerce:", finalImagePayload);
@@ -232,7 +230,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
                     id: v.variation_id, regular_price: v.regularPrice || undefined, sale_price: v.salePrice || undefined, sku: v.sku || undefined,
                     manage_stock: v.manage_stock, stock_quantity: v.manage_stock ? (parseInt(v.stockQuantity, 10) || null) : undefined,
                     weight: v.weight || undefined, dimensions: v.dimensions, shipping_class: v.shipping_class || undefined,
-                    image: v.image
+                    image: v.image?.id ? { id: v.image.id } : null
                 }))
             };
             await wooApi.post(`products/${productId}/variations/batch`, batchPayload);

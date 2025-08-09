@@ -1,3 +1,4 @@
+
 // src/app/(app)/wizard/step-1-details-photos.tsx
 "use client";
 
@@ -29,6 +30,7 @@ import type { ProductEditState } from '@/app/(app)/products/edit/[id]/page';
 interface Step1DetailsPhotosProps {
   productData: ProductData;
   updateProductData: (data: Partial<ProductData>) => void;
+  onPhotosChange?: (photos: ProductPhoto[]) => void;
   originalProduct?: ProductEditState | null; // Optional: For edit mode
   isProcessing?: boolean;
 }
@@ -41,7 +43,7 @@ const StatusIndicator = ({ status, message }: { status: 'idle' | 'checking' | 'e
     return <div className={`flex items-center text-xs ${color} mt-1`}><Icon className="h-3 w-3 mr-1" /> {message}</div>;
 };
 
-export function Step1DetailsPhotos({ productData, updateProductData, originalProduct = null, isProcessing = false }: Step1DetailsPhotosProps) {
+export function Step1DetailsPhotos({ productData, updateProductData, onPhotosChange, originalProduct = null, isProcessing = false }: Step1DetailsPhotosProps) {
   const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
   const [supplierCategories, setSupplierCategories] = useState<WooCommerceCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
@@ -62,6 +64,18 @@ export function Step1DetailsPhotos({ productData, updateProductData, originalPro
   
   const debouncedSku = useDebounce(productData.sku, 500);
   const debouncedName = useDebounce(productData.name, 500);
+  
+  const handlePhotosChangeCallback = onPhotosChange || ((newPhotos: ProductPhoto[]) => {
+      if (!productData.name && newPhotos.length > 0) {
+        const firstNewFile = newPhotos.find(p => p && p.file);
+        if (firstNewFile) {
+          const { extractedProductName } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
+          updateProductData({ photos: newPhotos, name: extractedProductName });
+          return;
+        }
+      }
+      updateProductData({ photos: newPhotos });
+  });
 
   useEffect(() => {
     const fetchCategories = async (token: string) => {
@@ -120,7 +134,6 @@ export function Step1DetailsPhotos({ productData, updateProductData, originalPro
         const data = await response.json();
         if (response.ok) {
             if (data.exists) {
-                // If editing, check if the found product is the same as the one we're editing
                 if (originalProduct && data.product.id === originalProduct.id) {
                      setStatus({ status: 'available', message: 'Este es el valor actual.' });
                 } else {
@@ -180,18 +193,6 @@ export function Step1DetailsPhotos({ productData, updateProductData, originalPro
         attributes: [{ name: '', value: '', forVariations: false, visible: true }], 
         variations: [] 
       });
-  };
-
-  const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
-    if (!productData.name && newPhotos.length > 0) {
-      const firstNewFile = newPhotos.find(p => p && p.file);
-      if (firstNewFile) {
-        const { extractedProductName } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
-        updateProductData({ photos: newPhotos, name: extractedProductName });
-        return;
-      }
-    }
-    updateProductData({ photos: newPhotos });
   };
   
   const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string | boolean) => {
@@ -573,7 +574,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, originalPro
           <div className="lg:col-span-1 space-y-8">
               <Card>
                 <CardHeader><CardTitle>Imágenes del Producto</CardTitle><CardDescription>Sube las imágenes para tu producto. La primera se usará como principal.</CardDescription></CardHeader>
-                <CardContent className="space-y-4"><ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} isProcessing={isProcessing || isGenerating} maxPhotos={15} /><Button onClick={handleGenerateImageMetadata} disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} className="w-full" variant="outline">{isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}</Button></CardContent>
+                <CardContent className="space-y-4"><ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChangeCallback} isProcessing={isProcessing || isGenerating} maxPhotos={15} /><Button onClick={handleGenerateImageMetadata} disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} className="w-full" variant="outline">{isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}</Button></CardContent>
               </Card>
 
               <Card>
