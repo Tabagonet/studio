@@ -1,3 +1,4 @@
+
 // src/app/api/woocommerce/products/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -37,7 +38,38 @@ export async function POST(request: NextRequest) {
         const finalProductData: ProductData = body.productData;
         const lang: string = body.lang;
 
-        // 1. Handle category
+        // 1. Upload images to WordPress and get their new media IDs
+        const uploadedImageIds: { [key: string]: number } = {};
+        if (finalProductData.photos && finalProductData.photos.length > 0) {
+            for (const photo of finalProductData.photos) {
+                if (photo.uploadedUrl) { // This now refers to a local server URL
+                    const seoFilename = `${slugify(photo.name)}.webp`;
+                    
+                    const newImageId = await uploadImageToWordPress(
+                        `${request.nextUrl.origin}${photo.uploadedUrl}`, // Use absolute URL for server-side fetch
+                        seoFilename,
+                        {
+                            title: finalProductData.imageTitle || photo.name,
+                            alt_text: finalProductData.imageAltText || photo.name,
+                            caption: finalProductData.imageCaption || '',
+                            description: finalProductData.imageDescription || '',
+                        },
+                        wpApi
+                    );
+                    uploadedImageIds[photo.id] = newImageId;
+                }
+            }
+        }
+
+        // 2. Prepare image data for WooCommerce payload
+        const wordpressImageIds = finalProductData.photos
+            .map(photo => {
+                const mediaId = uploadedImageIds[photo.id] || photo.uploadedId;
+                return mediaId ? { id: mediaId } : null;
+            })
+            .filter((img): img is { id: number } => img !== null);
+        
+        // 3. Handle categories
         let finalCategoryIds: { id: number }[] = [];
         if (finalProductData.category?.id) {
             finalCategoryIds.push({ id: finalProductData.category.id });
@@ -53,12 +85,7 @@ export async function POST(request: NextRequest) {
             if (supplierCatId) finalCategoryIds.push({ id: supplierCatId });
         }
 
-        // 2. Prepare image data - The payload now expects uploadedId from the client
-        const wordpressImageIds = finalProductData.photos
-            .map(photo => photo.uploadedId ? { id: photo.uploadedId } : null)
-            .filter((img): img is { id: number } => img !== null);
-        
-        // 3. Prepare product data
+        // 4. Prepare attributes
         const wooAttributes = finalProductData.attributes
             .filter(attr => attr.name && attr.name.trim() !== '')
             .map((attr, index) => ({
@@ -116,14 +143,14 @@ export async function POST(request: NextRequest) {
             wooPayload.grouped_products = finalProductData.groupedProductIds || [];
         }
 
-        // 4. Create the product
-        const { wooApi } = await getApiClientsForUser(uid); // Re-get to avoid passing it around
+        // 5. Create the product
+        const { wooApi } = await getApiClientsForUser(uid);
         if (!wooApi) throw new Error("WooCommerce API client could not be created.");
         const response = await wooApi.post('products', wooPayload);
         const createdProduct = response.data;
         const productId = createdProduct.id;
 
-        // 5. Create variations if applicable
+        // 6. Create variations if applicable
         if (finalProductData.productType === 'variable' && finalProductData.variations && finalProductData.variations.length > 0) {
             const batchCreatePayload = finalProductData.variations.map(v => {
                 const variationPayload: any = {
@@ -157,11 +184,11 @@ export async function POST(request: NextRequest) {
                 const serverVar = createdVariations[i]; 
 
                 if (serverVar && clientVar.image?.id) {
-                     const photo = finalProductData.photos.find(p => p.id === clientVar.image?.id);
-                     if (photo?.uploadedId) { // Check for the wordpress ID
+                     const imageId = uploadedImageIds[clientVar.image.id];
+                     if (imageId) {
                          variationImageUpdates.push({
                              variation_id: serverVar.id,
-                             image_id: photo.uploadedId,
+                             image_id: imageId,
                          });
                      }
                 }
@@ -174,7 +201,7 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // 6. Log the activity
+        // 7. Log the activity
         if (adminDb && admin.firestore.FieldValue) { 
             const { settings } = await getApiClientsForUser(uid);
             await adminDb.collection('activity_logs').add({

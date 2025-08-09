@@ -1,3 +1,4 @@
+
 // src/app/api/upload-image/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
@@ -93,13 +94,12 @@ export async function POST(req: NextRequest) {
     if (sanitizedUrl && !sanitizedUrl.startsWith('http')) {
         sanitizedUrl = `https://${sanitizedUrl.replace(/^(https?:\/\/)?/, '')}`;
     }
-
-    // The 'media_id' field is optional. If it's not present, it will be undefined.
+    
     return NextResponse.json({ 
         success: true, 
         url: sanitizedUrl, 
         filename_saved_on_server: data.filename_saved,
-        media_id: data.media_id,
+        // No esperamos media_id del script actual
     });
   } catch (error) {
     console.error("Error al procesar la imagen en /api/upload-image:", error);

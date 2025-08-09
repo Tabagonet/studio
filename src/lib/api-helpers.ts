@@ -272,19 +272,6 @@ export function findBeaverBuilderImages(data: any[]): { url: string; }[] {
     return Array.from(new Map(images.map(img => [img.url, img])).values()); // Return unique images
 }
 
-
-/**
- * Uploads an image to the WordPress media library, with optional resizing and cropping.
- * It can handle a URL string or a File object.
- * @param source The URL string of the image or a File object.
- * @param seoFilename A desired filename for SEO purposes.
- * @param imageMetadata Metadata for the image (title, alt, etc.).
- * @param wpApi Initialized Axios instance for WordPress API.
- * @param width Optional. The target width for the image. If null, resizing is skipped for this dimension.
- * @param height Optional. The target height for the image. If null, resizing is skipped for this dimension.
- * @param position Optional. The crop position (e.g., 'center', 'top').
- * @returns The ID of the newly uploaded media item.
- */
 export async function uploadImageToWordPress(
   source: File | string,
   seoFilename: string,
@@ -295,11 +282,10 @@ export async function uploadImageToWordPress(
   position?: string,
 ): Promise<number> {
     try {
-        console.log(`[AUDIT - uploadImageToWordPress] Iniciando subida para: ${seoFilename}`);
         let imageBuffer: Buffer;
+        let originalFilename: string;
 
         if (typeof source === 'string') {
-            console.log(`[AUDIT - uploadImageToWordPress] Descargando imagen remota desde: ${source}`);
             const sanitizedUrl = source.startsWith('http') ? source : `https://${source.replace(/^(https?:\/\/)?/, '')}`;
             const imageResponse = await axios.get(sanitizedUrl, {
                 responseType: 'arraybuffer',
@@ -308,70 +294,75 @@ export async function uploadImageToWordPress(
                 },
             });
             imageBuffer = Buffer.from(imageResponse.data);
-            console.log(`[AUDIT - uploadImageToWordPress] Imagen remota descargada. Tamaño: ${imageBuffer.length} bytes.`);
+            originalFilename = new URL(sanitizedUrl).pathname.split('/').pop() || seoFilename;
         } else {
-            console.log(`[AUDIT - uploadImageToWordPress] Procesando archivo local. Tamaño: ${source.size} bytes.`);
             imageBuffer = Buffer.from(await source.arrayBuffer());
+            originalFilename = source.name;
         }
         
-        console.log('[AUDIT - uploadImageToWordPress] Procesando imagen con Sharp...');
-        let processedBuffer = sharp(imageBuffer);
+        let sharpInstance = sharp(imageBuffer);
 
         if (width || height) {
-            console.log(`[AUDIT - uploadImageToWordPress] Redimensionando a ${width || 'auto'}x${height || 'auto'} con posición ${position}`);
-            processedBuffer = processedBuffer.resize(width, height, { 
+            sharpInstance = sharpInstance.resize(width, height, { 
                 fit: (width && height) ? 'cover' : 'inside', 
                 position: position as any || 'center' 
             });
         } else {
-            console.log('[AUDIT - uploadImageToWordPress] Aplicando optimización por defecto (1200x1200 max)');
-            processedBuffer = processedBuffer.resize(1200, 1200, {
+            sharpInstance = sharpInstance.resize(1200, 1200, {
                 fit: 'inside',
                 withoutEnlargement: true,
             });
         }
         
-        const finalBuffer = await processedBuffer.webp({ quality: 80 }).toBuffer();
+        const finalBuffer = await sharpInstance.webp({ quality: 80 }).toBuffer();
         const finalContentType = 'image/webp';
         const finalFilename = seoFilename.endsWith('.webp') ? seoFilename : seoFilename.replace(/\.[^/.]+$/, "") + ".webp";
-        console.log(`[AUDIT - uploadImageToWordPress] Imagen procesada. Tamaño final: ${finalBuffer.length} bytes. Nombre de archivo final: ${finalFilename}`);
 
-
+        // Call the local API endpoint to handle the upload to WordPress
         const formData = new FormData();
-        formData.append('file', finalBuffer, {
+        const readableStream = new Readable();
+        readableStream._read = () => {}; // _read is required
+        readableStream.push(finalBuffer);
+        readableStream.push(null);
+
+        formData.append('file', readableStream, {
             filename: finalFilename,
             contentType: finalContentType,
         });
-        formData.append('title', imageMetadata.title);
-        formData.append('alt_text', imageMetadata.alt_text);
-        formData.append('caption', imageMetadata.caption);
-        formData.append('description', imageMetadata.description);
-        
-        console.log('[AUDIT - uploadImageToWordPress] Enviando a la API de medios de WordPress...');
-        const mediaResponse = await wpApi.post('/media', formData, {
+
+        // Add metadata to form data
+        Object.entries(imageMetadata).forEach(([key, value]) => {
+            formData.append(key, value);
+        });
+
+        const uploadResponse = await wpApi.post('/media', formData, {
             headers: {
                 ...formData.getHeaders(),
                 'Content-Disposition': `attachment; filename=${finalFilename}`,
             },
         });
+
+        if (!uploadResponse.data || !uploadResponse.data.id) {
+            throw new Error("WordPress media upload did not return an ID.");
+        }
         
-        console.log(`[AUDIT - uploadImageToWordPress] Subida exitosa. ID del medio: ${mediaResponse.data.id}`);
-        return mediaResponse.data.id;
+        return uploadResponse.data.id;
 
     } catch (uploadError: any) {
-        let errorMsg = `Error al procesar la imagen.`;
+        let errorMsg = `Error processing image for WordPress.`;
         if (uploadError.response?.data?.message) {
-            errorMsg += ` Razón: ${uploadError.response.data.message}`;
+            errorMsg += ` Reason: ${uploadError.response.data.message}`;
             if (uploadError.response.status === 401 || uploadError.response.status === 403) {
-                errorMsg += ' Esto es probablemente un problema de permisos. Asegúrate de que el usuario de la Contraseña de Aplicación tiene el rol de "Editor" o "Administrador" en WordPress.';
+                errorMsg += ' This is probably a permissions issue. Ensure the Application Password user has "Editor" or "Administrator" role in WordPress.';
             }
         } else {
-            errorMsg += ` Razón: ${uploadError.message}`;
+            errorMsg += ` Reason: ${uploadError.message}`;
         }
         console.error(errorMsg, uploadError.response?.data || uploadError);
         throw new Error(errorMsg);
     }
 }
+
 
 /**
  * Finds a WP post category by its path (e.g., "Parent > Child") or creates it if it doesn't exist.
