@@ -1,4 +1,3 @@
-
 // src/app/api/woocommerce/products/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -31,7 +30,7 @@ export async function POST(request: NextRequest) {
         uid = decodedToken.uid;
         
         const { wpApi } = await getApiClientsForUser(uid);
-        if (!wpApi) { throw new Error('WordPress API must be configured.'); }
+        if (!wpApi) { throw new Error('WordPress API is not configured.'); }
 
         const body = await request.json();
         
@@ -42,11 +41,11 @@ export async function POST(request: NextRequest) {
         const uploadedImageIds: { [key: string]: number } = {};
         if (finalProductData.photos && finalProductData.photos.length > 0) {
             for (const photo of finalProductData.photos) {
-                if (photo.uploadedUrl) { // This now refers to a local server URL
+                if (photo.serverFilePath) { // Use the server path if available
                     const seoFilename = `${slugify(photo.name)}.webp`;
                     
                     const newImageId = await uploadImageToWordPress(
-                        `${request.nextUrl.origin}${photo.uploadedUrl}`, // Use absolute URL for server-side fetch
+                        photo.serverFilePath, // Pass the physical file path
                         seoFilename,
                         {
                             title: finalProductData.imageTitle || photo.name,

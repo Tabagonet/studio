@@ -1,4 +1,3 @@
-
 // src/app/api/upload-image-local/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
@@ -62,6 +61,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
             success: true,
             url: publicUrl,
+            serverPath: processedFilePath, // Return the physical path on the server
             filename_saved_on_server: processedFilename,
         });
 

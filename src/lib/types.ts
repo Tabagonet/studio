@@ -36,6 +36,7 @@ export interface ProductPhoto {
   // Fields for the new upload flow
   uploadedUrl?: string; // The URL from the temporary host
   uploadedFilename?: string; // The filename on the temporary host
+  serverFilePath?: string; // The physical path on the server after processing
   uploadedId?: number; // The WordPress media ID after upload
 }
 

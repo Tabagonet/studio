@@ -274,15 +274,24 @@ export function findBeaverBuilderImages(data: any[]): { url: string; }[] {
 }
 
 export async function uploadImageToWordPress(
-  imageBuffer: Buffer,
+  imageSource: Buffer | string, // Can be a buffer or a file path
   seoFilename: string,
   imageMetadata: { title: string; alt_text: string; caption: string; description: string; },
   wpApi: AxiosInstance,
   width?: number | null,
   height?: number | null,
   position?: string,
-): Promise<{ id: number, url: string }> {
+): Promise<number> {
     try {
+        let imageBuffer: Buffer;
+        if (typeof imageSource === 'string') {
+            // It's a file path, read it
+            imageBuffer = await fs.readFile(imageSource);
+        } else {
+            // It's already a buffer
+            imageBuffer = imageSource;
+        }
+
         let sharpInstance = sharp(imageBuffer);
 
         if (width || height) {
@@ -312,6 +321,7 @@ export async function uploadImageToWordPress(
             contentType: finalContentType,
         });
 
+        // Add metadata to the request body, not just as headers
         Object.entries(imageMetadata).forEach(([key, value]) => {
             formData.append(key, value);
         });
@@ -323,14 +333,11 @@ export async function uploadImageToWordPress(
             },
         });
 
-        if (!uploadResponse.data || !uploadResponse.data.id || !uploadResponse.data.source_url) {
-            throw new Error("La subida de medios a WordPress no devolvió un ID o una URL.");
+        if (!uploadResponse.data || !uploadResponse.data.id) {
+            throw new Error("La subida de medios a WordPress no devolvió un ID.");
         }
         
-        return {
-            id: uploadResponse.data.id,
-            url: uploadResponse.data.source_url,
-        };
+        return uploadResponse.data.id;
 
     } catch (uploadError: any) {
         let errorMsg = `Error al procesar la imagen para WordPress.`;
