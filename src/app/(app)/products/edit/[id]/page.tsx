@@ -1,4 +1,3 @@
-
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -38,7 +37,7 @@ function EditProductPageContent() {
   }, []);
 
   const handlePhotosChange = useCallback((updatedPhotos: ProductPhoto[]) => {
-    setProduct(prev => (prev ? { ...prev, images: updatedPhotos } : null));
+    setProduct(prev => (prev ? { ...prev, photos: updatedPhotos } : null));
   }, []);
   
   const handleSaveChanges = async () => {
@@ -54,20 +53,12 @@ function EditProductPageContent() {
         const token = await user.getIdToken();
         const formData = new FormData();
         
-        // This now correctly reflects the state managed by ImageUploader
-        const imagePayload = product.images.map(p => ({ id: p.id }));
-
-        const productPayload = {
-            ...product,
-            images: imagePayload,
-        };
-        formData.append('productData', JSON.stringify(productPayload));
+        const payload = { ...product, images: product.images.filter(p => !p.file).map(p => ({ id: p.id })) };
+        formData.append('productData', JSON.stringify(payload));
         
-        // Append only the new image files that need uploading.
-        const newPhotoFiles = product.images.filter(p => p.file);
-        newPhotoFiles.forEach(photo => {
+        const newPhotos = product.images.filter(p => p.file);
+        newPhotos.forEach(photo => {
             if (photo.file) {
-                // The key for each file should be unique. Using the temporary ID is a good way.
                 formData.append(photo.id.toString(), photo.file, photo.name);
             }
         });
@@ -151,7 +142,7 @@ function EditProductPageContent() {
              dimensions: v.dimensions, shipping_class: v.shipping_class, image: v.image,
         }));
 
-        const supplierAttribute = productData.attributes.find((a: any) => a.name === 'Proveedor');
+        const supplierAttribute = Array.isArray(productData.attributes) ? productData.attributes.find((a: any) => a.name === 'Proveedor') : null;
 
         const allCategories: WooCommerceCategory[] = (await (await fetch('/api/woocommerce/categories', { headers: { 'Authorization': `Bearer ${token}` }})).json());
         const parentSupplierCategory = allCategories.find((c: WooCommerceCategory) => c.name.toLowerCase() === 'proveedores' && c.parent === 0);
