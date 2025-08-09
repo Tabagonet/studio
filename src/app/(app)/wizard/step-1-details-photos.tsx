@@ -1,4 +1,3 @@
-
 // src/app/(app)/wizard/step-1-details-photos.tsx
 "use client";
 
@@ -303,8 +302,10 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         }
         const aiContent = await response.json();
         updateProductData({
-            imageTitle: aiContent.imageTitle, imageAltText: aiContent.imageAltText,
-            imageCaption: aiContent.imageCaption, imageDescription: aiContent.imageDescription,
+            imageTitle: aiContent.imageTitle,
+            imageAltText: aiContent.imageAltText,
+            imageCaption: aiContent.imageCaption,
+            imageDescription: aiContent.imageDescription,
         });
         toast({ title: "Metadatos de imagen generados", description: "La IA ha rellenado los datos SEO para las imágenes." });
     } catch (error: any) {
@@ -508,10 +509,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                       <div className="border-t pt-6 mt-6">
                           <h3 className="text-lg font-medium mb-2">Productos Agrupados</h3>
                           <p className="text-sm text-muted-foreground mb-4">Busca y selecciona los productos simples que formarán parte de este grupo.</p>
-                          <GroupedProductSelector 
-                              productIds={productData.groupedProductIds || []} 
-                              onProductIdsChange={(ids) => updateProductData({ groupedProductIds: ids })} 
-                          />
+                          <GroupedProductSelector productIds={productData.groupedProductIds || []} onProductIdsChange={(ids) => updateProductData({ groupedProductIds: ids })} />
                       </div>
                   )}
 
@@ -535,9 +533,9 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
                   {productData.productType === 'variable' && (
                       <div className="border-t pt-6 mt-6">
-                        <VariableProductManager 
+                        <VariableProductManager
                             productData={productData}
-                            onProductChange={updateProductData} 
+                            onProductChange={updateProductData}
                             images={productData.photos}
                         />
                       </div>

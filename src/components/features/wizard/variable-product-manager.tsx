@@ -9,16 +9,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import type { ProductVariation, ProductPhoto, ProductData } from '@/lib/types';
+import type { ProductVariation, ProductPhoto } from '@/lib/types';
+import type { ProductEditState } from '@/app/(app)/products/edit/[id]/page';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { GitCommitHorizontal, Sparkles } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Image from 'next/image';
+import type { ProductData } from '@/lib/types';
 
 interface VariableProductManagerProps {
   productData: ProductData;
-  updateProductData: (data: Partial<ProductData>) => void;
+  onProductChange: (data: Partial<ProductData>) => void;
+  images: ProductPhoto[];
 }
 
 // Helper function to compute the Cartesian product of arrays
@@ -39,207 +42,166 @@ function cartesian(...args: string[][]): string[][] {
     return r;
 }
 
+export function VariableProductManager({ productData, onProductChange, images }: VariableProductManagerProps) {
+  const { toast } = useToast();
 
-export function VariableProductManager({ productData, updateProductData }: VariableProductManagerProps) {
-    const { toast } = useToast();
+  const handleGenerateVariations = () => {
+    const variationAttributes = (productData as any).attributes?.filter(
+        (attr: any) => attr.forVariations && attr.name.trim() && attr.value.trim()
+    );
 
-    const handleGenerateVariations = () => {
-        const variationAttributes = productData.attributes.filter(
-            attr => attr.forVariations && attr.name.trim() && attr.value.trim()
-        );
+    if (!variationAttributes || variationAttributes.length === 0) {
+        toast({ title: "No hay atributos para variaciones", description: "Marca al menos un atributo como 'Para variaciones'.", variant: "destructive" });
+        return;
+    }
 
-        if (variationAttributes.length === 0) {
-            toast({
-                title: "No hay atributos para variaciones",
-                description: "Por favor, marca al menos un atributo con valores como 'Para variaciones'.",
-                variant: "destructive",
-            });
-            return;
-        }
+    const attributeNames = variationAttributes.map((attr: any) => attr.name);
+    const attributeValueSets = variationAttributes.map((attr: any) =>
+        attr.value.split('|').map((v: string) => v.trim()).filter(Boolean)
+    );
+    
+    if (attributeValueSets.some((set: any) => set.length === 0)) {
+         toast({ title: "Valores de atributo vacíos", description: "Asegúrate de que cada atributo para variación tiene valores.", variant: "destructive" });
+        return;
+    }
 
-        const attributeNames = variationAttributes.map(attr => attr.name);
-        const attributeValueSets = variationAttributes.map(attr =>
-            attr.value.split('|').map(v => v.trim()).filter(v => v)
-        );
-        
-        if (attributeValueSets.some(set => set.length === 0)) {
-             toast({
-                title: "Valores de atributo vacíos",
-                description: "Asegúrate de que cada atributo para variación tiene valores separados por '|'.",
-                variant: "destructive",
-            });
-            return;
-        }
+    const combinations = cartesian(...attributeValueSets);
 
-        const combinations = cartesian(...attributeValueSets);
+    const newVariations: ProductVariation[] = combinations.map(combo => {
+        const attributes = combo.map((value, index) => ({ name: attributeNames[index], option: value }));
+        const skuSuffix = attributes.map(a => a.option.substring(0,3).toUpperCase()).join('-');
+        return { 
+            id: uuidv4(), // Client-side ID
+            variation_id: undefined, // No WooCommerce ID yet
+            attributes: attributes, 
+            sku: `${productData.sku || 'VAR'}-${skuSuffix}`, 
+            regularPrice: productData.regularPrice || '', 
+            salePrice: productData.salePrice || '',
+            stockQuantity: '', 
+            manage_stock: false,
+            image: { id: null }, 
+        };
+    });
+    
+    onProductChange({ variations: newVariations });
+    toast({ title: `¡${newVariations.length} variaciones generadas!`, description: "Revisa los detalles de cada una." });
+  };
 
-        const newVariations: ProductVariation[] = combinations.map(combo => {
-            const attributes = combo.map((value, index) => ({
-                name: attributeNames[index],
-                option: value,
-            }));
-            const skuSuffix = attributes.map(a => a.option.substring(0,3).toUpperCase()).join('-');
-            return {
-                id: uuidv4(),
-                attributes,
-                sku: `${productData.sku || 'SKU'}-${skuSuffix}`,
-                regularPrice: productData.regularPrice || '',
-                salePrice: productData.salePrice || '',
-                manage_stock: productData.manage_stock,
-                stockQuantity: productData.stockQuantity || '',
-                weight: productData.weight || '',
-                dimensions: productData.dimensions || { length: '', width: '', height: '' },
-                shipping_class: productData.shipping_class || '',
-                image: { id: null }, // Initialize with no specific image
-            };
-        });
-        
-        updateProductData({ variations: newVariations });
 
-        toast({
-            title: `¡${newVariations.length} variaciones generadas!`,
-            description: "Ahora puedes editar los precios y SKUs para cada una.",
-        });
-    };
+  const handleVariationChange = (variationIdentifier: string | number, field: string, value: any) => {
+    const updatedVariations = productData.variations?.map(v => {
+      // Find by either client-side UUID (string) or WooCommerce ID (number)
+      if (v.id === variationIdentifier || v.variation_id === variationIdentifier) {
+        return { ...v, [field]: value };
+      }
+      return v;
+    });
+    onProductChange({ variations: updatedVariations });
+  };
+  
+  const handleDimensionChange = (variationIdentifier: string | number, dim: 'length' | 'width' | 'height', value: string) => {
+    const updatedVariations = productData.variations?.map(v => {
+      if (v.id === variationIdentifier || v.variation_id === variationIdentifier) {
+        return { ...v, dimensions: { ...(v.dimensions || {}), [dim]: value } };
+      }
+      return v;
+    });
+    onProductChange({ variations: updatedVariations });
+  };
 
-    const handleVariationChange = (variationId: string, field: keyof Omit<ProductVariation, 'dimensions'>, value: string | boolean) => {
-        const updatedVariations = productData.variations?.map(v => {
-            if (v.id === variationId) {
-                return { ...v, [field]: value };
-            }
-            return v;
-        });
-        updateProductData({ variations: updatedVariations });
-    };
-
-    const handleDimensionChange = (variationId: string, dim: 'length' | 'width' | 'height', value: string) => {
-         const updatedVariations = productData.variations?.map(v => {
-            if (v.id === variationId) {
-                return { ...v, dimensions: { ...(v.dimensions || {}), [dim]: value } as any };
-            }
-            return v;
-        });
-        updateProductData({ variations: updatedVariations });
-    };
-
+  if (!productData.variations || productData.variations.length === 0) {
     return (
-        <div className="space-y-6">
-            <h3 className="text-lg font-medium">Gestión de Variaciones</h3>
-            <p className="text-sm text-muted-foreground -mt-5">Genera y edita las variaciones de tu producto a partir de los atributos marcados.</p>
-            
+       <div className="space-y-4">
             <Alert>
                 <GitCommitHorizontal className="h-4 w-4" />
-                <AlertTitle>¿Cómo funciona?</AlertTitle>
+                <AlertTitle>Genera Variaciones Automáticamente</AlertTitle>
                 <AlertDescription>
-                    <ol className="list-decimal list-inside space-y-1">
-                        <li>Define atributos (ej. Color, Talla) en la sección de arriba.</li>
-                        <li>Marca la casilla "Para variaciones" en los que quieras usar.</li>
-                        <li>Haz clic en "Generar Variaciones" para crear todas las combinaciones.</li>
-                        <li>Edita el SKU, precio y stock de cada variación generada.</li>
-                    </ol>
+                    Define atributos, márcalos como "Para variaciones" y haz clic en el botón para crear todas las combinaciones posibles al instante.
                 </AlertDescription>
             </Alert>
-
             <Button onClick={handleGenerateVariations} className="w-full">
                 <Sparkles className="mr-2 h-4 w-4" />
-                Generar Variaciones de los atributos
+                Generar Variaciones
             </Button>
+            <p className="text-sm text-muted-foreground text-center">O edita un producto existente para ver sus variaciones aquí.</p>
+       </div>
+    )
+  }
 
-            {productData.variations && productData.variations.length > 0 && (
-                <div className="space-y-4">
-                    <h3 className="text-base font-semibold">Variaciones Creadas ({productData.variations.length})</h3>
-                    <Accordion type="single" collapsible className="w-full">
-                        {productData.variations.map(variation => (
-                            <AccordionItem value={variation.id} key={variation.id}>
-                                <AccordionTrigger>
-                                    <div className="flex flex-wrap gap-x-4 gap-y-1">
-                                            {variation.attributes.map(attr => (
-                                                <span key={attr.name}>
-                                                <span className="font-medium">{attr.name}:</span>
-                                                <span className="text-muted-foreground ml-1">{attr.option}</span>
-                                                </span>
-                                            ))}
+  return (
+    <div className="space-y-4">
+      <Button onClick={handleGenerateVariations} className="w-full" variant="secondary">
+            <Sparkles className="mr-2 h-4 w-4" />
+            Volver a Generar Variaciones (Sobrescribir)
+        </Button>
+      <Accordion type="single" collapsible className="w-full">
+        {productData.variations.map(variation => {
+            const identifier = variation.variation_id || variation.id;
+            return (
+                <AccordionItem value={String(identifier)} key={identifier}>
+                    <AccordionTrigger>
+                      <div className="flex items-center gap-3">
+                        {variation.image?.id ? (
+                           <Image src={images.find(p => String(p.id) === String(variation.image?.id))?.previewUrl || 'https://placehold.co/40x40.png'} alt="Variación" width={40} height={40} className="rounded-md object-cover h-10 w-10"/>
+                        ) : null}
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-left">
+                          {variation.attributes.map(attr => (
+                            <span key={attr.name} className="text-sm">
+                              <span className="font-medium">{attr.name}:</span>
+                              <span className="text-muted-foreground ml-1">{attr.option}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="space-y-4 pt-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+                            <div>
+                                <Label htmlFor={`price-${identifier}`}>Precio Regular</Label>
+                                <Input id={`price-${identifier}`} type="number" value={variation.regularPrice} onChange={(e) => handleVariationChange(identifier, 'regularPrice', e.target.value)} />
+                            </div>
+                            <div>
+                                <Label htmlFor={`sale_price-${identifier}`}>Precio Oferta</Label>
+                                <Input id={`sale_price-${identifier}`} type="number" value={variation.salePrice} onChange={(e) => handleVariationChange(identifier, 'salePrice', e.target.value)} />
+                            </div>
+                            <div>
+                                <Label htmlFor={`sku-${identifier}`}>SKU</Label>
+                                <Input id={`sku-${identifier}`} value={variation.sku} onChange={(e) => handleVariationChange(identifier, 'sku', e.target.value)} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Imagen de la Variación</Label>
+                                <Select
+                                    value={variation.image?.id?.toString() ?? "0"}
+                                    onValueChange={(value) => {
+                                        const imageId = value === "0" ? null : value.match(/^\d+$/) ? Number(value) : value;
+                                        handleVariationChange(identifier, 'image', { id: imageId });
+                                    }}
+                                >
+                                    <SelectTrigger><SelectValue placeholder="Imagen principal por defecto" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="0">Usar imagen principal del producto</SelectItem>
+                                        {images.map(photo => (
+                                            <SelectItem key={photo.id} value={String(photo.id)}>{photo.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
+                                <Label>Inventario</Label>
+                                    <div className="flex items-center gap-4">
+                                    <div className="flex items-center space-x-2">
+                                        <Checkbox id={`manage_stock-${identifier}`} checked={variation.manage_stock} onCheckedChange={(checked) => handleVariationChange(identifier, 'manage_stock', !!checked)} />
+                                        <Label htmlFor={`manage_stock-${identifier}`} className="font-normal text-sm">Gestionar</Label>
                                     </div>
-                                </AccordionTrigger>
-                                <AccordionContent className="space-y-4 pt-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
-                                        <div>
-                                            <Label htmlFor={`price-${variation.id}`}>Precio Regular</Label>
-                                            <Input id={`price-${variation.id}`} type="number" value={variation.regularPrice} onChange={(e) => handleVariationChange(variation.id, 'regularPrice', e.target.value)} />
-                                        </div>
-                                            <div>
-                                            <Label htmlFor={`sale_price-${variation.id}`}>Precio Oferta</Label>
-                                            <Input id={`sale_price-${variation.id}`} type="number" value={variation.salePrice} onChange={(e) => handleVariationChange(variation.id, 'salePrice', e.target.value)} />
-                                        </div>
-                                        <div>
-                                            <Label htmlFor={`sku-${variation.id}`}>SKU</Label>
-                                            <Input id={`sku-${variation.id}`} value={variation.sku} onChange={(e) => handleVariationChange(variation.id, 'sku', e.target.value)} />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>Imagen de la Variación</Label>
-                                                <Select
-                                                    value={variation.image?.id?.toString() ?? "0"}
-                                                    onValueChange={(value) => {
-                                                        const imageId = value === "0" ? null : value.match(/^\d+$/) ? Number(value) : value;
-                                                        handleVariationChange(variation.id, 'image', { id: imageId });
-                                                    }}
-                                                >
-                                                <SelectTrigger><SelectValue placeholder="Imagen principal por defecto" /></SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="0">Usar imagen principal del producto</SelectItem>
-                                                    {productData.photos.map(photo => (
-                                                        <SelectItem key={photo.id} value={String(photo.id)}>
-                                                            <div className="flex items-center gap-2">
-                                                                <Image src={photo.previewUrl} alt={photo.name} width={20} height={20} className="h-5 w-5 rounded-sm object-cover" />
-                                                                <span>{photo.name}</span>
-                                                            </div>
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <div className="space-y-2 md:col-span-2">
-                                            <Label>Inventario</Label>
-                                                <div className="flex items-center gap-4">
-                                                <div className="flex items-center space-x-2">
-                                                    <Checkbox id={`manage_stock-${variation.id}`} checked={variation.manage_stock} onCheckedChange={(checked) => handleVariationChange(variation.id, 'manage_stock', !!checked)} />
-                                                    <Label htmlFor={`manage_stock-${variation.id}`} className="font-normal text-sm">Gestionar</Label>
-                                                </div>
-                                                <Input id={`stock-${variation.id}`} type="number" value={variation.stockQuantity} onChange={(e) => handleVariationChange(variation.id, 'stockQuantity', e.target.value)} disabled={!variation.manage_stock} placeholder="Cantidad" />
-                                                </div>
-                                        </div>
+                                    <Input id={`stock-${identifier}`} type="number" value={variation.stockQuantity} onChange={(e) => handleVariationChange(identifier, 'stockQuantity', e.target.value)} disabled={!variation.manage_stock} placeholder="Cantidad" />
                                     </div>
-                                    <div className="pt-4 mt-4 border-t">
-                                        <h4 className="text-sm font-medium mb-2">Envío (por variación)</h4>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                            <div>
-                                                <Label htmlFor={`weight-${variation.id}`}>Peso (kg)</Label>
-                                                <Input id={`weight-${variation.id}`} type="number" value={variation.weight} onChange={(e) => handleVariationChange(variation.id, 'weight', e.target.value)} />
-                                            </div>
-                                            <div>
-                                                <Label htmlFor={`length-${variation.id}`}>Largo (cm)</Label>
-                                                <Input id={`length-${variation.id}`} type="number" value={variation.dimensions?.length} onChange={(e) => handleDimensionChange(variation.id, 'length', e.target.value)} />
-                                            </div>
-                                            <div>
-                                                <Label htmlFor={`width-${variation.id}`}>Ancho (cm)</Label>
-                                                <Input id={`width-${variation.id}`} type="number" value={variation.dimensions?.width} onChange={(e) => handleDimensionChange(variation.id, 'width', e.target.value)} />
-                                            </div>
-                                            <div>
-                                                <Label htmlFor={`height-${variation.id}`}>Alto (cm)</Label>
-                                                <Input id={`height-${variation.id}`} type="number" value={variation.dimensions?.height} onChange={(e) => handleDimensionChange(variation.id, 'height', e.target.value)} />
-                                            </div>
-                                        </div>
-                                        <div className="mt-4">
-                                            <Label htmlFor={`shipping_class-${variation.id}`}>Clase de envío</Label>
-                                            <Input id={`shipping_class-${variation.id}`} value={variation.shipping_class} onChange={(e) => handleVariationChange(variation.id, 'shipping_class', e.target.value)} placeholder="Slug de la clase"/>
-                                        </div>
-                                    </div>
-                                </AccordionContent>
-                            </AccordionItem>
-                        ))}
-                    </Accordion>
-                </div>
-            )}
-        </div>
-    );
+                            </div>
+                        </div>
+                    </AccordionContent>
+                </AccordionItem>
+            );
+        })}
+      </Accordion>
+    </div>
+  );
 }
