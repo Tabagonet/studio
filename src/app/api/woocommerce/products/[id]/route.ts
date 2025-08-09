@@ -120,9 +120,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         
         const productData = JSON.parse(productDataString);
         console.log("[AUDIT] Parsed product data from form.");
-
-        const photoFiles = formData.getAll('photos') as File[];
-        console.log(`[AUDIT] Found ${photoFiles.length} new photo files to upload.`);
+        
+        const newPhotoFiles: { [key: string]: File } = {};
+        for (const [key, value] of formData.entries()) {
+            if (value instanceof File) {
+                newPhotoFiles[key] = value;
+            }
+        }
+        console.log(`[AUDIT] Found ${Object.keys(newPhotoFiles).length} new photo files to upload.`);
 
         const validationResult = productUpdateSchema.safeParse(productData);
         if (!validationResult.success) { 
@@ -182,8 +187,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             if (!wpApi) { throw new Error('WordPress API must be configured to upload new images.'); }
             
             const uploadedImageMap = new Map<string, number>();
-            for (const file of photoFiles) {
-                 const clientSideId = file.name;
+            for (const clientSideId in newPhotoFiles) {
+                 const file = newPhotoFiles[clientSideId];
                  const baseNameForSeo = imageTitle || validatedData.name || 'product-image';
                  const seoFilename = `${slugify(baseNameForSeo)}-${productId}-${Date.now()}.webp`;
                  console.log(`[AUDIT] Uploading new image with client ID ${clientSideId}`);
@@ -193,9 +198,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             }
 
             const finalImagePayload = validatedData.images.map(img => {
+                // If it's a new file (string ID from client), get its newly uploaded numeric ID
                 if (typeof img.id === 'string' && uploadedImageMap.has(img.id)) {
                     return { id: uploadedImageMap.get(img.id) };
                 }
+                // If it's an existing image (numeric ID), keep it
                 if (typeof img.id === 'number') {
                     return { id: img.id };
                 }

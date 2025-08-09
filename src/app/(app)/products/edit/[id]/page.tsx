@@ -38,9 +38,8 @@ function EditProductPageContent() {
   }, []);
 
   const handlePhotosChange = useCallback((updatedPhotos: ProductPhoto[]) => {
-      if (!product) return;
-      setProduct({ ...product, images: updatedPhotos });
-  }, [product]);
+    setProduct(prev => (prev ? { ...prev, images: updatedPhotos } : null));
+  }, []);
   
   const handleSaveChanges = async () => {
     setIsSaving(true);
@@ -68,8 +67,8 @@ function EditProductPageContent() {
         const newPhotoFiles = product.images.filter(p => p.file);
         for (const photo of newPhotoFiles) {
             if (photo.file) {
-                // Use the temporary string ID (UUID) as the key/filename to map it on the backend.
-                formData.append('photos', photo.file, photo.id.toString());
+                // The key for each file should be unique. Using the temporary ID is a good way.
+                formData.append(photo.id.toString(), photo.file, photo.name);
             }
         }
 
@@ -86,7 +85,6 @@ function EditProductPageContent() {
         }
         
         toast({ title: '¡Éxito!', description: 'El producto ha sido actualizado.' });
-        // The redirect to /batch has been removed.
 
     } catch (e: any) {
         toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
