@@ -1,4 +1,3 @@
-
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -275,39 +274,15 @@ export function findBeaverBuilderImages(data: any[]): { url: string; }[] {
 }
 
 export async function uploadImageToWordPress(
-  source: File | string,
+  imageBuffer: Buffer,
   seoFilename: string,
   imageMetadata: { title: string; alt_text: string; caption: string; description: string; },
   wpApi: AxiosInstance,
   width?: number | null,
   height?: number | null,
   position?: string,
-): Promise<number> {
+): Promise<{ id: number, url: string }> {
     try {
-        let imageBuffer: Buffer;
-        let originalFilename: string;
-
-        if (typeof source === 'string') {
-            const isLocalUrl = source.startsWith('/');
-            if (isLocalUrl) {
-                // If it's a local URL, read it from the public directory
-                const filePath = path.join(process.cwd(), 'public', source);
-                imageBuffer = await fs.readFile(filePath);
-            } else {
-                // If it's a remote URL, fetch it
-                const sanitizedUrl = source.startsWith('http') ? source : `https://${source.replace(/^(https?:\/\/)?/, '')}`;
-                const imageResponse = await axios.get(sanitizedUrl, {
-                    responseType: 'arraybuffer',
-                    headers: { 'User-Agent': 'Mozilla/5.0' },
-                });
-                imageBuffer = Buffer.from(imageResponse.data);
-            }
-            originalFilename = source.split('/').pop() || seoFilename;
-        } else {
-            imageBuffer = Buffer.from(await source.arrayBuffer());
-            originalFilename = source.name;
-        }
-        
         let sharpInstance = sharp(imageBuffer);
 
         if (width || height) {
@@ -348,11 +323,14 @@ export async function uploadImageToWordPress(
             },
         });
 
-        if (!uploadResponse.data || !uploadResponse.data.id) {
-            throw new Error("La subida de medios a WordPress no devolvió un ID.");
+        if (!uploadResponse.data || !uploadResponse.data.id || !uploadResponse.data.source_url) {
+            throw new Error("La subida de medios a WordPress no devolvió un ID o una URL.");
         }
         
-        return uploadResponse.data.id;
+        return {
+            id: uploadResponse.data.id,
+            url: uploadResponse.data.source_url,
+        };
 
     } catch (uploadError: any) {
         let errorMsg = `Error al procesar la imagen para WordPress.`;
