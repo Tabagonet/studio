@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React from 'react';
@@ -10,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Package } from "lucide-react";
+import { Package, Image as ImageIcon } from "lucide-react";
 
 interface Step2PreviewProps {
   productData: ProductData;
@@ -141,40 +140,52 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
               <div>
                 <h4 className="font-semibold text-lg">Variaciones Generadas</h4>
                   <Accordion type="single" collapsible className="w-full">
-                    {variations.map(variation => (
-                      <AccordionItem value={variation.id} key={variation.id}>
-                        <AccordionTrigger>
-                          <div className="flex flex-wrap gap-x-4 gap-y-1">
-                             {variation.attributes.map(attr => (
-                                <span key={attr.name} className="text-sm">
-                                  <span className="font-medium">{attr.name}:</span>
-                                  <span className="text-muted-foreground ml-1">{attr.option}</span>
-                                </span>
-                              ))}
-                          </div>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                           <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>SKU</TableHead>
-                                  <TableHead>Precio Regular</TableHead>
-                                  <TableHead>Precio de Oferta</TableHead>
-                                  <TableHead>Stock</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                <TableRow>
-                                  <TableCell>{variation.sku || "N/A"}</TableCell>
-                                  <TableCell>{variation.regularPrice ? `${variation.regularPrice}€` : 'N/A'}</TableCell>
-                                  <TableCell>{variation.salePrice ? `${variation.salePrice}€` : 'N/A'}</TableCell>
-                                  <TableCell>{variation.stockQuantity || "N/A"}</TableCell>
-                                </TableRow>
-                              </TableBody>
-                            </Table>
-                        </AccordionContent>
-                      </AccordionItem>
-                    ))}
+                    {variations.map(variation => {
+                        const variationImage = photos.find(p => String(p.id) === String(variation.image?.id));
+                        return (
+                          <AccordionItem value={variation.id} key={variation.id}>
+                            <AccordionTrigger>
+                              <div className="flex items-center gap-3">
+                                {variationImage ? (
+                                  <Image src={variationImage.previewUrl} alt="Variación" width={40} height={40} className="rounded-md object-cover h-10 w-10"/>
+                                ) : (
+                                  <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
+                                      <ImageIcon className="h-5 w-5 text-muted-foreground"/>
+                                  </div>
+                                )}
+                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-left">
+                                  {variation.attributes.map(attr => (
+                                    <span key={attr.name} className="text-sm">
+                                      <span className="font-medium">{attr.name}:</span>
+                                      <span className="text-muted-foreground ml-1">{attr.option}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </AccordionTrigger>
+                            <AccordionContent>
+                              <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>SKU</TableHead>
+                                      <TableHead>Precio Regular</TableHead>
+                                      <TableHead>Precio de Oferta</TableHead>
+                                      <TableHead>Stock</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    <TableRow>
+                                      <TableCell>{variation.sku || "N/A"}</TableCell>
+                                      <TableCell>{variation.regularPrice ? `${variation.regularPrice}€` : 'N/A'}</TableCell>
+                                      <TableCell>{variation.salePrice ? `${variation.salePrice}€` : 'N/A'}</TableCell>
+                                      <TableCell>{variation.stockQuantity || "N/A"}</TableCell>
+                                    </TableRow>
+                                  </TableBody>
+                                </Table>
+                            </AccordionContent>
+                          </AccordionItem>
+                        );
+                    })}
                   </Accordion>
               </div>
             )}
