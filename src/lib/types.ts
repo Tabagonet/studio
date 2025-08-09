@@ -1,4 +1,3 @@
-
 // src/lib/types.ts
       
 import type { LucideIcon } from 'lucide-react';
@@ -37,7 +36,6 @@ export interface ProductPhoto {
   uploadedUrl?: string;
   uploadedFilename?: string;
   serverPath?: string;
-  uploadedId?: number; // The WordPress media ID after upload
 }
 
 export interface WooCommerceImage {

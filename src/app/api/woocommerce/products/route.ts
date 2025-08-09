@@ -47,7 +47,6 @@ export async function POST(request: NextRequest) {
             for (const file of photoFiles) {
                 const imageBuffer = Buffer.from(await file.arrayBuffer());
                 
-                // No need to process with Sharp here, uploadImageToWordPress handles it.
                 const seoFilename = `${slugify(finalProductData.name || 'product')}-${Date.now()}.webp`;
 
                 const newImageId = await uploadImageToWordPress(
@@ -164,33 +163,13 @@ export async function POST(request: NextRequest) {
                 if (v.manage_stock && v.stockQuantity) {
                     variationPayload.stock_quantity = parseInt(v.stockQuantity, 10);
                 }
+                 // Handle variation image assignment
+                if (v.image?.id && wordpressImageIds.some(img => img.id === Number(v.image.id))) {
+                    variationPayload.image = { id: v.image.id };
+                }
                 return variationPayload;
             });
-            const batchResponse = await wooApi.post(`products/${productId}/variations/batch`, { create: batchCreatePayload });
-            
-            const createdVariations = batchResponse.data.create;
-            const variationImageUpdates = [];
-
-            for (let i = 0; i < finalProductData.variations.length; i++) {
-                const clientVar = finalProductData.variations[i];
-                const serverVar = createdVariations[i]; 
-
-                if (serverVar && clientVar.image?.id) {
-                     const imageId = clientVar.image.id;
-                     if (imageId) {
-                         variationImageUpdates.push({
-                             variation_id: serverVar.id,
-                             image_id: imageId,
-                         });
-                     }
-                }
-            }
-
-            if (variationImageUpdates.length > 0) {
-                 const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
-                 const updateImageEndpoint = `${siteUrl}/wp-json/custom/v1/update-variation-images`;
-                 await wpApi.post(updateImageEndpoint, { variation_images: variationImageUpdates });
-            }
+            await wooApi.post(`products/${productId}/variations/batch`, { create: batchCreatePayload });
         }
 
         if (adminDb && admin.firestore.FieldValue) { 
