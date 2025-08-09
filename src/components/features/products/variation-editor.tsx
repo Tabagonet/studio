@@ -1,8 +1,9 @@
-
+// src/components/features/products/variation-editor.tsx
 
 "use client";
 
 import React from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,15 +11,83 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { ProductVariation } from '@/lib/types';
 import type { ProductEditState } from '@/app/(app)/products/edit/[id]/page';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
+import { GitCommitHorizontal, Sparkles } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface VariationEditorProps {
   product: ProductEditState;
   onProductChange: (product: Partial<ProductEditState>) => void;
 }
 
-export function VariationEditor({ product, onProductChange }: VariationEditorProps) {
+// Helper function to compute the Cartesian product of arrays
+function cartesian(...args: string[][]): string[][] {
+    const r: string[][] = [];
+    const max = args.length - 1;
+    function helper(arr: string[], i: number) {
+        for (let j = 0, l = args[i].length; j < l; j++) {
+            const a = [...arr, args[i][j]];
+            if (i === max) {
+                r.push(a);
+            } else {
+                helper(a, i + 1);
+            }
+        }
+    }
+    helper([], 0);
+    return r;
+}
 
-  const handleVariationChange = (variationId: number, field: string, value: string | boolean) => {
+export function VariationEditor({ product, onProductChange }: VariationEditorProps) {
+  const { toast } = useToast();
+
+  const handleGenerateVariations = () => {
+    const variationAttributes = (product as any).attributes?.filter(
+        (attr: any) => attr.forVariations && attr.name.trim() && attr.value.trim()
+    );
+
+    if (!variationAttributes || variationAttributes.length === 0) {
+        toast({ title: "No hay atributos para variaciones", description: "Marca al menos un atributo como 'Para variaciones'.", variant: "destructive" });
+        return;
+    }
+
+    const attributeNames = variationAttributes.map((attr: any) => attr.name);
+    const attributeValueSets = variationAttributes.map((attr: any) =>
+        attr.value.split('|').map((v: string) => v.trim()).filter(Boolean)
+    );
+    
+    if (attributeValueSets.some((set: any) => set.length === 0)) {
+         toast({ title: "Valores de atributo vacíos", description: "Asegúrate de que cada atributo para variación tiene valores.", variant: "destructive" });
+        return;
+    }
+
+    const combinations = cartesian(...attributeValueSets);
+
+    const newVariations: ProductVariation[] = combinations.map(combo => {
+        const attributes = combo.map((value, index) => ({ name: attributeNames[index], option: value }));
+        const skuSuffix = attributes.map(a => a.option.substring(0,3).toUpperCase()).join('-');
+        return {
+            id: uuidv4(),
+            attributes,
+            sku: `${product.sku || 'SKU'}-${skuSuffix}`,
+            regularPrice: product.regular_price || '',
+            salePrice: product.sale_price || '',
+            manage_stock: product.manage_stock,
+            stockQuantity: product.stock_quantity || '',
+            image: { id: null },
+            weight: product.weight || '',
+            dimensions: product.dimensions,
+            shipping_class: product.shipping_class || '',
+        };
+    });
+    
+    onProductChange({ variations: newVariations });
+    toast({ title: `¡${newVariations.length} variaciones generadas!`, description: "Revisa los detalles de cada una." });
+  };
+
+
+  const handleVariationChange = (variationId: number, field: string, value: string | boolean | object | null) => {
     const updatedVariations = product.variations?.map(v => {
       if (v.variation_id === variationId) {
         return { ...v, [field]: value };
@@ -39,11 +108,30 @@ export function VariationEditor({ product, onProductChange }: VariationEditorPro
   };
 
   if (!product.variations || product.variations.length === 0) {
-    return <p className="text-sm text-muted-foreground">No hay variaciones para este producto. Genéralas a partir de los atributos.</p>;
+    return (
+       <div className="space-y-4">
+            <Alert>
+                <GitCommitHorizontal className="h-4 w-4" />
+                <AlertTitle>Genera Variaciones Automáticamente</AlertTitle>
+                <AlertDescription>
+                    Define atributos, márcalos como "Para variaciones" y haz clic en el botón para crear todas las combinaciones posibles al instante.
+                </AlertDescription>
+            </Alert>
+            <Button onClick={handleGenerateVariations} className="w-full">
+                <Sparkles className="mr-2 h-4 w-4" />
+                Generar Variaciones
+            </Button>
+            <p className="text-sm text-muted-foreground text-center">O edita un producto existente para ver sus variaciones aquí.</p>
+       </div>
+    )
   }
 
   return (
     <div className="space-y-4">
+      <Button onClick={handleGenerateVariations} className="w-full" variant="secondary">
+            <Sparkles className="mr-2 h-4 w-4" />
+            Volver a Generar Variaciones (Sobrescribir)
+        </Button>
       <Accordion type="single" collapsible className="w-full">
         {product.variations.map(variation => (
           <AccordionItem value={String(variation.variation_id)} key={variation.variation_id}>
@@ -63,7 +151,7 @@ export function VariationEditor({ product, onProductChange }: VariationEditorPro
                         <Label htmlFor={`price-${variation.variation_id}`}>Precio Regular</Label>
                         <Input id={`price-${variation.variation_id}`} type="number" value={variation.regularPrice} onChange={(e) => handleVariationChange(variation.variation_id!, 'regularPrice', e.target.value)} />
                     </div>
-                        <div>
+                    <div>
                         <Label htmlFor={`sale_price-${variation.variation_id}`}>Precio Oferta</Label>
                         <Input id={`sale_price-${variation.variation_id}`} type="number" value={variation.salePrice} onChange={(e) => handleVariationChange(variation.variation_id!, 'salePrice', e.target.value)} />
                     </div>
@@ -72,6 +160,18 @@ export function VariationEditor({ product, onProductChange }: VariationEditorPro
                         <Input id={`sku-${variation.variation_id}`} value={variation.sku} onChange={(e) => handleVariationChange(variation.variation_id!, 'sku', e.target.value)} />
                     </div>
                     <div className="space-y-2">
+                         <Label>Imagen de la Variación</Label>
+                         <Select value={variation.image?.id?.toString() ?? ''} onValueChange={(value) => handleVariationChange(variation.variation_id!, 'image', { id: Number(value) || null })}>
+                            <SelectTrigger><SelectValue placeholder="Imagen principal por defecto" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="">Imagen principal por defecto</SelectItem>
+                                {product.images.map(photo => (
+                                    <SelectItem key={photo.id} value={String(photo.id)}>{photo.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
                         <Label>Inventario</Label>
                             <div className="flex items-center gap-4">
                             <div className="flex items-center space-x-2">
@@ -89,3 +189,5 @@ export function VariationEditor({ product, onProductChange }: VariationEditorPro
     </div>
   );
 }
+
+    

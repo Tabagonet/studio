@@ -1,5 +1,5 @@
 
-
+// src/lib/types.ts
       
 import type { LucideIcon } from 'lucide-react';
 import type { SeoInterpretationOutput, SuggestLinksInput, SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
@@ -69,6 +69,7 @@ export interface ProductVariation {
   salePrice: string;
   manage_stock: boolean;
   stockQuantity: string;
+  image?: { id: number | null }; // Added for variation image
   weight?: string;
   dimensions?: {
     length?: string;
@@ -489,3 +490,5 @@ export interface PlanUsage {
     totalAvailable: number;
   };
 }
+
+    

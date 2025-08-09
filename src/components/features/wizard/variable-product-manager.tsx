@@ -1,4 +1,3 @@
-
 // src/components/features/wizard/variable-product-manager.tsx
 
 "use client";
@@ -14,6 +13,7 @@ import { ProductData, ProductVariation } from '@/lib/types';
 import { GitCommitHorizontal, Sparkles } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 interface VariableProductManagerProps {
   productData: ProductData;
@@ -89,6 +89,7 @@ export function VariableProductManager({ productData, updateProductData }: Varia
                 weight: productData.weight || '',
                 dimensions: productData.dimensions || { length: '', width: '', height: '' },
                 shipping_class: productData.shipping_class || '',
+                image: { id: null },
             };
         });
         
@@ -100,7 +101,7 @@ export function VariableProductManager({ productData, updateProductData }: Varia
         });
     };
 
-    const handleVariationChange = (variationId: string, field: keyof Omit<ProductVariation, 'dimensions'>, value: string | boolean) => {
+    const handleVariationChange = (variationId: string, field: keyof Omit<ProductVariation, 'dimensions'>, value: string | boolean | object | null) => {
         const updatedVariations = productData.variations?.map(v => {
             if (v.id === variationId) {
                 return { ...v, [field]: value };
@@ -174,6 +175,18 @@ export function VariableProductManager({ productData, updateProductData }: Varia
                                             <Input id={`sku-${variation.id}`} value={variation.sku} onChange={(e) => handleVariationChange(variation.id, 'sku', e.target.value)} />
                                         </div>
                                         <div className="space-y-2">
+                                            <Label>Imagen</Label>
+                                            <Select value={variation.image?.id?.toString() ?? ''} onValueChange={(value) => handleVariationChange(variation.id, 'image', { id: Number(value) })}>
+                                                <SelectTrigger><SelectValue placeholder="Usar imagen principal..." /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="">Usar imagen principal</SelectItem>
+                                                    {productData.photos.map(photo => (
+                                                        <SelectItem key={photo.id} value={String(photo.id)}>{photo.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-2 md:col-span-2">
                                             <Label>Inventario</Label>
                                                 <div className="flex items-center gap-4">
                                                 <div className="flex items-center space-x-2">
@@ -218,3 +231,5 @@ export function VariableProductManager({ productData, updateProductData }: Varia
         </div>
     );
 }
+
+    
