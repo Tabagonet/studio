@@ -27,8 +27,8 @@ export async function POST(request: NextRequest) {
         const decodedToken = await adminAuth.verifyIdToken(token);
         uid = decodedToken.uid;
         
-        const { wpApi } = await getApiClientsForUser(uid);
-        if (!wpApi) { throw new Error('WordPress API is not configured.'); }
+        const { wpApi, wooApi } = await getApiClientsForUser(uid);
+        if (!wpApi || !wooApi) { throw new Error('WordPress or WooCommerce API is not configured.'); }
 
         const formData = await request.formData();
         const productDataString = formData.get('productData') as string | null;
@@ -38,11 +38,10 @@ export async function POST(request: NextRequest) {
 
         const finalProductData: ProductData = JSON.parse(productDataString);
         const photoFiles = formData.getAll('photos') as File[];
-
         const lang: string = finalProductData.language === 'Spanish' ? 'es' : 'en';
 
+        // 1. Upload ALL images (both featured and variation potentials)
         const wordpressImageIds: { id: number }[] = [];
-        
         if (photoFiles.length > 0) {
             for (const [index, file] of photoFiles.entries()) {
                 const newImageId = await uploadImageToWordPress(
@@ -55,6 +54,15 @@ export async function POST(request: NextRequest) {
             }
         }
         
+        // Map client-side UUIDs to newly uploaded WordPress IDs
+        const imageIdMap = new Map<string, number>();
+        finalProductData.photos.forEach((photo, index) => {
+            if (photo.file && wordpressImageIds[index]) {
+                imageIdMap.set(photo.id.toString(), wordpressImageIds[index].id);
+            }
+        });
+        
+        // 2. Prepare categories and tags
         let finalCategoryIds: { id: number }[] = [];
         if (finalProductData.category?.id) {
             finalCategoryIds.push({ id: finalProductData.category.id });
@@ -70,6 +78,10 @@ export async function POST(request: NextRequest) {
             if (supplierCatId) finalCategoryIds.push({ id: supplierCatId });
         }
 
+        const tagNames = typeof finalProductData.tags === 'string' ? finalProductData.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+        const wooTags = await findOrCreateTags(tagNames, wpApi);
+
+        // 3. Prepare attributes
         const wooAttributes = finalProductData.attributes
             .filter(attr => attr.name && attr.name.trim() !== '')
             .map((attr, index) => ({
@@ -87,15 +99,12 @@ export async function POST(request: NextRequest) {
             });
         }
         
-        const tagNames = typeof finalProductData.tags === 'string' ? finalProductData.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
-        const wooTags = await findOrCreateTags(tagNames, wpApi);
-
         let finalSku = finalProductData.sku;
         if(finalProductData.sku && supplierToAdd) {
             finalSku = `${finalProductData.sku}-${slugify(supplierToAdd)}`;
         }
 
-
+        // 4. Construct main product payload
         const wooPayload: any = {
             name: finalProductData.name,
             slug: supplierToAdd ? slugify(`${finalProductData.name}-${supplierToAdd}`) : undefined,
@@ -127,12 +136,12 @@ export async function POST(request: NextRequest) {
             wooPayload.grouped_products = finalProductData.groupedProductIds || [];
         }
 
-        const { wooApi, settings, activeConnectionKey } = await getApiClientsForUser(uid);
-        if (!wooApi) throw new Error("WooCommerce API client could not be created.");
+        // 5. Create main product
         const response = await wooApi.post('products', wooPayload);
         const createdProduct = response.data;
         const productId = createdProduct.id;
 
+        // 6. Create variations if applicable
         if (finalProductData.productType === 'variable' && finalProductData.variations && finalProductData.variations.length > 0) {
             const batchCreatePayload = finalProductData.variations.map(v => {
                 const variationPayload: any = {
@@ -154,16 +163,22 @@ export async function POST(request: NextRequest) {
                 if (v.manage_stock && v.stockQuantity) {
                     variationPayload.stock_quantity = parseInt(v.stockQuantity, 10);
                 }
-                 // Handle variation image assignment
-                if (v.image?.id && wordpressImageIds.some(img => img.id === Number(v.image.id))) {
-                    variationPayload.image = { id: v.image.id };
+
+                // Correctly assign image ID for the variation
+                if (v.image?.id) {
+                    // Check if the ID is a client-side UUID that needs mapping
+                    const mappedId = imageIdMap.get(v.image.id.toString());
+                    // Use the mapped WP ID if available, otherwise assume it's already a valid WP ID
+                    variationPayload.image = { id: mappedId || v.image.id };
                 }
                 return variationPayload;
             });
             await wooApi.post(`products/${productId}/variations/batch`, { create: batchCreatePayload });
         }
 
-        if (adminDb && admin.firestore.FieldValue) { 
+        // 7. Log activity
+        if (adminDb && admin.firestore.FieldValue) {
+            const { activeConnectionKey } = await getApiClientsForUser(uid);
             await adminDb.collection('activity_logs').add({
                 userId: uid,
                 action: 'PRODUCT_CREATED',
@@ -177,7 +192,7 @@ export async function POST(request: NextRequest) {
             });
         }
         
-        const storeUrl = settings?.connections?.[activeConnectionKey as string]?.wooCommerceStoreUrl || '';
+        const storeUrl = (await getApiClientsForUser(uid)).settings?.connections?.[(await getApiClientsForUser(uid)).activeConnectionKey as string]?.wooCommerceStoreUrl || '';
         const cleanStoreUrl = storeUrl.endsWith('/') ? storeUrl.slice(0, -1) : storeUrl;
         
         return NextResponse.json({
