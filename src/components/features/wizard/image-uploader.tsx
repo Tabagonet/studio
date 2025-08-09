@@ -54,9 +54,12 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
     
     const remainingPhotos = photos.filter(p => p.id !== photoToDelete.id);
     
+    // If the deleted photo was the primary one, make the new first photo primary.
     if (photoToDelete.isPrimary && remainingPhotos.length > 0) {
         remainingPhotos[0].isPrimary = true;
     }
+
+    // Use the callback to notify the parent component of the change
     onPhotosChange(remainingPhotos);
 
     toast({ title: "Imagen Eliminada", description: `${photoToDelete.name} ha sido eliminada de la cola.` });
@@ -68,8 +71,11 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
         ...p,
         isPrimary: p.id === id
     }));
+    // Ensure the primary photo is always first in the array for consistency.
     const primaryPhoto = updatedPhotos.find(p => p.isPrimary);
     const otherPhotos = updatedPhotos.filter(p => !p.isPrimary);
+
+    // Use the callback to notify the parent component of the change
     onPhotosChange(primaryPhoto ? [primaryPhoto, ...otherPhotos] : otherPhotos);
   }, [photos, onPhotosChange]);
 
