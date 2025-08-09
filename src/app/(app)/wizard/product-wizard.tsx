@@ -15,6 +15,7 @@ import { auth } from '@/lib/firebase';
 import { ArrowLeft, ArrowRight, Rocket, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
+import axios from 'axios';
 
 export function ProductWizard() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -43,22 +44,13 @@ export function ProductWizard() {
   const handleCreateProduct = useCallback(async () => {
     setCurrentStep(4);
     
-    let initialSteps: SubmissionStep[] = [];
+    const initialSteps: SubmissionStep[] = [
+        { id: 'create_product', name: 'Enviando datos al servidor...', status: 'pending' },
+    ];
     if (productData.photos.some(p => p.file)) {
-      initialSteps.push({ id: 'upload_images', name: 'Subiendo y procesando imágenes...', status: 'pending' });
+        initialSteps.unshift({ id: 'upload_images', name: 'Preparando imágenes para subir...', status: 'pending' });
     }
-    const sourceLangName = ALL_LANGUAGES.find(l => l.code === productData.language)?.name || productData.language;
-    initialSteps.push({ id: 'create_original', name: `Creando producto original (${sourceLangName})`, status: 'pending' });
     
-    productData.targetLanguages?.forEach(lang => {
-        const targetLangName = ALL_LANGUAGES.find(l => l.code === lang)?.name || lang;
-        initialSteps.push({ id: `translate_${lang}`, name: `Traduciendo a ${targetLangName}`, status: 'pending' });
-        initialSteps.push({ id: `create_${lang}`, name: `Creando producto en ${targetLangName}`, status: 'pending' });
-    });
-
-    if (productData.targetLanguages && productData.targetLanguages.length > 0) {
-        initialSteps.push({ id: 'sync_translations', name: 'Sincronizando enlaces de traducción', status: 'pending' });
-    }
     setSteps(initialSteps);
     setFinalLinks([]);
     setSubmissionStatus('processing');
@@ -72,50 +64,40 @@ export function ProductWizard() {
     
     try {
         const token = await user.getIdToken();
-        let finalProductData = { ...productData };
-        let createdPostUrls: { url: string; title: string }[] = [];
-        const allTranslations: { [key: string]: number } = {};
+        const formData = new FormData();
+        
+        // Append product data as a JSON string
+        formData.append('productData', JSON.stringify(productData));
 
-        // --- Step 1: Upload Images (if necessary) ---
-        if (productData.photos.some(p => p.file)) {
-            updateStepStatus('upload_images', 'processing');
-            const photosToUpload = productData.photos.filter(p => p.file);
-            const uploadedPhotosInfo: { id: string | number; uploadedUrl: string; serverPath: string }[] = [];
-            
-            for (const photo of photosToUpload) {
-                 const formData = new FormData();
-                 formData.append('file', photo.file!);
-                 const response = await fetch('/api/upload-image-local', { method: 'POST', body: formData });
-                 if (!response.ok) throw new Error(`Error subiendo ${photo.name}`);
-                 const imageData = await response.json();
-                 uploadedPhotosInfo.push({ id: photo.id, uploadedUrl: imageData.url, serverPath: imageData.serverPath });
+        // Append photo files
+        productData.photos.forEach(photo => {
+            if (photo.file) {
+                formData.append('photos', photo.file, photo.name);
             }
-            
-            finalProductData.photos = productData.photos.map(p => {
-                const uploaded = uploadedPhotosInfo.find(u => u.id === p.id);
-                return uploaded ? { ...p, file: undefined, uploadedUrl: uploaded.uploadedUrl, serverPath: uploaded.serverPath } : p;
-            });
-            updateStepStatus('upload_images', 'success');
+        });
+        
+        updateStepStatus('create_product', 'processing', 'Creando producto en WooCommerce...');
+
+        const response = await fetch('/api/woocommerce/products', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData,
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || `Error creando producto.`);
         }
         
-        // --- Step 2: Create Original Product ---
-        updateStepStatus('create_original', 'processing');
-        const sourceLangSlug = ALL_LANGUAGES.find(l => l.code === finalProductData.language)?.slug || 'es';
-        
-        const originalPayload = { productData: { ...finalProductData, targetLanguages: [] }, lang: sourceLangSlug };
-        
-        const originalResponse = await fetch('/api/woocommerce/products', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(originalPayload) });
-        if (!originalResponse.ok) { const errorData = await originalResponse.json(); throw new Error(errorData.error || `Error creando producto original`); }
-        const originalResult = await originalResponse.json();
-        createdPostUrls.push({ url: originalResult.data.url, title: originalResult.data.title });
-        allTranslations[sourceLangSlug] = originalResult.data.id;
-        updateStepStatus('create_original', 'success');
+        const createdProduct = result.data;
+        setFinalLinks([{ url: createdProduct.url, title: createdProduct.title }]);
+        updateStepStatus('create_product', 'success', 'Producto creado con éxito.');
 
-        setFinalLinks(createdPostUrls);
         setSubmissionStatus('success');
 
     } catch (error: any) {
-        const failedStep = steps.find(s => s.status === 'processing');
+        const failedStep = steps.find(s => s.status === 'processing') || steps[0];
         if (failedStep) {
             updateStepStatus(failedStep.id, 'error', error.message);
         }

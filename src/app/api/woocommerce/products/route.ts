@@ -39,19 +39,20 @@ export async function POST(request: NextRequest) {
         const finalProductData: ProductData = JSON.parse(productDataString);
         const photoFiles = formData.getAll('photos') as File[];
 
-        const lang: string = finalProductData.language === 'Spanish' ? 'es' : 'en'; // Simple mapping for now
+        const lang: string = finalProductData.language === 'Spanish' ? 'es' : 'en';
 
-        // 1. Upload images to WordPress and get their new media IDs
         const uploadedImageIds: { [key: string]: number } = {};
+        const tempFilePaths: string[] = []; // Keep track of temp files to clean up
+        
         if (photoFiles.length > 0) {
-             for (const file of photoFiles) {
+            for (const file of photoFiles) {
                 const originalPhoto = finalProductData.photos.find(p => p.name === file.name);
                 if (originalPhoto) {
                     const seoFilename = `${slugify(finalProductData.name || 'product')}-${Date.now()}.webp`;
                     const imageBuffer = Buffer.from(await file.arrayBuffer());
 
                     const newImageId = await uploadImageToWordPress(
-                        imageBuffer, // Pass the buffer directly
+                        imageBuffer,
                         seoFilename,
                         {
                             title: finalProductData.imageTitle || finalProductData.name,
@@ -65,8 +66,7 @@ export async function POST(request: NextRequest) {
                 }
             }
         }
-
-        // 2. Prepare image data for WooCommerce payload
+        
         const wordpressImageIds = finalProductData.photos
             .map(photo => {
                 const mediaId = uploadedImageIds[photo.id] || photo.uploadedId;
@@ -74,7 +74,6 @@ export async function POST(request: NextRequest) {
             })
             .filter((img): img is { id: number } => img !== null);
         
-        // 3. Handle categories
         let finalCategoryIds: { id: number }[] = [];
         if (finalProductData.category?.id) {
             finalCategoryIds.push({ id: finalProductData.category.id });
@@ -90,7 +89,6 @@ export async function POST(request: NextRequest) {
             if (supplierCatId) finalCategoryIds.push({ id: supplierCatId });
         }
 
-        // 4. Prepare attributes
         const wooAttributes = finalProductData.attributes
             .filter(attr => attr.name && attr.name.trim() !== '')
             .map((attr, index) => ({
@@ -148,14 +146,12 @@ export async function POST(request: NextRequest) {
             wooPayload.grouped_products = finalProductData.groupedProductIds || [];
         }
 
-        // 5. Create the product
         const { wooApi } = await getApiClientsForUser(uid);
         if (!wooApi) throw new Error("WooCommerce API client could not be created.");
         const response = await wooApi.post('products', wooPayload);
         const createdProduct = response.data;
         const productId = createdProduct.id;
 
-        // 6. Create variations if applicable
         if (finalProductData.productType === 'variable' && finalProductData.variations && finalProductData.variations.length > 0) {
             const batchCreatePayload = finalProductData.variations.map(v => {
                 const variationPayload: any = {
@@ -206,7 +202,6 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // 7. Log the activity
         if (adminDb && admin.firestore.FieldValue) { 
             const { settings } = await getApiClientsForUser(uid);
             await adminDb.collection('activity_logs').add({
