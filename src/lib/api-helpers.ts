@@ -323,10 +323,11 @@ export async function uploadImageToWordPress(
     });
     console.log(`[API Helper] Image uploaded temporarily to Firebase Storage: ${uniqueFilename}`);
     
-    // 3. Generate a Signed URL
+    // 3. Generate a Signed URL with Content-Disposition
     const [signedUrl] = await fileUpload.getSignedUrl({
         action: 'read',
         expires: Date.now() + 5 * 60 * 1000, // 5 minutes validity
+        responseDisposition: `attachment; filename="${seoFilename}"`,
     });
     console.log(`[API Helper] Generated signed URL for WordPress to use.`);
 
