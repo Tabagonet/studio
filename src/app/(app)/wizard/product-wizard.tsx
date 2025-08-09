@@ -44,24 +44,11 @@ export function ProductWizard() {
   const handleCreateProduct = useCallback(async () => {
     setCurrentStep(4);
     
-    const photosToUpload = productData.photos.filter(p => p.file);
-
-    const initialSteps: SubmissionStep[] = [];
-    if (photosToUpload.length > 0) {
-      photosToUpload.forEach((photo, index) => {
-        initialSteps.push({ id: `upload_${photo.id}`, name: `Procesando imagen ${index + 1}: ${photo.name}`, status: 'pending' });
-      });
-    }
-    const sourceLangName = ALL_LANGUAGES.find(l => l.code === productData.language)?.name || productData.language;
-    initialSteps.push({ id: 'create_original', name: `Creando producto original (${sourceLangName})`, status: 'pending'});
-    
-    productData.targetLanguages?.forEach(lang => {
-        const targetLangName = ALL_LANGUAGES.find(l => l.code === lang)?.name || lang;
-        initialSteps.push({ id: `translate_${lang}`, name: `Traduciendo a ${targetLangName}`, status: 'pending' });
-        initialSteps.push({ id: `create_${lang}`, name: `Creando producto en ${targetLangName}`, status: 'pending' });
-    });
-     if (productData.targetLanguages && productData.targetLanguages.length > 0) {
-        initialSteps.push({ id: 'sync_translations', name: 'Sincronizando enlaces de traducción', status: 'pending' });
+    let initialSteps: SubmissionStep[] = [
+      { id: 'create_product', name: `Creando producto`, status: 'pending', message: 'Preparando datos...' },
+    ];
+    if (productData.targetLanguages && productData.targetLanguages.length > 0) {
+        initialSteps.push({ id: 'sync_translations', name: 'Sincronizando enlaces de traducción', status: 'pending', message: 'Esperando creación del producto principal.' });
     }
     setSteps(initialSteps);
     setFinalLinks([]);
@@ -76,88 +63,53 @@ export function ProductWizard() {
     
     try {
         const token = await user.getIdToken();
-        let finalProductData = { ...productData };
-        let createdPostUrls: { url: string; title: string }[] = [];
-        const allTranslations: { [key: string]: number } = {};
-
-        // --- Step 1: Upload Images (if necessary) ---
-        if (photosToUpload.length > 0) {
-            const uploadedPhotosInfo: { id: string | number; uploadedUrl: string; uploadedFilename: string; serverFilePath: string; }[] = [];
-            
-            for (const photo of photosToUpload) {
-                 const stepId = `upload_${photo.id}`;
-                 updateStepStatus(stepId, 'processing', 'Subiendo y procesando imagen...');
-                 const formData = new FormData();
-                 formData.append('imagen', photo.file!);
-                 const response = await fetch('/api/upload-image-local', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData });
-                 if (!response.ok) throw new Error(`Error subiendo ${photo.name}`);
-                 const imageData = await response.json();
-                 if (!imageData.success) throw new Error(imageData.error || `Error en la API al subir ${photo.name}`);
-                 
-                 uploadedPhotosInfo.push({ id: photo.id, uploadedUrl: imageData.url, uploadedFilename: imageData.filename_saved_on_server, serverFilePath: imageData.serverPath });
-                 updateStepStatus(stepId, 'success', 'Imagen procesada y lista.');
+        
+        const formData = new FormData();
+        formData.append('productData', JSON.stringify(productData));
+        productData.photos.forEach(photo => {
+            if (photo.file) {
+                formData.append('photos', photo.file, photo.name);
             }
-            
-            finalProductData.photos = productData.photos.map(p => {
-                const uploaded = uploadedPhotosInfo.find(u => u.id === p.id);
-                return uploaded ? { ...p, file: undefined, uploadedUrl: uploaded.uploadedUrl, serverFilePath: uploaded.serverFilePath } : p;
-            });
+        });
+
+        updateStepStatus('create_product', 'processing', 'Enviando datos a WooCommerce...');
+        const originalResponse = await fetch('/api/woocommerce/products', { 
+            method: 'POST', 
+            headers: { 'Authorization': `Bearer ${token}` }, 
+            body: formData
+        });
+
+        if (!originalResponse.ok) { 
+            const errorData = await originalResponse.json(); 
+            throw new Error(errorData.error || `Error creando producto original`); 
         }
         
-        // --- Step 2: Create Original Product ---
-        updateStepStatus('create_original', 'processing', 'Enviando datos a WooCommerce...');
-        const sourceLangSlug = ALL_LANGUAGES.find(l => l.code === finalProductData.language)?.slug || 'es';
-        const originalPayload = { productData: { ...finalProductData, targetLanguages: [] }, lang: sourceLangSlug };
-        
-        const originalResponse = await fetch('/api/woocommerce/products', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(originalPayload) });
-
-        if (!originalResponse.ok) { const errorData = await originalResponse.json(); throw new Error(errorData.error || `Error creando producto original`); }
         const originalResult = await originalResponse.json();
-        createdPostUrls.push({ url: originalResult.data.url, title: originalResult.data.title });
-        allTranslations[sourceLangSlug] = originalResult.data.id;
-        updateStepStatus('create_original', 'success', 'Producto original creado con éxito.');
-
-        // --- Step 3: Create Translations ---
-        if (finalProductData.targetLanguages) {
-            for (const lang of finalProductData.targetLanguages) {
-                updateStepStatus(`translate_${lang}`, 'processing', `Traduciendo con IA...`);
-                const translationPayload = {
-                    name: finalProductData.name, short_description: finalProductData.shortDescription, long_description: finalProductData.longDescription,
-                };
-                const translateResponse = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ contentToTranslate: translationPayload, targetLanguage: lang }) });
-                if (!translateResponse.ok) throw new Error(`Error traduciendo a ${lang}`);
-                const translatedContent = (await translateResponse.json());
-                updateStepStatus(`translate_${lang}`, 'success', `Contenido traducido.`);
-
-                updateStepStatus(`create_${lang}`, 'processing', 'Enviando datos a WooCommerce...');
-                const targetLangSlug = ALL_LANGUAGES.find(l => l.code === lang)?.slug || lang.toLowerCase().substring(0, 2);
-                const translatedProductData = {
-                  ...finalProductData,
-                  name: translatedContent.name,
-                  shortDescription: translatedContent.short_description,
-                  longDescription: translatedContent.long_description,
-                  sku: `${finalProductData.sku || 'PROD'}-${targetLangSlug.toUpperCase()}`
-                };
-                
-                const translatedPayload = { productData: translatedProductData, lang: targetLangSlug };
-                const translatedResponse = await fetch('/api/woocommerce/products', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(translatedPayload) });
-                if (!translatedResponse.ok) { const errorData = await translatedResponse.json(); throw new Error(errorData.error || `Error creando producto en ${lang}`); }
-                const translatedResult = await translatedResponse.json();
-                createdPostUrls.push({ url: translatedResult.data.url, title: translatedResult.data.title });
-                allTranslations[targetLangSlug] = translatedResult.data.id;
-                updateStepStatus(`create_${lang}`, 'success', `Producto creado.`);
-            }
-        }
+        const mainProductId = originalResult.data.id;
         
-        // --- Step 4: Final Sync of all translation links ---
-        if (Object.keys(allTranslations).length > 1) {
-            updateStepStatus('sync_translations', 'processing', 'Enlazando traducciones en WordPress...');
-            const linkResponse = await fetch('/api/wordpress/posts/link-translations', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ translations: allTranslations }) });
-            if (!linkResponse.ok) { const errorResult = await linkResponse.json(); throw new Error(errorResult.message || 'Error al enlazar las traducciones.'); }
-            updateStepStatus('sync_translations', 'success', 'Traducciones enlazadas.');
+        updateStepStatus('create_product', 'success', 'Producto original creado con éxito.');
+        setFinalLinks([{ url: originalResult.data.url, title: originalResult.data.title }]);
+
+        // Now, handle translations if any
+        if (productData.targetLanguages && productData.targetLanguages.length > 0) {
+            updateStepStatus('sync_translations', 'processing', 'Iniciando traducciones...');
+            const translateResponse = await fetch('/api/woocommerce/products/translate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({
+                productId: mainProductId,
+                targetLanguages: productData.targetLanguages,
+              }),
+            });
+            
+             if (!translateResponse.ok) { 
+                const errorData = await translateResponse.json(); 
+                throw new Error(errorData.error || `Error en la traducción`); 
+            }
+            const translationResult = await translateResponse.json();
+            updateStepStatus('sync_translations', 'success', translationResult.message);
         }
 
-        setFinalLinks(createdPostUrls);
         setSubmissionStatus('success');
 
     } catch (error: any) {

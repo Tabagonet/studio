@@ -36,10 +36,6 @@ export function Step4Processing({ status, steps }: Step4ProcessingProps) {
         }
     }
     
-    const totalProgress = steps.length > 0
-        ? steps.reduce((sum, step) => sum + (step.progress || 0), 0) / steps.length
-        : 0;
-
     return (
         <div className="space-y-8">
             <Card>
@@ -49,11 +45,6 @@ export function Step4Processing({ status, steps }: Step4ProcessingProps) {
                    {getOverallDescription()}
                 </CardDescription>
                 </CardHeader>
-                 {status === 'processing' && (
-                    <CardContent>
-                        <Progress value={totalProgress} className="w-full" />
-                    </CardContent>
-                 )}
             </Card>
 
             <Card>

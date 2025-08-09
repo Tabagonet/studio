@@ -33,10 +33,6 @@ export interface ProductPhoto {
   status: UploadStatus;
   progress: number; // 0-100
   error?: string; // Error message if upload fails
-  // Fields for the new upload flow
-  uploadedUrl?: string; // The URL from the temporary host
-  uploadedFilename?: string; // The filename on the temporary host
-  serverFilePath?: string; // The physical path on the server after processing
   uploadedId?: number; // The WordPress media ID after upload
 }
 
@@ -221,8 +217,8 @@ export interface SubmissionStep {
   name: string;
   status: SubmissionStepStatus;
   progress?: number;
-  error?: string;
   message?: string;
+  error?: string;
 }
 
 export interface ActivityLog {
