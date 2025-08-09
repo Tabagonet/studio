@@ -38,7 +38,6 @@ function EditProductPageContent() {
   }, []);
 
   const handlePhotosChange = useCallback((updatedPhotos: ProductPhoto[]) => {
-    // This is the corrected way to update state to avoid stale references.
     setProduct(prev => (prev ? { ...prev, images: updatedPhotos } : null));
   }, []);
   
@@ -66,12 +65,12 @@ function EditProductPageContent() {
         
         // Append only the new image files that need uploading.
         const newPhotoFiles = product.images.filter(p => p.file);
-        for (const photo of newPhotoFiles) {
+        newPhotoFiles.forEach(photo => {
             if (photo.file) {
                 // The key for each file should be unique. Using the temporary ID is a good way.
                 formData.append(photo.id.toString(), photo.file, photo.name);
             }
-        }
+        });
 
         const response = await fetch(`/api/woocommerce/products/${productId}`, {
             method: 'PUT',

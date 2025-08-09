@@ -54,7 +54,7 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
     if (photoToDelete.isPrimary && remainingPhotos.length > 0) {
         remainingPhotos[0].isPrimary = true;
     }
-    onPhotosChange(remainingPhotos); // <-- This is the corrected line
+    onPhotosChange(remainingPhotos);
     toast({ title: "Imagen Eliminada", description: `${photoToDelete.name} ha sido eliminada de la cola.` });
   }, [photos, onPhotosChange, toast]);
   
@@ -65,7 +65,7 @@ export function ImageUploader({ photos: photosProp, onPhotosChange, isProcessing
     }));
     const primaryPhoto = updatedPhotos.find(p => p.isPrimary);
     const otherPhotos = updatedPhotos.filter(p => !p.isPrimary);
-    onPhotosChange(primaryPhoto ? [primaryPhoto, ...otherPhotos] : otherPhotos); // <-- This is the corrected line
+    onPhotosChange(primaryPhoto ? [primaryPhoto, ...otherPhotos] : otherPhotos);
   }, [photos, onPhotosChange]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
