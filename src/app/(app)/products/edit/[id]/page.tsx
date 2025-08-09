@@ -5,11 +5,11 @@
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Save, Trash2 } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, Trash2, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import type { WooCommerceCategory, ProductPhoto, ProductVariation, WooCommerceImage } from '@/lib/types';
+import type { WooCommerceCategory, ProductPhoto, ProductVariation, WooCommerceImage, ProductVariationAttribute, ProductAttribute } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
@@ -38,6 +38,7 @@ function EditProductPageContent() {
   }, []);
 
   const handlePhotosChange = useCallback((updatedPhotos: ProductPhoto[]) => {
+    // This is the corrected way to update state to avoid stale references.
     setProduct(prev => (prev ? { ...prev, images: updatedPhotos } : null));
   }, []);
   
@@ -224,9 +225,9 @@ function EditProductPageContent() {
                           <CardDescription>Editando: {product.name}</CardDescription>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                          <Button variant="outline" onClick={() => router.push('/batch')}>
+                          <Button variant="outline" onClick={() => router.back()}>
                               <ArrowLeft className="mr-2 h-4 w-4" />
-                              Volver a la lista
+                              Volver
                           </Button>
                           <Button onClick={handleSaveChanges} disabled={isSaving}>
                               {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
