@@ -33,6 +33,9 @@ export interface ProductPhoto {
   status: UploadStatus;
   progress: number; // 0-100
   error?: string; // Error message if upload fails
+  uploadedUrl?: string; // The URL from the temporary host
+  uploadedFilename?: string; // The filename on the temporary host
+  serverPath?: string; // The absolute path on our server
   uploadedId?: number; // The WordPress media ID after upload
 }
 
@@ -475,7 +478,7 @@ export interface Plan {
   sites: number;
   users: number;
   aiCredits: number;
-  features: Record<string, boolean>; // e.g. { '/wizard': true, '/batch': false }
+  features: Record<string, boolean>; // e.g., { '/wizard': true, '/batch': false }
 }
 
 export interface PlanUsage {

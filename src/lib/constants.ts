@@ -1,7 +1,6 @@
 
-
-import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList, SearchCheck, Copy, Building, Megaphone, Briefcase, Store, ListChecks, Lightbulb, FileText, Shield, Sparkles, User } from 'lucide-react';
 import type { NavItem, ProductType, ProductData, BlogPostData, NavGroup } from '@/lib/types';
+import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList, SearchCheck, Copy, Building, Megaphone, Briefcase, Store, ListChecks, Lightbulb, FileText, Shield, Sparkles, User } from 'lucide-react';
 import { ShopifyIcon } from '@/components/core/icons';
 
 export const APP_NAME = "AutoPress AI";

@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { SubmissionStatus, SubmissionStep } from "@/lib/types";
 import { CheckCircle, Circle, Loader2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Progress } from "@/components/ui/progress";
 
 
 interface Step4ProcessingProps {

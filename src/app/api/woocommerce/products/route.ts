@@ -19,11 +19,9 @@ const slugify = (text: string) => {
 
 export async function POST(request: NextRequest) {
     let uid: string;
-    let authToken: string;
     try {
         const token = request.headers.get('Authorization')?.split('Bearer ')[1];
         if (!token) { return NextResponse.json({ error: 'Authentication token not provided.' }, { status: 401 }); }
-        authToken = token;
         if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
         
         const decodedToken = await adminAuth.verifyIdToken(token);
@@ -32,30 +30,38 @@ export async function POST(request: NextRequest) {
         const { wpApi } = await getApiClientsForUser(uid);
         if (!wpApi) { throw new Error('WordPress API is not configured.'); }
 
-        const body = await request.json();
-        
-        const finalProductData: ProductData = body.productData;
-        const lang: string = body.lang;
+        const formData = await request.formData();
+        const productDataString = formData.get('productData') as string | null;
+        if (!productDataString) {
+            throw new Error('productData is missing from the form data.');
+        }
+
+        const finalProductData: ProductData = JSON.parse(productDataString);
+        const photoFiles = formData.getAll('photos') as File[];
+
+        const lang: string = finalProductData.language === 'Spanish' ? 'es' : 'en'; // Simple mapping for now
 
         // 1. Upload images to WordPress and get their new media IDs
         const uploadedImageIds: { [key: string]: number } = {};
-        if (finalProductData.photos && finalProductData.photos.length > 0) {
-            for (const photo of finalProductData.photos) {
-                if (photo.serverFilePath) { // Use the server path if available
-                    const seoFilename = `${slugify(photo.name)}.webp`;
-                    
+        if (photoFiles.length > 0) {
+             for (const file of photoFiles) {
+                const originalPhoto = finalProductData.photos.find(p => p.name === file.name);
+                if (originalPhoto) {
+                    const seoFilename = `${slugify(finalProductData.name || 'product')}-${Date.now()}.webp`;
+                    const imageBuffer = Buffer.from(await file.arrayBuffer());
+
                     const newImageId = await uploadImageToWordPress(
-                        photo.serverFilePath, // Pass the physical file path
+                        imageBuffer, // Pass the buffer directly
                         seoFilename,
                         {
-                            title: finalProductData.imageTitle || photo.name,
-                            alt_text: finalProductData.imageAltText || photo.name,
+                            title: finalProductData.imageTitle || finalProductData.name,
+                            alt_text: finalProductData.imageAltText || finalProductData.name,
                             caption: finalProductData.imageCaption || '',
                             description: finalProductData.imageDescription || '',
                         },
                         wpApi
                     );
-                    uploadedImageIds[photo.id] = newImageId;
+                    uploadedImageIds[originalPhoto.id] = newImageId;
                 }
             }
         }
@@ -102,7 +108,7 @@ export async function POST(request: NextRequest) {
             });
         }
         
-        const tagNames = finalProductData.tags ? (typeof finalProductData.tags === 'string' ? finalProductData.tags.split(',') : finalProductData.tags).map(t => t.trim()).filter(Boolean) : [];
+        const tagNames = typeof finalProductData.tags === 'string' ? finalProductData.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
         const wooTags = await findOrCreateTags(tagNames, wpApi);
 
         let finalSku = finalProductData.sku;

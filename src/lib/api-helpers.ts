@@ -274,7 +274,7 @@ export function findBeaverBuilderImages(data: any[]): { url: string; }[] {
 }
 
 export async function uploadImageToWordPress(
-  imageBuffer: Buffer,
+  imageSource: Buffer | string, // Can now be a Buffer or a file path (string)
   seoFilename: string,
   imageMetadata: { title: string; alt_text: string; caption: string; description: string; },
   wpApi: AxiosInstance,
@@ -283,6 +283,16 @@ export async function uploadImageToWordPress(
   position?: string,
 ): Promise<number> {
     try {
+        let imageBuffer: Buffer;
+        
+        if (typeof imageSource === 'string') {
+            // It's a file path, read it from disk
+            imageBuffer = await fs.readFile(imageSource);
+        } else {
+            // It's already a buffer
+            imageBuffer = imageSource;
+        }
+
         let sharpInstance = sharp(imageBuffer);
 
         if (width || height) {
