@@ -104,9 +104,18 @@ export function ProductWizard() {
         // --- Step 2: Create Original Product ---
         updateStepStatus('create_original', 'processing', 'Enviando datos a WooCommerce...', undefined, 50);
         const sourceLangSlug = ALL_LANGUAGES.find(l => l.code === finalProductData.language)?.slug || 'es';
-        const originalPayload = { productData: { ...finalProductData, targetLanguages: [] }, lang: sourceLangSlug };
         
-        const originalResponse = await fetch('/api/woocommerce/products', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(originalPayload) });
+        // Correctly structure the payload for the creation endpoint
+        const originalApiPayload = {
+            productData: { ...finalProductData, targetLanguages: [] },
+            lang: sourceLangSlug
+        };
+        const originalResponse = await fetch('/api/woocommerce/products', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(originalApiPayload)
+        });
+
         if (!originalResponse.ok) { const errorData = await originalResponse.json(); throw new Error(errorData.error || `Error creando producto original`); }
         const originalResult = await originalResponse.json();
         createdPostUrls.push({ url: originalResult.data.url, title: originalResult.data.title });
@@ -138,8 +147,8 @@ export function ProductWizard() {
                   sku: `${finalProductData.sku || 'PROD'}-${targetLangSlug.toUpperCase()}`
                 };
                 
-                const translatedPayload = { productData: translatedProductData, lang: targetLangSlug };
-                const translatedResponse = await fetch('/api/woocommerce/products', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(translatedPayload) });
+                const translatedApiPayload = { productData: translatedProductData, lang: targetLangSlug };
+                const translatedResponse = await fetch('/api/woocommerce/products', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(translatedApiPayload) });
                 if (!translatedResponse.ok) { const errorData = await translatedResponse.json(); throw new Error(errorData.error || `Error creando producto en ${lang}`); }
                 const translatedResult = await translatedResponse.json();
                 createdPostUrls.push({ url: translatedResult.data.url, title: translatedResult.data.title });

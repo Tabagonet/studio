@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
 import { getApiClientsForUser, uploadImageToWordPress, findOrCreateWpCategoryByPath, findOrCreateTags } from '@/lib/api-helpers';
-import type { ProductData, ProductVariation } from '@/lib/types';
+import type { ProductData, ProductVariation, ProductPhoto } from '@/lib/types';
 import axios from 'axios';
 
 const slugify = (text: string) => {
@@ -19,24 +19,23 @@ const slugify = (text: string) => {
 
 export async function POST(request: NextRequest) {
     let uid: string;
+    let authToken: string;
     try {
         const token = request.headers.get('Authorization')?.split('Bearer ')[1];
         if (!token) { return NextResponse.json({ error: 'Authentication token not provided.' }, { status: 401 }); }
+        authToken = token;
         if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
         
         const decodedToken = await adminAuth.verifyIdToken(token);
         uid = decodedToken.uid;
         
-        const { wooApi, wpApi, activeConnectionKey, settings } = await getApiClientsForUser(uid);
-        if (!wooApi || !wpApi) { throw new Error('Both WooCommerce and WordPress APIs must be configured.'); }
+        const { wpApi } = await getApiClientsForUser(uid);
+        if (!wpApi) { throw new Error('WordPress API must be configured.'); }
+
+        const body = await request.json();
         
-        const formData = await request.formData();
-        const productDataString = formData.get('productData');
-        if (typeof productDataString !== 'string') {
-            throw new Error("productData is missing or not a string.");
-        }
-        
-        const finalProductData: ProductData = JSON.parse(productDataString);
+        const finalProductData: ProductData = body.productData;
+        const lang: string = body.lang;
 
         // 1. Handle category
         let finalCategoryIds: { id: number }[] = [];
@@ -48,41 +47,21 @@ export async function POST(request: NextRequest) {
             if (newCatId) finalCategoryIds.push({ id: newCatId });
         }
         
-        // Handle supplier category
         const supplierToAdd = finalProductData.supplier || finalProductData.newSupplier;
         if (supplierToAdd) {
             const supplierCatId = await findOrCreateWpCategoryByPath(`Proveedores > ${supplierToAdd}`, wpApi, 'product_cat');
             if (supplierCatId) finalCategoryIds.push({ id: supplierCatId });
         }
 
-        // 2. Upload and process images
-        const wordpressImageIds: {id: number, src: string}[] = [];
-        const photoFiles = formData.getAll('photos');
-
-        for (const [index, photoFile] of photoFiles.entries()) {
-            if (photoFile instanceof File) {
-                 const newImage = await uploadImageToWordPress(
-                    photoFile,
-                    `${slugify(finalProductData.name)}-${index + 1}.webp`,
-                    { title: finalProductData.imageTitle || finalProductData.name, alt_text: finalProductData.imageAltText || finalProductData.name, caption: finalProductData.imageCaption || '', description: finalProductData.imageDescription || '' },
-                    wpApi
-                );
-                wordpressImageIds.push({ id: newImage.id, src: newImage.source_url });
+        // 2. Prepare image data - This API now expects IDs, not files
+        const wordpressImageIds = finalProductData.photos.map(photo => {
+            if (photo.uploadedId) { // Check for the WordPress Media ID
+                return { id: photo.uploadedId };
             }
-        }
+            return null;
+        }).filter((img): img is { id: number } => img !== null);
         
-        const uploadedImagesMap = new Map<string, number>();
-        finalProductData.photos.forEach((photo, index) => {
-            if (photo.file) { // This indicates it was a new upload
-                const correspondingUpload = wordpressImageIds[index];
-                if (correspondingUpload) {
-                    uploadedImagesMap.set(photo.id, correspondingUpload.id);
-                }
-            }
-        });
-
-
-        // 3. Prepare product data - Corrected Attribute Logic
+        // 3. Prepare product data
         const wooAttributes = finalProductData.attributes
             .filter(attr => attr.name && attr.name.trim() !== '')
             .map((attr, index) => ({
@@ -93,18 +72,13 @@ export async function POST(request: NextRequest) {
                 options: attr.value.split('|').map(s => s.trim()),
             }));
         
-        // Add supplier attribute
         if (supplierToAdd) {
             wooAttributes.push({
-                name: 'Proveedor',
-                position: wooAttributes.length,
-                visible: true,
-                variation: false,
-                options: [supplierToAdd],
+                name: 'Proveedor', position: wooAttributes.length,
+                visible: true, variation: false, options: [supplierToAdd],
             });
         }
         
-        // Correct Tag Handling from string to array of objects
         const tagNames = finalProductData.tags ? finalProductData.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
         const wooTags = await findOrCreateTags(tagNames, wpApi);
 
@@ -121,10 +95,10 @@ export async function POST(request: NextRequest) {
             description: finalProductData.longDescription,
             short_description: finalProductData.shortDescription,
             categories: finalCategoryIds,
-            images: wordpressImageIds.map(img => ({ id: img.id })),
+            images: wordpressImageIds,
             attributes: wooAttributes,
             tags: wooTags.map(tagId => ({ id: tagId })),
-            lang: finalProductData.language === 'Spanish' ? 'es' : 'en', // Default to es
+            lang: lang,
             weight: finalProductData.weight || undefined,
             dimensions: finalProductData.dimensions,
             shipping_class: finalProductData.shipping_class || undefined,
@@ -146,6 +120,8 @@ export async function POST(request: NextRequest) {
         }
 
         // 4. Create the product
+        const { wooApi } = await getApiClientsForUser(uid); // Re-get to avoid passing it around
+        if (!wooApi) throw new Error("WooCommerce API client could not be created.");
         const response = await wooApi.post('products', wooPayload);
         const createdProduct = response.data;
         const productId = createdProduct.id;
@@ -181,14 +157,14 @@ export async function POST(request: NextRequest) {
 
             for (let i = 0; i < finalProductData.variations.length; i++) {
                 const clientVar = finalProductData.variations[i];
-                const serverVar = createdVariations[i]; // Assume order is preserved
+                const serverVar = createdVariations[i]; 
 
                 if (serverVar && clientVar.image?.id) {
-                     const imageIdToSet = uploadedImagesMap.get(String(clientVar.image.id));
-                     if (imageIdToSet) {
+                     const photo = finalProductData.photos.find(p => p.id === clientVar.image?.id);
+                     if (photo?.uploadedId) { // Check for the wordpress ID
                          variationImageUpdates.push({
                              variation_id: serverVar.id,
-                             image_id: imageIdToSet,
+                             image_id: photo.uploadedId,
                          });
                      }
                 }
@@ -203,6 +179,7 @@ export async function POST(request: NextRequest) {
 
         // 6. Log the activity
         if (adminDb && admin.firestore.FieldValue) { 
+            const { settings } = await getApiClientsForUser(uid);
             await adminDb.collection('activity_logs').add({
                 userId: uid,
                 action: 'PRODUCT_CREATED',
@@ -210,13 +187,14 @@ export async function POST(request: NextRequest) {
                 details: {
                     productId,
                     productName: createdProduct.name,
-                    connectionKey: activeConnectionKey,
+                    connectionKey: settings?.activeConnectionKey,
                     source: finalProductData.source || 'unknown'
                 }
             });
         }
         
-        const storeUrl = settings?.connections?.[activeConnectionKey as string]?.wooCommerceStoreUrl || '';
+        const { settings } = await getApiClientsForUser(uid);
+        const storeUrl = settings?.connections?.[settings?.activeConnectionKey as string]?.wooCommerceStoreUrl || '';
         const cleanStoreUrl = storeUrl.endsWith('/') ? storeUrl.slice(0, -1) : storeUrl;
         
         return NextResponse.json({

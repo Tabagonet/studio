@@ -36,6 +36,7 @@ export interface ProductPhoto {
   // Fields for the new upload flow
   uploadedUrl?: string; // The URL from the temporary host (quefoto.es)
   uploadedFilename?: string; // The filename on the temporary host
+  uploadedId?: number; // The WordPress media ID after upload
 }
 
 export interface WooCommerceImage {
