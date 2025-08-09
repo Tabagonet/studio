@@ -2,7 +2,7 @@
 /*
 Plugin Name: AutoPress AI Helper
 Description: Añade endpoints a la REST API para gestionar traducciones, stock y otras funciones personalizadas para AutoPress AI.
-Version: 1.52
+Version: 1.53
 Author: intelvisual@intelvisual.es
 Requires at least: 5.8
 Requires PHP: 7.4
@@ -164,6 +164,7 @@ function autopress_ai_register_rest_endpoints() {
         register_rest_route( 'custom/v1', '/clone-menu', ['methods' => 'POST', 'callback' => 'custom_api_clone_menu', 'permission_callback' => 'autopress_ai_permission_check']);
         
         register_rest_route( 'custom/v1', '/get-or-create-category', ['methods' => 'POST', 'callback' => 'custom_api_get_or_create_category', 'permission_callback' => 'autopress_ai_permission_check']);
+        register_rest_route('custom/v1', '/update-variation-images', ['methods' => 'POST', 'callback' => 'custom_api_update_variation_images', 'permission_callback' => 'autopress_ai_permission_check']);
 
     });
     
@@ -340,6 +341,39 @@ function autopress_ai_register_rest_endpoints() {
         } else {
             return new WP_Error('final_term_not_found', 'No se pudo resolver la categoría final.', ['status' => 500]);
         }
+    }
+    
+    function custom_api_update_variation_images(WP_REST_Request $request) {
+        $variation_images = $request->get_param('variation_images');
+
+        if (empty($variation_images) || !is_array($variation_images)) {
+            return new WP_Error('invalid_payload', 'Se requiere un array de "variation_images".', ['status' => 400]);
+        }
+
+        $results = ['success' => [], 'failed' => []];
+
+        foreach ($variation_images as $item) {
+            $variation_id = isset($item['variation_id']) ? absint($item['variation_id']) : 0;
+            $image_id = isset($item['image_id']) ? absint($item['image_id']) : null;
+
+            if (!$variation_id) {
+                $results['failed'][] = ['id' => 'unknown', 'reason' => 'ID de variación inválido.'];
+                continue;
+            }
+            if (!current_user_can('edit_post', $variation_id)) {
+                 $results['failed'][] = ['id' => $variation_id, 'reason' => 'Permiso denegado.'];
+                continue;
+            }
+
+            if ($image_id) {
+                update_post_meta($variation_id, '_thumbnail_id', $image_id);
+            } else {
+                delete_post_meta($variation_id, '_thumbnail_id');
+            }
+            $results['success'][] = $variation_id;
+        }
+
+        return new WP_REST_Response(['success' => true, 'data' => $results], 200);
     }
 }
 ?>

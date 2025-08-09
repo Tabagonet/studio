@@ -1,3 +1,4 @@
+// src/app/(app)/wizard/step-2-preview.tsx
 
 "use client";
 
@@ -142,12 +143,13 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                   <Accordion type="single" collapsible className="w-full">
                     {variations.map(variation => {
                         const variationImage = photos.find(p => String(p.id) === String(variation.image?.id));
+                        const displayImage = variationImage || primaryPhoto;
                         return (
                           <AccordionItem value={variation.id} key={variation.id}>
                             <AccordionTrigger>
                               <div className="flex items-center gap-3">
-                                {variationImage ? (
-                                  <Image src={variationImage.previewUrl} alt="Variación" width={40} height={40} className="rounded-md object-cover h-10 w-10"/>
+                                {displayImage ? (
+                                  <Image src={displayImage.previewUrl} alt="Variación" width={40} height={40} className="rounded-md object-cover h-10 w-10"/>
                                 ) : (
                                   <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
                                       <ImageIcon className="h-5 w-5 text-muted-foreground"/>

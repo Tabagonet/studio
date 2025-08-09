@@ -1,4 +1,3 @@
-
 // src/app/api/woocommerce/products/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -57,20 +56,31 @@ export async function POST(request: NextRequest) {
         }
 
         // 2. Upload and process images
-        const wordpressImageIds = [];
+        const wordpressImageIds: {id: number, src: string}[] = [];
         const photoFiles = formData.getAll('photos');
 
         for (const [index, photoFile] of photoFiles.entries()) {
             if (photoFile instanceof File) {
-                 const newImageId = await uploadImageToWordPress(
+                 const newImage = await uploadImageToWordPress(
                     photoFile,
                     `${slugify(finalProductData.name)}-${index + 1}.webp`,
                     { title: finalProductData.imageTitle || finalProductData.name, alt_text: finalProductData.imageAltText || finalProductData.name, caption: finalProductData.imageCaption || '', description: finalProductData.imageDescription || '' },
                     wpApi
                 );
-                wordpressImageIds.push({ id: newImageId });
+                wordpressImageIds.push({ id: newImage.id, src: newImage.source_url });
             }
         }
+        
+        const uploadedImagesMap = new Map<string, number>();
+        finalProductData.photos.forEach((photo, index) => {
+            if (photo.file) { // This indicates it was a new upload
+                const correspondingUpload = wordpressImageIds[index];
+                if (correspondingUpload) {
+                    uploadedImagesMap.set(photo.id, correspondingUpload.id);
+                }
+            }
+        });
+
 
         // 3. Prepare product data - Corrected Attribute Logic
         const wooAttributes = finalProductData.attributes
@@ -111,7 +121,7 @@ export async function POST(request: NextRequest) {
             description: finalProductData.longDescription,
             short_description: finalProductData.shortDescription,
             categories: finalCategoryIds,
-            images: wordpressImageIds,
+            images: wordpressImageIds.map(img => ({ id: img.id })),
             attributes: wooAttributes,
             tags: wooTags.map(tagId => ({ id: tagId })),
             lang: finalProductData.language === 'Spanish' ? 'es' : 'en', // Default to es
@@ -164,7 +174,31 @@ export async function POST(request: NextRequest) {
                 }
                 return variationPayload;
             });
-            await wooApi.post(`products/${productId}/variations/batch`, { create: batchCreatePayload });
+            const batchResponse = await wooApi.post(`products/${productId}/variations/batch`, { create: batchCreatePayload });
+            
+            const createdVariations = batchResponse.data.create;
+            const variationImageUpdates = [];
+
+            for (let i = 0; i < finalProductData.variations.length; i++) {
+                const clientVar = finalProductData.variations[i];
+                const serverVar = createdVariations[i]; // Assume order is preserved
+
+                if (serverVar && clientVar.image?.id) {
+                     const imageIdToSet = uploadedImagesMap.get(String(clientVar.image.id));
+                     if (imageIdToSet) {
+                         variationImageUpdates.push({
+                             variation_id: serverVar.id,
+                             image_id: imageIdToSet,
+                         });
+                     }
+                }
+            }
+
+            if (variationImageUpdates.length > 0) {
+                 const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
+                 const updateImageEndpoint = `${siteUrl}/wp-json/custom/v1/update-variation-images`;
+                 await wpApi.post(updateImageEndpoint, { variation_images: variationImageUpdates });
+            }
         }
 
         // 6. Log the activity
