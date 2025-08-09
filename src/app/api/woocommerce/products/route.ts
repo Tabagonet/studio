@@ -3,8 +3,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
 import { getApiClientsForUser, uploadImageToWordPress, findOrCreateTags, findOrCreateWpCategoryByPath } from '@/lib/api-helpers';
-import type { ProductData, ProductVariation, ProductPhoto } from '@/lib/types';
-import axios from 'axios';
+import type { ProductData, ProductVariation } from '@/lib/types';
+import sharp from 'sharp';
 
 const slugify = (text: string) => {
     if (!text) return '';
@@ -41,38 +41,34 @@ export async function POST(request: NextRequest) {
 
         const lang: string = finalProductData.language === 'Spanish' ? 'es' : 'en';
 
-        const uploadedImageIds: { [key: string]: number } = {};
-        const tempFilePaths: string[] = []; // Keep track of temp files to clean up
+        const wordpressImageIds: { id: number }[] = [];
         
         if (photoFiles.length > 0) {
             for (const file of photoFiles) {
-                const originalPhoto = finalProductData.photos.find(p => p.name === file.name);
-                if (originalPhoto) {
-                    const seoFilename = `${slugify(finalProductData.name || 'product')}-${Date.now()}.webp`;
-                    const imageBuffer = Buffer.from(await file.arrayBuffer());
+                const imageBuffer = Buffer.from(await file.arrayBuffer());
+                
+                // Process with sharp before uploading
+                const processedBuffer = await sharp(imageBuffer)
+                    .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
+                    .webp({ quality: 80 })
+                    .toBuffer();
 
-                    const newImageId = await uploadImageToWordPress(
-                        imageBuffer,
-                        seoFilename,
-                        {
-                            title: finalProductData.imageTitle || finalProductData.name,
-                            alt_text: finalProductData.imageAltText || finalProductData.name,
-                            caption: finalProductData.imageCaption || '',
-                            description: finalProductData.imageDescription || '',
-                        },
-                        wpApi
-                    );
-                    uploadedImageIds[originalPhoto.id] = newImageId;
-                }
+                const seoFilename = `${slugify(finalProductData.name || 'product')}-${Date.now()}.webp`;
+
+                const newImageId = await uploadImageToWordPress(
+                    processedBuffer,
+                    seoFilename,
+                    {
+                        title: finalProductData.imageTitle || finalProductData.name,
+                        alt_text: finalProductData.imageAltText || finalProductData.name,
+                        caption: finalProductData.imageCaption || '',
+                        description: finalProductData.imageDescription || '',
+                    },
+                    wpApi
+                );
+                wordpressImageIds.push({ id: newImageId });
             }
         }
-        
-        const wordpressImageIds = finalProductData.photos
-            .map(photo => {
-                const mediaId = uploadedImageIds[photo.id] || photo.uploadedId;
-                return mediaId ? { id: mediaId } : null;
-            })
-            .filter((img): img is { id: number } => img !== null);
         
         let finalCategoryIds: { id: number }[] = [];
         if (finalProductData.category?.id) {
@@ -185,7 +181,7 @@ export async function POST(request: NextRequest) {
                 const serverVar = createdVariations[i]; 
 
                 if (serverVar && clientVar.image?.id) {
-                     const imageId = uploadedImageIds[clientVar.image.id];
+                     const imageId = clientVar.image.id;
                      if (imageId) {
                          variationImageUpdates.push({
                              variation_id: serverVar.id,

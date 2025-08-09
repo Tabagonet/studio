@@ -73,14 +73,11 @@ function EditProductPageContent() {
 
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
-
+  
   const [isSuggestingLinks, setIsSuggestingLinks] = useState<boolean>(false);
   const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>([]);
 
   const updateProductData = useCallback((data: Partial<ProductEditState>) => {
-    console.log('[AUDIT - updateProductData] El componente padre recibe la actualización:', data);
     setProduct(prev => (prev ? { ...prev, ...data } : null));
   }, []);
 
@@ -118,7 +115,6 @@ function EditProductPageContent() {
   };
 
   const handleSaveChanges = async () => {
-    console.log('[AUDIT - handleSaveChanges] Iniciando guardado de producto.');
     setIsSaving(true);
     const user = auth.currentUser;
     if (!user || !product) {
@@ -129,43 +125,20 @@ function EditProductPageContent() {
 
     try {
         const token = await user.getIdToken();
-        const formData = new FormData();
+        const payload = {
+          ...product,
+          images: product.images.map(p => ({ id: p.id, src: p.uploadedUrl || p.previewUrl })),
+        };
         
-        console.log('[AUDIT - handleSaveChanges] Producto a guardar:', product);
-
-        // Separar archivos de imagen del resto de los datos
-        const productDataToSend = { ...product };
-        const newImages = productDataToSend.images.filter(img => img.file);
-        
-        // Quitar el objeto File antes de serializar a JSON
-        productDataToSend.images = productDataToSend.images.map(img => {
-            const { file, ...rest } = img;
-            return rest as ProductPhoto;
-        });
-
-        formData.append('productData', JSON.stringify(productDataToSend));
-        console.log('[AUDIT - handleSaveChanges] "productData" añadido al FormData.');
-
-        // Adjuntar los archivos de imagen
-        newImages.forEach(photo => {
-            if (photo.file) {
-                formData.append('photos', photo.file, photo.name);
-                console.log(`[AUDIT - handleSaveChanges] Archivo de imagen "${photo.name}" añadido al FormData.`);
-            }
-        });
-        
-        console.log(`[AUDIT - PUT /products/:id] Enviando petición PUT a /api/woocommerce/products/${productId}`);
         const response = await fetch(`/api/woocommerce/products/${productId}`, {
             method: 'PUT',
-            headers: { 'Authorization': `Bearer ${token}` },
-            body: formData,
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(payload),
         });
         
         const result = await response.json();
 
-
         if (!response.ok) {
-            console.error('[AUDIT - PUT /products/:id] La respuesta de la API no fue OK:', result);
             throw new Error(result.error || 'Fallo al guardar los cambios.');
         }
         
@@ -173,7 +146,6 @@ function EditProductPageContent() {
         router.push('/batch');
 
     } catch (e: any) {
-        console.error('[AUDIT - handleSaveChanges] Error en el bloque catch:', e);
         toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
     } finally {
         setIsSaving(false);
@@ -305,41 +277,14 @@ function EditProductPageContent() {
     }
   }, [productId, toast]);
   
-  const handleInsertImageInLongDesc = useCallback(async () => {
-    let finalImageUrl = imageUrl;
-    if (imageFile) {
-        setIsUploadingImage(true);
-        try {
-            const user = auth.currentUser;
-            if (!user) throw new Error("No autenticado.");
-            const token = await user.getIdToken();
-            const formData = new FormData();
-            formData.append('imagen', imageFile);
-            const response = await fetch('/api/upload-image', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData });
-            if (!response.ok) throw new Error((await response.json()).error || 'Fallo en la subida de imagen.');
-            finalImageUrl = (await response.json()).url;
-        } catch (err: any) {
-            toast({ title: 'Error al subir imagen', description: err.message, variant: 'destructive' });
-            setIsUploadingImage(false);
-            return;
-        } finally {
-            setIsUploadingImage(false);
-        }
-    }
-    if (!finalImageUrl) {
-        toast({ title: 'Falta la imagen', description: 'Por favor, sube un archivo o introduce una URL.', variant: 'destructive' });
-        return;
-    }
-
-    const imgTag = `<img src="${finalImageUrl}" alt="${product?.name || 'Imagen insertada'}" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px;" />`;
+  const handleInsertImageInLongDesc = async (url: string) => {
+    const imgTag = `<img src="${url}" alt="${product?.name || 'Imagen insertada'}" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px;" />`;
     if (product) {
       setProduct({ ...product, description: product.description + `\n${imgTag}` });
     }
-
     setImageUrl('');
-    setImageFile(null);
     setIsImageDialogOpen(false);
-  }, [imageUrl, imageFile, product, toast]);
+  };
 
   const handleSuggestLinks = async () => {
     if (!product || !product.description.trim()) {
@@ -552,7 +497,22 @@ function EditProductPageContent() {
               </div>
           </div>
       </div>
-      <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Insertar Imagen</AlertDialogTitle><AlertDialogDescription>Sube una imagen o introduce una URL para insertarla en el contenido.</AlertDialogDescription></AlertDialogHeader><div className="space-y-4"><div><Label htmlFor="image-upload">Subir archivo</Label><Input id="image-upload" type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} /></div><div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">O</span></div></div><div><Label htmlFor="image-url">Insertar desde URL</Label><Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" /></div></div><AlertDialogFooter><AlertDialogCancel onClick={() => { setImageUrl(''); setImageFile(null); }}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleInsertImageInLongDesc} disabled={isUploadingImage}>{isUploadingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Insertar Imagen</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+       <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+                  <AlertDialogTitle>Insertar Imagen desde URL</AlertDialogTitle>
+                  <AlertDialogDescription>Pega la URL de una imagen para insertarla en el contenido.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="py-4">
+                  <Label htmlFor="image-url">URL de la Imagen</Label>
+                  <Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" />
+              </div>
+              <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => handleInsertImageInLongDesc(imageUrl)}>Insertar Imagen</AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+      </AlertDialog>
       <LinkSuggestionsDialog open={linkSuggestions.length > 0 && !isSuggestingLinks} onOpenChange={(open) => { if (!open) setLinkSuggestions([]); }} suggestions={linkSuggestions} onApplySuggestion={handleApplySuggestion} onApplyAll={handleApplyAllSuggestions}/>
     </>
   );

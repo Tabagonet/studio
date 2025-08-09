@@ -14,12 +14,11 @@ function getServiceAccount() {
         try {
             return JSON.parse(serviceAccountJson);
         } catch (e) {
-            console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", (e as Error).message);
-            throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON is not a valid JSON.");
+            console.error(`Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:`, (e as Error).message);
+            throw new Error(`FIREBASE_SERVICE_ACCOUNT_JSON is not a valid JSON.`);
         }
     }
     
-    // Fallback to individual environment variables if the JSON isn't provided
     if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
         return {
             projectId: process.env.FIREBASE_PROJECT_ID,
@@ -28,8 +27,9 @@ function getServiceAccount() {
         };
     }
     
-    throw new Error("Firebase Admin credentials are not set. Please provide FIREBASE_SERVICE_ACCOUNT_JSON or the individual environment variables.");
+    throw new Error(`Firebase Admin credentials are not set. Please provide FIREBASE_SERVICE_ACCOUNT_JSON or the individual environment variables.`);
 }
+
 
 // Function to export credentials for other Google Cloud services
 export function getServiceAccountCredentials() {
@@ -42,28 +42,27 @@ export function getServiceAccountCredentials() {
 }
 
 
-// Initialize the app only if it hasn't been initialized yet
-if (!admin_sdk.apps.length) {
+if (admin_sdk.apps.length === 0) {
   try {
     const serviceAccount = getServiceAccount();
     admin_sdk.initializeApp({
       credential: admin_sdk.credential.cert(serviceAccount),
-      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+      storageBucket: 'autopressai.appspot.com' // Set the bucket name here
     });
     console.log('Firebase Admin SDK initialized successfully.');
-  } catch (error: any) {
-    console.error(`Firebase Admin SDK initialization error: ${error.message}`);
-    // This will prevent the app from starting if creds are bad, which is intended.
-    throw error;
-  }
-}
-
-// Assign the services if the app was successfully initialized
-if (admin_sdk.apps.length > 0) {
     adminDb = admin_sdk.firestore();
     adminAuth = admin_sdk.auth();
     adminStorage = admin_sdk.storage();
+  } catch (error: any) {
+    console.error(`Firebase Admin SDK initialization error: ${error.message}`);
+  }
+} else {
+    const defaultApp = admin_sdk.app();
+    adminDb = defaultApp.firestore();
+    adminAuth = defaultApp.auth();
+    adminStorage = defaultApp.storage();
 }
+
 
 // Export the required value as 'admin' to maintain compatibility with other files
 export { adminDb, adminAuth, adminStorage, admin_sdk as admin };
