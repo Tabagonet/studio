@@ -35,7 +35,7 @@ export function ProductWizard() {
     setProductData(prev => ({ ...prev, ...data }));
   }, []);
   
-  const handlePhotosChange = useCallback((newPhotos: ProductPhoto[]) => {
+  const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
       // Logic to extract product name from the first uploaded file if product name is empty
       if (!productData.name && newPhotos.length > 0) {
         const firstNewFile = newPhotos.find(p => p && p.file);
@@ -46,7 +46,7 @@ export function ProductWizard() {
         }
       }
       updateProductData({ photos: newPhotos });
-  }, [productData.name, updateProductData]);
+  };
 
   const updateStepStatus = (id: string, status: SubmissionStep['status'], message?: string, error?: string, progress?: number) => {
     setSteps(prevSteps => 
