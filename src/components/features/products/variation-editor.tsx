@@ -1,5 +1,4 @@
-
-// src/components/features/products/variation-editor.tsx
+// src/components/features/products/variable-product-manager.tsx
 
 "use client";
 
@@ -10,17 +9,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import type { ProductVariation, ProductPhoto } from '@/lib/types';
-import type { ProductEditState } from '@/app/(app)/products/edit/[id]/page';
+import type { ProductVariation, ProductPhoto, ProductEditState, ProductData } from '@/lib/types';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { GitCommitHorizontal, Sparkles, ImageIcon } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Image from 'next/image';
 
-interface VariationEditorProps {
-  product: ProductEditState;
-  onProductChange: (product: Partial<ProductEditState>) => void;
+interface VariableProductManagerProps {
+  product: ProductEditState | ProductData;
+  onProductChange: (data: Partial<ProductEditState> | Partial<ProductData>) => void;
   images: ProductPhoto[];
 }
 
@@ -42,7 +40,7 @@ function cartesian(...args: string[][]): string[][] {
     return r;
 }
 
-export function VariationEditor({ product, onProductChange, images }: VariationEditorProps) {
+export function VariableProductManager({ product, onProductChange, images }: VariableProductManagerProps) {
   const { toast } = useToast();
 
   const handleGenerateVariations = () => {
@@ -57,7 +55,7 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
 
     const attributeNames = variationAttributes.map(attr => attr.name);
     const attributeValueSets = variationAttributes.map(attr =>
-        attr.value.split('|').map(v => v.trim()).filter(Boolean)
+        (attr.value || '').split('|').map(v => v.trim()).filter(Boolean)
     );
     
     if (attributeValueSets.some((set) => set.length === 0)) {
@@ -66,7 +64,7 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
     }
 
     const combinations = cartesian(...attributeValueSets);
-    const primaryImage = product.photos?.find(p => p.isPrimary) || product.photos?.[0];
+    const primaryImage = images.find(p => p.isPrimary) || images[0];
 
     const newVariations: ProductVariation[] = combinations.map(combo => {
         const attributes = combo.map((value, index) => ({ name: attributeNames[index], option: value }));
@@ -167,15 +165,15 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
                             <div>
                                 <Label htmlFor={`price-${identifier}`}>Precio Regular</Label>
-                                <Input id={`price-${identifier}`} type="number" value={variation.regularPrice} onChange={(e) => handleVariationChange(identifier, 'regularPrice', e.target.value)} />
+                                <Input id={`price-${identifier}`} type="number" value={variation.regularPrice || ''} onChange={(e) => handleVariationChange(identifier, 'regularPrice', e.target.value)} />
                             </div>
                             <div>
                                 <Label htmlFor={`sale_price-${identifier}`}>Precio Oferta</Label>
-                                <Input id={`sale_price-${identifier}`} type="number" value={variation.salePrice} onChange={(e) => handleVariationChange(identifier, 'salePrice', e.target.value)} />
+                                <Input id={`sale_price-${identifier}`} type="number" value={variation.salePrice || ''} onChange={(e) => handleVariationChange(identifier, 'salePrice', e.target.value)} />
                             </div>
                             <div>
                                 <Label htmlFor={`sku-${identifier}`}>SKU</Label>
-                                <Input id={`sku-${identifier}`} value={variation.sku} onChange={(e) => handleVariationChange(identifier, 'sku', e.target.value)} />
+                                <Input id={`sku-${identifier}`} value={variation.sku || ''} onChange={(e) => handleVariationChange(identifier, 'sku', e.target.value)} />
                             </div>
                             <div className="space-y-2">
                                 <Label>Imagen de la Variación</Label>
@@ -218,7 +216,7 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
                                         <Checkbox id={`manage_stock-${identifier}`} checked={variation.manage_stock} onCheckedChange={(checked) => handleVariationChange(identifier, 'manage_stock', !!checked)} />
                                         <Label htmlFor={`manage_stock-${identifier}`} className="font-normal text-sm">Gestionar</Label>
                                     </div>
-                                    <Input id={`stock-${identifier}`} type="number" value={variation.stockQuantity} onChange={(e) => handleVariationChange(identifier, 'stockQuantity', e.target.value)} disabled={!variation.manage_stock} placeholder="Cantidad" />
+                                    <Input id={`stock-${identifier}`} type="number" value={variation.stockQuantity || ''} onChange={(e) => handleVariationChange(identifier, 'stockQuantity', e.target.value)} disabled={!variation.manage_stock} placeholder="Cantidad" />
                                     </div>
                             </div>
                         </div>

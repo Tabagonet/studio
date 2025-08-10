@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
-import { VariableProductManager } from '@/components/features/wizard/variable-product-manager';
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
 import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory, ProductVariationAttribute } from '@/lib/types';
 import { PRODUCT_TYPES, ALL_LANGUAGES } from '@/lib/constants';
@@ -25,12 +24,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { ComboBox } from '@/components/core/combobox';
 import type { ProductEditState } from '@/app/(app)/products/edit/[id]/page';
+import { VariableProductManager } from '@/components/features/products/variable-product-manager';
 
 interface Step1DetailsPhotosProps {
   productData: ProductData;
   updateProductData: (data: Partial<ProductData>) => void;
-  onPhotosChange: (photos: ProductPhoto[]) => void;
-  originalProduct?: ProductEditState | null; // Optional: For edit mode
   isProcessing?: boolean;
 }
 
@@ -42,7 +40,7 @@ const StatusIndicator = ({ status, message }: { status: 'idle' | 'checking' | 'e
     return <div className={`flex items-center text-xs ${color} mt-1`}><Icon className="h-3 w-3 mr-1" /> {message}</div>;
 };
 
-export function Step1DetailsPhotos({ productData, updateProductData, onPhotosChange, originalProduct = null, isProcessing = false }: Step1DetailsPhotosProps) {
+export function Step1DetailsPhotos({ productData, updateProductData, isProcessing = false }: Step1DetailsPhotosProps) {
   const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
   const [supplierCategories, setSupplierCategories] = useState<WooCommerceCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
@@ -121,11 +119,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
         const data = await response.json();
         if (response.ok) {
             if (data.exists) {
-                if (originalProduct && data.product.id === originalProduct.id) {
-                     setStatus({ status: 'available', message: 'Este es el valor actual.' });
-                } else {
-                     setStatus({ status: 'exists', message: data.message });
-                }
+                setStatus({ status: 'exists', message: data.message });
             } else {
                  setStatus({ status: 'available', message: data.message });
             }
@@ -138,27 +132,27 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
             setStatus({ status: 'idle', message: '' });
         }
     }
-  }, [originalProduct]);
+  }, []);
 
   useEffect(() => {
-    if (!debouncedSku || (originalProduct && debouncedSku === originalProduct.sku)) {
+    if (!debouncedSku) {
       setSkuStatus({ status: 'idle', message: '' });
       return;
     }
     const controller = new AbortController();
     checkProductExistence('sku', debouncedSku, controller.signal);
     return () => controller.abort();
-  }, [debouncedSku, checkProductExistence, originalProduct]);
+  }, [debouncedSku, checkProductExistence]);
 
   useEffect(() => {
-    if (!debouncedName || (originalProduct && debouncedName === originalProduct.name)) {
+    if (!debouncedName) {
       setNameStatus({ status: 'idle', message: '' });
       return;
     }
     const controller = new AbortController();
     checkProductExistence('name', debouncedName, controller.signal);
     return () => controller.abort();
-  }, [debouncedName, checkProductExistence, originalProduct]);
+  }, [debouncedName, checkProductExistence]);
 
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -182,8 +176,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
       });
   };
   
-  const handlePhotosWithAutoName = useCallback((newPhotos: ProductPhoto[]) => {
-    if (!originalProduct && !productData.name && newPhotos.length > 0) {
+  const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
+    if (!productData.name && newPhotos.length > 0) {
       const firstNewFile = newPhotos.find(p => p && p.file);
       if (firstNewFile) {
         const { extractedProductName } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
@@ -191,22 +185,18 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
         return;
       }
     }
-    onPhotosChange(newPhotos);
-  }, [originalProduct, productData.name, onPhotosChange, updateProductData]);
+    updateProductData({ photos: newPhotos });
+  };
   
   const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string | boolean) => {
     const newAttributes = [...productData.attributes];
     const updatedAttr = { ...newAttributes[index], [field]: value };
-    
-    // If updating 'value', also update 'options'
-    if (field === 'value') {
-        updatedAttr.options = (value as string).split('|').map(s => s.trim()).filter(Boolean);
+    if(field === 'value' && typeof value === 'string') {
+        updatedAttr.options = value.split('|').map(s => s.trim()).filter(Boolean);
     }
-    
     newAttributes[index] = updatedAttr;
     updateProductData({ attributes: newAttributes });
-};
-
+  };
 
   const addAttribute = () => {
     updateProductData({ attributes: [...productData.attributes, { name: '', value: '', forVariations: false, visible: true, options: [] }] });
@@ -495,9 +485,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
                        <ComboBox
                             items={wooCategories.map(c => ({ value: c.id.toString(), label: c.name.replace(/—/g, '') }))}
                             selectedValue={productData.category_id?.toString() || ''}
-                            onSelect={(value) => {
-                                updateProductData({ category_id: Number(value), categoryPath: '' });
-                            }}
+                            onSelect={(value) => updateProductData({ category_id: Number(value), categoryPath: '' })}
                             onNewItemChange={(value) => updateProductData({ category_id: null, categoryPath: value })}
                             placeholder="Selecciona o crea una categoría..."
                             newItemValue={productData.categoryPath || ''}
@@ -532,7 +520,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
 
                   {productData.productType !== 'grouped' && (
                       <div className="border-t pt-6 mt-6">
-                          <h3 className="text-lg font-medium mb-2">Atributos del Producto</h3>
+                          <h3 className="text-lg font-medium">Atributos del Producto</h3>
                           <p className="text-sm text-muted-foreground mb-4">Añade atributos como talla, color, etc. Para productos variables, marca la casilla "Para variaciones" y separa los valores con " | ".</p>
                           {productData.attributes.map((attr, index) => (
                              <div key={index} className="flex flex-col sm:flex-row items-start sm:items-end gap-2 p-3 border rounded-md bg-muted/20 mb-2">
@@ -586,7 +574,15 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
           <div className="lg:col-span-1 space-y-8">
               <Card>
                 <CardHeader><CardTitle>Imágenes del Producto</CardTitle><CardDescription>Sube las imágenes para tu producto. La primera se usará como principal.</CardDescription></CardHeader>
-                <CardContent className="space-y-4"><ImageUploader photos={productData.photos} onPhotosChange={handlePhotosWithAutoName} isProcessing={isProcessing || isGenerating} maxPhotos={15} /><Button onClick={handleGenerateImageMetadata} disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} className="w-full" variant="outline">{isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}</Button></CardContent>
+                <CardContent className="space-y-4">
+                    <ImageUploader 
+                        photos={productData.photos}
+                        onPhotosChange={handlePhotosChange}
+                        isProcessing={isProcessing || isGenerating} 
+                        maxPhotos={15} 
+                    />
+                    <Button onClick={handleGenerateImageMetadata} disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} className="w-full" variant="outline">{isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}</Button>
+                </CardContent>
               </Card>
 
               <Card>

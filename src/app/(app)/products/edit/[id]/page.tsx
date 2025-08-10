@@ -1,10 +1,9 @@
-
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, Save, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
@@ -55,14 +54,6 @@ export interface ProductEditState {
     imageAltText?: string;
     imageCaption?: string;
     imageDescription?: string;
-}
-
-export default function EditProductPage() {
-  return (
-      <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
-          <EditPageContent />
-      </Suspense>
-  )
 }
 
 function EditPageContent() {
@@ -207,8 +198,8 @@ function EditPageContent() {
         
         formData.append('productData', JSON.stringify(payloadForJson));
         
-        const newPhotos = product.images.filter(p => p.file);
-        newPhotos.forEach(photo => {
+        const newPhotoFiles = product.images.filter(p => p.file);
+        newPhotoFiles.forEach(photo => {
             if (photo.file) {
                  formData.append(photo.id.toString(), photo.file, photo.name);
             }
@@ -422,7 +413,7 @@ function EditPageContent() {
                   ) : product.type === 'simple' && (
                      <>
                         <Card><CardHeader><CardTitle>Precios</CardTitle></CardHeader><CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} /></div><div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} /></div></CardContent></Card>
-                        <Card><CardHeader><CardTitle>Inventario</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex items-center space-x-2"><Checkbox id="manage_stock" checked={product.manage_stock} onCheckedChange={(checked) => updateProductData({ manage_stock: !!checked })} /><Label htmlFor="manage_stock" className="font-normal">Gestionar inventario</Label></div>{product.manage_stock && (<div><Label htmlFor="stock_quantity">Cantidad</Label><Input id="stock_quantity" name="stock_quantity" type="number" value={product.stock_quantity} onChange={handleInputChange} /></div>)}</CardContent></Card>
+                        <Card><CardHeader><CardTitle>Inventario</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex items-center space-x-2"><Checkbox id="manage_stock" checked={product.manage_stock} onCheckedChange={(checked) => updateProductData({ manage_stock: !!checked, stock_quantity: !!checked ? product.stock_quantity : '' })} /><Label htmlFor="manage_stock" className="font-normal">Gestionar inventario</Label></div>{product.manage_stock && (<div><Label htmlFor="stock_quantity">Cantidad</Label><Input id="stock_quantity" name="stock_quantity" type="number" value={product.stock_quantity} onChange={handleInputChange} /></div>)}</CardContent></Card>
                      </>
                   )}
                   
@@ -440,4 +431,12 @@ function EditPageContent() {
       </div>
     </>
   );
+}
+
+export default function EditProductPage() {
+    return (
+        <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
+            <EditPageContent />
+        </Suspense>
+    )
 }

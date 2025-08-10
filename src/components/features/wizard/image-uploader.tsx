@@ -1,5 +1,4 @@
-
-      
+// src/components/features/wizard/image-uploader.tsx
 "use client";
 
 import React, { useCallback } from 'react';
@@ -47,9 +46,24 @@ export function ImageUploader({ photos = [], onPhotosChange, isProcessing, maxPh
   }, [photos, onPhotosChange, maxPhotos]);
 
   const handleDelete = useCallback((photoToDelete: ProductPhoto) => {
-    const updatedPhotos = photos.map(p =>
-      p.id === photoToDelete.id ? { ...p, toDelete: true } : p
-    );
+    let updatedPhotos;
+    // If it's a new file (not yet saved), just remove it from the array
+    if (photoToDelete.file) {
+      updatedPhotos = photos.filter(p => p.id !== photoToDelete.id);
+    } else {
+      // If it's an existing file, mark it for deletion
+      updatedPhotos = photos.map(p =>
+        p.id === photoToDelete.id ? { ...p, toDelete: true } : p
+      );
+    }
+    
+    // Check if the primary photo was deleted and assign a new primary if needed
+    const wasPrimary = photoToDelete.isPrimary;
+    const remainingPhotos = updatedPhotos.filter(p => !p.toDelete);
+    if (wasPrimary && remainingPhotos.length > 0) {
+      remainingPhotos[0].isPrimary = true;
+    }
+
     onPhotosChange(updatedPhotos);
     toast({ title: "Imagen marcada para eliminar", description: `Se quitará ${photoToDelete.name} al guardar.` });
   }, [photos, onPhotosChange, toast]);
@@ -62,18 +76,11 @@ export function ImageUploader({ photos = [], onPhotosChange, isProcessing, maxPh
   }, [photos, onPhotosChange]);
   
   const setAsPrimary = useCallback((id: string | number) => {
-    const selectedPhoto = photos.find(p => p.id === id);
-    if (!selectedPhoto) return;
-  
-    // Create a new list with the selected photo at the beginning
-    const reorderedPhotos = [
-      { ...selectedPhoto, isPrimary: true, toDelete: false }, // Ensure it's not marked for deletion
-      ...photos
-        .filter(p => p.id !== id) // Get all other photos
-        .map(p => ({ ...p, isPrimary: false })) // Mark all others as not primary
-    ];
-  
-    onPhotosChange(reorderedPhotos);
+    const updatedPhotos = photos.map(p => ({
+        ...p,
+        isPrimary: p.id === id
+    }));
+    onPhotosChange(updatedPhotos);
     toast({ title: "Imagen principal actualizada" });
   }, [photos, onPhotosChange, toast]);
 
@@ -206,5 +213,3 @@ export function ImageUploader({ photos = [], onPhotosChange, isProcessing, maxPh
     </div>
   );
 }
-      
-    

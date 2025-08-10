@@ -1,3 +1,4 @@
+// src/components/features/products/variable-product-manager.tsx
 
 "use client";
 
@@ -11,7 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import type { ProductVariation, ProductPhoto, ProductEditState, ProductData } from '@/lib/types';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { GitCommitHorizontal, Sparkles, ImageIcon } from 'lucide-react';
+import { GitCommitHorizontal, Sparkles, ImageIcon, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Image from 'next/image';
 
@@ -105,6 +106,12 @@ export function VariableProductManager({ product, onProductChange, images }: Var
     });
     onProductChange({ variations: updatedVariations });
   };
+  
+  const handleRemoveVariation = (variationId: string | number) => {
+    const updatedVariations = product.variations?.filter(v => (v.id !== variationId && v.variation_id !== variationId));
+    onProductChange({ variations: updatedVariations });
+  };
+
 
   if (!product.variations || product.variations.length === 0) {
     return (
@@ -142,7 +149,7 @@ export function VariableProductManager({ product, onProductChange, images }: Var
             return (
                 <AccordionItem value={String(identifier)} key={identifier}>
                     <AccordionTrigger>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 w-full">
                         {displayImage ? (
                             <Image src={displayImage.previewUrl} alt="Variación" width={40} height={40} className="rounded-md object-cover h-10 w-10"/>
                         ) : (
@@ -150,7 +157,7 @@ export function VariableProductManager({ product, onProductChange, images }: Var
                                 <ImageIcon className="h-5 w-5 text-muted-foreground"/>
                            </div>
                         )}
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-left">
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-left flex-1 min-w-0">
                           {variation.attributes.map(attr => (
                             <span key={attr.name} className="text-sm">
                               <span className="font-medium">{attr.name}:</span>
@@ -188,7 +195,7 @@ export function VariableProductManager({ product, onProductChange, images }: Var
                                             {variation.image?.id && images.find(p => String(p.id) === String(variation.image!.id)) ? (
                                                 <>
                                                     <Image src={images.find(p => String(p.id) === String(variation.image!.id))!.previewUrl} alt="preview" width={20} height={20} className="rounded-sm" />
-                                                    <span>{images.find(p => String(p.id) === String(variation.image!.id))!.name}</span>
+                                                    <span className="truncate">{images.find(p => String(p.id) === String(variation.image!.id))!.name}</span>
                                                 </>
                                             ) : (
                                                 'Imagen principal por defecto'
@@ -217,6 +224,12 @@ export function VariableProductManager({ product, onProductChange, images }: Var
                                     </div>
                                     <Input id={`stock-${identifier}`} type="number" value={variation.stockQuantity || ''} onChange={(e) => handleVariationChange(identifier, 'stockQuantity', e.target.value)} disabled={!variation.manage_stock} placeholder="Cantidad" />
                                     </div>
+                            </div>
+                             <div className="md:col-span-2 flex justify-end">
+                                <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleRemoveVariation(identifier)}>
+                                    <Trash2 className="h-4 w-4 mr-2"/>
+                                    Eliminar Variación
+                                </Button>
                             </div>
                         </div>
                     </AccordionContent>

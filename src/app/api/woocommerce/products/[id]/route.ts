@@ -1,4 +1,3 @@
-
 // src/app/api/woocommerce/products/[id]/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -46,7 +45,7 @@ const productUpdateSchema = z.object({
     imageDescription: z.string().optional(),
     // Inventory and shipping
     manage_stock: z.boolean().optional(),
-    stock_quantity: z.union([z.string(), z.number()]).optional(),
+    stock_quantity: z.string().optional(),
     weight: z.string().optional(),
     dimensions: z.object({
         length: z.string().optional(),
@@ -84,6 +83,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         productData.variations = variationsData;
     }
     
+    // Transform attributes options array into a pipe-separated string
+    if (productData.attributes && Array.isArray(productData.attributes)) {
+      productData.attributes = productData.attributes.map((attr: any) => ({
+        ...attr,
+        value: (attr.options || []).join(' | '),
+      }));
+    }
+
     return NextResponse.json(productData);
 
   } catch (error: any) {
