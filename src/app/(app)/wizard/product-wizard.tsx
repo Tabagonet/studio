@@ -15,6 +15,7 @@ import { auth } from '@/lib/firebase';
 import { ArrowLeft, ArrowRight, Rocket, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
+import axios from 'axios';
 
 export function ProductWizard() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -66,7 +67,8 @@ export function ProductWizard() {
         formData.append('productData', JSON.stringify(productData));
         productData.photos.forEach(photo => {
             if (photo.file) {
-                formData.append('photos', photo.file, photo.name);
+                // Use the unique client-side ID as the key for the file
+                formData.append(photo.id.toString(), photo.file);
             }
         });
         
@@ -128,7 +130,7 @@ export function ProductWizard() {
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} onPhotosChange={(photos: ProductPhoto[]) => updateProductData({ photos })} isProcessing={isProcessing} />;
+        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} />;
       case 2:
         return <Step2Preview productData={productData} />;
       case 3:
@@ -136,7 +138,7 @@ export function ProductWizard() {
       case 4:
         return <Step4Processing status={submissionStatus} steps={steps} />;
       default:
-        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} onPhotosChange={(photos: ProductPhoto[]) => updateProductData({ photos })} isProcessing={isProcessing} />;
+        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} />;
     }
   };
   

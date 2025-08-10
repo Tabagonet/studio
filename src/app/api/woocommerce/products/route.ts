@@ -1,4 +1,3 @@
-
 // src/app/api/woocommerce/products/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -38,25 +37,23 @@ export async function POST(request: NextRequest) {
         }
 
         const finalProductData: ProductData = JSON.parse(productDataString);
-        const photoFiles = formData.getAll('photos') as File[];
         const lang: string = finalProductData.language === 'Spanish' ? 'es' : 'en';
 
         // 1. Upload ALL images (both featured and variation potentials)
         const uploadedPhotosMap = new Map<string, number>();
-        if (photoFiles.length > 0) {
-            for (const [index, file] of photoFiles.entries()) {
-                // The client-side ID is in photo.id, which we find in the full productData
-                const originalPhotoData = finalProductData.photos.find(p => p.name === file.name);
-                const newImageId = await uploadImageToWordPress(
-                    file,
-                    `${slugify(finalProductData.name)}-${index + 1}.webp`,
-                    { title: finalProductData.imageTitle || finalProductData.name, alt_text: finalProductData.imageAltText || finalProductData.name, caption: finalProductData.imageCaption || '', description: finalProductData.imageDescription || '' },
-                    wpApi
-                );
-                if (originalPhotoData) {
-                    uploadedPhotosMap.set(originalPhotoData.id.toString(), newImageId);
-                }
+        for (const [key, value] of formData.entries()) {
+            if (key === 'productData' || !(value instanceof File)) {
+                continue;
             }
+            const file = value;
+            const clientSideId = key;
+            const newImageId = await uploadImageToWordPress(
+                file,
+                `${slugify(finalProductData.name)}-${clientSideId}.webp`,
+                { title: finalProductData.imageTitle || finalProductData.name, alt_text: finalProductData.imageAltText || finalProductData.name, caption: finalProductData.imageCaption || '', description: finalProductData.imageDescription || '' },
+                wpApi
+            );
+            uploadedPhotosMap.set(clientSideId, newImageId);
         }
         
         // Prepare the `images` array for the main product payload
