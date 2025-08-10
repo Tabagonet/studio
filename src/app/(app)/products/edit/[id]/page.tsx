@@ -492,8 +492,8 @@ function EditPageContent() {
                         <Card>
                           <CardHeader><CardTitle>Precio por Defecto (Opcional)</CardTitle><CardDescription>Este precio se aplicará a cualquier variación nueva que generes si no tiene un precio específico.</CardDescription></CardHeader>
                           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regularPrice} onChange={handleInputChange} /></div>
-                              <div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.salePrice} onChange={handleInputChange} /></div>
+                              <div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regularPrice" type="number" value={product.regularPrice} onChange={handleInputChange} /></div>
+                              <div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="salePrice" type="number" value={product.salePrice} onChange={handleInputChange} /></div>
                           </CardContent>
                         </Card>
                         <Card>
@@ -521,8 +521,8 @@ function EditPageContent() {
                   )}
                   {product.productType === 'simple' && (
                      <>
-                        <Card><CardHeader><CardTitle>Precios</CardTitle></CardHeader><CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regularPrice} onChange={handleInputChange} /></div><div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.salePrice} onChange={handleInputChange} /></div></CardContent></Card>
-                        <Card><CardHeader><CardTitle>Inventario</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex items-center space-x-2"><Checkbox id="manage_stock" checked={product.manage_stock} onCheckedChange={(checked) => updateProductData({ manage_stock: !!checked, stockQuantity: !!checked ? product.stockQuantity : '' })} /><Label htmlFor="manage_stock" className="font-normal">Gestionar inventario</Label></div>{product.manage_stock && (<div><Label htmlFor="stock_quantity">Cantidad</Label><Input id="stock_quantity" name="stock_quantity" type="number" value={product.stockQuantity} onChange={handleInputChange} /></div>)}</CardContent></Card>
+                        <Card><CardHeader><CardTitle>Precios</CardTitle></CardHeader><CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regularPrice" type="number" value={product.regularPrice} onChange={handleInputChange} /></div><div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="salePrice" type="number" value={product.salePrice} onChange={handleInputChange} /></div></CardContent></Card>
+                        <Card><CardHeader><CardTitle>Inventario</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex items-center space-x-2"><Checkbox id="manage_stock" checked={product.manage_stock} onCheckedChange={(checked) => updateProductData({ manage_stock: !!checked, stockQuantity: !!checked ? product.stockQuantity : '' })} /><Label htmlFor="manage_stock" className="font-normal">Gestionar inventario</Label></div>{product.manage_stock && (<div><Label htmlFor="stock_quantity">Cantidad</Label><Input id="stock_quantity" name="stockQuantity" type="number" value={product.stockQuantity} onChange={handleInputChange} /></div>)}</CardContent></Card>
                      </>
                   )}
                   
@@ -576,3 +576,4 @@ export default function EditProductPage() {
         </Suspense>
     )
 }
+```
