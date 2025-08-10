@@ -11,7 +11,7 @@ import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { WooCommerceCategory, ProductPhoto, ProductVariation } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
 import { ProductData } from '@/lib/types';
 
@@ -61,8 +61,8 @@ function EditProductPageContent() {
         const newPhotoFiles = product.photos.filter(p => p.file);
         newPhotoFiles.forEach(photo => {
             if (photo.file) {
-                // Use a consistent key for the backend to receive the files
-                formData.append('photos', photo.file, photo.name);
+                // Use the photo's client-side ID as a key to map it on the backend
+                formData.append(photo.id as string, photo.file, photo.name);
             }
         });
         
