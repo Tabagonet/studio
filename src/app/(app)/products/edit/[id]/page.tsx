@@ -1,4 +1,3 @@
-
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -40,6 +39,7 @@ export interface ProductEditState {
     status: 'publish' | 'draft' | 'pending' | 'private';
     tags: string[];
     category_id: number | null;
+    category?: WooCommerceCategory | null; // Added to hold full category object
     manage_stock: boolean;
     stock_quantity: string;
     weight: string;
@@ -116,12 +116,13 @@ function EditProductPageContent() {
         const productData = await productResponse.json();
         console.log(`[EDITOR][AUDIT] Raw product data from API:`, productData);
         
+        let fetchedCategories: WooCommerceCategory[] = [];
         if (categoriesResponse.ok) {
-            const catData = await categoriesResponse.json();
-            const parentSupplierCategory = catData.find((c: WooCommerceCategory) => c.name.toLowerCase() === 'proveedores' && c.parent === 0);
+            fetchedCategories = await categoriesResponse.json();
+            const parentSupplierCategory = fetchedCategories.find((c: WooCommerceCategory) => c.name.toLowerCase() === 'proveedores' && c.parent === 0);
             const supplierParentId = parentSupplierCategory?.id;
-            setSupplierCategories(supplierParentId ? catData.filter((c: WooCommerceCategory) => c.parent === supplierParentId) : []);
-            setWooCategories(catData.filter((c: WooCommerceCategory) => !supplierParentId || (c.id !== supplierParentId && c.parent !== supplierParentId)));
+            setSupplierCategories(supplierParentId ? fetchedCategories.filter((c: WooCommerceCategory) => c.parent === supplierParentId) : []);
+            setWooCategories(fetchedCategories.filter((c: WooCommerceCategory) => !supplierParentId || (c.id !== supplierParentId && c.parent !== supplierParentId)));
         }
         setIsLoadingCategories(false);
 
@@ -141,7 +142,7 @@ function EditProductPageContent() {
         const supplierAttribute = Array.isArray(productData.attributes) ? productData.attributes.find((a: any) => a.name === 'Proveedor') : null;
         
         const mainCategory = productData.categories?.find((c: any) => {
-            const supplierParent = (productData.categories || []).find((c: any) => c.slug?.includes('proveedores'));
+            const supplierParent = fetchedCategories.find((cat: any) => cat.name.toLowerCase() === 'proveedores' && cat.parent === 0);
             return supplierParent ? c.parent !== supplierParent.id && c.id !== supplierParent.id : true;
         });
         
@@ -171,6 +172,7 @@ function EditProductPageContent() {
           status: productData.status || 'draft',
           tags: productData.tags?.map((t: any) => t.name) || [],
           category_id: mainCategory ? mainCategory.id : null,
+          category: mainCategory,
           manage_stock: productData.manage_stock || false,
           stock_quantity: productData.stock_quantity?.toString() || '',
           weight: productData.weight || '',
@@ -207,24 +209,25 @@ function EditProductPageContent() {
         const { images, ...restOfProductData } = product;
         
         const sortedImages = [...product.images].sort((a, b) => {
-            if (a.isPrimary) return -1;
-            if (b.isPrimary) return 1;
+            if (a.isPrimary && !b.isPrimary) return -1;
+            if (!a.isPrimary && b.isPrimary) return 1;
             return 0;
         });
 
         const finalImagePayload = sortedImages
-            .filter(p => !p.toDelete)
-            .map(p => ({ id: p.file ? p.id : p.id }));
+            .filter(p => !p.toDelete && !p.file)
+            .map(p => ({ id: p.id }));
 
         const payloadForJson = {
             ...restOfProductData,
-            images: finalImagePayload.map(p => ({ id: p.id })),
+            images: finalImagePayload,
         };
         
         console.log("[EDITOR][AUDIT] Payload to be sent as JSON:", payloadForJson);
         formData.append('productData', JSON.stringify(payloadForJson));
         
         const newPhotoFiles = product.images.filter(p => p.file && !p.toDelete);
+        console.log(`[EDITOR][AUDIT] Found ${newPhotoFiles.length} new files to upload.`);
         newPhotoFiles.forEach(photo => {
             if (photo.file) {
                  console.log(`[EDITOR][AUDIT] Appending new photo to FormData: ${photo.name} with key ${photo.id}`);
@@ -361,6 +364,7 @@ function EditProductPageContent() {
                           </Button>
                           <Button onClick={handleSaveChanges} disabled={isSaving}>
                               {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                              <Save className="mr-2 h-4 w-4" />
                               Guardar Cambios
                           </Button>
                       </div>
@@ -444,13 +448,13 @@ function EditProductPageContent() {
                      </>
                   )}
                   
-                   <Card><CardHeader><CardTitle>Descripciones</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="short_description">Descripción Corta</Label><RichTextEditor content={product.short_description} onChange={(c) => updateProductData({ short_description: c })} onInsertImage={() => {}} placeholder="Escribe la descripción corta aquí..." size="small"/></div><div><Label htmlFor="description">Descripción Larga</Label><RichTextEditor content={product.description} onChange={(c) => updateProductData({ description: c })} onInsertImage={() => {}} placeholder="Escribe la descripción larga aquí..." /></div></CardContent></Card>
+                   <Card><CardHeader><CardTitle>Descripciones</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="short_description">Descripción Corta</Label><RichTextEditor content={product.short_description} onChange={handleShortDescriptionChange} onInsertImage={() => {}} placeholder="Escribe la descripción corta aquí..." size="small"/></div><div><Label htmlFor="description">Descripción Larga</Label><RichTextEditor content={product.description} onChange={handleLongDescriptionChange} onInsertImage={() => {}} placeholder="Escribe la descripción larga aquí..." /></div></CardContent></Card>
                    <Card><CardHeader><CardTitle>Envío</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="weight">Peso (kg)</Label><Input id="weight" name="weight" type="number" value={product.weight} onChange={handleInputChange} /></div><div><Label>Dimensiones (cm)</Label><div className="grid grid-cols-3 gap-2"><Input value={product.dimensions.length} onChange={(e) => handleDimensionChange('length', e.target.value)} placeholder="Largo" /><Input value={product.dimensions.width} onChange={(e) => handleDimensionChange('width', e.target.value)} placeholder="Ancho" /><Input value={product.dimensions.height} onChange={(e) => handleDimensionChange('height', e.target.value)} placeholder="Alto" /></div></div><div><Label htmlFor="shipping_class">Clase de envío (slug)</Label><Input id="shipping_class" name="shipping_class" value={product.shipping_class} onChange={handleInputChange} /></div></CardContent></Card>
               </div>
               
               <div className="space-y-6">
                   <ProductPreviewCard product={product} categories={wooCategories} />
-                  <Card><CardHeader><CardTitle>Organización</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="category_id">Categoría</Label><ComboBox items={wooCategories.map(c => ({ value: c.id.toString(), label: c.name.replace(/—/g, '') }))} selectedValue={product.category_id?.toString() || ''} onSelect={(value) => updateProductData({ category_id: Number(value), categoryPath: ''})} onNewItemChange={(value) => updateProductData({ category_id: null, categoryPath: value})} placeholder="Selecciona o crea una categoría..." loading={isLoadingCategories} newItemValue={product.categoryPath || ''}/></div><div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={product.tags.join(', ')} onChange={(e) => updateProductData({ tags: e.target.value.split(',').map(t => t.trim()) })} /></div></CardContent></Card>
+                  <Card><CardHeader><CardTitle>Organización</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="category_id">Categoría</Label><ComboBox items={wooCategories.map(c => ({ value: c.id.toString(), label: c.name.replace(/—/g, '') }))} selectedValue={product.category_id?.toString() || ''} onSelect={(value) => { const selectedCat = wooCategories.find(c => c.id.toString() === value); updateProductData({ category_id: Number(value), category: selectedCat || null, categoryPath: '' }); }} onNewItemChange={(value) => updateProductData({ category_id: null, category: null, categoryPath: value})} placeholder="Selecciona o crea una categoría..." loading={isLoadingCategories} newItemValue={product.categoryPath || ''}/></div><div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={product.tags.join(', ')} onChange={(e) => updateProductData({ tags: e.target.value.split(',').map(t => t.trim()) })} /></div></CardContent></Card>
                    <Card><CardHeader><CardTitle>Imágenes</CardTitle></CardHeader><CardContent><ImageUploader photos={product.images} onPhotosChange={handlePhotosChange} isProcessing={isSaving}/></CardContent></Card>
                    <Card><CardHeader><CardTitle className="text-destructive">Zona de Peligro</CardTitle></CardHeader><CardContent><AlertDialog><AlertDialogTrigger asChild><Button variant="destructive" className="w-full" disabled={isDeleting}><Trash2 className="mr-2 h-4 w-4" /> Eliminar Producto</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente este producto.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></CardContent></Card>
               </div>
@@ -463,7 +467,7 @@ function EditProductPageContent() {
 export default function EditProductWrapperPage() {
     return (
         <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
-            <EditProductPageContent />
+            <EditPageContent />
         </Suspense>
     )
 }

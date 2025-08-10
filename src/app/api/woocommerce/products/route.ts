@@ -79,22 +79,22 @@ export async function POST(request: NextRequest) {
         console.log("[API CREATE][AUDIT] Final WooCommerce images payload:", wooImagesPayload);
         
         // 2. Prepare categories and tags
-        let finalCategoryIds: { id: number }[] = [];
+        let productCategoryIds: { id: number }[] = [];
         if (finalProductData.categoryPath) {
              const newCatId = await findOrCreateWpCategoryByPath(finalProductData.categoryPath, wpApi, 'product_cat');
-             if (newCatId) finalCategoryIds.push({ id: newCatId });
+             if (newCatId) productCategoryIds.push({ id: newCatId });
         } else if (finalProductData.category?.id) {
-            finalCategoryIds.push({ id: finalProductData.category.id });
+            productCategoryIds.push({ id: finalProductData.category.id });
         }
         
         const supplierToAdd = finalProductData.supplier || finalProductData.newSupplier;
         if (supplierToAdd) {
-            const supplierCatId = await findOrCreateWpCategoryByPath(`Proveedores > ${supplierToAdd}`, wpApi, 'product_cat');
-            if (supplierCatId) finalCategoryIds.push({ id: supplierCatId });
+            await findOrCreateWpCategoryByPath(`Proveedores > ${supplierToAdd}`, wpApi, 'product_cat');
         }
 
         const tagNames = Array.isArray(finalProductData.tags) ? finalProductData.tags : [];
         const wooTags = await findOrCreateTags(tagNames, wpApi);
+
 
         // 3. Prepare attributes
         const wooAttributes = finalProductData.attributes
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
             type: finalProductData.productType,
             description: finalProductData.longDescription,
             short_description: finalProductData.shortDescription,
-            categories: finalCategoryIds,
+            categories: productCategoryIds,
             images: wooImagesPayload,
             attributes: wooAttributes,
             tags: wooTags.map(tagId => ({ id: tagId })),
