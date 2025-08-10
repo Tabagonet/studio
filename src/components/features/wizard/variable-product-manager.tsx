@@ -65,6 +65,7 @@ export function VariableProductManager({ productData, updateProductData, images 
     }
 
     const combinations = cartesian(...attributeValueSets);
+    const primaryImage = productData.photos?.find(p => p.isPrimary) || productData.photos?.[0];
 
     const newVariations: ProductVariation[] = combinations.map(combo => {
         const attributes = combo.map((value, index) => ({ name: attributeNames[index], option: value }));
@@ -78,7 +79,8 @@ export function VariableProductManager({ productData, updateProductData, images 
             salePrice: productData.salePrice || '',
             stockQuantity: '', 
             manage_stock: false,
-            image: { id: null }, 
+            // Assign the primary product image by default
+            image: primaryImage ? { id: primaryImage.id } : { id: null }, 
         };
     });
     

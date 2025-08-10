@@ -1,5 +1,3 @@
-
-      
 // src/app/api/woocommerce/products/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -63,8 +61,8 @@ export async function POST(request: NextRequest) {
         const wooImagesPayload = finalProductData.photos
             .filter(photo => !photo.toDelete)
             .map(photo => {
-                if (uploadedPhotosMap.has(photo.id.toString())) {
-                    return { id: uploadedPhotosMap.get(photo.id.toString()) };
+                if (uploadedPhotosMap.has(String(photo.id))) {
+                    return { id: uploadedPhotosMap.get(String(photo.id)) };
                 }
                 if (typeof photo.id === 'number') {
                     return { id: photo.id };
@@ -174,7 +172,7 @@ export async function POST(request: NextRequest) {
                     variationPayload.stock_quantity = parseInt(v.stockQuantity, 10);
                 }
 
-                if (v.image) {
+                if (v.image && v.image.id) { // Ensure image and image.id are not null
                     if (v.image.toDelete) {
                         variationPayload.image = null;
                     } else {
@@ -225,5 +223,3 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `Fallo en la creación del producto: ${errorMessage}` }, { status: 500 });
     }
 }
-      
-    
