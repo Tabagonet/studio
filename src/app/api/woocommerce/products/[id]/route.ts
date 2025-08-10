@@ -152,14 +152,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const attributes = Array.isArray(validatedData.attributes) ? validatedData.attributes : [];
         const sortedImages = [...(validatedData.images || [])].sort((a,b) => (a.isPrimary ? -1 : b.isPrimary ? 1 : 0));
         
-        // Handle Tags
+        // Handle Tags by sending names directly to WooCommerce
         const tagNames = Array.isArray(tags) ? tags.filter(t => t && t.trim()) : [];
-        if (tagNames.length > 0) {
-            const tagIds = await findOrCreateTags(tagNames, wpApi);
-            wooPayload.tags = tagIds.map(tagId => ({ id: tagId }));
-        } else {
-            wooPayload.tags = [];
-        }
+        wooPayload.tags = tagNames.map(name => ({ name }));
         
         wooPayload.attributes = attributes.map((attr: ProductAttribute, index: number) => ({
             id: attr.id || 0,
@@ -174,8 +169,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         let productCategoryIds: { id: number }[] = [];
         const categoryToCreateOrAssign = categoryPath || validatedData.category?.name;
         if (categoryToCreateOrAssign) {
-             const newCatId = await findOrCreateWpCategoryByPath(categoryToCreateOrAssign, wpApi, 'product_cat');
-             if (newCatId) productCategoryIds.push({ id: newCatId });
+            const newCatId = await findOrCreateWpCategoryByPath(categoryToCreateOrAssign, wpApi, 'product_cat');
+            if (newCatId) productCategoryIds.push({ id: newCatId });
         } else if (validatedData.category_id !== undefined && validatedData.category_id !== null) {
               productCategoryIds.push({id: validatedData.category_id});
         }

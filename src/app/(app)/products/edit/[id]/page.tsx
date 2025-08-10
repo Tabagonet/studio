@@ -20,7 +20,7 @@ import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { PRODUCT_TYPES } from '@/lib/constants';
 import { ComboBox } from '@/components/core/combobox';
-import { VariableProductManager } from '@/components/features/products/variable-product-manager';
+import { VariationEditor } from '@/components/features/products/variation-editor';
 import { PlusCircle } from 'lucide-react';
 
 export interface ProductEditState {
@@ -376,28 +376,32 @@ function EditProductPageContent() {
                                     <ComboBox
                                         items={supplierCategories.map(s => ({ value: s.name, label: s.name }))}
                                         selectedValue={product.supplier || ''}
-                                        onSelect={(value) => updateProductData(prev => {
-                                            const newAttributes = [...prev.attributes];
-                                            const supplierAttrIndex = newAttributes.findIndex(a => a.name === 'Proveedor');
-                                            if (supplierAttrIndex > -1) {
-                                                newAttributes[supplierAttrIndex].options = [value];
-                                                newAttributes[supplierAttrIndex].value = value;
-                                            } else {
-                                                newAttributes.push({ name: 'Proveedor', value: value, options: [value], visible: true, forVariations: false });
-                                            }
-                                            return { supplier: value, newSupplier: '', attributes: newAttributes };
-                                        })}
-                                        onNewItemChange={(value) => updateProductData(prev => {
-                                             const newAttributes = [...prev.attributes];
-                                            const supplierAttrIndex = newAttributes.findIndex(a => a.name === 'Proveedor');
-                                            if (supplierAttrIndex > -1) {
-                                                newAttributes[supplierAttrIndex].options = [value];
-                                                newAttributes[supplierAttrIndex].value = value;
-                                            } else {
-                                                newAttributes.push({ name: 'Proveedor', value: value, options: [value], visible: true, forVariations: false });
-                                            }
-                                            return { supplier: null, newSupplier: value, attributes: newAttributes };
-                                        })}
+                                        onSelect={(value) => {
+                                            updateProductData(prev => {
+                                                const newAttributes = [...prev.attributes];
+                                                const supplierAttrIndex = newAttributes.findIndex(a => a.name === 'Proveedor');
+                                                if (supplierAttrIndex > -1) {
+                                                    newAttributes[supplierAttrIndex].options = [value];
+                                                    newAttributes[supplierAttrIndex].value = value;
+                                                } else {
+                                                    newAttributes.push({ name: 'Proveedor', value: value, options: [value], visible: true, forVariations: false });
+                                                }
+                                                return { supplier: value, newSupplier: '', attributes: newAttributes };
+                                            });
+                                        }}
+                                        onNewItemChange={(value) => {
+                                            updateProductData(prev => {
+                                                 const newAttributes = [...prev.attributes];
+                                                const supplierAttrIndex = newAttributes.findIndex(a => a.name === 'Proveedor');
+                                                if (supplierAttrIndex > -1) {
+                                                    newAttributes[supplierAttrIndex].options = [value];
+                                                    newAttributes[supplierAttrIndex].value = value;
+                                                } else {
+                                                    newAttributes.push({ name: 'Proveedor', value: value, options: [value], visible: true, forVariations: false });
+                                                }
+                                                return { supplier: null, newSupplier: value, attributes: newAttributes };
+                                            });
+                                        }}
                                         placeholder="Selecciona o crea un proveedor..."
                                         newItemValue={product.newSupplier || ''}
                                         loading={isLoadingCategories}
@@ -446,11 +450,11 @@ function EditProductPageContent() {
                                 <Button type="button" variant="outline" onClick={addAttribute} className="mt-2"><PlusCircle className="mr-2 h-4 w-4" /> Añadir Atributo</Button>
                             </CardContent>
                         </Card>
-                         <VariableProductManager 
+                        <VariationEditor 
                             product={product} 
                             onProductChange={updateProductData}
                             images={product.images}
-                         />
+                        />
                     </>
                   ) : product.type === 'simple' && (
                      <>
@@ -459,7 +463,7 @@ function EditProductPageContent() {
                      </>
                   )}
                   
-                   <Card><CardHeader><CardTitle>Descripciones</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="short_description">Descripción Corta</Label><RichTextEditor content={product.short_description} onChange={handleShortDescriptionChange} onInsertImage={() => {}} placeholder="Escribe la descripción corta aquí..." size="small"/></div><div><Label htmlFor="description">Descripción Larga</Label><RichTextEditor content={product.description} onChange={handleLongDescriptionChange} onInsertImage={() => {}} placeholder="Escribe la descripción larga aquí..." /></div></CardContent></Card>
+                   <Card><CardHeader><CardTitle>Descripciones</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="short_description">Descripción Corta</Label><RichTextEditor content={product.short_description} onChange={handleShortDescriptionChange} placeholder="Escribe la descripción corta aquí..." size="small"/></div><div><Label htmlFor="description">Descripción Larga</Label><RichTextEditor content={product.description} onChange={handleLongDescriptionChange} placeholder="Escribe la descripción larga aquí..." /></div></CardContent></Card>
               </div>
               
               <div className="space-y-6">

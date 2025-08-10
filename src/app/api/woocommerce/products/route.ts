@@ -88,7 +88,8 @@ export async function POST(request: NextRequest) {
         }
 
         const tagNames = Array.isArray(finalProductData.tags) ? finalProductData.tags.filter(t => t && t.trim()) : [];
-        const wooTagIds = tagNames.length > 0 ? await findOrCreateTags(tagNames, wpApi) : [];
+        const wooTagsPayload = tagNames.map(name => ({ name }));
+
 
         // 3. Prepare attributes
         const wooAttributes = finalProductData.attributes
@@ -123,7 +124,7 @@ export async function POST(request: NextRequest) {
             categories: productCategoryIds,
             images: wooImagesPayload,
             attributes: wooAttributes,
-            tags: wooTagIds.map(tagId => ({ id: tagId })),
+            tags: wooTagsPayload,
             lang: lang,
             weight: finalProductData.weight || undefined,
             dimensions: finalProductData.dimensions,
