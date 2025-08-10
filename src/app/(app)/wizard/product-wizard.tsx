@@ -7,7 +7,7 @@ import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
 import { Step2Preview } from './step-2-preview'; 
 import { Step3Confirm } from './step-3-confirm';
 import { Step4Processing } from './step-4-processing';
-import type { ProductData, SubmissionStep, SubmissionStatus } from '@/lib/types';
+import type { ProductData, SubmissionStep, SubmissionStatus, ProductPhoto } from '@/lib/types';
 import { INITIAL_PRODUCT_DATA, ALL_LANGUAGES } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -128,7 +128,7 @@ export function ProductWizard() {
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} />;
+        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} onPhotosChange={(photos: ProductPhoto[]) => updateProductData({ photos })} isProcessing={isProcessing} />;
       case 2:
         return <Step2Preview productData={productData} />;
       case 3:
@@ -136,7 +136,7 @@ export function ProductWizard() {
       case 4:
         return <Step4Processing status={submissionStatus} steps={steps} />;
       default:
-        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} />;
+        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} onPhotosChange={(photos: ProductPhoto[]) => updateProductData({ photos })} isProcessing={isProcessing} />;
     }
   };
   

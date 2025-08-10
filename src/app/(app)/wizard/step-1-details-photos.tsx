@@ -1,4 +1,3 @@
-
 // src/app/(app)/wizard/step-1-details-photos.tsx
 "use client";
 
@@ -181,6 +180,18 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
         attributes: [{ name: '', value: '', forVariations: false, visible: true }], 
         variations: [] 
       });
+  };
+  
+  const handlePhotosWithAutoName = (newPhotos: ProductPhoto[]) => {
+    if (!productData.name && newPhotos.length > 0) {
+      const firstNewFile = newPhotos.find(p => p && p.file);
+      if (firstNewFile) {
+        const { extractedProductName } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
+        updateProductData({ photos: newPhotos, name: extractedProductName });
+        return;
+      }
+    }
+    onPhotosChange(newPhotos);
   };
   
   const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string | boolean) => {
@@ -489,13 +500,13 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
                   {(productData.productType === 'simple' || productData.productType === 'variable') && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t pt-6">
                       <div>
-                        <Label htmlFor="regularPrice">Precio Regular (€)</Label>
-                        <Input id="regularPrice" name="regular_price" type="number" value={productData.regular_price} onChange={handleInputChange} placeholder="Ej: 29.99" disabled={isProcessing} />
+                        <Label htmlFor="regular_price">Precio Regular (€)</Label>
+                        <Input id="regular_price" name="regular_price" type="number" value={productData.regular_price} onChange={handleInputChange} placeholder="Ej: 29.99" disabled={isProcessing} />
                         {productData.productType === 'variable' && <p className="text-xs text-muted-foreground mt-1">Este será el precio por defecto para las nuevas variaciones.</p>}
                       </div>
                       <div>
-                        <Label htmlFor="salePrice">Precio de Oferta (€)</Label>
-                        <Input id="salePrice" name="sale_price" type="number" value={productData.sale_price} onChange={handleInputChange} placeholder="Opcional" disabled={isProcessing} />
+                        <Label htmlFor="sale_price">Precio de Oferta (€)</Label>
+                        <Input id="sale_price" name="sale_price" type="number" value={productData.sale_price} onChange={handleInputChange} placeholder="Opcional" disabled={isProcessing} />
                       </div>
                     </div>
                   )}
@@ -549,18 +560,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
 
               <Card><CardHeader><CardTitle>Descripciones y Etiquetas</CardTitle><CardDescription>Esta información es clave para el SEO y para informar a tus clientes.</CardDescription></CardHeader>
                 <CardContent className="space-y-6">
-                   <div>
-                        <Label htmlFor="tags">Etiquetas (separadas por comas)</Label>
-                        <Input 
-                            id="tags" 
-                            name="tags" 
-                            value={Array.isArray(productData.tags) ? productData.tags.join(', ') : productData.tags} 
-                            onChange={e => updateProductData({ tags: e.target.value.split(',').map(t => t.trim()) })} 
-                            placeholder="Ej: camiseta, algodón, verano, casual" 
-                            disabled={isProcessing || isGenerating} 
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">Ayudan a la IA y al SEO de tu producto.</p>
-                   </div>
+                   <div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={productData.tags.join(', ')} onChange={e => updateProductData({ tags: e.target.value.split(',').map(t => t.trim()) })} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing || isGenerating} /><p className="text-xs text-muted-foreground mt-1">Ayudan a la IA y al SEO de tu producto.</p></div>
                   <div className="pt-2"><Button onClick={handleGenerateContentWithAI} disabled={isProcessing || isGenerating || !productData.name} className="w-full sm:w-auto">{isGenerating ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGenerating ? "Generando..." : "Generar Contenido con IA"}</Button>{!productData.name && <p className="text-xs text-destructive mt-1">Introduce un nombre de producto para activar la IA.</p>}</div>
                   <div className="border-t pt-6 space-y-6">
                     <div><Label htmlFor="shortDescription">Descripción Corta</Label><RichTextEditor content={productData.shortDescription} onChange={handleShortDescriptionChange} onInsertImage={() => setIsImageDialogOpen(true)} onSuggestLinks={handleSuggestLinks} placeholder="Un resumen atractivo y conciso de tu producto..." size="small"/></div>
@@ -572,7 +572,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
           <div className="lg:col-span-1 space-y-8">
               <Card>
                 <CardHeader><CardTitle>Imágenes del Producto</CardTitle><CardDescription>Sube las imágenes para tu producto. La primera se usará como principal.</CardDescription></CardHeader>
-                <CardContent className="space-y-4"><ImageUploader photos={productData.photos} onPhotosChange={onPhotosChange} isProcessing={isProcessing || isGenerating} maxPhotos={15} /><Button onClick={handleGenerateImageMetadata} disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} className="w-full" variant="outline">{isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}</Button></CardContent>
+                <CardContent className="space-y-4"><ImageUploader photos={productData.photos} onPhotosChange={handlePhotosWithAutoName} isProcessing={isProcessing || isGenerating} maxPhotos={15} /><Button onClick={handleGenerateImageMetadata} disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} className="w-full" variant="outline">{isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}</Button></CardContent>
               </Card>
 
               <Card>
