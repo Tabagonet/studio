@@ -57,13 +57,15 @@ export function ImageUploader({ photos = [], onPhotosChange, isProcessing, maxPh
   }, [photos, onPhotosChange, toast]);
   
   const setAsPrimary = useCallback((id: string | number) => {
-    const updatedPhotos = photos.map(p => ({
-        ...p,
-        isPrimary: p.id === id
-    }));
-    const primaryPhoto = updatedPhotos.find(p => p.isPrimary);
-    const otherPhotos = updatedPhotos.filter(p => !p.isPrimary);
-    onPhotosChange(primaryPhoto ? [primaryPhoto, ...otherPhotos] : otherPhotos);
+    const selectedPhoto = photos.find(p => p.id === id);
+    if (!selectedPhoto) return;
+
+    const otherPhotos = photos.filter(p => p.id !== id);
+    const reorderedPhotos = [
+      { ...selectedPhoto, isPrimary: true },
+      ...otherPhotos.map(p => ({ ...p, isPrimary: false }))
+    ];
+    onPhotosChange(reorderedPhotos);
   }, [photos, onPhotosChange]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
