@@ -152,9 +152,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const attributes = Array.isArray(validatedData.attributes) ? validatedData.attributes : [];
         const sortedImages = [...(validatedData.images || [])].sort((a,b) => (a.isPrimary ? -1 : b.isPrimary ? 1 : 0));
         
-        // Handle Tags
-        if (tags && Array.isArray(tags) && tags.length > 0) {
-            const tagIds = await findOrCreateTags(tags, wpApi);
+        const tagNames = Array.isArray(tags) ? tags : [];
+        if (tagNames.length > 0) {
+            const tagIds = await findOrCreateTags(tagNames, wpApi);
             wooPayload.tags = tagIds.map(tagId => ({ id: tagId }));
         } else {
             wooPayload.tags = [];
@@ -169,7 +169,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             options: (attr.value || '').split('|').map(o => o.trim()).filter(Boolean).map(String),
         }));
         
-        // Handle Categories and Suppliers separately
         let productCategoryIds: { id: number }[] = [];
         if (categoryPath) {
              const newCatId = await findOrCreateWpCategoryByPath(categoryPath, wpApi, 'product_cat');

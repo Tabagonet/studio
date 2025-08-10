@@ -20,7 +20,7 @@ import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { PRODUCT_TYPES } from '@/lib/constants';
 import { ComboBox } from '@/components/core/combobox';
-import { VariableProductManager } from '@/components/features/products/variable-product-manager';
+import { VariationEditor } from '@/components/features/products/variation-editor';
 import { PlusCircle } from 'lucide-react';
 
 export interface ProductEditState {
@@ -39,7 +39,7 @@ export interface ProductEditState {
     status: 'publish' | 'draft' | 'pending' | 'private';
     tags: string[];
     category_id: number | null;
-    category?: WooCommerceCategory | null; // Added to hold full category object
+    category?: WooCommerceCategory | null; 
     manage_stock: boolean;
     stock_quantity: string;
     weight: string;
@@ -73,11 +73,12 @@ function EditProductPageContent() {
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   
   const { toast } = useToast();
-
+  
   const updateProductData = useCallback((data: Partial<ProductEditState>) => {
     setProduct(prev => {
         if (!prev) return null;
         const newState = { ...prev, ...data };
+        console.log("[EDITOR_AUDIT] State updated. New partial state:", data, "Full new state:", newState);
         return newState;
     });
   }, []);
@@ -95,6 +96,7 @@ function EditProductPageContent() {
         setIsLoading(false);
         return;
       }
+      console.log(`[EDITOR_AUDIT] Fetching initial data for product ID: ${productId}`);
 
       try {
         const token = await user.getIdToken();
@@ -109,6 +111,7 @@ function EditProductPageContent() {
           throw new Error(errorData.error || 'Failed to fetch product data.');
         }
         const productData = await productResponse.json();
+        console.log("[EDITOR_AUDIT] Raw product data fetched:", productData);
         
         let fetchedCategories: WooCommerceCategory[] = [];
         if (categoriesResponse.ok) {
@@ -176,6 +179,7 @@ function EditProductPageContent() {
         };
         
         setProduct(finalProductState);
+        console.log("[EDITOR_AUDIT] Product state initialized:", finalProductState);
 
       } catch (e: any) {
         setError(e.message);
@@ -194,21 +198,26 @@ function EditProductPageContent() {
         return;
     }
 
+    console.log("[EDITOR_AUDIT] Preparing to save. Current product state:", product);
+
     try {
         const token = await user.getIdToken();
         const formData = new FormData();
         
         const sortedImages = [...product.images].sort((a, b) => {
-            if (a.isPrimary) return -1;
-            if (b.isPrimary) return 1;
+            if (a.isPrimary && !a.toDelete) return -1;
+            if (b.isPrimary && !b.toDelete) return 1;
             return 0;
         });
+
+        console.log("[EDITOR_AUDIT] Images sorted for save. Primary first:", sortedImages);
         
         const payloadForJson = { ...product, images: sortedImages };
 
         formData.append('productData', JSON.stringify(payloadForJson));
         
         const newPhotoFiles = product.images.filter(p => p.file && !p.toDelete);
+        console.log(`[EDITOR_AUDIT] Found ${newPhotoFiles.length} new photos to upload.`);
         newPhotoFiles.forEach(photo => {
             if (photo.file) {
                  formData.append(photo.id.toString(), photo.file, photo.name);
@@ -236,7 +245,6 @@ function EditProductPageContent() {
     }
   };
 
-
   const handleDelete = async () => {
     setIsDeleting(true);
     const user = auth.currentUser;
@@ -263,14 +271,13 @@ function EditProductPageContent() {
   };
   
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, (user) => {
         if (user) {
             fetchInitialData();
         } else {
             router.push('/login');
         }
     });
-    return () => unsubscribe();
   }, [fetchInitialData, router]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -316,16 +323,6 @@ function EditProductPageContent() {
     updateProductData({ attributes: newAttributes });
   };
   
-  if (isLoading) {
-    return <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
-  }
-  
-  if (error || !product) {
-     return (
-        <div className="container mx-auto py-8"><Alert variant="destructive"><AlertTitle>Error al Cargar</AlertTitle><AlertDescription>{error || "No se pudo cargar la información del producto."}</AlertDescription><Button variant="outline" onClick={() => router.push('/batch')} className="mt-4"><ArrowLeft className="mr-2 h-4 w-4" />Volver a la lista</Button></Alert></div>
-     );
-  }
-
   const handleShortDescriptionChange = (newContent: string) => {
     if (!product) return;
     updateProductData({ short_description: newContent });
@@ -335,6 +332,16 @@ function EditProductPageContent() {
     if (!product) return;
     updateProductData({ description: newContent });
   };
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
+  }
+  
+  if (error || !product) {
+     return (
+        <div className="container mx-auto py-8"><Alert variant="destructive"><AlertTitle>Error al Cargar</AlertTitle><AlertDescription>{error || "No se pudo cargar la información del producto."}</AlertDescription><Button variant="outline" onClick={() => router.push('/batch')} className="mt-4"><ArrowLeft className="mr-2 h-4 w-4" />Volver a la lista</Button></Alert></div>
+     );
+  }
 
   return (
     <>
@@ -438,13 +445,33 @@ function EditProductPageContent() {
                   )}
                   
                    <Card><CardHeader><CardTitle>Descripciones</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="short_description">Descripción Corta</Label><RichTextEditor content={product.short_description} onChange={handleShortDescriptionChange} onInsertImage={() => {}} placeholder="Escribe la descripción corta aquí..." size="small"/></div><div><Label htmlFor="description">Descripción Larga</Label><RichTextEditor content={product.description} onChange={handleLongDescriptionChange} onInsertImage={() => {}} placeholder="Escribe la descripción larga aquí..." /></div></CardContent></Card>
-                   <Card><CardHeader><CardTitle>Envío</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="weight">Peso (kg)</Label><Input id="weight" name="weight" type="number" value={product.weight} onChange={handleInputChange} /></div><div><Label>Dimensiones (cm)</Label><div className="grid grid-cols-3 gap-2"><Input value={product.dimensions.length} onChange={(e) => handleDimensionChange('length', e.target.value)} placeholder="Largo" /><Input value={product.dimensions.width} onChange={(e) => handleDimensionChange('width', e.target.value)} placeholder="Ancho" /><Input value={product.dimensions.height} onChange={(e) => handleDimensionChange('height', e.target.value)} placeholder="Alto" /></div></div><div><Label htmlFor="shipping_class">Clase de envío (slug)</Label><Input id="shipping_class" name="shipping_class" value={product.shipping_class} onChange={handleInputChange} /></div></CardContent></Card>
+              </div>
+              
+              <div className="space-y-6">
+                  <ProductPreviewCard product={product} categories={wooCategories} />
+                  <Card><CardHeader><CardTitle>Imágenes</CardTitle></CardHeader><CardContent><ImageUploader photos={product.images} onPhotosChange={handlePhotosChange} isProcessing={isSaving}/></CardContent></Card>
+                  <Card>
+                      <CardHeader><CardTitle>Envío</CardTitle></CardHeader>
+                      <CardContent className="space-y-4">
+                          <div><Label htmlFor="weight">Peso (kg)</Label><Input id="weight" name="weight" type="number" value={product.weight} onChange={handleInputChange} /></div>
+                          <div><Label>Dimensiones (cm)</Label><div className="grid grid-cols-3 gap-2"><Input value={product.dimensions?.length || ''} onChange={(e) => handleDimensionChange('length', e.target.value)} placeholder="Largo" /><Input value={product.dimensions?.width || ''} onChange={(e) => handleDimensionChange('width', e.target.value)} placeholder="Ancho" /><Input value={product.dimensions?.height || ''} onChange={(e) => handleDimensionChange('height', e.target.value)} placeholder="Alto" /></div></div>
+                          <div><Label htmlFor="shipping_class">Clase de envío (slug)</Label><Input id="shipping_class" name="shipping_class" value={product.shipping_class} onChange={handleInputChange} /></div>
+                      </CardContent>
+                  </Card>
                   <Card>
                       <CardHeader><CardTitle>Organización</CardTitle></CardHeader>
                       <CardContent className="space-y-4">
                         <div>
                             <Label htmlFor="category_id">Categoría</Label>
-                            <ComboBox items={wooCategories.map(c => ({ value: c.id.toString(), label: c.name.replace(/—/g, '') }))} selectedValue={product.category_id?.toString() || ''} onSelect={(value) => updateProductData({ category_id: Number(value), categoryPath: '' })} onNewItemChange={(value) => updateProductData({ category_id: null, categoryPath: value})} placeholder="Selecciona o crea una categoría..." loading={isLoadingCategories} newItemValue={product.categoryPath || ''}/>
+                            <ComboBox 
+                              items={wooCategories.map(c => ({ value: c.id.toString(), label: c.name.replace(/—/g, '') }))} 
+                              selectedValue={product.category_id?.toString() || ''} 
+                              onSelect={(value) => updateProductData({ category_id: Number(value), categoryPath: '' })} 
+                              onNewItemChange={(value) => updateProductData({ category_id: null, categoryPath: value})}
+                              placeholder="Selecciona o crea una categoría..." 
+                              loading={isLoadingCategories}
+                              newItemValue={product.categoryPath || ''}
+                            />
                         </div>
                         <div>
                           <Label htmlFor="tags">Etiquetas (separadas por comas)</Label>
@@ -452,12 +479,7 @@ function EditProductPageContent() {
                         </div>
                       </CardContent>
                   </Card>
-              </div>
-              
-              <div className="space-y-6">
-                  <ProductPreviewCard product={product} categories={wooCategories} />
-                   <Card><CardHeader><CardTitle>Imágenes</CardTitle></CardHeader><CardContent><ImageUploader photos={product.images} onPhotosChange={handlePhotosChange} isProcessing={isSaving}/></CardContent></Card>
-                   <Card><CardHeader><CardTitle className="text-destructive">Zona de Peligro</CardTitle></CardHeader><CardContent><AlertDialog><AlertDialogTrigger asChild><Button variant="destructive" className="w-full" disabled={isDeleting}><Trash2 className="mr-2 h-4 w-4" /> Eliminar Producto</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente este producto.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></CardContent></Card>
+                  <Card><CardHeader><CardTitle className="text-destructive">Zona de Peligro</CardTitle></CardHeader><CardContent><AlertDialog><AlertDialogTrigger asChild><Button variant="destructive" className="w-full" disabled={isDeleting}><Trash2 className="mr-2 h-4 w-4" /> Eliminar Producto</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente este producto.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></CardContent></Card>
               </div>
           </div>
       </div>
