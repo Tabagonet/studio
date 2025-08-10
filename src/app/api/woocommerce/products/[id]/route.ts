@@ -148,7 +148,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             position: attr.position || 0,
             visible: attr.visible ?? true,
             variation: attr.forVariations || attr.variation || false,
-            options: (attr.options || []).map(String).filter(o => o)
+            options: Array.isArray(attr.options) ? attr.options.map(String).filter(o => o) : [],
         }));
 
         let finalCategoryIds: { id: number }[] = [];
@@ -185,40 +185,36 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             .filter(key => key !== 'productData')
             .map(key => ({ key, file: formData.get(key) as File }));
 
+        const uploadedPhotosMap = new Map<string, number>();
         if (newPhotoFiles.length > 0) {
             console.log(`[AUDIT] Found ${newPhotoFiles.length} new photo files to upload.`);
             if (!wpApi) { throw new Error('WordPress API must be configured to upload new images.'); }
             
-            const uploadedImageMap = new Map<string, number>();
             for (const { key: clientSideId, file } of newPhotoFiles) {
                  const baseNameForSeo = imageTitle || validatedData.name || 'product-image';
                  const seoFilename = `${slugify(baseNameForSeo)}-${productId}-${Date.now()}.webp`;
                  console.log(`[AUDIT] Uploading new image with client ID ${clientSideId}`);
                  const newImageId = await uploadImageToWordPress(file, seoFilename, { title: imageTitle || validatedData.name || '', alt_text: imageAltText || validatedData.name || '', caption: imageCaption || '', description: imageDescription || '' }, wpApi);
-                 uploadedImageMap.set(clientSideId, newImageId);
+                 uploadedPhotosMap.set(clientSideId, newImageId);
                  console.log(`[AUDIT] Image ${clientSideId} uploaded. New WordPress Media ID: ${newImageId}`);
             }
-            
-            const images = Array.isArray(validatedData.images) ? validatedData.images : [];
-            const finalImagePayload = images
-                .filter(p => !p.toDelete)
-                .map(img => {
-                    if (typeof img.id === 'string' && uploadedImageMap.has(img.id)) {
-                        return { id: uploadedImageMap.get(img.id) };
-                    }
-                    if (typeof img.id === 'number') {
-                        return { id: img.id };
-                    }
-                    return null;
-                }).filter(Boolean);
-            
-            wooPayload.images = finalImagePayload;
-            console.log("[AUDIT] Final image payload for WooCommerce:", finalImagePayload);
-        } else if (validatedData.images) {
-            const images = Array.isArray(validatedData.images) ? validatedData.images : [];
-            wooPayload.images = images.filter(p => !p.toDelete).map(img => ({ id: img.id }));
-            console.log("[AUDIT] No new photos, sending existing image IDs:", wooPayload.images);
         }
+            
+        const images = Array.isArray(validatedData.images) ? validatedData.images : [];
+        const finalImagePayload = images
+            .filter(p => !p.toDelete)
+            .map(img => {
+                if (typeof img.id === 'string' && uploadedPhotosMap.has(img.id)) {
+                    return { id: uploadedPhotosMap.get(img.id) };
+                }
+                if (typeof img.id === 'number') {
+                    return { id: img.id };
+                }
+                return null;
+            }).filter(p => p !== null);
+        
+        wooPayload.images = finalImagePayload;
+        console.log("[AUDIT] Final image payload for WooCommerce:", finalImagePayload);
         
         if (wooPayload.manage_stock === false) {
             wooPayload.stock_quantity = null;
