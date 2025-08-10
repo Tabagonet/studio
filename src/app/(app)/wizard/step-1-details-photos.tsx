@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { VariableProductManager } from '@/components/features/products/variable-product-manager';
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
-import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory } from '@/lib/types';
+import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory, ProductVariationAttribute } from '@/lib/types';
 import { PRODUCT_TYPES, ALL_LANGUAGES } from '@/lib/constants';
 import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -180,7 +180,6 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   
  const handlePhotosChange = useCallback((newPhotos: ProductPhoto[]) => {
     console.log("[WIZARD][AUDIT] handlePhotosChange triggered with", newPhotos);
-    // If name is not already set by the user, try to extract it from the first new photo.
     if (!productData.name && newPhotos.length > 0) {
       const firstNewFile = newPhotos.find(p => p && p.file);
       if (firstNewFile) {
@@ -190,7 +189,6 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         return;
       }
     }
-    // Otherwise, just update the photos.
     updateProductData({ photos: newPhotos });
   }, [productData.name, updateProductData]);
   
@@ -491,8 +489,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                        <ComboBox
                             items={wooCategories.map(c => ({ value: c.id.toString(), label: c.name.replace(/—/g, '') }))}
                             selectedValue={productData.category_id?.toString() || ''}
-                            onSelect={(value) => updateProductData({ category_id: Number(value), categoryPath: '' })}
-                            onNewItemChange={(value) => updateProductData({ category_id: null, categoryPath: value })}
+                            onSelect={(value) => updateProductData({ category_id: Number(value), categoryPath: ''})}
+                            onNewItemChange={(value) => updateProductData({ category_id: null, categoryPath: value})}
                             placeholder="Selecciona o crea una categoría..."
                             newItemValue={productData.categoryPath || ''}
                             loading={isLoadingCategories}
@@ -543,13 +541,11 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                   )}
 
                   {productData.productType === 'variable' && (
-                      <div className="border-t pt-6 mt-6">
-                        <VariableProductManager 
-                            product={productData} 
-                            onProductChange={updateProductData}
-                            images={productData.photos}
-                        />
-                      </div>
+                     <VariableProductManager 
+                        product={productData} 
+                        onProductChange={updateProductData}
+                        images={productData.photos}
+                      />
                   )}
                   
                   {productData.productType !== 'variable' && (

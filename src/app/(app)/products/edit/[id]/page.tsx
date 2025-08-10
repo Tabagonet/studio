@@ -56,7 +56,7 @@ export interface ProductEditState {
     imageDescription?: string;
 }
 
-function EditProductPageContent() {
+function EditProductPage() {
   const params = useParams();
   const router = useRouter();
   const productId = Number(params.id);
@@ -113,7 +113,7 @@ function EditProductPageContent() {
           throw new Error(errorData.error || 'Failed to fetch product data.');
         }
         const productData = await productResponse.json();
-        console.log("[EDITOR][AUDIT] Raw product data from API:", productData.type, productData.attributes);
+        console.log(`[EDITOR][AUDIT] Raw product data from API:`, productData);
         
         if (categoriesResponse.ok) {
             const catData = await categoriesResponse.json();
@@ -205,18 +205,9 @@ function EditProductPageContent() {
         
         const { images, ...restOfProductData } = product;
         
-        const uploadedPhotosMap = new Map<string, number>();
         const finalImagePayload = product.images
             .filter(p => !p.toDelete)
-            .map(p => {
-                if (p.file && uploadedPhotosMap.has(String(p.id))) {
-                    return { id: uploadedPhotosMap.get(String(p.id)) };
-                }
-                if (typeof p.id === 'number') {
-                    return { id: p.id };
-                }
-                return null;
-            }).filter(Boolean);
+            .map(p => ({ id: p.id })); // Send only the ID for all images
 
         const payloadForJson = {
             ...restOfProductData,
@@ -462,11 +453,10 @@ function EditProductPageContent() {
   );
 }
 
-
-export default function EditProductPage() {
+export default function EditProductWrapperPage() {
     return (
         <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
-            <EditProductPageContent />
+            <EditProductPage />
         </Suspense>
     )
 }

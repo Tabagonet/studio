@@ -1,4 +1,3 @@
-
 // src/components/features/products/variable-product-manager.tsx
 
 "use client";
@@ -43,10 +42,11 @@ function cartesian(...args: string[][]): string[][] {
 
 export function VariableProductManager({ product, onProductChange, images }: VariableProductManagerProps) {
   const { toast } = useToast();
-  console.log("[AUDIT] VariableProductManager rendered. Product data:", product);
+  console.log("[VAR_MANAGER][AUDIT] VariableProductManager rendered. Product data:", product);
 
   // Safety check to prevent runtime errors if product data is not yet loaded.
   if (!product) {
+    console.log("[VAR_MANAGER][AUDIT] Product is null, rendering loader.");
     return (
       <div className="flex justify-center items-center h-24 border rounded-md">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -55,7 +55,7 @@ export function VariableProductManager({ product, onProductChange, images }: Var
   }
 
   const handleGenerateVariations = () => {
-    console.log("[AUDIT] handleGenerateVariations triggered.");
+    console.log("[VAR_MANAGER][AUDIT] handleGenerateVariations triggered.");
     const variationAttributes = product.attributes.filter(
         (attr) => attr.forVariations && attr.name.trim() && attr.value.trim()
     );
@@ -77,7 +77,7 @@ export function VariableProductManager({ product, onProductChange, images }: Var
 
     const combinations = cartesian(...attributeValueSets);
     const primaryImage = images.find(p => p.isPrimary) || images[0];
-    console.log("[AUDIT] Generating combinations for variations:", combinations);
+    console.log("[VAR_MANAGER][AUDIT] Generating combinations for variations:", combinations);
 
     const newVariations: ProductVariation[] = combinations.map(combo => {
         const attributes = combo.map((value, index) => ({ name: attributeNames[index], option: value }));
@@ -128,6 +128,7 @@ export function VariableProductManager({ product, onProductChange, images }: Var
     onProductChange({ variations: updatedVariations });
   };
 
+  const hasVariationAttributes = product.attributes.some(attr => attr.forVariations && attr.name && attr.value);
 
   if (!product.variations || product.variations.length === 0) {
     return (
@@ -139,10 +140,11 @@ export function VariableProductManager({ product, onProductChange, images }: Var
                     Define atributos, márcalos como "Para variaciones" y haz clic en el botón para crear todas las combinaciones posibles al instante.
                 </AlertDescription>
             </Alert>
-            <Button onClick={handleGenerateVariations} className="w-full">
+            <Button onClick={handleGenerateVariations} className="w-full" disabled={!hasVariationAttributes}>
                 <Sparkles className="mr-2 h-4 w-4" />
                 Generar Variaciones
             </Button>
+             {!hasVariationAttributes && <p className="text-xs text-destructive text-center">Debes definir y marcar al menos un atributo para variaciones antes de poder generar combinaciones.</p>}
             <p className="text-sm text-muted-foreground text-center">O edita un producto existente para ver sus variaciones aquí.</p>
        </div>
     )
@@ -152,10 +154,11 @@ export function VariableProductManager({ product, onProductChange, images }: Var
 
   return (
     <div className="space-y-4">
-      <Button onClick={handleGenerateVariations} className="w-full" variant="secondary">
+      <Button onClick={handleGenerateVariations} className="w-full" variant="secondary" disabled={!hasVariationAttributes}>
             <Sparkles className="mr-2 h-4 w-4" />
             Volver a Generar Variaciones (Sobrescribir)
         </Button>
+        {!hasVariationAttributes && <p className="text-xs text-destructive text-center">Debes definir y marcar al menos un atributo para variaciones antes de poder generar combinaciones.</p>}
       <Accordion type="single" collapsible className="w-full">
         {product.variations.map(variation => {
             const identifier = variation.variation_id || variation.id;
