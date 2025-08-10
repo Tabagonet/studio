@@ -42,7 +42,8 @@ export function BlogCreator() {
     const topic = searchParams.get('topic');
     const tagsValue = searchParams.get('keywords'); // URL param is still 'keywords'
     if (topic) {
-        updatePostData({ topic, tags: tagsValue || '' });
+        const tagsArray = tagsValue ? tagsValue.split(',').map(t => t.trim()).filter(Boolean) : [];
+        updatePostData({ topic, tags: tagsArray });
     }
   }, [searchParams, updatePostData]);
 
