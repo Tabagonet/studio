@@ -1,4 +1,3 @@
-
 // src/app/api/woocommerce/products/[id]/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -149,7 +148,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             position: attr.position || 0,
             visible: attr.visible ?? true,
             variation: attr.forVariations || attr.variation || false,
-            options: (attr.options || []).map(String).filter(o => o),
+            options: (attr.value || '').split('|').map(o => o.trim()).filter(Boolean).map(String),
         }));
 
         let finalCategoryIds: { id: number }[] = [];
@@ -201,23 +200,21 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             }
         }
 
-        const finalImagePayload = images
-            .filter(p => !p.toDelete) // Filter out images marked for deletion
-            .map(img => {
-                // If it's a new file (string ID from client), get its newly uploaded numeric ID
-                if (typeof img.id === 'string' && uploadedPhotosMap.has(img.id)) {
-                    return { id: uploadedPhotosMap.get(img.id) };
-                }
-                // If it's an existing image (numeric ID), keep it
-                if (typeof img.id === 'number') {
-                    return { id: img.id };
-                }
-                return null;
-            }).filter((p): p is { id: number } => p !== null && p.id !== undefined);
+        // CORRECTED LOGIC
+        // 1. Start with existing images that are NOT marked for deletion
+        let finalImagePayload = images
+            .filter(p => !p.toDelete && typeof p.id === 'number')
+            .map(img => ({ id: img.id as number }));
+
+        console.log(`[DEBUG] Kept ${finalImagePayload.length} existing images.`);
+
+        // 2. Add the newly uploaded images
+        uploadedPhotosMap.forEach((wpId) => {
+            finalImagePayload.push({ id: wpId });
+        });
         
         wooPayload.images = finalImagePayload;
 
-        // DEBUG LOGS
         console.log("[DEBUG] Images from validatedData:", images);
         console.log("[DEBUG] Uploaded photos map:", Array.from(uploadedPhotosMap.entries()));
         console.log("[AUDIT] Final image payload for WooCommerce:", finalImagePayload);
