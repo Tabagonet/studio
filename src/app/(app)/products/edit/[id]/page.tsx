@@ -1,11 +1,10 @@
+
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Loader2, ArrowLeft, Save, Trash2, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
@@ -15,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
 import { ProductData } from '@/lib/types';
-import { VariableProductManager } from '@/components/features/products/variation-editor';
+import { VariationEditor } from '@/components/features/products/variation-editor';
 
 export interface ProductEditState extends ProductData {
     id: number;
@@ -146,66 +145,35 @@ function EditPageContent() {
 
     try {
         const token = await user.getIdToken();
-        
-        // Step 1: Handle new image uploads to temporary storage
-        const newPhotoFiles = product.photos.filter(p => p.file);
-        const uploadedUrlsMap = new Map<string, string>();
-        if (newPhotoFiles.length > 0) {
-            toast({ title: "Subiendo nuevas imágenes...", description: "Por favor, espera." });
-            for (const photo of newPhotoFiles) {
-                const formData = new FormData();
-                formData.append('imagen', photo.file!);
-                const uploadResponse = await fetch('/api/upload-image', {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` },
-                    body: formData,
-                });
-                if (!uploadResponse.ok) throw new Error(`Fallo al subir ${photo.name}`);
-                const imageData = await uploadResponse.json();
-                uploadedUrlsMap.set(photo.id.toString(), imageData.url);
-            }
-        }
-        
-        // Step 2: Call the custom endpoint to sync the final image list with WordPress
-        const finalImageUrls = product.photos
-            .filter(p => !p.toDelete)
-            .map(p => {
-                if (p.file) return uploadedUrlsMap.get(p.id.toString()); // URL from temp storage
-                return p.previewUrl; // URL from existing WP media
-            })
-            .filter((url): url is string => !!url);
 
-        await fetch('/api/wordpress/update-product-images', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ product_id: productId, mode: 'replace', images: finalImageUrls }),
-        });
-        
-        // Step 3: Update the rest of the product data
+        const formData = new FormData();
+
         const formattedAttributes = product.attributes.map(attr => {
             const optionsFromValue = attr.value ? attr.value.split('|').map(t => t.trim()).filter(Boolean) : (attr.options || []);
-            return { id: attr.id || 0, name: attr.name, position: attr.position || 0, visible: attr.visible, variation: attr.forVariations || attr.variation || false, options: optionsFromValue.map(String) };
+            return {
+                id: attr.id || 0,
+                name: attr.name,
+                position: attr.position || 0,
+                visible: attr.visible,
+                variation: attr.forVariations || attr.variation || false,
+                options: optionsFromValue.map(String),
+            };
         });
-        
-        const finalSupplierName = product.newSupplier || product.supplier;
-        if (finalSupplierName) {
-            const supplierAttrIndex = formattedAttributes.findIndex(a => a.name === 'Proveedor');
-            if (supplierAttrIndex > -1) {
-                formattedAttributes[supplierAttrIndex].options = [String(finalSupplierName)];
-            } else {
-                 formattedAttributes.push({ id: 0, name: 'Proveedor', position: formattedAttributes.length, visible: true, variation: false, options: [String(finalSupplierName)] });
-            }
-        }
-        
-        const productPayloadForUpdate = { ...product, attributes: formattedAttributes };
 
-        const productFormData = new FormData();
-        productFormData.append('productData', JSON.stringify(productPayloadForUpdate));
+        const productPayloadForUpdate = { ...product, attributes: formattedAttributes };
+        formData.append('productData', JSON.stringify(productPayloadForUpdate));
+        
+        const newPhotos = product.photos.filter(p => p.file);
+        newPhotos.forEach(photo => {
+            if (photo.file) {
+                formData.append(photo.id.toString(), photo.file, photo.name);
+            }
+        });
         
         const response = await fetch(`/api/woocommerce/products/${productId}`, {
             method: 'PUT',
             headers: { 'Authorization': `Bearer ${token}` },
-            body: productFormData,
+            body: formData,
         });
         
         const result = await response.json();
@@ -251,13 +219,14 @@ function EditPageContent() {
   };
   
   useEffect(() => {
-    onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
         if (user) {
             fetchInitialData();
         } else {
             router.push('/login');
         }
     });
+    return () => unsubscribe();
   }, [fetchInitialData, router]);
   
   if (isLoading) {
@@ -309,7 +278,7 @@ function EditPageContent() {
                     <CardDescription>Edita los precios, stock e imágenes para cada variación.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <VariableProductManager 
+                    <VariationEditor
                         product={product} 
                         onProductChange={updateProductData} 
                         images={product.photos} 
@@ -331,7 +300,7 @@ function EditPageContent() {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                           <AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente este producto.</AlertDialogDescription></AlertDialogHeader>
-                          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete}>Sí, eliminar</AlertDialogAction></AlertDialogFooter>
+                          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className={buttonVariants({ variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter>
                       </AlertDialogContent>
                   </AlertDialog>
               </CardContent>
