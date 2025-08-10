@@ -13,7 +13,6 @@ import type { WooCommerceCategory, ProductPhoto, ProductVariation, ProductAttrib
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
-import { ProductData } from '@/lib/types';
 import { VariationEditor } from '@/components/features/products/variation-editor';
 
 export interface ProductEditState extends ProductData {
@@ -182,7 +181,7 @@ function EditPageContent() {
         }
         
         toast({ title: '¡Éxito!', description: 'El producto ha sido actualizado.' });
-        fetchInitialData(); // Re-fetch data to show the latest state
+        fetchInitialData(); 
 
     } catch (e: any) {
         console.error('[DEBUG] Error saving product:', e.message, e.response?.data);

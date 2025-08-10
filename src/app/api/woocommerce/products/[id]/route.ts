@@ -35,7 +35,8 @@ const productUpdateSchema = z.object({
     tags: z.array(z.string()).optional(),
     category_id: z.number().nullable().optional(),
     images: z.array(z.object({
-        id: z.union([z.string(), z.number()]).optional(), // Allow both string (for new images) and number (for existing)
+        id: z.union([z.string(), z.number()]).optional(),
+        toDelete: z.boolean().optional(),
     })).optional(),
     variations: z.array(z.any()).optional(),
     attributes: z.array(z.any()).optional(),
@@ -129,8 +130,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         }
         
         const validatedData = validationResult.data;
-        const { imageTitle, imageAltText, imageCaption, imageDescription, variations, supplier, newSupplier, tags, attributes, ...restOfData } = validatedData;
+        const { imageTitle, imageAltText, imageCaption, imageDescription, variations, supplier, newSupplier, tags, ...restOfData } = validatedData;
         const wooPayload: any = { ...restOfData };
+        
+        const attributes = Array.isArray(validatedData.attributes) ? validatedData.attributes : [];
         
         const { data: originalProduct } = await wooApi.get(`products/${productId}`);
         console.log("[AUDIT] Fetched original product data.");
@@ -139,17 +142,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
           wooPayload.tags = tags.map((name: string) => ({ name: name.trim() })).filter(t => t.name);
         }
         
-        if (attributes !== undefined) {
-             wooPayload.attributes = attributes.map((attr: ProductAttribute) => ({
-                id: attr.id,
-                name: attr.name,
-                position: attr.position,
-                visible: attr.visible,
-                variation: attr.variation,
-                options: attr.options, // Already an array of strings
-            }));
-        }
-
+        wooPayload.attributes = attributes.map((attr: ProductAttribute) => ({
+            id: attr.id || 0,
+            name: attr.name,
+            position: attr.position || 0,
+            visible: attr.visible ?? true,
+            variation: attr.forVariations || attr.variation || false,
+            options: (attr.options || []).map(String).filter(o => o)
+        }));
 
         let finalCategoryIds: { id: number }[] = [];
         if (validatedData.category_id !== undefined) {
@@ -198,23 +198,26 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
                  uploadedImageMap.set(clientSideId, newImageId);
                  console.log(`[AUDIT] Image ${clientSideId} uploaded. New WordPress Media ID: ${newImageId}`);
             }
-
-            const finalImagePayload = validatedData.images.map(img => {
-                if (typeof img.id === 'string' && uploadedImageMap.has(img.id)) {
-                    return { id: uploadedImageMap.get(img.id) };
-                }
-                if (typeof img.id === 'number') {
-                    return { id: img.id };
-                }
-                return null;
-            }).filter(Boolean);
+            
+            const images = Array.isArray(validatedData.images) ? validatedData.images : [];
+            const finalImagePayload = images
+                .filter(p => !p.toDelete)
+                .map(img => {
+                    if (typeof img.id === 'string' && uploadedImageMap.has(img.id)) {
+                        return { id: uploadedImageMap.get(img.id) };
+                    }
+                    if (typeof img.id === 'number') {
+                        return { id: img.id };
+                    }
+                    return null;
+                }).filter(Boolean);
             
             wooPayload.images = finalImagePayload;
             console.log("[AUDIT] Final image payload for WooCommerce:", finalImagePayload);
         } else if (validatedData.images) {
-            // No new files, just re-ordering/deleting existing
-            wooPayload.images = validatedData.images.map(img => ({ id: img.id }));
-             console.log("[AUDIT] No new photos, sending existing image IDs:", wooPayload.images);
+            const images = Array.isArray(validatedData.images) ? validatedData.images : [];
+            wooPayload.images = images.filter(p => !p.toDelete).map(img => ({ id: img.id }));
+            console.log("[AUDIT] No new photos, sending existing image IDs:", wooPayload.images);
         }
         
         if (wooPayload.manage_stock === false) {
@@ -230,15 +233,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const response = await wooApi.put(`products/${productId}`, wooPayload);
         console.log("[AUDIT] Product update successful.");
 
-
-        if (variations && variations.length > 0) {
+        const finalVariations = Array.isArray(variations) ? variations : [];
+        if (finalVariations.length > 0) {
             console.log("[AUDIT] Processing variation updates...");
             const batchPayload = {
-                update: variations.map((v: ProductVariation) => ({
+                update: finalVariations.map((v: ProductVariation) => ({
                     id: v.variation_id, regular_price: v.regularPrice || undefined, sale_price: v.salePrice || undefined, sku: v.sku || undefined,
                     manage_stock: v.manage_stock, stock_quantity: v.manage_stock ? (parseInt(v.stockQuantity, 10) || null) : undefined,
                     weight: v.weight || undefined, dimensions: v.dimensions, shipping_class: v.shipping_class || undefined,
-                    image: v.image?.id ? { id: v.image.id } : null
+                    image: v.image?.toDelete ? null : (v.image?.id ? { id: v.image.id } : undefined)
                 }))
             };
             await wooApi.post(`products/${productId}/variations/batch`, batchPayload);
