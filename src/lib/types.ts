@@ -149,8 +149,6 @@ export interface ProductData {
   supplier?: string | null; 
   newSupplier?: string;
   productType: ProductType;
-  regular_price?: string; // Add this for consistency with ProductEditState
-  sale_price?: string; // Add this for consistency with ProductEditState
   regularPrice: string;
   salePrice: string;
   manage_stock: boolean;
@@ -162,25 +160,26 @@ export interface ProductData {
     height: string;
   };
   shipping_class: string;
-  category: WooCommerceCategory | null; // Store category object
-  category_id?: number | null; // Added for edit mode simplicity
-  categoryPath?: string; // Used for batch creation by name/path
-  tags: string[]; // Changed to array of strings
+  category: WooCommerceCategory | null;
+  category_id?: number | null;
+  categoryPath?: string;
+  tags: string[];
   shortDescription: string;
   longDescription: string;
   attributes: ProductAttribute[];
-  photos: ProductPhoto[]; // Unified to always use ProductPhoto type
+  photos: ProductPhoto[];
   variations?: ProductVariation[];
   groupedProductIds?: number[];
   language: 'Spanish' | 'English' | 'French' | 'German' | 'Portuguese';
   targetLanguages?: string[];
-  // AI-generated image metadata
   imageTitle?: string;
   imageAltText?: string;
   imageCaption?: string;
   imageDescription?: string;
   source?: 'wizard' | 'batch';
   status?: 'publish' | 'draft' | 'pending' | 'private';
+  regular_price?: string;
+  sale_price?: string;
 }
 
 export interface ProductSearchResult {

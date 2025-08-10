@@ -8,7 +8,7 @@ import { Loader2, ArrowLeft, Save, Trash2, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { onAuthStateChanged, auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import type { WooCommerceCategory, ProductPhoto, ProductVariation, ProductAttribute, ProductEditState } from '@/lib/types';
+import type { WooCommerceCategory, ProductPhoto, ProductVariation, ProductAttribute, ProductEditState, LinkSuggestion, SuggestLinksOutput } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { ProductPreviewCard } from './product-preview-card';
@@ -18,7 +18,6 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
-import type { LinkSuggestion, SuggestLinksOutput } from '@/ai/schemas';
 import { VariationEditor } from '@/components/features/products/variation-editor';
 import { PRODUCT_TYPES } from '@/lib/constants';
 import { ComboBox } from '@/components/core/combobox';
