@@ -1,7 +1,7 @@
 // src/app/api/woocommerce/products/[id]/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getApiClientsForUser, findOrCreateWpCategoryByPath, uploadImageToWordPress, findOrCreateTags } from '@/lib/api-helpers';
+import { getApiClientsForUser, findOrCreateWpCategoryByPath, uploadImageToWordPress } from '@/lib/api-helpers';
 import { z } from 'zod';
 import { adminAuth } from '@/lib/firebase-admin';
 import type { ProductVariation, WooCommerceImage, ProductAttribute } from '@/lib/types';
@@ -90,10 +90,19 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     
     // Transform attributes options array into a pipe-separated string for the UI
     if (productData.attributes && Array.isArray(productData.attributes)) {
-      productData.attributes = productData.attributes.map((attr: any) => ({
-        ...attr,
-        value: (attr.options || []).join(' | '),
-      }));
+      productData.attributes = productData.attributes.map((attr: any) => {
+        // Keep the "Proveedor" attribute as an array, convert others.
+        if (attr.name === 'Proveedor') {
+            return {
+                ...attr,
+                value: (attr.options || []).join(' | '), // Still create value for UI consistency if needed
+            };
+        }
+        return {
+            ...attr,
+            value: (attr.options || []).join(' | '),
+        }
+      });
     }
      console.log(`[API EDIT][AUDIT] Processed product data being sent to client:`, {type: productData.type, attributes: productData.attributes});
     
@@ -152,7 +161,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const attributes = Array.isArray(validatedData.attributes) ? validatedData.attributes : [];
         const sortedImages = [...(validatedData.images || [])].sort((a,b) => (a.isPrimary ? -1 : b.isPrimary ? 1 : 0));
         
-        // Handle Tags by sending names directly to WooCommerce
+        // Handle Tags
         const tagNames = Array.isArray(tags) ? tags.filter(t => t && t.trim()) : [];
         wooPayload.tags = tagNames.map(name => ({ name }));
         

@@ -22,6 +22,35 @@ export function ProductPreviewCard({ product, categories }: ProductPreviewCardPr
     const previewImageUrl = primaryPhoto?.previewUrl || 'https://placehold.co/128x128.png';
     const categoryName = categories.find(c => c.id === product.category_id)?.name || product.categoryPath || 'Sin categoría';
 
+    const renderPrice = () => {
+        if (product.type === 'variable' && product.variations && product.variations.length > 0) {
+            const prices = product.variations
+                .map(v => parseFloat(v.regularPrice || product.regular_price))
+                .filter(p => !isNaN(p) && p > 0);
+
+            if (prices.length === 0) return "N/A";
+            
+            const minPrice = Math.min(...prices);
+            const maxPrice = Math.max(...prices);
+
+            if (minPrice === maxPrice) {
+                return `${minPrice.toFixed(2)}€`;
+            } else {
+                return `${minPrice.toFixed(2)}€ - ${maxPrice.toFixed(2)}€`;
+            }
+        }
+        
+        // Fallback for simple products or variables without prices yet
+        return (
+            <>
+                <span className={cn("font-bold text-xl", product.sale_price && "line-through text-muted-foreground text-base")}>
+                {product.regular_price ? `${product.regular_price}€` : "N/A"}
+                </span>
+                {product.sale_price && <span className="ml-2 font-bold text-xl text-primary">{`${product.sale_price}€`}</span>}
+            </>
+        );
+    }
+
     return (
         <Card className="sticky top-20">
             <CardHeader>
@@ -31,11 +60,8 @@ export function ProductPreviewCard({ product, categories }: ProductPreviewCardPr
             </CardHeader>
             <CardContent className="text-center space-y-2">
                 <CardTitle className="text-base leading-tight">{product.name || "Nombre del Producto"}</CardTitle>
-                <p className="text-sm">
-                    <span className={cn("font-bold text-xl", product.sale_price && "line-through text-muted-foreground text-base")}>
-                    {product.regular_price ? `${product.regular_price}€` : "N/A"}
-                    </span>
-                    {product.sale_price && <span className="ml-2 font-bold text-xl text-primary">{`${product.sale_price}€`}</span>}
+                <p className="text-sm h-12 flex items-center justify-center">
+                    {renderPrice()}
                 </p>
                 <div className="text-xs space-x-1">
                     <Badge variant="outline">{product.status}</Badge>
