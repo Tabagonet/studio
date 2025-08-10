@@ -52,22 +52,21 @@ function custom_media_sideload_image($file_url, $post_id) {
         require_once ABSPATH . 'wp-admin/includes/media.php';
         require_once ABSPATH . 'wp-admin/includes/image.php';
     }
-    $tmp = download_url($file_url);
+    $tmp = download_url($file_url, 15); // Add a 15-second timeout
     if (is_wp_error($tmp)) {
         error_log('AutoPress AI Sideload Error (download_url): ' . $tmp->get_error_message());
-        return false;
+        return $tmp;
     }
     $file_array = ['name' => basename(wp_parse_url($file_url, PHP_URL_PATH)), 'tmp_name' => $tmp];
     $id = media_handle_sideload($file_array, $post_id);
     if (is_wp_error($id)) {
         @unlink($file_array['tmp_name']);
         error_log('AutoPress AI Sideload Error (media_handle_sideload): ' . $id->get_error_message());
-        return false;
     }
     return $id;
 }
 
-function custom_update_product_images(WP_REST_Request $request) {
+function custom_api_update_product_images(WP_REST_Request $request) {
     $product_id = intval($request->get_param('product_id'));
     $mode = sanitize_text_field($request->get_param('mode'));
     $image_urls = $request->get_param('images');
@@ -78,30 +77,34 @@ function custom_update_product_images(WP_REST_Request $request) {
 
     $current_ids = [];
     if ($product->get_image_id()) { $current_ids[] = $product->get_image_id(); }
-    $current_ids = array_merge($current_ids, $product->get_gallery_image_ids());
+    if (method_exists($product, 'get_gallery_image_ids')) {
+        $current_ids = array_merge($current_ids, $product->get_gallery_image_ids());
+    }
 
     $new_ids = [];
     if (is_array($image_urls)) {
         foreach ($image_urls as $img) {
-            if (is_numeric($img)) { $new_ids[] = intval($img); } 
+            if (is_numeric($img)) { $new_ids[] = intval($img); }
             else if (filter_var($img, FILTER_VALIDATE_URL)) {
                 $id = custom_media_sideload_image($img, $product_id);
-                if ($id) $new_ids[] = $id;
+                if (is_numeric($id)) $new_ids[] = $id;
             }
         }
     }
 
     $final_ids = [];
-    if ($mode === 'replace') { $final_ids = $new_ids; } 
-    else if ($mode === 'add') { $final_ids = array_unique(array_merge($current_ids, $new_ids)); } 
-    else { $final_ids = $new_ids; }
+    if ($mode === 'replace') { $final_ids = $new_ids; }
+    else if ($mode === 'add') { $final_ids = array_unique(array_merge($current_ids, $new_ids)); }
+    else if ($mode === 'remove') { $final_ids = array_diff($current_ids, $new_ids); }
+    else if ($mode === 'clear') { $final_ids = []; }
+    else { $final_ids = $new_ids; } // Default to replace
 
     $main_id = array_shift($final_ids);
     $product->set_image_id($main_id ?: 0);
     $product->set_gallery_image_ids($final_ids);
     $product->save();
 
-    return ['status' => 'success', 'product_id' => $product_id, 'images' => $product->get_gallery_image_ids()];
+    return new WP_REST_Response(['status' => 'success', 'product_id' => $product_id, 'images' => $product->get_gallery_image_ids()], 200);
 }
 // ### NEW IMAGE HANDLING LOGIC - END ###
 
@@ -117,7 +120,7 @@ function autopress_ai_register_rest_endpoints() {
         register_rest_route( 'custom/v1', '/batch-trash-posts', ['methods' => 'POST', 'callback' => 'custom_api_batch_trash_posts', 'permission_callback' => 'autopress_ai_permission_check']); register_rest_route( 'custom/v1', '/batch-update-status', ['methods' => 'POST', 'callback' => 'custom_api_batch_update_status', 'permission_callback' => 'autopress_ai_permission_check']); register_rest_route( 'custom/v1', '/batch-clone-posts', ['methods'  => 'POST', 'callback' => 'custom_api_batch_clone_posts', 'permission_callback' => 'autopress_ai_permission_check']); register_rest_route( 'custom/v1', '/content-list', ['methods'  => 'GET', 'callback' => 'custom_api_get_content_list', 'permission_callback' => 'autopress_ai_permission_check']); register_rest_route( 'custom/v1', '/status', ['methods' => 'GET', 'callback' => 'custom_api_status_check', 'permission_callback' => 'autopress_ai_permission_check']); register_rest_route( 'custom/v1', '/trash-post/(?P<id>\d+)', ['methods' => 'POST', 'callback' => 'custom_api_trash_single_post', 'permission_callback' => 'autopress_ai_permission_check']); register_rest_route( 'custom/v1', '/regenerate-css/(?P<id>\d+)', ['methods' => 'POST', 'callback' => 'custom_api_regenerate_elementor_css', 'permission_callback' => 'autopress_ai_permission_check']); register_rest_route( 'custom/v1', '/menus', ['methods' => 'GET', 'callback' => 'custom_api_get_all_menus', 'permission_callback' => 'autopress_ai_permission_check']); register_rest_route( 'custom/v1', '/clone-menu', ['methods' => 'POST', 'callback' => 'custom_api_clone_menu', 'permission_callback' => 'autopress_ai_permission_check']); register_rest_route( 'custom/v1', '/get-or-create-category', ['methods' => 'POST', 'callback' => 'custom_api_get_or_create_category', 'permission_callback' => 'autopress_ai_permission_check']); register_rest_route('custom/v1', '/update-variation-images', ['methods' => 'POST', 'callback' => 'custom_api_update_variation_images', 'permission_callback' => 'autopress_ai_permission_check']);
 
         // ### NEW IMAGE HANDLING ENDPOINT REGISTRATION ###
-        register_rest_route('custom-api/v1', '/update-product-images', ['methods' => 'POST', 'callback' => 'custom_update_product_images', 'permission_callback' => function () { return current_user_can('edit_products'); }]);
+        register_rest_route('custom-api/v1', '/update-product-images', ['methods' => 'POST', 'callback' => 'custom_api_update_product_images', 'permission_callback' => function () { return current_user_can('edit_products'); }]);
     });
     
     // (Existing functions remain the same)

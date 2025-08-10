@@ -5,7 +5,9 @@
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Save, Trash2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Loader2, ArrowLeft, Save, Trash2, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -53,7 +55,7 @@ function EditProductPageContent() {
     try {
         const token = await user.getIdToken();
         
-        // --- IMAGE HANDLING LOGIC ---
+        // --- STEP 1: UPLOAD NEW IMAGES ---
         const existingImageUrls = product.photos.filter(p => !p.file).map(p => p.previewUrl);
         const newImageFiles = product.photos.filter(p => p.file);
         let uploadedImageUrls: string[] = [];
@@ -63,31 +65,34 @@ function EditProductPageContent() {
             const uploadPromises = newImageFiles.map(photo => {
                 const formData = new FormData();
                 formData.append('imagen', photo.file!);
+                // Using the direct upload-to-storage endpoint
                 return fetch('/api/upload-image', {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${token}` },
                     body: formData,
-                }).then(res => res.json());
+                }).then(res => {
+                    if (!res.ok) throw new Error(`Fallo al subir ${photo.name}`);
+                    return res.json();
+                });
             });
 
             const uploadResults = await Promise.all(uploadPromises);
-            const failedUploads = uploadResults.filter(res => !res.success);
-            if (failedUploads.length > 0) {
-                throw new Error(`Fallo al subir ${failedUploads.length} imágen(es).`);
-            }
             uploadedImageUrls = uploadResults.map(res => res.url);
         }
-        
+
+        // --- STEP 2: UPDATE WORDPRESS WITH FINAL IMAGE LIST ---
         const finalImageUrls = [...existingImageUrls, ...uploadedImageUrls];
-        
-        // Call the custom WordPress endpoint to manage images
-        await fetch('/api/wordpress/update-product-images', {
+        const imageUpdateResponse = await fetch('/api/wordpress/update-product-images', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ product_id: productId, mode: 'replace', images: finalImageUrls }),
         });
+        if (!imageUpdateResponse.ok) {
+            const errorData = await imageUpdateResponse.json();
+            throw new Error(errorData.error || 'Fallo al actualizar la galería de imágenes en WordPress.');
+        }
 
-        // --- ATTRIBUTE AND OTHER DATA HANDLING ---
+        // --- STEP 3: UPDATE PRODUCT DATA (attributes, prices, etc.) ---
         const formattedAttributes = product.attributes.map(attr => {
             const optionsFromValue = attr.value ? attr.value.split('|').map(t => t.trim()).filter(Boolean) : (attr.options || []);
             return {
@@ -100,18 +105,18 @@ function EditProductPageContent() {
             };
         });
 
-        const { images, ...productPayload } = product; // Exclude images from the main payload
+        const { images, ...productPayload } = product;
 
         const finalPayload = {
             ...productPayload,
             attributes: formattedAttributes,
         };
         
-        // This is a separate call to the main product endpoint to update non-image data
         const response = await fetch(`/api/woocommerce/products/${productId}`, {
             method: 'PUT',
             headers: { 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify(finalPayload), // No need for FormData if we send image URLs separately
+            // Send only product data, not FormData with images
+            body: JSON.stringify(finalPayload), 
         });
         
         const result = await response.json();
@@ -327,7 +332,7 @@ function EditProductPageContent() {
   );
 }
 
-export default function EditProductPage() {
+export default function EditPage() {
     return (
         <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
             <EditProductPageContent />
