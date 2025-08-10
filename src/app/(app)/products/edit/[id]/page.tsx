@@ -1,4 +1,3 @@
-
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -12,7 +11,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { WooCommerceCategory, ProductPhoto, ProductVariation, ProductAttribute, ProductData, LinkSuggestion, SuggestLinksOutput } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { ProductPreviewCard } from './product-preview-card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -531,8 +529,7 @@ function EditPageContent() {
               </div>
               
               <div className="space-y-6">
-                  <ProductPreviewCard product={product} categories={wooCategories} />
-                  <Card>
+                   <Card>
                       <CardHeader><CardTitle>Organización</CardTitle></CardHeader>
                       <CardContent className="space-y-4">
                         <div>

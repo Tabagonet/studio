@@ -1,4 +1,3 @@
-
 // src/components/features/products/variation-editor.tsx
 "use client";
 
@@ -17,7 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Image from 'next/image';
 
 interface VariationEditorProps {
-  product: ProductData | null;
+  product: ProductData;
   onProductChange: (data: Partial<ProductData>) => void;
   images: ProductPhoto[];
 }

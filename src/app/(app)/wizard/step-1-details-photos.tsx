@@ -1,4 +1,3 @@
-
 // src/app/(app)/wizard/step-1-details-photos.tsx
 "use client";
 
@@ -10,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { VariationEditor } from '@/components/features/products/variation-editor';
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
-import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory, ProductVariationAttribute, LinkSuggestion, SuggestLinksOutput } from '@/lib/types';
+import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory, LinkSuggestion, SuggestLinksOutput } from '@/lib/types';
 import { PRODUCT_TYPES, ALL_LANGUAGES } from '@/lib/constants';
 import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -177,6 +176,19 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         variations: [] 
       });
   };
+  
+ const handlePhotosWithAutoName = useCallback((newPhotos: ProductPhoto[]) => {
+    if (!productData.name && newPhotos.length > 0) {
+      const firstNewFile = newPhotos.find(p => p && p.file);
+      if (firstNewFile) {
+        const { extractedProductName } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
+        console.log("[WIZARD][AUDIT] Extracted product name from filename:", extractedProductName);
+        updateProductData({ photos: newPhotos, name: extractedProductName });
+        return;
+      }
+    }
+    onPhotosChange(newPhotos);
+  }, [productData.name, onPhotosChange, updateProductData]);
   
   const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string | boolean) => {
     const newAttributes = [...productData.attributes];
@@ -528,7 +540,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
                   {productData.productType === 'variable' && (
                       <div className="border-t pt-6 mt-6">
-                        <VariationEditor
+                        <VariationEditor 
                             product={productData} 
                             onProductChange={updateProductData}
                             images={productData.photos}
@@ -564,7 +576,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
           <div className="lg:col-span-1 space-y-8">
               <Card>
                 <CardHeader><CardTitle>Imágenes del Producto</CardTitle><CardDescription>Sube las imágenes para tu producto. La primera se usará como principal.</CardDescription></CardHeader>
-                <CardContent className="space-y-4"><ImageUploader photos={productData.photos} onPhotosChange={onPhotosChange} isProcessing={isProcessing || isGenerating} maxPhotos={15} /><Button onClick={handleGenerateImageMetadata} disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} className="w-full" variant="outline">{isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}</Button></CardContent>
+                <CardContent className="space-y-4"><ImageUploader photos={productData.photos} onPhotosChange={handlePhotosWithAutoName} isProcessing={isProcessing || isGenerating} maxPhotos={15} /><Button onClick={handleGenerateImageMetadata} disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} className="w-full" variant="outline">{isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}</Button></CardContent>
               </Card>
 
               <Card>

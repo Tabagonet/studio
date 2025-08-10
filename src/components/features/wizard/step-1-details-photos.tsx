@@ -7,9 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
-import { VariableProductManager } from '@/components/features/products/variable-product-manager';
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
-import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory, ProductVariationAttribute } from '@/lib/types';
+import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory, LinkSuggestion, SuggestLinksOutput } from '@/lib/types';
 import { PRODUCT_TYPES, ALL_LANGUAGES } from '@/lib/constants';
 import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,11 +19,10 @@ import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { useDebounce } from '@/hooks/use-debounce';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
-import type { LinkSuggestion, SuggestLinksOutput } from '@/ai/schemas';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { ComboBox } from '@/components/core/combobox';
-import type { ProductEditState } from '@/app/(app)/products/edit/[id]/page';
+import { VariationEditor } from '@/components/features/products/variation-editor';
 
 interface Step1DetailsPhotosProps {
   productData: ProductData;
@@ -542,7 +540,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
                   {productData.productType === 'variable' && (
                       <div className="border-t pt-6 mt-6">
-                        <VariableProductManager 
+                        <VariationEditor 
                             product={productData} 
                             onProductChange={updateProductData}
                             images={productData.photos}
