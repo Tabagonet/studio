@@ -93,6 +93,7 @@ export const INITIAL_PRODUCT_DATA: ProductData = {
   sku: "",
   shouldSaveSku: true,
   name: "",
+  status: 'draft',
   productType: 'simple',
   regularPrice: "",
   salePrice: "",
@@ -126,7 +127,7 @@ export const INITIAL_BLOG_DATA: BlogPostData = {
   title: '',
   content: '',
   topic: '', // for AI
-  tags: '',
+  tags: [],
   focusKeyword: '',
   metaDescription: '',
   category: null,
