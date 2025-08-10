@@ -7,8 +7,7 @@ import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import type { WooCommerceCategory } from '@/lib/types';
-import type { ProductEditState } from './page';
+import type { WooCommerceCategory, ProductEditState } from '@/lib/types';
 
 interface ProductPreviewCardProps {
     product: ProductEditState | null;
@@ -16,14 +15,46 @@ interface ProductPreviewCardProps {
 }
 
 export function ProductPreviewCard({ product, categories }: ProductPreviewCardProps) {
-    console.log("[PREVIEW][AUDIT] Rendering ProductPreviewCard with product:", product);
     if (!product) return null;
 
     const primaryPhoto = product.images?.find(p => p.isPrimary && !p.toDelete) || product.images?.find(p => !p.toDelete);
     const previewImageUrl = primaryPhoto?.previewUrl || 'https://placehold.co/128x128.png';
     const categoryName = categories.find(c => c.id === product.category_id)?.name || product.categoryPath || 'Sin categoría';
-    
-    console.log("[PREVIEW][AUDIT] Primary photo found:", primaryPhoto);
+
+    const renderPrice = () => {
+        if (product.type === 'variable') {
+             const prices = (product.variations || [])
+                .map(v => parseFloat(v.regularPrice || ''))
+                .filter(p => !isNaN(p) && p > 0);
+            
+             if (prices.length === 0) {
+                const parentPrice = parseFloat(product.regular_price);
+                if (!isNaN(parentPrice) && parentPrice > 0) {
+                    return `${parentPrice.toFixed(2)}€`;
+                }
+                return "N/A";
+            }
+            
+            const minPrice = Math.min(...prices);
+            const maxPrice = Math.max(...prices);
+
+            if (minPrice === maxPrice) {
+                return `${minPrice.toFixed(2)}€`;
+            } else {
+                return `${minPrice.toFixed(2)}€ - ${maxPrice.toFixed(2)}€`;
+            }
+        }
+        
+        // Fallback for simple products
+        return (
+            <>
+                <span className={cn("font-bold text-xl", product.sale_price && "line-through text-muted-foreground text-base")}>
+                {product.regular_price ? `${product.regular_price}€` : "N/A"}
+                </span>
+                {product.sale_price && <span className="ml-2 font-bold text-xl text-primary">{`${product.sale_price}€`}</span>}
+            </>
+        );
+    }
 
     return (
         <Card className="sticky top-20">
@@ -34,12 +65,9 @@ export function ProductPreviewCard({ product, categories }: ProductPreviewCardPr
             </CardHeader>
             <CardContent className="text-center space-y-2">
                 <CardTitle className="text-base leading-tight">{product.name || "Nombre del Producto"}</CardTitle>
-                <p className="text-sm">
-                    <span className={cn("font-bold text-xl", product.sale_price && "line-through text-muted-foreground text-base")}>
-                    {product.regular_price ? `${product.regular_price}€` : "N/A"}
-                    </span>
-                    {product.sale_price && <span className="ml-2 font-bold text-xl text-primary">{`${product.sale_price}€`}</span>}
-                </p>
+                <div className="text-sm h-12 flex items-center justify-center">
+                    {renderPrice()}
+                </div>
                 <div className="text-xs space-x-1">
                     <Badge variant="outline">{product.status}</Badge>
                     <Badge variant="secondary">{categoryName}</Badge>
