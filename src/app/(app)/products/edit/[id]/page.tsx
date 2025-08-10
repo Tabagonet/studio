@@ -1,3 +1,4 @@
+
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -17,10 +18,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
-import { ImageUploader } from '@/components/features/wizard/image-uploader';
+import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
+import type { LinkSuggestion, SuggestLinksOutput } from '@/ai/schemas';
+import { VariationEditor } from '@/components/features/products/variation-editor';
 import { PRODUCT_TYPES } from '@/lib/constants';
 import { ComboBox } from '@/components/core/combobox';
-import { VariationEditor } from '@/components/features/products/variation-editor';
+
 
 export interface ProductEditState {
     id: number;
@@ -78,7 +81,6 @@ function EditProductPageContent() {
         if (!prev) return null;
         const updates = typeof data === 'function' ? data(prev) : data;
         const newState = { ...prev, ...updates };
-        console.log("[EDITOR_AUDIT] State updated. New partial state:", updates, "Full new state:", newState);
         return newState;
     });
   }, []);
@@ -96,7 +98,6 @@ function EditProductPageContent() {
         setIsLoading(false);
         return;
       }
-      console.log(`[EDITOR_AUDIT] Fetching initial data for product ID: ${productId}`);
 
       try {
         const token = await user.getIdToken();
@@ -111,7 +112,6 @@ function EditProductPageContent() {
           throw new Error(errorData.error || 'Failed to fetch product data.');
         }
         const productData = await productResponse.json();
-        console.log("[EDITOR_AUDIT] Raw product data fetched:", productData);
         
         let fetchedCategories: WooCommerceCategory[] = [];
         if (categoriesResponse.ok) {
@@ -147,14 +147,14 @@ function EditProductPageContent() {
             id: attr.id || 0,
             name: attr.name,
             value: (attr.options || []).join(' | '),
-            options: (attr.options || []).map(String),
+            options: (attr.options || []),
             position: attr.position,
             visible: attr.visible,
             forVariations: attr.variation || false,
             variation: attr.variation || false,
         }));
 
-        const finalProductState = {
+        const finalProductState: ProductEditState = {
           id: productData.id,
           name: productData.name || '',
           sku: productData.sku || '',
@@ -179,7 +179,6 @@ function EditProductPageContent() {
         };
         
         setProduct(finalProductState);
-        console.log("[EDITOR_AUDIT] Product state initialized:", finalProductState);
 
       } catch (e: any) {
         setError(e.message);
@@ -198,9 +197,7 @@ function EditProductPageContent() {
         return;
     }
 
-    console.log("[EDITOR_AUDIT] Preparing to save. Current product state:", product);
     const sortedImages = [...product.images].sort((a,b) => (a.isPrimary ? -1 : b.isPrimary ? 1 : 0));
-    console.log("[EDITOR_AUDIT] Images sorted for save. Primary first:", sortedImages);
 
     try {
         const token = await user.getIdToken();
@@ -210,7 +207,6 @@ function EditProductPageContent() {
         formData.append('productData', JSON.stringify(payloadForJson));
         
         const newPhotoFiles = product.images.filter(p => p.file && !p.toDelete);
-        console.log(`[EDITOR_AUDIT] Found ${newPhotoFiles.length} new photos to upload.`);
         newPhotoFiles.forEach(photo => {
             if (photo.file) {
                  formData.append(photo.id.toString(), photo.file, photo.name);
@@ -377,6 +373,7 @@ function EditProductPageContent() {
                                         selectedValue={product.supplier || ''}
                                         onSelect={(value) => {
                                             updateProductData(prev => {
+                                                if(!prev) return prev;
                                                 const newAttributes = [...prev.attributes];
                                                 const supplierAttrIndex = newAttributes.findIndex(a => a.name === 'Proveedor');
                                                 if (supplierAttrIndex > -1) {
@@ -390,7 +387,8 @@ function EditProductPageContent() {
                                         }}
                                         onNewItemChange={(value) => {
                                             updateProductData(prev => {
-                                                 const newAttributes = [...prev.attributes];
+                                                if(!prev) return prev;
+                                                const newAttributes = [...prev.attributes];
                                                 const supplierAttrIndex = newAttributes.findIndex(a => a.name === 'Proveedor');
                                                 if (supplierAttrIndex > -1) {
                                                     newAttributes[supplierAttrIndex].options = [value];
@@ -449,7 +447,7 @@ function EditProductPageContent() {
                                 <Button type="button" variant="outline" onClick={addAttribute} className="mt-2"><PlusCircle className="mr-2 h-4 w-4" /> Añadir Atributo</Button>
                             </CardContent>
                         </Card>
-                        <VariationEditor 
+                         <VariationEditor 
                             product={product} 
                             onProductChange={updateProductData}
                             images={product.images}
@@ -467,15 +465,6 @@ function EditProductPageContent() {
               
               <div className="space-y-6">
                   <ProductPreviewCard product={product} categories={wooCategories} />
-                   <Card><CardHeader><CardTitle>Imágenes</CardTitle></CardHeader><CardContent><ImageUploader photos={product.images} onPhotosChange={handlePhotosChange} isProcessing={isSaving}/></CardContent></Card>
-                  <Card>
-                      <CardHeader><CardTitle>Envío</CardTitle></CardHeader>
-                      <CardContent className="space-y-4">
-                          <div><Label htmlFor="weight">Peso (kg)</Label><Input id="weight" name="weight" type="number" value={product.weight} onChange={handleInputChange} /></div>
-                          <div><Label>Dimensiones (cm)</Label><div className="grid grid-cols-3 gap-2"><Input value={product.dimensions?.length || ''} onChange={(e) => handleDimensionChange('length', e.target.value)} placeholder="Largo" /><Input value={product.dimensions?.width || ''} onChange={(e) => handleDimensionChange('width', e.target.value)} placeholder="Ancho" /><Input value={product.dimensions?.height || ''} onChange={(e) => handleDimensionChange('height', e.target.value)} placeholder="Alto" /></div></div>
-                          <div><Label htmlFor="shipping_class">Clase de envío (slug)</Label><Input id="shipping_class" name="shipping_class" value={product.shipping_class} onChange={handleInputChange} /></div>
-                      </CardContent>
-                  </Card>
                   <Card>
                       <CardHeader><CardTitle>Organización</CardTitle></CardHeader>
                       <CardContent className="space-y-4">
@@ -502,6 +491,8 @@ function EditProductPageContent() {
                         </div>
                       </CardContent>
                   </Card>
+                   <Card><CardHeader><CardTitle>Envío</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="weight">Peso (kg)</Label><Input id="weight" name="weight" type="number" value={product.weight} onChange={handleInputChange} /></div><div><Label>Dimensiones (cm)</Label><div className="grid grid-cols-3 gap-2"><Input value={product.dimensions?.length || ''} onChange={(e) => handleDimensionChange('length', e.target.value)} placeholder="Largo" /><Input value={product.dimensions?.width || ''} onChange={(e) => handleDimensionChange('width', e.target.value)} placeholder="Ancho" /><Input value={product.dimensions?.height || ''} onChange={(e) => handleDimensionChange('height', e.target.value)} placeholder="Alto" /></div></div><div><Label htmlFor="shipping_class">Clase de envío (slug)</Label><Input id="shipping_class" name="shipping_class" value={product.shipping_class} onChange={handleInputChange} /></div></CardContent></Card>
+                  <Card><CardHeader><CardTitle>Imágenes</CardTitle></CardHeader><CardContent><ImageUploader photos={product.images} onPhotosChange={handlePhotosChange} isProcessing={isSaving}/></CardContent></Card>
                   <Card><CardHeader><CardTitle className="text-destructive">Zona de Peligro</CardTitle></CardHeader><CardContent><AlertDialog><AlertDialogTrigger asChild><Button variant="destructive" className="w-full" disabled={isDeleting}><Trash2 className="mr-2 h-4 w-4" /> Eliminar Producto</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente este producto.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></CardContent></Card>
               </div>
           </div>
@@ -510,7 +501,7 @@ function EditProductPageContent() {
   );
 }
 
-export default function EditProduct() {
+export default function EditProductPage() {
     return (
         <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
             <EditProductPageContent />
