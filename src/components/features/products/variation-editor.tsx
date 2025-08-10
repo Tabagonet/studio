@@ -65,6 +65,7 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
     }
 
     const combinations = cartesian(...attributeValueSets);
+    const primaryImage = product.photos?.find(p => p.isPrimary) || product.photos?.[0];
 
     const newVariations: ProductVariation[] = combinations.map(combo => {
         const attributes = combo.map((value, index) => ({ name: attributeNames[index], option: value }));
@@ -78,7 +79,8 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
             salePrice: product.sale_price || '',
             stockQuantity: '', 
             manage_stock: false,
-            image: { id: null }, 
+            // Assign the primary product image by default
+            image: primaryImage ? { id: primaryImage.id } : { id: null }, 
         };
     });
     

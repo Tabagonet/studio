@@ -1,4 +1,3 @@
-
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -101,17 +100,7 @@ function EditPageContent() {
         
         let mainCategoryId = null;
         if(Array.isArray(productData.categories) && productData.categories.length > 0) {
-            const categoriesResponse = await fetch('/api/woocommerce/categories', { headers: { 'Authorization': `Bearer ${token}` }});
-            if(categoriesResponse.ok) {
-                const allCategories = await categoriesResponse.json();
-                const parentSupplierCategory = allCategories.find((c: WooCommerceCategory) => c.name.toLowerCase() === 'proveedores' && c.parent === 0);
-                const supplierSubCats = parentSupplierCategory ? allCategories.filter((c: any) => c.parent === parentSupplierCategory.id).map((c: any) => c.id) : [];
-                
-                const mainCat = productData.categories.find((c: any) => !parentSupplierCategory || (c.id !== parentSupplierCategory.id && !supplierSubCats.includes(c.id)));
-                mainCategoryId = mainCat ? mainCat.id : productData.categories[0].id;
-            } else {
-                 mainCategoryId = productData.categories[0].id;
-            }
+           mainCategoryId = productData.categories[0].id;
         }
         
         const formattedAttributes = (productData.attributes || []).map((attr: any): ProductAttribute => ({
@@ -176,7 +165,8 @@ function EditPageContent() {
         };
         formData.append('productData', JSON.stringify(productPayloadForUpdate));
         
-        product.photos.forEach(photo => {
+        const newPhotoFiles = product.photos.filter(p => p.file);
+        newPhotoFiles.forEach(photo => {
             if (photo.file) {
                 formData.append(photo.id.toString(), photo.file);
             }
