@@ -489,7 +489,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t pt-6">
                       <div>
                         <Label htmlFor="regularPrice">Precio Regular (€)</Label>
-                        <Input id="regularPrice" name="regularPrice" type="number" value={productData.regular_price} onChange={handleInputChange} placeholder="Ej: 29.99" disabled={isProcessing} />
+                        <Input id="regularPrice" name="regular_price" type="number" value={productData.regular_price} onChange={handleInputChange} placeholder="Ej: 29.99" disabled={isProcessing} />
                         {productData.productType === 'variable' && <p className="text-xs text-muted-foreground mt-1">Este será el precio por defecto para las nuevas variaciones.</p>}
                       </div>
                       <div>

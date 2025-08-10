@@ -51,42 +51,18 @@ function EditProductPageContent() {
 
     try {
         const token = await user.getIdToken();
-
-        // 1. Separate new images from existing ones
-        const newPhotoFiles = product.photos.filter(p => p.file);
-        const existingImageUrls = product.photos.filter(p => !p.file).map(p => p.previewUrl);
-
-        // 2. Upload new images to Firebase Storage first
-        const uploadedUrls = [...existingImageUrls];
-        if (newPhotoFiles.length > 0) {
-            for (const photo of newPhotoFiles) {
-                const formData = new FormData();
-                formData.append('file', photo.file!);
-                const uploadResponse = await fetch('/api/upload-to-storage', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData });
-                if (!uploadResponse.ok) throw new Error(`Fallo al subir la imagen ${photo.name}`);
-                const { url } = await uploadResponse.json();
-                uploadedUrls.push(url);
-            }
-        }
-        
-        // 3. Call the new custom endpoint to update images
-        await fetch('/api/wordpress/update-product-images', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({
-                product_id: productId,
-                mode: 'replace',
-                images: uploadedUrls
-            })
-        });
-
-        // 4. Update the rest of the product data via the standard endpoint
-        const productPayload = { 
-            ...product, 
-            images: undefined, // Let the custom endpoint handle images
-        };
         const formData = new FormData();
-        formData.append('productData', JSON.stringify(productPayload));
+        
+        // Append product data as a JSON string
+        formData.append('productData', JSON.stringify(product));
+        
+        // Append only new image files
+        const newPhotoFiles = product.photos.filter(p => p.file);
+        newPhotoFiles.forEach(photo => {
+            if (photo.file) {
+                formData.append('photos', photo.file, photo.name);
+            }
+        });
         
         const response = await fetch(`/api/woocommerce/products/${productId}`, {
             method: 'PUT',
@@ -100,7 +76,7 @@ function EditProductPageContent() {
         }
         
         toast({ title: '¡Éxito!', description: 'El producto ha sido actualizado.' });
-        fetchInitialData();
+        router.push('/batch');
 
     } catch (e: any) {
         toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
@@ -175,7 +151,9 @@ function EditProductPageContent() {
             if(categoriesResponse.ok) {
                 const allCategories = await categoriesResponse.json();
                 const parentSupplierCategory = allCategories.find((c: WooCommerceCategory) => c.name.toLowerCase() === 'proveedores' && c.parent === 0);
-                const mainCat = productData.categories.find((c: any) => !parentSupplierCategory || c.id !== parentSupplierCategory.id);
+                const supplierSubCats = parentSupplierCategory ? allCategories.filter((c: any) => c.parent === parentSupplierCategory.id).map((c: any) => c.id) : [];
+                
+                const mainCat = productData.categories.find((c: any) => !parentSupplierCategory || (c.id !== parentSupplierCategory.id && !supplierSubCats.includes(c.id)));
                 mainCategoryId = mainCat ? mainCat.id : productData.categories[0].id;
             } else {
                  mainCategoryId = productData.categories[0].id;
