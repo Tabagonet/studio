@@ -49,10 +49,14 @@ export interface WooCommerceImage {
 }
 
 export interface ProductAttribute {
+  id?: number;
   name: string;
-  value: string;
+  value: string; // The UI-friendly pipe-separated string
+  options?: string[]; // The raw options array from WooCommerce
   forVariations?: boolean;
   visible?: boolean;
+  position?: number;
+  variation?: boolean; // From WooCommerce
 }
 
 export interface ProductVariationAttribute {
@@ -108,7 +112,7 @@ export interface BlogPostData {
   title: string;
   content: string;
   topic: string; // for AI
-  tags: string;
+  tags: string[]; // Changed to array
   focusKeyword: string;
   metaDescription: string;
   category: WordPressPostCategory | null;
@@ -157,8 +161,9 @@ export interface ProductData {
   };
   shipping_class: string;
   category: WooCommerceCategory | null; // Store category object
+  category_id?: number | null; // Added for edit mode simplicity
   categoryPath?: string; // Used for batch creation by name/path
-  tags: string[];
+  tags: string[]; // Changed to array of strings
   shortDescription: string;
   longDescription: string;
   attributes: ProductAttribute[];
@@ -173,6 +178,7 @@ export interface ProductData {
   imageCaption?: string;
   imageDescription?: string;
   source?: 'wizard' | 'batch';
+  status?: 'publish' | 'draft' | 'pending' | 'private';
 }
 
 export interface ProductSearchResult {
@@ -490,5 +496,3 @@ export interface PlanUsage {
     totalAvailable: number;
   };
 }
-
-    

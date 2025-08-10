@@ -1,3 +1,4 @@
+
 // src/app/(app)/wizard/step-1-details-photos.tsx
 "use client";
 
@@ -177,7 +178,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
   const handleSelectChange = (name: 'productType', value: string) => {
       updateProductData({ 
         productType: value as ProductType, 
-        attributes: [{ name: '', value: '', forVariations: false, visible: true }], 
+        attributes: [{ name: '', value: '', forVariations: false, visible: true, options: [] }], 
         variations: [] 
       });
   };
@@ -201,7 +202,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
   };
 
   const addAttribute = () => {
-    updateProductData({ attributes: [...productData.attributes, { name: '', value: '', forVariations: false, visible: true }] });
+    updateProductData({ attributes: [...productData.attributes, { name: '', value: '', forVariations: false, visible: true, options: [] }] });
   };
 
   const removeAttribute = (index: number) => {
@@ -500,13 +501,13 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
                   {(productData.productType === 'simple' || productData.productType === 'variable') && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t pt-6">
                       <div>
-                        <Label htmlFor="regular_price">Precio Regular (€)</Label>
-                        <Input id="regular_price" name="regular_price" type="number" value={productData.regular_price} onChange={handleInputChange} placeholder="Ej: 29.99" disabled={isProcessing} />
+                        <Label htmlFor="regularPrice">Precio Regular (€)</Label>
+                        <Input id="regularPrice" name="regularPrice" type="number" value={productData.regularPrice} onChange={handleInputChange} placeholder="Ej: 29.99" disabled={isProcessing} />
                         {productData.productType === 'variable' && <p className="text-xs text-muted-foreground mt-1">Este será el precio por defecto para las nuevas variaciones.</p>}
                       </div>
                       <div>
-                        <Label htmlFor="sale_price">Precio de Oferta (€)</Label>
-                        <Input id="sale_price" name="sale_price" type="number" value={productData.sale_price} onChange={handleInputChange} placeholder="Opcional" disabled={isProcessing} />
+                        <Label htmlFor="salePrice">Precio de Oferta (€)</Label>
+                        <Input id="salePrice" name="salePrice" type="number" value={productData.salePrice} onChange={handleInputChange} placeholder="Opcional" disabled={isProcessing} />
                       </div>
                     </div>
                   )}
@@ -529,7 +530,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
                           {productData.attributes.map((attr, index) => (
                              <div key={index} className="flex flex-col sm:flex-row items-start sm:items-end gap-2 p-3 border rounded-md bg-muted/20 mb-2">
                                   <div className="flex-1 w-full"><Label htmlFor={`attrName-${index}`}>Nombre</Label><Input id={`attrName-${index}`} value={attr.name} onChange={(e) => handleAttributeChange(index, 'name', e.target.value)} placeholder="Ej: Color" disabled={isProcessing || isGenerating} /></div>
-                                  <div className="flex-1 w-full"><Label htmlFor={`attrValue-${index}`}>Valor(es)</Label><Input id={`attrValue-${index}`} value={attr.value} onChange={(e) => handleAttributeChange(index, 'value', e.target.value)} placeholder="Ej: Azul | Rojo | Verde" disabled={isProcessing || isGenerating} /></div>
+                                  <div className="flex-1 w-full"><Label htmlFor={`attrValue-${index}`}>Valor(es)</Label><Input id={`attrValue-${index}`} value={attr.value || ''} onChange={(e) => handleAttributeChange(index, 'value', e.target.value)} placeholder="Ej: Azul | Rojo | Verde" disabled={isProcessing || isGenerating} /></div>
                                   <div className="flex items-center gap-4 pt-2 sm:pt-0 sm:self-end sm:h-10">
                                       {productData.productType === 'variable' && (<div className="flex items-center space-x-2"><Checkbox id={`attrVar-${index}`} checked={attr.forVariations} onCheckedChange={(checked) => handleAttributeChange(index, 'forVariations', !!checked)} disabled={isProcessing || isGenerating} /><Label htmlFor={`attrVar-${index}`} className="text-sm font-normal whitespace-nowrap">Para variaciones</Label></div>)}
                                       <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" disabled={isProcessing || isGenerating} className="flex-shrink-0"><Trash2 className="h-4 w-4 text-destructive" /></Button>

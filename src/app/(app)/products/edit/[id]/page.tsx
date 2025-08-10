@@ -7,7 +7,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, Save, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { auth, onAuthStateChanged } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { WooCommerceCategory, ProductPhoto, ProductVariation } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -54,15 +54,35 @@ function EditProductPageContent() {
         const token = await user.getIdToken();
         const formData = new FormData();
         
-        // Append product data as a JSON string
-        formData.append('productData', JSON.stringify(product));
+        // --- NEW: Format attributes before sending ---
+        const formattedAttributes = product.attributes.map(attr => {
+            const optionsFromValue = attr.value ? attr.value.split('|').map(t => t.trim()) : [];
+            return {
+                id: attr.id || 0, // WooCommerce expects an ID for existing attributes
+                name: attr.name,
+                position: attr.position || 0,
+                visible: attr.visible,
+                variation: attr.forVariations || attr.variation || false,
+                options: optionsFromValue.map(String), // Ensure all options are strings
+            };
+        });
+
+        const formattedProduct = {
+          ...product,
+          attributes: formattedAttributes,
+        };
+
+        const payload = {
+          ...formattedProduct,
+          images: product.images.filter(p => !p.file).map(p => ({ id: p.id })), // Only send existing image IDs
+        };
+
+        formData.append('productData', JSON.stringify(payload));
         
-        // Append only new image files
-        const newPhotoFiles = product.photos.filter(p => p.file);
-        newPhotoFiles.forEach(photo => {
+        const newPhotos = product.photos.filter(p => p.file);
+        newPhotos.forEach(photo => {
             if (photo.file) {
-                // Use the photo's client-side ID as a key to map it on the backend
-                formData.append(photo.id as string, photo.file, photo.name);
+                 formData.append(photo.id as string, photo.file, photo.name);
             }
         });
         
@@ -162,27 +182,34 @@ function EditProductPageContent() {
             }
         }
         
+        const formattedAttributes = (productData.attributes || []).map((attr: any) => ({
+            ...attr,
+            options: (attr.options || []).map(String), // Ensure all options are strings on load
+            value: (attr.options || []).map(String).join(' | '), // Create the value string for UI
+            forVariations: attr.variation || false,
+        }));
+
         setProduct({
           id: productData.id,
           name: productData.name || '',
           sku: productData.sku || '',
           supplier: supplierAttribute ? supplierAttribute.options[0] : null,
           productType: productData.type || 'simple',
-          regular_price: productData.regular_price || '',
-          sale_price: productData.sale_price || '',
-          short_description: productData.short_description || '',
+          regularPrice: productData.regular_price || '',
+          salePrice: productData.sale_price || '',
+          shortDescription: productData.short_description || '',
           description: productData.description || '',
           photos: existingImagesAsProductPhotos,
           variations: existingVariations,
           status: productData.status || 'draft',
-          tags: (productData.tags?.map((t: any) => t.name) || []),
+          tags: productData.tags?.map((t: any) => t.name) || [],
           category_id: mainCategoryId,
           manage_stock: productData.manage_stock || false,
           stockQuantity: productData.stock_quantity?.toString() || '',
           weight: productData.weight || '',
           dimensions: productData.dimensions || { length: '', width: '', height: '' },
           shipping_class: productData.shipping_class || '',
-          attributes: productData.attributes || [],
+          attributes: formattedAttributes,
           language: 'Spanish', 
           targetLanguages: [], 
           shouldSaveSku: true, 
