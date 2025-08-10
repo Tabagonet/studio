@@ -8,10 +8,10 @@ import { Loader2, ArrowLeft, Save, Trash2, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { onAuthStateChanged, auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import type { WooCommerceCategory, ProductPhoto, ProductVariation, ProductAttribute } from '@/lib/types';
+import type { WooCommerceCategory, ProductPhoto, ProductVariation, ProductAttribute, ProductEditState } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { ProductPreviewCard } from '@/components/features/products/product-preview-card';
+import { ProductPreviewCard } from './product-preview-card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -24,40 +24,6 @@ import { PRODUCT_TYPES } from '@/lib/constants';
 import { ComboBox } from '@/components/core/combobox';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 
-
-export interface ProductEditState {
-    id: number;
-    name: string;
-    sku: string;
-    supplier: string | null;
-    newSupplier?: string;
-    type: 'simple' | 'variable' | 'grouped' | 'external';
-    regular_price: string;
-    sale_price: string;
-    short_description: string;
-    description: string;
-    images: ProductPhoto[];
-    variations?: ProductVariation[];
-    status: 'publish' | 'draft' | 'pending' | 'private';
-    tags: string[];
-    category_id: number | null;
-    category?: WooCommerceCategory | null; 
-    manage_stock: boolean;
-    stock_quantity: string;
-    weight: string;
-    dimensions: {
-        length: string;
-        width: string;
-        height: string;
-    };
-    shipping_class: string;
-    attributes: ProductAttribute[];
-    categoryPath?: string;
-    imageTitle?: string;
-    imageAltText?: string;
-    imageCaption?: string;
-    imageDescription?: string;
-}
 
 function EditPageContent() {
   const params = useParams();

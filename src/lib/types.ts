@@ -228,8 +228,8 @@ export interface SubmissionStep {
   name: string;
   status: SubmissionStepStatus;
   progress?: number;
-  error?: string;
   message?: string;
+  error?: string;
 }
 
 export interface ActivityLog {
@@ -498,4 +498,38 @@ export interface PlanUsage {
     oneTimeAvailable: number;
     totalAvailable: number;
   };
+}
+
+export interface ProductEditState {
+    id: number;
+    name: string;
+    sku: string;
+    supplier: string | null;
+    newSupplier?: string;
+    type: 'simple' | 'variable' | 'grouped' | 'external';
+    regular_price: string;
+    sale_price: string;
+    short_description: string;
+    description: string;
+    images: ProductPhoto[];
+    variations?: ProductVariation[];
+    status: 'publish' | 'draft' | 'pending' | 'private';
+    tags: string[];
+    category_id: number | null;
+    category?: WooCommerceCategory | null; 
+    manage_stock: boolean;
+    stock_quantity: string;
+    weight: string;
+    dimensions: {
+        length: string;
+        width: string;
+        height: string;
+    };
+    shipping_class: string;
+    attributes: ProductAttribute[];
+    categoryPath?: string;
+    imageTitle?: string;
+    imageAltText?: string;
+    imageCaption?: string;
+    imageDescription?: string;
 }
