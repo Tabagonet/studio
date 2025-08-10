@@ -378,12 +378,14 @@ export async function findOrCreateWpCategoryByPath(pathString: string, wpApi: Ax
     if (!pathString || !pathString.trim()) {
         return null;
     }
+    console.log(`[API Helper] Finding or creating category path: "${pathString}" in taxonomy "${taxonomy}"`);
 
     const pathParts = pathString.split('>').map(part => part.trim());
     let parentId = 0;
     let finalCategoryId: number | null = null;
 
     for (const part of pathParts) {
+        console.log(`[API Helper] Processing path part: "${part}" with parent ID: ${parentId}`);
         // Search for an existing term with the exact name and parent
         const { data: searchResult } = await wpApi.get(`/${taxonomy}`, {
             params: {
@@ -395,12 +397,14 @@ export async function findOrCreateWpCategoryByPath(pathString: string, wpApi: Ax
         });
         
         // Find an exact match from the search results
-        const foundTerm = searchResult.find((term: any) => term.name.toLowerCase() === part.toLowerCase());
+        const foundTerm = searchResult.find((term: any) => term.name.toLowerCase() === part.toLowerCase() && term.parent === parentId);
 
         if (foundTerm) {
+            console.log(`[API Helper] Found existing term for "${part}" with ID: ${foundTerm.id}`);
             parentId = foundTerm.id;
         } else {
             // If no exact match is found, create the new term
+            console.log(`[API Helper] No existing term found for "${part}". Creating...`);
             const { data: newTerm } = await wpApi.post(`/${taxonomy}`, {
                 name: part,
                 parent: parentId,
@@ -408,11 +412,13 @@ export async function findOrCreateWpCategoryByPath(pathString: string, wpApi: Ax
             if (!newTerm || !newTerm.id) {
                 throw new Error(`Failed to create category term "${part}".`);
             }
+            console.log(`[API Helper] Created new term for "${part}" with ID: ${newTerm.id}`);
             parentId = newTerm.id;
         }
         finalCategoryId = parentId;
     }
 
+    console.log(`[API Helper] Final category ID for path "${pathString}" is: ${finalCategoryId}`);
     return finalCategoryId;
 }
 
@@ -428,6 +434,7 @@ export async function findOrCreateTags(tagNames: string[], wpApi: AxiosInstance)
     return [];
   }
   const tagIds: number[] = [];
+  console.log(`[API Helper] Finding or creating tags:`, tagNames);
 
   for (const name of tagNames) {
     try {
@@ -435,15 +442,20 @@ export async function findOrCreateTags(tagNames: string[], wpApi: AxiosInstance)
       const existingTag = searchResponse.data.find((tag: any) => tag.name.toLowerCase() === name.toLowerCase());
 
       if (existingTag) {
+        console.log(`[API Helper] Found existing tag "${name}" with ID: ${existingTag.id}`);
         tagIds.push(existingTag.id);
       } else {
+        console.log(`[API Helper] No existing tag found for "${name}". Creating...`);
         const createResponse = await wpApi.post('/tags', { name });
+        console.log(`[API Helper] Created new tag "${name}" with ID: ${createResponse.data.id}`);
         tagIds.push(createResponse.data.id);
       }
     } catch (error: any) {
+        // Handle race conditions where a tag might be created between the search and the create call
         if (error.response?.data?.code === 'term_exists') {
             const existingId = error.response.data.data?.term_id;
             if (existingId) {
+                console.log(`[API Helper] Tag "${name}" already existed (race condition), using ID: ${existingId}`);
                 tagIds.push(existingId);
             } else {
                  console.error(`Tag "${name}" exists but could not retrieve its ID from the error response.`);
@@ -453,6 +465,7 @@ export async function findOrCreateTags(tagNames: string[], wpApi: AxiosInstance)
         }
     }
   }
+  console.log(`[API Helper] Final tag IDs:`, tagIds);
   return tagIds;
 }
 
