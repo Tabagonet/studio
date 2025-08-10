@@ -98,16 +98,16 @@ function EditPageContent() {
 
         const supplierAttribute = Array.isArray(productData.attributes) ? productData.attributes.find((a: any) => a.name === 'Proveedor') : null;
         
-        let mainCategoryId = null;
-        if(Array.isArray(productData.categories) && productData.categories.length > 0) {
-           mainCategoryId = productData.categories[0].id;
-        }
-        
+        const mainCategory = productData.categories?.find((c: any) => {
+            // A simple heuristic: prefer the first non-proveedores category
+            return !c.slug.includes('proveedores');
+        });
+
         const formattedAttributes = (productData.attributes || []).map((attr: any): ProductAttribute => ({
             id: attr.id,
             name: attr.name,
-            options: (attr.options || []).map(String),
             value: (attr.options || []).join(' | '),
+            options: (attr.options || []).map(String),
             position: attr.position,
             visible: attr.visible,
             forVariations: attr.variation,
@@ -128,7 +128,7 @@ function EditPageContent() {
           variations: existingVariations,
           status: productData.status || 'draft',
           tags: productData.tags?.map((t: any) => t.name) || [],
-          category_id: mainCategoryId,
+          category_id: mainCategory ? mainCategory.id : null,
           manage_stock: productData.manage_stock || false,
           stock_quantity: productData.stock_quantity?.toString() || '',
           weight: productData.weight || '',
@@ -156,12 +156,11 @@ function EditPageContent() {
 
     try {
         const token = await user.getIdToken();
-
         const formData = new FormData();
         
         const productPayloadForUpdate = {
           ...product,
-          images: product.photos.map(p => ({ id: p.id, toDelete: p.toDelete })),
+          photos: product.photos.map(p => ({ id: p.id, toDelete: p.toDelete })),
         };
         formData.append('productData', JSON.stringify(productPayloadForUpdate));
         

@@ -1,4 +1,3 @@
-
 // src/app/(app)/wizard/step-1-details-photos.tsx
 "use client";
 
@@ -25,10 +24,13 @@ import type { LinkSuggestion, SuggestLinksOutput } from '@/ai/schemas';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { ComboBox } from '@/components/core/combobox';
+import type { ProductEditState } from '@/app/(app)/products/edit/[id]/page';
 
 interface Step1DetailsPhotosProps {
   productData: ProductData;
   updateProductData: (data: Partial<ProductData>) => void;
+  onPhotosChange: (photos: ProductPhoto[]) => void;
+  originalProduct?: ProductEditState | null; // Optional: For edit mode
   isProcessing?: boolean;
 }
 
@@ -40,7 +42,7 @@ const StatusIndicator = ({ status, message }: { status: 'idle' | 'checking' | 'e
     return <div className={`flex items-center text-xs ${color} mt-1`}><Icon className="h-3 w-3 mr-1" /> {message}</div>;
 };
 
-export function Step1DetailsPhotos({ productData, updateProductData, isProcessing = false }: Step1DetailsPhotosProps) {
+export function Step1DetailsPhotos({ productData, updateProductData, onPhotosChange, originalProduct = null, isProcessing = false }: Step1DetailsPhotosProps) {
   const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
   const [supplierCategories, setSupplierCategories] = useState<WooCommerceCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
@@ -61,7 +63,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   
   const debouncedSku = useDebounce(productData.sku, 500);
   const debouncedName = useDebounce(productData.name, 500);
-
+  
   useEffect(() => {
     const fetchCategories = async (token: string) => {
       setIsLoadingCategories(true);
@@ -118,7 +120,15 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         if (signal.aborted) return;
         const data = await response.json();
         if (response.ok) {
-            setStatus({ status: data.exists ? 'exists' : 'available', message: data.message });
+            if (data.exists) {
+                if (originalProduct && data.product.id === originalProduct.id) {
+                     setStatus({ status: 'available', message: 'Este es el valor actual.' });
+                } else {
+                     setStatus({ status: 'exists', message: data.message });
+                }
+            } else {
+                 setStatus({ status: 'available', message: data.message });
+            }
         } else {
             setStatus({ status: 'idle', message: '' }); 
         }
@@ -128,27 +138,27 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             setStatus({ status: 'idle', message: '' });
         }
     }
-  }, []);
+  }, [originalProduct]);
 
   useEffect(() => {
-    if (!debouncedSku || debouncedSku.length < 3) {
+    if (!debouncedSku || (originalProduct && debouncedSku === originalProduct.sku)) {
       setSkuStatus({ status: 'idle', message: '' });
       return;
     }
     const controller = new AbortController();
     checkProductExistence('sku', debouncedSku, controller.signal);
     return () => controller.abort();
-  }, [debouncedSku, checkProductExistence]);
+  }, [debouncedSku, checkProductExistence, originalProduct]);
 
   useEffect(() => {
-    if (!debouncedName || debouncedName.length < 3) {
+    if (!debouncedName || (originalProduct && debouncedName === originalProduct.name)) {
       setNameStatus({ status: 'idle', message: '' });
       return;
     }
     const controller = new AbortController();
     checkProductExistence('name', debouncedName, controller.signal);
     return () => controller.abort();
-  }, [debouncedName, checkProductExistence]);
+  }, [debouncedName, checkProductExistence, originalProduct]);
 
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -167,22 +177,25 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   const handleSelectChange = (name: 'productType', value: string) => {
       updateProductData({ 
         productType: value as ProductType, 
-        attributes: [{ name: '', value: '', forVariations: false, visible: true }], 
+        attributes: [{ name: '', value: '', forVariations: false, visible: true, options: [] }], 
         variations: [] 
       });
   };
-
-  const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
-    if (!productData.name && newPhotos.length > 0) {
+  
+  const handlePhotosWithAutoName = useCallback((newPhotos: ProductPhoto[]) => {
+    // Only update name if it's a new product (no originalProduct) and name is not already set by user
+    if (!originalProduct && !productData.name && newPhotos.length > 0) {
       const firstNewFile = newPhotos.find(p => p && p.file);
       if (firstNewFile) {
         const { extractedProductName } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
+        // Use updateProductData to change both photos and name simultaneously
         updateProductData({ photos: newPhotos, name: extractedProductName });
         return;
       }
     }
-    updateProductData({ photos: newPhotos });
-  };
+    // Otherwise, just call the onPhotosChange from the parent to update photos
+    onPhotosChange(newPhotos);
+  }, [originalProduct, productData.name, onPhotosChange, updateProductData]);
   
   const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string | boolean) => {
     const newAttributes = [...productData.attributes];
@@ -191,7 +204,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   };
 
   const addAttribute = () => {
-    updateProductData({ attributes: [...productData.attributes, { name: '', value: '', forVariations: false, visible: true }] });
+    updateProductData({ attributes: [...productData.attributes, { name: '', value: '', forVariations: false, visible: true, options: [] }] });
   };
 
   const removeAttribute = (index: number) => {
@@ -258,7 +271,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             name: aiContent.name,
             shortDescription: aiContent.shortDescription,
             longDescription: aiContent.longDescription,
-            tags: aiContent.tags,
+            tags: aiContent.tags.split(',').map((t: string) => t.trim()),
             imageTitle: aiContent.imageTitle,
             imageAltText: aiContent.imageAltText,
             imageCaption: aiContent.imageCaption,
@@ -286,7 +299,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const token = await user.getIdToken();
         const payload = {
             productName: productData.name, productType: productData.productType,
-            tags: productData.tags.split(',').map(t => t.trim()).filter(Boolean),
+            tags: productData.tags,
             language: productData.language, mode: 'image_meta_only',
         };
         const response = await fetch('/api/generate-description', {
@@ -476,12 +489,11 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                       <Label htmlFor="category">Categoría</Label>
                        <ComboBox
                             items={wooCategories.map(c => ({ value: c.id.toString(), label: c.name.replace(/—/g, '') }))}
-                            selectedValue={productData.category?.id?.toString() || ''}
+                            selectedValue={productData.category_id?.toString() || ''}
                             onSelect={(value) => {
-                                const selectedCat = wooCategories.find(c => c.id.toString() === value);
-                                updateProductData({ category: selectedCat || null, categoryPath: '' });
+                                updateProductData({ category_id: Number(value), categoryPath: '' });
                             }}
-                            onNewItemChange={(value) => updateProductData({ category: null, categoryPath: value })}
+                            onNewItemChange={(value) => updateProductData({ category_id: null, categoryPath: value })}
                             placeholder="Selecciona o crea una categoría..."
                             newItemValue={productData.categoryPath || ''}
                             loading={isLoadingCategories}
@@ -520,7 +532,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                           {productData.attributes.map((attr, index) => (
                              <div key={index} className="flex flex-col sm:flex-row items-start sm:items-end gap-2 p-3 border rounded-md bg-muted/20 mb-2">
                                   <div className="flex-1 w-full"><Label htmlFor={`attrName-${index}`}>Nombre</Label><Input id={`attrName-${index}`} value={attr.name} onChange={(e) => handleAttributeChange(index, 'name', e.target.value)} placeholder="Ej: Color" disabled={isProcessing || isGenerating} /></div>
-                                  <div className="flex-1 w-full"><Label htmlFor={`attrValue-${index}`}>Valor(es)</Label><Input id={`attrValue-${index}`} value={attr.value} onChange={(e) => handleAttributeChange(index, 'value', e.target.value)} placeholder="Ej: Azul | Rojo | Verde" disabled={isProcessing || isGenerating} /></div>
+                                  <div className="flex-1 w-full"><Label htmlFor={`attrValue-${index}`}>Valor(es)</Label><Input id={`attrValue-${index}`} value={attr.value || ''} onChange={(e) => handleAttributeChange(index, 'value', e.target.value)} placeholder="Ej: Azul | Rojo | Verde" disabled={isProcessing || isGenerating} /></div>
                                   <div className="flex items-center gap-4 pt-2 sm:pt-0 sm:self-end sm:h-10">
                                       {productData.productType === 'variable' && (<div className="flex items-center space-x-2"><Checkbox id={`attrVar-${index}`} checked={attr.forVariations} onCheckedChange={(checked) => handleAttributeChange(index, 'forVariations', !!checked)} disabled={isProcessing || isGenerating} /><Label htmlFor={`attrVar-${index}`} className="text-sm font-normal whitespace-nowrap">Para variaciones</Label></div>)}
                                       <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" disabled={isProcessing || isGenerating} className="flex-shrink-0"><Trash2 className="h-4 w-4 text-destructive" /></Button>
@@ -532,7 +544,13 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                   )}
 
                   {productData.productType === 'variable' && (
-                      <div className="border-t pt-6 mt-6"><VariableProductManager productData={productData} updateProductData={updateProductData} /></div>
+                      <div className="border-t pt-6 mt-6">
+                        <VariableProductManager 
+                            productData={productData} 
+                            updateProductData={updateProductData}
+                            images={productData.photos}
+                        />
+                      </div>
                   )}
                   
                   {productData.productType !== 'variable' && (
@@ -551,7 +569,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
               <Card><CardHeader><CardTitle>Descripciones y Etiquetas</CardTitle><CardDescription>Esta información es clave para el SEO y para informar a tus clientes.</CardDescription></CardHeader>
                 <CardContent className="space-y-6">
-                   <div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={productData.tags} onChange={handleInputChange} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing || isGenerating} /><p className="text-xs text-muted-foreground mt-1">Ayudan a la IA y al SEO de tu producto.</p></div>
+                   <div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={productData.tags.join(', ')} onChange={e => updateProductData({ tags: e.target.value.split(',').map(t => t.trim()) })} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing || isGenerating} /><p className="text-xs text-muted-foreground mt-1">Ayudan a la IA y al SEO de tu producto.</p></div>
                   <div className="pt-2"><Button onClick={handleGenerateContentWithAI} disabled={isProcessing || isGenerating || !productData.name} className="w-full sm:w-auto">{isGenerating ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGenerating ? "Generando..." : "Generar Contenido con IA"}</Button>{!productData.name && <p className="text-xs text-destructive mt-1">Introduce un nombre de producto para activar la IA.</p>}</div>
                   <div className="border-t pt-6 space-y-6">
                     <div><Label htmlFor="shortDescription">Descripción Corta</Label><RichTextEditor content={productData.shortDescription} onChange={handleShortDescriptionChange} onInsertImage={() => setIsImageDialogOpen(true)} onSuggestLinks={handleSuggestLinks} placeholder="Un resumen atractivo y conciso de tu producto..." size="small"/></div>
@@ -563,7 +581,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
           <div className="lg:col-span-1 space-y-8">
               <Card>
                 <CardHeader><CardTitle>Imágenes del Producto</CardTitle><CardDescription>Sube las imágenes para tu producto. La primera se usará como principal.</CardDescription></CardHeader>
-                <CardContent className="space-y-4"><ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} isProcessing={isProcessing || isGenerating} maxPhotos={15} /><Button onClick={handleGenerateImageMetadata} disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} className="w-full" variant="outline">{isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}</Button></CardContent>
+                <CardContent className="space-y-4"><ImageUploader photos={productData.photos} onPhotosChange={handlePhotosWithAutoName} isProcessing={isProcessing || isGenerating} maxPhotos={15} /><Button onClick={handleGenerateImageMetadata} disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} className="w-full" variant="outline">{isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}</Button></CardContent>
               </Card>
 
               <Card>

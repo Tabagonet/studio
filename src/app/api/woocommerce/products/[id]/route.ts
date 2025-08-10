@@ -115,9 +115,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const productId = params.id;
         if (!productId) { return NextResponse.json({ error: 'Product ID is required.' }, { status: 400 }); }
 
-        const formData = await req.formData();
-        const productDataString = formData.get('productData');
-        if (typeof productDataString !== 'string') { throw new Error("productData is missing or not a string."); }
+        const formData = await request.formData();
+        const productDataString = formData.get('productData') as string | null;
+        if (!productDataString) {
+            throw new Error("productData is missing from the form data.");
+        }
         
         const productData = JSON.parse(productDataString);
         console.log("[AUDIT] Parsed product data from form.");
@@ -286,8 +288,4 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     
     return NextResponse.json(
-      { error: errorMessage, details: error.response?.data },
-      { status }
-    );
-  }
-}
+      { error: errorMessage, details: error.response?.data
