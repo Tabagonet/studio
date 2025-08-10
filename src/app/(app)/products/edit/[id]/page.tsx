@@ -23,6 +23,7 @@ import type { LinkSuggestion, SuggestLinksOutput } from '@/ai/schemas';
 import { VariationEditor } from '@/components/features/products/variation-editor';
 import { PRODUCT_TYPES } from '@/lib/constants';
 import { ComboBox } from '@/components/core/combobox';
+import { ImageUploader } from '@/components/features/wizard/image-uploader';
 
 
 export interface ProductEditState {
@@ -260,14 +261,13 @@ function EditProductPageContent() {
   };
   
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, (user) => {
         if (user) {
             fetchInitialData();
         } else {
             router.push('/login');
         }
     });
-    return () => unsubscribe();
   }, [fetchInitialData, router]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -508,3 +508,5 @@ export default function EditProductPage() {
         </Suspense>
     )
 }
+
+    
