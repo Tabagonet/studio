@@ -355,6 +355,7 @@ export default function BatchProcessPage() {
             const token = await user.getIdToken();
             const allTranslations: { [key: string]: number } = {};
             const sourceLang = 'Spanish'; // Assuming source is always Spanish for batch
+            let createdPostUrls: { url: string; title: string }[] = [];
 
             // 1. AI Content Generation
             updateProductProcessingStatus(product.id, 'processing', 'Generando contenido con IA...', 5);
@@ -461,8 +462,8 @@ export default function BatchProcessPage() {
             const sourceLangSlug = ALL_LANGUAGES.find(l => l.code === sourceLang)?.slug || 'es';
             const originalProductData: ProductData = {
                 name: aiContent.name, // Use AI-generated name
-                sku: product.id, productType: product.csvData.tipo || 'simple',
                 status: 'draft',
+                sku: product.id, productType: product.csvData.tipo || 'simple',
                 regularPrice: product.csvData.precio_regular || '', salePrice: product.csvData.precio_oferta || '',
                 manage_stock: product.csvData.gestionar_stock === '1',
                 stockQuantity: product.csvData.stock_inicial || '',
