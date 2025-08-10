@@ -183,17 +183,20 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
       });
   };
   
-  const handlePhotosWithAutoName = (newPhotos: ProductPhoto[]) => {
-    if (!productData.name && newPhotos.length > 0) {
+  const handlePhotosWithAutoName = useCallback((newPhotos: ProductPhoto[]) => {
+    // Only update name if it's a new product (no originalProduct) and name is not already set by user
+    if (!originalProduct && !productData.name && newPhotos.length > 0) {
       const firstNewFile = newPhotos.find(p => p && p.file);
       if (firstNewFile) {
         const { extractedProductName } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
+        // Use updateProductData to change both photos and name simultaneously
         updateProductData({ photos: newPhotos, name: extractedProductName });
         return;
       }
     }
+    // Otherwise, just call the onPhotosChange from the parent to update photos
     onPhotosChange(newPhotos);
-  };
+  }, [originalProduct, productData.name, onPhotosChange, updateProductData]);
   
   const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string | boolean) => {
     const newAttributes = [...productData.attributes];
@@ -241,7 +244,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
             baseProductName: productData.name,
             productName: productData.name,
             productType: productData.productType,
-            tags: productData.tags.join(','),
+            tags: productData.tags,
             language: productData.language,
             groupedProductIds: productData.groupedProductIds,
         };
@@ -530,7 +533,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
                           {productData.attributes.map((attr, index) => (
                              <div key={index} className="flex flex-col sm:flex-row items-start sm:items-end gap-2 p-3 border rounded-md bg-muted/20 mb-2">
                                   <div className="flex-1 w-full"><Label htmlFor={`attrName-${index}`}>Nombre</Label><Input id={`attrName-${index}`} value={attr.name} onChange={(e) => handleAttributeChange(index, 'name', e.target.value)} placeholder="Ej: Color" disabled={isProcessing || isGenerating} /></div>
-                                  <div className="flex-1 w-full"><Label htmlFor={`attrValue-${index}`}>Valor(es)</Label><Input id={`attrValue-${index}`} value={attr.value || ''} onChange={(e) => handleAttributeChange(index, 'value', e.target.value)} placeholder="Ej: Azul | Rojo | Verde" disabled={isProcessing || isGenerating} /></div>
+                                  <div className="flex-1 w-full"><Label htmlFor={`attrValue-${index}`}>Valor(es)</Label><Input id={`attrValue-${index}`} value={attr.value} onChange={(e) => handleAttributeChange(index, 'value', e.target.value)} placeholder="Ej: Azul | Rojo | Verde" disabled={isProcessing || isGenerating} /></div>
                                   <div className="flex items-center gap-4 pt-2 sm:pt-0 sm:self-end sm:h-10">
                                       {productData.productType === 'variable' && (<div className="flex items-center space-x-2"><Checkbox id={`attrVar-${index}`} checked={attr.forVariations} onCheckedChange={(checked) => handleAttributeChange(index, 'forVariations', !!checked)} disabled={isProcessing || isGenerating} /><Label htmlFor={`attrVar-${index}`} className="text-sm font-normal whitespace-nowrap">Para variaciones</Label></div>)}
                                       <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" disabled={isProcessing || isGenerating} className="flex-shrink-0"><Trash2 className="h-4 w-4 text-destructive" /></Button>

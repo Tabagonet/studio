@@ -1,3 +1,4 @@
+
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -51,49 +52,71 @@ function EditProductPageContent() {
 
     try {
         const token = await user.getIdToken();
-        const formData = new FormData();
         
-        // --- NEW: Format attributes before sending ---
+        // --- IMAGE HANDLING LOGIC ---
+        const existingImageUrls = product.photos.filter(p => !p.file).map(p => p.previewUrl);
+        const newImageFiles = product.photos.filter(p => p.file);
+        let uploadedImageUrls: string[] = [];
+
+        if (newImageFiles.length > 0) {
+            toast({ title: "Subiendo nuevas imágenes...", description: "Por favor, espera." });
+            const uploadPromises = newImageFiles.map(photo => {
+                const formData = new FormData();
+                formData.append('imagen', photo.file!);
+                return fetch('/api/upload-image', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData,
+                }).then(res => res.json());
+            });
+
+            const uploadResults = await Promise.all(uploadPromises);
+            const failedUploads = uploadResults.filter(res => !res.success);
+            if (failedUploads.length > 0) {
+                throw new Error(`Fallo al subir ${failedUploads.length} imágen(es).`);
+            }
+            uploadedImageUrls = uploadResults.map(res => res.url);
+        }
+        
+        const finalImageUrls = [...existingImageUrls, ...uploadedImageUrls];
+        
+        // Call the custom WordPress endpoint to manage images
+        await fetch('/api/wordpress/update-product-images', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ product_id: productId, mode: 'replace', images: finalImageUrls }),
+        });
+
+        // --- ATTRIBUTE AND OTHER DATA HANDLING ---
         const formattedAttributes = product.attributes.map(attr => {
-            const optionsFromValue = attr.value ? attr.value.split('|').map(t => t.trim()) : (attr.options || []);
+            const optionsFromValue = attr.value ? attr.value.split('|').map(t => t.trim()).filter(Boolean) : (attr.options || []);
             return {
-                id: attr.id || 0, // WooCommerce expects an ID for existing attributes
+                id: attr.id || 0,
                 name: attr.name,
                 position: attr.position || 0,
                 visible: attr.visible,
                 variation: attr.forVariations || attr.variation || false,
-                options: optionsFromValue.map(String), // Ensure all options are strings
+                options: optionsFromValue.map(String),
             };
         });
 
-        const formattedProduct = {
-          ...product,
-          attributes: formattedAttributes,
-        };
+        const { images, ...productPayload } = product; // Exclude images from the main payload
 
-        const payload = {
-          ...formattedProduct,
-          images: product.images.filter(p => !p.file).map(p => ({ id: p.id })), // Only send existing image IDs
+        const finalPayload = {
+            ...productPayload,
+            attributes: formattedAttributes,
         };
-
-        formData.append('productData', JSON.stringify(payload));
         
-        const newPhotos = product.photos.filter(p => p.file);
-        newPhotos.forEach(photo => {
-            if (photo.file) {
-                 formData.append(photo.id as string, photo.file, photo.name);
-            }
-        });
-        
+        // This is a separate call to the main product endpoint to update non-image data
         const response = await fetch(`/api/woocommerce/products/${productId}`, {
             method: 'PUT',
             headers: { 'Authorization': `Bearer ${token}` },
-            body: formData,
+            body: JSON.stringify(finalPayload), // No need for FormData if we send image URLs separately
         });
         
         const result = await response.json();
         if (!response.ok) {
-            throw new Error(result.error || result.details?.message || 'Fallo al guardar los cambios del producto.');
+            throw new Error(result.error || result.details?.message || 'Fallo al guardar los detalles del producto.');
         }
         
         toast({ title: '¡Éxito!', description: 'El producto ha sido actualizado.' });
@@ -230,14 +253,13 @@ function EditProductPageContent() {
 
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, (user) => {
         if (user) {
             fetchInitialData();
         } else {
             router.push('/login');
         }
     });
-    return () => unsubscribe();
   }, [fetchInitialData, router]);
   
   if (isLoading) {
