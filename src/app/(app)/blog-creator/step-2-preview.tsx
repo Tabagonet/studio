@@ -48,7 +48,7 @@ export function Step2Preview({ postData }: { postData: BlogPostData }) {
                      <div>
                         <h4 className="font-semibold mb-2">Etiquetas</h4>
                         <div className="flex flex-wrap gap-2">
-                            {postData.tags.split(',').map(k => k.trim()).filter(Boolean).map((keyword, index) => (
+                            {postData.tags.map((keyword, index) => (
                                 <Badge key={index} variant="secondary">{keyword}</Badge>
                             ))}
                         </div>

@@ -70,6 +70,14 @@ Once the dependencies are installed and your `.env.local` file is configured, yo
 
 You should now see the application's login page. You can log in and start using it locally. The terminal window in VS Code will now show you all the server-side logs, which is perfect for debugging!
 
+### Troubleshooting Build Errors
+If you encounter strange build errors, especially messages like `Module not found` for internal Next.js files, it's likely due to a corrupted build cache. You can resolve this by running the reset script:
+
+```bash
+npm run dev:reset
+```
+This command will delete the `.next` cache directory, remove `node_modules`, clean the `npm` cache, reinstall all dependencies, and then start the development server.
+
 ## 5. Deploying with Vercel
 
 To deploy your application to Vercel, you can use the Vercel CLI.
