@@ -1,3 +1,4 @@
+
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -60,6 +61,7 @@ function EditProductPageContent() {
         const newPhotoFiles = product.photos.filter(p => p.file);
         newPhotoFiles.forEach(photo => {
             if (photo.file) {
+                // Use a consistent key for the backend to receive the files
                 formData.append('photos', photo.file, photo.name);
             }
         });

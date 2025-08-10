@@ -1,3 +1,4 @@
+
 // src/app/api/woocommerce/products/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
             if (supplierCatId) finalCategoryIds.push({ id: supplierCatId });
         }
 
-        const tagNames = typeof finalProductData.tags === 'string' ? finalProductData.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+        const tagNames = Array.isArray(finalProductData.tags) ? finalProductData.tags : [];
         const wooTags = await findOrCreateTags(tagNames, wpApi);
 
         // 3. Prepare attributes

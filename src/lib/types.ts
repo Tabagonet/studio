@@ -1,3 +1,4 @@
+
 // src/lib/types.ts
       
 import type { LucideIcon } from 'lucide-react';
@@ -157,7 +158,7 @@ export interface ProductData {
   shipping_class: string;
   category: WooCommerceCategory | null; // Store category object
   categoryPath?: string; // Used for batch creation by name/path
-  tags: string;
+  tags: string[];
   shortDescription: string;
   longDescription: string;
   attributes: ProductAttribute[];
@@ -219,7 +220,6 @@ export interface SubmissionStep {
   name: string;
   status: SubmissionStepStatus;
   progress?: number;
-  message?: string;
   error?: string;
 }
 
