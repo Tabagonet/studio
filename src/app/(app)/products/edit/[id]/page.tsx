@@ -1,4 +1,3 @@
-
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -7,9 +6,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, Save, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { auth } from '@/lib/firebase';
+import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import type { WooCommerceCategory, ProductPhoto, ProductVariation } from '@/lib/types';
+import type { WooCommerceCategory, ProductPhoto, ProductVariation, ProductAttribute } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
@@ -56,7 +55,7 @@ function EditProductPageContent() {
         
         // --- NEW: Format attributes before sending ---
         const formattedAttributes = product.attributes.map(attr => {
-            const optionsFromValue = attr.value ? attr.value.split('|').map(t => t.trim()) : [];
+            const optionsFromValue = attr.value ? attr.value.split('|').map(t => t.trim()) : (attr.options || []);
             return {
                 id: attr.id || 0, // WooCommerce expects an ID for existing attributes
                 name: attr.name,
@@ -182,11 +181,15 @@ function EditProductPageContent() {
             }
         }
         
-        const formattedAttributes = (productData.attributes || []).map((attr: any) => ({
-            ...attr,
-            options: (attr.options || []).map(String), // Ensure all options are strings on load
-            value: (attr.options || []).map(String).join(' | '), // Create the value string for UI
-            forVariations: attr.variation || false,
+        const formattedAttributes = (productData.attributes || []).map((attr: any): ProductAttribute => ({
+            id: attr.id,
+            name: attr.name,
+            options: (attr.options || []).map(String),
+            value: (attr.options || []).map(String).join(' | '),
+            position: attr.position,
+            visible: attr.visible,
+            variation: attr.variation,
+            forVariations: attr.variation,
         }));
 
         setProduct({
