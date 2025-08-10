@@ -33,7 +33,7 @@ export function ImageUploader({ photos = [], onPhotosChange, isProcessing, maxPh
       isPrimary: false,
       status: 'pending',
       progress: 0,
-      toDelete: false, // Initialize toDelete flag
+      toDelete: false, 
     }));
 
     const currentPhotos = maxPhotos === 1 ? [] : photos.filter(p => !p.toDelete);

@@ -146,26 +146,15 @@ function EditPageContent() {
         const token = await user.getIdToken();
 
         const formData = new FormData();
-
-        const formattedAttributes = product.attributes.map(attr => {
-            const optionsFromValue = attr.value ? attr.value.split('|').map(t => t.trim()).filter(Boolean) : (attr.options || []);
-            return {
-                id: attr.id || 0,
-                name: attr.name,
-                position: attr.position || 0,
-                visible: attr.visible,
-                variation: attr.forVariations || attr.variation || false,
-                options: optionsFromValue.map(String),
-            };
-        });
-
-        const productPayloadForUpdate = { ...product, attributes: formattedAttributes };
+        
+        const productPayloadForUpdate = { ...product };
         formData.append('productData', JSON.stringify(productPayloadForUpdate));
         
         const newPhotos = product.photos.filter(p => p.file);
         newPhotos.forEach(photo => {
             if (photo.file) {
-                formData.append(photo.id.toString(), photo.file, photo.name);
+                // Use the unique client-side ID as the key for the file
+                formData.append(photo.id.toString(), photo.file);
             }
         });
         

@@ -181,10 +181,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         }
         wooPayload.categories = finalCategoryIds;
         
-        const newPhotoFiles = Array.from(formData.keys())
-            .filter(key => key !== 'productData')
-            .map(key => ({ key, file: formData.get(key) as File }));
-        
+        // Handle new image uploads
+        const newPhotoFiles = Array.from(formData.entries())
+            .filter(([key]) => key !== 'productData')
+            .map(([key, value]) => ({ key, file: value as File }));
+
         const uploadedPhotosMap = new Map<string, number>();
         if (newPhotoFiles.length > 0) {
             console.log(`[AUDIT] Found ${newPhotoFiles.length} new photo files to upload.`);
@@ -201,24 +202,25 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         }
 
         // CORRECTED LOGIC
-        // 1. Start with existing images that are NOT marked for deletion
-        let finalImagePayload = images
-            .filter(p => !p.toDelete && typeof p.id === 'number')
-            .map(img => ({ id: img.id as number }));
+        console.log("[DEBUG] Images from validatedData:", images);
+        console.log("[DEBUG] Uploaded photos map:", uploadedPhotosMap);
 
-        // 2. Add the newly uploaded images from the map
-        for (const [clientId, wpId] of uploadedPhotosMap.entries()) {
-            // Ensure we don't add duplicates if it was somehow already there
-            if (!finalImagePayload.some(p => p.id === wpId)) {
-                finalImagePayload.push({ id: wpId });
-            }
-        }
+        const finalImagePayload = images
+            .filter(p => !p.toDelete)
+            .map(img => {
+                // If it's a new file (string ID from client), get its newly uploaded numeric ID
+                if (typeof img.id === 'string' && uploadedPhotosMap.has(img.id)) {
+                    return { id: uploadedPhotosMap.get(img.id) };
+                }
+                // If it's an existing image (numeric ID), keep it
+                if (typeof img.id === 'number') {
+                    return { id: img.id };
+                }
+                return null;
+            }).filter(Boolean); // Remove null entries
         
         wooPayload.images = finalImagePayload;
-
-        // DEBUG LOGS
-        console.log("[DEBUG] validatedData.images:", images);
-        console.log("[DEBUG] Uploaded photos map keys:", Array.from(uploadedPhotosMap.keys()));
+        
         console.log("[AUDIT] Final image payload for WooCommerce:", finalImagePayload);
         
         if (wooPayload.manage_stock === false) {
