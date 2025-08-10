@@ -57,7 +57,15 @@ export interface ProductEditState {
     imageDescription?: string;
 }
 
-function EditProductPageContent() {
+export default function EditProductPage() {
+  return (
+      <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
+          <EditPageContent />
+      </Suspense>
+  )
+}
+
+function EditPageContent() {
   const params = useParams();
   const router = useRouter();
   const productId = Number(params.id);
@@ -150,8 +158,8 @@ function EditProductPageContent() {
           id: productData.id,
           name: productData.name || '',
           sku: productData.sku || '',
-          supplier: supplierAttribute ? supplierAttribute.options[0] : null,
           type: productData.type || 'simple',
+          supplier: supplierAttribute ? supplierAttribute.options[0] : null,
           regular_price: productData.regular_price || '',
           sale_price: productData.sale_price || '',
           short_description: productData.short_description || '',
@@ -405,16 +413,11 @@ function EditProductPageContent() {
                                 <Button type="button" variant="outline" onClick={addAttribute} className="mt-2"><PlusCircle className="mr-2 h-4 w-4" /> Añadir Atributo</Button>
                             </CardContent>
                         </Card>
-                        <Card>
-                          <CardHeader><CardTitle>Variaciones</CardTitle></CardHeader>
-                          <CardContent>
-                            <VariableProductManager 
-                              product={product} 
-                              onProductChange={updateProductData} 
-                              images={product.images}
-                            />
-                          </CardContent>
-                        </Card>
+                         <VariableProductManager 
+                            product={product} 
+                            onProductChange={updateProductData}
+                            images={product.images}
+                         />
                     </>
                   ) : product.type === 'simple' && (
                      <>
@@ -437,12 +440,4 @@ function EditProductPageContent() {
       </div>
     </>
   );
-}
-
-export default function EditProductPage() {
-    return (
-        <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
-            <EditPageContent />
-        </Suspense>
-    )
 }
