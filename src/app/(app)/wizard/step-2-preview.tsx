@@ -29,6 +29,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
 
   const categoryName = productData.category?.name || productData.categoryPath || 'No especificada';
 
+
   return (
     <div className="space-y-8">
       <Card>
