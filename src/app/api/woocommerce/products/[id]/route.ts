@@ -134,6 +134,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const wooPayload: any = { ...restOfData };
         
         const attributes = Array.isArray(validatedData.attributes) ? validatedData.attributes : [];
+        const images = Array.isArray(validatedData.images) ? validatedData.images : [];
         
         const { data: originalProduct } = await wooApi.get(`products/${productId}`);
         console.log("[AUDIT] Fetched original product data.");
@@ -148,7 +149,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             position: attr.position || 0,
             visible: attr.visible ?? true,
             variation: attr.forVariations || attr.variation || false,
-            options: Array.isArray(attr.options) ? attr.options.map(String).filter(o => o) : [],
+            options: (attr.options || []).map(String).filter(o => o),
         }));
 
         let finalCategoryIds: { id: number }[] = [];
@@ -184,7 +185,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const newPhotoFiles = Array.from(formData.keys())
             .filter(key => key !== 'productData')
             .map(key => ({ key, file: formData.get(key) as File }));
-
+        
         const uploadedPhotosMap = new Map<string, number>();
         if (newPhotoFiles.length > 0) {
             console.log(`[AUDIT] Found ${newPhotoFiles.length} new photo files to upload.`);
@@ -199,21 +200,26 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
                  console.log(`[AUDIT] Image ${clientSideId} uploaded. New WordPress Media ID: ${newImageId}`);
             }
         }
-            
-        const images = Array.isArray(validatedData.images) ? validatedData.images : [];
+
         const finalImagePayload = images
-            .filter(p => !p.toDelete)
+            .filter(p => !p.toDelete) // Filter out images marked for deletion
             .map(img => {
+                // If it's a new file (string ID from client), get its newly uploaded numeric ID
                 if (typeof img.id === 'string' && uploadedPhotosMap.has(img.id)) {
                     return { id: uploadedPhotosMap.get(img.id) };
                 }
+                // If it's an existing image (numeric ID), keep it
                 if (typeof img.id === 'number') {
                     return { id: img.id };
                 }
                 return null;
-            }).filter(p => p !== null);
+            }).filter((p): p is { id: number } => p !== null && p.id !== undefined);
         
         wooPayload.images = finalImagePayload;
+
+        // DEBUG LOGS
+        console.log("[DEBUG] Images from validatedData:", images);
+        console.log("[DEBUG] Uploaded photos map:", Array.from(uploadedPhotosMap.entries()));
         console.log("[AUDIT] Final image payload for WooCommerce:", finalImagePayload);
         
         if (wooPayload.manage_stock === false) {
