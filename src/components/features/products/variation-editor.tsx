@@ -57,7 +57,7 @@ export function VariationEditor({ product, onProductChange, images }: VariablePr
   const handleGenerateVariations = () => {
     console.log("[VAR_MANAGER][AUDIT] handleGenerateVariations triggered.");
     const variationAttributes = product.attributes.filter(
-        (attr) => attr.forVariations && attr.name.trim() && attr.value.trim()
+        (attr) => attr.forVariations && attr.name && attr.name.trim() && attr.value && attr.value.trim()
     );
 
     if (!variationAttributes || variationAttributes.length === 0) {

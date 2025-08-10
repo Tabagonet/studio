@@ -7,8 +7,7 @@ import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import type { WooCommerceCategory } from '@/lib/types';
-import type { ProductEditState } from '@/app/(app)/products/edit/[id]/page';
+import type { WooCommerceCategory, ProductEditState } from '@/lib/types';
 
 interface ProductPreviewCardProps {
     product: ProductEditState | null;
