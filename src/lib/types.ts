@@ -1,6 +1,3 @@
-
-
-      
 // src/lib/types.ts
       
 import type { LucideIcon } from 'lucide-react';
@@ -39,7 +36,7 @@ export interface ProductPhoto {
   uploadedUrl?: string;
   uploadedFilename?: string;
   serverPath?: string;
-  toDelete?: boolean;
+  toDelete?: boolean; 
 }
 
 export interface WooCommerceImage {
@@ -115,7 +112,7 @@ export interface BlogPostData {
   title: string;
   content: string;
   topic: string; // for AI
-  tags: string[]; // Changed to array
+  tags: string[];
   focusKeyword: string;
   metaDescription: string;
   category: WordPressPostCategory | null;
@@ -500,5 +497,3 @@ export interface PlanUsage {
     totalAvailable: number;
   };
 }
-      
-    

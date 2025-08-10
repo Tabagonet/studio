@@ -28,7 +28,14 @@ export function ProductPreviewCard({ product, categories }: ProductPreviewCardPr
                 .map(v => parseFloat(v.regularPrice || product.regular_price))
                 .filter(p => !isNaN(p) && p > 0);
 
-            if (prices.length === 0) return "N/A";
+            if (prices.length === 0) {
+                // If variations have no prices, check the parent product's price
+                const parentPrice = parseFloat(product.regular_price);
+                if (!isNaN(parentPrice) && parentPrice > 0) {
+                    return `${parentPrice.toFixed(2)}€`;
+                }
+                return "N/A";
+            }
             
             const minPrice = Math.min(...prices);
             const maxPrice = Math.max(...prices);
@@ -40,7 +47,7 @@ export function ProductPreviewCard({ product, categories }: ProductPreviewCardPr
             }
         }
         
-        // Fallback for simple products or variables without prices yet
+        // Fallback for simple products
         return (
             <>
                 <span className={cn("font-bold text-xl", product.sale_price && "line-through text-muted-foreground text-base")}>
@@ -60,9 +67,9 @@ export function ProductPreviewCard({ product, categories }: ProductPreviewCardPr
             </CardHeader>
             <CardContent className="text-center space-y-2">
                 <CardTitle className="text-base leading-tight">{product.name || "Nombre del Producto"}</CardTitle>
-                <p className="text-sm h-12 flex items-center justify-center">
+                <div className="text-sm h-12 flex items-center justify-center">
                     {renderPrice()}
-                </p>
+                </div>
                 <div className="text-xs space-x-1">
                     <Badge variant="outline">{product.status}</Badge>
                     <Badge variant="secondary">{categoryName}</Badge>

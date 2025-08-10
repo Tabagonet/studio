@@ -299,13 +299,16 @@ function EditPageContent() {
 
    const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string | boolean) => {
     if (!product) return;
-    const newAttributes = [...product.attributes];
-    const updatedAttr = { ...newAttributes[index], [field]: value };
-    if(field === 'value' && typeof value === 'string') {
-        updatedAttr.options = value.split('|').map(s => s.trim()).filter(Boolean);
-    }
-    newAttributes[index] = updatedAttr;
-    updateProductData({ attributes: newAttributes });
+    updateProductData(prev => {
+        if (!prev) return prev;
+        const newAttributes = [...prev.attributes];
+        const updatedAttr = { ...newAttributes[index], [field]: value };
+        if(field === 'value' && typeof value === 'string') {
+            updatedAttr.options = value.split('|').map(s => s.trim()).filter(Boolean);
+        }
+        newAttributes[index] = updatedAttr;
+        return { attributes: newAttributes };
+    });
   };
   
   const addAttribute = () => {
