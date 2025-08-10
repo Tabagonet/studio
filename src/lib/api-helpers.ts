@@ -368,6 +368,7 @@ export async function uploadImageToWordPress(
 
 /**
  * Finds a WP post category by its path (e.g., "Parent > Child") or creates it if it doesn't exist.
+ * This version uses precise API searches to avoid duplicates on sites with many categories.
  * @param pathString The category path string.
  * @param wpApi An initialized Axios instance for the WordPress API.
  * @param taxonomy The taxonomy slug (e.g., 'category', 'product_cat').
@@ -381,24 +382,32 @@ export async function findOrCreateWpCategoryByPath(pathString: string, wpApi: Ax
     const pathParts = pathString.split('>').map(part => part.trim());
     let parentId = 0;
     let finalCategoryId: number | null = null;
-    
-    // Fetch all terms for the taxonomy to check existence in memory
-    const allTermsResponse = await wpApi.get(`/${taxonomy}`, { params: { per_page: 100 } });
-    const allTerms = allTermsResponse.data;
 
     for (const part of pathParts) {
-        let foundTerm = allTerms.find(
-            (term: any) => term.name.toLowerCase() === part.toLowerCase() && term.parent === parentId
-        );
+        // Search for an existing term with the exact name and parent
+        const { data: searchResult } = await wpApi.get(`/${taxonomy}`, {
+            params: {
+                search: part,
+                parent: parentId,
+                per_page: 1, // We only need to know if at least one exists
+                hide_empty: false,
+            }
+        });
+        
+        // Find an exact match from the search results
+        const foundTerm = searchResult.find((term: any) => term.name.toLowerCase() === part.toLowerCase());
 
         if (foundTerm) {
             parentId = foundTerm.id;
         } else {
+            // If no exact match is found, create the new term
             const { data: newTerm } = await wpApi.post(`/${taxonomy}`, {
                 name: part,
                 parent: parentId,
             });
-            allTerms.push(newTerm); // Add to our in-memory list
+            if (!newTerm || !newTerm.id) {
+                throw new Error(`Failed to create category term "${part}".`);
+            }
             parentId = newTerm.id;
         }
         finalCategoryId = parentId;
