@@ -37,9 +37,9 @@ export function ComboBox({
       )
     : items;
 
-  const displayValue = selectedValue
-    ? items.find(item => item.value === selectedValue)?.label
-    : newItemValue || placeholder;
+  const displayValue = newItemValue 
+    ? `Nuevo: ${newItemValue}` 
+    : (selectedValue ? items.find(item => item.value === selectedValue)?.label : placeholder);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -95,7 +95,6 @@ export function ComboBox({
                     className="w-full"
                     onClick={() => {
                         onNewItemChange(filter);
-                        onSelect(''); // Clear selection to indicate new item
                         setOpen(false);
                         setFilter('');
                     }}

@@ -56,7 +56,7 @@ export interface ProductEditState {
     imageDescription?: string;
 }
 
-function EditProductPage() {
+function EditProductPageContent() {
   const params = useParams();
   const router = useRouter();
   const productId = Number(params.id);
@@ -207,11 +207,11 @@ function EditProductPage() {
         
         const finalImagePayload = product.images
             .filter(p => !p.toDelete)
-            .map(p => ({ id: p.id })); // Send only the ID for all images
+            .map(p => ({ id: p.file ? p.id : p.id }));
 
         const payloadForJson = {
             ...restOfProductData,
-            images: finalImagePayload,
+            images: finalImagePayload.map(p => ({ id: p.id })),
         };
         
         console.log("[EDITOR][AUDIT] Payload to be sent as JSON:", payloadForJson);
@@ -375,7 +375,7 @@ function EditProductPage() {
                                         items={supplierCategories.map(s => ({ value: s.name, label: s.name }))}
                                         selectedValue={product.supplier || ''}
                                         onSelect={(value) => updateProductData({ supplier: value, newSupplier: ''})}
-                                        onNewItemChange={(value) => updateProductData({ newSupplier: value, supplier: ''})}
+                                        onNewItemChange={(value) => updateProductData({ newSupplier: value, supplier: null})}
                                         placeholder="Selecciona o crea un proveedor..."
                                         newItemValue={product.newSupplier || ''}
                                         loading={isLoadingCategories}
@@ -456,7 +456,7 @@ function EditProductPage() {
 export default function EditProductWrapperPage() {
     return (
         <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
-            <EditProductPage />
+            <EditProductPageContent />
         </Suspense>
     )
 }

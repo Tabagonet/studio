@@ -468,7 +468,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                         items={supplierCategories.map(s => ({ value: s.name, label: s.name }))}
                         selectedValue={productData.supplier || ''}
                         onSelect={(value) => updateProductData({ supplier: value, newSupplier: '' })}
-                        onNewItemChange={(value) => updateProductData({ newSupplier: value, supplier: '' })}
+                        onNewItemChange={(value) => updateProductData({ newSupplier: value, supplier: null})}
                         placeholder="Selecciona o crea un proveedor..."
                         newItemValue={productData.newSupplier || ''}
                         loading={isLoadingCategories}
@@ -541,11 +541,13 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                   )}
 
                   {productData.productType === 'variable' && (
-                     <VariableProductManager 
-                        product={productData} 
-                        onProductChange={updateProductData}
-                        images={productData.photos}
-                      />
+                      <div className="border-t pt-6 mt-6">
+                        <VariableProductManager 
+                            product={productData} 
+                            onProductChange={updateProductData}
+                            images={productData.photos}
+                        />
+                      </div>
                   )}
                   
                   {productData.productType !== 'variable' && (
