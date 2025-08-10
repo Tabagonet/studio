@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
         const lang: string = finalProductData.language === 'Spanish' ? 'es' : 'en';
 
         // 1. Upload ALL images (both featured and variation potentials)
+        console.log("[API CREATE][AUDIT] Starting image upload process...");
         const uploadedPhotosMap = new Map<string, number>();
         for (const [key, value] of formData.entries()) {
             if (key === 'productData' || !(value instanceof File)) {
@@ -48,6 +49,7 @@ export async function POST(request: NextRequest) {
             }
             const file = value;
             const clientSideId = key; // This is the unique ID from the frontend
+            console.log(`[API CREATE][AUDIT] Uploading image with client ID: ${clientSideId}`);
             
             const newImageId = await uploadImageToWordPress(
                 file,
@@ -56,10 +58,17 @@ export async function POST(request: NextRequest) {
                 wpApi
             );
             uploadedPhotosMap.set(clientSideId, newImageId);
+             console.log(`[API CREATE][AUDIT] Image upload complete. Client ID: ${clientSideId}, WP Media ID: ${newImageId}`);
         }
         
-        // Prepare the `images` array for the main product payload
-        const wooImagesPayload = finalProductData.photos
+        // Prepare the `images` array for the main product payload, respecting the primary image.
+        const sortedPhotos = [...finalProductData.photos].sort((a, b) => {
+            if (a.isPrimary) return -1;
+            if (b.isPrimary) return 1;
+            return 0;
+        });
+
+        const wooImagesPayload = sortedPhotos
             .filter(photo => !photo.toDelete)
             .map(photo => {
                 if (uploadedPhotosMap.has(String(photo.id))) {
@@ -70,6 +79,7 @@ export async function POST(request: NextRequest) {
                 }
                 return null;
         }).filter(p => p !== null);
+        console.log("[API CREATE][AUDIT] Final WooCommerce images payload:", wooImagesPayload);
         
         // 2. Prepare categories and tags
         let finalCategoryIds: { id: number }[] = [];
@@ -146,9 +156,11 @@ export async function POST(request: NextRequest) {
         }
 
         // 5. Create main product
+        console.log("[API CREATE][AUDIT] Sending main product payload:", wooPayload);
         const response = await wooApi.post('products', wooPayload);
         const createdProduct = response.data;
         const productId = createdProduct.id;
+        console.log(`[API CREATE][AUDIT] Product created with ID: ${productId}`);
 
         // 6. Create variations if applicable
         if (finalProductData.productType === 'variable' && finalProductData.variations && finalProductData.variations.length > 0) {
@@ -182,7 +194,9 @@ export async function POST(request: NextRequest) {
                 }
                 return variationPayload;
             });
+            console.log("[API CREATE][AUDIT] Sending variation batch payload:", { create: batchCreatePayload });
             await wooApi.post(`products/${productId}/variations/batch`, { create: batchCreatePayload });
+            console.log("[API CREATE][AUDIT] Variation batch update sent.");
         }
 
 

@@ -1,3 +1,4 @@
+
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -136,7 +137,7 @@ function EditProductPageContent() {
              salePrice: v.sale_price, manage_stock: v.manage_stock, stockQuantity: v.stock_quantity?.toString() || '', weight: v.weight,
              dimensions: v.dimensions, shipping_class: v.shipping_class, image: v.image,
         }));
-
+        
         const supplierAttribute = Array.isArray(productData.attributes) ? productData.attributes.find((a: any) => a.name === 'Proveedor') : null;
         
         const mainCategory = productData.categories?.find((c: any) => {
@@ -205,7 +206,13 @@ function EditProductPageContent() {
         
         const { images, ...restOfProductData } = product;
         
-        const finalImagePayload = product.images
+        const sortedImages = [...product.images].sort((a, b) => {
+            if (a.isPrimary) return -1;
+            if (b.isPrimary) return 1;
+            return 0;
+        });
+
+        const finalImagePayload = sortedImages
             .filter(p => !p.toDelete)
             .map(p => ({ id: p.file ? p.id : p.id }));
 
