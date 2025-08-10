@@ -20,7 +20,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 interface VariableProductManagerProps {
   productData: ProductData;
   updateProductData: (data: Partial<ProductData>) => void;
-  images: ProductPhoto[];
 }
 
 // Helper function to compute the Cartesian product of arrays
@@ -41,7 +40,7 @@ function cartesian(...args: string[][]): string[][] {
     return r;
 }
 
-export function VariableProductManager({ productData, updateProductData, images }: VariableProductManagerProps) {
+export function VariableProductManager({ productData, updateProductData }: VariableProductManagerProps) {
   const { toast } = useToast();
 
   const handleGenerateVariations = () => {
@@ -72,14 +71,12 @@ export function VariableProductManager({ productData, updateProductData, images 
         const skuSuffix = attributes.map(a => a.option.substring(0,3).toUpperCase()).join('-');
         return { 
             id: uuidv4(), // Client-side ID
-            variation_id: undefined, // No WooCommerce ID yet
             attributes: attributes, 
             sku: `${productData.sku || 'VAR'}-${skuSuffix}`, 
             regularPrice: productData.regularPrice || '', 
             salePrice: productData.salePrice || '',
             stockQuantity: '', 
             manage_stock: false,
-            // Assign the primary product image by default
             image: primaryImage ? { id: primaryImage.id } : { id: null }, 
         };
     });
@@ -91,8 +88,7 @@ export function VariableProductManager({ productData, updateProductData, images 
 
   const handleVariationChange = (variationIdentifier: string | number, field: string, value: any) => {
     const updatedVariations = productData.variations?.map(v => {
-      // Find by either client-side UUID (string) or WooCommerce ID (number)
-      if (v.id === variationIdentifier || v.variation_id === variationIdentifier) {
+      if (v.id === variationIdentifier) {
         return { ...v, [field]: value };
       }
       return v;
@@ -102,7 +98,7 @@ export function VariableProductManager({ productData, updateProductData, images 
   
   const handleDimensionChange = (variationIdentifier: string | number, dim: 'length' | 'width' | 'height', value: string) => {
     const updatedVariations = productData.variations?.map(v => {
-      if (v.id === variationIdentifier || v.variation_id === variationIdentifier) {
+      if (v.id === variationIdentifier) {
         return { ...v, dimensions: { ...(v.dimensions || {}), [dim]: value } };
       }
       return v;
@@ -129,7 +125,7 @@ export function VariableProductManager({ productData, updateProductData, images 
     )
   }
 
-  const primaryPhoto = images.find(p => p.isPrimary) || images[0];
+  const primaryPhoto = productData.photos?.find(p => p.isPrimary) || productData.photos?.[0];
 
   return (
     <div className="space-y-4">
@@ -139,8 +135,8 @@ export function VariableProductManager({ productData, updateProductData, images 
         </Button>
       <Accordion type="single" collapsible className="w-full">
         {productData.variations.map(variation => {
-            const identifier = variation.variation_id || variation.id;
-            const variationImage = images.find(p => String(p.id) === String(variation.image?.id));
+            const identifier = variation.id;
+            const variationImage = productData.photos?.find(p => String(p.id) === String(variation.image?.id));
             const displayImage = variationImage || primaryPhoto;
             
             return (
@@ -190,7 +186,7 @@ export function VariableProductManager({ productData, updateProductData, images 
                                     <SelectTrigger><SelectValue placeholder="Imagen principal por defecto" /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="0">Usar imagen principal del producto</SelectItem>
-                                        {images.map(photo => (
+                                        {productData.photos?.map(photo => (
                                             <SelectItem key={photo.id} value={String(photo.id)}>{photo.name}</SelectItem>
                                         ))}
                                     </SelectContent>
