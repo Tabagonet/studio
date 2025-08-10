@@ -1,4 +1,3 @@
-
 // src/app/(app)/wizard/step-1-details-photos.tsx
 "use client";
 
@@ -8,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
+import { VariableProductManager } from '@/components/features/products/variable-product-manager';
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
 import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory } from '@/lib/types';
 import { PRODUCT_TYPES, ALL_LANGUAGES } from '@/lib/constants';
@@ -24,7 +24,7 @@ import type { LinkSuggestion, SuggestLinksOutput } from '@/ai/schemas';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { ComboBox } from '@/components/core/combobox';
-import { VariableProductManager } from '@/components/features/products/variable-product-manager';
+import type { ProductEditState } from '@/app/(app)/products/edit/[id]/page';
 
 interface Step1DetailsPhotosProps {
   productData: ProductData;
@@ -64,6 +64,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   
   useEffect(() => {
     const fetchCategories = async (token: string) => {
+      console.log("[WIZARD][AUDIT] Fetching categories...");
       setIsLoadingCategories(true);
       try {
         const response = await fetch('/api/woocommerce/categories', {
@@ -83,6 +84,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         
         const regularCategories = data.filter(c => !supplierParentId || (c.id !== supplierParentId && c.parent !== supplierParentId));
         setWooCategories(regularCategories);
+         console.log("[WIZARD][AUDIT] Categories fetched successfully.");
       } catch (error) {
         toast({ title: "Error al Cargar Categorías", description: (error as Error).message, variant: "destructive" });
       } finally {
@@ -176,17 +178,21 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
       });
   };
   
-  const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
+ const handlePhotosChange = useCallback((newPhotos: ProductPhoto[]) => {
+    console.log("[WIZARD][AUDIT] handlePhotosChange triggered with", newPhotos);
+    // If name is not already set by the user, try to extract it from the first new photo.
     if (!productData.name && newPhotos.length > 0) {
       const firstNewFile = newPhotos.find(p => p && p.file);
       if (firstNewFile) {
         const { extractedProductName } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
+        console.log("[WIZARD][AUDIT] Extracted product name from filename:", extractedProductName);
         updateProductData({ photos: newPhotos, name: extractedProductName });
         return;
       }
     }
+    // Otherwise, just update the photos.
     updateProductData({ photos: newPhotos });
-  };
+  }, [productData.name, updateProductData]);
   
   const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string | boolean) => {
     const newAttributes = [...productData.attributes];
@@ -485,11 +491,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                        <ComboBox
                             items={wooCategories.map(c => ({ value: c.id.toString(), label: c.name.replace(/—/g, '') }))}
                             selectedValue={productData.category_id?.toString() || ''}
-                            onSelect={(value) => {
-                                const selectedCat = wooCategories.find(c => c.id.toString() === value);
-                                updateProductData({ category_id: Number(value), category: selectedCat || null, categoryPath: '' });
-                            }}
-                            onNewItemChange={(value) => updateProductData({ category_id: null, category: null, categoryPath: value })}
+                            onSelect={(value) => updateProductData({ category_id: Number(value), categoryPath: '' })}
+                            onNewItemChange={(value) => updateProductData({ category_id: null, categoryPath: value })}
                             placeholder="Selecciona o crea una categoría..."
                             newItemValue={productData.categoryPath || ''}
                             loading={isLoadingCategories}
