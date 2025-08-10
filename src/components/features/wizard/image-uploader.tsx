@@ -1,4 +1,5 @@
 
+      
 "use client";
 
 import React, { useCallback } from 'react';
@@ -205,3 +206,5 @@ export function ImageUploader({ photos = [], onPhotosChange, isProcessing, maxPh
     </div>
   );
 }
+      
+    

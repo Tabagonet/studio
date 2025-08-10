@@ -1,3 +1,5 @@
+
+      
 // src/app/api/woocommerce/products/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -46,7 +48,8 @@ export async function POST(request: NextRequest) {
                 continue;
             }
             const file = value;
-            const clientSideId = key;
+            const clientSideId = key; // This is the unique ID from the frontend
+            
             const newImageId = await uploadImageToWordPress(
                 file,
                 `${slugify(finalProductData.name)}-${clientSideId}.webp`,
@@ -57,17 +60,17 @@ export async function POST(request: NextRequest) {
         }
         
         // Prepare the `images` array for the main product payload
-        const wooImagesPayload = finalProductData.photos.map(photo => {
-             // If it's a new file, use its newly uploaded ID
-            if (uploadedPhotosMap.has(photo.id.toString())) {
-                return { id: uploadedPhotosMap.get(photo.id.toString()) };
-            }
-            // If it's an existing image, just use its ID
-            if (typeof photo.id === 'number') {
-                return { id: photo.id };
-            }
-            return null;
-        }).filter(p => p !== null && !p.toDelete);
+        const wooImagesPayload = finalProductData.photos
+            .filter(photo => !photo.toDelete)
+            .map(photo => {
+                if (uploadedPhotosMap.has(photo.id.toString())) {
+                    return { id: uploadedPhotosMap.get(photo.id.toString()) };
+                }
+                if (typeof photo.id === 'number') {
+                    return { id: photo.id };
+                }
+                return null;
+        }).filter(p => p !== null);
         
         // 2. Prepare categories and tags
         let finalCategoryIds: { id: number }[] = [];
@@ -173,7 +176,7 @@ export async function POST(request: NextRequest) {
 
                 if (v.image) {
                     if (v.image.toDelete) {
-                        variationPayload.image = null; // Remove image
+                        variationPayload.image = null;
                     } else {
                         const clientId = v.image.id.toString();
                         const wpId = uploadedPhotosMap.get(clientId) || (typeof v.image.id === 'number' ? v.image.id : null);
@@ -222,3 +225,5 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `Fallo en la creación del producto: ${errorMessage}` }, { status: 500 });
     }
 }
+      
+    

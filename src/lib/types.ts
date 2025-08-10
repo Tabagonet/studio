@@ -1,3 +1,5 @@
+
+      
 // src/lib/types.ts
       
 import type { LucideIcon } from 'lucide-react';
@@ -496,3 +498,5 @@ export interface PlanUsage {
     totalAvailable: number;
   };
 }
+      
+    
