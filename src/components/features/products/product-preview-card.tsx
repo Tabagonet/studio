@@ -23,13 +23,12 @@ export function ProductPreviewCard({ product, categories }: ProductPreviewCardPr
     const categoryName = categories.find(c => c.id === product.category_id)?.name || product.categoryPath || 'Sin categoría';
 
     const renderPrice = () => {
-        if (product.type === 'variable' && product.variations && product.variations.length > 0) {
-            const prices = product.variations
-                .map(v => parseFloat(v.regularPrice || product.regular_price))
+        if (product.type === 'variable') {
+             const prices = (product.variations || [])
+                .map(v => parseFloat(v.regularPrice || ''))
                 .filter(p => !isNaN(p) && p > 0);
-
-            if (prices.length === 0) {
-                // If variations have no prices, check the parent product's price
+            
+             if (prices.length === 0) {
                 const parentPrice = parseFloat(product.regular_price);
                 if (!isNaN(parentPrice) && parentPrice > 0) {
                     return `${parentPrice.toFixed(2)}€`;

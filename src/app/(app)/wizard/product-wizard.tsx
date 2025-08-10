@@ -15,7 +15,6 @@ import { auth } from '@/lib/firebase';
 import { ArrowLeft, ArrowRight, Rocket, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
-import axios from 'axios';
 import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
 
 export function ProductWizard() {
@@ -35,18 +34,18 @@ export function ProductWizard() {
     setProductData(prev => ({ ...prev, ...data }));
   }, []);
   
-  const handlePhotosChange = (newPhotos: ProductPhoto[]) => {
+  const handlePhotosChange = useCallback((newPhotos: ProductPhoto[]) => {
+      let updatedData: Partial<ProductData> = { photos: newPhotos };
       // Logic to extract product name from the first uploaded file if product name is empty
       if (!productData.name && newPhotos.length > 0) {
         const firstNewFile = newPhotos.find(p => p && p.file);
         if (firstNewFile) {
           const { extractedProductName } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
-          updateProductData({ photos: newPhotos, name: extractedProductName });
-          return;
+          updatedData.name = extractedProductName;
         }
       }
-      updateProductData({ photos: newPhotos });
-  };
+      updateProductData(updatedData);
+  }, [productData.name, updateProductData]);
 
   const updateStepStatus = (id: string, status: SubmissionStep['status'], message?: string, error?: string, progress?: number) => {
     setSteps(prevSteps => 

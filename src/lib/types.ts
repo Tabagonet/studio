@@ -149,6 +149,8 @@ export interface ProductData {
   supplier?: string | null; 
   newSupplier?: string;
   productType: ProductType;
+  regular_price?: string; // Add this for consistency with ProductEditState
+  sale_price?: string; // Add this for consistency with ProductEditState
   regularPrice: string;
   salePrice: string;
   manage_stock: boolean;

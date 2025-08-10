@@ -227,7 +227,6 @@ function EditPageContent() {
                 content: post.content,
             };
             
-            // No need to await this
             fetch('/api/blog/sync-full-content', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
