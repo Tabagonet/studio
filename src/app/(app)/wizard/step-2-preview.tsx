@@ -18,17 +18,16 @@ interface Step2PreviewProps {
 
 export function Step2Preview({ productData }: Step2PreviewProps) {
   const { 
-    name, sku, productType, regularPrice, salePrice, stockQuantity, category, 
+    name, sku, productType, regularPrice, salePrice, stockQuantity, category, categoryPath,
     tags, shortDescription, longDescription, attributes, photos,
     variations, supplier, newSupplier
   } = productData;
 
   const primaryPhoto = photos.find(p => p.isPrimary) || photos[0];
   
-  const tagList = typeof tags === 'string'
-    ? tags.split(',').map(t => t.trim()).filter(Boolean)
-    : [];
+  const tagList = Array.isArray(tags) ? tags : [];
 
+  const categoryName = category?.name || categoryPath || 'No especificada';
 
   return (
     <div className="space-y-8">
@@ -107,7 +106,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                 <h4 className="font-semibold text-lg">Detalles</h4>
                 <ul className="list-disc list-inside text-muted-foreground">
                   <li>Tipo: <Badge variant="outline">{productType}</Badge></li>
-                  <li>Categoría: <Badge variant="outline">{category?.name || 'No especificada'}</Badge></li>
+                  <li>Categoría: <Badge variant="outline">{categoryName}</Badge></li>
                    <li>Proveedor: <Badge variant="outline">{supplier || newSupplier || 'No especificado'}</Badge></li>
                 </ul>
               </div>
@@ -147,7 +146,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                         return (
                           <AccordionItem value={variation.id} key={variation.id}>
                             <AccordionTrigger>
-                              <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-3 w-full">
                                 {displayImage ? (
                                   <Image src={displayImage.previewUrl} alt="Variación" width={40} height={40} className="rounded-md object-cover h-10 w-10"/>
                                 ) : (
@@ -155,7 +154,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
                                       <ImageIcon className="h-5 w-5 text-muted-foreground"/>
                                   </div>
                                 )}
-                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-left">
+                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-left flex-1 min-w-0">
                                   {variation.attributes.map(attr => (
                                     <span key={attr.name} className="text-sm">
                                       <span className="font-medium">{attr.name}:</span>
