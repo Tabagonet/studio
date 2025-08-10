@@ -16,10 +16,12 @@ import { ArrowLeft, ArrowRight, Rocket, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import axios from 'axios';
+import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
 
 export function ProductWizard() {
   const [currentStep, setCurrentStep] = useState(1);
   const [productData, setProductData] = useState<ProductData>(INITIAL_PRODUCT_DATA);
+  
   const [submissionStatus, setSubmissionStatus] = useState<SubmissionStatus>('idle');
   const [steps, setSteps] = useState<SubmissionStep[]>([]);
   const [finalLinks, setFinalLinks] = useState<{ url: string; title: string }[]>([]);
@@ -33,6 +35,19 @@ export function ProductWizard() {
     setProductData(prev => ({ ...prev, ...data }));
   }, []);
   
+  const handlePhotosChange = useCallback((newPhotos: ProductPhoto[]) => {
+      // Logic to extract product name from the first uploaded file if product name is empty
+      if (!productData.name && newPhotos.length > 0) {
+        const firstNewFile = newPhotos.find(p => p && p.file);
+        if (firstNewFile) {
+          const { extractedProductName } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
+          updateProductData({ photos: newPhotos, name: extractedProductName });
+          return;
+        }
+      }
+      updateProductData({ photos: newPhotos });
+  }, [productData.name, updateProductData]);
+
   const updateStepStatus = (id: string, status: SubmissionStep['status'], message?: string, error?: string, progress?: number) => {
     setSteps(prevSteps => 
       prevSteps.map(step => 
@@ -125,10 +140,6 @@ export function ProductWizard() {
       setCurrentStep(prev => prev - 1);
       window.scrollTo(0, 0);
     }
-  };
-  
-  const handlePhotosChange = (photos: ProductPhoto[]) => {
-      updateProductData({ photos });
   };
 
   const renderStep = () => {

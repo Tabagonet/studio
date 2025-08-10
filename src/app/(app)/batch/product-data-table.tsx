@@ -1,4 +1,4 @@
-
+// src/app/(app)/batch/product-data-table.tsx
 
 "use client"
 
@@ -62,7 +62,7 @@ export function ProductDataTable() {
   
   const [categories, setCategories] = React.useState<WooCommerceCategory[]>([]);
   const [categoryTree, setCategoryTree] = React.useState<{ category: WooCommerceCategory; depth: number }[]>([]);
-  const [isLoadingCategories, setIsLoadingCategories] = React.useState(false);
+  const [isLoadingCategories, setIsLoadingCategories] = React.useState(true);
 
   const [stats, setStats] = React.useState<ProductStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = React.useState(true);
@@ -153,7 +153,7 @@ export function ProductDataTable() {
 
     try {
       const token = await user.getIdToken();
-      const nameFilter = columnFilters.find(f => f.id === 'name') as { id: string; value: string } | undefined;
+      const nameFilter = columnFilters.find(f => f.id === 'title') as { id: string; value: string } | undefined;
       const sort = sorting[0];
 
       const params = new URLSearchParams({
@@ -317,13 +317,13 @@ export function ProductDataTable() {
 
     try {
       const token = await user.getIdToken();
-      const response = await fetch(`/api/woocommerce/products/${productId}`, {
-        method: 'PUT',
+      const response = await fetch(`/api/woocommerce/products/batch-update`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ productIds: [productId], updates: { status: newStatus } })
       });
       
       const result = await response.json();
@@ -896,9 +896,9 @@ export function ProductDataTable() {
         <div className="flex flex-wrap gap-2 w-full md:w-auto">
             <Input
               placeholder="Filtrar por nombre..."
-              value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
+              value={(table.getColumn("title")?.getFilterValue() as string) ?? ""}
               onChange={(event) =>
-                table.getColumn("name")?.setFilterValue(event.target.value)
+                table.getColumn("title")?.setFilterValue(event.target.value)
               }
               className="w-full sm:w-auto sm:min-w-[200px] flex-grow"
             />
