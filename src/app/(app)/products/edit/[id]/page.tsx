@@ -4,15 +4,23 @@
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Save, Trash2, AlertTriangle } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, Trash2, AlertTriangle, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { WooCommerceCategory, ProductPhoto, ProductVariation, ProductAttribute } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
 import { VariationEditor } from '@/components/features/products/variation-editor';
+import { ProductPreviewCard } from './product-preview-card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
+import { ImageUploader } from '@/components/features/wizard/image-uploader';
+import { PRODUCT_TYPES } from '@/lib/constants';
+import { ComboBox } from '@/components/core/combobox';
 
 export interface ProductEditState {
     id: number;
@@ -57,6 +65,10 @@ function EditPageContent() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
+  const [supplierCategories, setSupplierCategories] = useState<WooCommerceCategory[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   
   const { toast } = useToast();
 
@@ -76,13 +88,27 @@ function EditPageContent() {
 
       try {
         const token = await user.getIdToken();
-        const productResponse = await fetch(`/api/woocommerce/products/${productId}`, { headers: { 'Authorization': `Bearer ${token}` }});
+        
+        const [productResponse, categoriesResponse] = await Promise.all([
+          fetch(`/api/woocommerce/products/${productId}`, { headers: { 'Authorization': `Bearer ${token}` } }),
+          fetch('/api/woocommerce/categories', { headers: { 'Authorization': `Bearer ${token}` } }),
+        ]);
 
         if (!productResponse.ok) {
           const errorData = await productResponse.json();
           throw new Error(errorData.error || 'Failed to fetch product data.');
         }
         const productData = await productResponse.json();
+        
+        if (categoriesResponse.ok) {
+            const catData = await categoriesResponse.json();
+            const parentSupplierCategory = catData.find((c: WooCommerceCategory) => c.name.toLowerCase() === 'proveedores' && c.parent === 0);
+            const supplierParentId = parentSupplierCategory?.id;
+            setSupplierCategories(supplierParentId ? catData.filter((c: WooCommerceCategory) => c.parent === supplierParentId) : []);
+            setWooCategories(catData.filter((c: WooCommerceCategory) => !supplierParentId || (c.id !== supplierParentId && c.parent !== supplierParentId)));
+        }
+        setIsLoadingCategories(false);
+
 
         const existingImagesAsProductPhotos: ProductPhoto[] = (productData.images || []).map(
           (img: { id: number; src: string; name: string; }, index: number): ProductPhoto => ({
@@ -99,11 +125,11 @@ function EditPageContent() {
         const supplierAttribute = Array.isArray(productData.attributes) ? productData.attributes.find((a: any) => a.name === 'Proveedor') : null;
         
         const mainCategory = productData.categories?.find((c: any) => {
-            // A simple heuristic: prefer the first non-proveedores category
-            return !c.slug.includes('proveedores');
+            const supplierParent = (productData.categories || []).find((c: any) => c.slug.includes('proveedores'));
+            return supplierParent ? c.parent !== supplierParent.id : true;
         });
 
-        const formattedAttributes = (productData.attributes || []).map((attr: any): ProductAttribute => ({
+        const formattedAttributes = (productData.attributes || []).filter((a: any) => a.name !== 'Proveedor').map((attr: any): ProductAttribute => ({
             id: attr.id,
             name: attr.name,
             value: (attr.options || []).join(' | '),
@@ -162,14 +188,13 @@ function EditPageContent() {
 
         const payloadForJson = {
             ...restOfProductData,
-            photos: photos.map(p => ({
-                id: p.id,
-                toDelete: p.toDelete,
-            })),
+            // Filter out new, client-side-only photos, only send IDs of existing photos
+            images: photos.filter(p => typeof p.id === 'number' && !p.toDelete).map(p => ({ id: p.id })),
         };
         
         formData.append('productData', JSON.stringify(payloadForJson));
         
+        // Append new files for upload
         product.photos.forEach(photo => {
             if (photo.file) {
                 formData.append(photo.id.toString(), photo.file, photo.name);
@@ -234,6 +259,41 @@ function EditPageContent() {
     });
     return () => unsubscribe();
   }, [fetchInitialData, router]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (!product) return;
+    updateProductData({ [e.target.name]: e.target.value });
+  };
+  
+  const handleSelectChange = (name: 'status' | 'type', value: string) => {
+    if (!product) return;
+    updateProductData({ [name]: value as any });
+  };
+  
+  const handleDimensionChange = (dim: 'length' | 'width' | 'height', value: string) => {
+    if (!product) return;
+    updateProductData({
+      dimensions: { ...(product.dimensions || {}), [dim]: value } as any,
+    });
+  };
+
+   const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string | boolean) => {
+    if (!product) return;
+    const newAttributes = [...product.attributes];
+    newAttributes[index] = { ...newAttributes[index], [field]: value };
+    updateProductData({ attributes: newAttributes });
+  };
+  
+  const addAttribute = () => {
+    if (!product) return;
+    updateProductData({ attributes: [...product.attributes, { name: '', value: '', forVariations: false, visible: true, options: [] }] });
+  };
+
+  const removeAttribute = (index: number) => {
+    if (!product) return;
+    const newAttributes = product.attributes.filter((_, i) => i !== index);
+    updateProductData({ attributes: newAttributes });
+  };
   
   if (isLoading) {
     return <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
@@ -269,48 +329,100 @@ function EditPageContent() {
               </CardHeader>
           </Card>
           
-          <Step1DetailsPhotos 
-            productData={product as any}
-            updateProductData={updateProductData} 
-            onPhotosChange={(photos) => updateProductData({ photos })}
-            isProcessing={isSaving} 
-            originalProduct={product} 
-          />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+              <div className="lg:col-span-2 space-y-6">
+                  <Card>
+                      <CardHeader><CardTitle>Información Principal</CardTitle></CardHeader>
+                      <CardContent className="space-y-4">
+                          <div><Label htmlFor="name">Nombre del Producto</Label><Input id="name" name="name" value={product.name} onChange={handleInputChange} /></div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div><Label htmlFor="sku">SKU</Label><Input id="sku" name="sku" value={product.sku} onChange={handleInputChange} /></div>
+                               <div>
+                                    <Label>Proveedor</Label>
+                                    <ComboBox
+                                        items={supplierCategories.map(s => ({ value: s.name, label: s.name }))}
+                                        selectedValue={product.supplier || ''}
+                                        onSelect={(value) => updateProductData({ supplier: value, newSupplier: ''})}
+                                        onNewItemChange={(value) => updateProductData({ newSupplier: value, supplier: ''})}
+                                        placeholder="Selecciona o crea un proveedor..."
+                                        newItemValue={product.newSupplier || ''}
+                                        loading={isLoadingCategories}
+                                    />
+                              </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div><Label htmlFor="status">Estado</Label><Select name="status" value={product.status} onValueChange={(value) => handleSelectChange('status', value)}><SelectTrigger id="status"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="publish">Publicado</SelectItem><SelectItem value="draft">Borrador</SelectItem><SelectItem value="pending">Pendiente</SelectItem><SelectItem value="private">Privado</SelectItem></SelectContent></Select></div>
+                              <div>
+                                <Label htmlFor="type">Tipo de Producto</Label>
+                                <Select name="type" value={product.type} onValueChange={(value) => handleSelectChange('type', value)}>
+                                  <SelectTrigger id="type"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    {PRODUCT_TYPES.map(type => (
+                                      <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                          </div>
+                      </CardContent>
+                  </Card>
+                  
+                  {product.type === 'variable' && (
+                     <>
+                        <Card>
+                          <CardHeader><CardTitle>Precio por Defecto (Opcional)</CardTitle></CardHeader>
+                          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} /></div>
+                              <div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} /></div>
+                          </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader><CardTitle>Atributos del Producto</CardTitle></CardHeader>
+                            <CardContent>
+                                {product.attributes.map((attr, index) => (
+                                    <div key={index} className="flex flex-col sm:flex-row items-start sm:items-end gap-2 p-3 border rounded-md bg-muted/20 mb-2">
+                                        <div className="flex-1 w-full"><Label>Nombre</Label><Input value={attr.name} onChange={(e) => handleAttributeChange(index, 'name', e.target.value)} placeholder="Ej: Color" /></div>
+                                        <div className="flex-1 w-full"><Label>Valor(es)</Label><Input value={attr.value} onChange={(e) => handleAttributeChange(index, 'value', e.target.value)} placeholder="Ej: Azul | Rojo | Verde" /></div>
+                                        <div className="flex items-center gap-4 pt-2 sm:pt-0 sm:self-end sm:h-10">
+                                            <div className="flex items-center space-x-2"><Checkbox checked={attr.forVariations} onCheckedChange={(checked) => handleAttributeChange(index, 'forVariations', !!checked)} /><Label className="text-sm font-normal whitespace-nowrap">Para variaciones</Label></div>
+                                            <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" className="flex-shrink-0"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                        </div>
+                                    </div>
+                                ))}
+                                <Button type="button" variant="outline" onClick={addAttribute} className="mt-2"><PlusCircle className="mr-2 h-4 w-4" /> Añadir Atributo</Button>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                          <CardHeader><CardTitle>Variaciones</CardTitle></CardHeader>
+                          <CardContent>
+                            <VariationEditor 
+                              product={product} 
+                              onProductChange={updateProductData} 
+                              images={product.photos}
+                            />
+                          </CardContent>
+                        </Card>
+                    </>
+                  )}
 
-          {product.type === 'variable' && (
-             <Card>
-                <CardHeader>
-                    <CardTitle>Variaciones del Producto</CardTitle>
-                    <CardDescription>Edita los precios, stock e imágenes para cada variación.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <VariationEditor
-                        product={product} 
-                        onProductChange={updateProductData} 
-                        images={product.photos} 
-                    />
-                </CardContent>
-            </Card>
-          )}
-
-          <Card>
-              <CardHeader>
-                  <CardTitle className="text-destructive">Zona de Peligro</CardTitle>
-              </CardHeader>
-              <CardContent>
-                  <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                          <Button variant="destructive" className="w-full" disabled={isDeleting}>
-                              <Trash2 className="mr-2 h-4 w-4" /> Eliminar Producto Permanentemente
-                          </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                          <AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente este producto.</AlertDialogDescription></AlertDialogHeader>
-                          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className={buttonVariants({ variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter>
-                      </AlertDialogContent>
-                  </AlertDialog>
-              </CardContent>
-          </Card>
+                  {product.type === 'simple' && (
+                     <>
+                        <Card><CardHeader><CardTitle>Precios</CardTitle></CardHeader><CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} /></div><div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} /></div></CardContent></Card>
+                        <Card><CardHeader><CardTitle>Inventario</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex items-center space-x-2"><Checkbox id="manage_stock" checked={product.manage_stock} onCheckedChange={(checked) => updateProductData({ manage_stock: !!checked })} /><Label htmlFor="manage_stock" className="font-normal">Gestionar inventario</Label></div>{product.manage_stock && (<div><Label htmlFor="stock_quantity">Cantidad</Label><Input id="stock_quantity" name="stock_quantity" type="number" value={product.stock_quantity} onChange={handleInputChange} /></div>)}</CardContent></Card>
+                     </>
+                  )}
+                  
+                   <Card><CardHeader><CardTitle>Descripciones</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="short_description">Descripción Corta</Label><RichTextEditor content={product.short_description} onChange={(c) => updateProductData({ short_description: c })} onInsertImage={() => {}} placeholder="Escribe la descripción corta aquí..." size="small"/></div><div><Label htmlFor="description">Descripción Larga</Label><RichTextEditor content={product.description} onChange={(c) => updateProductData({ description: c })} onInsertImage={() => {}} placeholder="Escribe la descripción larga aquí..." /></div></CardContent></Card>
+                   <Card><CardHeader><CardTitle>Envío</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="weight">Peso (kg)</Label><Input id="weight" name="weight" type="number" value={product.weight} onChange={handleInputChange} /></div><div><Label>Dimensiones (cm)</Label><div className="grid grid-cols-3 gap-2"><Input value={product.dimensions.length} onChange={(e) => handleDimensionChange('length', e.target.value)} placeholder="Largo" /><Input value={product.dimensions.width} onChange={(e) => handleDimensionChange('width', e.target.value)} placeholder="Ancho" /><Input value={product.dimensions.height} onChange={(e) => handleDimensionChange('height', e.target.value)} placeholder="Alto" /></div></div><div><Label htmlFor="shipping_class">Clase de envío (slug)</Label><Input id="shipping_class" name="shipping_class" value={product.shipping_class} onChange={handleInputChange} /></div></CardContent></Card>
+              </div>
+              
+              <div className="space-y-6">
+                  <ProductPreviewCard product={product} categories={[...wooCategories, ...supplierCategories]} />
+                  <Card><CardHeader><CardTitle>Organización</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="category_id">Categoría</Label><ComboBox items={wooCategories.map(c => ({ value: c.id.toString(), label: c.name.replace(/—/g, '') }))} selectedValue={product.category_id?.toString() || ''} onSelect={(value) => updateProductData({ category_id: Number(value), categoryPath: ''})} onNewItemChange={(value) => updateProductData({ category_id: null, categoryPath: value})} placeholder="Selecciona o crea una categoría..." loading={isLoadingCategories} newItemValue={product.categoryPath || ''}/></div><div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={product.tags.join(', ')} onChange={(e) => updateProductData({ tags: e.target.value.split(',').map(t => t.trim()) })} /></div></CardContent></Card>
+                   <Card><CardHeader><CardTitle>Imágenes</CardTitle></CardHeader><CardContent><ImageUploader photos={product.photos} onPhotosChange={(photos) => updateProductData({ photos })} isProcessing={isSaving}/></CardContent></Card>
+                   <Card><CardHeader><CardTitle className="text-destructive">Zona de Peligro</CardTitle></CardHeader><CardContent><AlertDialog><AlertDialogTrigger asChild><Button variant="destructive" className="w-full" disabled={isDeleting}><Trash2 className="mr-2 h-4 w-4" /> Eliminar Producto</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente este producto.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className={buttonVariants({variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></CardContent></Card>
+              </div>
+          </div>
       </div>
     </>
   );

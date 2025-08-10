@@ -33,9 +33,8 @@ const productUpdateSchema = z.object({
     status: z.enum(['publish', 'draft', 'pending', 'private']).optional(),
     tags: z.array(z.string()).optional(),
     category_id: z.number().nullable().optional(),
-    photos: z.array(z.object({
-        id: z.union([z.string(), z.number()]).optional(),
-        toDelete: z.boolean().optional(),
+    images: z.array(z.object({
+        id: z.union([z.string(), z.number()]).optional(), // Allow both string (for new images) and number (for existing)
     })).optional(),
     variations: z.array(z.any()).optional(),
     attributes: z.array(z.any()).optional(),
@@ -135,7 +134,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const wooPayload: any = { ...restOfData };
         
         const attributes = Array.isArray(validatedData.attributes) ? validatedData.attributes : [];
-        const photos = Array.isArray(validatedData.photos) ? validatedData.photos : [];
+        const photos = Array.isArray(validatedData.images) ? validatedData.images : [];
         
         const { data: originalProduct } = await wooApi.get(`products/${productId}`);
         console.log("[AUDIT] Fetched original product data.");
@@ -202,9 +201,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
                  console.log(`[AUDIT] Image ${clientSideId} uploaded. New WordPress Media ID: ${newImageId}`);
             }
         }
-        
-        console.log("[DEBUG] Photos array from validatedData:", photos);
-        console.log("[DEBUG] Uploaded photos map:", uploadedPhotosMap);
         
         const finalImagePayload = photos
             .filter(p => !p.toDelete)
