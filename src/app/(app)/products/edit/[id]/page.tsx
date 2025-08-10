@@ -5,14 +5,13 @@
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Save, Trash2, AlertTriangle, PlusCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { auth, onAuthStateChanged } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { WooCommerceCategory, ProductPhoto, ProductVariation, ProductAttribute } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { VariationEditor } from '@/components/features/products/variation-editor';
 import { ProductPreviewCard } from './product-preview-card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,13 +21,15 @@ import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { PRODUCT_TYPES } from '@/lib/constants';
 import { ComboBox } from '@/components/core/combobox';
+import { VariableProductManager } from '@/components/features/products/variable-product-manager';
+import { PlusCircle } from 'lucide-react';
 
 export interface ProductEditState {
     id: number;
     name: string;
     sku: string;
     supplier: string | null;
-    newSupplier?: string; 
+    newSupplier?: string;
     type: 'simple' | 'variable' | 'grouped' | 'external';
     regular_price: string;
     sale_price: string;
@@ -194,9 +195,10 @@ function EditPageContent() {
         
         formData.append('productData', JSON.stringify(payloadForJson));
         
-        product.photos.forEach(photo => {
+        const newPhotos = product.photos.filter(p => p.file);
+        newPhotos.forEach(photo => {
             if (photo.file) {
-                formData.append(photo.id.toString(), photo.file, photo.name);
+                 formData.append(photo.id.toString(), photo.file, photo.name);
             }
         });
         
@@ -259,7 +261,7 @@ function EditPageContent() {
     return () => unsubscribe();
   }, [fetchInitialData, router]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!product) return;
     updateProductData({ [e.target.name]: e.target.value });
   };
@@ -267,7 +269,7 @@ function EditPageContent() {
   const handleSelectChange = (name: 'status' | 'type', value: string) => {
     if (!product) return;
     if (name === 'type' && value === 'variable' && product.attributes.length === 0) {
-      updateProductData({ [name]: value as any, attributes: [{ name: '', value: '', forVariations: false, visible: true }] });
+      updateProductData({ [name]: value as any, attributes: [{ name: '', value: '', forVariations: false, visible: true, options: [] }] });
     } else {
       updateProductData({ [name]: value as any });
     }
@@ -283,7 +285,11 @@ function EditPageContent() {
    const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string | boolean) => {
     if (!product) return;
     const newAttributes = [...product.attributes];
-    newAttributes[index] = { ...newAttributes[index], [field]: value };
+    const updatedAttr = { ...newAttributes[index], [field]: value };
+    if(field === 'value' && typeof value === 'string') {
+        updatedAttr.options = value.split('|').map(s => s.trim()).filter(Boolean);
+    }
+    newAttributes[index] = updatedAttr;
     updateProductData({ attributes: newAttributes });
   };
   
@@ -398,7 +404,7 @@ function EditPageContent() {
                         <Card>
                           <CardHeader><CardTitle>Variaciones</CardTitle></CardHeader>
                           <CardContent>
-                            <VariationEditor 
+                            <VariableProductManager 
                               product={product} 
                               onProductChange={updateProductData} 
                               images={product.photos}
@@ -421,7 +427,7 @@ function EditPageContent() {
                   <ProductPreviewCard product={product} categories={[...wooCategories, ...supplierCategories]} />
                   <Card><CardHeader><CardTitle>Organización</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="category_id">Categoría</Label><ComboBox items={wooCategories.map(c => ({ value: c.id.toString(), label: c.name.replace(/—/g, '') }))} selectedValue={product.category_id?.toString() || ''} onSelect={(value) => updateProductData({ category_id: Number(value), categoryPath: ''})} onNewItemChange={(value) => updateProductData({ category_id: null, categoryPath: value})} placeholder="Selecciona o crea una categoría..." loading={isLoadingCategories} newItemValue={product.categoryPath || ''}/></div><div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={product.tags.join(', ')} onChange={(e) => updateProductData({ tags: e.target.value.split(',').map(t => t.trim()) })} /></div></CardContent></Card>
                    <Card><CardHeader><CardTitle>Imágenes</CardTitle></CardHeader><CardContent><ImageUploader photos={product.photos} onPhotosChange={updateProductData} isProcessing={isSaving}/></CardContent></Card>
-                   <Card><CardHeader><CardTitle className="text-destructive">Zona de Peligro</CardTitle></CardHeader><CardContent><AlertDialog><AlertDialogTrigger asChild><Button variant="destructive" className="w-full" disabled={isDeleting}><Trash2 className="mr-2 h-4 w-4" /> Eliminar Producto</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente este producto.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className={buttonVariants({variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></CardContent></Card>
+                   <Card><CardHeader><CardTitle className="text-destructive">Zona de Peligro</CardTitle></CardHeader><CardContent><AlertDialog><AlertDialogTrigger asChild><Button variant="destructive" className="w-full" disabled={isDeleting}><Trash2 className="mr-2 h-4 w-4" /> Eliminar Producto</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente este producto.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></CardContent></Card>
               </div>
           </div>
       </div>
@@ -436,4 +442,3 @@ export default function EditProductPage() {
         </Suspense>
     )
 }
-
