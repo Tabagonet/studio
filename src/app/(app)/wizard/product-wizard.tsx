@@ -61,7 +61,7 @@ export function ProductWizard() {
     try {
         const token = await user.getIdToken();
         
-        updateStepStatus('create_product', 'processing', 'Preparando datos para enviar...', 10);
+        updateStepStatus('create_product', 'processing', 'Preparando datos para enviar...', undefined, 10);
         
         const formData = new FormData();
         formData.append('productData', JSON.stringify(productData));
@@ -72,7 +72,7 @@ export function ProductWizard() {
             }
         });
         
-        updateStepStatus('create_product', 'processing', 'Enviando datos al servidor...', 30);
+        updateStepStatus('create_product', 'processing', 'Enviando datos al servidor...', undefined, 30);
         
         const response = await fetch('/api/woocommerce/products', {
             method: 'POST',
@@ -85,7 +85,7 @@ export function ProductWizard() {
             throw new Error(result.error || 'Fallo en la creación del producto');
         }
 
-        updateStepStatus('create_product', 'success', 'Producto creado con éxito.', 100);
+        updateStepStatus('create_product', 'success', 'Producto creado con éxito.', undefined, 100);
         setFinalLinks([result.data]);
         setSubmissionStatus('success');
         
@@ -126,11 +126,15 @@ export function ProductWizard() {
       window.scrollTo(0, 0);
     }
   };
+  
+  const handlePhotosChange = (photos: ProductPhoto[]) => {
+      updateProductData({ photos });
+  };
 
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} />;
+        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} onPhotosChange={handlePhotosChange} />;
       case 2:
         return <Step2Preview productData={productData} />;
       case 3:
@@ -138,7 +142,7 @@ export function ProductWizard() {
       case 4:
         return <Step4Processing status={submissionStatus} steps={steps} />;
       default:
-        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} />;
+        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} onPhotosChange={handlePhotosChange} />;
     }
   };
   
