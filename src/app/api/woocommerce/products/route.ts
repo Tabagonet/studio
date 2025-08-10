@@ -1,4 +1,3 @@
-
 // src/app/api/woocommerce/products/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -49,7 +48,6 @@ export async function POST(request: NextRequest) {
             }
             const file = value;
             const clientSideId = key; // This is the unique ID from the frontend
-            console.log(`[API CREATE][AUDIT] Uploading image with client ID: ${clientSideId}`);
             
             const newImageId = await uploadImageToWordPress(
                 file,
@@ -58,7 +56,6 @@ export async function POST(request: NextRequest) {
                 wpApi
             );
             uploadedPhotosMap.set(clientSideId, newImageId);
-             console.log(`[API CREATE][AUDIT] Image upload complete. Client ID: ${clientSideId}, WP Media ID: ${newImageId}`);
         }
         
         // Prepare the `images` array for the main product payload, respecting the primary image.
@@ -83,12 +80,11 @@ export async function POST(request: NextRequest) {
         
         // 2. Prepare categories and tags
         let finalCategoryIds: { id: number }[] = [];
-        if (finalProductData.category?.id) {
-            finalCategoryIds.push({ id: finalProductData.category.id });
-        }
         if (finalProductData.categoryPath) {
-            const newCatId = await findOrCreateWpCategoryByPath(finalProductData.categoryPath, wpApi, 'product_cat');
-            if (newCatId) finalCategoryIds.push({ id: newCatId });
+             const newCatId = await findOrCreateWpCategoryByPath(finalProductData.categoryPath, wpApi, 'product_cat');
+             if (newCatId) finalCategoryIds.push({ id: newCatId });
+        } else if (finalProductData.category?.id) {
+            finalCategoryIds.push({ id: finalProductData.category.id });
         }
         
         const supplierToAdd = finalProductData.supplier || finalProductData.newSupplier;

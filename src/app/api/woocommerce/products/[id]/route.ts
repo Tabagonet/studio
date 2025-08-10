@@ -1,4 +1,3 @@
-
 // src/app/api/woocommerce/products/[id]/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -34,6 +33,7 @@ const productUpdateSchema = z.object({
     status: z.enum(['publish', 'draft', 'pending', 'private']).optional(),
     tags: z.array(z.string()).optional(),
     category_id: z.number().nullable().optional(),
+    categoryPath: z.string().optional(),
     images: z.array(z.object({
         id: z.union([z.string(), z.number()]).optional(),
     })).optional(),
@@ -58,7 +58,7 @@ const productUpdateSchema = z.object({
 
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  console.log(`[AUDIT] GET /api/woocommerce/products/[id] - Request received for ID: ${params.id}`);
+  console.log(`[API EDIT][AUDIT] GET /api/woocommerce/products/[id] - Request received for ID: ${params.id}`);
   try {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) {
@@ -79,7 +79,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     }
 
     const { data: productData } = await wooApi.get(`products/${productId}`);
-    console.log(`[AUDIT] Fetched raw product data for ${productId}:`, productData.type, productData.attributes);
     
     if (productData.type === 'variable') {
         const { data: variationsData } = await wooApi.get(`products/${productId}/variations`, { per_page: 100 });
@@ -93,7 +92,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         value: (attr.options || []).join(' | '),
       }));
     }
-    console.log(`[AUDIT] Processed product data being sent to client:`, productData.type, productData.attributes);
     
     return NextResponse.json(productData);
 
@@ -110,7 +108,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-    console.log("[AUDIT] PUT /api/woocommerce/products/[id] - Request received.");
+    console.log("[API EDIT][AUDIT] PUT /api/woocommerce/products/[id] - Request received.");
     let uid: string;
     try {
         const token = req.headers.get('Authorization')?.split('Bearer ')[1];
@@ -118,7 +116,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
         const decodedToken = await adminAuth.verifyIdToken(token);
         uid = decodedToken.uid;
-        console.log(`[AUDIT] User authenticated: ${uid}`);
 
         const { wooApi, wpApi } = await getApiClientsForUser(uid);
         if (!wooApi) { throw new Error('WooCommerce API is not configured for the active connection.'); }
@@ -133,20 +130,18 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         }
         
         const productData = JSON.parse(productDataString);
-        console.log("[AUDIT] Parsed product data from form:", productData);
         
         const validationResult = productUpdateSchema.safeParse(productData);
         if (!validationResult.success) { 
-            console.error("[AUDIT] Product data validation failed:", validationResult.error.flatten());
             return NextResponse.json({ error: 'Invalid product data.', details: validationResult.error.flatten() }, { status: 400 }); 
         }
         
         const validatedData = validationResult.data;
-        const { imageTitle, imageAltText, imageCaption, imageDescription, variations, supplier, newSupplier, tags, ...restOfData } = validatedData;
+        const { imageTitle, imageAltText, imageCaption, imageDescription, variations, supplier, newSupplier, categoryPath, tags, ...restOfData } = validatedData;
         const wooPayload: any = { ...restOfData };
         
         const attributes = Array.isArray(validatedData.attributes) ? validatedData.attributes : [];
-        const photos = Array.isArray(validatedData.images) ? validatedData.images : [];
+        const photos = [...(validatedData.images || [])].sort((a,b) => (a.isPrimary ? -1 : b.isPrimary ? 1 : 0));
         
         if (tags !== undefined) {
           wooPayload.tags = tags.map((name: string) => ({ name: name.trim() })).filter(t => t.name);
@@ -164,7 +159,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const { data: originalProduct } = await wooApi.get(`products/${productId}`);
         let finalCategoryIds: { id: number }[] = [];
         
-        if (validatedData.category_id !== undefined && validatedData.category_id !== null) {
+        if (categoryPath) {
+             if (!wpApi) { throw new Error('La API de WordPress debe estar configurada para gestionar categorías.'); }
+             const newCatId = await findOrCreateWpCategoryByPath(categoryPath, wpApi, 'product_cat');
+             if (newCatId) finalCategoryIds.push({ id: newCatId });
+        } else if (validatedData.category_id !== undefined && validatedData.category_id !== null) {
               finalCategoryIds.push({id: validatedData.category_id});
         } else {
              finalCategoryIds = originalProduct.categories?.map((c: any) => ({id: c.id})) || [];
@@ -194,16 +193,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             .map(([key, value]) => ({ key, file: value as File }));
 
         if (newPhotoFiles.length > 0) {
-            console.log(`[AUDIT] Found ${newPhotoFiles.length} new photo files to upload.`);
             if (!wpApi) { throw new Error('WordPress API must be configured to upload new images.'); }
             
             for (const { key: clientSideId, file } of newPhotoFiles) {
                  const baseNameForSeo = imageTitle || validatedData.name || 'product-image';
                  const seoFilename = `${slugify(baseNameForSeo)}-${productId}-${Date.now()}.webp`;
-                 console.log(`[AUDIT] Uploading new image with client ID ${clientSideId}`);
                  const newImageId = await uploadImageToWordPress(file, seoFilename, { title: imageTitle || validatedData.name || '', alt_text: imageAltText || validatedData.name || '', caption: imageCaption || '', description: imageDescription || '' }, wpApi);
                  uploadedPhotosMap.set(clientSideId, newImageId);
-                 console.log(`[AUDIT] Image ${clientSideId} uploaded. New WordPress Media ID: ${newImageId}`);
             }
         }
         
@@ -219,7 +215,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             }).filter(Boolean);
 
         wooPayload.images = finalImagePayload;
-        console.log("[AUDIT] Final image payload for WooCommerce:", finalImagePayload);
         
         if (wooPayload.manage_stock === false) {
             wooPayload.stock_quantity = null;
@@ -230,14 +225,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             wooPayload.stock_quantity = null;
         }
         
-        console.log("[AUDIT] Sending final payload to WooCommerce PUT endpoint...", wooPayload);
         const response = await wooApi.put(`products/${productId}`, wooPayload);
-        console.log("[AUDIT] Product update successful.");
 
         const finalVariations = Array.isArray(variations) ? variations : [];
         if (finalVariations.length > 0) {
-            console.log("[AUDIT] Processing variation updates...");
-            
             const generalPrice = wooPayload.regular_price;
             
             const batchPayload = {
@@ -254,14 +245,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
                     image: v.image?.toDelete ? null : (v.image?.id ? { id: v.image.id } : undefined)
                 }))
             };
-            console.log("[AUDIT] Sending variation batch payload:", batchPayload);
             await wooApi.post(`products/${productId}/variations/batch`, batchPayload);
-            console.log("[AUDIT] Variation updates sent.");
         }
 
         return NextResponse.json({ success: true, data: response.data });
     } catch (error: any) {
-        console.error(`[AUDIT] Critical error updating product ${params.id}:`, error.response?.data || error.message, error.stack);
+        console.error(`[API EDIT][AUDIT] Critical error updating product ${params.id}:`, error.response?.data || error.message, error.stack);
         const errorMessage = error.response?.data?.message || 'Failed to update product.';
         const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
         return NextResponse.json({ error: errorMessage, details: error.response?.data }, { status });
