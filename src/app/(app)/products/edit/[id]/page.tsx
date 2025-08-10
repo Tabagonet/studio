@@ -1,4 +1,3 @@
-
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -57,7 +56,7 @@ export interface ProductEditState {
     imageDescription?: string;
 }
 
-function EditPageContent() {
+function EditProductPageContent() {
   const params = useParams();
   const router = useRouter();
   const productId = Number(params.id);
@@ -114,7 +113,7 @@ function EditPageContent() {
           throw new Error(errorData.error || 'Failed to fetch product data.');
         }
         const productData = await productResponse.json();
-        console.log("[EDITOR][AUDIT] Raw product data from API:", productData);
+        console.log("[EDITOR][AUDIT] Raw product data from API:", productData.type, productData.attributes);
         
         if (categoriesResponse.ok) {
             const catData = await categoriesResponse.json();
@@ -146,7 +145,7 @@ function EditPageContent() {
         });
         
         const formattedAttributes = (productData.attributes || []).map((attr: any): ProductAttribute => ({
-            id: attr.id,
+            id: attr.id || 0,
             name: attr.name,
             value: (attr.options || []).join(' | '),
             options: (attr.options || []).map(String),
@@ -205,16 +204,29 @@ function EditPageContent() {
         const formData = new FormData();
         
         const { images, ...restOfProductData } = product;
+        
+        const uploadedPhotosMap = new Map<string, number>();
+        const finalImagePayload = product.images
+            .filter(p => !p.toDelete)
+            .map(p => {
+                if (p.file && uploadedPhotosMap.has(String(p.id))) {
+                    return { id: uploadedPhotosMap.get(String(p.id)) };
+                }
+                if (typeof p.id === 'number') {
+                    return { id: p.id };
+                }
+                return null;
+            }).filter(Boolean);
 
         const payloadForJson = {
             ...restOfProductData,
-            images: images.filter(p => !p.file && !p.toDelete).map(p => ({ id: p.id })),
+            images: finalImagePayload,
         };
         
         console.log("[EDITOR][AUDIT] Payload to be sent as JSON:", payloadForJson);
         formData.append('productData', JSON.stringify(payloadForJson));
         
-        const newPhotoFiles = product.images.filter(p => p.file);
+        const newPhotoFiles = product.images.filter(p => p.file && !p.toDelete);
         newPhotoFiles.forEach(photo => {
             if (photo.file) {
                  console.log(`[EDITOR][AUDIT] Appending new photo to FormData: ${photo.name} with key ${photo.id}`);
@@ -450,10 +462,11 @@ function EditPageContent() {
   );
 }
 
+
 export default function EditProductPage() {
     return (
         <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
-            <EditPageContent />
+            <EditProductPageContent />
         </Suspense>
     )
 }
