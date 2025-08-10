@@ -1,3 +1,4 @@
+
 // src/app/api/woocommerce/products/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -172,21 +173,18 @@ export async function POST(request: NextRequest) {
                     variationPayload.stock_quantity = parseInt(v.stockQuantity, 10);
                 }
 
-                if (v.image && v.image.id) { // Ensure image and image.id are not null
-                    if (v.image.toDelete) {
-                        variationPayload.image = null;
-                    } else {
-                        const clientId = v.image.id.toString();
-                        const wpId = uploadedPhotosMap.get(clientId) || (typeof v.image.id === 'number' ? v.image.id : null);
-                        if (wpId) {
-                            variationPayload.image = { id: wpId };
-                        }
+                if (v.image && v.image.id) {
+                    const clientId = v.image.id.toString();
+                    const wpId = uploadedPhotosMap.get(clientId) || (typeof v.image.id === 'number' ? v.image.id : null);
+                    if (wpId) {
+                        variationPayload.image = { id: wpId };
                     }
                 }
                 return variationPayload;
             });
             await wooApi.post(`products/${productId}/variations/batch`, { create: batchCreatePayload });
         }
+
 
         // 7. Log activity
         if (adminDb && admin.firestore.FieldValue) {
