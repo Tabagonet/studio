@@ -468,7 +468,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                         items={supplierCategories.map(s => ({ value: s.name, label: s.name }))}
                         selectedValue={productData.supplier || ''}
                         onSelect={(value) => updateProductData({ supplier: value, newSupplier: '' })}
-                        onNewItemChange={(value) => updateProductData({ newSupplier: value, supplier: null })}
+                        onNewItemChange={(value) => updateProductData({ newSupplier: value, supplier: null})}
                         placeholder="Selecciona o crea un proveedor..."
                         newItemValue={productData.newSupplier || ''}
                         loading={isLoadingCategories}
@@ -489,10 +489,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                        <ComboBox
                             items={wooCategories.map(c => ({ value: c.id.toString(), label: c.name.replace(/—/g, '') }))}
                             selectedValue={productData.category_id?.toString() || ''}
-                            onSelect={(value) => {
-                                const selectedCat = wooCategories.find(c => c.id.toString() === value);
-                                updateProductData({ category_id: Number(value), categoryPath: '', category: selectedCat || null });
-                            }}
+                            onSelect={(value) => updateProductData({ category_id: Number(value), categoryPath: '', category: wooCategories.find(c => c.id === Number(value)) || null })}
                             onNewItemChange={(value) => updateProductData({ category_id: null, categoryPath: value, category: null })}
                             placeholder="Selecciona o crea una categoría..."
                             newItemValue={productData.categoryPath || ''}

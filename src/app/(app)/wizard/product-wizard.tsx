@@ -134,7 +134,7 @@ export function ProductWizard() {
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} onPhotosChange={handlePhotosChange} />;
+        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} />;
       case 2:
         return <Step2Preview productData={productData} />;
       case 3:
@@ -142,7 +142,7 @@ export function ProductWizard() {
       case 4:
         return <Step4Processing status={submissionStatus} steps={steps} />;
       default:
-        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} onPhotosChange={handlePhotosChange} />;
+        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} />;
     }
   };
   
