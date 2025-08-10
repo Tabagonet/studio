@@ -20,7 +20,7 @@ import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { PRODUCT_TYPES } from '@/lib/constants';
 import { ComboBox } from '@/components/core/combobox';
-import { VariationEditor } from '@/components/features/products/variation-editor';
+import { VariableProductManager } from '@/components/features/products/variable-product-manager';
 import { PlusCircle } from 'lucide-react';
 
 export interface ProductEditState {
@@ -271,13 +271,14 @@ function EditProductPageContent() {
   };
   
   useEffect(() => {
-    onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
         if (user) {
             fetchInitialData();
         } else {
             router.push('/login');
         }
     });
+    return () => unsubscribe();
   }, [fetchInitialData, router]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
