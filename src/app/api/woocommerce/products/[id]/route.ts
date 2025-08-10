@@ -115,7 +115,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const productId = params.id;
         if (!productId) { return NextResponse.json({ error: 'Product ID is required.' }, { status: 400 }); }
 
-        const formData = await request.formData();
+        const formData = await req.formData();
         const productDataString = formData.get('productData') as string | null;
         if (!productDataString) {
             throw new Error("productData is missing from the form data.");
@@ -288,4 +288,8 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     
     return NextResponse.json(
-      { error: errorMessage, details: error.response?.data
+      { error: errorMessage, details: error.response?.data },
+      { status }
+    );
+  }
+}
