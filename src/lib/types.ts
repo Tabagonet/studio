@@ -230,6 +230,7 @@ export interface SubmissionStep {
   status: SubmissionStepStatus;
   progress?: number;
   error?: string;
+  message?: string;
 }
 
 export interface ActivityLog {

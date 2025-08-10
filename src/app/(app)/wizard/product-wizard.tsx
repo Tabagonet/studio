@@ -33,14 +33,10 @@ export function ProductWizard() {
     setProductData(prev => ({ ...prev, ...data }));
   }, []);
   
-  const handlePhotosChange = useCallback((photos: ProductPhoto[]) => {
-      updateProductData({ photos });
-  }, [updateProductData]);
-
-  const updateStepStatus = (id: string, status: SubmissionStep['status'], error?: string, progress?: number) => {
+  const updateStepStatus = (id: string, status: SubmissionStep['status'], message?: string, error?: string, progress?: number) => {
     setSteps(prevSteps => 
       prevSteps.map(step => 
-        step.id === id ? { ...step, status, error, progress } : step
+        step.id === id ? { ...step, status, message, error, progress } : step
       )
     );
   };
@@ -65,7 +61,7 @@ export function ProductWizard() {
     try {
         const token = await user.getIdToken();
         
-        updateStepStatus('create_product', 'processing', undefined, 10);
+        updateStepStatus('create_product', 'processing', 'Preparando datos para enviar...', 10);
         
         const formData = new FormData();
         formData.append('productData', JSON.stringify(productData));
@@ -76,7 +72,7 @@ export function ProductWizard() {
             }
         });
         
-        updateStepStatus('create_product', 'processing', undefined, 30);
+        updateStepStatus('create_product', 'processing', 'Enviando datos al servidor...', 30);
         
         const response = await fetch('/api/woocommerce/products', {
             method: 'POST',
@@ -89,12 +85,12 @@ export function ProductWizard() {
             throw new Error(result.error || 'Fallo en la creación del producto');
         }
 
-        updateStepStatus('create_product', 'success', undefined, 100);
+        updateStepStatus('create_product', 'success', 'Producto creado con éxito.', 100);
         setFinalLinks([result.data]);
         setSubmissionStatus('success');
         
     } catch (error: any) {
-        updateStepStatus('create_product', 'error', error.message);
+        updateStepStatus('create_product', 'error', undefined, error.message);
         toast({ title: 'Proceso Interrumpido', description: error.message, variant: 'destructive' });
         setSubmissionStatus('error');
     }
