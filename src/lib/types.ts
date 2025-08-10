@@ -1,4 +1,3 @@
-
 // src/lib/types.ts
       
 import type { LucideIcon } from 'lucide-react';
@@ -26,17 +25,18 @@ export interface NavGroup {
 export type UploadStatus = 'pending' | 'uploading' | 'completed' | 'error';
 
 export interface ProductPhoto {
-  id: string | number; // Unique ID, can be number (from Woo) or string (from client)
-  file?: File; // The actual file object, present only on client-side before upload
-  previewUrl: string; // Used for client-side preview (object URL or existing src)
-  name: string; // filename
+  id: string | number;
+  file?: File;
+  previewUrl: string;
+  name: string;
   isPrimary?: boolean; 
   status: UploadStatus;
-  progress: number; // 0-100
-  error?: string; // Error message if upload fails
+  progress: number;
+  error?: string;
   uploadedUrl?: string;
   uploadedFilename?: string;
   serverPath?: string;
+  toDelete?: boolean;
 }
 
 export interface WooCommerceImage {
@@ -51,12 +51,12 @@ export interface WooCommerceImage {
 export interface ProductAttribute {
   id?: number;
   name: string;
-  value: string; // The UI-friendly pipe-separated string
-  options?: string[]; // The raw options array from WooCommerce
+  value: string;
+  options?: string[];
   forVariations?: boolean;
   visible?: boolean;
   position?: number;
-  variation?: boolean; // From WooCommerce
+  variation?: boolean;
 }
 
 export interface ProductVariationAttribute {
@@ -73,7 +73,7 @@ export interface ProductVariation {
   salePrice: string;
   manage_stock: boolean;
   stockQuantity: string;
-  image?: { id: number | string | null };
+  image?: { id: number | string | null; toDelete?: boolean };
   weight?: string;
   dimensions?: {
     length?: string;

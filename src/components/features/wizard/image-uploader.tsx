@@ -5,7 +5,7 @@ import React, { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { v4 as uuidv4 } from 'uuid';
 import Image from 'next/image';
-import { UploadCloud, X, Star, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
+import { UploadCloud, X, Star, CheckCircle, AlertTriangle, Clock, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import type { ProductPhoto } from '@/lib/types';
@@ -32,9 +32,10 @@ export function ImageUploader({ photos = [], onPhotosChange, isProcessing, maxPh
       isPrimary: false,
       status: 'pending',
       progress: 0,
+      toDelete: false, // Initialize toDelete flag
     }));
 
-    const currentPhotos = maxPhotos === 1 ? [] : photos;
+    const currentPhotos = maxPhotos === 1 ? [] : photos.filter(p => !p.toDelete);
     const combinedPhotos = [...currentPhotos, ...newPhotos].slice(0, maxPhotos);
 
     if (combinedPhotos.length > 0 && !combinedPhotos.some(p => p.isPrimary)) {
@@ -45,28 +46,36 @@ export function ImageUploader({ photos = [], onPhotosChange, isProcessing, maxPh
   }, [photos, onPhotosChange, maxPhotos]);
 
   const handleDelete = useCallback((photoToDelete: ProductPhoto) => {
-    if (photoToDelete.previewUrl.startsWith('blob:')) {
-      URL.revokeObjectURL(photoToDelete.previewUrl);
-    }
-    const remainingPhotos = photos.filter(p => p.id !== photoToDelete.id);
-    if (photoToDelete.isPrimary && remainingPhotos.length > 0 && !remainingPhotos.some(p => p.isPrimary)) {
-        remainingPhotos[0].isPrimary = true;
-    }
-    onPhotosChange(remainingPhotos);
-    toast({ title: "Imagen Eliminada", description: `${photoToDelete.name} ha sido eliminada de la cola.` });
+    const updatedPhotos = photos.map(p =>
+      p.id === photoToDelete.id ? { ...p, toDelete: true } : p
+    );
+    onPhotosChange(updatedPhotos);
+    toast({ title: "Imagen marcada para eliminar", description: `Se quitará ${photoToDelete.name} al guardar.` });
   }, [photos, onPhotosChange, toast]);
+
+  const handleUndoDelete = useCallback((photoToRestore: ProductPhoto) => {
+    const updatedPhotos = photos.map(p =>
+      p.id === photoToRestore.id ? { ...p, toDelete: false } : p
+    );
+    onPhotosChange(updatedPhotos);
+  }, [photos, onPhotosChange]);
   
   const setAsPrimary = useCallback((id: string | number) => {
     const selectedPhoto = photos.find(p => p.id === id);
     if (!selectedPhoto) return;
-
-    const otherPhotos = photos.filter(p => p.id !== id);
+  
+    // Create a new list with the selected photo at the beginning
     const reorderedPhotos = [
-      { ...selectedPhoto, isPrimary: true },
-      ...otherPhotos.map(p => ({ ...p, isPrimary: false }))
+      { ...selectedPhoto, isPrimary: true, toDelete: false }, // Ensure it's not marked for deletion
+      ...photos
+        .filter(p => p.id !== id) // Get all other photos
+        .map(p => ({ ...p, isPrimary: false })) // Mark all others as not primary
     ];
+  
     onPhotosChange(reorderedPhotos);
-  }, [photos, onPhotosChange]);
+    toast({ title: "Imagen principal actualizada" });
+  }, [photos, onPhotosChange, toast]);
+
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -74,9 +83,11 @@ export function ImageUploader({ photos = [], onPhotosChange, isProcessing, maxPh
     disabled: isProcessing,
   });
 
+  const visiblePhotos = photos.filter(p => !p.toDelete);
+
   return (
     <div className="space-y-4">
-      {photos.length < maxPhotos && (
+      {visiblePhotos.length < maxPhotos && (
         <div
             {...getRootProps()}
             className={cn(
@@ -104,7 +115,8 @@ export function ImageUploader({ photos = [], onPhotosChange, isProcessing, maxPh
             {photos.map((photo) => (
               <div key={photo.id} className={cn(
                 "relative group border rounded-lg overflow-hidden shadow-sm bg-muted/20",
-                maxPhotos === 1 ? "w-full aspect-video" : "aspect-square"
+                maxPhotos === 1 ? "w-full aspect-video" : "aspect-square",
+                photo.toDelete && "opacity-50 border-destructive border-dashed"
               )}>
                 <Image
                   src={photo.previewUrl}
@@ -115,17 +127,25 @@ export function ImageUploader({ photos = [], onPhotosChange, isProcessing, maxPh
                 />
 
                 {!isProcessing && (
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" onClick={() => setAsPrimary(photo.id)} title="Marcar como principal">
-                      <Star className={cn("h-5 w-5 text-white", photo.isPrimary && "fill-yellow-400 text-yellow-400")}/>
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(photo)} title="Eliminar imagen">
-                      <X className="h-5 w-5 text-destructive" />
-                      </Button>
+                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      {photo.toDelete ? (
+                          <Button variant="ghost" size="icon" onClick={() => handleUndoDelete(photo)} title="Deshacer borrado">
+                             <RotateCcw className="h-5 w-5 text-white"/>
+                          </Button>
+                      ) : (
+                        <>
+                           <Button variant="ghost" size="icon" onClick={() => setAsPrimary(photo.id)} title="Marcar como principal">
+                                <Star className={cn("h-5 w-5 text-white", photo.isPrimary && "fill-yellow-400 text-yellow-400")}/>
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDelete(photo)} title="Eliminar imagen">
+                                <X className="h-5 w-5 text-destructive" />
+                            </Button>
+                        </>
+                      )}
                   </div>
                 )}
 
-                {photo.isPrimary && (
+                {photo.isPrimary && !photo.toDelete && (
                   <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-xs font-bold px-2 py-1 rounded">
                       PRINCIPAL
                   </div>
@@ -152,7 +172,7 @@ export function ImageUploader({ photos = [], onPhotosChange, isProcessing, maxPh
                 )}
 
                 
-                {photo.status === 'completed' && (
+                {photo.status === 'completed' && !photo.toDelete && (
                   <Tooltip>
                       <TooltipTrigger className="absolute top-1 right-1">
                           <div className="bg-green-500/90 p-1 rounded-full text-white flex items-center justify-center">

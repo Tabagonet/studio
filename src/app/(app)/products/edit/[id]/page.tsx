@@ -1,4 +1,3 @@
-
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -54,80 +53,33 @@ function EditProductPageContent() {
 
     try {
         const token = await user.getIdToken();
+        const { id, ...productPayload } = product;
+
+        const formData = new FormData();
+        formData.append('productData', JSON.stringify(productPayload));
         
-        // --- STEP 1: UPLOAD NEW IMAGES ---
-        const existingImageUrls = product.photos.filter(p => !p.file).map(p => p.previewUrl);
-        const newImageFiles = product.photos.filter(p => p.file);
-        let uploadedImageUrls: string[] = [];
-
-        if (newImageFiles.length > 0) {
-            toast({ title: "Subiendo nuevas imágenes...", description: "Por favor, espera." });
-            const uploadPromises = newImageFiles.map(photo => {
-                const formData = new FormData();
-                formData.append('imagen', photo.file!);
-                // Using the direct upload-to-storage endpoint
-                return fetch('/api/upload-image', {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` },
-                    body: formData,
-                }).then(res => {
-                    if (!res.ok) throw new Error(`Fallo al subir ${photo.name}`);
-                    return res.json();
-                });
-            });
-
-            const uploadResults = await Promise.all(uploadPromises);
-            uploadedImageUrls = uploadResults.map(res => res.url);
-        }
-
-        // --- STEP 2: UPDATE WORDPRESS WITH FINAL IMAGE LIST ---
-        const finalImageUrls = [...existingImageUrls, ...uploadedImageUrls];
-        const imageUpdateResponse = await fetch('/api/wordpress/update-product-images', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ product_id: productId, mode: 'replace', images: finalImageUrls }),
+        product.photos.forEach(photo => {
+            if (photo.file) {
+                formData.append(photo.id as string, photo.file);
+            }
         });
-        if (!imageUpdateResponse.ok) {
-            const errorData = await imageUpdateResponse.json();
-            throw new Error(errorData.error || 'Fallo al actualizar la galería de imágenes en WordPress.');
-        }
-
-        // --- STEP 3: UPDATE PRODUCT DATA (attributes, prices, etc.) ---
-        const formattedAttributes = product.attributes.map(attr => {
-            const optionsFromValue = attr.value ? attr.value.split('|').map(t => t.trim()).filter(Boolean) : (attr.options || []);
-            return {
-                id: attr.id || 0,
-                name: attr.name,
-                position: attr.position || 0,
-                visible: attr.visible,
-                variation: attr.forVariations || attr.variation || false,
-                options: optionsFromValue.map(String),
-            };
-        });
-
-        const { images, ...productPayload } = product;
-
-        const finalPayload = {
-            ...productPayload,
-            attributes: formattedAttributes,
-        };
         
         const response = await fetch(`/api/woocommerce/products/${productId}`, {
             method: 'PUT',
             headers: { 'Authorization': `Bearer ${token}` },
-            // Send only product data, not FormData with images
-            body: JSON.stringify(finalPayload), 
+            body: formData,
         });
         
         const result = await response.json();
         if (!response.ok) {
-            throw new Error(result.error || result.details?.message || 'Fallo al guardar los detalles del producto.');
+            throw new Error(result.error || result.details?.message || 'Fallo al guardar los cambios del producto.');
         }
         
         toast({ title: '¡Éxito!', description: 'El producto ha sido actualizado.' });
         router.push('/batch');
 
     } catch (e: any) {
+        console.error('[DEBUG] Error saving product:', e.message, e.response?.data);
         toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
     } finally {
         setIsSaving(false);
@@ -182,7 +134,7 @@ function EditProductPageContent() {
 
         const existingImagesAsProductPhotos: ProductPhoto[] = (productData.images || []).map(
           (img: { id: number; src: string; name: string; }, index: number): ProductPhoto => ({
-              id: img.id, previewUrl: img.src, name: img.name, isPrimary: index === 0, status: 'completed', progress: 100,
+              id: img.id, previewUrl: img.src, name: img.name, isPrimary: index === 0, status: 'completed', progress: 100, toDelete: false
           })
         );
         
@@ -216,8 +168,8 @@ function EditProductPageContent() {
             value: (attr.options || []).map(String).join(' | '),
             position: attr.position,
             visible: attr.visible,
-            variation: attr.variation,
             forVariations: attr.variation,
+            variation: attr.variation,
         }));
 
         setProduct({
@@ -332,10 +284,10 @@ function EditProductPageContent() {
   );
 }
 
-export default function EditPage() {
+export default function EditProductPage() {
     return (
         <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
-            <EditProductPageContent />
+            <EditPageContent />
         </Suspense>
     )
 }
