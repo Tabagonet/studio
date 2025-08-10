@@ -1,4 +1,5 @@
 
+
 // src/app/api/user-settings/connections/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -70,7 +71,6 @@ export async function GET(req: NextRequest) {
         const targetUserId = req.nextUrl.searchParams.get('userId');
         
         let settingsRef: FirebaseFirestore.DocumentReference;
-        let entityConnections = {};
         
         // Determine the primary entity being requested (user or company)
         if (role === 'super_admin') {
@@ -84,22 +84,10 @@ export async function GET(req: NextRequest) {
         }
         
         const settingsDoc = await settingsRef.get();
-        if (settingsDoc.exists) {
-            entityConnections = settingsDoc.data()?.connections || {};
-        }
-
-        // Always fetch global partner settings separately
-        const globalSettingsDoc = await adminDb.collection('companies').doc('global_settings').get();
-        const partnerAppData = globalSettingsDoc.exists ? globalSettingsDoc.data()?.connections?.partner_app || null : null;
+        const connections = settingsDoc.exists ? settingsDoc.data()?.connections || {} : {};
         
-        // Construct the final connections object, prioritizing global partner data
-        const allConnections: AllConnections = { ...entityConnections };
-        if (partnerAppData) {
-            allConnections.partner_app = partnerAppData;
-        }
-
         return NextResponse.json({
-            allConnections: allConnections,
+            allConnections: connections,
             activeConnectionKey: settingsDoc.exists ? settingsDoc.data()?.activeConnectionKey || null : null,
         });
 
@@ -175,6 +163,7 @@ export async function POST(req: NextRequest) {
 
         await settingsRef.set(updatePayload, { merge: true });
         
+        // This part seems redundant if partner_app is only in global_settings, but kept for safety.
         if (isPartner && role === 'super_admin') {
             const userOrCompanySettingsRef = adminDb.collection(entityType === 'company' ? 'companies' : 'user_settings').doc(entityId);
             const userOrCompanyDoc = await userOrCompanySettingsRef.get();

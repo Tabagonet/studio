@@ -1,3 +1,4 @@
+
 // src/components/features/products/variation-editor.tsx
 
 "use client";
@@ -45,8 +46,8 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
   const { toast } = useToast();
 
   const handleGenerateVariations = () => {
-    const variationAttributes = (product as any).attributes?.filter(
-        (attr: any) => attr.forVariations && attr.name.trim() && attr.value.trim()
+    const variationAttributes = product.attributes.filter(
+        (attr) => attr.forVariations && attr.name.trim() && attr.value.trim()
     );
 
     if (!variationAttributes || variationAttributes.length === 0) {
@@ -54,12 +55,12 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
         return;
     }
 
-    const attributeNames = variationAttributes.map((attr: any) => attr.name);
-    const attributeValueSets = variationAttributes.map((attr: any) =>
-        attr.value.split('|').map((v: string) => v.trim()).filter(Boolean)
+    const attributeNames = variationAttributes.map(attr => attr.name);
+    const attributeValueSets = variationAttributes.map(attr =>
+        attr.value.split('|').map(v => v.trim()).filter(Boolean)
     );
     
-    if (attributeValueSets.some((set: any) => set.length === 0)) {
+    if (attributeValueSets.some((set) => set.length === 0)) {
          toast({ title: "Valores de atributo vacíos", description: "Asegúrate de que cada atributo para variación tiene valores.", variant: "destructive" });
         return;
     }
@@ -79,7 +80,6 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
             salePrice: product.sale_price || '',
             stockQuantity: '', 
             manage_stock: false,
-            // Assign the primary product image by default
             image: primaryImage ? { id: primaryImage.id } : { id: null }, 
         };
     });
@@ -91,7 +91,6 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
 
   const handleVariationChange = (variationIdentifier: string | number, field: string, value: any) => {
     const updatedVariations = product.variations?.map(v => {
-      // Find by either client-side UUID (string) or WooCommerce ID (number)
       if (v.id === variationIdentifier || v.variation_id === variationIdentifier) {
         return { ...v, [field]: value };
       }
@@ -187,11 +186,27 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
                                         handleVariationChange(identifier, 'image', { id: imageId });
                                     }}
                                 >
-                                    <SelectTrigger><SelectValue placeholder="Imagen principal por defecto" /></SelectTrigger>
+                                    <SelectTrigger>
+                                        <span className="flex items-center gap-2 truncate">
+                                            {variation.image?.id && images.find(p => String(p.id) === String(variation.image!.id)) ? (
+                                                <>
+                                                    <Image src={images.find(p => String(p.id) === String(variation.image!.id))!.previewUrl} alt="preview" width={20} height={20} className="rounded-sm" />
+                                                    <span>{images.find(p => String(p.id) === String(variation.image!.id))!.name}</span>
+                                                </>
+                                            ) : (
+                                                'Imagen principal por defecto'
+                                            )}
+                                        </span>
+                                    </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="0">Usar imagen principal del producto</SelectItem>
                                         {images.map(photo => (
-                                            <SelectItem key={photo.id} value={String(photo.id)}>{photo.name}</SelectItem>
+                                            <SelectItem key={photo.id} value={String(photo.id)}>
+                                                <div className="flex items-center gap-2">
+                                                    <Image src={photo.previewUrl} alt={photo.name} width={24} height={24} className="rounded-sm" />
+                                                    <span className="truncate">{photo.name}</span>
+                                                </div>
+                                            </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>

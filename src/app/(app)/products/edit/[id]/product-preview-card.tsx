@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React from 'react';
@@ -8,23 +7,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { WooCommerceCategory } from '@/lib/types';
+import type { ProductEditState } from './page';
 
 interface ProductPreviewCardProps {
-    product: {
-        name: string;
-        images: { previewUrl: string }[];
-        regular_price: string;
-        sale_price: string;
-        status: string;
-        category_id: number | null;
-        tags: string[];
-        short_description: string;
-    };
+    product: ProductEditState | null;
     categories: WooCommerceCategory[];
 }
 
 export function ProductPreviewCard({ product, categories }: ProductPreviewCardProps) {
-    const previewImageUrl = product.images?.[0]?.previewUrl || 'https://placehold.co/128x128.png';
+    if (!product) return null;
+
+    const primaryPhoto = product.photos?.find(p => p.isPrimary) || product.photos?.[0];
+    const previewImageUrl = primaryPhoto?.previewUrl || 'https://placehold.co/128x128.png';
     const categoryName = categories.find(c => c.id === product.category_id)?.name || 'Sin categoría';
 
     return (

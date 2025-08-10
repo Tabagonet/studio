@@ -1,3 +1,4 @@
+
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -118,7 +119,7 @@ function EditPageContent() {
         
         const existingVariations: ProductVariation[] = (productData.variations || []).map((v: any) => ({
              variation_id: v.id, id: v.id.toString(), attributes: v.attributes, sku: v.sku, regularPrice: v.regular_price,
-             salePrice: v.sale_price, manage_stock: v.manage_stock, stockQuantity: v.stock_quantity, weight: v.weight,
+             salePrice: v.sale_price, manage_stock: v.manage_stock, stockQuantity: v.stock_quantity?.toString() || '', weight: v.weight,
              dimensions: v.dimensions, shipping_class: v.shipping_class, image: v.image,
         }));
 
@@ -188,13 +189,11 @@ function EditPageContent() {
 
         const payloadForJson = {
             ...restOfProductData,
-            // Filter out new, client-side-only photos, only send IDs of existing photos
-            images: photos.filter(p => typeof p.id === 'number' && !p.toDelete).map(p => ({ id: p.id })),
+            images: photos.filter(p => !p.file && !p.toDelete).map(p => ({ id: p.id })),
         };
         
         formData.append('productData', JSON.stringify(payloadForJson));
         
-        // Append new files for upload
         product.photos.forEach(photo => {
             if (photo.file) {
                 formData.append(photo.id.toString(), photo.file, photo.name);
@@ -267,7 +266,11 @@ function EditPageContent() {
   
   const handleSelectChange = (name: 'status' | 'type', value: string) => {
     if (!product) return;
-    updateProductData({ [name]: value as any });
+    if (name === 'type' && value === 'variable' && product.attributes.length === 0) {
+      updateProductData({ [name]: value as any, attributes: [{ name: '', value: '', forVariations: false, visible: true }] });
+    } else {
+      updateProductData({ [name]: value as any });
+    }
   };
   
   const handleDimensionChange = (dim: 'length' | 'width' | 'height', value: string) => {
@@ -367,10 +370,10 @@ function EditPageContent() {
                       </CardContent>
                   </Card>
                   
-                  {product.type === 'variable' && (
+                  {product.type === 'variable' ? (
                      <>
                         <Card>
-                          <CardHeader><CardTitle>Precio por Defecto (Opcional)</CardTitle></CardHeader>
+                          <CardHeader><CardTitle>Precio por Defecto (Opcional)</CardTitle><CardDescription>Este precio se aplicará a cualquier variación nueva que generes si no tiene un precio específico.</CardDescription></CardHeader>
                           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} /></div>
                               <div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} /></div>
@@ -403,9 +406,7 @@ function EditPageContent() {
                           </CardContent>
                         </Card>
                     </>
-                  )}
-
-                  {product.type === 'simple' && (
+                  ) : product.type === 'simple' && (
                      <>
                         <Card><CardHeader><CardTitle>Precios</CardTitle></CardHeader><CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} /></div><div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} /></div></CardContent></Card>
                         <Card><CardHeader><CardTitle>Inventario</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex items-center space-x-2"><Checkbox id="manage_stock" checked={product.manage_stock} onCheckedChange={(checked) => updateProductData({ manage_stock: !!checked })} /><Label htmlFor="manage_stock" className="font-normal">Gestionar inventario</Label></div>{product.manage_stock && (<div><Label htmlFor="stock_quantity">Cantidad</Label><Input id="stock_quantity" name="stock_quantity" type="number" value={product.stock_quantity} onChange={handleInputChange} /></div>)}</CardContent></Card>
@@ -419,7 +420,7 @@ function EditPageContent() {
               <div className="space-y-6">
                   <ProductPreviewCard product={product} categories={[...wooCategories, ...supplierCategories]} />
                   <Card><CardHeader><CardTitle>Organización</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="category_id">Categoría</Label><ComboBox items={wooCategories.map(c => ({ value: c.id.toString(), label: c.name.replace(/—/g, '') }))} selectedValue={product.category_id?.toString() || ''} onSelect={(value) => updateProductData({ category_id: Number(value), categoryPath: ''})} onNewItemChange={(value) => updateProductData({ category_id: null, categoryPath: value})} placeholder="Selecciona o crea una categoría..." loading={isLoadingCategories} newItemValue={product.categoryPath || ''}/></div><div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={product.tags.join(', ')} onChange={(e) => updateProductData({ tags: e.target.value.split(',').map(t => t.trim()) })} /></div></CardContent></Card>
-                   <Card><CardHeader><CardTitle>Imágenes</CardTitle></CardHeader><CardContent><ImageUploader photos={product.photos} onPhotosChange={(photos) => updateProductData({ photos })} isProcessing={isSaving}/></CardContent></Card>
+                   <Card><CardHeader><CardTitle>Imágenes</CardTitle></CardHeader><CardContent><ImageUploader photos={product.photos} onPhotosChange={updateProductData} isProcessing={isSaving}/></CardContent></Card>
                    <Card><CardHeader><CardTitle className="text-destructive">Zona de Peligro</CardTitle></CardHeader><CardContent><AlertDialog><AlertDialogTrigger asChild><Button variant="destructive" className="w-full" disabled={isDeleting}><Trash2 className="mr-2 h-4 w-4" /> Eliminar Producto</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente este producto.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className={buttonVariants({variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></CardContent></Card>
               </div>
           </div>
@@ -435,3 +436,4 @@ export default function EditProductPage() {
         </Suspense>
     )
 }
+
