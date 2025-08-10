@@ -1,4 +1,3 @@
-
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -7,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Loader2, ArrowLeft, Save, Trash2, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { auth, onAuthStateChanged } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { WooCommerceCategory, ProductPhoto, ProductVariation, ProductAttribute } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -15,9 +14,37 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
 import { VariationEditor } from '@/components/features/products/variation-editor';
 
-export interface ProductEditState extends ProductData {
+export interface ProductEditState {
     id: number;
+    name: string;
+    sku: string;
+    supplier: string | null;
+    newSupplier?: string; 
+    type: 'simple' | 'variable' | 'grouped' | 'external';
+    regular_price: string;
+    sale_price: string;
+    short_description: string;
+    description: string;
+    photos: ProductPhoto[];
     variations?: ProductVariation[];
+    status: 'publish' | 'draft' | 'pending' | 'private';
+    tags: string[];
+    category_id: number | null;
+    manage_stock: boolean;
+    stock_quantity: string;
+    weight: string;
+    dimensions: {
+        length: string;
+        width: string;
+        height: string;
+    };
+    shipping_class: string;
+    attributes: ProductAttribute[];
+    categoryPath?: string;
+    imageTitle?: string;
+    imageAltText?: string;
+    imageCaption?: string;
+    imageDescription?: string;
 }
 
 function EditPageContent() {
@@ -90,7 +117,7 @@ function EditPageContent() {
             id: attr.id,
             name: attr.name,
             options: (attr.options || []).map(String),
-            value: (attr.options || []).map(String).join(' | '),
+            value: (attr.options || []).join(' | '),
             position: attr.position,
             visible: attr.visible,
             forVariations: attr.variation,
@@ -102,27 +129,22 @@ function EditPageContent() {
           name: productData.name || '',
           sku: productData.sku || '',
           supplier: supplierAttribute ? supplierAttribute.options[0] : null,
-          productType: productData.type || 'simple',
-          regularPrice: productData.regular_price || '',
-          salePrice: productData.sale_price || '',
-          shortDescription: productData.short_description || '',
-          longDescription: productData.description || '',
+          type: productData.type || 'simple',
+          regular_price: productData.regular_price || '',
+          sale_price: productData.sale_price || '',
+          short_description: productData.short_description || '',
+          description: productData.description || '',
           photos: existingImagesAsProductPhotos,
           variations: existingVariations,
           status: productData.status || 'draft',
           tags: productData.tags?.map((t: any) => t.name) || [],
           category_id: mainCategoryId,
           manage_stock: productData.manage_stock || false,
-          stockQuantity: productData.stock_quantity?.toString() || '',
+          stock_quantity: productData.stock_quantity?.toString() || '',
           weight: productData.weight || '',
           dimensions: productData.dimensions || { length: '', width: '', height: '' },
           shipping_class: productData.shipping_class || '',
           attributes: formattedAttributes,
-          language: 'Spanish', 
-          targetLanguages: [], 
-          shouldSaveSku: true, 
-          source: 'wizard', 
-          category: null,
         });
 
       } catch (e: any) {
@@ -147,13 +169,16 @@ function EditPageContent() {
 
         const formData = new FormData();
         
-        const productPayloadForUpdate = { ...product };
+        // This is the main data payload. The `images` array now only contains IDs and the toDelete flag.
+        const productPayloadForUpdate = {
+          ...product,
+          images: product.photos.map(p => ({ id: p.id, toDelete: p.toDelete })),
+        };
         formData.append('productData', JSON.stringify(productPayloadForUpdate));
         
-        const newPhotos = product.photos.filter(p => p.file);
-        newPhotos.forEach(photo => {
+        // Append only the new files, using their client-side ID as the key
+        product.photos.forEach(photo => {
             if (photo.file) {
-                // Use the unique client-side ID as the key for the file
                 formData.append(photo.id.toString(), photo.file);
             }
         });
@@ -252,14 +277,14 @@ function EditPageContent() {
           </Card>
           
           <Step1DetailsPhotos 
-            productData={product} 
+            productData={product as any}
             updateProductData={updateProductData} 
             onPhotosChange={(photos) => updateProductData({ photos })}
             isProcessing={isSaving} 
             originalProduct={product} 
           />
 
-          {product.productType === 'variable' && (
+          {product.type === 'variable' && (
              <Card>
                 <CardHeader>
                     <CardTitle>Variaciones del Producto</CardTitle>

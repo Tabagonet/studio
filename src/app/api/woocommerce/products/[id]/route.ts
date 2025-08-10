@@ -33,7 +33,7 @@ const productUpdateSchema = z.object({
     status: z.enum(['publish', 'draft', 'pending', 'private']).optional(),
     tags: z.array(z.string()).optional(),
     category_id: z.number().nullable().optional(),
-    images: z.array(z.object({
+    photos: z.array(z.object({
         id: z.union([z.string(), z.number()]).optional(),
         toDelete: z.boolean().optional(),
     })).optional(),
@@ -133,7 +133,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const wooPayload: any = { ...restOfData };
         
         const attributes = Array.isArray(validatedData.attributes) ? validatedData.attributes : [];
-        const images = Array.isArray(validatedData.images) ? validatedData.images : [];
+        const photos = Array.isArray(validatedData.photos) ? validatedData.photos : [];
         
         const { data: originalProduct } = await wooApi.get(`products/${productId}`);
         console.log("[AUDIT] Fetched original product data.");
@@ -182,11 +182,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         wooPayload.categories = finalCategoryIds;
         
         // Handle new image uploads
+        const uploadedPhotosMap = new Map<string, number>();
         const newPhotoFiles = Array.from(formData.entries())
             .filter(([key]) => key !== 'productData')
             .map(([key, value]) => ({ key, file: value as File }));
 
-        const uploadedPhotosMap = new Map<string, number>();
         if (newPhotoFiles.length > 0) {
             console.log(`[AUDIT] Found ${newPhotoFiles.length} new photo files to upload.`);
             if (!wpApi) { throw new Error('WordPress API must be configured to upload new images.'); }
@@ -200,27 +200,23 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
                  console.log(`[AUDIT] Image ${clientSideId} uploaded. New WordPress Media ID: ${newImageId}`);
             }
         }
-
-        // CORRECTED LOGIC
-        console.log("[DEBUG] Images from validatedData:", images);
+        
+        console.log("[DEBUG] Photos array from validatedData:", photos);
         console.log("[DEBUG] Uploaded photos map:", uploadedPhotosMap);
-
-        const finalImagePayload = images
+        
+        const finalImagePayload = photos
             .filter(p => !p.toDelete)
             .map(img => {
-                // If it's a new file (string ID from client), get its newly uploaded numeric ID
                 if (typeof img.id === 'string' && uploadedPhotosMap.has(img.id)) {
                     return { id: uploadedPhotosMap.get(img.id) };
                 }
-                // If it's an existing image (numeric ID), keep it
                 if (typeof img.id === 'number') {
                     return { id: img.id };
                 }
                 return null;
-            }).filter(Boolean); // Remove null entries
-        
+            }).filter(Boolean);
+
         wooPayload.images = finalImagePayload;
-        
         console.log("[AUDIT] Final image payload for WooCommerce:", finalImagePayload);
         
         if (wooPayload.manage_stock === false) {
@@ -253,7 +249,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
         return NextResponse.json({ success: true, data: response.data });
     } catch (error: any) {
-        console.error(`[AUDIT] Critical error updating product ${params.id}:`, error.response?.data || error.message);
+        console.error(`[AUDIT] Critical error updating product ${params.id}:`, error.response?.data || error.message, error.stack);
         const errorMessage = error.response?.data?.message || 'Failed to update product.';
         const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
         return NextResponse.json({ error: errorMessage, details: error.response?.data }, { status });
