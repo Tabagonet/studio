@@ -206,17 +206,19 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             .filter(p => !p.toDelete && typeof p.id === 'number')
             .map(img => ({ id: img.id as number }));
 
-        console.log(`[DEBUG] Kept ${finalImagePayload.length} existing images.`);
-
-        // 2. Add the newly uploaded images
-        uploadedPhotosMap.forEach((wpId) => {
-            finalImagePayload.push({ id: wpId });
-        });
+        // 2. Add the newly uploaded images from the map
+        for (const [clientId, wpId] of uploadedPhotosMap.entries()) {
+            // Ensure we don't add duplicates if it was somehow already there
+            if (!finalImagePayload.some(p => p.id === wpId)) {
+                finalImagePayload.push({ id: wpId });
+            }
+        }
         
         wooPayload.images = finalImagePayload;
 
-        console.log("[DEBUG] Images from validatedData:", images);
-        console.log("[DEBUG] Uploaded photos map:", Array.from(uploadedPhotosMap.entries()));
+        // DEBUG LOGS
+        console.log("[DEBUG] validatedData.images:", images);
+        console.log("[DEBUG] Uploaded photos map keys:", Array.from(uploadedPhotosMap.keys()));
         console.log("[AUDIT] Final image payload for WooCommerce:", finalImagePayload);
         
         if (wooPayload.manage_stock === false) {
