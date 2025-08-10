@@ -87,8 +87,8 @@ export function VariationEditor({ product, onProductChange, images }: VariablePr
             variation_id: undefined, // No WooCommerce ID yet
             attributes: attributes, 
             sku: `${product.sku || 'VAR'}-${skuSuffix}`, 
-            regularPrice: product.regular_price || '', 
-            salePrice: product.sale_price || '',
+            regularPrice: 'regular_price' in product ? product.regular_price || '' : '', 
+            salePrice: 'sale_price' in product ? product.sale_price || '' : '',
             stockQuantity: '', 
             manage_stock: false,
             image: primaryImage ? { id: primaryImage.id } : { id: null }, 

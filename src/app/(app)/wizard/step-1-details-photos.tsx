@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { VariationEditor } from '@/components/features/products/variation-editor';
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
-import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory, ProductVariationAttribute, LinkSuggestion, SuggestLinksOutput } from '@/lib/types';
+import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory, ProductVariationAttribute, LinkSuggestion, SuggestLinksOutput, ProductEditState } from '@/lib/types';
 import { PRODUCT_TYPES, ALL_LANGUAGES } from '@/lib/constants';
 import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -527,7 +527,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
                   {productData.productType === 'variable' && (
                       <div className="border-t pt-6 mt-6">
-                        <VariationEditor 
+                        <VariationEditor
                             product={productData} 
                             onProductChange={updateProductData}
                             images={productData.photos}

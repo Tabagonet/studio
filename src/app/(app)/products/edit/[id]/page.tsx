@@ -501,7 +501,7 @@ function EditPageContent() {
                                 {product.attributes.map((attr, index) => (
                                     <div key={index} className="flex flex-col sm:flex-row items-start sm:items-end gap-2 p-3 border rounded-md bg-muted/20 mb-2">
                                         <div className="flex-1 w-full"><Label>Nombre</Label><Input value={attr.name} onChange={(e) => handleAttributeChange(index, 'name', e.target.value)} placeholder="Ej: Color" /></div>
-                                        <div className="flex-1 w-full"><Label>Valor(es)</Label><Input value={attr.value} onChange={(e) => handleAttributeChange(index, 'value', e.target.value)} placeholder="Ej: Azul | Rojo | Verde" /></div>
+                                        <div className="flex-1 w-full"><Label>Valor(es) (separados por |)</Label><Input value={attr.value || ''} onChange={(e) => handleAttributeChange(index, 'value', e.target.value)} placeholder="Ej: Azul | Rojo | Verde" /></div>
                                         <div className="flex items-center gap-4 pt-2 sm:pt-0 sm:self-end sm:h-10">
                                             <div className="flex items-center space-x-2"><Checkbox checked={attr.forVariations} onCheckedChange={(checked) => handleAttributeChange(index, 'forVariations', !!checked)} /><Label className="text-sm font-normal whitespace-nowrap">Para variaciones</Label></div>
                                             <Button variant="ghost" size="icon" onClick={() => removeAttribute(index)} aria-label="Eliminar atributo" className="flex-shrink-0"><Trash2 className="h-4 w-4 text-destructive" /></Button>
