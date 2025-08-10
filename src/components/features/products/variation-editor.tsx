@@ -1,4 +1,4 @@
-// src/components/features/products/variable-product-manager.tsx
+// src/components/features/products/variation-editor.tsx
 
 "use client";
 
@@ -16,7 +16,7 @@ import { GitCommitHorizontal, Sparkles, ImageIcon, Trash2, Loader2 } from 'lucid
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Image from 'next/image';
 
-interface VariableProductManagerProps {
+interface VariationEditorProps {
   product: ProductData | null;
   onProductChange: (data: Partial<ProductData>) => void;
   images: ProductPhoto[];
@@ -40,13 +40,10 @@ function cartesian(...args: string[][]): string[][] {
     return r;
 }
 
-export function VariationEditor({ product, onProductChange, images }: VariableProductManagerProps) {
+export function VariationEditor({ product, onProductChange, images }: VariationEditorProps) {
   const { toast } = useToast();
-  console.log("[VAR_MANAGER][AUDIT] VariableProductManager rendered. Product data:", product);
-
-  // Safety check to prevent runtime errors if product data is not yet loaded.
+  
   if (!product) {
-    console.log("[VAR_MANAGER][AUDIT] Product is null, rendering loader.");
     return (
       <div className="flex justify-center items-center h-24 border rounded-md">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -55,7 +52,6 @@ export function VariationEditor({ product, onProductChange, images }: VariablePr
   }
 
   const handleGenerateVariations = () => {
-    console.log("[VAR_MANAGER][AUDIT] handleGenerateVariations triggered.");
     const variationAttributes = product.attributes.filter(
         (attr) => attr.forVariations && attr.name && attr.name.trim() && attr.value && attr.value.trim()
     );
@@ -77,7 +73,6 @@ export function VariationEditor({ product, onProductChange, images }: VariablePr
 
     const combinations = cartesian(...attributeValueSets);
     const primaryImage = images.find(p => p.isPrimary) || images[0];
-    console.log("[VAR_MANAGER][AUDIT] Generating combinations for variations:", combinations);
 
     const newVariations: ProductVariation[] = combinations.map(combo => {
         const attributes = combo.map((value, index) => ({ name: attributeNames[index], option: value }));
