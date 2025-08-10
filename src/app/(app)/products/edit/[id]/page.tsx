@@ -1,3 +1,4 @@
+
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -74,14 +75,22 @@ function EditPageContent() {
   const { toast } = useToast();
 
   const updateProductData = useCallback((data: Partial<ProductEditState>) => {
-    setProduct(prev => (prev ? { ...prev, ...data } : null));
+    console.log("[AUDIT] Updating product state with:", data);
+    setProduct(prev => {
+        if (!prev) return null;
+        const newState = { ...prev, ...data };
+        console.log("[AUDIT] New product state:", newState);
+        return newState;
+    });
   }, []);
   
   const handlePhotosChange = useCallback((updatedPhotos: ProductPhoto[]) => {
+      console.log("[AUDIT] handlePhotosChange called in editor page with:", updatedPhotos);
       updateProductData({ images: updatedPhotos });
   }, [updateProductData]);
 
   const fetchInitialData = useCallback(async () => {
+      console.log("[AUDIT] fetchInitialData triggered for product ID:", productId);
       setIsLoading(true);
       setError(null);
       const user = auth.currentUser;
@@ -94,6 +103,7 @@ function EditPageContent() {
       try {
         const token = await user.getIdToken();
         
+        console.log("[AUDIT] Fetching product and category data...");
         const [productResponse, categoriesResponse] = await Promise.all([
           fetch(`/api/woocommerce/products/${productId}`, { headers: { 'Authorization': `Bearer ${token}` } }),
           fetch('/api/woocommerce/categories', { headers: { 'Authorization': `Bearer ${token}` } }),
@@ -104,6 +114,7 @@ function EditPageContent() {
           throw new Error(errorData.error || 'Failed to fetch product data.');
         }
         const productData = await productResponse.json();
+        console.log("[AUDIT] Raw product data from API:", productData);
         
         if (categoriesResponse.ok) {
             const catData = await categoriesResponse.json();
@@ -130,10 +141,10 @@ function EditPageContent() {
         const supplierAttribute = Array.isArray(productData.attributes) ? productData.attributes.find((a: any) => a.name === 'Proveedor') : null;
         
         const mainCategory = productData.categories?.find((c: any) => {
-            const supplierParent = (productData.categories || []).find((c: any) => c.slug.includes('proveedores'));
-            return supplierParent ? c.parent !== supplierParent.id : true;
+            const supplierParent = (productData.categories || []).find((c: any) => c.slug?.includes('proveedores'));
+            return supplierParent ? c.parent !== supplierParent.id && c.id !== supplierParent.id : true;
         });
-
+        
         const formattedAttributes = (productData.attributes || []).map((attr: any): ProductAttribute => ({
             id: attr.id,
             name: attr.name,
@@ -145,7 +156,7 @@ function EditPageContent() {
             variation: attr.variation || false,
         }));
 
-        setProduct({
+        const finalProductState = {
           id: productData.id,
           name: productData.name || '',
           sku: productData.sku || '',
@@ -166,7 +177,10 @@ function EditPageContent() {
           dimensions: productData.dimensions || { length: '', width: '', height: '' },
           shipping_class: productData.shipping_class || '',
           attributes: formattedAttributes,
-        });
+        };
+        
+        console.log("[AUDIT] Setting final product state for editor:", finalProductState);
+        setProduct(finalProductState);
 
       } catch (e: any) {
         setError(e.message);
@@ -177,6 +191,7 @@ function EditPageContent() {
     }, [productId, toast]);
     
   const handleSaveChanges = async () => {
+    console.log("[AUDIT] handleSaveChanges triggered.");
     setIsSaving(true);
     const user = auth.currentUser;
     if (!user || !product) {
@@ -196,11 +211,13 @@ function EditPageContent() {
             images: images.filter(p => !p.file && !p.toDelete).map(p => ({ id: p.id })),
         };
         
+        console.log("[AUDIT] Payload to be sent as JSON:", payloadForJson);
         formData.append('productData', JSON.stringify(payloadForJson));
         
         const newPhotoFiles = product.images.filter(p => p.file);
         newPhotoFiles.forEach(photo => {
             if (photo.file) {
+                 console.log(`[AUDIT] Appending new photo to FormData: ${photo.name} with key ${photo.id}`);
                  formData.append(photo.id.toString(), photo.file, photo.name);
             }
         });
@@ -220,7 +237,7 @@ function EditPageContent() {
         fetchInitialData(); 
 
     } catch (e: any) {
-        console.error('[DEBUG] Error saving product:', e.message, e.response?.data);
+        console.error('[AUDIT] Error saving product:', e.message, e.response?.data);
         toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
     } finally {
         setIsSaving(false);

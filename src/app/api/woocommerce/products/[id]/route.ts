@@ -1,3 +1,4 @@
+
 // src/app/api/woocommerce/products/[id]/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -57,6 +58,7 @@ const productUpdateSchema = z.object({
 
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  console.log(`[AUDIT] GET /api/woocommerce/products/[id] - Request received for ID: ${params.id}`);
   try {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!token) {
@@ -77,20 +79,22 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     }
 
     const { data: productData } = await wooApi.get(`products/${productId}`);
+    console.log(`[AUDIT] Fetched raw product data for ${productId}:`, productData.type, productData.attributes);
     
     if (productData.type === 'variable') {
         const { data: variationsData } = await wooApi.get(`products/${productId}/variations`, { per_page: 100 });
         productData.variations = variationsData;
     }
     
-    // Transform attributes options array into a pipe-separated string
+    // Transform attributes options array into a pipe-separated string for the UI
     if (productData.attributes && Array.isArray(productData.attributes)) {
       productData.attributes = productData.attributes.map((attr: any) => ({
         ...attr,
         value: (attr.options || []).join(' | '),
       }));
     }
-
+    console.log(`[AUDIT] Processed product data being sent to client:`, productData.type, productData.attributes);
+    
     return NextResponse.json(productData);
 
   } catch (error: any) {
@@ -129,7 +133,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         }
         
         const productData = JSON.parse(productDataString);
-        console.log("[AUDIT] Parsed product data from form.");
+        console.log("[AUDIT] Parsed product data from form:", productData);
         
         const validationResult = productUpdateSchema.safeParse(productData);
         if (!validationResult.success) { 
@@ -144,9 +148,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const attributes = Array.isArray(validatedData.attributes) ? validatedData.attributes : [];
         const photos = Array.isArray(validatedData.images) ? validatedData.images : [];
         
-        const { data: originalProduct } = await wooApi.get(`products/${productId}`);
-        console.log("[AUDIT] Fetched original product data.");
-
         if (tags !== undefined) {
           wooPayload.tags = tags.map((name: string) => ({ name: name.trim() })).filter(t => t.name);
         }
@@ -159,18 +160,25 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             variation: attr.forVariations || attr.variation || false,
             options: (attr.value || '').split('|').map(o => o.trim()).filter(Boolean).map(String),
         }));
-
+        
+        const { data: originalProduct } = await wooApi.get(`products/${productId}`);
         let finalCategoryIds: { id: number }[] = [];
+        
         if (validatedData.category_id !== undefined && validatedData.category_id !== null) {
               finalCategoryIds.push({id: validatedData.category_id});
+        } else {
+             finalCategoryIds = originalProduct.categories?.map((c: any) => ({id: c.id})) || [];
         }
-        
+
         const finalSupplierName = newSupplier || supplier;
         if (finalSupplierName !== undefined) {
-            const allCategories = (await wooApi.get('products/categories', { per_page: 100 })).data;
-            const parentSupplierCategory = allCategories.find((c: any) => c.name.toLowerCase() === 'proveedores' && c.parent === 0);
-            
-            if (finalSupplierName) {
+             const allCategories = (await wooApi.get('products/categories', { per_page: 100 })).data;
+             const parentSupplierCategory = allCategories.find((c: any) => c.name.toLowerCase() === 'proveedores' && c.parent === 0);
+             if (parentSupplierCategory) {
+                const supplierSubCats = allCategories.filter((c:any) => c.parent === parentSupplierCategory.id).map((c:any) => c.id);
+                finalCategoryIds = finalCategoryIds.filter(c => !supplierSubCats.includes(c.id));
+             }
+             if (finalSupplierName) {
                 if (!wpApi) { throw new Error('La API de WordPress debe estar configurada para gestionar proveedores como categorías.'); }
                 const supplierCatId = await findOrCreateWpCategoryByPath(`Proveedores > ${finalSupplierName}`, wpApi, 'product_cat');
                 if (supplierCatId && !finalCategoryIds.some(c => c.id === supplierCatId)) {
@@ -222,7 +230,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             wooPayload.stock_quantity = null;
         }
         
-        console.log("[AUDIT] Sending final payload to WooCommerce PUT endpoint...");
+        console.log("[AUDIT] Sending final payload to WooCommerce PUT endpoint...", wooPayload);
         const response = await wooApi.put(`products/${productId}`, wooPayload);
         console.log("[AUDIT] Product update successful.");
 
@@ -235,7 +243,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             const batchPayload = {
                 update: finalVariations.map((v: ProductVariation) => ({
                     id: v.variation_id, 
-                    regular_price: (v.regularPrice || generalPrice || undefined)?.toString(),
+                    regular_price: (v.regularPrice !== '' ? v.regularPrice : (generalPrice !== '' ? generalPrice : undefined))?.toString(),
                     sale_price: v.salePrice || undefined, 
                     sku: v.sku || undefined,
                     manage_stock: v.manage_stock, 
@@ -246,6 +254,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
                     image: v.image?.toDelete ? null : (v.image?.id ? { id: v.image.id } : undefined)
                 }))
             };
+            console.log("[AUDIT] Sending variation batch payload:", batchPayload);
             await wooApi.post(`products/${productId}/variations/batch`, batchPayload);
             console.log("[AUDIT] Variation updates sent.");
         }

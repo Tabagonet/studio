@@ -1,3 +1,4 @@
+
 // src/app/(app)/wizard/step-1-details-photos.tsx
 "use client";
 
@@ -8,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from '@/components/ui/button';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
-import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory, ProductVariationAttribute } from '@/lib/types';
+import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory } from '@/lib/types';
 import { PRODUCT_TYPES, ALL_LANGUAGES } from '@/lib/constants';
 import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,7 +24,6 @@ import type { LinkSuggestion, SuggestLinksOutput } from '@/ai/schemas';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { ComboBox } from '@/components/core/combobox';
-import type { ProductEditState } from '@/app/(app)/products/edit/[id]/page';
 import { VariableProductManager } from '@/components/features/products/variable-product-manager';
 
 interface Step1DetailsPhotosProps {
@@ -485,8 +485,11 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                        <ComboBox
                             items={wooCategories.map(c => ({ value: c.id.toString(), label: c.name.replace(/—/g, '') }))}
                             selectedValue={productData.category_id?.toString() || ''}
-                            onSelect={(value) => updateProductData({ category_id: Number(value), categoryPath: '' })}
-                            onNewItemChange={(value) => updateProductData({ category_id: null, categoryPath: value })}
+                            onSelect={(value) => {
+                                const selectedCat = wooCategories.find(c => c.id.toString() === value);
+                                updateProductData({ category_id: Number(value), category: selectedCat || null, categoryPath: '' });
+                            }}
+                            onNewItemChange={(value) => updateProductData({ category_id: null, category: null, categoryPath: value })}
                             placeholder="Selecciona o crea una categoría..."
                             newItemValue={productData.categoryPath || ''}
                             loading={isLoadingCategories}
@@ -520,7 +523,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
                   {productData.productType !== 'grouped' && (
                       <div className="border-t pt-6 mt-6">
-                          <h3 className="text-lg font-medium">Atributos del Producto</h3>
+                          <h3 className="text-lg font-medium mb-2">Atributos del Producto</h3>
                           <p className="text-sm text-muted-foreground mb-4">Añade atributos como talla, color, etc. Para productos variables, marca la casilla "Para variaciones" y separa los valores con " | ".</p>
                           {productData.attributes.map((attr, index) => (
                              <div key={index} className="flex flex-col sm:flex-row items-start sm:items-end gap-2 p-3 border rounded-md bg-muted/20 mb-2">
@@ -539,8 +542,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                   {productData.productType === 'variable' && (
                       <div className="border-t pt-6 mt-6">
                         <VariableProductManager 
-                            productData={productData} 
-                            updateProductData={updateProductData}
+                            product={productData} 
+                            onProductChange={updateProductData}
                             images={productData.photos}
                         />
                       </div>
@@ -574,15 +577,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
           <div className="lg:col-span-1 space-y-8">
               <Card>
                 <CardHeader><CardTitle>Imágenes del Producto</CardTitle><CardDescription>Sube las imágenes para tu producto. La primera se usará como principal.</CardDescription></CardHeader>
-                <CardContent className="space-y-4">
-                    <ImageUploader 
-                        photos={productData.photos}
-                        onPhotosChange={handlePhotosChange}
-                        isProcessing={isProcessing || isGenerating} 
-                        maxPhotos={15} 
-                    />
-                    <Button onClick={handleGenerateImageMetadata} disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} className="w-full" variant="outline">{isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}</Button>
-                </CardContent>
+                <CardContent className="space-y-4"><ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChange} isProcessing={isProcessing || isGenerating} maxPhotos={15} /><Button onClick={handleGenerateImageMetadata} disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} className="w-full" variant="outline">{isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}</Button></CardContent>
               </Card>
 
               <Card>

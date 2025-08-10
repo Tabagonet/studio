@@ -1,3 +1,4 @@
+
 // src/components/features/products/variable-product-manager.tsx
 
 "use client";
@@ -17,7 +18,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Image from 'next/image';
 
 interface VariableProductManagerProps {
-  product: ProductEditState | ProductData | null; // Allow null
+  product: ProductEditState | ProductData | null;
   onProductChange: (data: Partial<ProductEditState> | Partial<ProductData>) => void;
   images: ProductPhoto[];
 }
@@ -42,6 +43,7 @@ function cartesian(...args: string[][]): string[][] {
 
 export function VariableProductManager({ product, onProductChange, images }: VariableProductManagerProps) {
   const { toast } = useToast();
+  console.log("[AUDIT] VariableProductManager rendered. Product data:", product);
 
   // Safety check to prevent runtime errors if product data is not yet loaded.
   if (!product) {
@@ -53,6 +55,7 @@ export function VariableProductManager({ product, onProductChange, images }: Var
   }
 
   const handleGenerateVariations = () => {
+    console.log("[AUDIT] handleGenerateVariations triggered.");
     const variationAttributes = product.attributes.filter(
         (attr) => attr.forVariations && attr.name.trim() && attr.value.trim()
     );
@@ -74,6 +77,7 @@ export function VariableProductManager({ product, onProductChange, images }: Var
 
     const combinations = cartesian(...attributeValueSets);
     const primaryImage = images.find(p => p.isPrimary) || images[0];
+    console.log("[AUDIT] Generating combinations for variations:", combinations);
 
     const newVariations: ProductVariation[] = combinations.map(combo => {
         const attributes = combo.map((value, index) => ({ name: attributeNames[index], option: value }));
@@ -97,7 +101,8 @@ export function VariableProductManager({ product, onProductChange, images }: Var
 
 
   const handleVariationChange = (variationIdentifier: string | number, field: string, value: any) => {
-    const updatedVariations = product.variations?.map(v => {
+    if (!product.variations) return;
+    const updatedVariations = product.variations.map(v => {
       if (v.id === variationIdentifier || v.variation_id === variationIdentifier) {
         return { ...v, [field]: value };
       }
@@ -107,7 +112,8 @@ export function VariableProductManager({ product, onProductChange, images }: Var
   };
   
   const handleDimensionChange = (variationIdentifier: string | number, dim: 'length' | 'width' | 'height', value: string) => {
-    const updatedVariations = product.variations?.map(v => {
+    if (!product.variations) return;
+    const updatedVariations = product.variations.map(v => {
       if (v.id === variationIdentifier || v.variation_id === variationIdentifier) {
         return { ...v, dimensions: { ...(v.dimensions || {}), [dim]: value } };
       }
@@ -117,7 +123,8 @@ export function VariableProductManager({ product, onProductChange, images }: Var
   };
   
   const handleRemoveVariation = (variationId: string | number) => {
-    const updatedVariations = product.variations?.filter(v => (v.id !== variationId && v.variation_id !== variationId));
+    if (!product.variations) return;
+    const updatedVariations = product.variations.filter(v => (v.id !== variationId && v.variation_id !== variationId));
     onProductChange({ variations: updatedVariations });
   };
 

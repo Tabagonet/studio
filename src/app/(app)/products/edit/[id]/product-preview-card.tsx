@@ -1,3 +1,4 @@
+
 // src/components/features/products/product-preview-card.tsx
 
 "use client";
@@ -18,9 +19,9 @@ interface ProductPreviewCardProps {
 export function ProductPreviewCard({ product, categories }: ProductPreviewCardProps) {
     if (!product) return null;
 
-    const primaryPhoto = product.images?.find(p => p.isPrimary) || product.images?.[0];
+    const primaryPhoto = product.images?.find(p => p.isPrimary && !p.toDelete) || product.images?.find(p => !p.toDelete);
     const previewImageUrl = primaryPhoto?.previewUrl || 'https://placehold.co/128x128.png';
-    const categoryName = categories.find(c => c.id === product.category_id)?.name || 'Sin categoría';
+    const categoryName = categories.find(c => c.id === product.category_id)?.name || product.categoryPath || 'Sin categoría';
 
     return (
         <Card className="sticky top-20">

@@ -1,3 +1,4 @@
+
 // src/components/features/products/variable-product-manager.tsx
 
 "use client";
@@ -12,12 +13,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import type { ProductVariation, ProductPhoto, ProductEditState, ProductData } from '@/lib/types';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { GitCommitHorizontal, Sparkles, ImageIcon } from 'lucide-react';
+import { GitCommitHorizontal, Sparkles, ImageIcon, Trash2, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Image from 'next/image';
 
 interface VariableProductManagerProps {
-  product: ProductEditState | ProductData;
+  product: ProductEditState | ProductData | null;
   onProductChange: (data: Partial<ProductEditState> | Partial<ProductData>) => void;
   images: ProductPhoto[];
 }
@@ -40,10 +41,21 @@ function cartesian(...args: string[][]): string[][] {
     return r;
 }
 
-export function VariableProductManager({ product, onProductChange, images }: VariableProductManagerProps) {
+export function VariationEditor({ product, onProductChange, images }: VariableProductManagerProps) {
   const { toast } = useToast();
+  console.log("[AUDIT] VariableProductManager rendered. Product data:", product);
+
+  // Safety check to prevent runtime errors if product data is not yet loaded.
+  if (!product) {
+    return (
+      <div className="flex justify-center items-center h-24 border rounded-md">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   const handleGenerateVariations = () => {
+    console.log("[AUDIT] handleGenerateVariations triggered.");
     const variationAttributes = product.attributes.filter(
         (attr) => attr.forVariations && attr.name.trim() && attr.value.trim()
     );
@@ -65,6 +77,7 @@ export function VariableProductManager({ product, onProductChange, images }: Var
 
     const combinations = cartesian(...attributeValueSets);
     const primaryImage = images.find(p => p.isPrimary) || images[0];
+    console.log("[AUDIT] Generating combinations for variations:", combinations);
 
     const newVariations: ProductVariation[] = combinations.map(combo => {
         const attributes = combo.map((value, index) => ({ name: attributeNames[index], option: value }));
@@ -88,7 +101,8 @@ export function VariableProductManager({ product, onProductChange, images }: Var
 
 
   const handleVariationChange = (variationIdentifier: string | number, field: string, value: any) => {
-    const updatedVariations = product.variations?.map(v => {
+    if (!product.variations) return;
+    const updatedVariations = product.variations.map(v => {
       if (v.id === variationIdentifier || v.variation_id === variationIdentifier) {
         return { ...v, [field]: value };
       }
@@ -98,7 +112,8 @@ export function VariableProductManager({ product, onProductChange, images }: Var
   };
   
   const handleDimensionChange = (variationIdentifier: string | number, dim: 'length' | 'width' | 'height', value: string) => {
-    const updatedVariations = product.variations?.map(v => {
+    if (!product.variations) return;
+    const updatedVariations = product.variations.map(v => {
       if (v.id === variationIdentifier || v.variation_id === variationIdentifier) {
         return { ...v, dimensions: { ...(v.dimensions || {}), [dim]: value } };
       }
@@ -106,6 +121,13 @@ export function VariableProductManager({ product, onProductChange, images }: Var
     });
     onProductChange({ variations: updatedVariations });
   };
+  
+  const handleRemoveVariation = (variationId: string | number) => {
+    if (!product.variations) return;
+    const updatedVariations = product.variations.filter(v => (v.id !== variationId && v.variation_id !== variationId));
+    onProductChange({ variations: updatedVariations });
+  };
+
 
   if (!product.variations || product.variations.length === 0) {
     return (
@@ -143,7 +165,7 @@ export function VariableProductManager({ product, onProductChange, images }: Var
             return (
                 <AccordionItem value={String(identifier)} key={identifier}>
                     <AccordionTrigger>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 w-full">
                         {displayImage ? (
                             <Image src={displayImage.previewUrl} alt="Variación" width={40} height={40} className="rounded-md object-cover h-10 w-10"/>
                         ) : (
@@ -151,7 +173,7 @@ export function VariableProductManager({ product, onProductChange, images }: Var
                                 <ImageIcon className="h-5 w-5 text-muted-foreground"/>
                            </div>
                         )}
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-left">
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-left flex-1 min-w-0">
                           {variation.attributes.map(attr => (
                             <span key={attr.name} className="text-sm">
                               <span className="font-medium">{attr.name}:</span>
@@ -181,7 +203,7 @@ export function VariableProductManager({ product, onProductChange, images }: Var
                                     value={variation.image?.id?.toString() ?? "0"}
                                     onValueChange={(value) => {
                                         const imageId = value === "0" ? null : value.match(/^\d+$/) ? Number(value) : value;
-                                        handleVariationChange(identifier, 'image', { id: imageId });
+                                        handleVariationChange(identifier, 'image', { id: imageId, toDelete: value === "0" });
                                     }}
                                 >
                                     <SelectTrigger>
@@ -189,7 +211,7 @@ export function VariableProductManager({ product, onProductChange, images }: Var
                                             {variation.image?.id && images.find(p => String(p.id) === String(variation.image!.id)) ? (
                                                 <>
                                                     <Image src={images.find(p => String(p.id) === String(variation.image!.id))!.previewUrl} alt="preview" width={20} height={20} className="rounded-sm" />
-                                                    <span>{images.find(p => String(p.id) === String(variation.image!.id))!.name}</span>
+                                                    <span className="truncate">{images.find(p => String(p.id) === String(variation.image!.id))!.name}</span>
                                                 </>
                                             ) : (
                                                 'Imagen principal por defecto'
@@ -218,6 +240,12 @@ export function VariableProductManager({ product, onProductChange, images }: Var
                                     </div>
                                     <Input id={`stock-${identifier}`} type="number" value={variation.stockQuantity || ''} onChange={(e) => handleVariationChange(identifier, 'stockQuantity', e.target.value)} disabled={!variation.manage_stock} placeholder="Cantidad" />
                                     </div>
+                            </div>
+                             <div className="md:col-span-2 flex justify-end">
+                                <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleRemoveVariation(identifier)}>
+                                    <Trash2 className="h-4 w-4 mr-2"/>
+                                    Eliminar Variación
+                                </Button>
                             </div>
                         </div>
                     </AccordionContent>
