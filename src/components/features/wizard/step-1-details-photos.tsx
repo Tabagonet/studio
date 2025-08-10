@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
+import { VariationEditor } from '@/components/features/products/variation-editor';
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
 import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory, LinkSuggestion, SuggestLinksOutput } from '@/lib/types';
 import { PRODUCT_TYPES, ALL_LANGUAGES } from '@/lib/constants';
@@ -22,7 +23,7 @@ import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggest
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { ComboBox } from '@/components/core/combobox';
-import { VariationEditor } from '@/components/features/products/variation-editor';
+
 
 interface Step1DetailsPhotosProps {
   productData: ProductData;
@@ -268,7 +269,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             name: aiContent.name,
             shortDescription: aiContent.shortDescription,
             longDescription: aiContent.longDescription,
-            tags: aiContent.tags.split(',').map((t: string) => t.trim()),
+            tags: aiContent.tags,
             imageTitle: aiContent.imageTitle,
             imageAltText: aiContent.imageAltText,
             imageCaption: aiContent.imageCaption,
@@ -564,7 +565,18 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
 
               <Card><CardHeader><CardTitle>Descripciones y Etiquetas</CardTitle><CardDescription>Esta información es clave para el SEO y para informar a tus clientes.</CardDescription></CardHeader>
                 <CardContent className="space-y-6">
-                   <div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={productData.tags.join(', ')} onChange={e => updateProductData({ tags: e.target.value.split(',').map(t => t.trim()) })} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing || isGenerating} /><p className="text-xs text-muted-foreground mt-1">Ayudan a la IA y al SEO de tu producto.</p></div>
+                   <div>
+                       <Label htmlFor="tags">Etiquetas (separadas por comas)</Label>
+                       <Input 
+                         id="tags" 
+                         name="tags" 
+                         value={productData.tags.join(', ')} 
+                         onChange={e => updateProductData({ tags: e.target.value.split(',').map(t => t.trim()) })} 
+                         placeholder="Ej: camiseta, algodón, verano, casual" 
+                         disabled={isProcessing || isGenerating} 
+                       />
+                       <p className="text-xs text-muted-foreground mt-1">Ayudan a la IA y al SEO de tu producto.</p>
+                   </div>
                   <div className="pt-2"><Button onClick={handleGenerateContentWithAI} disabled={isProcessing || isGenerating || !productData.name} className="w-full sm:w-auto">{isGenerating ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGenerating ? "Generando..." : "Generar Contenido con IA"}</Button>{!productData.name && <p className="text-xs text-destructive mt-1">Introduce un nombre de producto para activar la IA.</p>}</div>
                   <div className="border-t pt-6 space-y-6">
                     <div><Label htmlFor="shortDescription">Descripción Corta</Label><RichTextEditor content={productData.shortDescription} onChange={handleShortDescriptionChange} onInsertImage={() => setIsImageDialogOpen(true)} onSuggestLinks={handleSuggestLinks} placeholder="Un resumen atractivo y conciso de tu producto..." size="small"/></div>
