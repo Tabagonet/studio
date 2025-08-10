@@ -167,10 +167,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         
         // Handle Categories and Suppliers separately
         let productCategoryIds: { id: number }[] = [];
-        const categoryToCreateOrAssign = categoryPath || validatedData.category?.name;
-        if (categoryToCreateOrAssign) {
-            const newCatId = await findOrCreateWpCategoryByPath(categoryToCreateOrAssign, wpApi, 'product_cat');
-            if (newCatId) productCategoryIds.push({ id: newCatId });
+        if (categoryPath) {
+             const newCatId = await findOrCreateWpCategoryByPath(categoryPath, wpApi, 'product_cat');
+             if (newCatId) productCategoryIds.push({ id: newCatId });
         } else if (validatedData.category_id !== undefined && validatedData.category_id !== null) {
               productCategoryIds.push({id: validatedData.category_id});
         }
@@ -236,7 +235,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             const batchPayload = {
                 update: finalVariations.map((v: ProductVariation) => ({
                     id: v.variation_id, 
-                    regular_price: (v.regularPrice !== '' ? v.regularPrice : (generalPrice !== '' ? generalPrice : undefined))?.toString(),
+                    regular_price: (v.regularPrice && v.regularPrice !== '' ? v.regularPrice : generalPrice)?.toString(),
                     sale_price: v.salePrice || undefined, 
                     sku: v.sku || undefined,
                     manage_stock: v.manage_stock, 

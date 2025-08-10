@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress, findOrCreateTags, findOrCreateWpCategoryByPath } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress, findOrCreateWpCategoryByPath } from '@/lib/api-helpers';
 import type { ProductData, ProductVariation } from '@/lib/types';
 import axios from 'axios';
 
@@ -155,9 +155,10 @@ export async function POST(request: NextRequest) {
 
         // 6. Create variations if applicable
         if (finalProductData.productType === 'variable' && finalProductData.variations && finalProductData.variations.length > 0) {
+             const generalPrice = finalProductData.regularPrice;
             const batchCreatePayload = finalProductData.variations.map(v => {
                 const variationPayload: any = {
-                    regular_price: v.regularPrice || undefined, 
+                    regular_price: (v.regularPrice && v.regularPrice !== '' ? v.regularPrice : generalPrice)?.toString(), 
                     sale_price: v.salePrice || undefined,
                     attributes: v.attributes.map(a => ({ name: a.name, option: a.option })),
                     weight: v.weight || undefined,
