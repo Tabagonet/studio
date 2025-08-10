@@ -1,3 +1,4 @@
+
 // src/app/(app)/wizard/step-1-details-photos.tsx
 "use client";
 

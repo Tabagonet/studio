@@ -1,6 +1,7 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  swcMinify: true, // Forzar reconstrucción y optimizar compilación
   experimental: {
     serverComponentsExternalPackages: [
       '@google-cloud/tasks',

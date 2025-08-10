@@ -1,5 +1,5 @@
-// src/components/features/products/variation-editor.tsx
 
+// src/components/features/products/variation-editor.tsx
 "use client";
 
 import React from 'react';
