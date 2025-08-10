@@ -8,7 +8,7 @@ import { Loader2, ArrowLeft, Save, Trash2, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { onAuthStateChanged, auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import type { WooCommerceCategory, ProductPhoto, ProductVariation, ProductAttribute, ProductEditState, LinkSuggestion, SuggestLinksOutput } from '@/lib/types';
+import type { WooCommerceCategory, ProductPhoto, ProductVariation, ProductAttribute, ProductData, LinkSuggestion, SuggestLinksOutput } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { ProductPreviewCard } from './product-preview-card';
@@ -29,7 +29,7 @@ function EditPageContent() {
   const router = useRouter();
   const productId = Number(params.id);
 
-  const [product, setProduct] = useState<ProductEditState | null>(null);
+  const [product, setProduct] = useState<ProductData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -47,7 +47,7 @@ function EditPageContent() {
   
   const { toast } = useToast();
   
-  const updateProductData = useCallback((data: Partial<ProductEditState> | ((prevState: ProductEditState) => Partial<ProductEditState>)) => {
+  const updateProductData = useCallback((data: Partial<ProductData> | ((prevState: ProductData) => Partial<ProductData>)) => {
     setProduct(prev => {
         if (!prev) return null;
         const updates = typeof data === 'function' ? data(prev) : data;
@@ -57,7 +57,7 @@ function EditPageContent() {
   }, []);
   
   const handlePhotosChange = useCallback((updatedPhotos: ProductPhoto[]) => {
-      updateProductData({ images: updatedPhotos });
+      updateProductData({ photos: updatedPhotos });
   }, [updateProductData]);
 
   const fetchInitialData = useCallback(async () => {
@@ -125,28 +125,29 @@ function EditPageContent() {
             variation: attr.variation || false,
         }));
 
-        const finalProductState: ProductEditState = {
+        const finalProductState: ProductData = {
           id: productData.id,
           name: productData.name || '',
           sku: productData.sku || '',
-          type: productData.type || 'simple',
+          productType: productData.type || 'simple',
           supplier: supplierAttribute ? supplierAttribute.options[0] : null,
-          regular_price: productData.regular_price || '',
-          sale_price: productData.sale_price || '',
-          short_description: productData.short_description || '',
-          description: productData.description || '',
-          images: existingImagesAsProductPhotos,
+          regularPrice: productData.regular_price || '',
+          salePrice: productData.sale_price || '',
+          shortDescription: productData.short_description || '',
+          longDescription: productData.description || '',
+          photos: existingImagesAsProductPhotos,
           variations: existingVariations,
           status: productData.status || 'draft',
           tags: productData.tags?.map((t: any) => t.name) || [],
           category_id: mainCategory ? mainCategory.id : null,
           category: mainCategory,
           manage_stock: productData.manage_stock || false,
-          stock_quantity: productData.stock_quantity?.toString() || '',
+          stockQuantity: productData.stock_quantity?.toString() || '',
           weight: productData.weight || '',
           dimensions: productData.dimensions || { length: '', width: '', height: '' },
           shipping_class: productData.shipping_class || '',
           attributes: formattedAttributes,
+          language: productData.lang || 'es',
         };
         
         setProduct(finalProductState);
@@ -168,7 +169,7 @@ function EditPageContent() {
         return;
     }
 
-    const sortedImages = [...product.images].sort((a,b) => (a.isPrimary ? -1 : b.isPrimary ? 1 : 0));
+    const sortedImages = [...product.photos].sort((a,b) => (a.isPrimary ? -1 : b.isPrimary ? 1 : 0));
 
     try {
         const token = await user.getIdToken();
@@ -177,7 +178,7 @@ function EditPageContent() {
 
         formData.append('productData', JSON.stringify(payloadForJson));
         
-        const newPhotoFiles = product.images.filter(p => p.file && !p.toDelete);
+        const newPhotoFiles = product.photos.filter(p => p.file && !p.toDelete);
         newPhotoFiles.forEach(photo => {
             if (photo.file) {
                  formData.append(photo.id.toString(), photo.file, photo.name);
@@ -246,9 +247,9 @@ function EditPageContent() {
     updateProductData({ [e.target.name]: e.target.value });
   };
   
-  const handleSelectChange = (name: 'status' | 'type', value: string) => {
+  const handleSelectChange = (name: 'status' | 'productType', value: string) => {
     if (!product) return;
-    if (name === 'type' && value === 'variable' && product.attributes.length === 0) {
+    if (name === 'productType' && value === 'variable' && product.attributes.length === 0) {
       updateProductData({ [name]: value as any, attributes: [{ name: '', value: '', forVariations: false, visible: true, options: [] }] });
     } else {
       updateProductData({ [name]: value as any });
@@ -289,12 +290,12 @@ function EditPageContent() {
   
   const handleShortDescriptionChange = (newContent: string) => {
     if (!product) return;
-    updateProductData({ short_description: newContent });
+    updateProductData({ shortDescription: newContent });
   };
 
   const handleLongDescriptionChange = (newContent: string) => {
     if (!product) return;
-    updateProductData({ description: newContent });
+    updateProductData({ longDescription: newContent });
   };
 
   const handleInsertImageInLongDesc = async () => {
@@ -317,12 +318,12 @@ function EditPageContent() {
         toast({ title: 'Falta la imagen', description: 'Por favor, sube un archivo o introduce una URL.', variant: 'destructive' }); return;
     }
     const imgTag = `<img src="${finalImageUrl}" alt="${product?.name || 'Imagen insertada'}" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px;" />`;
-    updateProductData({ description: (product?.description || '') + `\n${imgTag}` });
+    updateProductData({ description: (product?.longDescription || '') + `\n${imgTag}` });
     setImageUrl(''); setImageFile(null); setIsImageDialogOpen(false);
   };
   
   const handleSuggestLinks = async () => {
-    if (!product?.description.trim()) {
+    if (!product?.longDescription.trim()) {
         toast({ title: "Contenido vacío", description: "Escribe algo en la descripción larga antes de pedir sugerencias.", variant: "destructive" }); return;
     }
     setIsSuggestingLinks(true);
@@ -331,7 +332,7 @@ function EditPageContent() {
         const token = await user.getIdToken();
         const response = await fetch('/api/ai/suggest-links', {
             method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ content: product.description })
+            body: JSON.stringify({ content: product.longDescription })
         });
         if (!response.ok) throw new Error((await response.json()).message || "La IA falló al sugerir enlaces.");
         
@@ -356,10 +357,10 @@ function EditPageContent() {
   };
 
   const handleApplySuggestion = (suggestion: LinkSuggestion) => {
-    if (!product || typeof product.description !== 'string') return;
-    const newContent = applyLink(product.description, suggestion);
-    if (newContent !== product.description) {
-        updateProductData({ description: newContent });
+    if (!product || typeof product.longDescription !== 'string') return;
+    const newContent = applyLink(product.longDescription, suggestion);
+    if (newContent !== product.longDescription) {
+        updateProductData({ longDescription: newContent });
         toast({ title: "Enlace aplicado", description: `Se ha enlazado la frase "${suggestion.phraseToLink}".` });
         setLinkSuggestions(prev => prev.filter(s => s.phraseToLink !== suggestion.phraseToLink || s.targetUrl !== suggestion.targetUrl));
     } else {
@@ -368,8 +369,8 @@ function EditPageContent() {
   };
   
   const handleApplyAllSuggestions = () => {
-     if (!product || typeof product.description !== 'string') return;
-     let updatedContent = product.description;
+     if (!product || typeof product.longDescription !== 'string') return;
+     let updatedContent = product.longDescription;
      let appliedCount = 0;
      for (const suggestion of linkSuggestions) {
          const newContent = applyLink(updatedContent, suggestion);
@@ -379,7 +380,7 @@ function EditPageContent() {
          }
      }
      if (appliedCount > 0) {
-        updateProductData({ description: updatedContent });
+        updateProductData({ longDescription: updatedContent });
         toast({ title: "Enlaces aplicados", description: `Se han aplicado ${appliedCount} sugerencias de enlaces.` });
         setLinkSuggestions([]);
      } else {
@@ -472,9 +473,9 @@ function EditPageContent() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div><Label htmlFor="status">Estado</Label><Select name="status" value={product.status} onValueChange={(value) => handleSelectChange('status', value)}><SelectTrigger id="status"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="publish">Publicado</SelectItem><SelectItem value="draft">Borrador</SelectItem><SelectItem value="pending">Pendiente</SelectItem><SelectItem value="private">Privado</SelectItem></SelectContent></Select></div>
                               <div>
-                                <Label htmlFor="type">Tipo de Producto</Label>
-                                <Select name="type" value={product.type} onValueChange={(value) => handleSelectChange('type', value)}>
-                                  <SelectTrigger id="type"><SelectValue /></SelectTrigger>
+                                <Label htmlFor="productType">Tipo de Producto</Label>
+                                <Select name="productType" value={product.productType} onValueChange={(value) => handleSelectChange('productType', value)}>
+                                  <SelectTrigger id="productType"><SelectValue /></SelectTrigger>
                                   <SelectContent>
                                     {PRODUCT_TYPES.map(type => (
                                       <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
@@ -486,13 +487,13 @@ function EditPageContent() {
                       </CardContent>
                   </Card>
                   
-                  {product.type === 'variable' && (
+                  {product.productType === 'variable' && (
                      <>
                         <Card>
                           <CardHeader><CardTitle>Precio por Defecto (Opcional)</CardTitle><CardDescription>Este precio se aplicará a cualquier variación nueva que generes si no tiene un precio específico.</CardDescription></CardHeader>
                           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} /></div>
-                              <div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} /></div>
+                              <div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regularPrice} onChange={handleInputChange} /></div>
+                              <div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.salePrice} onChange={handleInputChange} /></div>
                           </CardContent>
                         </Card>
                         <Card>
@@ -514,18 +515,18 @@ function EditPageContent() {
                          <VariationEditor 
                             product={product} 
                             onProductChange={updateProductData}
-                            images={product.images}
+                            images={product.photos}
                         />
                     </>
                   )}
-                  {product.type === 'simple' && (
+                  {product.productType === 'simple' && (
                      <>
-                        <Card><CardHeader><CardTitle>Precios</CardTitle></CardHeader><CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regular_price} onChange={handleInputChange} /></div><div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.sale_price} onChange={handleInputChange} /></div></CardContent></Card>
-                        <Card><CardHeader><CardTitle>Inventario</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex items-center space-x-2"><Checkbox id="manage_stock" checked={product.manage_stock} onCheckedChange={(checked) => updateProductData({ manage_stock: !!checked, stock_quantity: !!checked ? product.stock_quantity : '' })} /><Label htmlFor="manage_stock" className="font-normal">Gestionar inventario</Label></div>{product.manage_stock && (<div><Label htmlFor="stock_quantity">Cantidad</Label><Input id="stock_quantity" name="stock_quantity" type="number" value={product.stock_quantity} onChange={handleInputChange} /></div>)}</CardContent></Card>
+                        <Card><CardHeader><CardTitle>Precios</CardTitle></CardHeader><CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><Label htmlFor="regular_price">Precio Regular (€)</Label><Input id="regular_price" name="regular_price" type="number" value={product.regularPrice} onChange={handleInputChange} /></div><div><Label htmlFor="sale_price">Precio Oferta (€)</Label><Input id="sale_price" name="sale_price" type="number" value={product.salePrice} onChange={handleInputChange} /></div></CardContent></Card>
+                        <Card><CardHeader><CardTitle>Inventario</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex items-center space-x-2"><Checkbox id="manage_stock" checked={product.manage_stock} onCheckedChange={(checked) => updateProductData({ manage_stock: !!checked, stockQuantity: !!checked ? product.stockQuantity : '' })} /><Label htmlFor="manage_stock" className="font-normal">Gestionar inventario</Label></div>{product.manage_stock && (<div><Label htmlFor="stock_quantity">Cantidad</Label><Input id="stock_quantity" name="stock_quantity" type="number" value={product.stockQuantity} onChange={handleInputChange} /></div>)}</CardContent></Card>
                      </>
                   )}
                   
-                   <Card><CardHeader><CardTitle>Descripciones</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="short_description">Descripción Corta</Label><RichTextEditor content={product.short_description} onChange={handleShortDescriptionChange} onInsertImage={() => setIsImageDialogOpen(true)} onSuggestLinks={handleSuggestLinks} placeholder="Escribe la descripción corta aquí..." size="small"/></div><div><Label htmlFor="description">Descripción Larga</Label><RichTextEditor content={product.description} onChange={handleLongDescriptionChange} onInsertImage={() => setIsImageDialogOpen(true)} onSuggestLinks={handleSuggestLinks} placeholder="Escribe la descripción larga aquí..." /></div></CardContent></Card>
+                   <Card><CardHeader><CardTitle>Descripciones</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="short_description">Descripción Corta</Label><RichTextEditor content={product.shortDescription} onChange={handleShortDescriptionChange} onInsertImage={() => setIsImageDialogOpen(true)} onSuggestLinks={handleSuggestLinks} placeholder="Escribe la descripción corta aquí..." size="small"/></div><div><Label htmlFor="description">Descripción Larga</Label><RichTextEditor content={product.longDescription} onChange={handleLongDescriptionChange} onInsertImage={() => setIsImageDialogOpen(true)} onSuggestLinks={handleSuggestLinks} placeholder="Escribe la descripción larga aquí..." /></div></CardContent></Card>
               </div>
               
               <div className="space-y-6">
@@ -557,7 +558,7 @@ function EditPageContent() {
                       </CardContent>
                   </Card>
                    <Card><CardHeader><CardTitle>Envío</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="weight">Peso (kg)</Label><Input id="weight" name="weight" type="number" value={product.weight} onChange={handleInputChange} /></div><div><Label>Dimensiones (cm)</Label><div className="grid grid-cols-3 gap-2"><Input value={product.dimensions?.length || ''} onChange={(e) => handleDimensionChange('length', e.target.value)} placeholder="Largo" /><Input value={product.dimensions?.width || ''} onChange={(e) => handleDimensionChange('width', e.target.value)} placeholder="Ancho" /><Input value={product.dimensions?.height || ''} onChange={(e) => handleDimensionChange('height', e.target.value)} placeholder="Alto" /></div></div><div><Label htmlFor="shipping_class">Clase de envío (slug)</Label><Input id="shipping_class" name="shipping_class" value={product.shipping_class} onChange={handleInputChange} /></div></CardContent></Card>
-                  <Card><CardHeader><CardTitle>Imágenes</CardTitle></CardHeader><CardContent><ImageUploader photos={product.images} onPhotosChange={handlePhotosChange} isProcessing={isSaving}/></CardContent></Card>
+                  <Card><CardHeader><CardTitle>Imágenes</CardTitle></CardHeader><CardContent><ImageUploader photos={product.photos} onPhotosChange={handlePhotosChange} isProcessing={isSaving}/></CardContent></Card>
                   <Card><CardHeader><CardTitle className="text-destructive">Zona de Peligro</CardTitle></CardHeader><CardContent><AlertDialog><AlertDialogTrigger asChild><Button variant="destructive" className="w-full" disabled={isDeleting}><Trash2 className="mr-2 h-4 w-4" /> Eliminar Producto</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente este producto.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className={buttonVariants({ variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></CardContent></Card>
               </div>
           </div>

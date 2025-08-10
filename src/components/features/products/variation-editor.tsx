@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import type { ProductVariation, ProductPhoto, ProductEditState, ProductData } from '@/lib/types';
+import type { ProductVariation, ProductPhoto, ProductData } from '@/lib/types';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { GitCommitHorizontal, Sparkles, ImageIcon, Trash2, Loader2 } from 'lucide-react';
@@ -17,8 +17,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Image from 'next/image';
 
 interface VariableProductManagerProps {
-  product: ProductEditState | ProductData | null;
-  onProductChange: (data: Partial<ProductEditState> | Partial<ProductData>) => void;
+  product: ProductData | null;
+  onProductChange: (data: Partial<ProductData>) => void;
   images: ProductPhoto[];
 }
 
@@ -87,8 +87,8 @@ export function VariationEditor({ product, onProductChange, images }: VariablePr
             variation_id: undefined, // No WooCommerce ID yet
             attributes: attributes, 
             sku: `${product.sku || 'VAR'}-${skuSuffix}`, 
-            regularPrice: 'regular_price' in product ? product.regular_price || '' : '', 
-            salePrice: 'sale_price' in product ? product.sale_price || '' : '',
+            regularPrice: product.regularPrice || '', 
+            salePrice: product.salePrice || '',
             stockQuantity: '', 
             manage_stock: false,
             image: primaryImage ? { id: primaryImage.id } : { id: null }, 

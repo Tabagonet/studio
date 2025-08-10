@@ -143,6 +143,7 @@ export type HierarchicalBlogPost = BlogPostSearchResult & { subRows: Hierarchica
 
 
 export interface ProductData {
+  id?: number; // Optional ID for edit context
   sku: string;
   shouldSaveSku?: boolean;
   name: string;
@@ -178,8 +179,8 @@ export interface ProductData {
   imageDescription?: string;
   source?: 'wizard' | 'batch';
   status?: 'publish' | 'draft' | 'pending' | 'private';
-  regular_price?: string;
-  sale_price?: string;
+  regular_price?: string; // Kept for compatibility with edit state
+  sale_price?: string; // Kept for compatibility with edit state
 }
 
 export interface ProductSearchResult {
@@ -227,7 +228,6 @@ export interface SubmissionStep {
   name: string;
   status: SubmissionStepStatus;
   progress?: number;
-  message?: string;
   error?: string;
 }
 
@@ -402,7 +402,7 @@ export interface User {
   companyId: string | null;
   companyName: string | null;
   companyPlan?: 'lite' | 'pro' | 'agency' | null;
-  plan?: 'lite' | 'pro' | 'agency' | null;
+  plan?: 'lite' | 'pro' | 'agency' | null; // Individual user plan
   platform?: 'woocommerce' | 'shopify' | null;
   companyPlatform?: 'woocommerce' | 'shopify' | null;
   aiUsageCount?: number;
@@ -497,38 +497,4 @@ export interface PlanUsage {
     oneTimeAvailable: number;
     totalAvailable: number;
   };
-}
-
-export interface ProductEditState {
-    id: number;
-    name: string;
-    sku: string;
-    supplier: string | null;
-    newSupplier?: string;
-    type: 'simple' | 'variable' | 'grouped' | 'external';
-    regular_price: string;
-    sale_price: string;
-    short_description: string;
-    description: string;
-    images: ProductPhoto[];
-    variations?: ProductVariation[];
-    status: 'publish' | 'draft' | 'pending' | 'private';
-    tags: string[];
-    category_id: number | null;
-    category?: WooCommerceCategory | null; 
-    manage_stock: boolean;
-    stock_quantity: string;
-    weight: string;
-    dimensions: {
-        length: string;
-        width: string;
-        height: string;
-    };
-    shipping_class: string;
-    attributes: ProductAttribute[];
-    categoryPath?: string;
-    imageTitle?: string;
-    imageAltText?: string;
-    imageCaption?: string;
-    imageDescription?: string;
 }
