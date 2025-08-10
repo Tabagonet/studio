@@ -1,10 +1,9 @@
-
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, ArrowLeft, Save, Trash2, AlertTriangle } from 'lucide-react';
@@ -16,13 +15,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
 import { ProductData } from '@/lib/types';
+import { VariableProductManager } from '@/components/features/products/variation-editor';
 
 export interface ProductEditState extends ProductData {
     id: number;
     variations?: ProductVariation[];
 }
 
-function EditProductPageContent() {
+function EditPageContent() {
   const params = useParams();
   const router = useRouter();
   const productId = Number(params.id);
@@ -38,147 +38,6 @@ function EditProductPageContent() {
   const updateProductData = useCallback((data: Partial<ProductEditState>) => {
     setProduct(prev => (prev ? { ...prev, ...data } : null));
   }, []);
-
-  const handlePhotosChange = useCallback((updatedPhotos: ProductPhoto[]) => {
-    updateProductData({ photos: updatedPhotos });
-  }, [updateProductData]);
-  
-  const handleSaveChanges = async () => {
-    setIsSaving(true);
-    const user = auth.currentUser;
-    if (!user || !product) {
-        toast({ title: 'Error', description: 'No se puede guardar el producto.', variant: 'destructive' });
-        setIsSaving(false);
-        return;
-    }
-
-    try {
-        const token = await user.getIdToken();
-        
-        const newPhotos = product.photos.filter(p => p.file);
-        const existingImageUrls = product.photos.filter(p => !p.file).map(p => p.previewUrl);
-        let uploadedImageUrls: string[] = [];
-
-        if (newPhotos.length > 0) {
-            toast({ title: "Subiendo nuevas imágenes...", description: "Por favor, espera." });
-
-            const uploadPromises = newPhotos.map(photo => {
-                const formData = new FormData();
-                formData.append('imagen', photo.file!);
-                return fetch('/api/upload-image', {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` },
-                    body: formData,
-                }).then(res => res.json());
-            });
-
-            const uploadResults = await Promise.all(uploadPromises);
-            const failedUploads = uploadResults.filter(res => !res.success);
-            if (failedUploads.length > 0) {
-                throw new Error(`Fallo al subir ${failedUploads.length} imágen(es).`);
-            }
-            uploadedImageUrls = uploadResults.map(res => res.url);
-        }
-        
-        const finalImageUrls = [...existingImageUrls, ...uploadedImageUrls];
-        
-        const imageUpdateResponse = await fetch('/api/wordpress/update-product-images', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({
-                product_id: productId,
-                mode: 'replace',
-                images: finalImageUrls,
-            }),
-        });
-        if (!imageUpdateResponse.ok) {
-            const errorData = await imageUpdateResponse.json();
-            throw new Error(errorData.error || 'Fallo al actualizar las imágenes del producto.');
-        }
-
-
-        // Now, update the rest of the product data
-        const formattedAttributes = product.attributes.map(attr => {
-            const optionsFromValue = attr.value ? attr.value.split('|').map(t => t.trim()).filter(Boolean) : (attr.options || []);
-            return {
-                id: attr.id || 0,
-                name: attr.name,
-                position: attr.position || 0,
-                visible: attr.visible,
-                variation: attr.forVariations || attr.variation || false,
-                options: optionsFromValue.map(String),
-            };
-        });
-
-        const finalSupplierName = product.newSupplier || product.supplier;
-        if (finalSupplierName) {
-            const supplierAttrIndex = formattedAttributes.findIndex(a => a.name === 'Proveedor');
-            if (supplierAttrIndex > -1) {
-                formattedAttributes[supplierAttrIndex].options = [String(finalSupplierName)];
-            } else {
-                 formattedAttributes.push({
-                    id: 0,
-                    name: 'Proveedor',
-                    position: formattedAttributes.length,
-                    visible: true,
-                    variation: false,
-                    options: [String(finalSupplierName)]
-                });
-            }
-        }
-        
-        const productPayload = { ...product, attributes: formattedAttributes };
-
-        const formData = new FormData();
-        formData.append('productData', JSON.stringify(productPayload));
-        
-        const response = await fetch(`/api/woocommerce/products/${productId}`, {
-            method: 'PUT',
-            headers: { 'Authorization': `Bearer ${token}` },
-            body: formData,
-        });
-        
-        const result = await response.json();
-        if (!response.ok) {
-            throw new Error(result.error || result.details?.message || 'Fallo al guardar los cambios del producto.');
-        }
-        
-        toast({ title: '¡Éxito!', description: 'El producto ha sido actualizado.' });
-        router.push('/batch');
-
-    } catch (e: any) {
-        console.error('[DEBUG] Error saving product:', e.message, e.response?.data);
-        toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
-    } finally {
-        setIsSaving(false);
-    }
-  };
-
-
-  const handleDelete = async () => {
-    setIsDeleting(true);
-    const user = auth.currentUser;
-    if (!user) {
-      toast({ title: 'Error de autenticación', variant: 'destructive' });
-      setIsDeleting(false);
-      return;
-    }
-    
-    try {
-        const token = await user.getIdToken();
-        const response = await fetch(`/api/woocommerce/products/${productId}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) throw new Error('Failed to delete product.');
-        toast({ title: 'Producto eliminado permanentemente.'});
-        router.push('/batch');
-    } catch(e: any) {
-        toast({ title: 'Error al eliminar', description: e.message, variant: 'destructive' });
-    } finally {
-        setIsDeleting(false);
-    }
-  };
   
   const fetchInitialData = useCallback(async () => {
       setIsLoading(true);
@@ -249,7 +108,7 @@ function EditProductPageContent() {
           regularPrice: productData.regular_price || '',
           salePrice: productData.sale_price || '',
           shortDescription: productData.short_description || '',
-          description: productData.description || '',
+          longDescription: productData.description || '',
           photos: existingImagesAsProductPhotos,
           variations: existingVariations,
           status: productData.status || 'draft',
@@ -275,8 +134,122 @@ function EditProductPageContent() {
         setIsLoading(false);
       }
     }, [productId, toast]);
+    
+  const handleSaveChanges = async () => {
+    setIsSaving(true);
+    const user = auth.currentUser;
+    if (!user || !product) {
+        toast({ title: 'Error', description: 'No se puede guardar el producto.', variant: 'destructive' });
+        setIsSaving(false);
+        return;
+    }
+
+    try {
+        const token = await user.getIdToken();
+        
+        // Step 1: Handle new image uploads to temporary storage
+        const newPhotoFiles = product.photos.filter(p => p.file);
+        const uploadedUrlsMap = new Map<string, string>();
+        if (newPhotoFiles.length > 0) {
+            toast({ title: "Subiendo nuevas imágenes...", description: "Por favor, espera." });
+            for (const photo of newPhotoFiles) {
+                const formData = new FormData();
+                formData.append('imagen', photo.file!);
+                const uploadResponse = await fetch('/api/upload-image', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData,
+                });
+                if (!uploadResponse.ok) throw new Error(`Fallo al subir ${photo.name}`);
+                const imageData = await uploadResponse.json();
+                uploadedUrlsMap.set(photo.id.toString(), imageData.url);
+            }
+        }
+        
+        // Step 2: Call the custom endpoint to sync the final image list with WordPress
+        const finalImageUrls = product.photos
+            .filter(p => !p.toDelete)
+            .map(p => {
+                if (p.file) return uploadedUrlsMap.get(p.id.toString()); // URL from temp storage
+                return p.previewUrl; // URL from existing WP media
+            })
+            .filter((url): url is string => !!url);
+
+        await fetch('/api/wordpress/update-product-images', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ product_id: productId, mode: 'replace', images: finalImageUrls }),
+        });
+        
+        // Step 3: Update the rest of the product data
+        const formattedAttributes = product.attributes.map(attr => {
+            const optionsFromValue = attr.value ? attr.value.split('|').map(t => t.trim()).filter(Boolean) : (attr.options || []);
+            return { id: attr.id || 0, name: attr.name, position: attr.position || 0, visible: attr.visible, variation: attr.forVariations || attr.variation || false, options: optionsFromValue.map(String) };
+        });
+        
+        const finalSupplierName = product.newSupplier || product.supplier;
+        if (finalSupplierName) {
+            const supplierAttrIndex = formattedAttributes.findIndex(a => a.name === 'Proveedor');
+            if (supplierAttrIndex > -1) {
+                formattedAttributes[supplierAttrIndex].options = [String(finalSupplierName)];
+            } else {
+                 formattedAttributes.push({ id: 0, name: 'Proveedor', position: formattedAttributes.length, visible: true, variation: false, options: [String(finalSupplierName)] });
+            }
+        }
+        
+        const productPayloadForUpdate = { ...product, attributes: formattedAttributes };
+
+        const productFormData = new FormData();
+        productFormData.append('productData', JSON.stringify(productPayloadForUpdate));
+        
+        const response = await fetch(`/api/woocommerce/products/${productId}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: productFormData,
+        });
+        
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || result.details?.message || 'Fallo al guardar los cambios del producto.');
+        }
+        
+        toast({ title: '¡Éxito!', description: 'El producto ha sido actualizado.' });
+        fetchInitialData(); // Re-fetch data to show the latest state
+
+    } catch (e: any) {
+        console.error('[DEBUG] Error saving product:', e.message, e.response?.data);
+        toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
+    } finally {
+        setIsSaving(false);
+    }
+  };
 
 
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    const user = auth.currentUser;
+    if (!user) {
+      toast({ title: 'Error de autenticación', variant: 'destructive' });
+      setIsDeleting(false);
+      return;
+    }
+    
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch(`/api/woocommerce/products/${productId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('Failed to delete product.');
+        toast({ title: 'Producto eliminado permanentemente.'});
+        router.push('/batch');
+    } catch(e: any) {
+        toast({ title: 'Error al eliminar', description: e.message, variant: 'destructive' });
+    } finally {
+        setIsDeleting(false);
+    }
+  };
+  
   useEffect(() => {
     onAuthStateChanged(auth, (user) => {
         if (user) {
@@ -324,10 +297,26 @@ function EditProductPageContent() {
           <Step1DetailsPhotos 
             productData={product} 
             updateProductData={updateProductData} 
-            onPhotosChange={handlePhotosChange}
+            onPhotosChange={(photos) => updateProductData({ photos })}
             isProcessing={isSaving} 
             originalProduct={product} 
           />
+
+          {product.productType === 'variable' && (
+             <Card>
+                <CardHeader>
+                    <CardTitle>Variaciones del Producto</CardTitle>
+                    <CardDescription>Edita los precios, stock e imágenes para cada variación.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <VariableProductManager 
+                        product={product} 
+                        onProductChange={updateProductData} 
+                        images={product.photos} 
+                    />
+                </CardContent>
+            </Card>
+          )}
 
           <Card>
               <CardHeader>
@@ -355,7 +344,7 @@ function EditProductPageContent() {
 export default function EditProductPage() {
     return (
         <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
-            <EditProductPageContent />
+            <EditPageContent />
         </Suspense>
     )
 }

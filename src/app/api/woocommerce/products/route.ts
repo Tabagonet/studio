@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
                 return { id: photo.id };
             }
             return null;
-        }).filter(Boolean);
+        }).filter(p => p !== null && !p.toDelete);
         
         // 2. Prepare categories and tags
         let finalCategoryIds: { id: number }[] = [];
@@ -171,11 +171,15 @@ export async function POST(request: NextRequest) {
                     variationPayload.stock_quantity = parseInt(v.stockQuantity, 10);
                 }
 
-                if (v.image?.id) {
-                    const clientId = v.image.id.toString();
-                    const wpId = uploadedPhotosMap.get(clientId) || (typeof v.image.id === 'number' ? v.image.id : null);
-                    if (wpId) {
-                        variationPayload.image = { id: wpId };
+                if (v.image) {
+                    if (v.image.toDelete) {
+                        variationPayload.image = null; // Remove image
+                    } else {
+                        const clientId = v.image.id.toString();
+                        const wpId = uploadedPhotosMap.get(clientId) || (typeof v.image.id === 'number' ? v.image.id : null);
+                        if (wpId) {
+                            variationPayload.image = { id: wpId };
+                        }
                     }
                 }
                 return variationPayload;

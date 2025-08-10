@@ -13,8 +13,9 @@ import type { ProductVariation, ProductPhoto } from '@/lib/types';
 import type { ProductEditState } from '@/app/(app)/products/edit/[id]/page';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { GitCommitHorizontal, Sparkles } from 'lucide-react';
+import { GitCommitHorizontal, Sparkles, ImageIcon } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import Image from 'next/image';
 
 interface VariationEditorProps {
   product: ProductEditState;
@@ -126,6 +127,8 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
     )
   }
 
+  const primaryPhoto = images.find(p => p.isPrimary) || images[0];
+
   return (
     <div className="space-y-4">
       <Button onClick={handleGenerateVariations} className="w-full" variant="secondary">
@@ -135,16 +138,28 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
       <Accordion type="single" collapsible className="w-full">
         {product.variations.map(variation => {
             const identifier = variation.variation_id || variation.id;
+            const variationImage = images.find(p => String(p.id) === String(variation.image?.id));
+            const displayImage = variationImage || primaryPhoto;
+            
             return (
                 <AccordionItem value={String(identifier)} key={identifier}>
                     <AccordionTrigger>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1">
-                        {variation.attributes.map(attr => (
-                        <span key={attr.name} className="text-sm">
-                            <span className="font-medium">{attr.name}:</span>
-                            <span className="text-muted-foreground ml-1">{attr.option}</span>
-                        </span>
-                        ))}
+                    <div className="flex items-center gap-3">
+                        {displayImage ? (
+                            <Image src={displayImage.previewUrl} alt="Variación" width={40} height={40} className="rounded-md object-cover h-10 w-10"/>
+                        ) : (
+                           <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
+                                <ImageIcon className="h-5 w-5 text-muted-foreground"/>
+                           </div>
+                        )}
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-left">
+                          {variation.attributes.map(attr => (
+                            <span key={attr.name} className="text-sm">
+                              <span className="font-medium">{attr.name}:</span>
+                              <span className="text-muted-foreground ml-1">{attr.option}</span>
+                            </span>
+                          ))}
+                        </div>
                     </div>
                     </AccordionTrigger>
                     <AccordionContent className="space-y-4 pt-4">
@@ -172,7 +187,7 @@ export function VariationEditor({ product, onProductChange, images }: VariationE
                                 >
                                     <SelectTrigger><SelectValue placeholder="Imagen principal por defecto" /></SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="0">Imagen principal por defecto</SelectItem>
+                                        <SelectItem value="0">Usar imagen principal del producto</SelectItem>
                                         {images.map(photo => (
                                             <SelectItem key={photo.id} value={String(photo.id)}>{photo.name}</SelectItem>
                                         ))}
