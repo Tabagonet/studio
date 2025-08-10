@@ -58,11 +58,8 @@ export async function POST(request: NextRequest) {
             uploadedPhotosMap.set(clientSideId, newImageId);
         }
         
-        const sortedPhotos = [...finalProductData.photos].sort((a, b) => {
-            if (a.isPrimary) return -1;
-            if (b.isPrimary) return 1;
-            return 0;
-        });
+        // Prepare the `images` array for the main product payload, respecting the primary image.
+        const sortedPhotos = [...finalProductData.photos].sort((a,b) => (a.isPrimary ? -1 : b.isPrimary ? 1 : 0));
 
         const wooImagesPayload = sortedPhotos
             .filter(photo => !photo.toDelete)
@@ -77,12 +74,12 @@ export async function POST(request: NextRequest) {
         }).filter(p => p !== null);
         console.log("[API CREATE][AUDIT] Final WooCommerce images payload:", wooImagesPayload);
         
+        // 2. Prepare categories and tags
         let productCategoryIds: { id: number }[] = [];
-        if (finalProductData.categoryPath) {
-             const newCatId = await findOrCreateWpCategoryByPath(finalProductData.categoryPath, wpApi, 'product_cat');
-             if (newCatId) productCategoryIds.push({ id: newCatId });
-        } else if (finalProductData.category?.id) {
-            productCategoryIds.push({ id: finalProductData.category.id });
+        const categoryToCreateOrAssign = finalProductData.categoryPath || finalProductData.category?.name;
+        if (categoryToCreateOrAssign) {
+            const newCatId = await findOrCreateWpCategoryByPath(categoryToCreateOrAssign, wpApi, 'product_cat');
+            if (newCatId) productCategoryIds.push({ id: newCatId });
         }
         
         const supplierToAdd = finalProductData.supplier || finalProductData.newSupplier;
@@ -90,9 +87,10 @@ export async function POST(request: NextRequest) {
             await findOrCreateWpCategoryByPath(`Proveedores > ${supplierToAdd}`, wpApi, 'product_cat');
         }
 
-        const tagNames = Array.isArray(finalProductData.tags) ? finalProductData.tags : [];
+        const tagNames = Array.isArray(finalProductData.tags) ? finalProductData.tags.filter(t => t && t.trim()) : [];
         const wooTagIds = tagNames.length > 0 ? await findOrCreateTags(tagNames, wpApi) : [];
 
+        // 3. Prepare attributes
         const wooAttributes = finalProductData.attributes
             .filter(attr => attr.name && attr.name.trim() !== '')
             .map((attr, index) => ({
@@ -115,6 +113,7 @@ export async function POST(request: NextRequest) {
             finalSku = `${finalProductData.sku}-${slugify(supplierToAdd)}`;
         }
 
+        // 4. Construct main product payload
         const wooPayload: any = {
             name: finalProductData.name,
             slug: supplierToAdd ? slugify(`${finalProductData.name}-${supplierToAdd}`) : undefined,
@@ -146,12 +145,14 @@ export async function POST(request: NextRequest) {
             wooPayload.grouped_products = finalProductData.groupedProductIds || [];
         }
 
+        // 5. Create main product
         console.log("[API CREATE][AUDIT] Sending main product payload:", wooPayload);
         const response = await wooApi.post('products', wooPayload);
         const createdProduct = response.data;
         const productId = createdProduct.id;
         console.log(`[API CREATE][AUDIT] Product created with ID: ${productId}`);
 
+        // 6. Create variations if applicable
         if (finalProductData.productType === 'variable' && finalProductData.variations && finalProductData.variations.length > 0) {
             const batchCreatePayload = finalProductData.variations.map(v => {
                 const variationPayload: any = {
@@ -189,6 +190,7 @@ export async function POST(request: NextRequest) {
         }
 
 
+        // 7. Log activity
         if (adminDb && admin.firestore.FieldValue) {
             const { settings } = await getApiClientsForUser(uid);
             const activeConnectionKey = settings?.activeConnectionKey || 'default';

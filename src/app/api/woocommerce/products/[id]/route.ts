@@ -152,7 +152,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const attributes = Array.isArray(validatedData.attributes) ? validatedData.attributes : [];
         const sortedImages = [...(validatedData.images || [])].sort((a,b) => (a.isPrimary ? -1 : b.isPrimary ? 1 : 0));
         
-        const tagNames = Array.isArray(tags) ? tags : [];
+        // Handle Tags
+        const tagNames = Array.isArray(tags) ? tags.filter(t => t && t.trim()) : [];
         if (tagNames.length > 0) {
             const tagIds = await findOrCreateTags(tagNames, wpApi);
             wooPayload.tags = tagIds.map(tagId => ({ id: tagId }));
@@ -169,20 +170,22 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             options: (attr.value || '').split('|').map(o => o.trim()).filter(Boolean).map(String),
         }));
         
+        // Handle Categories and Suppliers separately
         let productCategoryIds: { id: number }[] = [];
-        if (categoryPath) {
-             const newCatId = await findOrCreateWpCategoryByPath(categoryPath, wpApi, 'product_cat');
+        const categoryToCreateOrAssign = categoryPath || validatedData.category?.name;
+        if (categoryToCreateOrAssign) {
+             const newCatId = await findOrCreateWpCategoryByPath(categoryToCreateOrAssign, wpApi, 'product_cat');
              if (newCatId) productCategoryIds.push({ id: newCatId });
         } else if (validatedData.category_id !== undefined && validatedData.category_id !== null) {
               productCategoryIds.push({id: validatedData.category_id});
         }
-        wooPayload.categories = productCategoryIds;
         
         const finalSupplierName = newSupplier || supplier;
-        if (finalSupplierName !== undefined) {
-             const supplierCatId = await findOrCreateWpCategoryByPath(`Proveedores > ${finalSupplierName}`, wpApi, 'product_cat');
-             console.log(`[API EDIT][AUDIT] Ensured supplier category exists with ID: ${supplierCatId}`);
+        if (finalSupplierName) {
+            await findOrCreateWpCategoryByPath(`Proveedores > ${finalSupplierName}`, wpApi, 'product_cat');
+            console.log(`[API EDIT][AUDIT] Ensured supplier category for "${finalSupplierName}" exists.`);
         }
+        wooPayload.categories = productCategoryIds;
         
         const uploadedPhotosMap = new Map<string, number>();
         const newPhotoFiles = Array.from(formData.entries())

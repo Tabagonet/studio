@@ -74,11 +74,12 @@ function EditProductPageContent() {
   
   const { toast } = useToast();
   
-  const updateProductData = useCallback((data: Partial<ProductEditState>) => {
+  const updateProductData = useCallback((data: Partial<ProductEditState> | ((prevState: ProductEditState) => Partial<ProductEditState>)) => {
     setProduct(prev => {
         if (!prev) return null;
-        const newState = { ...prev, ...data };
-        console.log("[EDITOR_AUDIT] State updated. New partial state:", data, "Full new state:", newState);
+        const updates = typeof data === 'function' ? data(prev) : data;
+        const newState = { ...prev, ...updates };
+        console.log("[EDITOR_AUDIT] State updated. New partial state:", updates, "Full new state:", newState);
         return newState;
     });
   }, []);
@@ -199,19 +200,12 @@ function EditProductPageContent() {
     }
 
     console.log("[EDITOR_AUDIT] Preparing to save. Current product state:", product);
+    const sortedImages = [...product.images].sort((a,b) => (a.isPrimary ? -1 : b.isPrimary ? 1 : 0));
+    console.log("[EDITOR_AUDIT] Images sorted for save. Primary first:", sortedImages);
 
     try {
         const token = await user.getIdToken();
         const formData = new FormData();
-        
-        const sortedImages = [...product.images].sort((a, b) => {
-            if (a.isPrimary && !a.toDelete) return -1;
-            if (b.isPrimary && !b.toDelete) return 1;
-            return 0;
-        });
-
-        console.log("[EDITOR_AUDIT] Images sorted for save. Primary first:", sortedImages);
-        
         const payloadForJson = { ...product, images: sortedImages };
 
         formData.append('productData', JSON.stringify(payloadForJson));
@@ -382,8 +376,28 @@ function EditProductPageContent() {
                                     <ComboBox
                                         items={supplierCategories.map(s => ({ value: s.name, label: s.name }))}
                                         selectedValue={product.supplier || ''}
-                                        onSelect={(value) => { updateProductData({ supplier: value, newSupplier: ''}) }}
-                                        onNewItemChange={(value) => { updateProductData({ newSupplier: value, supplier: null })}}
+                                        onSelect={(value) => updateProductData(prev => {
+                                            const newAttributes = [...prev.attributes];
+                                            const supplierAttrIndex = newAttributes.findIndex(a => a.name === 'Proveedor');
+                                            if (supplierAttrIndex > -1) {
+                                                newAttributes[supplierAttrIndex].options = [value];
+                                                newAttributes[supplierAttrIndex].value = value;
+                                            } else {
+                                                newAttributes.push({ name: 'Proveedor', value: value, options: [value], visible: true, forVariations: false });
+                                            }
+                                            return { supplier: value, newSupplier: '', attributes: newAttributes };
+                                        })}
+                                        onNewItemChange={(value) => updateProductData(prev => {
+                                             const newAttributes = [...prev.attributes];
+                                            const supplierAttrIndex = newAttributes.findIndex(a => a.name === 'Proveedor');
+                                            if (supplierAttrIndex > -1) {
+                                                newAttributes[supplierAttrIndex].options = [value];
+                                                newAttributes[supplierAttrIndex].value = value;
+                                            } else {
+                                                newAttributes.push({ name: 'Proveedor', value: value, options: [value], visible: true, forVariations: false });
+                                            }
+                                            return { supplier: null, newSupplier: value, attributes: newAttributes };
+                                        })}
                                         placeholder="Selecciona o crea un proveedor..."
                                         newItemValue={product.newSupplier || ''}
                                         loading={isLoadingCategories}
@@ -450,7 +464,7 @@ function EditProductPageContent() {
               
               <div className="space-y-6">
                   <ProductPreviewCard product={product} categories={wooCategories} />
-                  <Card><CardHeader><CardTitle>Imágenes</CardTitle></CardHeader><CardContent><ImageUploader photos={product.images} onPhotosChange={handlePhotosChange} isProcessing={isSaving}/></CardContent></Card>
+                   <Card><CardHeader><CardTitle>Imágenes</CardTitle></CardHeader><CardContent><ImageUploader photos={product.images} onPhotosChange={handlePhotosChange} isProcessing={isSaving}/></CardContent></Card>
                   <Card>
                       <CardHeader><CardTitle>Envío</CardTitle></CardHeader>
                       <CardContent className="space-y-4">
@@ -467,8 +481,13 @@ function EditProductPageContent() {
                             <ComboBox 
                               items={wooCategories.map(c => ({ value: c.id.toString(), label: c.name.replace(/—/g, '') }))} 
                               selectedValue={product.category_id?.toString() || ''} 
-                              onSelect={(value) => updateProductData({ category_id: Number(value), categoryPath: '' })} 
-                              onNewItemChange={(value) => updateProductData({ category_id: null, categoryPath: value})}
+                              onSelect={(value) => {
+                                  const selectedCat = wooCategories.find(c => c.id.toString() === value);
+                                  updateProductData({ category_id: Number(value), category: selectedCat || null, categoryPath: '' });
+                              }}
+                              onNewItemChange={(value) => {
+                                  updateProductData({ category_id: null, category: null, categoryPath: value });
+                              }}
                               placeholder="Selecciona o crea una categoría..." 
                               loading={isLoadingCategories}
                               newItemValue={product.categoryPath || ''}
@@ -476,7 +495,7 @@ function EditProductPageContent() {
                         </div>
                         <div>
                           <Label htmlFor="tags">Etiquetas (separadas por comas)</Label>
-                          <Input id="tags" name="tags" value={product.tags.join(', ')} onChange={(e) => updateProductData({ tags: e.target.value.split(',').map(t => t.trim()) })} />
+                          <Input id="tags" name="tags" value={product.tags.join(', ')} onChange={(e) => updateProductData({ tags: e.target.value.split(',').map(t => t.trim()).filter(t => t) })} />
                         </div>
                       </CardContent>
                   </Card>
