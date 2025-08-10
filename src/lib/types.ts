@@ -143,7 +143,7 @@ export type HierarchicalBlogPost = BlogPostSearchResult & { subRows: Hierarchica
 
 
 export interface ProductData {
-  id?: number; // Optional ID for edit context
+  id?: number;
   name: string;
   sku: string;
   status: 'publish' | 'draft' | 'pending' | 'private';
@@ -180,8 +180,6 @@ export interface ProductData {
   shouldSaveSku?: boolean;
   groupedProductIds?: number[];
   source?: 'wizard' | 'batch';
-  regular_price?: string; // Kept for compatibility with edit state
-  sale_price?: string; // Kept for compatibility with edit state
   targetLanguages?: string[];
 }
 
