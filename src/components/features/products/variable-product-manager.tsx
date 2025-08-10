@@ -12,12 +12,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import type { ProductVariation, ProductPhoto, ProductEditState, ProductData } from '@/lib/types';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { GitCommitHorizontal, Sparkles, ImageIcon, Trash2 } from 'lucide-react';
+import { GitCommitHorizontal, Sparkles, ImageIcon, Trash2, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Image from 'next/image';
 
 interface VariableProductManagerProps {
-  product: ProductEditState | ProductData;
+  product: ProductEditState | ProductData | null; // Allow null
   onProductChange: (data: Partial<ProductEditState> | Partial<ProductData>) => void;
   images: ProductPhoto[];
 }
@@ -42,6 +42,15 @@ function cartesian(...args: string[][]): string[][] {
 
 export function VariableProductManager({ product, onProductChange, images }: VariableProductManagerProps) {
   const { toast } = useToast();
+
+  // Safety check to prevent runtime errors if product data is not yet loaded.
+  if (!product) {
+    return (
+      <div className="flex justify-center items-center h-24 border rounded-md">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   const handleGenerateVariations = () => {
     const variationAttributes = product.attributes.filter(
@@ -187,7 +196,7 @@ export function VariableProductManager({ product, onProductChange, images }: Var
                                     value={variation.image?.id?.toString() ?? "0"}
                                     onValueChange={(value) => {
                                         const imageId = value === "0" ? null : value.match(/^\d+$/) ? Number(value) : value;
-                                        handleVariationChange(identifier, 'image', { id: imageId });
+                                        handleVariationChange(identifier, 'image', { id: imageId, toDelete: value === "0" });
                                     }}
                                 >
                                     <SelectTrigger>
