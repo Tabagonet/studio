@@ -14,6 +14,7 @@ import { PRODUCT_TYPES, ALL_LANGUAGES } from '@/lib/constants';
 import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { useDebounce } from '@/hooks/use-debounce';
