@@ -16,14 +16,11 @@ interface ProductPreviewCardProps {
 }
 
 export function ProductPreviewCard({ product, categories }: ProductPreviewCardProps) {
-    console.log("[PREVIEW][AUDIT] Rendering ProductPreviewCard with product:", product);
     if (!product) return null;
 
     const primaryPhoto = product.images?.find(p => p.isPrimary && !p.toDelete) || product.images?.find(p => !p.toDelete);
     const previewImageUrl = primaryPhoto?.previewUrl || 'https://placehold.co/128x128.png';
     const categoryName = categories.find(c => c.id === product.category_id)?.name || product.categoryPath || 'Sin categoría';
-    
-    console.log("[PREVIEW][AUDIT] Primary photo found:", primaryPhoto);
 
     return (
         <Card className="sticky top-20">

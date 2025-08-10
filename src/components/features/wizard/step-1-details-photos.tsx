@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
-import { VariableProductManager } from '@/components/features/wizard/variable-product-manager';
+import { VariableProductManager } from '@/components/features/products/variable-product-manager';
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
 import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory, ProductVariationAttribute } from '@/lib/types';
 import { PRODUCT_TYPES, ALL_LANGUAGES } from '@/lib/constants';
@@ -29,9 +29,8 @@ import type { ProductEditState } from '@/app/(app)/products/edit/[id]/page';
 interface Step1DetailsPhotosProps {
   productData: ProductData;
   updateProductData: (data: Partial<ProductData>) => void;
-  onPhotosChange: (photos: ProductPhoto[]) => void;
-  originalProduct?: ProductEditState | null; // Optional: For edit mode
   isProcessing?: boolean;
+  onPhotosChange: (photos: ProductPhoto[]) => void;
 }
 
 const StatusIndicator = ({ status, message }: { status: 'idle' | 'checking' | 'exists' | 'available'; message: string }) => {
@@ -42,7 +41,7 @@ const StatusIndicator = ({ status, message }: { status: 'idle' | 'checking' | 'e
     return <div className={`flex items-center text-xs ${color} mt-1`}><Icon className="h-3 w-3 mr-1" /> {message}</div>;
 };
 
-export function Step1DetailsPhotos({ productData, updateProductData, onPhotosChange, originalProduct = null, isProcessing = false }: Step1DetailsPhotosProps) {
+export function Step1DetailsPhotos({ productData, updateProductData, isProcessing = false, onPhotosChange }: Step1DetailsPhotosProps) {
   const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
   const [supplierCategories, setSupplierCategories] = useState<WooCommerceCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
@@ -66,6 +65,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
   
   useEffect(() => {
     const fetchCategories = async (token: string) => {
+      console.log("[WIZARD][AUDIT] Fetching categories...");
       setIsLoadingCategories(true);
       try {
         const response = await fetch('/api/woocommerce/categories', {
@@ -85,6 +85,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
         
         const regularCategories = data.filter(c => !supplierParentId || (c.id !== supplierParentId && c.parent !== supplierParentId));
         setWooCategories(regularCategories);
+         console.log("[WIZARD][AUDIT] Categories fetched successfully.");
       } catch (error) {
         toast({ title: "Error al Cargar Categorías", description: (error as Error).message, variant: "destructive" });
       } finally {
@@ -121,11 +122,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
         const data = await response.json();
         if (response.ok) {
             if (data.exists) {
-                if (originalProduct && data.product.id === originalProduct.id) {
-                     setStatus({ status: 'available', message: 'Este es el valor actual.' });
-                } else {
-                     setStatus({ status: 'exists', message: data.message });
-                }
+                 setStatus({ status: 'exists', message: data.message });
             } else {
                  setStatus({ status: 'available', message: data.message });
             }
@@ -138,27 +135,27 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
             setStatus({ status: 'idle', message: '' });
         }
     }
-  }, [originalProduct]);
+  }, []);
 
   useEffect(() => {
-    if (!debouncedSku || (originalProduct && debouncedSku === originalProduct.sku)) {
+    if (!debouncedSku) {
       setSkuStatus({ status: 'idle', message: '' });
       return;
     }
     const controller = new AbortController();
     checkProductExistence('sku', debouncedSku, controller.signal);
     return () => controller.abort();
-  }, [debouncedSku, checkProductExistence, originalProduct]);
+  }, [debouncedSku, checkProductExistence]);
 
   useEffect(() => {
-    if (!debouncedName || (originalProduct && debouncedName === originalProduct.name)) {
+    if (!debouncedName) {
       setNameStatus({ status: 'idle', message: '' });
       return;
     }
     const controller = new AbortController();
     checkProductExistence('name', debouncedName, controller.signal);
     return () => controller.abort();
-  }, [debouncedName, checkProductExistence, originalProduct]);
+  }, [debouncedName, checkProductExistence]);
 
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -182,24 +179,26 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
       });
   };
   
-  const handlePhotosWithAutoName = useCallback((newPhotos: ProductPhoto[]) => {
-    // Only update name if it's a new product (no originalProduct) and name is not already set by user
-    if (!originalProduct && !productData.name && newPhotos.length > 0) {
+ const handlePhotosWithAutoName = useCallback((newPhotos: ProductPhoto[]) => {
+    if (!productData.name && newPhotos.length > 0) {
       const firstNewFile = newPhotos.find(p => p && p.file);
       if (firstNewFile) {
         const { extractedProductName } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
-        // Use updateProductData to change both photos and name simultaneously
+        console.log("[WIZARD][AUDIT] Extracted product name from filename:", extractedProductName);
         updateProductData({ photos: newPhotos, name: extractedProductName });
         return;
       }
     }
-    // Otherwise, just call the onPhotosChange from the parent to update photos
     onPhotosChange(newPhotos);
-  }, [originalProduct, productData.name, onPhotosChange, updateProductData]);
+  }, [productData.name, onPhotosChange, updateProductData]);
   
   const handleAttributeChange = (index: number, field: keyof ProductAttribute, value: string | boolean) => {
     const newAttributes = [...productData.attributes];
-    newAttributes[index] = { ...newAttributes[index], [field]: value };
+    const updatedAttr = { ...newAttributes[index], [field]: value };
+    if(field === 'value' && typeof value === 'string') {
+        updatedAttr.options = value.split('|').map(s => s.trim()).filter(Boolean);
+    }
+    newAttributes[index] = updatedAttr;
     updateProductData({ attributes: newAttributes });
   };
 
@@ -469,7 +468,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
                         items={supplierCategories.map(s => ({ value: s.name, label: s.name }))}
                         selectedValue={productData.supplier || ''}
                         onSelect={(value) => updateProductData({ supplier: value, newSupplier: '' })}
-                        onNewItemChange={(value) => updateProductData({ newSupplier: value, supplier: '' })}
+                        onNewItemChange={(value) => updateProductData({ newSupplier: value, supplier: null})}
                         placeholder="Selecciona o crea un proveedor..."
                         newItemValue={productData.newSupplier || ''}
                         loading={isLoadingCategories}
@@ -490,10 +489,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
                        <ComboBox
                             items={wooCategories.map(c => ({ value: c.id.toString(), label: c.name.replace(/—/g, '') }))}
                             selectedValue={productData.category_id?.toString() || ''}
-                            onSelect={(value) => {
-                                updateProductData({ category_id: Number(value), categoryPath: '' });
-                            }}
-                            onNewItemChange={(value) => updateProductData({ category_id: null, categoryPath: value })}
+                            onSelect={(value) => updateProductData({ category_id: Number(value), categoryPath: '', category: wooCategories.find(c => c.id === Number(value)) || null })}
+                            onNewItemChange={(value) => updateProductData({ category_id: null, categoryPath: value, category: null })}
                             placeholder="Selecciona o crea una categoría..."
                             newItemValue={productData.categoryPath || ''}
                             loading={isLoadingCategories}
@@ -546,8 +543,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
                   {productData.productType === 'variable' && (
                       <div className="border-t pt-6 mt-6">
                         <VariableProductManager 
-                            productData={productData} 
-                            updateProductData={updateProductData}
+                            product={productData} 
+                            onProductChange={updateProductData}
                             images={productData.photos}
                         />
                       </div>

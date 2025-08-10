@@ -27,7 +27,7 @@ export function Step2Preview({ productData }: Step2PreviewProps) {
   
   const tagList = Array.isArray(tags) ? tags : [];
 
-  const categoryName = category?.name || categoryPath || 'No especificada';
+  const categoryName = productData.category?.name || productData.categoryPath || 'No especificada';
 
   return (
     <div className="space-y-8">

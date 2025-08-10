@@ -33,6 +33,10 @@ export function ProductWizard() {
     setProductData(prev => ({ ...prev, ...data }));
   }, []);
   
+  const handlePhotosChange = useCallback((photos: ProductPhoto[]) => {
+      updateProductData({ photos });
+  }, [updateProductData]);
+
   const updateStepStatus = (id: string, status: SubmissionStep['status'], error?: string, progress?: number) => {
     setSteps(prevSteps => 
       prevSteps.map(step => 
@@ -130,7 +134,7 @@ export function ProductWizard() {
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} onPhotosChange={(photos) => updateProductData({ photos })} />;
+        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} onPhotosChange={handlePhotosChange} />;
       case 2:
         return <Step2Preview productData={productData} />;
       case 3:
@@ -138,7 +142,7 @@ export function ProductWizard() {
       case 4:
         return <Step4Processing status={submissionStatus} steps={steps} />;
       default:
-        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} onPhotosChange={(photos) => updateProductData({ photos })} />;
+        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} onPhotosChange={handlePhotosChange} />;
     }
   };
   
