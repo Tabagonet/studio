@@ -1,4 +1,3 @@
-
 // src/components/features/products/variation-editor.tsx
 
 "use client";
