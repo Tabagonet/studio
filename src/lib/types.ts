@@ -146,6 +146,7 @@ export interface ProductData {
   id?: number; // Optional ID for edit context
   name: string;
   sku: string;
+  status: 'publish' | 'draft' | 'pending' | 'private';
   supplier?: string | null; 
   newSupplier?: string;
   productType: ProductType;
@@ -153,7 +154,6 @@ export interface ProductData {
   salePrice: string;
   shortDescription: string;
   longDescription: string;
-  status: 'publish' | 'draft' | 'pending' | 'private';
   tags: string[];
   category_id?: number | null;
   category?: WooCommerceCategory | null;
@@ -230,6 +230,7 @@ export interface SubmissionStep {
   name: string;
   status: SubmissionStepStatus;
   progress?: number;
+  message?: string;
   error?: string;
 }
 
