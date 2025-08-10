@@ -1,4 +1,3 @@
-
 // src/app/(app)/wizard/step-1-details-photos.tsx
 "use client";
 
@@ -30,7 +29,7 @@ import type { ProductEditState } from '@/app/(app)/products/edit/[id]/page';
 interface Step1DetailsPhotosProps {
   productData: ProductData;
   updateProductData: (data: Partial<ProductData>) => void;
-  onPhotosChange?: (photos: ProductPhoto[]) => void;
+  onPhotosChange: (photos: ProductPhoto[]) => void;
   originalProduct?: ProductEditState | null; // Optional: For edit mode
   isProcessing?: boolean;
 }
@@ -65,18 +64,6 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
   const debouncedSku = useDebounce(productData.sku, 500);
   const debouncedName = useDebounce(productData.name, 500);
   
-  const handlePhotosChangeCallback = onPhotosChange || ((newPhotos: ProductPhoto[]) => {
-      if (!productData.name && newPhotos.length > 0) {
-        const firstNewFile = newPhotos.find(p => p && p.file);
-        if (firstNewFile) {
-          const { extractedProductName } = extractProductNameAndAttributesFromFilename(firstNewFile.name);
-          updateProductData({ photos: newPhotos, name: extractedProductName });
-          return;
-        }
-      }
-      updateProductData({ photos: newPhotos });
-  });
-
   useEffect(() => {
     const fetchCategories = async (token: string) => {
       setIsLoadingCategories(true);
@@ -487,12 +474,11 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
                       <Label htmlFor="category">Categoría</Label>
                        <ComboBox
                             items={wooCategories.map(c => ({ value: c.id.toString(), label: c.name.replace(/—/g, '') }))}
-                            selectedValue={productData.category?.id?.toString() || ''}
+                            selectedValue={productData.category_id?.toString() || ''}
                             onSelect={(value) => {
-                                const selectedCat = wooCategories.find(c => c.id.toString() === value);
-                                updateProductData({ category: selectedCat || null, categoryPath: '' });
+                                updateProductData({ category_id: Number(value), categoryPath: '' });
                             }}
-                            onNewItemChange={(value) => updateProductData({ category: null, categoryPath: value })}
+                            onNewItemChange={(value) => updateProductData({ category_id: null, categoryPath: value })}
                             placeholder="Selecciona o crea una categoría..."
                             newItemValue={productData.categoryPath || ''}
                             loading={isLoadingCategories}
@@ -503,12 +489,12 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t pt-6">
                       <div>
                         <Label htmlFor="regularPrice">Precio Regular (€)</Label>
-                        <Input id="regularPrice" name="regularPrice" type="number" value={productData.regularPrice} onChange={handleInputChange} placeholder="Ej: 29.99" disabled={isProcessing} />
+                        <Input id="regularPrice" name="regularPrice" type="number" value={productData.regular_price} onChange={handleInputChange} placeholder="Ej: 29.99" disabled={isProcessing} />
                         {productData.productType === 'variable' && <p className="text-xs text-muted-foreground mt-1">Este será el precio por defecto para las nuevas variaciones.</p>}
                       </div>
                       <div>
                         <Label htmlFor="salePrice">Precio de Oferta (€)</Label>
-                        <Input id="salePrice" name="salePrice" type="number" value={productData.salePrice} onChange={handleInputChange} placeholder="Opcional" disabled={isProcessing} />
+                        <Input id="salePrice" name="sale_price" type="number" value={productData.sale_price} onChange={handleInputChange} placeholder="Opcional" disabled={isProcessing} />
                       </div>
                     </div>
                   )}
@@ -550,7 +536,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
                       <div className="border-t pt-6 mt-6 space-y-4">
                           <h3 className="text-lg font-medium">Inventario y Envío</h3>
                           <div className="flex items-center space-x-2"><Checkbox id="manage_stock" checked={productData.manage_stock} onCheckedChange={(checked) => updateProductData({ manage_stock: !!checked })} disabled={isProcessing} /><Label htmlFor="manage_stock" className="text-sm font-normal">Gestionar inventario a nivel de producto</Label></div>
-                          {productData.manage_stock && (<div><Label htmlFor="stockQuantity">Cantidad en Stock</Label><Input id="stockQuantity" name="stockQuantity" type="number" value={productData.stockQuantity} onChange={handleInputChange} placeholder="Ej: 100" disabled={isProcessing} /></div>)}
+                          {productData.manage_stock && (<div><Label htmlFor="stockQuantity">Cantidad en Stock</Label><Input id="stockQuantity" name="stock_quantity" type="number" value={productData.stock_quantity} onChange={handleInputChange} placeholder="Ej: 100" disabled={isProcessing} /></div>)}
                           <div><Label htmlFor="weight">Peso (kg)</Label><Input id="weight" name="weight" type="number" value={productData.weight} onChange={handleInputChange} placeholder="Ej: 0.5" disabled={isProcessing} /></div>
                           <div><Label>Dimensiones (cm)</Label><div className="grid grid-cols-3 gap-2"><Input name="length" value={productData.dimensions?.length} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), length: e.target.value } as any })} placeholder="Largo" disabled={isProcessing} /><Input name="width" value={productData.dimensions?.width} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), width: e.target.value } as any })} placeholder="Ancho" disabled={isProcessing} /><Input name="height" value={productData.dimensions?.height} onChange={(e) => updateProductData({ dimensions: { ...(productData.dimensions || {}), height: e.target.value } as any })} placeholder="Alto" disabled={isProcessing} /></div></div>
                           <div><Label htmlFor="shipping_class">Clase de envío</Label><Input id="shipping_class" name="shipping_class" value={productData.shipping_class} onChange={handleInputChange} placeholder="Introduce el slug de la clase de envío" disabled={isProcessing} /><p className="text-xs text-muted-foreground mt-1">Encuentra el slug en WooCommerce &gt; Ajustes &gt; Envío &gt; Clases de envío.</p></div>
@@ -562,7 +548,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
 
               <Card><CardHeader><CardTitle>Descripciones y Etiquetas</CardTitle><CardDescription>Esta información es clave para el SEO y para informar a tus clientes.</CardDescription></CardHeader>
                 <CardContent className="space-y-6">
-                   <div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={productData.tags} onChange={handleInputChange} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing || isGenerating} /><p className="text-xs text-muted-foreground mt-1">Ayudan a la IA y al SEO de tu producto.</p></div>
+                   <div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={productData.tags.join(', ')} onChange={e => updateProductData({ tags: e.target.value.split(',').map(t => t.trim()) })} placeholder="Ej: camiseta, algodón, verano, casual" disabled={isProcessing || isGenerating} /><p className="text-xs text-muted-foreground mt-1">Ayudan a la IA y al SEO de tu producto.</p></div>
                   <div className="pt-2"><Button onClick={handleGenerateContentWithAI} disabled={isProcessing || isGenerating || !productData.name} className="w-full sm:w-auto">{isGenerating ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGenerating ? "Generando..." : "Generar Contenido con IA"}</Button>{!productData.name && <p className="text-xs text-destructive mt-1">Introduce un nombre de producto para activar la IA.</p>}</div>
                   <div className="border-t pt-6 space-y-6">
                     <div><Label htmlFor="shortDescription">Descripción Corta</Label><RichTextEditor content={productData.shortDescription} onChange={handleShortDescriptionChange} onInsertImage={() => setIsImageDialogOpen(true)} onSuggestLinks={handleSuggestLinks} placeholder="Un resumen atractivo y conciso de tu producto..." size="small"/></div>
@@ -574,7 +560,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, onPhotosCha
           <div className="lg:col-span-1 space-y-8">
               <Card>
                 <CardHeader><CardTitle>Imágenes del Producto</CardTitle><CardDescription>Sube las imágenes para tu producto. La primera se usará como principal.</CardDescription></CardHeader>
-                <CardContent className="space-y-4"><ImageUploader photos={productData.photos} onPhotosChange={handlePhotosChangeCallback} isProcessing={isProcessing || isGenerating} maxPhotos={15} /><Button onClick={handleGenerateImageMetadata} disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} className="w-full" variant="outline">{isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}</Button></CardContent>
+                <CardContent className="space-y-4"><ImageUploader photos={productData.photos} onPhotosChange={onPhotosChange} isProcessing={isProcessing || isGenerating} maxPhotos={15} /><Button onClick={handleGenerateImageMetadata} disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} className="w-full" variant="outline">{isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}</Button></CardContent>
               </Card>
 
               <Card>
