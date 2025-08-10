@@ -410,6 +410,7 @@ export default function BatchProcessPage() {
                 const payload: Partial<ProductData> = {
                     name: pData.name, sku: pData.sku, shouldSaveSku: saveSkuInWoo,
                     productType: pData.productType,
+                    status: pData.status,
                     regularPrice: pData.regularPrice, salePrice: pData.salePrice, 
                     manage_stock: pData.manage_stock,
                     stockQuantity: pData.stockQuantity,
@@ -461,6 +462,7 @@ export default function BatchProcessPage() {
             const originalProductData: ProductData = {
                 name: aiContent.name, // Use AI-generated name
                 sku: product.id, productType: product.csvData.tipo || 'simple',
+                status: 'draft',
                 regularPrice: product.csvData.precio_regular || '', salePrice: product.csvData.precio_oferta || '',
                 manage_stock: product.csvData.gestionar_stock === '1',
                 stockQuantity: product.csvData.stock_inicial || '',
@@ -515,6 +517,7 @@ export default function BatchProcessPage() {
                 const createTranslatedResponse = await fetch('/api/woocommerce/products', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(translatedApiPayload) });
                 if (!createTranslatedResponse.ok) throw new Error(`Error creando producto en ${lang}: ${await createTranslatedResponse.text()}`);
                 const translatedResult = await createTranslatedResponse.json();
+                createdPostUrls.push({ url: translatedResult.data.url, title: translatedResult.data.title });
                 allTranslations[targetLangInfo.slug] = translatedResult.data.id;
                 langProgress++;
             }
