@@ -318,7 +318,7 @@ function EditPageContent() {
         toast({ title: 'Falta la imagen', description: 'Por favor, sube un archivo o introduce una URL.', variant: 'destructive' }); return;
     }
     const imgTag = `<img src="${finalImageUrl}" alt="${product?.name || 'Imagen insertada'}" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px;" />`;
-    updateProductData({ description: (product?.longDescription || '') + `\n${imgTag}` });
+    updateProductData({ longDescription: (product?.longDescription || '') + `\n${imgTag}` });
     setImageUrl(''); setImageFile(null); setIsImageDialogOpen(false);
   };
   
@@ -576,4 +576,3 @@ export default function EditProductPage() {
         </Suspense>
     )
 }
-```

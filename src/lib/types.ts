@@ -144,14 +144,29 @@ export type HierarchicalBlogPost = BlogPostSearchResult & { subRows: Hierarchica
 
 export interface ProductData {
   id?: number; // Optional ID for edit context
-  sku: string;
-  shouldSaveSku?: boolean;
   name: string;
+  sku: string;
   supplier?: string | null; 
   newSupplier?: string;
   productType: ProductType;
   regularPrice: string;
   salePrice: string;
+  shortDescription: string;
+  longDescription: string;
+  status: 'publish' | 'draft' | 'pending' | 'private';
+  tags: string[];
+  category_id?: number | null;
+  category?: WooCommerceCategory | null;
+  categoryPath?: string;
+  photos: ProductPhoto[];
+  variations?: ProductVariation[];
+  attributes: ProductAttribute[];
+  // Metadata for any new images being uploaded
+  imageTitle?: string;
+  imageAltText?: string;
+  imageCaption?: string;
+  imageDescription?: string;
+  // Inventory and shipping
   manage_stock: boolean;
   stockQuantity: string;
   weight?: string;
@@ -161,26 +176,13 @@ export interface ProductData {
     height: string;
   };
   shipping_class: string;
-  category: WooCommerceCategory | null;
-  category_id?: number | null;
-  categoryPath?: string;
-  tags: string[];
-  shortDescription: string;
-  longDescription: string;
-  attributes: ProductAttribute[];
-  photos: ProductPhoto[];
-  variations?: ProductVariation[];
-  groupedProductIds?: number[];
   language: 'Spanish' | 'English' | 'French' | 'German' | 'Portuguese';
-  targetLanguages?: string[];
-  imageTitle?: string;
-  imageAltText?: string;
-  imageCaption?: string;
-  imageDescription?: string;
+  shouldSaveSku?: boolean;
+  groupedProductIds?: number[];
   source?: 'wizard' | 'batch';
-  status?: 'publish' | 'draft' | 'pending' | 'private';
   regular_price?: string; // Kept for compatibility with edit state
   sale_price?: string; // Kept for compatibility with edit state
+  targetLanguages?: string[];
 }
 
 export interface ProductSearchResult {
