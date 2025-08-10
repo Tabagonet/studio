@@ -1,4 +1,3 @@
-
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -159,16 +158,21 @@ function EditPageContent() {
         const token = await user.getIdToken();
         const formData = new FormData();
         
-        const productPayloadForUpdate = {
-          ...product,
-          photos: product.photos.map(p => ({ id: p.id, toDelete: p.toDelete })),
+        const { photos, ...restOfProductData } = product;
+
+        const payloadForJson = {
+            ...restOfProductData,
+            photos: photos.map(p => ({
+                id: p.id,
+                toDelete: p.toDelete,
+            })),
         };
-        formData.append('productData', JSON.stringify(productPayloadForUpdate));
         
-        const newPhotoFiles = product.photos.filter(p => p.file);
-        newPhotoFiles.forEach(photo => {
+        formData.append('productData', JSON.stringify(payloadForJson));
+        
+        product.photos.forEach(photo => {
             if (photo.file) {
-                formData.append(photo.id.toString(), photo.file);
+                formData.append(photo.id.toString(), photo.file, photo.name);
             }
         });
         
