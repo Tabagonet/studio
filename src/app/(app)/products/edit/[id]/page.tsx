@@ -1,3 +1,4 @@
+
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -77,6 +78,10 @@ function EditProductPageContent() {
     setProduct(prev => (prev ? { ...prev, ...data } : null));
   }, []);
   
+  const handlePhotosChange = useCallback((updatedPhotos: ProductPhoto[]) => {
+      updateProductData({ images: updatedPhotos });
+  }, [updateProductData]);
+
   const fetchInitialData = useCallback(async () => {
       setIsLoading(true);
       setError(null);
@@ -130,15 +135,15 @@ function EditProductPageContent() {
             return supplierParent ? c.parent !== supplierParent.id : true;
         });
 
-        const formattedAttributes = (productData.attributes || []).filter((a: any) => a.name !== 'Proveedor').map((attr: any): ProductAttribute => ({
+        const formattedAttributes = (productData.attributes || []).map((attr: any): ProductAttribute => ({
             id: attr.id,
             name: attr.name,
             value: (attr.options || []).join(' | '),
             options: (attr.options || []).map(String),
             position: attr.position,
             visible: attr.visible,
-            forVariations: attr.variation,
-            variation: attr.variation,
+            forVariations: attr.variation || false,
+            variation: attr.variation || false,
         }));
 
         setProduct({
@@ -425,7 +430,7 @@ function EditProductPageContent() {
               <div className="space-y-6">
                   <ProductPreviewCard product={product} categories={wooCategories} />
                   <Card><CardHeader><CardTitle>Organización</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="category_id">Categoría</Label><ComboBox items={wooCategories.map(c => ({ value: c.id.toString(), label: c.name.replace(/—/g, '') }))} selectedValue={product.category_id?.toString() || ''} onSelect={(value) => updateProductData({ category_id: Number(value), categoryPath: ''})} onNewItemChange={(value) => updateProductData({ category_id: null, categoryPath: value})} placeholder="Selecciona o crea una categoría..." loading={isLoadingCategories} newItemValue={product.categoryPath || ''}/></div><div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={product.tags.join(', ')} onChange={(e) => updateProductData({ tags: e.target.value.split(',').map(t => t.trim()) })} /></div></CardContent></Card>
-                   <Card><CardHeader><CardTitle>Imágenes</CardTitle></CardHeader><CardContent><ImageUploader photos={product.images} onPhotosChange={(p) => updateProductData({ images: p })} isProcessing={isSaving}/></CardContent></Card>
+                   <Card><CardHeader><CardTitle>Imágenes</CardTitle></CardHeader><CardContent><ImageUploader photos={product.images} onPhotosChange={handlePhotosChange} isProcessing={isSaving}/></CardContent></Card>
                    <Card><CardHeader><CardTitle className="text-destructive">Zona de Peligro</CardTitle></CardHeader><CardContent><AlertDialog><AlertDialogTrigger asChild><Button variant="destructive" className="w-full" disabled={isDeleting}><Trash2 className="mr-2 h-4 w-4" /> Eliminar Producto</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente este producto.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></CardContent></Card>
               </div>
           </div>
@@ -441,5 +446,3 @@ export default function EditProductPage() {
         </Suspense>
     )
 }
-
-    
