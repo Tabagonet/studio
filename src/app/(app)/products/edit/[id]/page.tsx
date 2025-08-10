@@ -1,4 +1,3 @@
-
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -7,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, Save, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { auth } from '@/lib/firebase';
+import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { WooCommerceCategory, ProductPhoto, ProductVariation, ProductAttribute } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -58,7 +57,7 @@ export interface ProductEditState {
     imageDescription?: string;
 }
 
-function EditPageContent() {
+function EditProductPageContent() {
   const params = useParams();
   const router = useRouter();
   const productId = Number(params.id);
@@ -76,22 +75,18 @@ function EditPageContent() {
   const { toast } = useToast();
 
   const updateProductData = useCallback((data: Partial<ProductEditState>) => {
-    console.log("[EDITOR][AUDIT] Updating product state with:", data);
     setProduct(prev => {
         if (!prev) return null;
         const newState = { ...prev, ...data };
-        console.log("[EDITOR][AUDIT] New product state:", newState);
         return newState;
     });
   }, []);
   
   const handlePhotosChange = useCallback((updatedPhotos: ProductPhoto[]) => {
-      console.log("[EDITOR][AUDIT] handlePhotosChange called with:", updatedPhotos);
       updateProductData({ images: updatedPhotos });
   }, [updateProductData]);
 
   const fetchInitialData = useCallback(async () => {
-      console.log("[EDITOR][AUDIT] fetchInitialData triggered for product ID:", productId);
       setIsLoading(true);
       setError(null);
       const user = auth.currentUser;
@@ -104,7 +99,6 @@ function EditPageContent() {
       try {
         const token = await user.getIdToken();
         
-        console.log("[EDITOR][AUDIT] Fetching product and category data...");
         const [productResponse, categoriesResponse] = await Promise.all([
           fetch(`/api/woocommerce/products/${productId}`, { headers: { 'Authorization': `Bearer ${token}` } }),
           fetch('/api/woocommerce/categories', { headers: { 'Authorization': `Bearer ${token}` } }),
@@ -115,7 +109,6 @@ function EditPageContent() {
           throw new Error(errorData.error || 'Failed to fetch product data.');
         }
         const productData = await productResponse.json();
-        console.log(`[EDITOR][AUDIT] Raw product data from API:`, productData);
         
         let fetchedCategories: WooCommerceCategory[] = [];
         if (categoriesResponse.ok) {
@@ -182,7 +175,6 @@ function EditPageContent() {
           attributes: formattedAttributes,
         };
         
-        console.log("[EDITOR][AUDIT] Setting final product state:", finalProductState);
         setProduct(finalProductState);
 
       } catch (e: any) {
@@ -194,7 +186,6 @@ function EditPageContent() {
     }, [productId, toast]);
     
   const handleSaveChanges = async () => {
-    console.log("[EDITOR][AUDIT] handleSaveChanges triggered.");
     setIsSaving(true);
     const user = auth.currentUser;
     if (!user || !product) {
@@ -208,24 +199,18 @@ function EditPageContent() {
         const formData = new FormData();
         
         const sortedImages = [...product.images].sort((a, b) => {
-            if (a.isPrimary && !b.isPrimary) return -1;
-            if (!a.isPrimary && b.isPrimary) return 1;
+            if (a.isPrimary) return -1;
+            if (b.isPrimary) return 1;
             return 0;
         });
         
-        const payloadForJson = {
-          ...product,
-          images: sortedImages
-        };
+        const payloadForJson = { ...product, images: sortedImages };
 
-        console.log("[EDITOR][AUDIT] Payload to be sent as JSON:", payloadForJson);
         formData.append('productData', JSON.stringify(payloadForJson));
         
         const newPhotoFiles = product.images.filter(p => p.file && !p.toDelete);
-        console.log(`[EDITOR][AUDIT] Found ${newPhotoFiles.length} new files to upload.`);
         newPhotoFiles.forEach(photo => {
             if (photo.file) {
-                 console.log(`[EDITOR][AUDIT] Appending new photo to FormData: ${photo.name} with key ${photo.id}`);
                  formData.append(photo.id.toString(), photo.file, photo.name);
             }
         });
@@ -245,7 +230,6 @@ function EditPageContent() {
         fetchInitialData(); 
 
     } catch (e: any) {
-        console.error('[EDITOR][AUDIT] Error saving product:', e.message, e.response?.data);
         toast({ title: 'Error al Guardar', description: e.message, variant: 'destructive' });
     } finally {
         setIsSaving(false);
@@ -341,6 +325,16 @@ function EditPageContent() {
         <div className="container mx-auto py-8"><Alert variant="destructive"><AlertTitle>Error al Cargar</AlertTitle><AlertDescription>{error || "No se pudo cargar la información del producto."}</AlertDescription><Button variant="outline" onClick={() => router.push('/batch')} className="mt-4"><ArrowLeft className="mr-2 h-4 w-4" />Volver a la lista</Button></Alert></div>
      );
   }
+
+  const handleShortDescriptionChange = (newContent: string) => {
+    if (!product) return;
+    updateProductData({ short_description: newContent });
+  };
+
+  const handleLongDescriptionChange = (newContent: string) => {
+    if (!product) return;
+    updateProductData({ description: newContent });
+  };
 
   return (
     <>
@@ -445,7 +439,19 @@ function EditPageContent() {
                   
                    <Card><CardHeader><CardTitle>Descripciones</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="short_description">Descripción Corta</Label><RichTextEditor content={product.short_description} onChange={handleShortDescriptionChange} onInsertImage={() => {}} placeholder="Escribe la descripción corta aquí..." size="small"/></div><div><Label htmlFor="description">Descripción Larga</Label><RichTextEditor content={product.description} onChange={handleLongDescriptionChange} onInsertImage={() => {}} placeholder="Escribe la descripción larga aquí..." /></div></CardContent></Card>
                    <Card><CardHeader><CardTitle>Envío</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="weight">Peso (kg)</Label><Input id="weight" name="weight" type="number" value={product.weight} onChange={handleInputChange} /></div><div><Label>Dimensiones (cm)</Label><div className="grid grid-cols-3 gap-2"><Input value={product.dimensions.length} onChange={(e) => handleDimensionChange('length', e.target.value)} placeholder="Largo" /><Input value={product.dimensions.width} onChange={(e) => handleDimensionChange('width', e.target.value)} placeholder="Ancho" /><Input value={product.dimensions.height} onChange={(e) => handleDimensionChange('height', e.target.value)} placeholder="Alto" /></div></div><div><Label htmlFor="shipping_class">Clase de envío (slug)</Label><Input id="shipping_class" name="shipping_class" value={product.shipping_class} onChange={handleInputChange} /></div></CardContent></Card>
-                   <Card><CardHeader><CardTitle>Organización</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="category_id">Categoría</Label><ComboBox items={wooCategories.map(c => ({ value: c.id.toString(), label: c.name.replace(/—/g, '') }))} selectedValue={product.category_id?.toString() || ''} onSelect={(value) => updateProductData({ category_id: Number(value), category: wooCategories.find(c => c.id === Number(value)) || null, categoryPath: '' })} onNewItemChange={(value) => updateProductData({ category_id: null, category: null, categoryPath: value})} placeholder="Selecciona o crea una categoría..." loading={isLoadingCategories} newItemValue={product.categoryPath || ''}/></div><div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={product.tags.join(', ')} onChange={(e) => updateProductData({ tags: e.target.value.split(',').map(t => t.trim()) })} /></div></CardContent></Card>
+                  <Card>
+                      <CardHeader><CardTitle>Organización</CardTitle></CardHeader>
+                      <CardContent className="space-y-4">
+                        <div>
+                            <Label htmlFor="category_id">Categoría</Label>
+                            <ComboBox items={wooCategories.map(c => ({ value: c.id.toString(), label: c.name.replace(/—/g, '') }))} selectedValue={product.category_id?.toString() || ''} onSelect={(value) => updateProductData({ category_id: Number(value), categoryPath: '' })} onNewItemChange={(value) => updateProductData({ category_id: null, categoryPath: value})} placeholder="Selecciona o crea una categoría..." loading={isLoadingCategories} newItemValue={product.categoryPath || ''}/>
+                        </div>
+                        <div>
+                          <Label htmlFor="tags">Etiquetas (separadas por comas)</Label>
+                          <Input id="tags" name="tags" value={product.tags.join(', ')} onChange={(e) => updateProductData({ tags: e.target.value.split(',').map(t => t.trim()) })} />
+                        </div>
+                      </CardContent>
+                  </Card>
               </div>
               
               <div className="space-y-6">
@@ -462,7 +468,7 @@ function EditPageContent() {
 export default function EditProductPage() {
     return (
         <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}>
-            <EditPageContent />
+            <EditProductPageContent />
         </Suspense>
     )
 }
