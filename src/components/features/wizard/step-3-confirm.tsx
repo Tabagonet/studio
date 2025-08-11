@@ -1,8 +1,10 @@
 
+// src/app/(app)/wizard/step-3-confirm.tsx
+import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProductData } from "@/lib/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { FileUp, ListChecks, Rocket } from "lucide-react";
+import { ListChecks, Rocket } from "lucide-react";
 
 interface Step3ConfirmProps {
   productData: ProductData;
@@ -11,6 +13,7 @@ interface Step3ConfirmProps {
 export function Step3Confirm({ productData }: Step3ConfirmProps) {
   const photosToUploadCount = productData.photos.filter(p => p.status === 'pending').length;
   const validAttributesCount = productData.attributes.filter(a => a.name && a.name.trim() !== '').length;
+  const categoryName = productData.category?.name || productData.categoryPath || 'No especificada';
 
   return (
     <div className="space-y-8">
@@ -48,15 +51,13 @@ export function Step3Confirm({ productData }: Step3ConfirmProps) {
             <p><span className="font-semibold">Nombre:</span> {productData.name || "N/A"}</p>
             <p><span className="font-semibold">SKU:</span> {productData.sku || "N/A"}</p>
             <p><span className="font-semibold">Precio Regular:</span> {productData.regularPrice ? `${productData.regularPrice}€` : "N/A"}</p>
-            <p><span className="font-semibold">Categoría:</span> {productData.category?.name || "N/A"}</p>
+            <p><span className="font-semibold">Categoría:</span> {categoryName}</p>
             <p><span className="font-semibold">Atributos:</span> {validAttributesCount}</p>
             <p><span className="font-semibold">Imágenes:</span> {productData.photos.length}</p>
-            <p><span className="font-semibold">Etiquetas:</span> {productData.tags || "Ninguna"}</p>
+            <p><span className="font-semibold">Etiquetas:</span> {productData.tags.join(', ') || "Ninguna"}</p>
         </CardContent>
       </Card>
       
     </div>
   );
 }
-
-    

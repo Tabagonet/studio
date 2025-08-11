@@ -1,3 +1,4 @@
+
 // src/app/(app)/wizard/step-2-preview.tsx
 
 "use client";
@@ -10,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Package, ImageIcon } from "lucide-react";
+import { Package, Image as ImageIcon } from "lucide-react";
 
 interface Step2PreviewProps {
   productData: ProductData;

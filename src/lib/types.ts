@@ -1,3 +1,4 @@
+
 // src/lib/types.ts
       
 import type { LucideIcon } from 'lucide-react';
@@ -228,7 +229,6 @@ export interface SubmissionStep {
   name: string;
   status: SubmissionStepStatus;
   progress?: number;
-  message?: string;
   error?: string;
 }
 

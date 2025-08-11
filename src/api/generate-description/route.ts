@@ -46,7 +46,7 @@ Generate a JSON object with the following keys.
 a.  **"name":** Create a new, SEO-friendly product title in {{language}}. It MUST start with the "Base Name" and should be intelligently expanded using the "Descriptive Context" to make it more appealing and searchable.
 b.  **"shortDescription":** A concise and engaging summary in {{language}}, relevant to the newly generated name.
 c.  **"longDescription":** A detailed description in {{language}}, relevant to the newly generated name. Use HTML tags like <strong>, <em>, and <br> for formatting.
-d.  **"tags":** A comma-separated list of 5-10 relevant SEO keywords/tags in English.
+d.  **"tags":** An array of 5 to 10 relevant SEO keywords/tags in English.
 e.  **"imageTitle":** A concise, SEO-friendly title for product images.
 f.  **"imageAltText":** A descriptive alt text for SEO.
 g.  **"imageCaption":** An engaging caption for the image.
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
         productName: z.string().min(1),
         productType: z.string(),
         categoryName: z.string().optional(),
-        tags: z.array(z.string()).optional(), 
+        tags: z.string().optional(), // Expect a comma-separated string from the client now
         language: z.enum(['Spanish', 'English', 'French', 'German', 'Portuguese']).default('Spanish'),
         groupedProductIds: z.array(z.number()).optional(),
         mode: z.enum(['full_product', 'image_meta_only']).default('full_product'),
@@ -148,7 +148,8 @@ export async function POST(req: NextRequest) {
     const cleanedCategoryName = clientInput.categoryName ? clientInput.categoryName.replace(/—/g, '').trim() : '';
 
     const template = Handlebars.compile(promptTemplate, { noEscape: true });
-    const templateData = { ...clientInput, tags: (clientInput.tags || []).join(', '), categoryName: cleanedCategoryName, groupedProductsList };
+    // Use the string directly as it comes from the client now
+    const templateData = { ...clientInput, categoryName: cleanedCategoryName, tags: clientInput.tags || '', groupedProductsList };
     const finalPrompt = template(templateData);
     
     const result = await model.generateContent(finalPrompt);
