@@ -269,7 +269,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             name: aiContent.name,
             shortDescription: aiContent.shortDescription,
             longDescription: aiContent.longDescription,
-            tags: aiContent.tags.split(',').map((t: string) => t.trim()),
+            tags: Array.isArray(aiContent.tags) ? aiContent.tags : [],
             imageTitle: aiContent.imageTitle,
             imageAltText: aiContent.imageAltText,
             imageCaption: aiContent.imageCaption,
@@ -297,7 +297,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const token = await user.getIdToken();
         const payload = {
             productName: productData.name, productType: productData.productType,
-            tags: productData.tags.join(','),
+            tags: productData.tags,
             language: productData.language, mode: 'image_meta_only',
         };
         const response = await fetch('/api/generate-description', {
