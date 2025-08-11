@@ -178,7 +178,6 @@ function EditPageContent() {
         const token = await user.getIdToken();
         const formData = new FormData();
 
-        // This is the corrected payload. It now includes all relevant fields from the product state.
         const payloadForJson = {
             name: product.name,
             sku: product.sku,
@@ -470,7 +469,7 @@ function EditPageContent() {
         const token = await user.getIdToken();
         const payload = {
             productName: product.name, productType: product.productType,
-            tags: product.tags.join(', '),
+            tags: product.tags.join(','),
             language: 'Spanish', mode: 'image_meta_only',
         };
         const response = await fetch('/api/generate-description', {
@@ -705,3 +704,5 @@ export default function EditProductPage() {
         </Suspense>
     )
 }
+
+    
