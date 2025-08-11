@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
         const promptsRef = adminDb.collection(collectionName).doc(entityId).collection('prompts').doc(connectionKey);
         const promptDoc = await promptsRef.get();
         
-        const prompt = promptDoc.exists() 
+        const prompt = promptDoc.exists
             ? promptDoc.data()?.prompts?.[promptKey]
             : PROMPT_DEFAULTS[promptKey as keyof typeof PROMPT_DEFAULTS]?.default || '';
         
