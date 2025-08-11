@@ -5,7 +5,7 @@ import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import Handlebars from 'handlebars';
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getApiClientsForUser, getPromptForConnection } from '@/lib/api-helpers';
+import { getApiClientsForUser, getPromptForConnection, getEntityRef } from '@/lib/api-helpers';
 
 
 const languageCodeToName: Record<string, string> = {
@@ -41,7 +41,8 @@ const CREDIT_COSTS: Record<string, number> = {
     enhance_title: 1,
 };
 
-async function getEntityRef(uid: string, cost: number): Promise<[FirebaseFirestore.DocumentReference, number]> {
+// This getEntityRef is now specific to this route's credit logic.
+async function getCreditEntityRef(uid: string, cost: number): Promise<[FirebaseFirestore.DocumentReference, number]> {
     if (!adminDb) throw new Error("Firestore not configured.");
 
     const userDoc = await adminDb.collection('users').doc(uid).get();
@@ -81,7 +82,8 @@ export async function POST(req: NextRequest) {
         const cost = CREDIT_COSTS[input.mode] || 1;
         
         const { activeConnectionKey } = await getApiClientsForUser(uid);
-        
+        const [entityRef] = await getEntityRef(uid);
+
         // Convert language code (e.g., 'en') to language name ('English') for the AI
         const languageName = languageCodeToName[input.language] || input.language;
         const modelInput = { ...input, language: languageName, tags: (input.tags || []).join(', ') };
@@ -91,16 +93,16 @@ export async function POST(req: NextRequest) {
         let specificInstruction = '';
         switch (input.mode) {
             case 'generate_from_topic':
-                promptTemplate = await getPromptForConnection('blogGeneration', activeConnectionKey, uid);
+                promptTemplate = await getPromptForConnection('blogGeneration', activeConnectionKey, entityRef);
                 break;
             case 'enhance_content':
-                promptTemplate = await getPromptForConnection('blogEnhancement', activeConnectionKey, uid);
+                promptTemplate = await getPromptForConnection('blogEnhancement', activeConnectionKey, entityRef);
                 break;
             case 'suggest_titles':
-                 promptTemplate = await getPromptForConnection('titleSuggestion', activeConnectionKey, uid);
+                 promptTemplate = await getPromptForConnection('titleSuggestion', activeConnectionKey, entityRef);
                  break;
             case 'suggest_keywords':
-                 promptTemplate = await getPromptForConnection('keywordSuggestion', activeConnectionKey, uid);
+                 promptTemplate = await getPromptForConnection('keywordSuggestion', activeConnectionKey, entityRef);
                  break;
             case 'enhance_title':
                 specificInstruction = `You are an expert SEO copywriter. Rewrite a blog post title to be more engaging and SEO-optimized (under 60 characters). Respond with a JSON object: {"title": "new title"}.\n\nRewrite the title for this post in ${modelInput.language}, including the keyword "${modelInput.tags}".\nOriginal Title: "${modelInput.existingTitle}"\nContext:\n${modelInput.existingContent}`;
@@ -137,8 +139,8 @@ export async function POST(req: NextRequest) {
           throw new Error('AI returned an empty response for blog content generation.');
         }
         
-        const [entityRef, creditCost] = await getEntityRef(uid, cost);
-        await entityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(creditCost) }, { merge: true });
+        const [creditEntityRef, creditCost] = await getCreditEntityRef(uid, cost);
+        await creditEntityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(creditCost) }, { merge: true });
 
         return NextResponse.json(aiContent);
 

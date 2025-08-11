@@ -527,7 +527,7 @@ export async function getPromptForConnection(
                 for (const [key, config] of Object.entries(PROMPT_DEFAULTS)) {
                     defaultPrompts[key] = config.default;
                 }
-                await promptDocRef.set({ prompts: defaultPrompts, connectionKey: connectionKey });
+                await promptDocRef.set({ prompts: defaultPrompts, connectionKey: connectionKey, createdAt: admin.firestore.FieldValue.serverTimestamp() });
                 console.log(`[API Helper] Migration complete for '${connectionKey}'.`);
                 // Return the default prompt for this specific key now that the doc is created.
                 return defaultPrompts[promptKey] || defaultPrompt;
@@ -549,6 +549,19 @@ export async function getPromptForConnection(
     }
 }
 
+export async function getEntityRef(uid: string): Promise<[admin.firestore.DocumentReference, 'user' | 'company', string]> {
+    if (!adminDb) throw new Error("Firestore not configured.");
+
+    const userDoc = await adminDb.collection('users').doc(uid).get();
+    if (!userDoc.exists) throw new Error("User record not found.");
+    const userData = userDoc.data()!;
+
+    if (userData.companyId) {
+        return [adminDb.collection('companies').doc(userData.companyId), 'company', userData.companyId];
+    }
+    return [adminDb.collection('user_settings').doc(uid), 'user', uid];
+}
+
 
 /**
  * Retrieves API clients and applicable prompts based on the user's active configuration.
@@ -566,9 +579,7 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   if (!userDoc.exists) throw new Error('User not found. Cannot determine settings.');
   const userData = userDoc.data()!;
   
-  const entityType = userData.companyId ? 'companies' : 'user_settings';
-  const entityId = userData.companyId || uid;
-  const entityRef = adminDb.collection(entityType).doc(entityId);
+  const [entityRef] = await getEntityRef(uid);
   const settingsDoc = await entityRef.get();
   
   const settingsSource = settingsDoc.exists ? settingsDoc.data() : undefined;
