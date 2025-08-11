@@ -2,22 +2,18 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
+    // This is the recommended way to handle external packages with the App Router.
     serverComponentsExternalPackages: [
       '@google-cloud/tasks',
-      'zod',
+      '@google/generative-ai',
       '@woocommerce/woocommerce-rest-api',
       'axios',
-      'firebase-admin',
-      '@google/generative-ai',
       'cheerio',
+      'firebase-admin',
       'handlebars',
-      'debug',
-      'sharp', // mantenemos sharp para compatibilidad
+      'sharp',
+      'zod',
     ],
-    outputFileTracingIncludes: {
-      // Incluye binarios de sharp en el bundle para Vercel
-      './src/app/api/**': ['./node_modules/sharp/**/*'],
-    },
   },
   images: {
     remotePatterns: [
