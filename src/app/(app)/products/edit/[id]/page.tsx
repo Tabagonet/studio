@@ -177,8 +177,40 @@ function EditPageContent() {
     try {
         const token = await user.getIdToken();
         const formData = new FormData();
-        const payloadForJson = { ...product, images: sortedImages };
 
+        // This is the corrected payload. It now includes all relevant fields from the product state.
+        const payloadForJson = {
+            name: product.name,
+            sku: product.sku,
+            type: product.productType,
+            status: product.status,
+            regular_price: product.regularPrice,
+            sale_price: product.salePrice,
+            description: product.longDescription,
+            short_description: product.shortDescription,
+            tags: product.tags,
+            category_id: product.category_id,
+            categoryPath: product.categoryPath,
+            supplier: product.supplier,
+            newSupplier: product.newSupplier,
+            manage_stock: product.manage_stock,
+            stock_quantity: product.stockQuantity,
+            weight: product.weight,
+            dimensions: product.dimensions,
+            shipping_class: product.shipping_class,
+            attributes: product.attributes,
+            variations: product.variations,
+            images: sortedImages.map(img => ({
+                id: img.id,
+                isPrimary: img.isPrimary,
+                toDelete: img.toDelete
+            })),
+            imageTitle: product.imageTitle,
+            imageAltText: product.imageAltText,
+            imageCaption: product.imageCaption,
+            imageDescription: product.imageDescription,
+        };
+        
         formData.append('productData', JSON.stringify(payloadForJson));
         
         const newPhotoFiles = product.photos.filter(p => p.file && !p.toDelete);
@@ -345,9 +377,7 @@ function EditPageContent() {
     } catch(e: any) {
         toast({ title: "Error al sugerir enlaces", description: e.message, variant: "destructive" });
         setLinkSuggestions([]);
-    } finally {
-        setIsSuggestingLinks(false);
-    }
+    } finally { setIsSuggestingLinks(false); }
   };
 
   const applyLink = (content: string, suggestion: LinkSuggestion): string => {
@@ -402,7 +432,7 @@ function EditPageContent() {
             baseProductName: product.name,
             productName: product.name,
             productType: product.productType,
-            tags: product.tags.join(','),
+            tags: product.tags.join(', '),
             language: 'Spanish',
             groupedProductIds: product.groupedProductIds,
         };
@@ -440,7 +470,7 @@ function EditPageContent() {
         const token = await user.getIdToken();
         const payload = {
             productName: product.name, productType: product.productType,
-            tags: product.tags.join(','),
+            tags: product.tags.join(', '),
             language: 'Spanish', mode: 'image_meta_only',
         };
         const response = await fetch('/api/generate-description', {
