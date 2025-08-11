@@ -4,7 +4,7 @@
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Save, Trash2, PlusCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, Trash2, PlusCircle, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { onAuthStateChanged, auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -43,6 +43,9 @@ function EditPageContent() {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isSuggestingLinks, setIsSuggestingLinks] = useState(false);
   const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>([]);
+
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingImageMeta, setIsGeneratingImageMeta] = useState(false);
   
   const { toast } = useToast();
   
@@ -387,6 +390,77 @@ function EditPageContent() {
      }
   };
 
+  const handleGenerateContentWithAI = async () => {
+    if (!product) return;
+    setIsGenerating(true);
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("No autenticado.");
+        const token = await user.getIdToken();
+        const payload = {
+            baseProductName: product.name,
+            productName: product.name,
+            productType: product.productType,
+            tags: product.tags.join(','),
+            language: 'Spanish',
+            groupedProductIds: product.groupedProductIds,
+        };
+        const response = await fetch('/api/generate-description', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) throw new Error((await response.json()).error || 'Fallo de la IA');
+        const aiContent = await response.json();
+        updateProductData({
+            name: aiContent.name,
+            shortDescription: aiContent.shortDescription,
+            longDescription: aiContent.longDescription,
+            tags: aiContent.tags,
+            imageTitle: aiContent.imageTitle,
+            imageAltText: aiContent.imageAltText,
+            imageCaption: aiContent.imageCaption,
+            imageDescription: aiContent.imageDescription,
+        });
+        toast({ title: "¡Contenido generado!", description: "Se han actualizado las descripciones y etiquetas." });
+    } catch (e: any) {
+        toast({ title: "Error de IA", description: e.message, variant: "destructive" });
+    } finally {
+        setIsGenerating(false);
+    }
+  };
+
+  const handleGenerateImageMetadata = async () => {
+    if (!product) return;
+    setIsGeneratingImageMeta(true);
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("No autenticado.");
+        const token = await user.getIdToken();
+        const payload = {
+            productName: product.name, productType: product.productType,
+            tags: product.tags.join(','),
+            language: 'Spanish', mode: 'image_meta_only',
+        };
+        const response = await fetch('/api/generate-description', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) throw new Error((await response.json()).error || 'Fallo de la IA');
+        const aiContent = await response.json();
+        updateProductData({
+            imageTitle: aiContent.imageTitle, imageAltText: aiContent.imageAltText,
+            imageCaption: aiContent.imageCaption, imageDescription: aiContent.imageDescription,
+        });
+        toast({ title: "Metadatos de imagen generados", description: "Se han actualizado los datos SEO para las imágenes." });
+    } catch (e: any) {
+        toast({ title: "Error de IA", description: e.message, variant: "destructive" });
+    } finally {
+        setIsGeneratingImageMeta(false);
+    }
+  };
+
   if (isLoading) {
     return <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
   }
@@ -525,7 +599,33 @@ function EditPageContent() {
                      </>
                   )}
                   
-                   <Card><CardHeader><CardTitle>Descripciones</CardTitle></CardHeader><CardContent className="space-y-4"><div><Label htmlFor="shortDescription">Descripción Corta</Label><RichTextEditor content={product.shortDescription} onChange={handleShortDescriptionChange} onInsertImage={() => setIsImageDialogOpen(true)} onSuggestLinks={handleSuggestLinks} placeholder="Escribe la descripción corta aquí..." size="small"/></div><div><Label htmlFor="longDescription">Descripción Larga</Label><RichTextEditor content={product.longDescription} onChange={handleLongDescriptionChange} onInsertImage={() => setIsImageDialogOpen(true)} onSuggestLinks={handleSuggestLinks} placeholder="Escribe la descripción larga aquí..." /></div></CardContent></Card>
+                   <Card>
+                        <CardHeader>
+                            <CardTitle>Descripciones y Asistente IA</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <Button onClick={handleGenerateContentWithAI} disabled={isSaving || isGenerating || isGeneratingImageMeta} className="flex-1">
+                                    {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                    {isGenerating ? "Generando..." : "Generar Contenido con IA"}
+                                </Button>
+                                <Button onClick={handleGenerateImageMetadata} disabled={isSaving || isGenerating || isGeneratingImageMeta} className="flex-1" variant="outline">
+                                    {isGeneratingImageMeta ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                    {isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes"}
+                                </Button>
+                            </div>
+                            <div className="border-t pt-6 space-y-6">
+                                <div>
+                                    <Label htmlFor="shortDescription">Descripción Corta</Label>
+                                    <RichTextEditor content={product.shortDescription} onChange={handleShortDescriptionChange} onInsertImage={() => setIsImageDialogOpen(true)} onSuggestLinks={handleSuggestLinks} placeholder="Un resumen atractivo y conciso de tu producto..." size="small"/>
+                                </div>
+                                <div>
+                                    <Label htmlFor="longDescription">Descripción Larga</Label>
+                                    <RichTextEditor content={product.longDescription} onChange={handleLongDescriptionChange} onInsertImage={() => setIsImageDialogOpen(true)} onSuggestLinks={handleSuggestLinks} placeholder="Describe tu producto en detalle: características, materiales, usos, etc."/>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
               </div>
               
               <div className="space-y-6">
