@@ -1,3 +1,4 @@
+
 // src/lib/api-helpers.ts
 import type * as admin from 'firebase-admin';
 import { adminDb } from '@/lib/firebase-admin';
@@ -502,10 +503,9 @@ export function validateHmac(searchParams: URLSearchParams, clientSecret: string
  * @param settingsSource The user or company settings document data.
  * @returns The most specific prompt string available.
  */
-async function getPromptForConnection(
+export async function getPromptForConnection(
     promptKey: string,
     connectionKey: string | null,
-    settingsSource: admin.firestore.DocumentData | undefined,
     entityRef: admin.firestore.DocumentReference,
 ): Promise<string> {
     const defaultPrompt = PROMPT_DEFAULTS[promptKey]?.default;
@@ -513,7 +513,6 @@ async function getPromptForConnection(
     if (!adminDb) return defaultPrompt;
 
     try {
-        // 1. Try to get from connection-specific prompts
         if (connectionKey) {
             const promptDocRef = entityRef.collection('prompts').doc(connectionKey);
             const promptDoc = await promptDocRef.get();
@@ -521,12 +520,6 @@ async function getPromptForConnection(
                 console.log(`[API Helper] Using prompt '${promptKey}' from connection '${connectionKey}'.`);
                 return promptDoc.data()!.prompts[promptKey];
             }
-        }
-        
-        // 2. Fallback to user/company level prompts (old system)
-        if (settingsSource?.prompts?.[promptKey]) {
-            console.log(`[API Helper] Using prompt '${promptKey}' from top-level settings (legacy fallback).`);
-            return settingsSource.prompts[promptKey];
         }
 
         console.log(`[API Helper] Using default prompt for '${promptKey}'.`);
@@ -571,7 +564,7 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   // NEW: Prepare a unified prompts object
   const finalPrompts: Record<string, string> = {};
   for (const key in PROMPT_DEFAULTS) {
-      finalPrompts[key] = await getPromptForConnection(key, activeConnectionKey, settingsSource, entityRef);
+      finalPrompts[key] = await getPromptForConnection(key, activeConnectionKey, entityRef);
   }
 
   if (!activeConnectionKey || !allConnections || !allConnections[activeConnectionKey]) {
@@ -579,18 +572,6 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   }
 
   const activeConnection = allConnections[activeConnectionKey];
-  
-  // Auto-migrate old connection objects by adding a default 'prompts' object if it doesn't exist
-  if (activeConnection && !activeConnection.prompts && Object.keys(PROMPT_DEFAULTS).length > 0) {
-      console.log(`[API Helper] Migrating old connection object: ${activeConnectionKey}`);
-      activeConnection.prompts = PROMPT_DEFAULTS;
-      await entityRef.set({
-          connections: {
-              [activeConnectionKey]: activeConnection
-          }
-      }, { merge: true });
-  }
-
   
   const wooApi = createWooCommerceApi({
     url: activeConnection.wooCommerceStoreUrl,
@@ -701,147 +682,5 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
     // Return a unique set of images based on URL
     return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
-```
-</change>
-<change>
-<file>/src/app/api/generate-description/route.ts</file>
-<content><![CDATA[
 
-import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
-import { z } from 'zod';
-import { getApiClientsForUser } from '@/lib/api-helpers';
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import Handlebars from 'handlebars';
-
-const FullProductOutputSchema = z.object({
-  name: z.string().describe('A new, SEO-friendly product title. It should start with the base name and be enriched with the descriptive context.'),
-  shortDescription: z.string().describe('A brief, catchy summary of the product (1-2 sentences). Must use HTML for formatting.'),
-  longDescription: z.string().describe('A detailed, persuasive, and comprehensive description of the product. Must use HTML for formatting.'),
-  tags: z.array(z.string()).describe('An array of 5 to 10 relevant SEO keywords/tags for the product, in the specified {{language}}.'),
-  imageTitle: z.string().describe('A concise, SEO-friendly title for the product images.'),
-  imageAltText: z.string().describe('A descriptive alt text for SEO, describing the image for visually impaired users.'),
-  imageCaption: z.string().describe('An engaging caption for the image, suitable for the media library.'),
-  imageDescription: z.string().describe('A detailed description for the image media library entry.'),
-});
-
-const ImageMetaOnlySchema = z.object({
-  imageTitle: z.string().describe('A concise, SEO-friendly title for the product images.'),
-  imageAltText: z.string().describe('A descriptive alt text for SEO, describing the image for visually impaired users.'),
-  imageCaption: z.string().describe('An engaging caption for the image, suitable for the media library.'),
-  imageDescription: z.string().describe('A detailed description for the image media library entry.'),
-});
-
-async function getEntityRef(uid: string, cost: number): Promise<[FirebaseFirestore.DocumentReference, number]> {
-    if (!adminDb) throw new Error("Firestore not configured.");
-
-    const userDoc = await adminDb.collection('users').doc(uid).get();
-    const userData = userDoc.data();
-
-    if (userData?.companyId) {
-        return [adminDb.collection('companies').doc(userData.companyId), cost];
-    }
-    return [adminDb.collection('user_settings').doc(uid), cost];
-}
-
-
-export async function POST(req: NextRequest) {
-  let uid: string;
-  try {
-    const token = req.headers.get('Authorization')?.split('Bearer ')[1];
-    if (!token) {
-      return NextResponse.json({ error: 'No se proporcionó token de autenticación.', message: 'Por favor, inicia sesión de nuevo.' }, { status: 401 });
-    }
-    if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
-    const decodedToken = await adminAuth.verifyIdToken(token);
-    uid = decodedToken.uid;
-  } catch (error: any) {
-     return NextResponse.json({ error: 'Authentication failed', message: error.message }, { status: 401 });
-  }
-
-  try {
-    const body = await req.json();
-
-    const clientInputSchema = z.object({
-        baseProductName: z.string().optional(),
-        productName: z.string().min(1),
-        productType: z.string(),
-        categoryName: z.string().optional(),
-        tags: z.string().optional(),
-        language: z.enum(['Spanish', 'English', 'French', 'German', 'Portuguese']).default('Spanish'),
-        groupedProductIds: z.array(z.number()).optional(),
-        mode: z.enum(['full_product', 'image_meta_only']).default('full_product'),
-    });
-
-    const validationResult = clientInputSchema.safeParse(body);
-    if (!validationResult.success) {
-      return NextResponse.json({ error: 'Invalid input', details: validationResult.error.flatten() }, { status: 400 });
-    }
     
-    const clientInput = validationResult.data;
-    
-    const { wooApi, prompts } = await getApiClientsForUser(uid);
-    
-    let groupedProductsList = 'N/A';
-    if (clientInput.productType === 'grouped' && clientInput.groupedProductIds && clientInput.groupedProductIds.length > 0) {
-        if (wooApi) {
-             try {
-                const response = await wooApi.get('products', { include: clientInput.groupedProductIds, per_page: 100, lang: 'all' });
-                if (response.data && response.data.length > 0) {
-                    groupedProductsList = response.data.map((p: any) => `* Product: ${p.name}\\n* Details: ${p.short_description || p.description || 'No description'}`).join('\\n\\n');
-                }
-            } catch (e: unknown) {
-                console.error('Failed to fetch details for grouped products:', e);
-                groupedProductsList = 'Error fetching product details.';
-            }
-        }
-    }
-    
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
-    
-    let promptTemplate: string;
-    let outputSchema: z.ZodTypeAny;
-    let creditCost: number;
-
-    if (clientInput.mode === 'image_meta_only') {
-      outputSchema = ImageMetaOnlySchema;
-      promptTemplate = prompts.productDescription; 
-      creditCost = 1;
-    } else { // full_product
-      outputSchema = FullProductOutputSchema;
-      promptTemplate = prompts.productDescription;
-      creditCost = 10;
-    }
-    
-    const cleanedCategoryName = clientInput.categoryName ? clientInput.categoryName.replace(/—/g, '').trim() : '';
-
-    const template = Handlebars.compile(promptTemplate, { noEscape: true });
-    const templateData = { ...clientInput, categoryName: cleanedCategoryName, tags: clientInput.tags || '', groupedProductsList };
-    const finalPrompt = template(templateData);
-    
-    const result = await model.generateContent(finalPrompt);
-    const response = await result.response;
-    const aiContent = outputSchema.parse(JSON.parse(response.text()));
-    
-    if (!aiContent) {
-      throw new Error('AI returned an empty response.');
-    }
-    
-    const [entityRef, cost] = await getEntityRef(uid, creditCost);
-    await entityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(cost) }, { merge: true });
-
-    return NextResponse.json(aiContent);
-
-  } catch (error: any) {
-    console.error('🔥 Error in /api/generate-description:', error);
-    if (error.message && error.message.includes('503')) {
-        return NextResponse.json({ error: 'El servicio de IA está sobrecargado en este momento. Por favor, inténtalo de nuevo más tarde.' }, { status: 503 });
-    }
-    let errorMessage = 'La IA falló: ' + (error instanceof Error ? error.message : String(error));
-    if (error instanceof z.ZodError) {
-        errorMessage = 'La IA falló: ' + JSON.stringify(error.errors);
-    }
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
-  }
-}
