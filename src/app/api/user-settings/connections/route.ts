@@ -127,7 +127,6 @@ export async function POST(req: NextRequest) {
         
         let settingsRef: FirebaseFirestore.DocumentReference;
         let finalConnectionData: ConnectionData | PartnerAppData;
-        let promptsRef: FirebaseFirestore.DocumentReference | null = null;
         
         if (isPartner && role === 'super_admin') {
             settingsRef = adminDb.collection('companies').doc('global_settings');
@@ -140,8 +139,6 @@ export async function POST(req: NextRequest) {
             const validation = connectionDataSchema.safeParse(connectionData);
             if (!validation.success) { return NextResponse.json({ error: "Invalid connection data", details: validation.error.flatten() }, { status: 400 }); }
             finalConnectionData = validation.data;
-            // Get a ref for the new prompts document
-            promptsRef = settingsRef.collection('prompts').doc(key);
         } else {
              return NextResponse.json({ error: 'Forbidden: Only Super Admins can edit global partner credentials.' }, { status: 403 });
         }
@@ -149,6 +146,8 @@ export async function POST(req: NextRequest) {
         const settingsDoc = await settingsRef.get();
         const existingConnections = settingsDoc.exists ? settingsDoc.data()?.connections || {} : {};
 
+        const isNewConnection = !existingConnections[key];
+        
         const mergedConnectionData = {
             ...(existingConnections[key] || {}),
             ...finalConnectionData
@@ -168,29 +167,16 @@ export async function POST(req: NextRequest) {
         const batch = adminDb.batch();
         batch.set(settingsRef, updatePayload, { merge: true });
 
-        // If it's a new connection (not partner), create its default prompt document
-        if (!isPartner && promptsRef && !existingConnections[key]) {
+        if (isNewConnection && !isPartner) {
             const defaultPrompts: Record<string, string> = {};
             for (const [promptKey, config] of Object.entries(PROMPT_DEFAULTS)) {
                 defaultPrompts[promptKey] = config.default;
             }
+            const promptsRef = settingsRef.collection('prompts').doc(key);
             batch.set(promptsRef, { prompts: defaultPrompts, connectionKey: key, createdAt: admin.firestore.FieldValue.serverTimestamp() });
         }
         
         await batch.commit();
-        
-        // This part seems redundant if partner_app is only in global_settings, but kept for safety.
-        if (isPartner && role === 'super_admin') {
-            const userOrCompanySettingsRef = adminDb.collection(entityType === 'company' ? 'companies' : 'user_settings').doc(entityId);
-            const userOrCompanyDoc = await userOrCompanySettingsRef.get();
-            if (userOrCompanyDoc.exists && userOrCompanyDoc.data()?.connections?.partner_app) {
-                await userOrCompanySettingsRef.update({
-                    'connections.partner_app': admin.firestore.FieldValue.delete()
-                });
-                console.log(`Cleaned up old partner_app data from ${entityType}/${entityId}`);
-            }
-        }
-        
 
         return NextResponse.json({ success: true, message: 'Connection saved successfully.' });
 

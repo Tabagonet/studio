@@ -390,7 +390,8 @@ export interface Company {
   };
   aiUsageCount?: number;
   oneTimeCredits?: OneTimeCredit[];
-  prompts?: Record<string, string>; // Centralized prompts for the company
+  prompts?: Record<string, string>;
+  connections?: any;
 }
 
 export interface User {
@@ -410,7 +411,7 @@ export interface User {
   aiUsageCount?: number;
   oneTimeCredits?: OneTimeCredit[];
   productCount?: number; // Total products created historically
-  prompts?: Record<string, string>; // Centralized prompts for the user
+  connections?: any;
 }
 
 export interface Prospect {

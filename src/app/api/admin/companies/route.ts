@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
+import { PROMPT_DEFAULTS } from '@/lib/constants';
+
 
 async function isSuperAdmin(req: NextRequest): Promise<boolean> {
     const token = req.headers.get('Authorization')?.split('Bearer ')[1];
@@ -45,7 +47,8 @@ export async function GET(req: NextRequest) {
                 createdAt: data.createdAt.toDate().toISOString(),
                 userCount: userCounts[doc.id] || 0,
                 platform: data.platform || 'woocommerce',
-                plan: data.plan || 'pro', // Default to 'pro' if not set
+                plan: data.plan || 'pro',
+                connections: data.connections || {}, // NEW: Include connections
             };
         });
 
@@ -80,6 +83,12 @@ export async function POST(req: NextRequest) {
         }
         
         const { name, platform, plan } = validation.data;
+        
+        const defaultPrompts: Record<string, string> = {};
+        for (const [promptKey, config] of Object.entries(PROMPT_DEFAULTS)) {
+            defaultPrompts[promptKey] = config.default;
+        }
+
         const newCompanyRef = adminDb.collection('companies').doc();
         
         await newCompanyRef.set({
@@ -87,6 +96,9 @@ export async function POST(req: NextRequest) {
             platform: platform,
             plan: plan,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            prompts: defaultPrompts, // Add default prompts upon creation
+            connections: {},
+            activeConnectionKey: null,
         });
 
         return NextResponse.json({ success: true, message: 'Empresa creada con éxito.', id: newCompanyRef.id }, { status: 201 });

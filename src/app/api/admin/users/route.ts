@@ -42,7 +42,6 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        // Step 1: Fetch all companies and user settings to create maps for efficient lookup
         const companiesSnapshot = await adminDb.collection('companies').get();
         const companiesMap = new Map<string, Company>();
         companiesSnapshot.forEach(doc => {
@@ -54,16 +53,20 @@ export async function GET(req: NextRequest) {
                 plan: data.plan || 'lite',
                 createdAt: data.createdAt?.toDate()?.toISOString() || new Date().toISOString(),
                 aiUsageCount: data.aiUsageCount || 0,
+                connections: data.connections || {}, // NEW: Include connections
             });
         });
 
         const userSettingsSnapshot = await adminDb.collection('user_settings').get();
-        const userSettingsMap = new Map<string, { aiUsageCount: number }>();
+        const userSettingsMap = new Map<string, any>();
         userSettingsSnapshot.forEach(doc => {
-            userSettingsMap.set(doc.id, { aiUsageCount: doc.data().aiUsageCount || 0 });
+            const data = doc.data();
+            userSettingsMap.set(doc.id, {
+                aiUsageCount: data.aiUsageCount || 0,
+                connections: data.connections || {}, // NEW: Include connections
+            });
         });
         
-        // --- NEW: Fetch historical product counts for all users ---
         const allLogsSnapshot = await adminDb.collection('activity_logs').where('action', '==', 'PRODUCT_CREATED').get();
         const historicalProductCounts = new Map<string, number>();
         allLogsSnapshot.forEach(doc => {
@@ -73,11 +76,8 @@ export async function GET(req: NextRequest) {
             }
         });
 
-
-        // Step 2: Fetch users based on the admin's role
         let usersQuery: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = adminDb.collection('users');
 
-        // Only filter by company if the requester is a company admin, NOT a super admin
         if (adminContext.role === 'admin' && adminContext.companyId) {
             usersQuery = usersQuery.where('companyId', '==', adminContext.companyId);
         }
@@ -88,10 +88,11 @@ export async function GET(req: NextRequest) {
             const data = doc.data();
             const companyId = data.companyId || null;
             const companyInfo = companyId ? companiesMap.get(companyId) : null;
+            const userSettings = userSettingsMap.get(doc.id);
             
             const aiUsageCount = companyInfo 
                 ? companyInfo.aiUsageCount 
-                : (userSettingsMap.get(doc.id)?.aiUsageCount || 0);
+                : (userSettings?.aiUsageCount || 0);
 
             return {
                 uid: doc.id,
@@ -104,11 +105,12 @@ export async function GET(req: NextRequest) {
                 companyId: companyId,
                 companyName: companyInfo?.name || null,
                 companyPlan: companyInfo?.plan || null,
-                plan: data.plan || null, // Individual user plan
+                plan: data.plan || null,
                 platform: data.platform || null,
                 companyPlatform: companyInfo?.platform || null,
                 aiUsageCount: aiUsageCount,
-                productCount: historicalProductCounts.get(doc.id) || 0, // Add historical count
+                productCount: historicalProductCounts.get(doc.id) || 0,
+                connections: companyInfo ? companyInfo.connections : (userSettings?.connections || {}), // NEW
             };
         });
 
