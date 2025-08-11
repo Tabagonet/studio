@@ -1,5 +1,4 @@
 
-
 // src/app/api/user-settings/connections/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -7,6 +6,8 @@ import { z } from 'zod';
 import { addRemotePattern } from '@/lib/next-config-manager';
 import { partnerAppConnectionDataSchema } from '@/lib/api-helpers';
 import { revalidatePath } from 'next/cache';
+import { PROMPT_DEFAULTS } from '@/lib/constants';
+
 
 export const dynamic = 'force-dynamic';
 
@@ -126,6 +127,7 @@ export async function POST(req: NextRequest) {
         
         let settingsRef: FirebaseFirestore.DocumentReference;
         let finalConnectionData: ConnectionData | PartnerAppData;
+        let promptsRef: FirebaseFirestore.DocumentReference | null = null;
         
         if (isPartner && role === 'super_admin') {
             settingsRef = adminDb.collection('companies').doc('global_settings');
@@ -138,6 +140,8 @@ export async function POST(req: NextRequest) {
             const validation = connectionDataSchema.safeParse(connectionData);
             if (!validation.success) { return NextResponse.json({ error: "Invalid connection data", details: validation.error.flatten() }, { status: 400 }); }
             finalConnectionData = validation.data;
+            // Get a ref for the new prompts document
+            promptsRef = settingsRef.collection('prompts').doc(key);
         } else {
              return NextResponse.json({ error: 'Forbidden: Only Super Admins can edit global partner credentials.' }, { status: 403 });
         }
@@ -161,7 +165,19 @@ export async function POST(req: NextRequest) {
             updatePayload.activeConnectionKey = key;
         }
 
-        await settingsRef.set(updatePayload, { merge: true });
+        const batch = adminDb.batch();
+        batch.set(settingsRef, updatePayload, { merge: true });
+
+        // If it's a new connection (not partner), create its default prompt document
+        if (!isPartner && promptsRef && !existingConnections[key]) {
+            const defaultPrompts: Record<string, string> = {};
+            for (const [promptKey, config] of Object.entries(PROMPT_DEFAULTS)) {
+                defaultPrompts[promptKey] = config.default;
+            }
+            batch.set(promptsRef, { prompts: defaultPrompts, connectionKey: key, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+        }
+        
+        await batch.commit();
         
         // This part seems redundant if partner_app is only in global_settings, but kept for safety.
         if (isPartner && role === 'super_admin') {
@@ -223,6 +239,8 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ success: true, message: 'Connection already deleted.' });
         }
 
+        const batch = adminDb.batch();
+
         const updatePayload: { [key: string]: any } = {
             [`connections.${key}`]: admin.firestore.FieldValue.delete()
         };
@@ -232,7 +250,13 @@ export async function DELETE(req: NextRequest) {
             updatePayload.activeConnectionKey = otherKeys.length > 0 ? otherKeys[0] : null;
         }
         
-        await settingsRef.update(updatePayload);
+        batch.update(settingsRef, updatePayload);
+        
+        // Also delete the prompts document for this connection
+        const promptsRef = settingsRef.collection('prompts').doc(key);
+        batch.delete(promptsRef);
+
+        await batch.commit();
 
         return NextResponse.json({ success: true, message: 'Connection deleted successfully.' });
 
@@ -242,5 +266,3 @@ export async function DELETE(req: NextRequest) {
         return NextResponse.json({ error: errorMessage || 'Failed to delete connection' }, { status: 500 });
     }
 }
-
-    
