@@ -495,12 +495,10 @@ export function validateHmac(searchParams: URLSearchParams, clientSecret: string
 
 /**
  * Gets the applicable prompt template based on a hierarchical lookup.
- * 1. Connection-specific prompt.
- * 2. User-specific prompt (for super admin fallback).
- * 3. System-wide default prompt.
+ * This is the core logic for the new prompt architecture.
  * @param promptKey The key of the prompt to retrieve (e.g., 'productDescription').
  * @param connectionKey The key of the active connection.
- * @param settingsSource The user or company settings document data.
+ * @param entityRef The Firestore document reference for the entity (user or company).
  * @returns The most specific prompt string available.
  */
 export async function getPromptForConnection(
@@ -508,7 +506,7 @@ export async function getPromptForConnection(
     connectionKey: string | null,
     entityRef: admin.firestore.DocumentReference,
 ): Promise<string> {
-    const defaultPrompt = PROMPT_DEFAULTS[promptKey]?.default;
+    const defaultPrompt = PROMPT_DEFAULTS[promptKey as keyof typeof PROMPT_DEFAULTS]?.default;
     if (!defaultPrompt) throw new Error(`Default prompt for key "${promptKey}" not found.`);
     if (!adminDb) return defaultPrompt;
 
@@ -516,16 +514,37 @@ export async function getPromptForConnection(
         if (connectionKey) {
             const promptDocRef = entityRef.collection('prompts').doc(connectionKey);
             const promptDoc = await promptDocRef.get();
+            
+            // If the specific prompt document exists and has the prompt, use it.
             if (promptDoc.exists && promptDoc.data()?.prompts?.[promptKey]) {
                 console.log(`[API Helper] Using prompt '${promptKey}' from connection '${connectionKey}'.`);
                 return promptDoc.data()!.prompts[promptKey];
+            } 
+            // PHASE 4 MIGRATION: If the prompt doc doesn't exist, create it.
+            else if (!promptDoc.exists) {
+                console.log(`[API Helper] Migrating: Prompt document for connection '${connectionKey}' not found. Creating with defaults...`);
+                const defaultPrompts: Record<string, string> = {};
+                for (const [key, config] of Object.entries(PROMPT_DEFAULTS)) {
+                    defaultPrompts[key] = config.default;
+                }
+                await promptDocRef.set({ prompts: defaultPrompts, connectionKey: connectionKey });
+                console.log(`[API Helper] Migration complete for '${connectionKey}'.`);
+                // Return the default prompt for this specific key now that the doc is created.
+                return defaultPrompts[promptKey] || defaultPrompt;
             }
         }
+        
+        // Fallback to the entity's general prompts (legacy support)
+        const entityDoc = await entityRef.get();
+        if (entityDoc.exists && entityDoc.data()?.prompts?.[promptKey]) {
+            console.log(`[API Helper] Using fallback prompt '${promptKey}' from entity level.`);
+            return entityDoc.data()!.prompts[promptKey];
+        }
 
-        console.log(`[API Helper] Using default prompt for '${promptKey}'.`);
+        console.log(`[API Helper] Using system default prompt for '${promptKey}'.`);
         return defaultPrompt;
     } catch (error) {
-        console.error(`Error fetching prompt '${promptKey}', using default.`, error);
+        console.error(`Error fetching prompt '${promptKey}', using system default. Error:`, error);
         return defaultPrompt;
     }
 }
@@ -561,7 +580,7 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   const allConnections = settingsSource.connections || {};
   const activeConnectionKey = settingsSource.activeConnectionKey;
 
-  // NEW: Prepare a unified prompts object
+  // Prepare a unified prompts object
   const finalPrompts: Record<string, string> = {};
   for (const key in PROMPT_DEFAULTS) {
       finalPrompts[key] = await getPromptForConnection(key, activeConnectionKey, entityRef);
@@ -682,5 +701,3 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
     // Return a unique set of images based on URL
     return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
-
-    
