@@ -1,3 +1,4 @@
+
 // src/lib/types.ts
       
 import type { LucideIcon } from 'lucide-react';
@@ -26,9 +27,9 @@ export type UploadStatus = 'pending' | 'uploading' | 'completed' | 'error';
 
 export interface ProductPhoto {
   id: string | number;
-  file?: File;
-  previewUrl: string;
-  name: string;
+  file?: File; // The actual file object, present only on client-side before upload
+  previewUrl: string; // Used for client-side preview (object URL or existing src)
+  name: string; // filename
   isPrimary?: boolean; 
   status: UploadStatus;
   progress: number;
@@ -227,6 +228,7 @@ export interface SubmissionStep {
   id: string;
   name: string;
   status: SubmissionStepStatus;
+  message?: string;
   progress?: number;
   error?: string;
 }
