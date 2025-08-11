@@ -1,5 +1,4 @@
 
-
 // src/app/(app)/settings/connections/page.tsx
 "use client";
 
@@ -9,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User, Store, PlugZap, AlertCircle, RefreshCw } from "lucide-react";
+import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User, Store, PlugZap, AlertCircle, RefreshCw, KeyRound as KeyRoundIcon } from "lucide-react";
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -103,9 +102,8 @@ export default function ConnectionsPage() {
     const [unassignedUsers, setUnassignedUsers] = useState<AppUser[]>([]);
     const [isDataLoading, setIsDataLoading] = useState(true);
     
-    const [editingTarget, setEditingTarget] = useState<{ type: 'user' | 'company'; id: string | null; name: string }>({ type: 'user', id: null, name: 'Mis Conexiones' });
-    const [editingTargetPlatform, setEditingTargetPlatform] = useState<'woocommerce' | 'shopify' | null>(null);
-
+    const [editingTarget, setEditingTarget] = useState<{ type: 'user' | 'company'; id: string | null; name: string, platform: 'woocommerce' | 'shopify' | null }>({ type: 'user', id: null, name: 'Mis Conexiones', platform: null });
+    
     const [selectedEntityStatus, setSelectedEntityStatus] = useState<SelectedEntityStatus | null>(null);
     const [isCheckingStatus, setIsCheckingStatus] = useState(false);
     
@@ -131,12 +129,12 @@ export default function ConnectionsPage() {
         try {
             const token = await user.getIdToken();
             const connectionsUrl = new URL('/api/user-settings/connections', window.location.origin);
-            const planUrl = new URL('/api/user-settings/my-plan', window.location.origin); // Using the same logic as my-plan page
+            const planUrl = new URL('/api/user-settings/my-plan', window.location.origin);
 
             if (targetType === 'company') {
                 connectionsUrl.searchParams.append('companyId', targetId);
-                planUrl.searchParams.append('companyId', targetId); // Pass companyId for plan usage
-            } else { // 'user'
+                planUrl.searchParams.append('companyId', targetId);
+            } else {
                 connectionsUrl.searchParams.append('userId', targetId);
                 planUrl.searchParams.append('userId', targetId);
             }
@@ -149,13 +147,21 @@ export default function ConnectionsPage() {
             if (connectionsResponse.ok) {
                 const data = await connectionsResponse.json();
                 const connections = data.allConnections || {};
+                const currentActiveKey = data.activeConnectionKey || null;
+                
+                // Add partner_app to connections if it exists at the global level
+                if (data.allConnections.partner_app) {
+                  connections.partner_app = data.allConnections.partner_app;
+                }
+                
                 setAllConnections(connections);
+                
                 if (connections.partner_app) {
                     setPartnerFormData(connections.partner_app);
                 } else {
                     setPartnerFormData(INITIAL_PARTNER_APP_STATE);
                 }
-                const currentActiveKey = data.activeConnectionKey || null;
+                
                 setActiveKey(currentActiveKey);
                 
                 const connectionKeys = Object.keys(connections).filter(k => k !== 'partner_app');
@@ -202,7 +208,7 @@ export default function ConnectionsPage() {
             const url = new URL('/api/check-config', window.location.origin);
             if (targetType === 'company') {
                 url.searchParams.append('companyId', targetId);
-            } else { // 'user'
+            } else {
                 url.searchParams.append('userId', targetId);
             }
 
@@ -268,8 +274,7 @@ export default function ConnectionsPage() {
                 initialPlatform = userData.companyPlatform || null;
             }
             
-            setEditingTarget({ type: initialType, id: initialId, name: initialName });
-            setEditingTargetPlatform(initialPlatform);
+            setEditingTarget({ type: initialType, id: initialId, name: initialName, platform: initialPlatform });
             if (initialId) {
                 await fetchAllDataForTarget(user, initialType, initialId);
             }
@@ -301,19 +306,15 @@ export default function ConnectionsPage() {
         let newEditingTarget: { type: 'user' | 'company'; id: string | null; name: string, platform: 'woocommerce' | 'shopify' | null };
 
         if (type === 'user') {
-            if (id === user.uid) { // Super Admin's personal settings
-                 newEditingTarget = { type: 'user', id: user.uid, name: 'Mis Conexiones (Super Admin)', platform: null };
-            } else {
-                const selectedUser = unassignedUsers.find(u => u.uid === id);
-                newEditingTarget = { type: 'user', id: id, name: selectedUser?.displayName || 'Usuario Desconocido', platform: selectedUser?.platform || null };
-            }
+            const selectedUser = unassignedUsers.find(u => u.uid === id);
+            const name = (id === user.uid) ? 'Mis Conexiones (Super Admin)' : (selectedUser?.displayName || 'Usuario');
+            newEditingTarget = { type: 'user', id: id, name, platform: selectedUser?.platform || null };
         } else { // type === 'company'
             const company = allCompanies.find(c => c.id === id);
             newEditingTarget = { type: 'company', id: id, name: company?.name || 'Empresa Desconocida', platform: company?.platform || null };
         }
         
         setEditingTarget(newEditingTarget);
-        setEditingTargetPlatform(newEditingTarget.platform);
         if(newEditingTarget.id) {
             fetchAllDataForTarget(user, newEditingTarget.type, newEditingTarget.id);
         }
@@ -457,16 +458,16 @@ export default function ConnectionsPage() {
     let description = 'Gestiona tus credenciales para conectar con servicios externos.';
     if (currentUser?.role === 'super_admin') {
       description = 'Como Super Admin, puedes gestionar tus conexiones o las de cualquier empresa o usuario.';
-    } else if (editingTargetPlatform === 'woocommerce') {
+    } else if (editingTarget.platform === 'woocommerce') {
       description = 'Gestiona las credenciales para conectar tu cuenta con tus sitios de WooCommerce y WordPress.';
-    } else if (editingTargetPlatform === 'shopify') {
+    } else if (editingTarget.platform === 'shopify') {
       description = 'Gestiona las credenciales para conectar tu cuenta con tus tiendas Shopify y tu cuenta de Partner.';
     }
     
     const saveButtonText = `Guardar y Activar para ${editingTarget.type === 'company' ? 'la Empresa' : 'el Usuario'}`;
     
-    const showWooCommerce = currentUser?.role === 'super_admin' || editingTargetPlatform === 'woocommerce';
-    const showShopify = currentUser?.role === 'super_admin' || editingTargetPlatform === 'shopify';
+    const showWooCommerce = currentUser?.role === 'super_admin' || editingTarget.platform === 'woocommerce';
+    const showShopify = currentUser?.role === 'super_admin' || editingTarget.platform === 'shopify';
 
     const isConnectionLimitReached = !isLoadingUsage && planUsage ? (planUsage.connections.used >= planUsage.connections.limit) : false;
     const canAddNewConnection = currentUser?.role === 'super_admin' || !isConnectionLimitReached;
@@ -486,7 +487,7 @@ export default function ConnectionsPage() {
             <Card>
                 <CardHeader>
                     <div className="flex items-center space-x-3">
-                        <KeyRound className="h-8 w-8 text-primary" />
+                        <KeyRoundIcon className="h-8 w-8 text-primary" />
                         <div>
                             <CardTitle>{title}</CardTitle>
                             <CardDescription>{description}</CardDescription>
@@ -677,7 +678,7 @@ export default function ConnectionsPage() {
                         </div>
                     </div>
 
-                    {showShopify && currentUser?.role === 'super_admin' && (
+                    {currentUser?.role === 'super_admin' && (
                        <ShopifyPartnerCard 
                          editingTarget={editingTarget}
                          partnerFormData={partnerFormData}
