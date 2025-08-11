@@ -41,7 +41,7 @@ const CREDIT_COSTS: Record<string, number> = {
     enhance_title: 1,
 };
 
-// This getEntityRef is now specific to this route's credit logic.
+// This getCreditEntityRef is now specific to this route's credit logic.
 async function getCreditEntityRef(uid: string, cost: number): Promise<[FirebaseFirestore.DocumentReference, number]> {
     if (!adminDb) throw new Error("Firestore not configured.");
 
@@ -152,3 +152,5 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'La IA falló: ' + error.message }, { status: 500 });
     }
 }
+
+    

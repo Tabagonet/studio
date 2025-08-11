@@ -14,7 +14,7 @@ import crypto from 'crypto';
 import sharp from 'sharp';
 import { Readable } from 'stream';
 import { PROMPT_DEFAULTS } from './constants';
-import { admin } from '@/lib/firebase-admin';
+import type * as admin from 'firebase-admin';
 
 
 export const partnerAppConnectionDataSchema = z.object({
@@ -527,7 +527,7 @@ export async function getPromptForConnection(
                 for (const [key, config] of Object.entries(PROMPT_DEFAULTS)) {
                     defaultPrompts[key] = config.default;
                 }
-                await promptDocRef.set({ prompts: defaultPrompts, connectionKey: connectionKey, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+                await promptDocRef.set({ prompts: defaultPrompts, connectionKey: connectionKey, createdAt: adminDb.FieldValue.serverTimestamp() });
                 console.log(`[API Helper] Migration complete for '${connectionKey}'.`);
                 // Return the default prompt for this specific key now that the doc is created.
                 return defaultPrompts[promptKey] || defaultPrompt;
@@ -712,3 +712,5 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
     // Return a unique set of images based on URL
     return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
+
+    

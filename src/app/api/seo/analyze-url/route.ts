@@ -5,7 +5,7 @@ import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { z } from 'zod';
-import { getApiClientsForUser } from '@/lib/api-helpers';
+import { getApiClientsForUser, getPromptForConnection, getEntityRef } from '@/lib/api-helpers';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SeoAnalysisRecord } from '@/lib/types';
 import type { AxiosInstance } from 'axios';
@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
     }
     
     const { url, postId, postType } = validation.data;
-    const { wooApi, wpApi, prompts } = await getApiClientsForUser(uid);
+    const { wooApi, wpApi, activeConnectionKey } = await getApiClientsForUser(uid);
     let pageData;
 
     if (postId && postType) {
@@ -231,7 +231,9 @@ export async function POST(req: NextRequest) {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
     
-    const technicalAnalysisTemplate = Handlebars.compile(prompts.seoTechnicalAnalysis, { noEscape: true });
+    const [entityRef] = await getEntityRef(uid);
+    
+    const technicalAnalysisTemplate = Handlebars.compile(await getPromptForConnection('seoTechnicalAnalysis', activeConnectionKey, entityRef), { noEscape: true });
     const technicalAnalysisPrompt = technicalAnalysisTemplate({
         ...pageData,
         imagesWithoutAlt: pageData.images.filter((i: any) => !i.alt).length,
@@ -254,7 +256,7 @@ export async function POST(req: NextRequest) {
 
     const fullAnalysis = { ...pageData, aiAnalysis: { ...aiAnalysis, score } };
     
-    const interpretationTemplate = Handlebars.compile(prompts.seoInterpretation, { noEscape: true });
+    const interpretationTemplate = Handlebars.compile(await getPromptForConnection('seoInterpretation', activeConnectionKey, entityRef), { noEscape: true });
     let interpretationPrompt = interpretationTemplate({
         title: fullAnalysis.title,
         metaDescription: fullAnalysis.metaDescription,
@@ -289,8 +291,7 @@ export async function POST(req: NextRequest) {
     let responsePayload: SeoAnalysisRecord;
     
     if (adminDb && admin.firestore.FieldValue) {
-        const userSettingsRef = adminDb.collection('user_settings').doc(uid);
-        await userSettingsRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(2) }, { merge: true });
+        await entityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(2) }, { merge: true });
 
         const docRef = await adminDb.collection('seo_analyses').add({
             userId: uid,
@@ -319,3 +320,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'La IA falló: ' + error.message }, { status: 500 });
   }
 }
+
+    

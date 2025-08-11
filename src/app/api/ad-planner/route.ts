@@ -5,20 +5,7 @@ import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { createAdPlan } from '@/ai/flows/create-ad-plan-flow';
 import { CreateAdPlanInputSchema } from '@/app/(app)/ad-planner/schema';
-
-async function getEntityRef(uid: string): Promise<[FirebaseFirestore.DocumentReference, number]> {
-    if (!adminDb) throw new Error("Firestore not configured.");
-
-    const userDoc = await adminDb.collection('users').doc(uid).get();
-    const userData = userDoc.data();
-    const cost = 5; // Cost for generating an ad plan
-
-    if (userData?.companyId) {
-        return [adminDb.collection('companies').doc(userData.companyId), cost];
-    }
-    return [adminDb.collection('user_settings').doc(uid), cost];
-}
-
+import { getEntityRef } from '@/lib/api-helpers';
 
 export async function POST(req: NextRequest) {
     let uid: string;
@@ -41,7 +28,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid input', details: validationResult.error.flatten() }, { status: 400 });
         }
         
-        const [entityRef, cost] = await getEntityRef(uid);
+        const [entityRef] = await getEntityRef(uid);
+        const cost = 5; // Cost for generating an ad plan
         await entityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(cost) }, { merge: true });
 
         const adPlan = await createAdPlan(validationResult.data, uid);
@@ -68,3 +56,5 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Failed to generate ad plan: ' + error.message }, { status: 500 });
     }
 }
+
+    

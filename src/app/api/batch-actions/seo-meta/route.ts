@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
-import { getApiClientsForUser } from '@/lib/api-helpers';
+import { getApiClientsForUser, getPromptForConnection, getEntityRef } from '@/lib/api-helpers';
 import { z } from 'zod';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
@@ -11,7 +11,7 @@ const batchSeoMetaSchema = z.object({
   postType: z.enum(['Post', 'Page', 'Producto']),
 });
 
-async function getEntityRef(uid: string): Promise<[FirebaseFirestore.DocumentReference, number]> {
+async function getCreditEntityRef(uid: string): Promise<[FirebaseFirestore.DocumentReference, number]> {
     if (!adminDb) throw new Error("Firestore not configured.");
 
     const userDoc = await adminDb.collection('users').doc(uid).get();
@@ -22,34 +22,6 @@ async function getEntityRef(uid: string): Promise<[FirebaseFirestore.DocumentRef
         return [adminDb.collection('companies').doc(userData.companyId), cost];
     }
     return [adminDb.collection('user_settings').doc(uid), cost];
-}
-
-
-async function getSeoMetaPrompt(uid: string): Promise<string> {
-    const defaultPrompt = `You are an expert SEO copywriter. Your task is to analyze the title and content of a web page and generate optimized SEO metadata.
-Respond with a single, valid JSON object with two keys: "title" and "metaDescription".
-
-**Constraints:**
-- The "title" must be under 60 characters.
-- The "metaDescription" must be under 160 characters.
-- Both must be in the same language as the provided content.
-
-**Content for Analysis:**
-- Language: {{language}}
-- Title: "{{title}}"
-- Content Snippet: "{{contentSnippet}}"
-
-Generate the SEO metadata now.`;
-
-    if (!adminDb) return defaultPrompt;
-    try {
-        const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
-        // Use the new key 'batchSeoMeta'
-        return userSettingsDoc.data()?.prompts?.batchSeoMeta || defaultPrompt;
-    } catch (error) {
-        console.error("Error fetching 'batchSeoMeta' prompt, using default.", error);
-        return defaultPrompt;
-    }
 }
 
 
@@ -73,7 +45,7 @@ export async function POST(req: NextRequest) {
 
         const { postId, postType } = validation.data;
 
-        const { wpApi, wooApi } = await getApiClientsForUser(uid);
+        const { wpApi, wooApi, activeConnectionKey } = await getApiClientsForUser(uid);
         if (!wpApi) {
             throw new Error('WordPress API is not configured.');
         }
@@ -82,6 +54,8 @@ export async function POST(req: NextRequest) {
         if (!apiToUse) {
             throw new Error(`API client for type ${postType} not available.`);
         }
+        
+        const [entityRef] = await getEntityRef(uid);
 
         const endpoint = postType === 'Producto' ? `products/${postId}` : (postType === 'Post' ? `posts/${postId}` : `pages/${postId}`);
         const response = await apiToUse.get(endpoint, { params: { context: 'edit' } });
@@ -100,7 +74,7 @@ export async function POST(req: NextRequest) {
         const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
 
-        const promptTemplate = await getSeoMetaPrompt(uid);
+        const promptTemplate = await getPromptForConnection('batchSeoMeta', activeConnectionKey, entityRef);
         const prompt = promptTemplate
             .replace('{{language}}', post.lang === 'es' ? 'Spanish' : 'English')
             .replace('{{title}}', title)
@@ -119,8 +93,8 @@ export async function POST(req: NextRequest) {
 
         await apiToUse.put(endpoint, payload);
 
-        const [entityRef, cost] = await getEntityRef(uid);
-        await entityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(cost) }, { merge: true });
+        const [creditEntityRef, cost] = await getCreditEntityRef(uid);
+        await creditEntityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(cost) }, { merge: true });
 
         return NextResponse.json({ success: true, message: `Metadatos SEO actualizados para "${title}".` });
 
@@ -132,3 +106,5 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Failed to generate or save SEO meta", message: error.message }, { status: 500 });
     }
 }
+
+    

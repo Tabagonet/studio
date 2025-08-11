@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
-import { getApiClientsForUser, getPromptForConnection } from '@/lib/api-helpers';
+import { getApiClientsForUser, getPromptForConnection, getEntityRef } from '@/lib/api-helpers';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Handlebars from 'handlebars';
 
@@ -25,7 +25,7 @@ const ImageMetaOnlySchema = z.object({
   imageDescription: z.string().describe('A detailed description for the image media library entry.'),
 });
 
-async function getEntityRef(uid: string, cost: number): Promise<[FirebaseFirestore.DocumentReference, number]> {
+async function getCreditEntityRef(uid: string, cost: number): Promise<[FirebaseFirestore.DocumentReference, number]> {
     if (!adminDb) throw new Error("Firestore not configured.");
 
     const userDoc = await adminDb.collection('users').doc(uid).get();
@@ -73,7 +73,8 @@ export async function POST(req: NextRequest) {
     
     const clientInput = validationResult.data;
     
-    const { wooApi, prompts } = await getApiClientsForUser(uid);
+    const { wooApi, activeConnectionKey } = await getApiClientsForUser(uid);
+    const [entityRef] = await getEntityRef(uid);
     
     let groupedProductsList = 'N/A';
     if (clientInput.productType === 'grouped' && clientInput.groupedProductIds && clientInput.groupedProductIds.length > 0) {
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest) {
       creditCost = 10;
     }
     
-    const promptTemplate = prompts.productDescription;
+    const promptTemplate = await getPromptForConnection('productDescription', activeConnectionKey, entityRef);
     
     const cleanedCategoryName = clientInput.categoryName ? clientInput.categoryName.replace(/—/g, '').trim() : '';
 
@@ -120,8 +121,8 @@ export async function POST(req: NextRequest) {
       throw new Error('AI returned an empty response.');
     }
     
-    const [entityRef, cost] = await getEntityRef(uid, creditCost);
-    await entityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(cost) }, { merge: true });
+    const [creditEntityRef, cost] = await getCreditEntityRef(uid, creditCost);
+    await creditEntityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(cost) }, { merge: true });
 
     return NextResponse.json(aiContent);
 
@@ -137,3 +138,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
+
+    

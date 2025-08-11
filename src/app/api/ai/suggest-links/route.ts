@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
-import { getApiClientsForUser } from '@/lib/api-helpers';
+import { getApiClientsForUser, getPromptForConnection, getEntityRef } from '@/lib/api-helpers';
 import { suggestInternalLinks } from '@/ai/flows/suggest-links-flow';
 import type { SuggestLinksInput } from '@/ai/schemas';
 import { z } from 'zod';
@@ -13,7 +13,7 @@ const suggestLinksBodySchema = z.object({
   content: z.string(),
 });
 
-async function getEntityRef(uid: string): Promise<[FirebaseFirestore.DocumentReference, number]> {
+async function getCreditEntityRef(uid: string): Promise<[FirebaseFirestore.DocumentReference, number]> {
     if (!adminDb) throw new Error("Firestore not configured.");
 
     const userDoc = await adminDb.collection('users').doc(uid).get();
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
         }
         
         const { content } = validation.data;
-        const { wpApi, prompts } = await getApiClientsForUser(uid);
+        const { wpApi, activeConnectionKey } = await getApiClientsForUser(uid);
         if (!wpApi) {
             throw new Error('WordPress API is not configured.');
         }
@@ -106,15 +106,16 @@ export async function POST(req: NextRequest) {
             currentContent: content,
             potentialTargets,
         };
-
-        const rawPrompt = prompts.linkSuggestion;
+        
+        const [entityRef] = await getEntityRef(uid);
+        const rawPrompt = await getPromptForConnection('linkSuggestion', activeConnectionKey, entityRef);
         const template = Handlebars.compile(rawPrompt, { noEscape: true });
         const finalPrompt = template(flowInput);
 
         const result = await suggestInternalLinks(finalPrompt);
 
-        const [entityRef, cost] = await getEntityRef(uid);
-        await entityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(cost) }, { merge: true });
+        const [creditEntityRef, cost] = await getCreditEntityRef(uid);
+        await creditEntityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(cost) }, { merge: true });
         
         return NextResponse.json(result);
 
@@ -126,3 +127,5 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Failed to suggest internal links', message: error.message }, { status: 500 });
     }
 }
+
+    
