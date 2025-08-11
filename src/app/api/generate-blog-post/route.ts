@@ -5,7 +5,7 @@ import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import Handlebars from 'handlebars';
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getApiClientsForUser } from '@/lib/api-helpers';
+import { getApiClientsForUser, getPromptForConnection } from '@/lib/api-helpers';
 
 
 const languageCodeToName: Record<string, string> = {
@@ -24,7 +24,7 @@ const BlogContentInputSchema = z.object({
   ]),
   language: z.string().optional().default('Spanish'),
   topic: z.string().optional(),
-  tags: z.string().optional(),
+  tags: z.array(z.string()).optional(),
   ideaKeyword: z.string().optional(),
   existingTitle: z.string().optional(),
   existingContent: z.string().optional(),
@@ -80,28 +80,27 @@ export async function POST(req: NextRequest) {
         const input = validationResult.data;
         const cost = CREDIT_COSTS[input.mode] || 1;
         
-        // Get prompts for the active connection
-        const { prompts } = await getApiClientsForUser(uid);
+        const { activeConnectionKey } = await getApiClientsForUser(uid);
         
         // Convert language code (e.g., 'en') to language name ('English') for the AI
         const languageName = languageCodeToName[input.language] || input.language;
-        const modelInput = { ...input, language: languageName };
+        const modelInput = { ...input, language: languageName, tags: (input.tags || []).join(', ') };
 
         let promptTemplate = '';
         
         let specificInstruction = '';
         switch (input.mode) {
             case 'generate_from_topic':
-                promptTemplate = prompts.blogGeneration;
+                promptTemplate = await getPromptForConnection('blogGeneration', activeConnectionKey, uid);
                 break;
             case 'enhance_content':
-                promptTemplate = prompts.blogEnhancement;
+                promptTemplate = await getPromptForConnection('blogEnhancement', activeConnectionKey, uid);
                 break;
             case 'suggest_titles':
-                 promptTemplate = prompts.titleSuggestion;
+                 promptTemplate = await getPromptForConnection('titleSuggestion', activeConnectionKey, uid);
                  break;
             case 'suggest_keywords':
-                 promptTemplate = prompts.keywordSuggestion;
+                 promptTemplate = await getPromptForConnection('keywordSuggestion', activeConnectionKey, uid);
                  break;
             case 'enhance_title':
                 specificInstruction = `You are an expert SEO copywriter. Rewrite a blog post title to be more engaging and SEO-optimized (under 60 characters). Respond with a JSON object: {"title": "new title"}.\n\nRewrite the title for this post in ${modelInput.language}, including the keyword "${modelInput.tags}".\nOriginal Title: "${modelInput.existingTitle}"\nContext:\n${modelInput.existingContent}`;

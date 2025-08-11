@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
-import { getApiClientsForUser } from '@/lib/api-helpers';
+import { getApiClientsForUser, getPromptForConnection } from '@/lib/api-helpers';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Handlebars from 'handlebars';
 
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
         productName: z.string().min(1),
         productType: z.string(),
         categoryName: z.string().optional(),
-        tags: z.string().optional(),
+        tags: z.array(z.string()).optional(),
         language: z.enum(['Spanish', 'English', 'French', 'German', 'Portuguese']).default('Spanish'),
         groupedProductIds: z.array(z.number()).optional(),
         mode: z.enum(['full_product', 'image_meta_only']).default('full_product'),
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     
     const clientInput = validationResult.data;
     
-    const { wooApi, prompts } = await getApiClientsForUser(uid);
+    const { wooApi, activeConnectionKey } = await getApiClientsForUser(uid);
     
     let groupedProductsList = 'N/A';
     if (clientInput.productType === 'grouped' && clientInput.groupedProductIds && clientInput.groupedProductIds.length > 0) {
@@ -93,24 +93,23 @@ export async function POST(req: NextRequest) {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
     
-    let promptTemplate: string;
     let outputSchema: z.ZodTypeAny;
     let creditCost: number;
 
     if (clientInput.mode === 'image_meta_only') {
       outputSchema = ImageMetaOnlySchema;
-      promptTemplate = prompts.productDescription; 
       creditCost = 1;
     } else { // full_product
       outputSchema = FullProductOutputSchema;
-      promptTemplate = prompts.productDescription;
       creditCost = 10;
     }
+    
+    const promptTemplate = await getPromptForConnection('productDescription', activeConnectionKey, uid);
     
     const cleanedCategoryName = clientInput.categoryName ? clientInput.categoryName.replace(/—/g, '').trim() : '';
 
     const template = Handlebars.compile(promptTemplate, { noEscape: true });
-    const templateData = { ...clientInput, categoryName: cleanedCategoryName, tags: clientInput.tags || '', groupedProductsList };
+    const templateData = { ...clientInput, categoryName: cleanedCategoryName, tags: (clientInput.tags || []).join(', '), groupedProductsList };
     const finalPrompt = template(templateData);
     
     const result = await model.generateContent(finalPrompt);
@@ -133,4 +132,8 @@ export async function POST(req: NextRequest) {
     }
     let errorMessage = 'La IA falló: ' + (error instanceof Error ? error.message : String(error));
     if (error instanceof z.ZodError) {
-        errorMessage = 'La IA falló: ' + JSON.stringify(
+        errorMessage = 'La IA falló: ' + JSON.stringify(error.errors);
+    }
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  }
+}

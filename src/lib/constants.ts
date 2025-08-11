@@ -1,5 +1,4 @@
 
-
 import type { NavItem, ProductType, ProductData, BlogPostData, NavGroup } from '@/lib/types';
 import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList, SearchCheck, Copy, Building, Megaphone, Briefcase, Store, ListChecks, Lightbulb, FileText, Shield, Sparkles, User } from 'lucide-react';
 import { ShopifyIcon } from '@/components/core/icons';
@@ -186,7 +185,7 @@ Generate a JSON object with the following keys.
 a.  **"name":** Create a new, SEO-friendly product title in {{language}}. It MUST start with the "Base Name" and should be intelligently expanded using the "Descriptive Context" to make it more appealing and searchable.
 b.  **"shortDescription":** A concise and engaging summary in {{language}}, relevant to the newly generated name.
 c.  **"longDescription":** A detailed description in {{language}}, relevant to the newly generated name. Use HTML tags like <strong>, <em>, and <br> for formatting.
-d.  **"tags":** An array of 5 to 10 relevant SEO keywords/tags in {{language}}.
+d.  **"tags":** An array of 5 to 10 relevant SEO keywords/tags in the specified {{language}}.
 e.  **"imageTitle":** A concise, SEO-friendly title for product images.
 f.  **"imageAltText":** A descriptive alt text for SEO.
 g.  **"imageCaption":** An engaging caption for the image.
@@ -227,7 +226,7 @@ Tu respuesta DEBE ser un único objeto JSON válido.
     },
     blogGeneration: {
         label: "Blog: Generar desde Tema",
-        default: `You are a professional blog writer and SEO specialist. Your task is to generate a blog post based on a given topic. The response must be a single, valid JSON object with four keys: 'title' (an engaging, SEO-friendly headline), 'content' (a well-structured blog post of at least 400 words, using HTML tags like <h2>, <p>, <ul>, <li>, and <strong> for formatting. All paragraphs (<p> tags) MUST be styled with text-align: justify; for example: <p style="text-align: justify;">Your paragraph here.</p>), 'suggestedKeywords' (a comma-separated string of 5-7 relevant, SEO-focused keywords), and 'metaDescription' (a compelling summary of around 150 characters for search engines). Do not include markdown or the word 'json' in your output.\n\nGenerate a blog post.\nTopic: "{{topic}}"\nInspiration Keywords: "{{keywords}}"\nLanguage: {{language}}`
+        default: `You are a professional blog writer and SEO specialist. Your task is to generate a blog post based on a given topic. The response must be a single, valid JSON object with four keys: 'title' (an engaging, SEO-friendly headline), 'content' (a well-structured blog post of at least 400 words, using HTML tags like <h2>, <p>, <ul>, <li>, and <strong> for formatting. All paragraphs (<p> tags) MUST be styled with text-align: justify; for example: <p style="text-align: justify;">Your paragraph here.</p>), 'suggestedKeywords' (an array of 5-7 relevant, SEO-focused keywords), and 'metaDescription' (a compelling summary of around 150 characters for search engines). Do not include markdown or the word 'json' in your output.\n\nGenerate a blog post.\nTopic: "{{topic}}"\nInspiration Keywords: "{{tags}}"\nLanguage: {{language}}`
     },
     blogEnhancement: {
         label: "Blog: Mejorar Contenido",
@@ -239,7 +238,7 @@ Tu respuesta DEBE ser un único objeto JSON válido.
     },
     keywordSuggestion: {
         label: "Blog: Sugerir Palabras Clave",
-        default: `You are an expert SEO specialist. Based on the following blog post title and content, generate a list of relevant, SEO-focused keywords. Return a single, valid JSON object with one key: 'suggestedKeywords' (a comma-separated string of 5-7 relevant keywords). Do not include markdown or the word 'json' in your output.\n\nGenerate SEO keywords for this blog post in {{language}}.\nTitle: "{{existingTitle}}"\nContent:\n---\n{{{existingContent}}}\n---`
+        default: `You are an expert SEO specialist. Based on the following blog post title and content, generate a list of relevant, SEO-focused keywords. Return a single, valid JSON object with one key: 'suggestedKeywords' (an array of 5-7 relevant keywords). Do not include markdown or the word 'json' in your output.\n\nGenerate SEO keywords for this blog post in {{language}}.\nTitle: "{{existingTitle}}"\nContent:\n---\n{{{existingContent}}}\n---`
     },
     batchSeoMeta: {
         label: "Acción Lote: Título y Descripción SEO",
