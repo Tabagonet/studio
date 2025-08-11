@@ -11,7 +11,7 @@ const FullProductOutputSchema = z.object({
   name: z.string().describe('A new, SEO-friendly product title. It should start with the base name and be enriched with the descriptive context.'),
   shortDescription: z.string().describe('A brief, catchy summary of the product (1-2 sentences). Must use HTML for formatting.'),
   longDescription: z.string().describe('A detailed, persuasive, and comprehensive description of the product. Must use HTML for formatting.'),
-  tags: z.string().describe('A comma-separated list of 5 to 10 relevant SEO keywords/tags for the product, in English.'),
+  tags: z.array(z.string()).describe('An array of 5 to 10 relevant SEO keywords/tags for the product, in English.'),
   imageTitle: z.string().describe('A concise, SEO-friendly title for the product images.'),
   imageAltText: z.string().describe('A descriptive alt text for SEO, describing the image for visually impaired users.'),
   imageCaption: z.string().describe('An engaging caption for the image, suitable for the media library.'),
@@ -46,7 +46,7 @@ Generate a JSON object with the following keys.
 a.  **"name":** Create a new, SEO-friendly product title in {{language}}. It MUST start with the "Base Name" and should be intelligently expanded using the "Descriptive Context" to make it more appealing and searchable.
 b.  **"shortDescription":** A concise and engaging summary in {{language}}, relevant to the newly generated name.
 c.  **"longDescription":** A detailed description in {{language}}, relevant to the newly generated name. Use HTML tags like <strong>, <em>, and <br> for formatting.
-d.  **"tags":** A comma-separated list of 5-10 relevant SEO keywords/tags in English.
+d.  **"tags":** An array of 5 to 10 relevant SEO keywords/tags in English.
 e.  **"imageTitle":** A concise, SEO-friendly title for product images.
 f.  **"imageAltText":** A descriptive alt text for SEO.
 g.  **"imageCaption":** An engaging caption for the image.
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
         productName: z.string().min(1),
         productType: z.string(),
         categoryName: z.string().optional(),
-        tags: z.string().optional(), 
+        tags: z.string().optional(),
         language: z.enum(['Spanish', 'English', 'French', 'German', 'Portuguese']).default('Spanish'),
         groupedProductIds: z.array(z.number()).optional(),
         mode: z.enum(['full_product', 'image_meta_only']).default('full_product'),
