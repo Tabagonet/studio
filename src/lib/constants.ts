@@ -110,7 +110,7 @@ export const INITIAL_PRODUCT_DATA: ProductData = {
   tags: [],
   shortDescription: "",
   longDescription: "",
-  attributes: [{ name: '', value: '', forVariations: false, visible: true }],
+  attributes: [{ name: '', value: '', forVariations: false, visible: true, options: [] }],
   photos: [],
   variations: [],
   language: 'Spanish',
@@ -185,7 +185,7 @@ Generate a JSON object with the following keys.
 a.  **"name":** Create a new, SEO-friendly product title in {{language}}. It MUST start with the "Base Name" and should be intelligently expanded using the "Descriptive Context" to make it more appealing and searchable.
 b.  **"shortDescription":** A concise and engaging summary in {{language}}, relevant to the newly generated name.
 c.  **"longDescription":** A detailed description in {{language}}, relevant to the newly generated name. Use HTML tags like <strong>, <em>, and <br> for formatting.
-d.  **"tags":** An array of 5 to 10 relevant SEO keywords/tags in the specified {{language}}.
+d.  **"tags":** An array of 5 to 10 relevant SEO keywords/tags for the product, in the specified {{language}}.
 e.  **"imageTitle":** A concise, SEO-friendly title for product images.
 f.  **"imageAltText":** A descriptive alt text for SEO.
 g.  **"imageCaption":** An engaging caption for the image.

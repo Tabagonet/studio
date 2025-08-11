@@ -175,7 +175,7 @@ export interface ProductData {
     width: string;
     height: string;
   };
-  shipping_class: string;
+  shipping_class?: string;
   language: 'Spanish' | 'English' | 'French' | 'German' | 'Portuguese';
   shouldSaveSku?: boolean;
   groupedProductIds?: number[];

@@ -90,19 +90,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     
     // Transform attributes options array into a pipe-separated string for the UI
     if (productData.attributes && Array.isArray(productData.attributes)) {
-      productData.attributes = productData.attributes.map((attr: any) => {
-        // Keep the "Proveedor" attribute as an array, convert others.
-        if (attr.name === 'Proveedor') {
-            return {
-                ...attr,
-                value: (attr.options || []).join(' | '), // Still create value for UI consistency if needed
-            };
-        }
-        return {
-            ...attr,
-            value: (attr.options || []).join(' | '),
-        }
-      });
+      productData.attributes = productData.attributes.map((attr: any) => ({
+        ...attr,
+        value: (attr.options || []).join(' | '),
+      }));
     }
      console.log(`[API EDIT][AUDIT] Processed product data being sent to client:`, {type: productData.type, attributes: productData.attributes});
     
@@ -244,7 +235,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             const batchPayload = {
                 update: finalVariations.map((v: ProductVariation) => ({
                     id: v.variation_id, 
-                    regular_price: (v.regularPrice && v.regularPrice !== '' ? v.regularPrice : generalPrice)?.toString(),
+                    regular_price: (v.regularPrice !== '' ? v.regularPrice : (generalPrice !== '' ? generalPrice : undefined))?.toString(),
                     sale_price: v.salePrice || undefined, 
                     sku: v.sku || undefined,
                     manage_stock: v.manage_stock, 

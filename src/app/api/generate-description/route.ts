@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
         productType: z.string(),
         categoryName: z.string().optional(),
         tags: z.array(z.string()).optional(),
-        language: z.enum(['Spanish', 'English', 'French', 'German', 'Portuguese']).default('Spanish'),
+        language: z.enum(['Spanish', 'English', 'French', 'German', 'Portuguese']).optional().default('Spanish'),
         groupedProductIds: z.array(z.number()).optional(),
         mode: z.enum(['full_product', 'image_meta_only']).default('full_product'),
     });
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     
     const clientInput = validationResult.data;
     
-    const { wooApi, activeConnectionKey } = await getApiClientsForUser(uid);
+    const { wooApi, prompts } = await getApiClientsForUser(uid);
     
     let groupedProductsList = 'N/A';
     if (clientInput.productType === 'grouped' && clientInput.groupedProductIds && clientInput.groupedProductIds.length > 0) {
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
       creditCost = 10;
     }
     
-    const promptTemplate = await getPromptForConnection('productDescription', activeConnectionKey, uid);
+    const promptTemplate = prompts.productDescription;
     
     const cleanedCategoryName = clientInput.categoryName ? clientInput.categoryName.replace(/—/g, '').trim() : '';
 
