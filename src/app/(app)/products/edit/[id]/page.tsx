@@ -433,7 +433,7 @@ function EditPageContent() {
             productName: product.name,
             productType: product.productType,
             tags: product.tags.join(','),
-            language: product.language === 'es' ? 'Spanish' : 'English',
+            language: product.language,
             groupedProductIds: product.groupedProductIds,
         };
         const response = await fetch('/api/generate-description', {
@@ -447,7 +447,7 @@ function EditPageContent() {
             name: aiContent.name,
             shortDescription: aiContent.shortDescription,
             longDescription: aiContent.longDescription,
-            tags: Array.isArray(aiContent.tags) ? aiContent.tags : (aiContent.tags || '').split(',').map((t: string) => t.trim()),
+            tags: Array.isArray(aiContent.tags) ? aiContent.tags : [],
             imageTitle: aiContent.imageTitle,
             imageAltText: aiContent.imageAltText,
             imageCaption: aiContent.imageCaption,
@@ -471,7 +471,7 @@ function EditPageContent() {
         const payload = {
             productName: product.name, productType: product.productType,
             tags: product.tags.join(','),
-            language: product.language === 'es' ? 'Spanish' : 'English',
+            language: product.language,
             mode: 'image_meta_only',
         };
         const response = await fetch('/api/generate-description', {
