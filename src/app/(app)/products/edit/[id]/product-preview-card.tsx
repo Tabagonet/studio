@@ -1,3 +1,4 @@
+
 // src/components/features/products/product-preview-card.tsx
 "use client";
 
@@ -18,7 +19,7 @@ export function ProductPreviewCard({ product, categories }: ProductPreviewCardPr
 
     const primaryPhoto = product.photos?.find(p => p.isPrimary && !p.toDelete) || product.photos?.find(p => !p.toDelete);
     const previewImageUrl = primaryPhoto?.previewUrl || 'https://placehold.co/128x128.png';
-    const categoryName = categories.find(c => c.id === product.category_id)?.name || product.categoryPath || 'Sin categoría';
+    const categoryName = product.category_id ? (categories.find(c => c.id === product.category_id)?.name || 'Sin categoría') : (product.categoryPath || 'Sin categoría');
 
     const renderPrice = () => {
         if (product.productType === 'variable') {
