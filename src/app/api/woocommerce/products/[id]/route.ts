@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiClientsForUser, findOrCreateWpCategoryByPath, uploadImageToWordPress } from '@/lib/api-helpers';
 import { z } from 'zod';
-import { adminAuth } from '@/lib/firebase-admin';
+import { admin, adminAuth } from '@/lib/firebase-admin';
 import type { ProductVariation, WooCommerceImage, ProductAttribute } from '@/lib/types';
 
 

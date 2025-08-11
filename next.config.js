@@ -1,7 +1,6 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  compress: false, // Forzar reconstrucción y optimizar compilación
   experimental: {
     serverComponentsExternalPackages: [
       '@google-cloud/tasks',

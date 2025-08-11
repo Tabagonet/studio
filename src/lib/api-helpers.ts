@@ -1,6 +1,5 @@
-
 // src/lib/api-helpers.ts
-import { adminDb } from '@/lib/firebase-admin';
+import { admin, adminDb } from '@/lib/firebase-admin';
 import { createWooCommerceApi } from '@/lib/woocommerce';
 import { createWordPressApi } from '@/lib/wordpress';
 import { createShopifyApi } from '@/lib/shopify';
@@ -14,7 +13,7 @@ import crypto from 'crypto';
 import sharp from 'sharp';
 import { Readable } from 'stream';
 import { PROMPT_DEFAULTS } from './constants';
-import type * as admin from 'firebase-admin';
+import type * as admin_types from 'firebase-admin';
 
 
 export const partnerAppConnectionDataSchema = z.object({
@@ -31,7 +30,7 @@ interface ApiClients {
   wpApi: AxiosInstance | null;
   shopifyApi: AxiosInstance | null;
   activeConnectionKey: string | null;
-  settings: admin.firestore.DocumentData | undefined;
+  settings: admin_types.firestore.DocumentData | undefined;
   prompts: Record<string, string>; // NEW: Will hold the applicable prompts
 }
 
@@ -504,7 +503,7 @@ export function validateHmac(searchParams: URLSearchParams, clientSecret: string
 export async function getPromptForConnection(
     promptKey: string,
     connectionKey: string | null,
-    entityRef: admin.firestore.DocumentReference,
+    entityRef: admin_types.firestore.DocumentReference,
 ): Promise<string> {
     const defaultPrompt = PROMPT_DEFAULTS[promptKey as keyof typeof PROMPT_DEFAULTS]?.default;
     if (!defaultPrompt) throw new Error(`Default prompt for key "${promptKey}" not found.`);
@@ -527,7 +526,7 @@ export async function getPromptForConnection(
                 for (const [key, config] of Object.entries(PROMPT_DEFAULTS)) {
                     defaultPrompts[key] = config.default;
                 }
-                await promptDocRef.set({ prompts: defaultPrompts, connectionKey: connectionKey, createdAt: adminDb.FieldValue.serverTimestamp() });
+                await promptDocRef.set({ prompts: defaultPrompts, connectionKey: connectionKey, createdAt: admin.firestore.FieldValue.serverTimestamp() });
                 console.log(`[API Helper] Migration complete for '${connectionKey}'.`);
                 // Return the default prompt for this specific key now that the doc is created.
                 return defaultPrompts[promptKey] || defaultPrompt;
@@ -549,7 +548,7 @@ export async function getPromptForConnection(
     }
 }
 
-export async function getEntityRef(uid: string): Promise<[admin.firestore.DocumentReference, 'user' | 'company', string]> {
+export async function getEntityRef(uid: string): Promise<[admin_types.firestore.DocumentReference, 'user' | 'company', string]> {
     if (!adminDb) throw new Error("Firestore not configured.");
 
     const userDoc = await adminDb.collection('users').doc(uid).get();
@@ -712,5 +711,3 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
     // Return a unique set of images based on URL
     return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
-
-    
