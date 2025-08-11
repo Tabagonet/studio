@@ -29,6 +29,8 @@ async function getEntityRef(uid: string): Promise<[FirebaseFirestore.DocumentRef
 
 // Helper to fetch all content titles and links
 async function fetchAllContent(wpApi: AxiosInstance | null) {
+    if (!wpApi) return []; // Add guard clause to handle null case
+
     let allContent: { title: string; link: string }[] = [];
     let page = 1;
     const perPage = 100;
