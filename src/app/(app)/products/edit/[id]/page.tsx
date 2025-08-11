@@ -431,8 +431,8 @@ function EditPageContent() {
             baseProductName: product.name,
             productName: product.name,
             productType: product.productType,
-            tags: product.tags.join(', '),
-            language: 'Spanish',
+            tags: product.tags.join(','),
+            language: product.language === 'es' ? 'Spanish' : 'English',
             groupedProductIds: product.groupedProductIds,
         };
         const response = await fetch('/api/generate-description', {
@@ -470,7 +470,8 @@ function EditPageContent() {
         const payload = {
             productName: product.name, productType: product.productType,
             tags: product.tags.join(','),
-            language: 'Spanish', mode: 'image_meta_only',
+            language: product.language === 'es' ? 'Spanish' : 'English',
+            mode: 'image_meta_only',
         };
         const response = await fetch('/api/generate-description', {
             method: 'POST',
@@ -704,5 +705,3 @@ export default function EditProductPage() {
         </Suspense>
     )
 }
-
-    
