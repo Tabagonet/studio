@@ -28,7 +28,7 @@ async function getEntityRef(uid: string): Promise<[FirebaseFirestore.DocumentRef
 
 
 // Helper to fetch all content titles and links
-async function fetchAllContent(wpApi: AxiosInstance) {
+async function fetchAllContent(wpApi: AxiosInstance | null) {
     let allContent: { title: string; link: string }[] = [];
     let page = 1;
     const perPage = 100;
@@ -69,45 +69,6 @@ async function fetchAllContent(wpApi: AxiosInstance) {
     return allContent;
 }
 
-// Helper to fetch the custom prompt from Firestore
-async function getLinkSuggestionPrompt(uid: string): Promise<string> {
-    const defaultPrompt = `You are an expert SEO specialist, skilled in creating effective internal linking strategies.
-Your task is to analyze an article's content and a list of potential link targets from the same website.
-Identify the most relevant and natural opportunities to add internal links.
-The response must be a single, valid JSON object with one key "suggestions", containing an array of up to 5 high-quality internal link suggestions.
-
-**Instructions:**
-1.  Read the "currentContent" carefully.
-2.  Review the "potentialTargets" list, which contains the titles and URLs of other pages on the site.
-3.  Find specific phrases or keywords in the "currentContent" that would naturally link to one of the "potentialTargets".
-4.  Do NOT suggest linking a phrase that is already inside an <a> HTML tag.
-5.  Prioritize relevance and user experience. The link should provide value to the reader.
-6.  Return a list of up to 5 of the best link suggestions. For each suggestion, provide the exact phrase to link from the original text, and the corresponding target URL and title.
-
-**Content to Analyze:**
----
-{{{currentContent}}}
----
-
-**Available pages to link to:**
----
-{{#each potentialTargets}}
-- Title: {{{this.title}}}
-- URL: {{{this.link}}}
-{{/each}}
----
-`;
-    if (!adminDb) return defaultPrompt;
-    try {
-        const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
-        // The key must match the one defined in the prompts page
-        return userSettingsDoc.data()?.prompts?.linkSuggestion || defaultPrompt;
-    } catch (error) {
-        console.error("Error fetching 'linkSuggestion' prompt, using default.", error);
-        return defaultPrompt;
-    }
-}
-
 
 export async function POST(req: NextRequest) {
     let uid: string;
@@ -128,7 +89,7 @@ export async function POST(req: NextRequest) {
         }
         
         const { content } = validation.data;
-        const { wpApi } = await getApiClientsForUser(uid);
+        const { wpApi, prompts } = await getApiClientsForUser(uid);
         if (!wpApi) {
             throw new Error('WordPress API is not configured.');
         }
@@ -144,7 +105,7 @@ export async function POST(req: NextRequest) {
             potentialTargets,
         };
 
-        const rawPrompt = await getLinkSuggestionPrompt(uid);
+        const rawPrompt = prompts.linkSuggestion;
         const template = Handlebars.compile(rawPrompt, { noEscape: true });
         const finalPrompt = template(flowInput);
 

@@ -25,44 +25,6 @@ const ImageMetaOnlySchema = z.object({
   imageDescription: z.string().describe('A detailed description for the image media library entry.'),
 });
 
-async function getProductDescriptionPrompt(uid: string): Promise<string> {
-    const defaultPrompt = `You are an expert e-commerce copywriter and SEO specialist.
-Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
-The response must be a valid JSON object. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
-
-**Input Information:**
-- **Base Name (from CSV, this is the starting point):** {{baseProductName}}
-- **Descriptive Context (from image filename, use this for inspiration):** {{productName}}
-- **Language for output:** {{language}}
-- **Product Type:** {{productType}}
-- **Category:** {{categoryName}}
-- **User-provided Tags (for inspiration):** {{tags}}
-- **Contained Products (for "Grouped" type only):**
-{{{groupedProductsList}}}
-
-**Instructions:**
-Generate a JSON object with the following keys.
-
-a.  **"name":** Create a new, SEO-friendly product title in {{language}}. It MUST start with the "Base Name" and should be intelligently expanded using the "Descriptive Context" to make it more appealing and searchable.
-b.  **"shortDescription":** A concise and engaging summary in {{language}}, relevant to the newly generated name.
-c.  **"longDescription":** A detailed description in {{language}}, relevant to the newly generated name. Use HTML tags like <strong>, <em>, and <br> for formatting.
-d.  **"tags":** An array of 5 to 10 relevant SEO keywords/tags in {{language}}.
-e.  **"imageTitle":** A concise, SEO-friendly title for product images.
-f.  **"imageAltText":** A descriptive alt text for SEO.
-g.  **"imageCaption":** An engaging caption for the image.
-h.  **"imageDescription":** A detailed description for the image media library entry.
-
-Generate the complete JSON object now.`;
-    if (!adminDb) return defaultPrompt;
-    try {
-        const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
-        return userSettingsDoc.data()?.prompts?.productDescription || defaultPrompt;
-    } catch (error) {
-        console.error("Error fetching 'productDescription' prompt, using default.", error);
-        return defaultPrompt;
-    }
-}
-
 async function getEntityRef(uid: string, cost: number): Promise<[FirebaseFirestore.DocumentReference, number]> {
     if (!adminDb) throw new Error("Firestore not configured.");
 
@@ -111,7 +73,7 @@ export async function POST(req: NextRequest) {
     
     const clientInput = validationResult.data;
     
-    const { wooApi } = await getApiClientsForUser(uid);
+    const { wooApi, prompts } = await getApiClientsForUser(uid);
     
     let groupedProductsList = 'N/A';
     if (clientInput.productType === 'grouped' && clientInput.groupedProductIds && clientInput.groupedProductIds.length > 0) {
@@ -137,11 +99,11 @@ export async function POST(req: NextRequest) {
 
     if (clientInput.mode === 'image_meta_only') {
       outputSchema = ImageMetaOnlySchema;
-      promptTemplate = await getProductDescriptionPrompt(uid);
+      promptTemplate = prompts.productDescription; 
       creditCost = 1;
     } else { // full_product
       outputSchema = FullProductOutputSchema;
-      promptTemplate = await getProductDescriptionPrompt(uid);
+      promptTemplate = prompts.productDescription;
       creditCost = 10;
     }
     
@@ -171,8 +133,4 @@ export async function POST(req: NextRequest) {
     }
     let errorMessage = 'La IA falló: ' + (error instanceof Error ? error.message : String(error));
     if (error instanceof z.ZodError) {
-        errorMessage = 'La IA falló: ' + JSON.stringify(error.errors);
-    }
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
-  }
-}
+        errorMessage = 'La IA falló: ' + JSON.stringify(

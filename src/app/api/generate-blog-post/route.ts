@@ -5,6 +5,8 @@ import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import Handlebars from 'handlebars';
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getApiClientsForUser } from '@/lib/api-helpers';
+
 
 const languageCodeToName: Record<string, string> = {
     es: 'Spanish',
@@ -28,13 +30,6 @@ const BlogContentInputSchema = z.object({
   existingContent: z.string().optional(),
 });
 
-const PROMPT_DEFAULTS: Record<string, string> = {
-    blogGeneration: `You are a professional blog writer and SEO specialist. Your task is to generate a blog post based on a given topic. The response must be a single, valid JSON object with four keys: 'title' (an engaging, SEO-friendly headline), 'content' (a well-structured blog post of at least 400 words, using HTML tags like <h2>, <p>, <ul>, <li>, and <strong> for formatting. All paragraphs (<p> tags) MUST be styled with text-align: justify; for example: <p style="text-align: justify;">Your paragraph here.</p>), 'suggestedKeywords' (a comma-separated string of 5-7 relevant, SEO-focused keywords), and 'metaDescription' (a compelling summary of around 150 characters for search engines). Do not include markdown or the word 'json' in your output.\n\nGenerate a blog post.\nTopic: "{{topic}}"\nInspiration Keywords: "{{tags}}"\nLanguage: {{language}}`,
-    blogEnhancement: `You are an expert SEO copywriter. Your task is to analyze a blog post's title and content and rewrite them to be more engaging, clear, and SEO-optimized. Return a single, valid JSON object with two keys: 'title' and 'content'. The content should preserve the original HTML tags. Do not include markdown or the word 'json' in your output.\n\nRewrite and improve the title and content in {{language}} for this blog post.\nOriginal Title: "{{existingTitle}}"\nOriginal Content:\n---\n{{{existingContent}}}\n---`,
-    titleSuggestion: `You are an expert SEO and content strategist. Based on the provided keyword, generate 5 creative, engaging, and SEO-friendly blog post titles. Return a single, valid JSON object with one key: 'titles', which is an array of 5 string titles. Do not include markdown or the word 'json' in your output.\n\nGenerate 5 blog post titles in {{language}} for the keyword: "{{ideaKeyword}}`,
-    keywordSuggestion: `You are an expert SEO specialist. Based on the following blog post title and content, generate a list of relevant, SEO-focused keywords. Return a single, valid JSON object with one key: 'suggestedKeywords' (a comma-separated string of 5-7 relevant keywords). Do not include markdown or the word 'json' in your output.\n\nGenerate SEO keywords for this blog post in {{language}}.\nTitle: "{{existingTitle}}"\nContent:\n---\n{{{existingContent}}}\n---`,
-};
-
 const CREDIT_COSTS: Record<string, number> = {
     generate_from_topic: 10,
     enhance_content: 5,
@@ -45,21 +40,6 @@ const CREDIT_COSTS: Record<string, number> = {
     generate_image_meta: 1,
     enhance_title: 1,
 };
-
-
-async function getPrompt(uid: string, promptKey: string): Promise<string> {
-    const defaultPrompt = PROMPT_DEFAULTS[promptKey];
-    if (!defaultPrompt) throw new Error(`Default prompt for key "${promptKey}" not found.`);
-    if (!adminDb) return defaultPrompt;
-
-    try {
-        const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
-        return userSettingsDoc.data()?.prompts?.[promptKey] || defaultPrompt;
-    } catch (error) {
-        console.error(`Error fetching '${promptKey}' prompt, using default.`, error);
-        return defaultPrompt;
-    }
-}
 
 async function getEntityRef(uid: string, cost: number): Promise<[FirebaseFirestore.DocumentReference, number]> {
     if (!adminDb) throw new Error("Firestore not configured.");
@@ -100,6 +80,9 @@ export async function POST(req: NextRequest) {
         const input = validationResult.data;
         const cost = CREDIT_COSTS[input.mode] || 1;
         
+        // Get prompts for the active connection
+        const { prompts } = await getApiClientsForUser(uid);
+        
         // Convert language code (e.g., 'en') to language name ('English') for the AI
         const languageName = languageCodeToName[input.language] || input.language;
         const modelInput = { ...input, language: languageName };
@@ -109,16 +92,16 @@ export async function POST(req: NextRequest) {
         let specificInstruction = '';
         switch (input.mode) {
             case 'generate_from_topic':
-                promptTemplate = await getPrompt(uid, 'blogGeneration');
+                promptTemplate = prompts.blogGeneration;
                 break;
             case 'enhance_content':
-                promptTemplate = await getPrompt(uid, 'blogEnhancement');
+                promptTemplate = prompts.blogEnhancement;
                 break;
             case 'suggest_titles':
-                 promptTemplate = await getPrompt(uid, 'titleSuggestion');
+                 promptTemplate = prompts.titleSuggestion;
                  break;
             case 'suggest_keywords':
-                 promptTemplate = await getPrompt(uid, 'keywordSuggestion');
+                 promptTemplate = prompts.keywordSuggestion;
                  break;
             case 'enhance_title':
                 specificInstruction = `You are an expert SEO copywriter. Rewrite a blog post title to be more engaging and SEO-optimized (under 60 characters). Respond with a JSON object: {"title": "new title"}.\n\nRewrite the title for this post in ${modelInput.language}, including the keyword "${modelInput.tags}".\nOriginal Title: "${modelInput.existingTitle}"\nContext:\n${modelInput.existingContent}`;

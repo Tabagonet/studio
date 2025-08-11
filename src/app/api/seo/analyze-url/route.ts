@@ -59,43 +59,6 @@ const SeoInterpretationOutputSchema = z.object({
     ),
 });
 
-const PROMPT_DEFAULTS: Record<string, string> = {
-    seoTechnicalAnalysis: `Analiza el siguiente contenido de una página web para optimización SEO (On-Page) y responde únicamente con un objeto JSON válido.\n\n**Datos de la Página:**\n- Título SEO: "{{title}}"\n- Meta Descripción: "{{metaDescription}}"\n- Palabra Clave Principal: "{{focusKeyword}}"\n- URL Canónica: "{{canonicalUrl}}"\n- Total de Imágenes: {{images.length}}\n- Imágenes sin 'alt': {{imagesWithoutAlt}}\n- Encabezado H1: "{{h1}}"\n- Primeros 300 caracteres del contenido: "{{textContent}}"\n\n**Instrucciones:**\nEvalúa cada uno de los siguientes puntos y devuelve un valor booleano (true/false) para cada uno en el objeto "checks". Además, proporciona sugerencias en el objeto "suggested".\n\n**"checks":**\n1. "titleContainsKeyword": ¿Contiene el "Título SEO" la "Palabra Clave Principal"?\n2. "titleIsGoodLength": ¿Tiene el "Título SEO" entre 30 y 65 caracteres?\n3. "metaDescriptionContainsKeyword": ¿Contiene la "Meta Descripción" la "Palabra Clave Principal"?\n4. "metaDescriptionIsGoodLength": ¿Tiene la "Meta Descripción" entre 50 y 160 caracteres?\n5. "keywordInFirstParagraph": ¿Contienen los "Primeros 300 caracteres del contenido" la "Palabra Clave Principal"?\n6. "contentHasImages": ¿Es el "Total de Imágenes" mayor que 0?\n7. "allImagesHaveAltText": ¿Es el número de "Imágenes sin 'alt'" igual a 0?\n8. "h1Exists": ¿Existe el "Encabezado H1" y no está vacío?\n9. "canonicalUrlExists": ¿Existe la "URL Canónica" y no está vacía?\n\n**"suggested":**\n- "title": Sugiere un "Título SEO" mejorado.\n- "metaDescription": Sugiere una "Meta Descripción" mejorada.\n- "focusKeyword": Sugiere la "Palabra Clave Principal" más apropiada para el contenido.`,
-    seoInterpretation: `You are a world-class SEO consultant analyzing a web page's on-page SEO data. The user has received the following raw data from an analysis tool. Your task is to interpret this data and provide a clear, actionable summary in Spanish. 
-
-Generate a JSON object with four keys: "interpretation", "actionPlan", "positives", "improvements".
-
--   **"interpretation"**: A narrative paragraph in Spanish explaining the most important SEO data points in a simple, easy-to-understand way.
--   **"actionPlan"**: An array of strings, where each string is a specific, actionable step to improve the page's SEO. Provide 3-5 steps.
--   **"positives"**: An array of strings, where each string is a key SEO strength of the page. Provide 2-4 strengths.
--   **"improvements"**: An array of strings, where each string is a key area for SEO improvement. Provide 2-4 areas.
-
-The values for "actionPlan", "positives", and "improvements" MUST be arrays of strings, even if there is only one item.
-
-**Analysis Data:**
-- Page Title: "{{title}}"
-- Meta Description: "{{metaDescription}}"
-- H1 Heading: "{{h1}}"
-- SEO Score: {{score}}/100
-- Technical SEO Checks (true = passed, false = failed):
-{{{checksSummary}}}`
-};
-
-async function getPrompt(uid: string, promptKey: string): Promise<string> {
-    const defaultPrompt = PROMPT_DEFAULTS[promptKey];
-    if (!defaultPrompt) throw new Error(`Default prompt for key "${promptKey}" not found.`);
-    if (!adminDb) return defaultPrompt;
-
-    try {
-        const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
-        return userSettingsDoc.data()?.prompts?.[promptKey] || defaultPrompt;
-    } catch (error) {
-        console.error(`Error fetching '${promptKey}' prompt, using default.`, error);
-        return defaultPrompt;
-    }
-}
-
-
 async function getPageContentFromScraping(url: string, wpApi: AxiosInstance | null) {
     try {
         const response = await axios.get(url, {
@@ -209,7 +172,7 @@ export async function POST(req: NextRequest) {
     }
     
     const { url, postId, postType } = validation.data;
-    const { wooApi, wpApi } = await getApiClientsForUser(uid);
+    const { wooApi, wpApi, prompts } = await getApiClientsForUser(uid);
     let pageData;
 
     if (postId && postType) {
@@ -268,7 +231,7 @@ export async function POST(req: NextRequest) {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
     
-    const technicalAnalysisTemplate = Handlebars.compile(await getPrompt(uid, 'seoTechnicalAnalysis'), { noEscape: true });
+    const technicalAnalysisTemplate = Handlebars.compile(prompts.seoTechnicalAnalysis, { noEscape: true });
     const technicalAnalysisPrompt = technicalAnalysisTemplate({
         ...pageData,
         imagesWithoutAlt: pageData.images.filter((i: any) => !i.alt).length,
@@ -291,7 +254,7 @@ export async function POST(req: NextRequest) {
 
     const fullAnalysis = { ...pageData, aiAnalysis: { ...aiAnalysis, score } };
     
-    const interpretationTemplate = Handlebars.compile(await getPrompt(uid, 'seoInterpretation'), { noEscape: true });
+    const interpretationTemplate = Handlebars.compile(prompts.seoInterpretation, { noEscape: true });
     let interpretationPrompt = interpretationTemplate({
         title: fullAnalysis.title,
         metaDescription: fullAnalysis.metaDescription,
