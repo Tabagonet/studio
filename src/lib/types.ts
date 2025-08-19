@@ -513,3 +513,5 @@ export interface StepConfirmProps {
   data: ProductData | BlogPostData;
   onValidationComplete: (isValid: boolean) => void;
 }
+
+    
