@@ -57,25 +57,61 @@ export function ImageCropperDialog({
     return 1;
   })();
 
+  const loadOriginalImage = async (image: ContentImage | ProductPhoto) => {
+    if (!image.src && !('previewUrl' in image && image.previewUrl)) {
+        toast({ title: 'No hay imagen de origen', variant: 'destructive'});
+        return;
+    }
+
+    setIsOriginalLoading(true);
+    setSourceImage(null);
+    try {
+        const imageUrlToLoad = image.src || (image as ProductPhoto).previewUrl;
+        
+        if (imageUrlToLoad.startsWith('blob:')) {
+            setSourceImage(imageUrlToLoad);
+            setOriginalFilename((image as ProductPhoto).name || 'image.png');
+            return;
+        }
+
+        const user = auth.currentUser; if (!user) throw new Error("No autenticado.");
+        const token = await user.getIdToken();
+
+        const response = await axios.post('/api/process-image', { imageUrl: imageUrlToLoad }, { headers: { 'Authorization': `Bearer ${token}` }, responseType: 'blob' });
+        const blob = response.data;
+        const dataUrl = await blobToDataURL(blob);
+        
+        setSourceImage(dataUrl);
+        setOriginalFilename(imageUrlToLoad.split('/').pop()?.split('?')[0] || 'original.png');
+    } catch (e) {
+        console.error("No se pudo cargar la imagen original:", e);
+        toast({ title: 'Error al Cargar Imagen', description: 'No se pudo obtener la imagen original. Puede que ya no esté disponible o haya un problema de red.', variant: 'destructive' });
+        setSourceImage(null);
+    } finally {
+        setIsOriginalLoading(false);
+    }
+  };
+
   // Effect to manage state when dialog opens/closes or image prop changes
   useEffect(() => {
     if (open && imageToCrop) {
-        // If an image object with a previewUrl is passed, it means we are in "edit" mode (e.g., from wizard or edit page).
-        // Load it directly into the cropper.
-        if (('previewUrl' in imageToCrop && imageToCrop.previewUrl)) {
-            const photo = imageToCrop as ProductPhoto;
+        setIsAspectRatioLocked(true);
+
+        const photo = imageToCrop as ProductPhoto;
+        // If it's a new image (has a file object), load it directly.
+        if (photo.file) {
             setSourceImage(photo.previewUrl);
             setOriginalFilename(photo.name);
         } else {
-             // We are in "replace" mode (legacy or other flows), so show the options.
-             setSourceImage(null);
+            // It's an existing image, load it from the server.
+            loadOriginalImage(imageToCrop);
         }
-        setIsAspectRatioLocked(true);
     } else {
       setSourceImage(null);
       setOriginalFilename('cropped-image.png');
       setIsAspectRatioLocked(true);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, imageToCrop]);
 
 
@@ -102,40 +138,6 @@ export function ImageCropperDialog({
         setSourceImage(reader.result as string);
       };
       reader.readAsDataURL(file);
-    }
-  };
-
-  const handleLoadOriginal = async () => {
-    if (!imageToCrop?.src && !('previewUrl' in imageToCrop && imageToCrop.previewUrl)) {
-        toast({ title: 'No hay imagen de origen', variant: 'destructive'});
-        return;
-    }
-
-    setIsOriginalLoading(true);
-    try {
-        const imageUrlToLoad = imageToCrop.src || (imageToCrop as ProductPhoto).previewUrl;
-        
-        if (imageUrlToLoad.startsWith('blob:')) {
-            setSourceImage(imageUrlToLoad);
-            setOriginalFilename((imageToCrop as ProductPhoto).name || 'image.png');
-            return;
-        }
-
-        const user = auth.currentUser; if (!user) throw new Error("No autenticado.");
-        const token = await user.getIdToken();
-
-        const response = await axios.post('/api/process-image', { imageUrl: imageUrlToLoad }, { headers: { 'Authorization': `Bearer ${token}` }, responseType: 'blob' });
-        const blob = response.data;
-        const dataUrl = await blobToDataURL(blob);
-        
-        setSourceImage(dataUrl);
-        setOriginalFilename(imageUrlToLoad.split('/').pop()?.split('?')[0] || 'original.png');
-    } catch (e) {
-        console.error("No se pudo cargar la imagen original:", e);
-        toast({ title: 'Error al Cargar Imagen', description: 'No se pudo obtener la imagen original. Puede que ya no esté disponible o haya un problema de red.', variant: 'destructive' });
-        setSourceImage(null);
-    } finally {
-        setIsOriginalLoading(false);
     }
   };
 
@@ -187,40 +189,26 @@ export function ImageCropperDialog({
         <DialogHeader>
           <DialogTitle>Editor de Imagen</DialogTitle>
           <DialogDescription>
-            Ajusta, recorta y reemplaza la imagen. La nueva imagen se optimizará para la web.
+            Ajusta, recorta y optimiza la imagen para la web.
           </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start py-4">
           <div className="space-y-3">
-             <h4 className="font-semibold text-sm">1. Origen de la Imagen</h4>
-             {!sourceImage && (
-              <div className="space-y-3">
+             <h4 className="font-semibold text-sm">Controles</h4>
+             <div className="border rounded-md p-3 space-y-3 bg-muted/30">
                 <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="w-full" disabled={isSaving}>
                   <UploadCloud className="mr-2 h-4 w-4" />
-                  Subir nueva imagen...
+                  Subir otra imagen...
                 </Button>
-                {imageToCrop && (
-                  <div className="border rounded-md p-3 space-y-2 bg-muted/50">
-                    <p className="text-xs text-muted-foreground">O puedes editar la imagen que ya existe:</p>
-                    <Button variant="secondary" size="sm" onClick={handleLoadOriginal} className="w-full" disabled={isOriginalLoading}>
-                      {isOriginalLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Edit className="mr-2 h-4 w-4" />}
-                      Cargar y editar original
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-             <Input
-              id="new-image-upload"
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-              disabled={isSaving}
-              className="hidden"
-              ref={fileInputRef}
-            />
-            {sourceImage && (
-              <div className="border rounded-md p-3 space-y-2">
+                 <Input
+                  id="new-image-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  disabled={isSaving}
+                  className="hidden"
+                  ref={fileInputRef}
+                />
                  <div className="flex items-center space-x-2">
                   <Checkbox
                     id="lock-aspect-ratio"
@@ -236,14 +224,20 @@ export function ImageCropperDialog({
                     ? `El recorte mantendrá la proporción ${cropperAspectRatio.toFixed(2)}:1.`
                     : 'Recorte libre: puedes definir cualquier proporción.'}
                 </p>
-                <Button onClick={() => setSourceImage(null)} variant="link" className="p-0 h-auto text-xs">Cambiar imagen</Button>
+                <Button onClick={rotateCropper} variant="secondary" size="sm" className="w-full" disabled={!sourceImage}>
+                    <RotateCw className="mr-2 h-4 w-4" /> Rotar 90°
+                </Button>
               </div>
-            )}
           </div>
           <div className="space-y-3">
-            <h4 className="font-semibold text-sm">2. Previsualización y Recorte</h4>
+            <h4 className="font-semibold text-sm">Previsualización</h4>
             <div className="w-full aspect-square bg-muted rounded-md border flex items-center justify-center relative overflow-hidden">
-              {sourceImage ? (
+              {isOriginalLoading ? (
+                  <div className="text-center text-muted-foreground p-4">
+                    <Loader2 className="mx-auto h-12 w-12 text-primary animate-spin" />
+                    <p className="mt-2">Cargando imagen original...</p>
+                  </div>
+              ) : sourceImage ? (
                 <Cropper
                   ref={cropperRef}
                   src={sourceImage}
@@ -263,22 +257,17 @@ export function ImageCropperDialog({
               ) : (
                 <div className="text-center text-muted-foreground p-4">
                   <Crop className="mx-auto h-12 w-12 text-muted-foreground/50" />
-                  <p className="mt-2">Sube una imagen para empezar a recortar</p>
+                  <p className="mt-2">No hay imagen cargada.</p>
                 </div>
               )}
             </div>
-            {sourceImage && (
-              <Button onClick={rotateCropper} variant="outline" size="sm">
-                <RotateCw className="mr-2 h-4 w-4" /> Rotar 90°
-              </Button>
-            )}
           </div>
         </div>
         <DialogFooter>
           <DialogClose asChild>
             <Button type="button" variant="secondary" disabled={isSaving}>Cancelar</Button>
           </DialogClose>
-          <Button onClick={handleSaveCrop} disabled={isSaving || !sourceImage}>
+          <Button onClick={handleSaveCrop} disabled={isSaving || !sourceImage || isOriginalLoading}>
             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Guardar y Reemplazar
           </Button>
