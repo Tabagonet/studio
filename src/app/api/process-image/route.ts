@@ -40,8 +40,8 @@ export async function POST(req: NextRequest) {
         
         const contentType = imageResponse.headers['content-type'] || 'image/webp';
         
-        // Use NextResponse to properly handle the Buffer
-        return new NextResponse(processedBuffer, {
+        // Use NextResponse with a Blob to handle the Buffer correctly
+        return new NextResponse(new Blob([processedBuffer]), {
             status: 200,
             headers: { 'Content-Type': contentType }
         });
