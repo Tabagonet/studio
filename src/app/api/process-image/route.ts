@@ -21,24 +21,28 @@ export async function POST(req: NextRequest) {
         if (!imageUrl) {
             return new Response('imageUrl is required', { status: 400 });
         }
-
-        const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+        
+        // Use axios to fetch the image as an arraybuffer, which is more reliable
+        const imageResponse = await axios.get(imageUrl, { 
+            responseType: 'arraybuffer',
+            timeout: 10000, // 10-second timeout
+        });
         const originalBuffer = Buffer.from(imageResponse.data, 'binary');
 
+        // You can keep the sharp processing if needed, or just return the original
         const processedBuffer = await sharp(originalBuffer)
             .resize(1200, 1200, {
                 fit: 'inside',
                 withoutEnlargement: true,
             })
-            .webp({ quality: 80 })
+            .webp({ quality: 85 })
             .toBuffer();
         
-        // Convert Buffer to Uint8Array to ensure type compatibility
-        const uint8Array = new Uint8Array(processedBuffer);
+        const contentType = imageResponse.headers['content-type'] || 'image/webp';
 
-        return new Response(uint8Array, {
+        return new Response(processedBuffer, {
             status: 200,
-            headers: { 'Content-Type': 'image/webp' }
+            headers: { 'Content-Type': contentType }
         });
 
     } catch (error: any) {

@@ -13,7 +13,10 @@ import { Loader2, Crop, UploadCloud, RotateCw, Edit } from 'lucide-react';
 import Cropper from 'react-cropper';
 import 'cropperjs/dist/cropper.css';
 import type { ContentImage } from '@/lib/types';
-import Image from 'next/image';
+import { Checkbox } from '@/components/ui/checkbox';
+import { auth } from '@/lib/firebase';
+import axios from 'axios';
+
 
 interface ImageCropperDialogProps {
   open: boolean;
@@ -23,11 +26,25 @@ interface ImageCropperDialogProps {
   isSaving: boolean;
 }
 
+// Helper to convert a blob to a data URL
+function blobToDataURL(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(blob);
+    });
+}
+
+
 export function ImageCropperDialog({
   open, onOpenChange, imageToCrop, onSave, isSaving
 }: ImageCropperDialogProps) {
   const [sourceImage, setSourceImage] = useState<string | null>(null);
   const [originalFilename, setOriginalFilename] = useState<string>('cropped-image.png');
+  const [isAspectRatioLocked, setIsAspectRatioLocked] = useState(true);
+  const [isOriginalLoading, setIsOriginalLoading] = useState(false);
+
   const cropperRef = useRef<any>(null);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -37,6 +54,7 @@ export function ImageCropperDialog({
     if (!open || !imageToCrop) {
       setSourceImage(null);
       setOriginalFilename('cropped-image.png');
+      setIsAspectRatioLocked(true);
     }
   }, [open, imageToCrop]);
 
@@ -60,15 +78,34 @@ export function ImageCropperDialog({
   
   const handleLoadOriginal = async () => {
       if (!imageToCrop?.src) return;
-      setSourceImage(imageToCrop.src);
+      setIsOriginalLoading(true);
       try {
-        const response = await fetch(imageToCrop.src);
-        const blob = await response.blob();
-        const filename = imageToCrop.src.split('/').pop() || 'original.png';
+        const user = auth.currentUser;
+        if (!user) throw new Error("No autenticado.");
+        const token = await user.getIdToken();
+        
+        // Proxy the image request through our API route to bypass CORS issues.
+        const response = await axios.post('/api/process-image', 
+          { imageUrl: imageToCrop.src },
+          { 
+            headers: { 'Authorization': `Bearer ${token}` },
+            responseType: 'blob' 
+          }
+        );
+
+        const blob = response.data;
+        const dataUrl = await blobToDataURL(blob);
+        setSourceImage(dataUrl);
+
+        const filename = imageToCrop.src.split('/').pop()?.split('?')[0] || 'original.png';
         setOriginalFilename(filename);
+
       } catch (e) {
-          console.warn("Could not fetch original image to determine filename, using default.", e);
-          setOriginalFilename('original-image.png');
+          console.error("No se pudo cargar la imagen original:", e);
+          toast({ title: 'Error al Cargar Imagen', description: 'No se pudo obtener la imagen original. Puede que ya no esté disponible o haya un problema de red.', variant: 'destructive' });
+          setSourceImage(null);
+      } finally {
+          setIsOriginalLoading(false);
       }
   }
 
@@ -114,6 +151,10 @@ export function ImageCropperDialog({
       cropperRef.current.cropper.rotate(90);
     }
   };
+  
+  const cropperAspectRatio = isAspectRatioLocked
+    ? (imageToCrop && imageToCrop.width && imageToCrop.height ? Number(imageToCrop.width) / Number(imageToCrop.height) : undefined)
+    : undefined;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -144,12 +185,35 @@ export function ImageCropperDialog({
              {imageToCrop && (
                 <div className="border rounded-md p-3 space-y-2 bg-muted/50">
                     <p className="text-xs text-muted-foreground">O puedes editar la imagen original:</p>
-                    <Button variant="secondary" size="sm" onClick={handleLoadOriginal} className="w-full">
-                       <Edit className="mr-2 h-4 w-4" />
+                    <Button variant="secondary" size="sm" onClick={handleLoadOriginal} className="w-full" disabled={isOriginalLoading}>
+                       {isOriginalLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Edit className="mr-2 h-4 w-4" />}
                        Cargar y editar original
                     </Button>
                 </div>
              )}
+              {sourceImage && (
+                 <div className="border rounded-md p-3 space-y-2">
+                     <div className="flex items-center space-x-2">
+                        <Checkbox
+                            id="lock-aspect-ratio"
+                            checked={isAspectRatioLocked}
+                            onCheckedChange={(checked) => setIsAspectRatioLocked(!!checked)}
+                            disabled={!imageToCrop?.width || !imageToCrop?.height}
+                        />
+                        <Label htmlFor="lock-aspect-ratio" className="text-sm font-normal">
+                            Mantener proporción de aspecto
+                        </Label>
+                    </div>
+                     <p className="text-xs text-muted-foreground">
+                        {(!imageToCrop?.width || !imageToCrop?.height) 
+                          ? "No se detectaron dimensiones originales para bloquear la proporción."
+                          : isAspectRatioLocked 
+                          ? "El recorte mantendrá la proporción original de la imagen." 
+                          : "Recorte libre. Puedes definir cualquier proporción."
+                        }
+                    </p>
+                 </div>
+              )}
           </div>
           <div className="space-y-3">
             <h4 className="font-semibold text-sm">2. Previsualización y Recorte</h4>
@@ -159,7 +223,7 @@ export function ImageCropperDialog({
                         ref={cropperRef}
                         src={sourceImage}
                         style={{ height: '100%', width: '100%' }}
-                        aspectRatio={imageToCrop && imageToCrop.width && imageToCrop.height ? Number(imageToCrop.width) / Number(imageToCrop.height) : undefined}
+                        aspectRatio={cropperAspectRatio}
                         viewMode={1}
                         dragMode="move"
                         guides={true}
@@ -197,3 +261,4 @@ export function ImageCropperDialog({
     </Dialog>
   );
 }
+
