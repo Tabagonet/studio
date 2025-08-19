@@ -9,14 +9,14 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, UserCheck, UserX, MoreHorizontal, Trash2, Shield, User, Briefcase, Building, Store, BrainCircuit } from 'lucide-react';
 import Image from 'next/image';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuPortal } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import type { Company, User as AppUser, PlanUsage } from '@/lib/types';
 import { ShopifyIcon } from '@/components/core/icons';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { deleteUserAction, addCreditsAction } from './actions';
+import { deleteUserAction, addCreditsAction } from '@/app/api/admin/users/actions';
 import { Input } from '@/components/ui/input';
 
 
@@ -113,7 +113,7 @@ export function UserManagementTable({ onDataChange }: { onDataChange: () => void
     }, [toast]);
 
     useEffect(() => {
-        const unsubscribe = auth.onAuthStateChanged((user) => {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
             if (user) {
                 fetchUsersAndCompanies();
             } else {
