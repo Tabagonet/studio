@@ -23,6 +23,7 @@ import { PRODUCT_TYPES } from '@/lib/constants';
 import { ComboBox } from '@/components/core/combobox';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { ProductPreviewCard } from './product-preview-card';
+import { ImageCropperDialog } from '@/components/features/media/image-cropper-dialog';
 
 
 function EditPageContent() {
@@ -49,6 +50,8 @@ function EditPageContent() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingImageMeta, setIsGeneratingImageMeta] = useState(false);
   
+  const [imageToCrop, setImageToCrop] = useState<ProductPhoto | null>(null);
+  
   const { toast } = useToast();
   
   const updateProductData = useCallback((data: Partial<ProductData> | ((prevState: ProductData) => Partial<ProductData>)) => {
@@ -63,6 +66,29 @@ function EditPageContent() {
   const handlePhotosChange = useCallback((updatedPhotos: ProductPhoto[]) => {
       updateProductData({ photos: updatedPhotos });
   }, [updateProductData]);
+  
+  const handleCroppedImageSave = (croppedImageFile: File) => {
+    if (!imageToCrop) return;
+    
+    updateProductData(prev => {
+        if (!prev) return prev;
+        const updatedPhotos = prev.photos.map(p => {
+            if (p.id === imageToCrop.id) {
+                return {
+                    ...p,
+                    file: croppedImageFile,
+                    name: croppedImageFile.name,
+                    previewUrl: URL.createObjectURL(croppedImageFile),
+                };
+            }
+            return p;
+        });
+        return { ...prev, photos: updatedPhotos };
+    });
+
+    setImageToCrop(null);
+    toast({ title: "Imagen Recortada", description: "La imagen ha sido actualizada. Guarda los cambios para aplicarla en tu tienda." });
+  };
 
   const fetchInitialData = useCallback(async () => {
       setIsLoading(true);
@@ -432,7 +458,7 @@ function EditPageContent() {
             baseProductName: product.name,
             productName: product.name,
             productType: product.productType,
-            tags: product.tags.join(','),
+            tags: product.tags,
             language: product.language,
             groupedProductIds: product.groupedProductIds,
         };
@@ -470,7 +496,7 @@ function EditPageContent() {
         const token = await user.getIdToken();
         const payload = {
             productName: product.name, productType: product.productType,
-            tags: product.tags.join(','),
+            tags: product.tags,
             language: product.language,
             mode: 'image_meta_only',
         };
@@ -505,6 +531,13 @@ function EditPageContent() {
 
   return (
     <>
+        <ImageCropperDialog
+            open={!!imageToCrop}
+            onOpenChange={(open) => !open && setImageToCrop(null)}
+            imageToCrop={imageToCrop}
+            onSave={handleCroppedImageSave}
+            isSaving={isSaving}
+        />
       <div className="container mx-auto py-8 space-y-6">
           <Card>
               <CardHeader>
@@ -664,7 +697,7 @@ function EditPageContent() {
                   <ProductPreviewCard product={product} categories={wooCategories} />
                   <Card>
                       <CardHeader><CardTitle>Imágenes</CardTitle></CardHeader>
-                      <CardContent><ImageUploader photos={product.photos} onPhotosChange={handlePhotosChange} isProcessing={isSaving}/></CardContent>
+                      <CardContent><ImageUploader photos={product.photos} onPhotosChange={handlePhotosChange} isProcessing={isSaving} onCropImage={setImageToCrop}/></CardContent>
                   </Card>
                   <Card>
                       <CardHeader><CardTitle>Organización</CardTitle></CardHeader>

@@ -43,7 +43,6 @@ export function ImageCropperDialog({
   const [originalFilename, setOriginalFilename] = useState<string>('cropped-image.png');
   const [isAspectRatioLocked, setIsAspectRatioLocked] = useState(true);
   const [isOriginalLoading, setIsOriginalLoading] = useState(false);
-  const [initialLoad, setInitialLoad] = useState(true); // To check if we need to auto-load
 
   const cropperRef = useRef<any>(null);
   const { toast } = useToast();
@@ -57,6 +56,54 @@ export function ImageCropperDialog({
     // Fallback to a default aspect ratio if dimensions are not available
     return 1;
   })();
+
+  // Effect to manage state when dialog opens/closes or image prop changes
+  useEffect(() => {
+    if (open && imageToCrop) {
+        // If an image object with a previewUrl is passed, it means we are in "edit" mode (e.g., from wizard or edit page).
+        // Load it directly into the cropper.
+        if (('previewUrl' in imageToCrop && imageToCrop.previewUrl)) {
+            const photo = imageToCrop as ProductPhoto;
+            setSourceImage(photo.previewUrl);
+            setOriginalFilename(photo.name);
+        } else {
+             // We are in "replace" mode (legacy or other flows), so show the options.
+             setSourceImage(null);
+        }
+        setIsAspectRatioLocked(true);
+    } else {
+      setSourceImage(null);
+      setOriginalFilename('cropped-image.png');
+      setIsAspectRatioLocked(true);
+    }
+  }, [open, imageToCrop]);
+
+
+  // Update Cropper when aspect ratio lock changes
+  useEffect(() => {
+    if (cropperRef.current?.cropper && sourceImage) {
+      const cropper = cropperRef.current.cropper;
+      cropper.setAspectRatio(isAspectRatioLocked ? cropperAspectRatio : NaN);
+    }
+  }, [isAspectRatioLocked, cropperAspectRatio, sourceImage]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (!file.type.startsWith('image/')) {
+        toast({ title: 'Archivo no válido', description: 'Por favor, selecciona un archivo de imagen.', variant: 'destructive' });
+        return;
+      }
+      setOriginalFilename(file.name);
+      const reader = new FileReader();
+      reader.onload = () => {
+        setSourceImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleLoadOriginal = async () => {
     if (!imageToCrop?.src && !('previewUrl' in imageToCrop && imageToCrop.previewUrl)) {
@@ -89,57 +136,6 @@ export function ImageCropperDialog({
         setSourceImage(null);
     } finally {
         setIsOriginalLoading(false);
-    }
-  };
-
-  // Effect to manage state when dialog opens/closes or image prop changes
-  useEffect(() => {
-    if (open && imageToCrop) {
-        // If an image object is passed, it means we are in "edit" mode (e.g., from wizard).
-        // Load it directly into the cropper.
-        if (('file' in imageToCrop && imageToCrop.file) || ('previewUrl' in imageToCrop && imageToCrop.previewUrl)) {
-            const photo = imageToCrop as ProductPhoto;
-            setSourceImage(photo.previewUrl);
-            setOriginalFilename(photo.name);
-            setInitialLoad(false);
-        } else {
-             // We are in "replace" mode, so show the options.
-             setInitialLoad(true);
-             setSourceImage(null);
-        }
-        setIsAspectRatioLocked(true);
-    } else {
-      setSourceImage(null);
-      setOriginalFilename('cropped-image.png');
-      setIsAspectRatioLocked(true);
-      setInitialLoad(true);
-    }
-  }, [open, imageToCrop]);
-
-
-  // Update Cropper when aspect ratio lock changes
-  useEffect(() => {
-    if (cropperRef.current?.cropper && sourceImage) {
-      const cropper = cropperRef.current.cropper;
-      cropper.setAspectRatio(isAspectRatioLocked ? cropperAspectRatio : NaN);
-    }
-  }, [isAspectRatioLocked, cropperAspectRatio, sourceImage]);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      const file = files[0];
-      if (!file.type.startsWith('image/')) {
-        toast({ title: 'Archivo no válido', description: 'Por favor, selecciona un archivo de imagen.', variant: 'destructive' });
-        return;
-      }
-      setOriginalFilename(file.name);
-      const reader = new FileReader();
-      reader.onload = () => {
-        setSourceImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
     }
   };
 
@@ -262,7 +258,7 @@ export function ImageCropperDialog({
                   autoCropArea={0.8}
                   cropBoxMovable={true}
                   cropBoxResizable={true}
-                  key={sourceImage + isAspectRatioLocked}
+                  key={sourceImage} // Force re-render when image changes
                 />
               ) : (
                 <div className="text-center text-muted-foreground p-4">
