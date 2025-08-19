@@ -1,22 +1,21 @@
-
 // src/app/(app)/blog-creator/step-3-confirm.tsx
 import React, { useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { BlogPostData, StepConfirmProps } from "@/lib/types"; 
+import type { StepConfirmProps } from "@/lib/types"; 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ListChecks, Rocket } from "lucide-react";
 
 
-export function Step3Confirm({ data, onValidationComplete }: StepConfirmProps) {
-  const postData = data as BlogPostData;
-  const photosToUploadCount = postData.featuredImage?.file ? 1 : 0;
-  const categoryName = postData.category?.name || postData.categoryPath || 'No especificada';
+export function Step3Confirm({ postData, onValidationComplete }: StepConfirmProps) {
+  const data = postData!;
+  const photosToUploadCount = data.featuredImage?.file ? 1 : 0;
+  const categoryName = data.category?.name || data.categoryPath || 'No especificada';
 
    // Perform validation here and call the callback
   useEffect(() => {
-    const isValid = !!postData.title && !!postData.content; 
+    const isValid = !!data.title && !!data.content; 
     onValidationComplete(isValid);
-  }, [postData.title, postData.content, onValidationComplete]);
+  }, [data.title, data.content, onValidationComplete]);
 
 
   return (
@@ -40,14 +39,14 @@ export function Step3Confirm({ data, onValidationComplete }: StepConfirmProps) {
                 </li>
             )}
             <li>
-              <span className="font-semibold">Creación de Entrada Principal:</span> Se creará la entrada en {postData.sourceLanguage}.
+              <span className="font-semibold">Creación de Entrada Principal:</span> Se creará la entrada en {data.sourceLanguage}.
             </li>
-            {postData.targetLanguages.length > 0 && (
+            {data.targetLanguages.length > 0 && (
                  <li>
-                    <span className="font-semibold">Creación de Traducciones:</span> Se traducirá y creará una entrada para cada idioma seleccionado ({postData.targetLanguages.join(', ')}).
+                    <span className="font-semibold">Creación de Traducciones:</span> Se traducirá y creará una entrada para cada idioma seleccionado ({data.targetLanguages.join(', ')}).
                 </li>
             )}
-             {postData.targetLanguages.length > 0 && (
+             {data.targetLanguages.length > 0 && (
                  <li>
                     <span className="font-semibold">Enlazado Automático:</span> Todas las traducciones se enlazarán entre sí.
                 </li>
@@ -64,12 +63,12 @@ export function Step3Confirm({ data, onValidationComplete }: StepConfirmProps) {
           </div>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-            <p><span className="font-semibold">Título:</span> {postData.title || "N/A"}</p>
-            <p><span className="font-semibold">Autor:</span> {postData.author?.name || "N/A"}</p>
+            <p><span className="font-semibold">Título:</span> {data.title || "N/A"}</p>
+            <p><span className="font-semibold">Autor:</span> {data.author?.name || "N/A"}</p>
             <p><span className="font-semibold">Categoría:</span> {categoryName}</p>
             <p><span className="font-semibold">Imágenes a subir:</span> {photosToUploadCount}</p>
-            <p><span className="font-semibold">Etiquetas:</span> {postData.tags.join(', ') || "Ninguna"}</p>
-            <p><span className="font-semibold">Traducciones:</span> {postData.targetLanguages.length > 0 ? postData.targetLanguages.join(', ') : "Ninguna"}</p>
+            <p><span className="font-semibold">Etiquetas:</span> {data.tags.join(', ') || "Ninguna"}</p>
+            <p><span className="font-semibold">Traducciones:</span> {data.targetLanguages.length > 0 ? data.targetLanguages.join(', ') : "Ninguna"}</p>
         </CardContent>
       </Card>
     </div>

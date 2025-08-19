@@ -1,4 +1,3 @@
-
 // src/app/(app)/wizard/product-wizard.tsx
 
 "use client";
@@ -31,7 +30,7 @@ export function ProductWizard() {
   const { toast } = useToast();
 
   const isProcessing = submissionStatus === 'processing';
-  const [isStepValid, setIsStepValid] = useState(true);
+  const [isStepValid, setIsStepValid] = useState(false);
 
   const [imageToCrop, setImageToCrop] = useState<ProductPhoto | null>(null);
 
@@ -180,7 +179,7 @@ export function ProductWizard() {
       case 2:
         return <Step2Preview productData={productData} />;
       case 3:
-        return <Step3Confirm data={productData} onValidationComplete={setIsStepValid} />;
+        return <Step3Confirm productData={productData} onValidationComplete={setIsStepValid} />;
       case 4:
         return <Step4Processing status={submissionStatus} steps={steps} />;
       default:
