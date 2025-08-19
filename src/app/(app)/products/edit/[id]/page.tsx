@@ -1,4 +1,3 @@
-
 // src/app/(app)/products/edit/[id]/page.tsx
 "use client";
 
@@ -44,7 +43,7 @@ function EditPageContent() {
   const [imageUrl, setImageUrl] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [isSuggestingLinks, setIsSuggestingLinks] = useState(false);
+  const [isSuggestingLinks, setIsSuggestingLinks] = useState<LinkSuggestion[]>([]);
   const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>([]);
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -69,6 +68,9 @@ function EditPageContent() {
   
   const handleCroppedImageSave = (croppedImageFile: File) => {
     if (!imageToCrop) return;
+
+    // Check if the image being cropped was an existing one (its ID is a number)
+    const isExistingImage = typeof imageToCrop.id === 'number';
     
     updateProductData(prev => {
         if (!prev) return prev;
@@ -76,9 +78,12 @@ function EditPageContent() {
             if (p.id === imageToCrop.id) {
                 return {
                     ...p,
-                    file: croppedImageFile,
+                    file: croppedImageFile, // The new cropped file
                     name: croppedImageFile.name,
-                    previewUrl: URL.createObjectURL(croppedImageFile),
+                    previewUrl: URL.createObjectURL(croppedImageFile), // The new preview
+                    // If it was an existing image, replace its ID with a special key
+                    // to signal to the backend that this is a replacement.
+                    id: isExistingImage ? `replace_${imageToCrop.id}` : p.id,
                 };
             }
             return p;
@@ -403,7 +408,9 @@ function EditPageContent() {
     } catch(e: any) {
         toast({ title: "Error al sugerir enlaces", description: e.message, variant: "destructive" });
         setLinkSuggestions([]);
-    } finally { setIsSuggestingLinks(false); }
+    } finally {
+        setIsSuggestingLinks(false);
+    }
   };
 
   const applyLink = (content: string, suggestion: LinkSuggestion): string => {
@@ -682,11 +689,11 @@ function EditPageContent() {
                             <div className="border-t pt-6 space-y-6">
                                 <div>
                                     <Label htmlFor="shortDescription">Descripción Corta</Label>
-                                    <RichTextEditor content={product.shortDescription} onChange={handleShortDescriptionChange} onInsertImage={() => setIsImageDialogOpen(true)} onSuggestLinks={handleSuggestLinks} placeholder="Un resumen atractivo y conciso de tu producto..." size="small"/>
+                                    <RichTextEditor content={product.shortDescription} onChange={handleShortDescriptionChange} onInsertImage={() => setIsImageDialogOpen(true)} onSuggestLinks={isSuggestingLinks ? undefined : handleSuggestLinks} placeholder="Un resumen atractivo y conciso de tu producto..." size="small"/>
                                 </div>
                                 <div>
                                     <Label htmlFor="longDescription">Descripción Larga</Label>
-                                    <RichTextEditor content={product.longDescription} onChange={handleLongDescriptionChange} onInsertImage={() => setIsImageDialogOpen(true)} onSuggestLinks={handleSuggestLinks} placeholder="Describe tu producto en detalle: características, materiales, usos, etc."/>
+                                    <RichTextEditor content={product.longDescription} onChange={handleLongDescriptionChange} onInsertImage={() => setIsImageDialogOpen(true)} onSuggestLinks={isSuggestingLinks ? undefined : handleSuggestLinks} placeholder="Describe tu producto en detalle: características, materiales, usos, etc."/>
                                 </div>
                             </div>
                         </CardContent>

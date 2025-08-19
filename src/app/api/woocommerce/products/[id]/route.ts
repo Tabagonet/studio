@@ -88,7 +88,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         productData.variations = variationsData;
     }
     
-    // Transform attributes options array into a pipe-separated string for the UI
     if (productData.attributes && Array.isArray(productData.attributes)) {
       productData.attributes = productData.attributes.map((attr: any) => ({
         ...attr,
@@ -152,7 +151,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const attributes = Array.isArray(validatedData.attributes) ? validatedData.attributes : [];
         const sortedImages = [...(validatedData.images || [])].sort((a,b) => (a.isPrimary ? -1 : b.isPrimary ? 1 : 0));
         
-        // Handle Tags
         const tagNames = Array.isArray(tags) ? tags.filter(t => t && t.trim()) : [];
         wooPayload.tags = tagNames.map(name => ({ name }));
         
@@ -165,7 +163,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             options: (attr.value || '').split('|').map(o => o.trim()).filter(Boolean).map(String),
         }));
         
-        // Handle Categories and Suppliers separately
         let productCategoryIds: { id: number }[] = [];
         if (categoryPath) {
              const newCatId = await findOrCreateWpCategoryByPath(categoryPath, wpApi, 'product_cat');
@@ -173,13 +170,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         } else if (validatedData.category_id !== undefined && validatedData.category_id !== null) {
               productCategoryIds.push({id: validatedData.category_id});
         }
+        wooPayload.categories = productCategoryIds;
         
         const finalSupplierName = newSupplier || supplier;
         if (finalSupplierName) {
             await findOrCreateWpCategoryByPath(`Proveedores > ${finalSupplierName}`, wpApi, 'product_cat');
             console.log(`[API EDIT][AUDIT] Ensured supplier category for "${finalSupplierName}" exists.`);
         }
-        wooPayload.categories = productCategoryIds;
         
         const uploadedPhotosMap = new Map<string, number>();
         const newPhotoFiles = Array.from(formData.entries())
@@ -201,14 +198,23 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const finalImagePayload = sortedImages
             .filter(p => !p.toDelete)
             .map(img => {
-                if (typeof img.id === 'string' && uploadedPhotosMap.has(img.id)) {
-                    return { id: uploadedPhotosMap.get(img.id) };
+                const imgIdStr = String(img.id);
+                // Case 1: A new or replacement file has been uploaded for this image slot.
+                if (uploadedPhotosMap.has(imgIdStr)) {
+                    return { id: uploadedPhotosMap.get(imgIdStr) };
                 }
+                // Case 2: It's an existing WP media ID.
                 if (typeof img.id === 'number') {
                     return { id: img.id };
                 }
+                // Case 3: It's a client-side ID for a new file that wasn't modified (shouldn't happen if file exists but safety check)
+                if (typeof img.id === 'string' && !imgIdStr.startsWith('replace_')) {
+                    // This could be a new, unmodified photo from the uploader.
+                    // This case is implicitly handled by uploadedPhotosMap. If it's not in the map, it means no file was sent.
+                }
                 return null;
-            }).filter(Boolean);
+            }).filter((p): p is { id: number } => p !== null && p.id !== undefined);
+
 
         wooPayload.images = finalImagePayload;
         console.log("[API EDIT][AUDIT] Final image payload for WooCommerce:", finalImagePayload);
