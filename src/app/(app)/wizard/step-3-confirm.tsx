@@ -1,3 +1,4 @@
+
 // src/app/(app)/wizard/step-3-confirm.tsx
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,12 +16,13 @@ export function Step3Confirm({ productData, onValidationComplete }: Step3Confirm
   const validAttributesCount = productData.attributes.filter(a => a.name && a.name.trim() !== '').length;
   const categoryName = productData.category?.name || productData.categoryPath || 'No especificada';
 
-  // Perform validation here and call the callback
+   // Perform validation here and call the callback
   React.useEffect(() => {
-    const isValid = !!productData.name; // Simple check, expand as needed
+    const isValid = !!productData.name; 
     onValidationComplete(isValid);
   }, [productData.name, onValidationComplete]);
-  
+
+
   return (
     <div className="space-y-8">
        <Card>
