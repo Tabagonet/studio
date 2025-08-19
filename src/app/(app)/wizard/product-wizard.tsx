@@ -1,3 +1,4 @@
+
 // src/app/(app)/wizard/product-wizard.tsx
 
 "use client";
@@ -82,10 +83,15 @@ export function ProductWizard() {
         updateStepStatus('create_product', 'processing', 'Preparando datos para enviar...', undefined, 10);
         
         const formData = new FormData();
-        formData.append('productData', JSON.stringify(productData));
-        productData.photos.forEach(photo => {
+        // Ensure we don't send photos marked for deletion
+        const finalProductData = {
+          ...productData,
+          photos: productData.photos.filter(p => !p.toDelete)
+        };
+        formData.append('productData', JSON.stringify(finalProductData));
+
+        finalProductData.photos.forEach(photo => {
             if (photo.file) {
-                // Use the unique client-side ID as the key for the file
                 formData.append(photo.id.toString(), photo.file);
             }
         });
@@ -199,7 +205,7 @@ export function ProductWizard() {
         onOpenChange={(open) => !open && setImageToCrop(null)}
         imageToCrop={imageToCrop}
         onSave={handleCroppedImageSave}
-        isSaving={false} // This dialog doesn't save to the server, just updates local state
+        isSaving={false}
       />
       
       {currentStep < 4 && !isProcessing && (

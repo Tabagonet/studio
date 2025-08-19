@@ -1,3 +1,4 @@
+
 // src/app/(app)/wizard/step-1-details-photos.tsx
 "use client";
 
@@ -242,7 +243,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             baseProductName: productData.name,
             productName: productData.name,
             productType: productData.productType,
-            tags: productData.tags, // Pass as an array
+            tags: productData.tags,
             language: productData.language,
             groupedProductIds: productData.groupedProductIds,
         };
@@ -298,7 +299,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const token = await user.getIdToken();
         const payload = {
             productName: productData.name, productType: productData.productType,
-            tags: productData.tags, // Pass as an array
+            tags: productData.tags,
             language: productData.language, mode: 'image_meta_only',
         };
         const response = await fetch('/api/generate-description', {
