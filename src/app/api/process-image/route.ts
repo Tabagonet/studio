@@ -1,4 +1,3 @@
-
 // src/app/api/process-image/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
@@ -40,8 +39,9 @@ export async function POST(req: NextRequest) {
         
         const contentType = imageResponse.headers['content-type'] || 'image/webp';
         
-        // Use NextResponse directly with the Buffer
-        return new NextResponse(processedBuffer, {
+        // Use the standard Web API Response object, which Next.js supports
+        // and correctly handles Node.js Buffers.
+        return new Response(processedBuffer, {
             status: 200,
             headers: { 'Content-Type': contentType }
         });
