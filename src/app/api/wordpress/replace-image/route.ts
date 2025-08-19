@@ -15,9 +15,8 @@ const slugify = (text: string) => {
 export async function POST(req: NextRequest) {
     console.log('[API replace-image] Petición POST recibida.');
     let uid: string;
-    let authToken: string | undefined;
     try {
-        authToken = req.headers.get('Authorization')?.split('Bearer ')[1];
+        const authToken = req.headers.get('Authorization')?.split('Bearer ')[1];
         if (!authToken) throw new Error('Auth token missing');
         if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
         uid = (await adminAuth.verifyIdToken(authToken)).uid;
@@ -39,15 +38,9 @@ export async function POST(req: NextRequest) {
         const postId = Number(formData.get('postId'));
         const postType = formData.get('postType') as 'Post' | 'Page' | 'Producto';
         const oldImageUrl = formData.get('oldImageUrl') as string | null;
-        const width = formData.has('width') ? Number(formData.get('width')) : null;
-        const height = formData.has('height') ? Number(formData.get('height')) : null;
         const mediaIdToDelete = formData.get('mediaIdToDelete') ? Number(formData.get('mediaIdToDelete')) : null;
-        const cropPosition = formData.get('cropPosition') as "center" | "top" | "bottom" | "left" | "right" || "center";
-        
-        const isCropEnabled = (width !== null && width > 0) || (height !== null && height > 0);
 
-
-        console.log(`[API replace-image] Datos recibidos: postId=${postId}, postType=${postType}, oldImageUrl=${oldImageUrl}, newImageFile=${newImageFile?.name}, cropEnabled=${isCropEnabled}, dimensions=${width}x${height}, mediaIdToDelete=${mediaIdToDelete}, cropPosition=${cropPosition}`);
+        console.log(`[API replace-image] Datos recibidos: postId=${postId}, postType=${postType}, oldImageUrl=${oldImageUrl}, newImageFile=${newImageFile?.name}, mediaIdToDelete=${mediaIdToDelete}`);
 
 
         if (!newImageFile || !postId || !postType || !oldImageUrl) {
@@ -72,7 +65,8 @@ export async function POST(req: NextRequest) {
         let imageContext = '';
         if (isElementor) {
             const elementorData = JSON.parse(post.meta._elementor_data);
-            imageContext = findElementorImageContext(elementorData, oldImageUrl);
+            const contextData = findElementorImageContext(elementorData).find(img => img.url === oldImageUrl);
+            imageContext = contextData?.context || '';
              if (imageContext) {
                 console.log('[API replace-image] Contexto específico de widget encontrado:', imageContext);
             }
@@ -109,9 +103,6 @@ Generate the metadata now. The "seoFilename" should be a URL-friendly slug witho
                 description: '',
             },
             wpApi,
-            isCropEnabled ? width : null,
-            isCropEnabled ? height : null,
-            isCropEnabled ? cropPosition : undefined,
         );
         
         const newMediaData = await wpApi.get(`/media/${newImageId}`);
