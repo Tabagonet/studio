@@ -1,3 +1,4 @@
+
 // src/app/api/wordpress/content-list/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
@@ -35,13 +36,17 @@ function transformToContentItem(item: any, type: ContentItem['type'], isFrontPag
 
 // Unified function to fetch any content type
 async function fetchContent(
-  api: AxiosInstance,
+  api: any, // Changed to 'any' to accept both AxiosInstance and WooCommerceRestApiType
   endpoint: string,
   type: ContentItem['type'],
   allFrontPageIds: Set<number>,
   page: number,
   perPage: number,
 ): Promise<{ items: ContentItem[], totalPages: number }> {
+  // Add a guard clause for safety
+  if (!api) {
+    return { items: [], totalPages: 0 };
+  }
   try {
     const response = await api.get(endpoint, {
       params: {
