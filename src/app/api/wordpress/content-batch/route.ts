@@ -77,7 +77,7 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
   // 3. Merge and de-duplicate results with improved logic
   const finalImageMap = new Map<string, any>();
 
-  // Prioritize Elementor images for metadata accuracy (context, widgetType, mediaId)
+  // Prioritize Elementor images for metadata accuracy
   elementorImages.forEach(img => {
     finalImageMap.set(img.url, {
       id: img.url,
@@ -91,11 +91,10 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
     });
   });
 
-  // Enrich with scraped data only if metadata is missing
+  // Enrich with scraped data, filling in any missing gaps
   scrapedImages.forEach(img => {
     if (finalImageMap.has(img.src)) {
       const existingImg = finalImageMap.get(img.src);
-      // Only update if the existing data is nullish
       existingImg.alt = existingImg.alt ?? img.alt;
       existingImg.mediaId = existingImg.mediaId ?? img.mediaId;
       existingImg.width = existingImg.width ?? img.width;
@@ -113,8 +112,8 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
       });
     }
   });
-  
-  // 4. Final enrichment pass using WordPress API for definitive data if mediaId exists
+
+  // 4. Enrich images with WordPress media API data for missing dimensions
   const enrichedImages = await Promise.all(
     Array.from(finalImageMap.values()).map(img => enrichImageWithMediaData(img, wpApi))
   );
@@ -122,10 +121,9 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
   return {
     id: post.id,
     title: post.name || post.title.rendered,
-    images: enrichedImages,
+    images: enrichedImages
   };
 }
-
 
 export async function GET(req: NextRequest) {
     let uid: string;

@@ -116,150 +116,22 @@ export async function getPartnerCredentials(): Promise<PartnerAppConnectionData>
     return partnerAppData.data;
 }
 
-
-function extractWidgetsRecursive(elements: any[], widgets: ExtractedWidget[]): void {
-    if (!elements || !Array.isArray(elements)) return;
-
-    for (const element of elements) {
-        if (element.elType === 'widget') {
-             if (element.widgetType === 'heading' && element.settings?.title) {
-                widgets.push({
-                    id: element.id,
-                    tag: element.settings.header_size || 'h2',
-                    text: element.settings.title,
-                    type: 'heading',
-                });
-            } else if (element.widgetType === 'text-editor' && element.settings?.editor) {
-                 widgets.push({
-                    id: element.id,
-                    text: element.settings.editor,
-                    type: 'text-editor',
-                    tag: 'p',
-                });
-            }
-        }
-        
-        if (element.elements && element.elements.length > 0) {
-            extractWidgetsRecursive(element.elements, widgets);
-        }
-    }
-}
-
-export function extractElementorWidgets(elementorDataString: string): ExtractedWidget[] {
-    try {
-        const widgets: ExtractedWidget[] = [];
-        if (!elementorDataString) return widgets;
-        const elementorData = JSON.parse(elementorDataString);
-        extractWidgetsRecursive(elementorData, widgets);
-        return widgets;
-    } catch (e) {
-        console.error("Failed to parse or extract Elementor widgets", e);
-        return [];
-    }
-}
-
-
 /**
- * Recursively traverses Elementor's data structure to collect all user-visible text content.
- * @param data The 'elements' array or any nested object/array from Elementor's data.
- * @param texts The array to push found texts into.
- */
-function collectElementorTextsRecursive(data: any, texts: string[]): void {
-    if (!data) return;
-
-    if (Array.isArray(data)) {
-        data.forEach(item => collectElementorTextsRecursive(item, texts));
-        return;
-    }
-
-    if (typeof data === 'object') {
-        // Handle flip-box content
-        if(data.widgetType === 'flip-box' && data.settings) {
-            if(data.settings.title_text_a) texts.push(data.settings.title_text_a);
-            if(data.settings.description_text_a) texts.push(data.settings.description_text_a);
-            if(data.settings.title_text_b) texts.push(data.settings.title_text_b);
-            if(data.settings.description_text_b) texts.push(data.settings.description_text_b);
-            if(data.settings.button_text) texts.push(data.settings.button_text);
-        }
-
-        const keysToTranslate = [
-            'title', 'editor', 'text', 'button_text', 'header_title', 'header_subtitle',
-            'description', 'cta_text', 'label', 'placeholder', 'heading', 'sub_heading',
-            'alert_title', 'alert_description', 'title_text', 'description_text',
-            'title_text_a', 'description_text_a', 'title_text_b', 'description_text_b'
-        ];
-
-        for (const key in data) {
-            if (Object.prototype.hasOwnProperty.call(data, key)) {
-                const value = data[key];
-
-                if (keysToTranslate.includes(key) && typeof value === 'string' && value.trim() !== '') {
-                    texts.push(value);
-                } else if (typeof value === 'object' && value !== null) {
-                    collectElementorTextsRecursive(value, texts);
-                }
-            }
-        }
-    }
-}
-
-export function collectElementorTexts(elements: any[]): string[] {
-    const texts: string[] = [];
-    collectElementorTextsRecursive(elements, texts);
-    return texts;
-}
-
-/**
- * Recursively traverses a deep copy of Elementor's data structure and replaces text content
- * based on a map of widget IDs to their new text.
- * @param data A deep copy of the original 'elements' array or nested object/array.
- * @param widgetUpdates A map where keys are widget IDs and values are the new text content.
- * @returns The Elementor data structure with translated text.
- */
-export function replaceElementorTexts(data: any, widgetUpdates: Map<string, string>): any {
-    if (!data) return data;
-
-    function traverse(elements: any[]): any[] {
-        return elements.map(element => {
-            if (!element || typeof element !== 'object') return element;
-
-            const newElement = { ...element };
-
-            // If this element is a widget we need to update, replace its text
-            if (newElement.elType === 'widget' && widgetUpdates.has(newElement.id)) {
-                const newText = widgetUpdates.get(newElement.id);
-                if (newElement.widgetType === 'heading' && newElement.settings) {
-                    newElement.settings = { ...newElement.settings, title: newText };
-                } else if (newElement.widgetType === 'text-editor' && newElement.settings) {
-                    newElement.settings = { ...newElement.settings, editor: newText };
-                }
-            }
-
-            // Recurse into nested elements
-            if (newElement.elements && Array.isArray(newElement.elements)) {
-                newElement.elements = traverse(newElement.elements);
-            }
-
-            return newElement;
-        });
-    }
-
-    return traverse(data);
-}
-
-/**
- * Enriches an image object by fetching its full metadata from the WordPress media API if a mediaId is available.
- * @param image The image object to enrich.
+ * Enriches image metadata by fetching from WordPress media API if mediaId is available and dimensions are missing.
+ * @param image The image object with url, id, alt, width, height, etc.
  * @param wpApi An initialized Axios instance for the WordPress API.
  * @returns A promise that resolves to the enriched image object.
  */
 export async function enrichImageWithMediaData(image: any, wpApi: AxiosInstance) {
-  if (!image.mediaId || (image.alt !== null && image.width !== null && image.height !== null)) {
-      return image;
+  // If we already have dimensions, there's no need to fetch.
+  // The alt text is best handled by the scraper as it reflects the live site.
+  if (!image.mediaId || (image.width && image.height)) {
+    return image;
   }
 
   try {
-    const { data } = await wpApi.get(`/media/${image.mediaId}`);
+    const { data } = await wpApi.get(`/media/${image.mediaId}`, { params: { context: 'view', _fields: 'alt_text,media_details' }});
+    // Only update if the current values are nullish. This prevents overwriting valid data.
     return {
       ...image,
       alt: image.alt ?? data.alt_text ?? null,
@@ -272,7 +144,11 @@ export async function enrichImageWithMediaData(image: any, wpApi: AxiosInstance)
   }
 }
 
-
+/**
+ * Recursively finds image URLs, IDs, and context in Elementor JSON data.
+ * @param elementorData The Elementor data (elements array, section, column, etc.).
+ * @returns An array of objects, each containing image details.
+ */
 export function findElementorImageContext(elementorData: any[]): {
   url: string;
   id: number | null;
@@ -296,7 +172,8 @@ export function findElementorImageContext(elementorData: any[]): {
   const imageKeys = [
     'image', 'background_image', 'background_a_image', 'background_b_image',
     'featured_image', 'image_box_image', 'icon_box_image', 'media',
-    'logo_image', 'image_overlay', 'background_overlay_image'
+    'logo_image', 'image_overlay', 'background_overlay_image', 'gallery',
+    'image_carousel', 'slides'
   ];
 
   function traverse(items: any[]) {
@@ -311,7 +188,7 @@ export function findElementorImageContext(elementorData: any[]): {
         if (imgObj?.url) {
           const width = widgetSettings.image_size?.width || widgetSettings.image_custom_dimension?.width || imgObj.width || null;
           const height = widgetSettings.image_size?.height || widgetSettings.image_custom_dimension?.height || imgObj.height || null;
-          const alt = imgObj.alt || widgetSettings.alt || null; // Extraer alt del objeto de imagen o widget
+          const alt = imgObj.alt || widgetSettings.alt || null; // Extract alt from image object or widget settings
           images.push({
             url: imgObj.url,
             id: imgObj.id || null,
@@ -344,23 +221,15 @@ export function findElementorImageContext(elementorData: any[]): {
 
       for (const key of imageKeys) {
         if (settings[key]) {
-          processImageObject(settings[key], contextText, widgetType, settings);
-        }
-      }
-
-      // Specific logic for array-based widgets like sliders or galleries
-      const arrayWidgets: { key: string, context: string }[] = [
-        { key: 'slides', context: 'Slide' },
-        { key: 'gallery', context: 'Galería' },
-        { key: 'image_carousel', context: 'Carrusel' },
-      ];
-
-      for (const widget of arrayWidgets) {
-        if (Array.isArray(settings[widget.key])) {
-          settings[widget.key].forEach((slide: any) => {
-            const slideContext = slide.heading || slide.title || `${widget.context} en ${widgetType}`;
-            processImageObject(slide.image || slide.background_image || slide, slideContext, widgetType, slide);
-          });
+            // Handle array-based widgets like galleries or carousels
+            if (Array.isArray(settings[key])) {
+                settings[key].forEach((subItem: any) => {
+                     const subContext = subItem.title || subItem.caption || `${key} en ${widgetType}`;
+                     processImageObject(subItem, subContext, widgetType, subItem);
+                });
+            } else {
+                 processImageObject(settings[key], contextText, widgetType, settings);
+            }
         }
       }
 
