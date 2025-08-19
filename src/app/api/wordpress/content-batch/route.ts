@@ -78,10 +78,10 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
         finalImageMap.set(img.url, {
             id: img.url,
             src: img.url,
-            alt: '', // Will be enriched by scraper
+            alt: '', // Initialize alt text
             mediaId: img.id,
-            width: img.width,
-            height: img.height,
+            width: img.width, // Width from widget settings
+            height: img.height, // Height from widget settings
             context: img.context,
             widgetType: img.widgetType,
         });
@@ -90,10 +90,11 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
     // Now, iterate through scraped images to enrich the map or add new images.
     scrapedImages.forEach(img => {
       if (finalImageMap.has(img.src)) {
-        // If image exists, enrich it with scraped data (which is more reliable for alt/dims)
+        // If image exists from Elementor data, enrich it with scraped data
         const existingImg = finalImageMap.get(img.src);
         existingImg.alt = img.alt || existingImg.alt;
         existingImg.mediaId = existingImg.mediaId || img.mediaId;
+        // Prioritize final rendered dimensions from scraping
         existingImg.width = img.width || existingImg.width;
         existingImg.height = img.height || existingImg.height;
       } else {
@@ -105,11 +106,12 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
             mediaId: img.mediaId,
             width: img.width,
             height: img.height,
-            context: 'Contenido HTML',
+            context: 'Contenido HTML', // Generic context for scraped images
             widgetType: 'image',
         });
       }
     });
+
 
     return {
         id: post.id,

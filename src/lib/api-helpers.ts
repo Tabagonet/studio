@@ -247,9 +247,9 @@ export function replaceElementorTexts(data: any, widgetUpdates: Map<string, stri
     return traverse(data);
 }
 
-
 /**
  * Recursively finds image URLs, IDs, and context in Elementor JSON data.
+ * This is a more robust version that handles various widget types and dynamic content.
  * @param elementorData The Elementor data (elements array, section, column, etc.).
  * @returns An array of objects, each containing image details.
  */
@@ -258,10 +258,9 @@ export function findElementorImageContext(elementorData: any[]): { url: string; 
     if (!elementorData || !Array.isArray(elementorData)) return images;
 
     const imageKeys = [
-        'image', 'background_image', 'background_a_image', 'background_b_image', 
-        'featured_image', 'image_box_image', 'icon_box_image',
-        'media', 'logo_image', 'parallax_image', 'attachment', 'video_image', 'image_overlay',
-        'before_image', 'after_image', 'thumbnail', 'background_overlay_image'
+        'image', 'background_image', 'background_a_image', 'background_b_image',
+        'featured_image', 'image_box_image', 'icon_box_image', 'media', 
+        'logo_image', 'image_overlay', 'background_overlay_image'
     ];
 
     function traverse(items: any[]) {
@@ -304,14 +303,18 @@ export function findElementorImageContext(elementorData: any[]): { url: string; 
             }
             
             // Specific logic for array-based widgets like sliders or galleries
-            if ((widgetType === 'slides' || widgetType === 'slides-extended') && Array.isArray(settings?.slides)) {
-                settings.slides.forEach((slide: any) => processImageObject(slide.background_image, slide.heading || `Slide en ${widgetType}`, widgetType, slide));
-            }
-            if ((widgetType === 'media-carousel' || widgetType === 'image-carousel') && Array.isArray(settings?.slides)) {
-                 settings.slides.forEach((slide: any) => processImageObject(slide.image, `Carrusel en ${widgetType}`, widgetType, slide));
-            }
-            if (widgetType === 'gallery' && Array.isArray(settings?.gallery)) {
-                settings.gallery.forEach((galleryImage: any) => processImageObject(galleryImage, `Galería de imágenes`, widgetType, settings));
+            const arrayWidgets: { key: string, context: string }[] = [
+                { key: 'slides', context: 'Slide' },
+                { key: 'gallery', context: 'Galería' },
+            ];
+
+            for (const widget of arrayWidgets) {
+                if (Array.isArray(settings[widget.key])) {
+                    settings[widget.key].forEach((slide: any) => {
+                        const slideContext = slide.heading || slide.title || `${widget.context} en ${widgetType}`;
+                        processImageObject(slide.image || slide.background_image || slide, slideContext, widgetType, slide);
+                    });
+                }
             }
 
             if (item.elements && Array.isArray(item.elements) && item.elements.length > 0) {
