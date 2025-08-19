@@ -90,7 +90,8 @@ export async function GET(req: NextRequest) {
     const pages: ContentItem[] = allPages.map((page: any) => transformPageToContentItem(page, allFrontPageIds));
     
     return NextResponse.json({ 
-        pages: pages
+        pages: pages,
+        totalItems: allPages.length,
     });
 
   } catch (error: any) {

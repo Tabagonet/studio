@@ -28,15 +28,16 @@ import {
 } from "@/components/ui/table";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getColumns } from "./columns"; 
+import { Badge } from "@/components/ui/badge";
+import { SearchCheck, ChevronRight, FileText, Languages, X, Eye, EyeOff, Trash2, Link2, Sparkles, ImageIcon } from "lucide-react";
 import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
-import { Loader2, ChevronDown, Trash2, Sparkles, Edit, Image as ImageIcon, Languages, Link2, X, Eye, EyeOff } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-
+import { Loader2 } from 'lucide-react';
 
 interface PageDataTableProps {
   data: ContentItem[];
@@ -45,14 +46,26 @@ interface PageDataTableProps {
   onDataChange: (token: string, force: boolean) => void;
 }
 
-const LANGUAGE_MAP: { [key: string]: string } = {
-    es: 'Español',
-    en: 'Inglés',
-    fr: 'Francés',
-    de: 'Alemán',
-    pt: 'Portugués',
+const getStatusText = (status: ContentItem['status']) => {
+    const statusMap: { [key: string]: string } = {
+        publish: 'Publicado',
+        draft: 'Borrador',
+        pending: 'Pendiente',
+        private: 'Privado',
+        future: 'Programado',
+    };
+    return statusMap[status] || status;
 };
 
+const ScoreBadge = ({ score }: { score: number | undefined }) => {
+    if (score === undefined) return null;
+    
+    const scoreColor = score >= 80 ? 'bg-green-500' : score >= 50 ? 'bg-amber-500' : 'bg-destructive';
+
+    return (
+        <Badge className={cn("text-white", scoreColor)}>{score}</Badge>
+    );
+};
 
 export function PageDataTable({
   data,
@@ -73,6 +86,14 @@ export function PageDataTable({
   });
 
   const { toast } = useToast();
+  
+  const LANGUAGE_MAP: { [key: string]: string } = {
+    es: 'Español',
+    en: 'Inglés',
+    fr: 'Francés',
+    de: 'Alemán',
+    pt: 'Portugués',
+  };
 
   const tableData = React.useMemo((): HierarchicalContentItem[] => {
     if (!data) return [];
@@ -102,8 +123,10 @@ export function PageDataTable({
                   groupItems.forEach(groupItem => processedIds.add(groupItem.id));
                 }
             }
-        } else {
-            mainItem = itemsById.get(item.id);
+        }
+        
+        if (!mainItem) {
+          mainItem = itemsById.get(item.id);
         }
         
         if (mainItem && !processedIds.has(mainItem.id)) {
@@ -114,13 +137,13 @@ export function PageDataTable({
 
     return roots.sort((a,b) => a.title.localeCompare(b.title));
   }, [data, scores]);
-
+  
   const handleEditContent = (item: ContentItem) => {
     router.push(`/pages/edit/${item.id}?type=${item.type}`);
   };
   
   const handleEditImages = (item: ContentItem) => {
-    router.push(`/pages/edit-images?ids=${item.id}&type=Page`);
+    router.push(`/pages/edit-images?ids=${item.id}&type=${item.type}`);
   };
 
   const handleDeleteContent = async (item: ContentItem) => {
@@ -154,7 +177,6 @@ export function PageDataTable({
       rowSelection,
       pagination,
     },
-    pageCount: Math.ceil(tableData.length / pagination.pageSize),
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
     onExpandedChange: setExpanded,
@@ -166,7 +188,6 @@ export function PageDataTable({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    manualPagination: false, // Switch to client-side pagination
   });
   
   const handleBatchStatusUpdate = async (status: 'publish' | 'draft') => {
@@ -513,8 +534,7 @@ export function PageDataTable({
       
        <div className="flex items-center justify-between space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
-          {table.getFilteredSelectedRowModel().rows.length} de{" "}
-          {table.getFilteredRowModel().rows.length} fila(s) seleccionadas.
+           Total de páginas en el sitio: {data.length}. Mostrando {table.getRowModel().rows.length} en la vista actual.
         </div>
         <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
