@@ -72,37 +72,47 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
     // 3. Merge and de-duplicate results with improved logic
     const finalImageMap = new Map<string, any>();
     
-    // First, process images found in Elementor JSON, establishing a base record
+    // First, process images found via scraping, as they contain the final rendered dimensions and alt text.
+    scrapedImages.forEach(img => {
+        finalImageMap.set(img.src, {
+            id: img.id,
+            src: img.src,
+            alt: img.alt,
+            mediaId: img.mediaId,
+            width: img.width,
+            height: img.height,
+            context: 'Contenido HTML',
+            widgetType: 'image',
+        });
+    });
+
+    // Now, iterate through Elementor images to enrich the map with context and potentially missing media IDs.
     elementorImages.forEach(img => {
-      if (img.url) {
+      if (finalImageMap.has(img.url)) {
+        // If image exists, enrich it with Elementor-specific data
+        const existingImg = finalImageMap.get(img.url);
+        existingImg.context = img.context || existingImg.context;
+        existingImg.widgetType = img.widgetType || existingImg.widgetType;
+        // Keep the mediaId from Elementor if the scraped one is null
+        existingImg.mediaId = existingImg.mediaId || img.id;
+        // Prioritize Elementor-defined dimensions if scraped ones are null
+        existingImg.width = existingImg.width || img.width;
+        existingImg.height = existingImg.height || img.height;
+      } else {
+        // If it's a new image found only in Elementor JSON, add it
         finalImageMap.set(img.url, {
             id: img.url,
             src: img.url,
-            alt: '', // Default alt
-            mediaId: img.id || null,
-            width: img.width || null,
-            height: img.height || null,
+            alt: '', // Alt text not available in Elementor JSON
+            mediaId: img.id,
+            width: img.width,
+            height: img.height,
             context: img.context,
             widgetType: img.widgetType,
         });
       }
     });
 
-    // Now, iterate through scraped images and update/add entries
-    scrapedImages.forEach(img => {
-      if (finalImageMap.has(img.src)) {
-        // If image exists, enrich it with scraped data (alt, width, height are more reliable from HTML)
-        const existingImg = finalImageMap.get(img.src);
-        existingImg.alt = img.alt || existingImg.alt;
-        existingImg.width = img.width || existingImg.width;
-        existingImg.height = img.height || existingImg.height;
-        // Keep the mediaId from Elementor if the scraped one is null
-        existingImg.mediaId = existingImg.mediaId || img.mediaId;
-      } else {
-        // If it's a new image found only via scraping, add it
-        finalImageMap.set(img.src, img);
-      }
-    });
 
     return {
         id: post.id,
